@@ -1,6 +1,6 @@
 //@revisions: homestead byzantium
-//@[homestead] compile-flags: -Zcodegen -O none --evm-version homestead -Zdump=mir
-//@[byzantium] compile-flags: -Zcodegen -O none --evm-version byzantium -Zdump=mir
+//@[homestead] compile-flags: -O none --evm-version homestead -Zdump=mir
+//@[byzantium] compile-flags: -O none --evm-version byzantium -Zdump=mir
 //@[byzantium] filecheck:
 
 contract Caller {

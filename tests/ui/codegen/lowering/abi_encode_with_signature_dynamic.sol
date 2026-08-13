@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: test/utils/mocks/MockReentrancyGuard.sol
 
 // `abi.encodeWithSignature` with a signature that is not a string literal.

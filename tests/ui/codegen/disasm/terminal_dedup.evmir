@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
+//@ compile-flags: -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
 //@ filecheck: --implicit-check-not=JUMPDEST
 
 @module terminal_dedup

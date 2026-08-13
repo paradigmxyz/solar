@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --libraries Inner=0x1000000000000000000000000000000000000001,Outer=0x1000000000000000000000000000000000000002 -Zdump=evm-ir-runtime
+//@compile-flags: --libraries Inner=0x1000000000000000000000000000000000000001,Outer=0x1000000000000000000000000000000000000002 -Zdump=evm-ir-runtime
 //@ filecheck:
 
 // A linked library may itself call another linked library, forwarding a

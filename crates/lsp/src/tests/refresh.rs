@@ -10,6 +10,7 @@ struct RefreshHarness {
     client: ClientSocket,
     server: ServerSocket,
     events: mpsc::UnboundedReceiver<RefreshEvent>,
+    published: mpsc::UnboundedReceiver<PublishDiagnosticsParams>,
     server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
     client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
 }
@@ -37,6 +38,24 @@ impl RefreshHarness {
         }
     }
 
+    async fn next_published(&mut self) -> PublishDiagnosticsParams {
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.published.recv())
+            .await
+            .expect("published diagnostics should arrive")
+            .expect("published diagnostic channel should stay open")
+    }
+
+    async fn expect_no_published(&mut self) {
+        match tokio::time::timeout(Duration::from_millis(100), self.published.recv()).await {
+            Err(_) => {}
+            Ok(Some(params)) => panic!("unexpected published diagnostics: {params:?}"),
+            Ok(None) => {
+                let result = (&mut self.client_task).await;
+                panic!("published diagnostic channel closed after client loop exited: {result:?}");
+            }
+        }
+    }
+
     async fn expect_pull_result_refreshes(&mut self) {
         let first = self.next_event().await;
         let second = self.next_event().await;
@@ -59,6 +78,7 @@ fn refresh_harness() -> RefreshHarness {
         router
     });
     let (events_tx, events) = mpsc::unbounded_channel();
+    let (published_tx, published) = mpsc::unbounded_channel();
     let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
         let mut router = Router::new(events_tx);
         router.request::<request::WorkspaceDiagnosticRefresh, _>(|events, ()| {
@@ -69,7 +89,10 @@ fn refresh_harness() -> RefreshHarness {
             events.send(RefreshEvent::InlayHints).unwrap();
             async { Ok(()) }
         });
-        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
+        router.notification::<notification::PublishDiagnostics>(move |_, params| {
+            published_tx.send(params).unwrap();
+            ControlFlow::Continue(())
+        });
         router
     });
 
@@ -81,14 +104,24 @@ fn refresh_harness() -> RefreshHarness {
     let client_task =
         tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
 
-    RefreshHarness { client, server, events, server_task, client_task }
+    RefreshHarness { client, server, events, published, server_task, client_task }
 }
 
 fn pull_refresh_config(diagnostics: bool, inlay_hints: bool) -> Config {
+    diagnostic_refresh_config(diagnostics, diagnostics, inlay_hints)
+}
+
+fn diagnostic_refresh_config(
+    document_diagnostics: bool,
+    diagnostic_refresh: bool,
+    inlay_hints: bool,
+) -> Config {
     let mut params = InitializeParams::default();
+    params.capabilities.text_document.get_or_insert_default().diagnostic =
+        document_diagnostics.then(DiagnosticClientCapabilities::default);
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
         diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-            refresh_support: Some(diagnostics),
+            refresh_support: Some(diagnostic_refresh),
         }),
         inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
             refresh_support: Some(inlay_hints),
@@ -116,6 +149,35 @@ fn changed_pull_result() -> AnalysisResult {
     );
     result.diagnostics.insert(uri, vec![diagnostic("changed")]);
     result
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn diagnostic_updates_use_only_the_negotiated_delivery() {
+    for (document_diagnostics, expected_pull) in [(false, false), (true, true)] {
+        let mut harness = refresh_harness();
+        let mut state = GlobalState::new(harness.client.clone());
+        state.config = Arc::new(diagnostic_refresh_config(document_diagnostics, true, false));
+        assert_eq!(state.config.uses_pull_diagnostics(), expected_pull);
+        let (version, _progress) = state
+            .begin_analysis(
+                AnalysisMode::Recompute,
+                Vec::new(),
+                Vec::new(),
+                AnalysisTrigger::External,
+            )
+            .unwrap();
+
+        assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
+
+        if expected_pull {
+            assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
+            harness.expect_no_published().await;
+        } else {
+            assert!(!harness.next_published().await.diagnostics.is_empty());
+            harness.expect_no_event().await;
+        }
+        harness.shutdown().await;
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -526,6 +588,8 @@ async fn failed_save_flycheck_refreshes_cleared_diagnostics() {
     let path = project.path("/src/Test.sol");
     let uri = Url::from_file_path(&path).unwrap();
     let mut params = project.initialize_params();
+    params.capabilities.text_document.get_or_insert_default().diagnostic =
+        Some(DiagnosticClientCapabilities::default());
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
         diagnostic: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
         ..Default::default()
@@ -576,6 +640,8 @@ async fn invalidated_save_refreshes_removed_flycheck_diagnostics() {
     let path = project.path("/src/Test.sol");
     let uri = Url::from_file_path(&path).unwrap();
     let mut params = project.initialize_params();
+    params.capabilities.text_document.get_or_insert_default().diagnostic =
+        Some(DiagnosticClientCapabilities::default());
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
         diagnostic: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
         ..Default::default()

@@ -10,6 +10,7 @@ use lsp_types::{
     TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url, WorkDoneProgressParams,
     WorkspaceFolder,
 };
+use serde_json::Value;
 use std::{
     fs,
     future::Future,
@@ -19,6 +20,7 @@ use std::{
     task::{Context, Waker},
 };
 use tempfile::TempDir;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub(crate) fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
     let Err(error) = result else { panic!("expected request cancellation") };
@@ -33,6 +35,41 @@ pub(crate) fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
     let mut cx = Context::from_waker(Waker::noop());
     assert!(future.as_mut().poll(&mut cx).is_pending());
     future
+}
+
+pub(crate) async fn write_lsp_frame(writer: &mut (impl AsyncWrite + Unpin), message: Value) {
+    let body = serde_json::to_vec(&message).unwrap();
+    writer.write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes()).await.unwrap();
+    writer.write_all(&body).await.unwrap();
+    writer.flush().await.unwrap();
+}
+
+pub(crate) async fn read_lsp_frame(reader: &mut (impl AsyncBufRead + Unpin)) -> Value {
+    let mut line = String::new();
+    let mut content_length = None;
+    loop {
+        line.clear();
+        assert_ne!(reader.read_line(&mut line).await.unwrap(), 0, "unexpected end of LSP stream");
+        if line == "\r\n" {
+            break;
+        }
+
+        let (name, value) = line
+            .strip_suffix("\r\n")
+            .and_then(|line| line.split_once(": "))
+            .unwrap_or_else(|| panic!("invalid LSP header: {line:?}"));
+        if name.eq_ignore_ascii_case("Content-Length") {
+            content_length = Some(
+                value
+                    .parse::<usize>()
+                    .unwrap_or_else(|_| panic!("invalid LSP content length: {value}")),
+            );
+        }
+    }
+
+    let mut body = vec![0; content_length.expect("LSP frame should have a content length")];
+    reader.read_exact(&mut body).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
 }
 
 #[cfg(unix)]

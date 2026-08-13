@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=ADS
 
 // `abi.decode` into structs, struct arrays, and mixed tuples routes through

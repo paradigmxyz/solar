@@ -1,7 +1,7 @@
 //@revisions: homestead byzantium
-//@[homestead] compile-flags: -Zcodegen -O none --evm-version homestead -Zdump=mir
+//@[homestead] compile-flags: -O none --evm-version homestead -Zdump=mir
 //@[homestead] filecheck: --check-prefix=HOMESTEAD
-//@[byzantium] compile-flags: -Zcodegen -O none --evm-version byzantium -Zdump=mir
+//@[byzantium] compile-flags: -O none --evm-version byzantium -Zdump=mir
 //@[byzantium] filecheck: --check-prefix=BYZANTIUM
 
 interface Target {

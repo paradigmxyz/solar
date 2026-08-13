@@ -579,6 +579,16 @@ impl SymbolTables {
         self.document_links.links(path)
     }
 
+    pub(crate) fn import_definition(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<GotoDefinitionResponse> {
+        let path = uri.to_file_path().ok()?;
+        let location = self.document_links.definition_at(&path, position)?;
+        Some(GotoDefinitionResponse::Array(vec![location]))
+    }
+
     pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
         self.rename.source_paths_under(roots)
     }

@@ -1,13 +1,13 @@
 //@ revisions: none gas pipeline substitute evm-substitute
-//@[none] compile-flags: -Zcodegen -O none -Zdump=mir
+//@[none] compile-flags: -O none -Zdump=mir
 //@[none] filecheck: --check-prefix=NONE
-//@[gas] compile-flags: -Zcodegen -O gas -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
 //@[gas] filecheck: --check-prefix=GAS
 //@[pipeline] compile-flags: -Zmir-pipeline=none
 //@[pipeline] filecheck: --check-prefix=PIPELINE
-//@[substitute] compile-flags: -Zcodegen -O gas -Zdump=mir -Zmir-pipeline=none
+//@[substitute] compile-flags: -O gas -Zdump=mir -Zmir-pipeline=none
 //@[substitute] filecheck: --check-prefix=SUBSTITUTE
-//@[evm-substitute] compile-flags: -Zcodegen -Zdump=evm-ir-runtime -Zevm-ir-pipeline=none
+//@[evm-substitute] compile-flags: -Zdump=evm-ir-runtime -Zevm-ir-pipeline=none
 //@[evm-substitute] filecheck: --check-prefix=EVM-SUBSTITUTE
 
 // NONE: @module DumpPhase

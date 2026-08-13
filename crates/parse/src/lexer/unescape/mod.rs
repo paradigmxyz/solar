@@ -263,18 +263,19 @@ where
     let mut tail = chars.as_str();
     start += 1;
 
-    while tail.starts_with(|c: char| c.is_ascii_whitespace()) {
+    loop {
         let first_non_space =
             tail.bytes().position(|b| !matches!(b, b' ' | b'\t')).unwrap_or(tail.len());
         tail = &tail[first_non_space..];
         start += first_non_space;
 
-        if let Some(tail2) = tail.strip_prefix('\n').or_else(|| tail.strip_prefix("\r\n")) {
-            let skipped = tail.len() - tail2.len();
-            tail = tail2;
-            callback(start..start + skipped, Err(EscapeError::CannotSkipMultipleLines));
-            start += skipped;
-        }
+        let Some(tail2) = tail.strip_prefix('\n').or_else(|| tail.strip_prefix("\r\n")) else {
+            break;
+        };
+        let skipped = tail.len() - tail2.len();
+        tail = tail2;
+        callback(start..start + skipped, Err(EscapeError::CannotSkipMultipleLines));
+        start += skipped;
     }
     *chars = tail.chars();
 }
@@ -455,6 +456,22 @@ mod tests {
         check_parse(StrKind::Unicode, r"\u00e8", "è".as_bytes());
         check_parse(StrKind::Str, r"\xE8\u00e8", b"\xE8\xc3\xa8");
         check_parse(StrKind::Unicode, r"\xE8\u00e8", b"\xE8\xc3\xa8");
+    }
+
+    #[test]
+    fn line_continuation_before_form_feed() {
+        check(StrKind::Str, "\\\n\x0cafter", "\x0cafter", &[]);
+        check(StrKind::Str, "\\\r\n \t\x0cafter", "\x0cafter", &[]);
+    }
+
+    #[test]
+    fn line_continuation_before_vertical_tab() {
+        check(StrKind::Str, "\\\n\x0bafter", "\x0bafter", &[]);
+    }
+
+    #[test]
+    fn line_continuation_before_bare_carriage_return() {
+        check(StrKind::Str, "\\\n\rafter", "after", &[(2..3, BareCarriageReturn)]);
     }
 
     #[test]

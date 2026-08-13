@@ -6,11 +6,12 @@ use super::SourceFile;
 use crate::{Session, SourceMap};
 use itertools::Itertools;
 use normalize_path::NormalizePath;
-use solar_config::ImportRemapping;
+use solar_config::{CompileOpts, ImportRemapping};
 use solar_data_structures::smallvec::SmallVec;
 use std::{
     borrow::Cow,
     io,
+    ops::ControlFlow,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -26,6 +27,14 @@ pub enum ResolveError {
     NotFound(PathBuf),
     #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|f| f.name.display()).format(", "))]
     MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),
+}
+
+#[derive(Clone, Copy)]
+enum ResolutionCandidateKind {
+    SourceUnit,
+    RelativeFile,
+    DirectFile,
+    SearchFile,
 }
 
 /// Performs file resolution by applying import paths and mappings.
@@ -62,13 +71,18 @@ impl<'a> FileResolver<'a> {
 
     /// Configures the file resolver from a session.
     pub fn configure_from_sess(&mut self, sess: &Session) {
-        self.add_include_paths(sess.opts.include_paths.iter().cloned());
-        self.add_import_remappings(sess.opts.import_remappings.iter().cloned());
+        self.configure_from_opts(&sess.opts);
+    }
+
+    /// Configures the file resolver from compiler options.
+    pub fn configure_from_opts(&mut self, opts: &CompileOpts) {
+        self.add_include_paths(opts.include_paths.iter().cloned());
+        self.add_import_remappings(opts.import_remappings.iter().cloned());
         if let Ok(current_dir) = std::env::current_dir() {
             self.set_current_dir(&current_dir);
         }
         'b: {
-            if let Some(base_path) = &sess.opts.base_path {
+            if let Some(base_path) = &opts.base_path {
                 let base_path = if base_path.is_absolute() {
                     base_path.as_path()
                 } else {
@@ -204,6 +218,97 @@ impl<'a> FileResolver<'a> {
         }
     }
 
+    /// Returns the normalized filesystem paths that may satisfy `path`, in resolution order.
+    ///
+    /// This does not perform I/O or consult the source map. A returned path may remain relative if
+    /// the resolver has no current directory. Use [`Self::resolve_file`] for exact resolution,
+    /// including preloaded source-unit names and ambiguity detection.
+    pub fn candidate_paths(&self, path: &Path, parent: Option<&Path>) -> Vec<PathBuf> {
+        let mut candidates = Vec::with_capacity(1 + self.include_paths.len());
+        let _: ControlFlow<()> = self.visit_resolution_candidates(path, parent, |path, kind| {
+            if !matches!(kind, ResolutionCandidateKind::SourceUnit) {
+                let absolute = self.make_absolute(path);
+                let normalized = self.normalize(&absolute).into_owned();
+                if !candidates.contains(&normalized) {
+                    candidates.push(normalized);
+                }
+            }
+            ControlFlow::Continue(())
+        });
+        candidates
+    }
+
+    fn visit_resolution_candidates<B>(
+        &self,
+        path: &Path,
+        parent: Option<&Path>,
+        mut visit: impl FnMut(&Path, ResolutionCandidateKind) -> ControlFlow<B>,
+    ) -> ControlFlow<B> {
+        let parent = self.import_parent(parent);
+
+        // https://docs.soliditylang.org/en/latest/path-resolution.html
+        // Only when the path starts with ./ or ../ are relative paths considered; this means
+        // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
+        // will only check the path relative to the current file.
+        let is_relative = path.starts_with("./") || path.starts_with("../");
+        if is_relative {
+            let try_path = if let Some(parent_dir) = parent.and_then(Path::parent) {
+                Cow::Owned(parent_dir.join(path))
+            } else {
+                Cow::Borrowed(path)
+            };
+            visit(&try_path, ResolutionCandidateKind::RelativeFile)?;
+            return ControlFlow::Continue(());
+        }
+
+        // `parent.is_none()` only happens when resolving imports from a custom/stdin file, or when
+        // manually resolving a file, like from CLI arguments. In these cases, the file is
+        // considered to be in the current directory.
+        // Technically, this behavior allows the latter, the manual case, to also be resolved using
+        // remappings, which is not the case in solc, but this simplifies the implementation.
+        if parent.is_none() {
+            visit(path, ResolutionCandidateKind::DirectFile)?;
+        }
+
+        let path = &*self.remap_path(path, parent);
+        if path.is_absolute() {
+            visit(path, ResolutionCandidateKind::SearchFile)?;
+            return ControlFlow::Continue(());
+        }
+
+        visit(path, ResolutionCandidateKind::SourceUnit)?;
+
+        // Try the base path and all include paths.
+        let mut searched = false;
+        for search_root in
+            self.try_base_path().into_iter().chain(self.include_paths.iter().map(PathBuf::as_path))
+        {
+            searched = true;
+            let candidate = search_root.join(path);
+            visit(&candidate, ResolutionCandidateKind::SearchFile)?;
+        }
+        if !searched {
+            visit(path, ResolutionCandidateKind::SearchFile)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn import_parent<'b>(&self, parent: Option<&'b Path>) -> Option<&'b Path> {
+        let parent = parent?;
+        if let Some(base_path) = self.try_base_path() {
+            if let Ok(parent) = parent.strip_prefix(base_path) {
+                return Some(parent);
+            }
+            trace!(?parent, ?base_path, "parent is not a subpath of the base path");
+        }
+        Some(parent)
+    }
+
+    /// Applies import remappings after normalizing `parent` relative to the base path.
+    pub fn remap_import_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
+        self.remap_path(path, self.import_parent(parent))
+    }
+
     /// Resolves an import path.
     ///
     /// `parent` is the path of the file that contains the import, if any.
@@ -211,85 +316,47 @@ impl<'a> FileResolver<'a> {
     pub fn resolve_file(
         &self,
         path: &Path,
-        mut parent: Option<&Path>,
+        parent: Option<&Path>,
     ) -> Result<Arc<SourceFile>, ResolveError> {
-        // `parent` comes from `FileName::Real` so it should be an absolute path.
-        // Make it relative to the base path.
-        if let Some(parent) = &mut parent
-            && let Some(base_path) = self.try_base_path()
-        {
-            if let Ok(new_parent) = parent.strip_prefix(base_path) {
-                *parent = new_parent;
-            } else {
-                trace!(?parent, ?base_path, "parent is not a subpath of the base path");
-            }
-        }
-
-        // https://docs.soliditylang.org/en/latest/path-resolution.html
-        // Only when the path starts with ./ or ../ are relative paths considered; this means
-        // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
-        // will only check the path relative to the current file.
-        //
-        // `parent.is_none()` only happens when resolving imports from a custom/stdin file, or when
-        // manually resolving a file, like from CLI arguments. In these cases, the file is
-        // considered to be in the current directory.
-        // Technically, this behavior allows the latter, the manual case, to also be resolved using
-        // remappings, which is not the case in solc, but this simplifies the implementation.
-        let is_relative = path.starts_with("./") || path.starts_with("../");
-        if (is_relative && parent.is_some()) || parent.is_none() {
-            let try_path = if is_relative
-                && let Some(parent) = parent
-                && let Some(parent_dir) = parent.parent()
-            {
-                &parent_dir.join(path)
-            } else {
-                path
-            };
-            if is_relative
-                && let Some(file) = self.source_map().get_file(&*self.normalize(try_path))
-            {
-                return Ok(file);
-            }
-            if let Some(file) = self.try_file(try_path)? {
-                return Ok(file);
-            }
-            // See above.
-            if is_relative {
-                return Err(ResolveError::NotFound(path.into()));
-            }
-        }
-
         let original_path = path;
-        let path = &*self.remap_path(path, parent);
-
         let mut candidates = SmallVec::<[_; 1]>::new();
-        // Quick deduplication when include paths are duplicated.
-        let mut push_candidate = |file: Arc<SourceFile>| {
-            if !candidates.iter().any(|f| Arc::ptr_eq(f, &file)) {
-                candidates.push(file);
-            }
-        };
-
-        if path.is_absolute() {
-            if let Some(file) = self.try_file(path)? {
-                push_candidate(file);
-            }
-        } else if let Some(file) = self.get_source_unit_file(path) {
-            return Ok(file);
-        } else {
-            // Try the base path and all include paths.
-            let base_path = self.try_base_path().into_iter();
-            let mut searched = false;
-            for include_path in base_path.chain(self.include_paths.iter().map(|p| p.as_path())) {
-                searched = true;
-                let path = include_path.join(path);
-                if let Some(file) = self.try_file(&path)? {
-                    push_candidate(file);
+        let result = self.visit_resolution_candidates(path, parent, |path, kind| match kind {
+            ResolutionCandidateKind::SourceUnit => {
+                if let Some(file) = self.get_source_unit_file(path) {
+                    ControlFlow::Break(Ok(file))
+                } else {
+                    ControlFlow::Continue(())
                 }
             }
-            if !searched && let Some(file) = self.try_file(path)? {
-                push_candidate(file);
+            ResolutionCandidateKind::RelativeFile
+            | ResolutionCandidateKind::DirectFile
+            | ResolutionCandidateKind::SearchFile => {
+                if matches!(kind, ResolutionCandidateKind::RelativeFile)
+                    && let Some(file) = self.source_map().get_file(&*self.normalize(path))
+                {
+                    return ControlFlow::Break(Ok(file));
+                }
+                let file = match self.try_file(path) {
+                    Ok(file) => file,
+                    Err(err) => return ControlFlow::Break(Err(err)),
+                };
+                let Some(file) = file else { return ControlFlow::Continue(()) };
+                if matches!(
+                    kind,
+                    ResolutionCandidateKind::RelativeFile | ResolutionCandidateKind::DirectFile
+                ) {
+                    return ControlFlow::Break(Ok(file));
+                }
+
+                // Quick deduplication when include paths are duplicated.
+                if !candidates.iter().any(|candidate| Arc::ptr_eq(candidate, &file)) {
+                    candidates.push(file);
+                }
+                ControlFlow::Continue(())
             }
+        });
+        if let ControlFlow::Break(result) = result {
+            return result;
         }
 
         match candidates.len() {
@@ -380,7 +447,8 @@ pub fn apply_import_remappings<'a>(
     path: &'a Path,
     parent: Option<&Path>,
 ) -> Cow<'a, Path> {
-    let context_path = &*parent.map(|path| path.to_string_lossy()).unwrap_or_default();
+    let context_path = parent.map(Path::to_string_lossy).unwrap_or_default();
+    let context_path = sanitize_path(&context_path);
 
     let mut longest_prefix = 0;
     let mut longest_context = 0;
@@ -420,14 +488,32 @@ pub fn apply_import_remappings<'a>(
     }
 }
 
-fn sanitize_path(s: &str) -> impl std::ops::Deref<Target = str> + '_ {
-    // TODO: Equivalent of: `boost::filesystem::path(_path).generic_string()`
-    s
+fn sanitize_path(s: &str) -> Cow<'_, str> {
+    #[cfg(windows)]
+    {
+        if s.contains('\\') {
+            return Cow::Owned(s.replace('\\', "/"));
+        }
+    }
+    Cow::Borrowed(s)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn remapping_contexts_use_generic_windows_separators() {
+        let remappings = ["src:pkg/=lib/source/".parse().unwrap()];
+        let remapped = apply_import_remappings(
+            &remappings,
+            Path::new("pkg/Target.sol"),
+            Some(Path::new(r"src\nested\Main.sol")),
+        );
+
+        assert_eq!(remapped, Path::new("lib/source/Target.sol"));
+    }
 
     struct TestCase<'a> {
         remappings: &'a [&'a str],
@@ -593,6 +679,29 @@ mod tests {
     }
 
     #[test]
+    fn top_level_path_takes_precedence_over_remapping() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let direct = base_path.join("src/A.sol");
+        let remapped = base_path.join("lib/A.sol");
+        for path in [&direct, &remapped] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_import_remapping("src/=lib/".parse().unwrap());
+
+        let resolved = resolver.resolve_file(Path::new("src/A.sol"), None).unwrap();
+
+        assert_eq!(resolved.name.as_real(), Some(direct.as_path()));
+        assert_eq!(resolver.candidate_paths(Path::new("src/A.sol"), None), vec![direct, remapped]);
+    }
+
+    #[test]
     fn relative_import_from_virtual_source_uses_source_unit_name() {
         let sm = SourceMap::empty();
         sm.set_base_path(Some(PathBuf::new()));
@@ -658,6 +767,75 @@ mod tests {
             file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
 
         assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn candidate_paths_follow_remapping_and_search_order() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source = base_path.join("src/Main.sol");
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_include_path(base_path.join("vendor"));
+        resolver.add_import_remapping("oz=packages/openzeppelin".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(Path::new("oz/contracts/Token.sol"), Some(&source)),
+            vec![
+                base_path.join("packages/openzeppelin/contracts/Token.sol"),
+                base_path.join("vendor/packages/openzeppelin/contracts/Token.sol"),
+            ]
+        );
+    }
+
+    #[test]
+    fn candidate_paths_keep_relative_imports_local() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source = base_path.join("src/nested/Main.sol");
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_include_path(base_path.join("vendor"));
+        resolver.add_import_remapping("src:pkg/=packages/pkg/".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(Path::new("../Shared.sol"), Some(&source)),
+            vec![base_path.join("src/Shared.sol")]
+        );
+    }
+
+    #[test]
+    fn candidate_paths_apply_context_dependent_remappings() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        resolver.add_import_remapping("src:pkg/=lib/source/".parse().unwrap());
+        resolver.add_import_remapping("test:pkg/=lib/test/".parse().unwrap());
+
+        assert_eq!(
+            resolver.candidate_paths(
+                Path::new("pkg/Dependency.sol"),
+                Some(&base_path.join("src/Main.sol")),
+            ),
+            vec![base_path.join("lib/source/Dependency.sol")]
+        );
+        assert_eq!(
+            resolver.candidate_paths(
+                Path::new("pkg/Dependency.sol"),
+                Some(&base_path.join("test/Main.t.sol")),
+            ),
+            vec![base_path.join("lib/test/Dependency.sol")]
+        );
     }
 }
 

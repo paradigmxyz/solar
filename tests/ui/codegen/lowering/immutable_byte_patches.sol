@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -O size -Zdump=evm-ir
+//@ compile-flags: -O size -Zdump=evm-ir
 //@ filecheck:
 
 contract ImmutableBytePatches {

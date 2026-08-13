@@ -1,7 +1,7 @@
 //@ revisions: deploy runtime
-//@[deploy] compile-flags: -Zcodegen -O none -Zdump=disasm-deploy
+//@[deploy] compile-flags: -O none -Zdump=disasm-deploy
 //@[deploy] filecheck: --check-prefix=DEPLOY --implicit-check-not=CALLDATALOAD
-//@[runtime] compile-flags: -Zcodegen -O none -Zdump=disasm-runtime
+//@[runtime] compile-flags: -O none -Zdump=disasm-runtime
 //@[runtime] filecheck: --check-prefix=RUNTIME
 
 contract C {

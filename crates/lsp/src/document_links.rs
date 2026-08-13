@@ -4,6 +4,7 @@ use solar_interface::data_structures::map::FxHashMap;
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fmt::{self, Write},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -108,7 +109,7 @@ impl PlannedImportEdits {
     }
 }
 
-fn import_path_from_bytes(bytes: &[u8]) -> Option<PathBuf> {
+pub(crate) fn import_path_from_bytes(bytes: &[u8]) -> Option<PathBuf> {
     #[cfg(unix)]
     {
         Some(PathBuf::from(OsString::from_vec(bytes.to_vec())))
@@ -149,6 +150,28 @@ fn import_path_bytes(path: &Path) -> Cow<'_, [u8]> {
     {
         Cow::Borrowed(path.as_os_str().as_encoded_bytes())
     }
+}
+
+pub(crate) fn solidity_string_contents(bytes: &[u8], delimiter: u8) -> impl fmt::Display + '_ {
+    debug_assert!(matches!(delimiter, b'\'' | b'"'));
+
+    fmt::from_fn(move |f| {
+        for &byte in bytes {
+            match byte {
+                _ if byte == delimiter => {
+                    f.write_char('\\')?;
+                    f.write_char(char::from(byte))?;
+                }
+                b'\\' => f.write_str("\\\\")?,
+                b'\n' => f.write_str("\\n")?,
+                b'\r' => f.write_str("\\r")?,
+                b'\t' => f.write_str("\\t")?,
+                b' '..=b'~' => f.write_char(char::from(byte))?,
+                _ => write!(f, "\\x{byte:02X}")?,
+            }
+        }
+        Ok(())
+    })
 }
 
 fn components_to_import_path(components: &[Component<'_>]) -> PathBuf {

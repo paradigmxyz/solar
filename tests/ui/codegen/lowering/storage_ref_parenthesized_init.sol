@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: test/foundry/new/helpers/CriteriaResolverHelper.sol
 
 // A parenthesized storage-reference initializer. Parentheses reach HIR as a

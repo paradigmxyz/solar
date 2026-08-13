@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --evm-version paris -Zdump=disasm-runtime
+//@compile-flags: --evm-version paris -Zdump=disasm-runtime
 //@filecheck:
 
 // On pre-Cancun targets there is no MCOPY; memory copy lowers to the identity

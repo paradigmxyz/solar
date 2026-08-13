@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::{read_lsp_frame, write_lsp_frame};
 use async_lsp::LspService;
 use lsp_types::{
     NumberOrString, PreviousResultId, WorkspaceDiagnosticParams,
@@ -7,7 +8,7 @@ use lsp_types::{
     request::{Request, WorkspaceDiagnosticRequest},
 };
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::BufReader;
 use tower::{Layer, Service, ServiceBuilder};
 
 #[derive(Debug)]
@@ -82,36 +83,6 @@ fn workspace_diagnostic_params() -> WorkspaceDiagnosticParams {
     }
 }
 
-async fn write_wire_message(
-    writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
-    value: serde_json::Value,
-) {
-    let body = serde_json::to_vec(&value).unwrap();
-    writer.write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes()).await.unwrap();
-    writer.write_all(&body).await.unwrap();
-    writer.flush().await.unwrap();
-}
-
-async fn read_wire_message(
-    reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
-) -> serde_json::Value {
-    let mut line = String::new();
-    let mut content_length = None;
-    loop {
-        line.clear();
-        reader.read_line(&mut line).await.unwrap();
-        if line == "\r\n" {
-            break;
-        }
-        if let Some(value) = line.strip_prefix("Content-Length: ") {
-            content_length = Some(value.trim().parse::<usize>().unwrap());
-        }
-    }
-    let mut body = vec![0; content_length.expect("wire message content length")];
-    reader.read_exact(&mut body).await.unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_diagnostic_progress_precedes_the_final_response_on_the_wire() {
     let uri = Url::from_file_path(std::env::temp_dir().join("workspace-wire-order.sol")).unwrap();
@@ -137,7 +108,7 @@ async fn workspace_diagnostic_progress_precedes_the_final_response_on_the_wire()
     );
     let (client_reader, mut client_writer) = tokio::io::split(client_stream);
     let mut client_reader = BufReader::new(client_reader);
-    write_wire_message(
+    write_lsp_frame(
         &mut client_writer,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -155,7 +126,7 @@ async fn workspace_diagnostic_progress_precedes_the_final_response_on_the_wire()
     let mut messages = Vec::new();
     for _ in 0..4 {
         messages.push(
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_wire_message(&mut client_reader))
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_lsp_frame(&mut client_reader))
                 .await
                 .expect("workspace diagnostic wire message"),
         );
@@ -171,7 +142,7 @@ async fn workspace_diagnostic_progress_precedes_the_final_response_on_the_wire()
     assert_eq!(messages[3]["id"], 1);
     assert!(messages[3]["result"]["items"].as_array().unwrap().is_empty());
 
-    write_wire_message(
+    write_lsp_frame(
         &mut client_writer,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -200,7 +171,7 @@ async fn cancelling_workspace_diagnostics_sends_end_before_the_error_response_on
     );
     let (client_reader, mut client_writer) = tokio::io::split(client_stream);
     let mut client_reader = BufReader::new(client_reader);
-    write_wire_message(
+    write_lsp_frame(
         &mut client_writer,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -215,11 +186,11 @@ async fn cancelling_workspace_diagnostics_sends_end_before_the_error_response_on
     .await;
 
     let mut messages = vec![
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_wire_message(&mut client_reader))
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_lsp_frame(&mut client_reader))
             .await
             .expect("workspace diagnostic begin progress"),
     ];
-    write_wire_message(
+    write_lsp_frame(
         &mut client_writer,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -230,7 +201,7 @@ async fn cancelling_workspace_diagnostics_sends_end_before_the_error_response_on
     .await;
     for _ in 0..2 {
         messages.push(
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_wire_message(&mut client_reader))
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, read_lsp_frame(&mut client_reader))
                 .await
                 .expect("workspace diagnostic cancellation wire message"),
         );
@@ -246,7 +217,7 @@ async fn cancelling_workspace_diagnostics_sends_end_before_the_error_response_on
     assert_eq!(messages[2]["error"]["code"], ErrorCode::REQUEST_CANCELLED.0);
     assert_eq!(messages[2]["error"]["message"], "Client cancelled the request");
 
-    write_wire_message(
+    write_lsp_frame(
         &mut client_writer,
         serde_json::json!({
             "jsonrpc": "2.0",

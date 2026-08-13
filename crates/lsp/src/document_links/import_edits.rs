@@ -2,11 +2,14 @@ use lsp_types::{TextEdit, Url};
 use normalize_path::NormalizePath;
 use solar_config::ImportRemapping;
 use solar_interface::source_map::apply_import_remappings;
-use std::path::{Component, Path, PathBuf};
+use std::{
+    fmt::Write,
+    path::{Component, Path, PathBuf},
+};
 
 use super::{
     DocumentLinkIndex, ImportEditPlan, ImportPathStyle, StoredDocumentLink,
-    components_to_import_path, import_path_bytes,
+    components_to_import_path, import_path_bytes, solidity_string_contents,
 };
 use crate::file_operations::FileMoveBatch;
 
@@ -61,21 +64,9 @@ impl DocumentLinkIndex {
 }
 
 fn solidity_string_literal(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789ABCDEF";
-
     let mut literal = String::with_capacity(bytes.len() + 2);
     literal.push('"');
-    for &byte in bytes {
-        let is_safe = byte == b' ' || (byte.is_ascii_graphic() && !matches!(byte, b'"' | b'\\'));
-        if is_safe {
-            literal.push(char::from(byte));
-        } else {
-            literal.push('\\');
-            literal.push('x');
-            literal.push(char::from(HEX[(byte >> 4) as usize]));
-            literal.push(char::from(HEX[(byte & 0x0f) as usize]));
-        }
-    }
+    write!(literal, "{}", solidity_string_contents(bytes, b'"')).unwrap();
     literal.push('"');
     literal
 }

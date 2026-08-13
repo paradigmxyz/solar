@@ -405,10 +405,7 @@ def compile_standard_artifact(
         standard_input = _single_source_standard_input(source, evm_version)
     source_name = standard_input["root_source"]
     settings = standard_input["settings"]
-    command = [compiler]
-    if kind == "solar":
-        command.append("-Zcodegen")
-    command.append("--standard-json")
+    command = [compiler, "--standard-json"]
     cwd_context: Any
     if compiler_cwd is None:
         cwd_context = tempfile.TemporaryDirectory(prefix=f"solar-{kind}-compile-")
@@ -723,7 +720,7 @@ def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float)
 
 def compile_solar(solar: str, source: pathlib.Path, contract: str, timeout: float) -> str:
     result = run_process_group(
-        [solar, "-Zcodegen", "--emit=bin-runtime", "--pretty-json", str(source)],
+        [solar, "--emit=bin-runtime", "--pretty-json", str(source)],
         check=True,
         timeout=timeout,
     )

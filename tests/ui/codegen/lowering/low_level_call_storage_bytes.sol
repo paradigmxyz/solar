@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime
 // ported-from: contracts/test/Reenterer.sol
 
 // A storage `bytes` used directly as low-level call data. A call reads its

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 
 contract EventTopicLimit {
     event Named( //~ ERROR: event cannot have more than 3 indexed parameters

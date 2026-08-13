@@ -109,22 +109,7 @@ pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
 ///
 /// [`Range`]: std::ops::Range
 pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Range<usize> {
-    let start_line_byte = if range.start.line > rope.line_len() as u32 {
-        0usize
-    } else {
-        rope.byte_of_line(range.start.line as usize)
-    };
-    let start_line_utf16 = rope.utf16_code_unit_of_byte(start_line_byte);
-    let start = rope.byte_of_utf16_code_unit(start_line_utf16 + range.start.character as usize);
-    let end_line_byte = if range.end.line > rope.line_len() as u32 {
-        0usize
-    } else {
-        rope.byte_of_line(range.end.line as usize)
-    };
-    let end_line_utf16 = rope.utf16_code_unit_of_byte(end_line_byte);
-    let end = rope.byte_of_utf16_code_unit(end_line_utf16 + range.end.character as usize);
-
-    start..end
+    LspPositionIndex::new(rope).text_range(range)
 }
 
 /// Maps between byte offsets and LSP UTF-16 positions for one document.
@@ -167,6 +152,25 @@ impl<'a> LspPositionIndex<'a> {
         let start = self.byte_position(range.start)?;
         let end = self.byte_position(range.end)?;
         (start <= end).then_some(start..end)
+    }
+
+    fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
+        let start = self.byte_position_clamped(range.start);
+        let end = self.byte_position_clamped(range.end);
+        start..end
+    }
+
+    fn byte_position_clamped(&self, position: lsp_types::Position) -> usize {
+        let line = usize::try_from(position.line).unwrap_or(usize::MAX);
+        let start = self.line_starts.get(line).copied().unwrap_or_else(|| {
+            if position.line > self.rope.line_len() as u32 {
+                0
+            } else {
+                self.rope.byte_of_line(line)
+            }
+        });
+        let start_utf16 = self.rope.utf16_code_unit_of_byte(start);
+        self.rope.byte_of_utf16_code_unit(start_utf16 + position.character as usize)
     }
 
     fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
@@ -228,50 +232,12 @@ pub(crate) fn checked_text_range(
     rope: &Rope,
     range: lsp_types::Range,
 ) -> Option<std::ops::Range<usize>> {
-    let start = checked_byte_position(rope, range.start)?;
-    let end = checked_byte_position(rope, range.end)?;
-    (start <= end).then_some(start..end)
-}
-
-fn checked_byte_position(rope: &Rope, position: lsp_types::Position) -> Option<usize> {
-    let line_index = usize::try_from(position.line).ok()?;
-    if line_index >= rope.line_len() {
-        let is_trailing_line = line_index == rope.line_len()
-            && position.character == 0
-            && (rope.byte_len() == 0 || rope.byte(rope.byte_len() - 1) == b'\n');
-        return is_trailing_line.then_some(rope.byte_len());
-    }
-
-    let line_start = rope.byte_of_line(line_index);
-    let line = rope.line(line_index);
-    let target = usize::try_from(position.character).ok()?;
-    let mut utf16 = 0;
-    let mut byte = 0;
-    for ch in line.chars() {
-        if utf16 == target {
-            return Some(line_start + byte);
-        }
-        let next = utf16 + ch.len_utf16();
-        if target < next {
-            return None;
-        }
-        utf16 = next;
-        byte += ch.len_utf8();
-    }
-    Some(line_start + byte)
+    LspPositionIndex::new(rope).checked_text_range(range)
 }
 
 /// Converts a byte offset into an LSP UTF-16 position.
 pub(crate) fn position_at_byte(rope: &Rope, byte: usize) -> Option<lsp_types::Position> {
-    if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
-        return None;
-    }
-    let line = rope.line_of_byte(byte);
-    let line_start = rope.byte_of_line(line);
-    let character = rope.utf16_code_unit_of_byte(byte) - rope.utf16_code_unit_of_byte(line_start);
-    let position =
-        lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?);
-    (checked_byte_position(rope, position) == Some(byte)).then_some(position)
+    LspPositionIndex::new(rope).position_at_byte(byte)
 }
 
 // TODO: track `None`s here as they shouldn't happen?
@@ -397,7 +363,7 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_text_range, position_at_byte};
+    use super::{checked_text_range, position_at_byte, text_range};
     use crop::Rope;
     use lsp_types::{Position, Range, request::Request};
     use solar_interface::{
@@ -604,6 +570,37 @@ mod tests {
             Some(rope.byte_len()..rope.byte_len())
         );
         assert_eq!(index.position_at_byte(rope.byte_len()), Some(position));
+    }
+
+    #[test]
+    fn position_conversions_support_standalone_carriage_returns() {
+        let rope = Rope::from("a😀\rvalue");
+        for (position, byte) in
+            [(Position::new(0, 3), 5), (Position::new(1, 0), 6), (Position::new(1, 5), 11)]
+        {
+            let range = Range::new(position, position);
+            assert_eq!(checked_text_range(&rope, range), Some(byte..byte));
+            assert_eq!(position_at_byte(&rope, byte), Some(position));
+        }
+        assert!(position_at_byte(&rope, 2).is_none());
+    }
+
+    #[test]
+    fn position_conversions_accept_trailing_carriage_return_line() {
+        let rope = Rope::from("value\r");
+        let position = Position::new(1, 0);
+        assert_eq!(
+            checked_text_range(&rope, Range::new(position, position)),
+            Some(rope.byte_len()..rope.byte_len())
+        );
+        assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
+    }
+
+    #[test]
+    fn text_range_uses_standalone_carriage_return_lines() {
+        let rope = Rope::from("first\rsecond");
+        let range = text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 6)));
+        assert_eq!(rope.byte_slice(range).to_string(), "second");
     }
 
     #[test]

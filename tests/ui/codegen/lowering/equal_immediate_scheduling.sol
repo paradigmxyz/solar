@@ -1,9 +1,9 @@
 //@ revisions: none gas size
-//@[none] compile-flags: -Zcodegen -O none -Zdump=evm-ir-runtime
+//@[none] compile-flags: -O none -Zdump=evm-ir-runtime
 //@[none] filecheck: --check-prefix=NONE
-//@[gas] compile-flags: -Zcodegen -O gas -Zdump=evm-ir-runtime
+//@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[gas] filecheck: --check-prefix=GAS
-//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
+//@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefix=SIZE
 
 contract EqualImmediateScheduling {

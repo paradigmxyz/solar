@@ -1,7 +1,7 @@
 //@ revisions: none size
-//@[none] compile-flags: -Zcodegen -O none -Zdump=evm-ir-runtime
+//@[none] compile-flags: -O none -Zdump=evm-ir-runtime
 //@[none] filecheck: --check-prefix=NONE --enable-var-scope
-//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime --pretty-json
+//@[size] compile-flags: -O size -Zdump=evm-ir-runtime --pretty-json
 //@[size] filecheck: --check-prefix=SIZE --enable-var-scope
 
 // Calls to the non-returning helper make their blocks cold. The backend should

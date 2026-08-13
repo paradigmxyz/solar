@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zdump=mir
 //@filecheck: --check-prefix=SDC
 
 // Copying a memory struct with dynamic fields (bytes/string/dynamic arrays)

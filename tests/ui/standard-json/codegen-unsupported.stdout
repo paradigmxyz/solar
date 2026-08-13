@@ -1,6 +1,16 @@
 {
   "errors": [
     {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
       "sourceLocation": {
         "file": "Fallback.sol",
         "start": 9,

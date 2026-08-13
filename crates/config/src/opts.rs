@@ -386,14 +386,6 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub time_passes: bool,
 
-    /// Enable the experimental EVM code generator (MIR lowering and backend).
-    ///
-    /// Off by default: MIR, EVM IR, disassembly, and bytecode output are only
-    /// produced when this is set. Codegen is a work in progress and not yet part
-    /// of the compiler's stable, solc-compatible behavior.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub codegen: bool,
-
     /// Lower all contract functions instead of only reachable ones. This is intended for
     /// benchmarks and compiler debugging.
     #[cfg_attr(feature = "clap", arg(long))]

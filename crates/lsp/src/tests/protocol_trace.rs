@@ -1,12 +1,11 @@
 use crate::{
     global_state::GlobalState,
-    new_router_with_state, new_server_service, request_layer,
-    test_support::{assert_request_cancelled, start_request},
+    new_router_with_state, new_server_service, new_server_service_with_router,
+    test_support::{assert_request_cancelled, read_lsp_frame, start_request, write_lsp_frame},
 };
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ClientSocket, LanguageServer, LspService, ResponseError,
-    client_monitor::ClientProcessMonitorLayer, router::Router, server::LifecycleLayer,
-    tracing::TracingLayer,
+    router::Router,
 };
 use lsp_types::{
     CancelParams, InitializeParams, InitializedParams, LogTraceParams, NumberOrString,
@@ -22,7 +21,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+    io::BufReader,
     sync::{mpsc, oneshot},
 };
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -150,16 +149,10 @@ fn new_protocol_trace_test_service(
     pending: Option<PendingTraceControl>,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 {
-    let state = GlobalState::new(client.clone());
-    let protocol_trace = state.protocol_trace();
-    let router = ProtocolTraceTestRouter { inner: new_router_with_state(state), pending };
-    ServiceBuilder::new()
-        .layer(TracingLayer::default())
-        .layer(LifecycleLayer::default())
-        .layer(crate::protocol_trace::ProtocolTraceLayer::new(protocol_trace))
-        .layer(request_layer(client.clone()))
-        .layer(ClientProcessMonitorLayer::new(client))
-        .service(router)
+    new_server_service_with_router(client, |state| ProtocolTraceTestRouter {
+        inner: new_router_with_state(state),
+        pending,
+    })
 }
 
 impl ProtocolTraceHarness {
@@ -232,41 +225,6 @@ fn protocol_trace_test_harness(pending: Option<PendingTraceControl>) -> Protocol
     protocol_trace_harness_with(move |client| new_protocol_trace_test_service(client, pending))
 }
 
-async fn write_lsp_frame(writer: &mut (impl AsyncWrite + Unpin), message: serde_json::Value) {
-    let body = serde_json::to_vec(&message).unwrap();
-    writer.write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes()).await.unwrap();
-    writer.write_all(&body).await.unwrap();
-    writer.flush().await.unwrap();
-}
-
-async fn read_lsp_frame(reader: &mut BufReader<impl AsyncRead + Unpin>) -> serde_json::Value {
-    tokio::time::timeout(Duration::from_secs(1), async {
-        let mut content_length = None;
-        loop {
-            let mut line = String::new();
-            assert_ne!(
-                reader.read_line(&mut line).await.unwrap(),
-                0,
-                "unexpected end of LSP stream"
-            );
-            if line == "\r\n" {
-                break;
-            }
-            if let Some(value) =
-                line.strip_prefix("Content-Length: ").and_then(|line| line.strip_suffix("\r\n"))
-            {
-                content_length = Some(value.parse::<usize>().unwrap());
-            }
-        }
-
-        let mut body = vec![0; content_length.expect("LSP frame should have a content length")];
-        reader.read_exact(&mut body).await.unwrap();
-        serde_json::from_slice(&body).unwrap()
-    })
-    .await
-    .expect("LSP frame should arrive")
-}
-
 fn assert_server_processing_time(trace: &LogTraceParams) {
     trace
         .verbose
@@ -280,6 +238,8 @@ fn assert_server_processing_time(trace: &LogTraceParams) {
 
 #[tokio::test(flavor = "current_thread")]
 async fn completion_trace_precedes_the_response_on_the_wire() {
+    const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
+
     let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
         let trace = crate::protocol_trace::ProtocolTrace::new(client);
         trace.set_level(TraceValue::Messages);
@@ -306,7 +266,10 @@ async fn completion_trace_precedes_the_response_on_the_wire() {
         }),
     )
     .await;
-    assert_eq!(read_lsp_frame(&mut client_rx).await["id"], 1);
+    let response = tokio::time::timeout(FRAME_TIMEOUT, read_lsp_frame(&mut client_rx))
+        .await
+        .expect("LSP frame should arrive");
+    assert_eq!(response["id"], 1);
 
     write_lsp_frame(
         &mut client_tx,
@@ -318,7 +281,13 @@ async fn completion_trace_precedes_the_response_on_the_wire() {
         }),
     )
     .await;
-    let messages = [read_lsp_frame(&mut client_rx).await, read_lsp_frame(&mut client_rx).await];
+    let first = tokio::time::timeout(FRAME_TIMEOUT, read_lsp_frame(&mut client_rx))
+        .await
+        .expect("LSP frame should arrive");
+    let second = tokio::time::timeout(FRAME_TIMEOUT, read_lsp_frame(&mut client_rx))
+        .await
+        .expect("LSP frame should arrive");
+    let messages = [first, second];
 
     assert_eq!(messages[0]["method"], notif::LogTrace::METHOD);
     assert_eq!(

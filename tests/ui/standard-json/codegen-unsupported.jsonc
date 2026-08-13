@@ -1,4 +1,3 @@
-//@ compile-flags: -Zcodegen
 //@ filecheck:
 // CHECK: "errors": [
 // CHECK: "severity": "error"
