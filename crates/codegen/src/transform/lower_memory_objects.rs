@@ -374,15 +374,19 @@ fn lower_function<P: MemoryLayoutPolicy>(
 fn materialize_mixed_byte_phis(func: &mut Function) {
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
-        let instructions = func.blocks[block].instructions.clone();
-        for inst in instructions {
-            let Some(result) = func.inst_result_value(inst) else { continue };
-            if !matches!(
-                func.value_ty(result),
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-            ) {
-                continue;
-            }
+        let phis: Vec<_> = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                let Some(result) = func.inst_result_value(inst) else { return false };
+                matches!(
+                    func.value_ty(result),
+                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                ) && matches!(func.inst(inst).kind, InstKind::Phi(_))
+            })
+            .collect();
+        for inst in phis {
             let InstKind::Phi(incoming) = func.inst(inst).kind.clone() else { continue };
             if !incoming
                 .iter()
