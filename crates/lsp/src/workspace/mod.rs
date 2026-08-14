@@ -1063,6 +1063,7 @@ mod tests {
         )
         .unwrap();
         let opts = workspace.compile_opts();
+        let target = project.path("/external/lib/pkg/src/").to_string_lossy().replace('\\', "/");
 
         assert_eq!(opts.include_paths, [project.path("/external/lib")]);
         assert_eq!(workspace.import_only_roots(), [project.path("/external/lib")]);
@@ -1072,10 +1073,11 @@ mod tests {
                 .iter()
                 .any(|remapping| remapping.to_string() == "external/=../external/lib/pkg/src/")
         );
-        assert!(opts.import_remappings.iter().any(|remapping| {
-            remapping.prefix == "pkg/"
-                && remapping.path == project.path("/external/lib/pkg/src/").to_string_lossy()
-        }));
+        assert!(
+            opts.import_remappings
+                .iter()
+                .any(|remapping| { remapping.prefix == "pkg/" && remapping.path == target })
+        );
 
         let workspaces = [workspace];
         assert_eq!(
