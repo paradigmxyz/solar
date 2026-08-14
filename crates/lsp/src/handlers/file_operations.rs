@@ -50,8 +50,7 @@ pub(crate) fn will_rename_files(
     };
     let request = relevant.then(|| {
         (
-            state.latest_analysis(),
-            state.config.clone(),
+            state.latest_analysis_with_config(),
             state.vfs.clone(),
             state.config.supports_workspace_edit_document_changes(),
         )
@@ -61,10 +60,10 @@ pub(crate) fn will_rename_files(
             let moves = moves.map_err(|error| {
                 ResponseError::new(ErrorCode::INVALID_PARAMS, error.to_string())
             })?;
-            let Some((latest_analysis, config, vfs, document_changes)) = request else {
+            let Some((latest_analysis, vfs, document_changes)) = request else {
                 return Ok(None);
             };
-            let symbol_tables = latest_analysis.await?;
+            let (symbol_tables, config) = latest_analysis.await?;
             let plan = symbol_tables.read().import_rename_edits(&moves);
             if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
                 return Ok(None);
@@ -363,17 +362,16 @@ pub(crate) fn will_delete_files(
         .collect::<Vec<_>>();
     let request = (!deleted_paths.is_empty()).then(|| {
         (
-            state.latest_analysis(),
-            state.config.clone(),
+            state.latest_analysis_with_config(),
             state.vfs.clone(),
             state.config.supports_workspace_edit_document_changes(),
         )
     });
     async move {
-        let Some((latest_analysis, config, vfs, document_changes)) = request else {
+        let Some((latest_analysis, vfs, document_changes)) = request else {
             return Ok(None);
         };
-        let symbol_tables = latest_analysis.await?;
+        let (symbol_tables, config) = latest_analysis.await?;
         let plan = symbol_tables.read().import_delete_edits(&deleted_paths);
         if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
             return Ok(None);
@@ -391,7 +389,7 @@ fn workspace_source_edits_are_complete(
     plan: &ImportEditPlan,
     config: &crate::config::Config,
 ) -> bool {
-    if config.may_omit_default_excluded_source_files() {
+    if config.may_omit_source_files() {
         return false;
     }
     let is_workspace_source =

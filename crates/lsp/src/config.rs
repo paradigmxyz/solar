@@ -333,10 +333,13 @@ impl Config {
         ImportResolutionContext::for_workspaces(&self.workspaces, path)
     }
 
-    pub(crate) fn is_import_only_path(&self, path: &Path) -> bool {
+    pub(crate) fn is_index_import_only_path(&self, path: &Path) -> bool {
         let path = path.normalize();
         self.workspaces.iter().any(|workspace| {
-            workspace.import_only_roots().iter().any(|root| path.starts_with(root.normalize()))
+            workspace
+                .index_import_only_roots()
+                .iter()
+                .any(|root| path.starts_with(root.normalize()))
         })
     }
 
@@ -395,6 +398,17 @@ impl Config {
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
 
+            for root in workspace.index_import_only_roots() {
+                if !is_approved_index_root(root, base_path, &self.workspace_roots) {
+                    continue;
+                }
+                specs.insert(WatchedFileSpec::with_kind(
+                    root.clone(),
+                    "*",
+                    WatchKind::Create | WatchKind::Delete,
+                ));
+            }
+
             for SourceWatchRoot { path, recursive } in
                 workspace.source_watch_roots().iter().chain(workspace.flycheck_watch_roots())
             {
@@ -447,9 +461,12 @@ impl Config {
             .is_some()
     }
 
-    pub(crate) fn may_omit_default_excluded_source_files(&self) -> bool {
-        self.index_policy.uses_default_excludes()
-            && self.workspaces.iter().any(Workspace::has_whole_root_foundry_source)
+    pub(crate) fn may_omit_source_files(&self) -> bool {
+        self.workspaces.iter().any(|workspace| {
+            !workspace.source_files_complete()
+                || self.index_policy.uses_default_excludes()
+                    && workspace.has_whole_root_foundry_source()
+        })
     }
 
     pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
@@ -499,6 +516,12 @@ impl Config {
         let Some(parent) = path.parent() else { return false };
         let covers = |root: &SourceWatchRoot| !root.recursive && root.path == parent;
         self.watch_roots().any(covers)
+            || self.workspaces.iter().any(|workspace| {
+                workspace
+                    .index_import_only_roots()
+                    .iter()
+                    .any(|root| self.is_approved_watch_root(root) && root == parent)
+            })
     }
 
     pub(crate) fn workspace_config_event_is_relevant(&self, path: &Path) -> bool {
@@ -2003,6 +2026,28 @@ mod tests {
     }
 
     #[test]
+    fn watched_file_specs_cover_approved_import_only_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /repo/foundry.toml
+            [profile.default]
+            libs = ["../shared/lib"]
+
+            //- /shared/lib/pkg/src/Target.sol
+            contract Target {}
+            "#,
+        );
+        let config = project.config_with_roots(&["/repo", "/shared"]);
+        let import_root = project.path("/shared/lib");
+        let expected_kind = WatchKind::Create | WatchKind::Delete;
+
+        assert!(config.watched_file_specs().iter().any(|spec| {
+            spec.base == import_root && spec.pattern == "*" && spec.kind == expected_kind
+        }));
+        assert!(config.shallow_watch_event_is_relevant(&import_root.join("new-pkg")));
+    }
+
+    #[test]
     fn negotiate_capabilities_records_configured_forge_path() {
         let (_, default_config) = negotiate_capabilities(InitializeParams::default());
         assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
@@ -2351,6 +2396,11 @@ mod tests {
             WatchedFileSpec::new(project.path("/repo"), "remappings.txt"),
             WatchedFileSpec::new(project.path("/repo/workspace/nested"), "foundry.toml"),
             WatchedFileSpec::new(project.path("/repo/workspace/nested"), "remappings.txt"),
+            WatchedFileSpec::with_kind(
+                project.path("/repo/workspace/nested/lib"),
+                "*",
+                WatchKind::Create | WatchKind::Delete,
+            ),
         ];
         for root in [explicit_root.clone(), project.path("/repo/workspace/nested")] {
             expected.push(WatchedFileSpec::with_kind(

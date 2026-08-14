@@ -242,6 +242,27 @@ fn clearing_analysis_cache_clears_published_path_index() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn latest_analysis_uses_the_config_published_with_the_analysis() {
+    let project = TestProject::new();
+    let fallback_config = Arc::new(project.config_with_roots(&["/fallback"]));
+    let published_config = Arc::new(project.config_with_roots(&["/published"]));
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = fallback_config;
+    state.analysis_version.store(1, Ordering::Release);
+
+    let latest = state.latest_analysis_with_config();
+    {
+        let mut commit = state.analysis_commit.lock();
+        commit.symbol_tables_version = 1;
+        commit.analysis_config = Some(published_config.clone());
+    }
+    state.published_analysis_version.send_replace(1);
+
+    let (_, config) = latest.await.unwrap();
+    assert!(Arc::ptr_eq(&config, &published_config));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn clearing_analysis_cache_rejects_stale_deferred_event_replay() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.mark_analysis_pending_for_test();

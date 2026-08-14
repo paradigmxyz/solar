@@ -170,22 +170,25 @@ pub(crate) fn did_change_watched_files(
                     }
                     continue;
                 }
-                match state.classify_source_file_event(&path, event.typ) {
-                    SourceFileEventDisposition::Relevant => {}
-                    SourceFileEventDisposition::Deferred
-                    | SourceFileEventDisposition::Irrelevant => continue,
-                    SourceFileEventDisposition::Recover => {
-                        should_rediscover = true;
-                        if event.typ == FileChangeType::DELETED {
-                            removed_paths.push(path.clone());
+                let import_only_topology_changed =
+                    matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
+                        && state.config.is_index_import_only_path(&path);
+                if !import_only_topology_changed {
+                    match state.classify_source_file_event(&path, event.typ) {
+                        SourceFileEventDisposition::Relevant => {}
+                        SourceFileEventDisposition::Deferred
+                        | SourceFileEventDisposition::Irrelevant => continue,
+                        SourceFileEventDisposition::Recover => {
+                            should_rediscover = true;
+                            if event.typ == FileChangeType::DELETED {
+                                removed_paths.push(path.clone());
+                            }
+                            disk_paths.push(path);
+                            continue;
                         }
-                        disk_paths.push(path);
-                        continue;
                     }
                 }
-                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
-                    && state.config.is_import_only_path(&path)
-                {
+                if import_only_topology_changed {
                     should_rediscover = true;
                 }
                 if event.typ == FileChangeType::CREATED {

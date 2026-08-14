@@ -1,5 +1,12 @@
-use super::{GlobalState, state};
-use crate::{test_support::TestProject, vfs::VfsPath};
+use super::{
+    super::{AnalysisOutputAccumulator, analyze_cancellable, snapshot_with_config},
+    GlobalState, state,
+};
+use crate::{
+    config::{Config, negotiate_capabilities},
+    test_support::TestProject,
+    vfs::VfsPath,
+};
 use async_lsp::{ClientSocket, ErrorCode};
 use crop::Rope;
 use lsp_types::{
@@ -10,6 +17,80 @@ use std::{fs, future::Future, sync::Arc};
 
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
+}
+
+fn state_with_config(project: &TestProject, config: Config) -> GlobalState {
+    let mut outputs = AnalysisOutputAccumulator::default();
+    for batch in snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new()) {
+        if !batch.files.is_empty() {
+            outputs.push(
+                analyze_cancellable(batch, &Default::default())
+                    .expect("fresh analysis cancellation cannot be cancelled"),
+            );
+        }
+    }
+    let output = outputs.finish();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    *state.vfs.write() = project.vfs();
+    *state.symbol_tables.write() = output.result.symbol_tables;
+    state.analysis_commit.lock().analysis_paths = output.analysis_paths;
+    state
+}
+
+fn config_with_initialization_options(
+    project: &TestProject,
+    initialization_options: Option<serde_json::Value>,
+) -> Config {
+    let mut params = project.initialize_params();
+    params.initialization_options = initialization_options;
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    config
+}
+
+fn assert_will_file_operations_refuse_pruned_importer(
+    project: &TestProject,
+    config: Config,
+    importer: &str,
+    target: &str,
+) {
+    let importer = project.path(importer);
+    let target = project.path(target);
+    let renamed = target.with_file_name("Renamed.sol");
+
+    let mut delete_state = state_with_config(project, config.clone());
+    assert!(
+        delete_state.symbol_tables.read().document_links(&importer).is_empty(),
+        "pruned importer was unexpectedly analyzed: {}",
+        importer.display()
+    );
+    let delete = block_on(crate::handlers::will_delete_files(
+        &mut delete_state,
+        DeleteFilesParams {
+            files: vec![FileDelete { uri: Url::from_file_path(&target).unwrap().to_string() }],
+        },
+    ))
+    .unwrap();
+    assert!(delete.is_none(), "delete returned a partial edit for {}", importer.display());
+
+    let mut rename_state = state_with_config(project, config);
+    assert!(
+        rename_state.symbol_tables.read().document_links(&importer).is_empty(),
+        "pruned importer was unexpectedly analyzed: {}",
+        importer.display()
+    );
+    let rename = block_on(crate::handlers::will_rename_files(
+        &mut rename_state,
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Url::from_file_path(target).unwrap().to_string(),
+                new_uri: Url::from_file_path(renamed).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+    assert!(rename.is_none(), "rename returned a partial edit for {}", importer.display());
 }
 
 #[test]
@@ -169,6 +250,95 @@ fn will_delete_refuses_closed_excluded_source_importers() {
     .unwrap();
 
     assert!(edit.is_none());
+}
+
+#[test]
+fn will_file_operations_refuse_closed_importers_omitted_by_source_pruning() {
+    let cases = [
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            import "./Target.sol";
+
+            //- /src/.hidden/Importer.sol
+            import "../Target.sol";
+
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+            None,
+            "/src/.hidden/Importer.sol",
+            "/src/Target.sol",
+        ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            import "./Target.sol";
+
+            //- /src/nested/.git
+            gitdir: elsewhere
+
+            //- /src/nested/Importer.sol
+            import "../Target.sol";
+
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+            None,
+            "/src/nested/Importer.sol",
+            "/src/Target.sol",
+        ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            import "./Target.sol";
+
+            //- /src/generated/Importer.sol
+            import "../Target.sol";
+
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+            Some(serde_json::json!({
+                "indexing": { "exclude": ["src/generated/**"] }
+            })),
+            "/src/generated/Importer.sol",
+            "/src/Target.sol",
+        ),
+        (
+            r#"
+            //- /Main.sol
+            import "./Target.sol";
+
+            //- /node_modules/Importer.sol
+            import "../Target.sol";
+
+            //- /Target.sol
+            contract Target {}
+            "#,
+            None,
+            "/node_modules/Importer.sol",
+            "/Target.sol",
+        ),
+    ];
+
+    for (fixture, initialization_options, importer, target) in cases {
+        let project = TestProject::from_fixture(fixture);
+        let config = config_with_initialization_options(&project, initialization_options);
+        assert_will_file_operations_refuse_pruned_importer(&project, config, importer, target);
+    }
 }
 
 #[test]
@@ -417,15 +587,15 @@ fn will_rename_rewrites_independently_moved_importer_and_target() {
     let project = TestProject::from_fixture(
         r#"
         //- /src/Importer.sol
-        import "../lib/Target.sol";
+        import "../deps/Target.sol";
 
-        //- /lib/Target.sol
+        //- /deps/Target.sol
         contract Target {}
         "#,
     );
     let importer = project.path("/src/Importer.sol");
     let moved_importer = project.path("/contracts/nested/Importer.sol");
-    let target = project.path("/lib/Target.sol");
+    let target = project.path("/deps/Target.sol");
     let moved_target = project.path("/vendor/pkg/Target.sol");
     let params = RenameFilesParams {
         files: vec![

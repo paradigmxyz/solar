@@ -26,6 +26,7 @@ use lsp_types::{
     WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
+use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
 use solar_interface::{
     Session,
@@ -244,6 +245,12 @@ struct AnalysisCommitState {
     vfs_content_revision: u64,
     /// Last version that actually replaced the symbol tables.
     symbol_tables_version: usize,
+    /// Config used to produce the currently published symbol tables.
+    ///
+    /// Workspace discovery replaces `GlobalState::config` before scheduling the analysis. Keeping
+    /// the config with the published epoch prevents requests that wait for that analysis from
+    /// validating its results against the previous discovery snapshot.
+    analysis_config: Option<Arc<Config>>,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
 }
@@ -644,15 +651,23 @@ impl GlobalState {
         if !self.config.supports_watched_file_dynamic_registration() {
             return;
         }
-        let update = {
+        let analysis_paths = {
             let commit = self.analysis_commit.lock();
-            let specs = watched_file_specs(&self.config, &commit.analysis_paths);
-            prepare_watched_file_registration_update(
-                &self.config,
-                &self.watched_file_registration,
-                specs,
-            )
+            AnalysisPathIndex {
+                resolved_dependencies: commit.analysis_paths.resolved_dependencies.clone(),
+                existing_unresolved_candidates: commit
+                    .analysis_paths
+                    .existing_unresolved_candidates
+                    .clone(),
+                missing_candidates: FxHashSet::default(),
+            }
         };
+        let specs = watched_file_specs(&self.config, &analysis_paths);
+        let update = prepare_watched_file_registration_update(
+            &self.config,
+            &self.watched_file_registration,
+            specs,
+        );
         spawn_watched_file_registration_update(
             &self.client,
             &self.watched_file_registration,
@@ -793,6 +808,7 @@ impl GlobalState {
                 commit.analysis_paths = AnalysisPathIndex::default();
                 commit.deferred_source_file_events.clear();
                 commit.symbol_tables_version = version;
+                commit.analysis_config = Some(config.clone());
                 commit.natspec_pending_source_changes.clear();
                 commit.natspec_context_change_version = version;
                 published_analysis_version.send_replace(version);
@@ -1180,6 +1196,21 @@ impl GlobalState {
                 ResponseError::new(async_lsp::ErrorCode::REQUEST_FAILED, "analysis was cancelled")
             })?;
             Ok(symbol_tables)
+        }
+    }
+
+    /// Waits for the latest analysis and returns the config snapshot that produced it.
+    pub(crate) fn latest_analysis_with_config(
+        &self,
+    ) -> impl Future<Output = Result<(Arc<RwLock<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
+    {
+        let latest_analysis = self.latest_analysis();
+        let analysis_commit = self.analysis_commit.clone();
+        let fallback_config = self.config.clone();
+        async move {
+            let symbol_tables = latest_analysis.await?;
+            let config = analysis_commit.lock().analysis_config.clone().unwrap_or(fallback_config);
+            Ok((symbol_tables, config))
         }
     }
 
@@ -1643,28 +1674,84 @@ impl AnalysisResultAccumulator {
     }
 }
 
+const MAX_DYNAMIC_WATCHED_FILE_SPECS: usize = 256;
+
+#[derive(Default)]
+struct WatchedSolidityCoverage {
+    recursive_roots: FxHashSet<PathBuf>,
+    shallow_roots: FxHashSet<PathBuf>,
+}
+
+impl WatchedSolidityCoverage {
+    fn new(specs: &[WatchedFileSpec]) -> Self {
+        let mut coverage = Self::default();
+        for spec in specs {
+            let roots = match spec.pattern {
+                "**/*.sol" => &mut coverage.recursive_roots,
+                "*.sol" => &mut coverage.shallow_roots,
+                _ => continue,
+            };
+            roots.insert(spec.base.normalize());
+        }
+        coverage
+    }
+
+    fn covers(&self, path: &Path) -> bool {
+        self.shallow_roots.contains(path)
+            || path.ancestors().any(|ancestor| self.recursive_roots.contains(ancestor))
+    }
+}
+
+fn dependency_watch_roots(config: &Config) -> FxHashSet<PathBuf> {
+    let mut roots =
+        config.workspace_roots().iter().map(|root| root.normalize()).collect::<FxHashSet<_>>();
+    for workspace in config.workspaces() {
+        let opts = workspace.compile_opts();
+        let base_path = opts.base_path.as_deref();
+        if let Some(base_path) = base_path {
+            roots.insert(base_path.normalize());
+        }
+        roots.extend(
+            opts.include_paths
+                .iter()
+                .filter_map(|path| resolve_dependency_watch_root(base_path, path)),
+        );
+        roots.extend(opts.import_remappings.iter().filter_map(|remapping| {
+            resolve_dependency_watch_root(base_path, Path::new(&remapping.path))
+        }));
+    }
+    roots
+}
+
+fn resolve_dependency_watch_root(base_path: Option<&Path>, path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        Some(path.normalize())
+    } else {
+        base_path.map(|base_path| base_path.join(path).normalize())
+    }
+}
+
 fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Vec<WatchedFileSpec> {
     let mut specs = config.watched_file_specs();
+    let coverage = WatchedSolidityCoverage::new(&specs);
+    let approved_roots = dependency_watch_roots(config);
     let mut dependency_parents = analysis_paths
         .resolved_dependencies
         .iter()
         .chain(analysis_paths.existing_unresolved_candidates.iter())
-        .chain(analysis_paths.missing_candidates.iter())
-        .filter_map(|path| {
-            let parent = path.parent()?;
-            Some((parent.components().count(), parent))
+        .filter_map(|path| path.parent().map(Path::normalize))
+        .filter(|parent| {
+            parent.ancestors().any(|ancestor| approved_roots.contains(ancestor))
+                && !coverage.covers(parent)
         })
+        .collect::<FxHashSet<_>>()
+        .into_iter()
         .collect::<Vec<_>>();
-    dependency_parents.sort_unstable();
-    dependency_parents.dedup();
-    for (_, parent) in dependency_parents {
-        if specs.iter().any(|spec| {
-            spec.pattern == "**/*.sol" && parent.starts_with(&spec.base)
-                || spec.pattern == "*.sol" && parent == spec.base
-        }) {
-            continue;
-        }
-        specs.push(WatchedFileSpec::new(parent.to_path_buf(), "*.sol"));
+    dependency_parents.sort_unstable_by(|a, b| {
+        a.components().count().cmp(&b.components().count()).then_with(|| a.cmp(b))
+    });
+    for parent in dependency_parents.into_iter().take(MAX_DYNAMIC_WATCHED_FILE_SPECS) {
+        specs.push(WatchedFileSpec::new(parent, "*.sol"));
     }
     specs.sort_unstable();
     specs.dedup();
@@ -2011,14 +2098,18 @@ impl GlobalStateSnapshot {
     fn publish_analysis_output(&mut self, version: usize, output: AnalysisOutput) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
-        let (old_symbol_tables, refresh_requests, watched_file_registration_update) = {
+        let AnalysisOutput { result, analysis_paths } = output;
+        let analysis_watched_file_specs = self
+            .config
+            .supports_watched_file_dynamic_registration()
+            .then(|| watched_file_specs(&self.config, &analysis_paths));
+        let (old_symbol_tables, refresh_requests) = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
             if !self.is_current(version) {
                 return false;
             }
 
-            let AnalysisOutput { result, analysis_paths } = output;
             // Unknown watcher events are deferred while an analysis is in flight. Recheck them
             // against the path index produced by that analysis before making its results visible.
             let deferred_source_file_events = mem::take(&mut commit.deferred_source_file_events);
@@ -2071,6 +2162,7 @@ impl GlobalStateSnapshot {
             drop(symbol_tables);
             commit.analysis_paths = analysis_paths;
             commit.symbol_tables_version = version;
+            commit.analysis_config = Some(self.config.clone());
             commit.natspec_pending_source_changes.clear();
             let update = self
                 .diagnostics
@@ -2094,18 +2186,15 @@ impl GlobalStateSnapshot {
                 discovery_duration = ?index_metrics.discovery_duration,
                 "published workspace index"
             );
-            let watched_file_registration_update =
-                if self.config.supports_watched_file_dynamic_registration() {
-                    prepare_watched_file_registration_update(
-                        &self.config,
-                        &self.watched_file_registration,
-                        watched_file_specs(&self.config, &commit.analysis_paths),
-                    )
-                } else {
-                    None
-                };
-            (old_symbol_tables, refresh_requests, watched_file_registration_update)
+            (old_symbol_tables, refresh_requests)
         };
+        let watched_file_registration_update = analysis_watched_file_specs.and_then(|specs| {
+            prepare_watched_file_registration_update(
+                &self.config,
+                &self.watched_file_registration,
+                specs,
+            )
+        });
         drop(old_symbol_tables);
         spawn_watched_file_registration_update(
             &self.client,

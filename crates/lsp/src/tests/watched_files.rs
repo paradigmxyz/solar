@@ -79,7 +79,7 @@ fn watched_file_registration_has_recursive_spec_covering(
     })
 }
 #[tokio::test(flavor = "current_thread")]
-async fn watched_file_specs_are_committed_before_the_next_analysis_epoch() {
+async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
     let project = TestProject::new();
     std::fs::create_dir(project.path("/workspace")).unwrap();
     let mut params = project.initialize_params_with_roots(&["/workspace"]);
@@ -103,7 +103,9 @@ async fn watched_file_specs_are_committed_before_the_next_analysis_epoch() {
             symbol_tables: SymbolTables::default(),
         },
         analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([project.path("/outside/Dependency.sol")]),
+            resolved_dependencies: FxHashSet::from_iter([
+                project.path("/workspace/deps/Dependency.sol")
+            ]),
             ..Default::default()
         },
     };
@@ -135,8 +137,8 @@ async fn watched_file_specs_are_committed_before_the_next_analysis_epoch() {
         drop(desired_specs);
         assert!(publisher.join().unwrap());
         assert!(
-            !commit_became_available,
-            "analysis commit unlocked before its watched-file specs were queued"
+            commit_became_available,
+            "watched-file registration preparation held the analysis commit lock"
         );
     });
 }
@@ -638,22 +640,110 @@ fn watched_file_registration_includes_parent_config_and_external_source_specs() 
 }
 
 #[test]
-fn watched_file_specs_add_external_analysis_path_parents_once() {
-    let project = TestProject::new();
-    std::fs::create_dir(project.path("/workspace")).unwrap();
+fn watched_file_specs_add_only_approved_dependency_parents() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "src"
+        libs = ["../include"]
+        remappings = ["@mapped/=../mapped/"]
+
+        //- /workspace/src/Main.sol
+        contract Main {}
+
+        //- /include/pkg/Include.sol
+        contract Include {}
+
+        //- /mapped/pkg/Mapped.sol
+        contract Mapped {}
+        "#,
+    );
+    let (_, mut config) =
+        negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
+    config.apply_workspace_discovery(WorkspaceDiscoveryResult {
+        workspaces: vec![
+            crate::workspace::Workspace::load_foundry_bounded(
+                project.path("/workspace/foundry.toml"),
+                &[project.path("/workspace")],
+            )
+            .unwrap(),
+        ],
+        manifest_watch_roots: Vec::new(),
+        git_marker_watch_roots: Vec::new(),
+        metrics: Default::default(),
+    });
+    let workspace_parent = project.path("/workspace/deps");
+    let include_parent = project.path("/include/pkg");
+    let remapping_parent = project.path("/mapped/pkg");
+    let outside_parent = project.path("/outside");
+    let missing_parent = project.path("/workspace/missing");
+    let analysis_paths = AnalysisPathIndex {
+        resolved_dependencies: FxHashSet::from_iter([
+            workspace_parent.join("Dependency.sol"),
+            include_parent.join("Include.sol"),
+            remapping_parent.join("Mapped.sol"),
+            outside_parent.join("Outside.sol"),
+        ]),
+        existing_unresolved_candidates: FxHashSet::from_iter([
+            include_parent.join("Candidate.sol"),
+            outside_parent.join("Candidate.sol"),
+        ]),
+        missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
+    };
+
+    let specs = watched_file_specs(&config, &analysis_paths);
+
+    for parent in [&workspace_parent, &include_parent, &remapping_parent] {
+        assert_eq!(
+            specs.iter().filter(|spec| spec.base == *parent && spec.pattern == "*.sol").count(),
+            1
+        );
+    }
+    assert!(!specs.iter().any(|spec| spec.base == outside_parent));
+    assert!(!specs.iter().any(|spec| spec.base == missing_parent));
+}
+
+#[test]
+fn watched_file_specs_use_indexed_recursive_coverage() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /workspace/src/Main.sol
+        contract Main {}
+        "#,
+    );
     let config = project.config_with_roots(&["/workspace"]);
-    let dependency_parent = project.path("/outside");
-    let other_parent = project.path("/other");
+    let dependency_parent = project.path("/workspace/src/nested");
     let analysis_paths = AnalysisPathIndex {
         resolved_dependencies: FxHashSet::from_iter([dependency_parent.join("Dependency.sol")]),
-        existing_unresolved_candidates: FxHashSet::from_iter([
-            other_parent.join("Candidate.sol"),
-            dependency_parent.join("nested/Deep.sol"),
-        ]),
-        missing_candidates: FxHashSet::from_iter([
-            dependency_parent.join("Missing.sol"),
-            project.path("/workspace/Missing.sol"),
-        ]),
+        ..Default::default()
+    };
+
+    let specs = watched_file_specs(&config, &analysis_paths);
+
+    assert!(
+        specs.iter().any(|spec| {
+            spec.base == project.path("/workspace/src") && spec.pattern == "**/*.sol"
+        })
+    );
+    assert!(!specs.iter().any(|spec| spec.base == dependency_parent && spec.pattern == "*.sol"));
+}
+
+#[test]
+fn watched_file_specs_cap_dynamic_dependency_parents() {
+    let project = TestProject::new();
+    std::fs::create_dir(project.path("/workspace")).unwrap();
+    let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
+    let dependency_root = project.path("/workspace/deps");
+    let analysis_paths = AnalysisPathIndex {
+        resolved_dependencies: (0..MAX_DYNAMIC_WATCHED_FILE_SPECS + 32)
+            .map(|index| dependency_root.join(index.to_string()).join("Dependency.sol"))
+            .collect(),
+        ..Default::default()
     };
 
     let specs = watched_file_specs(&config, &analysis_paths);
@@ -661,23 +751,9 @@ fn watched_file_specs_add_external_analysis_path_parents_once() {
     assert_eq!(
         specs
             .iter()
-            .filter(|spec| spec.base == dependency_parent && spec.pattern == "*.sol")
+            .filter(|spec| spec.pattern == "*.sol" && spec.base.starts_with(&dependency_root))
             .count(),
-        1
-    );
-    assert!(specs.iter().any(|spec| spec.base == other_parent && spec.pattern == "*.sol"));
-    assert!(
-        specs
-            .iter()
-            .any(|spec| spec.base == dependency_parent.join("nested") && spec.pattern == "*.sol")
-    );
-    assert!(
-        specs.iter().any(|spec| spec.base == project.path("/workspace") && spec.pattern == "*.sol")
-    );
-    assert!(
-        !specs
-            .iter()
-            .any(|spec| spec.base == project.path("/workspace") && spec.pattern == "**/*.sol")
+        MAX_DYNAMIC_WATCHED_FILE_SPECS
     );
 }
 
@@ -1252,7 +1328,9 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     ));
 
     state.analysis_scheduler.tasks.lock().cancel();
-    let dependency_parent = project.path("/outside");
+    let dependency_parent = project.path("/repo/dependencies");
+    let outside_parent = project.path("/outside");
+    let missing_parent = project.path("/repo/missing");
     let output = AnalysisOutput {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
@@ -1260,7 +1338,11 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
             symbol_tables: SymbolTables::default(),
         },
         analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([dependency_parent.join("Dependency.sol")]),
+            resolved_dependencies: FxHashSet::from_iter([
+                dependency_parent.join("Dependency.sol"),
+                outside_parent.join("Outside.sol"),
+            ]),
+            missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
             ..Default::default()
         },
     };
@@ -1276,6 +1358,8 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
             .iter()
             .any(|spec| spec.base == dependency_parent && spec.pattern == "**/*.sol")
     );
+    assert!(!published_specs.iter().any(|spec| spec.base == outside_parent));
+    assert!(!published_specs.iter().any(|spec| spec.base == missing_parent));
     let WatchedFileClientEvent::Register(published_registration) =
         next_watched_file_client_event(&mut events_rx).await
     else {
@@ -1298,6 +1382,8 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         &dependency_parent,
         "**/*.sol"
     ));
+    assert!(!watched_file_registration_has_spec(&published_registration, &outside_parent, "*.sol"));
+    assert!(!watched_file_registration_has_spec(&published_registration, &missing_parent, "*.sol"));
 
     state.clear_analysis_cache();
     let cleared_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();

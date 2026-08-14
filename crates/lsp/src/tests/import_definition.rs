@@ -3,14 +3,15 @@ use crate::vfs::VfsPath;
 use crop::Rope;
 use lsp_types::{
     DidChangeWatchedFilesParams, FileChangeType, FileEvent, GotoDefinitionParams,
-    GotoDefinitionResponse, PartialResultParams, Position, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    GotoDefinitionResponse, InitializeParams, PartialResultParams, Position,
+    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    WorkspaceFolder,
 };
 use snapbox::str;
 use std::{
     future::Future,
     path::PathBuf,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Waker},
     time::Duration,
 };
@@ -335,7 +336,60 @@ fn resolves_import_literals_across_escaped_line_continuations() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn import_only_watcher_changes_refresh_auto_detected_remappings() {
+async fn import_only_source_watcher_changes_refresh_auto_detected_remappings() {
+    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg/src/Target.sol").await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn import_only_package_watcher_changes_refresh_auto_detected_remappings() {
+    check_import_only_watcher_refreshes_auto_detected_remappings("/lib/pkg").await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn external_compile_only_library_events_do_not_force_rediscovery() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        libs = ["../external/lib"]
+
+        //- /workspace/src/Main.sol open
+        import "pkg/$1Target.sol";
+        "#,
+        "/workspace/src/Main.sol",
+    );
+    let mut state = fixture.state_with_workspace_analysis();
+    let workspace = fixture.project_path("/workspace");
+    let (_, mut config) = crate::config::negotiate_capabilities(InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: Url::from_file_path(&workspace).unwrap(),
+            name: "workspace".into(),
+        }]),
+        ..Default::default()
+    });
+    config.rediscover_workspaces();
+    state.config = Arc::new(config);
+    let target = fixture.project_path("/external/lib/pkg/src/Target.sol");
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, "contract Target {}\n").unwrap();
+    let version = state.analysis_version.load(Ordering::Acquire);
+
+    let _ = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent {
+                uri: Url::from_file_path(target).unwrap(),
+                typ: FileChangeType::CREATED,
+            }],
+        },
+    );
+
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn manual_reindex_refreshes_auto_detected_remappings() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
@@ -347,21 +401,55 @@ async fn import_only_watcher_changes_refresh_auto_detected_remappings() {
     );
     let mut state = fixture.state_with_workspace_analysis();
     let (uri, position) = fixture.marker_location("$1");
-    let library = fixture.project_path("/lib");
+    let package = fixture.project_path("/lib/pkg");
+    let target = package.join("src/Target.sol");
+    assert!(!state.config.supports_watched_file_dynamic_registration());
+    assert_eq!(definition_target(&mut state, uri.clone(), position).await, None);
+
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, "contract Target {}\n").unwrap();
+    state.reindex();
+    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
+        .await
+        .expect("manual analysis after package creation should finish")
+        .unwrap();
+
+    assert_eq!(definition_target(&mut state, uri.clone(), position).await, Some(target));
+
+    std::fs::remove_dir_all(package).unwrap();
+    state.reindex();
+    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
+        .await
+        .expect("manual analysis after package deletion should finish")
+        .unwrap();
+
+    assert_eq!(definition_target(&mut state, uri, position).await, None);
+}
+
+async fn check_import_only_watcher_refreshes_auto_detected_remappings(created_path: &str) {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol open
+        import "pkg/$1Target.sol";
+        "#,
+        "/src/Main.sol",
+    );
+    let mut state = fixture.state_with_workspace_analysis();
+    let (uri, position) = fixture.marker_location("$1");
     let target = fixture.project_path("/lib/pkg/src/Target.sol");
 
     assert_eq!(definition_target(&mut state, uri.clone(), position).await, None);
 
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "contract Target {}\n").unwrap();
-    let target_uri = Url::from_file_path(&target).unwrap();
+    let event_path = fixture.project_path(created_path);
+    let event_uri = Url::from_file_path(&event_path).unwrap();
     let _ = crate::handlers::did_change_watched_files(
         &mut state,
         DidChangeWatchedFilesParams {
-            changes: vec![FileEvent {
-                uri: Url::from_file_path(library).unwrap(),
-                typ: FileChangeType::CREATED,
-            }],
+            changes: vec![FileEvent { uri: event_uri.clone(), typ: FileChangeType::CREATED }],
         },
     );
     tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
@@ -371,11 +459,15 @@ async fn import_only_watcher_changes_refresh_auto_detected_remappings() {
 
     assert_eq!(definition_target(&mut state, uri.clone(), position).await, Some(target.clone()));
 
-    std::fs::remove_file(&target).unwrap();
+    if event_path == target {
+        std::fs::remove_file(&target).unwrap();
+    } else {
+        std::fs::remove_dir_all(&event_path).unwrap();
+    }
     let _ = crate::handlers::did_change_watched_files(
         &mut state,
         DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: target_uri, typ: FileChangeType::DELETED }],
+            changes: vec![FileEvent { uri: event_uri, typ: FileChangeType::DELETED }],
         },
     );
     tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
