@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+import statistics
 import sys
 import time
 from dataclasses import dataclass
@@ -213,7 +214,9 @@ def project_standard_json_input(project_file: str, source: str, contract_name: s
     return json.dumps(payload)
 
 
-def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
+def compile_case(
+    spec: CompilerSpec, test_case: TestCase, compile_repeats: int = 1
+) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -241,14 +244,21 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         timeout = 120
 
     cmd = [str(spec.path), "--standard-json"]
-    started = time.monotonic()
-    proc = run(
-        cmd,
-        input_text=input_text,
-        timeout=timeout,
-        measure_peak_rss=True,
-    )
-    result["compile_time_seconds"] = time.monotonic() - started
+    samples = []
+    proc = None
+    for _ in range(max(1, compile_repeats)):
+        started = time.monotonic()
+        proc = run(
+            cmd,
+            input_text=input_text,
+            timeout=timeout,
+            measure_peak_rss=True,
+        )
+        samples.append(time.monotonic() - started)
+        if proc.returncode != 0:
+            break
+    result["compile_time_seconds"] = statistics.median(samples)
+    result["compile_time_samples"] = samples
     result["peak_rss_bytes"] = proc.peak_rss_bytes
     result["command"] = display_command(cmd)
     if proc.returncode != 0:
@@ -959,6 +969,7 @@ def run_test_case(
     rpc_url: str,
     private_key: str,
     verbose: bool = False,
+    compile_repeats: int = 1,
 ) -> Dict[str, object]:
     entry: Dict[str, object] = {
         "test_id": test_case.test_id,
@@ -975,7 +986,7 @@ def run_test_case(
 
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case)
+        compiled = compile_case(spec, test_case, compile_repeats)
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
@@ -1100,6 +1111,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         choices=("micro", "repository", "large", "all"),
         default="micro",
         help="Benchmark suite to run",
+    )
+    parser.add_argument(
+        "--compile-repeats",
+        type=int,
+        default=1,
+        help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
@@ -1252,6 +1269,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.rpc_url,
                     args.private_key,
                     args.verbose,
+                    args.compile_repeats,
                 )
             )
         if current_suite is not None and suite_started is not None:

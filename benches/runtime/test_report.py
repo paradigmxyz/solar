@@ -331,3 +331,56 @@ class CommonBenchmarkResultTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompileTimeReportTests(unittest.TestCase):
+    @staticmethod
+    def timed_result(test_id, solc_seconds, solar_seconds, solar_status="ok"):
+        return {
+            "test_id": test_id,
+            "suite": "repository",
+            "compilers": {
+                "solc": {"status": "ok", "compile_time_seconds": solc_seconds},
+                "solar": {"status": solar_status, "compile_time_seconds": solar_seconds},
+            },
+        }
+
+    def test_compile_time_report_rows_and_sum(self):
+        results = [
+            self.timed_result("fast", 0.100, 0.005),
+            self.timed_result("slow", 1.500, 0.055),
+        ]
+        lines = benchmark.compile_time_report(results, {}, "`main`")
+        text = "\n".join(lines)
+        self.assertIn("### Compilation time", text)
+        self.assertIn("| fast | 100.0 ms | 5.0 ms (n/a) | 20.00x |", text)
+        self.assertIn("| slow | 1.500 s | 55.0 ms (n/a) | 27.27x |", text)
+        self.assertIn(
+            "| **sum of medians** | **1.600 s** | **60.0 ms** | ✅ **26.67x** |", text
+        )
+
+    def test_compile_time_goal_marker_flags_slow_totals(self):
+        results = [self.timed_result("close", 0.100, 0.050)]
+        text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
+        self.assertIn("| ❌ **2.00x** |", text)
+
+    def test_compile_time_sum_skips_unpaired_results(self):
+        results = [
+            self.timed_result("ok", 0.200, 0.010),
+            self.timed_result("failed", 0.400, 0.010, solar_status="failed"),
+        ]
+        text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
+        self.assertIn("| failed | 400.0 ms | n/a (n/a) | n/a |", text)
+        self.assertIn("| **sum of medians** | **200.0 ms** | **10.0 ms** | ✅ **20.00x** |", text)
+
+    def test_compile_time_report_uses_solar_baseline_delta(self):
+        results = [self.timed_result("bench", 0.100, 0.011)]
+        baseline = {
+            ("repository", "bench"): self.timed_result("bench", 0.100, 0.010),
+        }
+        text = "\n".join(benchmark.compile_time_report(results, baseline, "`main`"))
+        self.assertIn("(❌ +10.00%)", text)
+
+    def test_compile_time_report_empty_without_pairs(self):
+        results = [self.timed_result("failed", 0.400, 0.010, solar_status="failed")]
+        self.assertEqual(benchmark.compile_time_report(results, {}, "`main`"), [])
