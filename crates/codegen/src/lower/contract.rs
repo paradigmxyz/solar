@@ -200,7 +200,12 @@ pub(super) fn lower(
     }
 
     let has_state_initializers = contract.linearized_bases.iter().rev().any(|&base| {
-        gcx.hir.contract(base).variables().any(|id| gcx.hir.variable(id).initializer.is_some())
+        gcx.hir.contract(base).variables().any(|id| {
+            let variable = gcx.hir.variable(id);
+            variable.is_state_variable()
+                && !variable.is_constant()
+                && variable.initializer.is_some()
+        })
     });
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
