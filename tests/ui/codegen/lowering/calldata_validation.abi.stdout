@@ -194,39 +194,3 @@ fn @vFull() [selector=0x76fef307, pure] {
     jump bb1
 }
 
-fn @__cleanup0(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 255
-    ret v0
-}
-
-fn @__cleanup1(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 0xffffffff
-    ret v0
-}
-
-fn @__cleanup2(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v0
-}
-
-fn @__cleanup3(arg0: u256) -> u256 {
-  bb0:
-    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v0
-}
-
-fn @__cleanup4(arg0: u256) -> u256 {
-  bb0:
-    v0 = signextend 0, arg0
-    ret v0
-}
-
-fn @__cleanup5(arg0: u256) -> u256 {
-  bb0:
-    v0 = signextend 1, arg0
-    ret v0
-}
-

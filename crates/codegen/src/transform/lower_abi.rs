@@ -46,11 +46,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, StdEntry},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, Span, Symbol, kw};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -123,14 +119,6 @@ impl AbiWordValidator {
         }
     }
 
-    fn cleanup_key(self) -> Option<CleanupKey> {
-        match self {
-            Self::Mask(mask) => Some(CleanupKey::Mask(mask)),
-            Self::SignExtend(byte_index) => Some(CleanupKey::SignExtend(byte_index)),
-            Self::Bool | Self::EnumRange(_) => None,
-        }
-    }
-
     fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Mask(mask) => {
@@ -176,45 +164,8 @@ impl AbiWordValidator {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum CleanupKey {
-    Mask(U256),
-    SignExtend(u64),
-}
-
 #[derive(Debug, Default)]
-pub(crate) struct CleanupHelpers {
-    ids: FxHashMap<CleanupKey, FunctionId>,
-    next: usize,
-}
-
-impl CleanupHelpers {
-    fn ensure(&mut self, module: &mut Module, key: CleanupKey) {
-        let StdEntry::Vacant(entry) = self.ids.entry(key) else { return };
-        let name = format!("__cleanup{}", self.next);
-        self.next += 1;
-        let mut func =
-            Function::new(solar_interface::Ident::with_dummy_span(Symbol::intern(&name)));
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let arg = builder.add_param(MirType::uint256());
-            let result = match key {
-                CleanupKey::Mask(mask) => {
-                    let mask = builder.imm_u256(mask);
-                    builder.and(arg, mask)
-                }
-                CleanupKey::SignExtend(byte_index) => {
-                    let byte_index = builder.imm_u64(byte_index);
-                    builder.signextend(byte_index, arg)
-                }
-            };
-            builder.ret([result]);
-        }
-        func.returns.push(MirType::uint256());
-        let id = module.add_function(func);
-        entry.insert(id);
-    }
-}
+pub(crate) struct CleanupHelpers;
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -347,51 +298,6 @@ impl LowerAbiCx {
             }
             module.advance_phase(MirPhase::Abi);
             return true;
-        }
-
-        let helper_targets = targets
-            .iter()
-            .chain(constructors.iter())
-            .chain(wrapped_constructors.iter())
-            .copied()
-            .collect::<Vec<_>>();
-        let mut validators = Vec::new();
-        for id in helper_targets {
-            let func = module.function(id);
-            for &ty in &func.params {
-                if let Some(validator) = AbiWordValidator::from_mir_type(ty) {
-                    validators.push(validator);
-                }
-            }
-            for &ty in &func.returns {
-                if let Some(validator) = AbiWordValidator::from_return_mir_type(ty) {
-                    validators.push(validator);
-                }
-            }
-            if let Some(layout) = &func.abi_return_params {
-                collect_return_validators(&layout.types, &mut validators);
-            }
-            if let Some(layout) = &func.abi_params {
-                for ty in &layout.types {
-                    collect_validators(ty, &mut validators);
-                }
-            }
-        }
-        for func in module.functions.iter() {
-            for inst_id in func.instructions() {
-                if let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind {
-                    for ty in &layout.types {
-                        collect_validators(ty, &mut validators);
-                    }
-                }
-            }
-        }
-        validators.sort_unstable_by_key(|validator| validator.cleanup_key());
-        validators.dedup();
-        for validator in validators {
-            if let Some(key) = validator.cleanup_key() {
-                self.helpers.ensure(module, key);
-            }
         }
 
         self.synthesize_shared_aggregate_helpers(module, &targets);
@@ -2747,42 +2653,6 @@ pub(crate) fn decode_memory_tuple(
     allow_alias: bool,
 ) -> Option<Vec<ValueId>> {
     LowerAbiCx::decode_memory_tuple(builder, base, length, layout, helpers, allow_alias)
-}
-
-fn collect_validators(ty: &AbiParamType, validators: &mut Vec<AbiWordValidator>) {
-    match ty {
-        AbiParamType::Scalar(scalar) => {
-            if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
-                validators.push(validator);
-            }
-        }
-        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
-            collect_validators(element, validators);
-        }
-        AbiParamType::Tuple(fields) => {
-            for field in fields {
-                collect_validators(field, validators);
-            }
-        }
-        AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
-    }
-}
-
-fn collect_return_validators(types: &[AbiParamType], validators: &mut Vec<AbiWordValidator>) {
-    for ty in types {
-        match ty {
-            AbiParamType::Scalar(scalar) | AbiParamType::Enum { ty: scalar, .. } => {
-                if let Some(validator) = AbiWordValidator::from_return_mir_type(*scalar) {
-                    validators.push(validator);
-                }
-            }
-            AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
-                collect_return_validators(std::slice::from_ref(element.as_ref()), validators);
-            }
-            AbiParamType::Tuple(fields) => collect_return_validators(fields, validators),
-            AbiParamType::Bytes => {}
-        }
-    }
 }
 
 /// An external entry with a body and a selector — the shape a regular wrapper
