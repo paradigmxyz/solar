@@ -30,6 +30,11 @@ fn @vEnum(arg0: u8) -> u8 [selector=0x5aa5e60a, pure, abi_args=lazy, abi_params=
     ret arg0
 }
 
+fn @vWidened(arg0: u8) -> u16 [selector=0x3d71ddd7, pure, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
 fn @vMulti(arg0: u32, arg1: i8) -> u256 [selector=0x403ecab4, pure, abi_args=lazy, abi_params=[u32, i8], abi_returns=[word]] {
   bb0:
     v0 = and arg1, 255

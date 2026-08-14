@@ -101,10 +101,9 @@ The replacement is split into stateful, private components:
 * `StorageBuilder` computes one base-to-derived layout through a stateful
   `StorageCursor`. `StorageLayout` owns packed-field reads and read-modify-write
   stores, including signed and fixed-bytes normalization.
-* `LowerAbiCx` owns ABI wrapper construction and a lazy cleanup-helper registry.
-  `OutlineRevertsCx` owns the corresponding registry for shared revert paths.
-  Both registries key helpers by their semantic shape and leave trivial `u256`
-  operations inline.
+* `LowerAbiCx` owns ABI wrapper construction and emits trivial canonical cleanup
+  operations inline. `OutlineRevertsCx` owns the registry for shared revert
+  paths and keys those helpers by their semantic shape.
   The unconditional `Panic(uint256)` payload used by generated
   function-pointer dispatchers also goes through the shared MIR builder
   primitive, so lowering does not duplicate its scratch-memory layout.
@@ -304,7 +303,7 @@ existing scalar and packed-storage MIR fixtures. It supports:
   arguments through semantic bytes objects, with Solc-backed runtime checks;
 * `string.concat` and `bytes.concat` through one variadic packed-memory path,
   including empty, literal, dynamic, fixed-bytes, and storage-backed pieces;
-* lazy, deduplicated ABI cleanup helpers and outlined revert helpers.
+* outlined revert helpers deduplicated by semantic shape.
 
 The generated MIR for `tests/ui/codegen/lowering/compound_assign.sol` contains
 the expected `sload`, arithmetic, and `sstore` sequence, and does not contain a
@@ -740,8 +739,8 @@ recover the original base needed to resolve nested dynamic ABI offsets.
 Generated internal function-pointer dispatchers carry an explicit dispatcher
 attribute. The inliner keeps a shared dispatcher intact unless a constant
 pointer permits specialization, while still allowing its normal single-call
-policy. Cleanup and revert helper registries remain deduplicated by semantic
-shape without imposing an inline attribute.
+policy. Cleanup stays inline, while the revert helper registry remains
+deduplicated by semantic shape without imposing an inline attribute.
 
 Unsupported HIR emits a diagnostic and leaves an `invalid` MIR terminator in the
 rejected function. This is a deliberate fail-closed boundary; it must not be

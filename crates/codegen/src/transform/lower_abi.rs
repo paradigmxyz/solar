@@ -2713,13 +2713,34 @@ fn canonical_input_for_arg<'a>(
 
 fn canonical_input_covers_return(input: &AbiParamType, output: &AbiParamType) -> bool {
     match (input, output) {
-        (AbiParamType::Scalar(input), AbiParamType::Scalar(output)) => input == output,
-        (AbiParamType::Enum { ty: input, .. }, AbiParamType::Scalar(output)) => input == output,
+        (AbiParamType::Scalar(input), AbiParamType::Scalar(output)) => {
+            canonical_scalar_covers_return(*input, *output)
+        }
+        (AbiParamType::Enum { ty: input, .. }, AbiParamType::Scalar(output)) => {
+            canonical_scalar_covers_return(*input, *output)
+        }
         (
             AbiParamType::Enum { ty: input, variants: input_variants },
             AbiParamType::Enum { ty: output, variants: output_variants },
         ) => input == output && input_variants == output_variants,
         _ => false,
+    }
+}
+
+fn canonical_scalar_covers_return(input: MirType, output: MirType) -> bool {
+    match (input, output) {
+        (MirType::UInt(input), MirType::UInt(output)) => input.bits() <= output.bits(),
+        (MirType::UInt(input), MirType::Address) => input.bits() <= 160,
+        (MirType::Address, MirType::UInt(output)) => output.bits() >= 160,
+        (MirType::Int(input), MirType::Int(output)) => input.bits() <= output.bits(),
+        (MirType::FixedBytes(input), MirType::FixedBytes(output)) => {
+            input.bytes() <= output.bytes()
+        }
+        (MirType::Bool, MirType::Bool | MirType::UInt(_) | MirType::Int(_) | MirType::Address) => {
+            true
+        }
+        (MirType::Function, MirType::Function) => true,
+        _ => input == output,
     }
 }
 
