@@ -308,18 +308,6 @@ pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceIte
     InterfaceItems { creation, deployed }
 }
 
-pub(super) fn all_bytecode_dependencies<'gcx>(
-    gcx: Gcx<'gcx>,
-    id: hir::ContractId,
-) -> &'gcx DenseBitSet<hir::ContractId> {
-    let graph = CallGraphBuilder::build_all(gcx, id);
-    gcx.alloc(graph.bytecode_dependencies)
-}
-
-pub(super) fn all_reachable_functions<'gcx>(
-    gcx: Gcx<'gcx>,
-    id: hir::ContractId,
-) -> &'gcx DenseBitSet<hir::FunctionId> {
-    let graph = CallGraphBuilder::build_all(gcx, id);
-    gcx.alloc(graph.functions)
+pub(super) fn all_items(gcx: Gcx<'_>, id: hir::ContractId) -> ReferencedItems {
+    CallGraphBuilder::build_all(gcx, id)
 }

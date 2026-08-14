@@ -1570,12 +1570,17 @@ fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceIt
     gcx.alloc(call_graph::interface_items(gcx, id))
 }
 
+fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
+    assert!(gcx.has_typeck_results(), "contract items require type checking");
+    gcx.alloc(call_graph::all_items(gcx, id))
+}
+
 fn all_contract_bytecode_dependencies(
     gcx: _,
     id: hir::ContractId
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
-    call_graph::all_bytecode_dependencies(gcx, id)
+    &gcx.all_contract_items(id).bytecode_dependencies
 }
 
 fn all_contract_reachable_functions(
@@ -1583,7 +1588,7 @@ fn all_contract_reachable_functions(
     id: hir::ContractId
 ) -> &'gcx DenseBitSet<hir::FunctionId> {
     assert!(gcx.has_typeck_results(), "contract functions require type checking");
-    call_graph::all_reachable_functions(gcx, id)
+    &gcx.all_contract_items(id).functions
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.
