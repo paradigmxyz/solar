@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 480
   push 64
   mstore
   callvalue
@@ -21,7 +21,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb22 [cold]:
+bb21 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -74,53 +74,53 @@ bb4:
   push 224
   mstore
   lt
-  push bb22
+  push bb21
   jumpi
   push bb14
   push 224
   mload
-  jump bb18
-bb18:
+  jump bb17
+bb17:
   dup1
-  push 352
+  push 320
   mstore
   push 1
   add
   dup1
-  push 448
+  push 416
   mstore
-  push 352
+  push 320
   mload
   gt
-  push bb22
+  push bb21
   jumpi
   push 2
-  push 352
+  push 320
   mload
   add
   dup1
-  push 480
+  push 448
   mstore
-  push 352
+  push 320
   mload
   gt
-  push bb22
+  push bb21
   jumpi
   push 64
-  push 448
-  push 384
+  push 416
+  push 352
   mcopy
   jump
 bb8:
   push bb9
   push 36
   calldataload
-  jump bb18
+  jump bb17
 bb9:
-  push bb25
-  jump bb24
-bb24:
-  push 384
+  push bb24
+  jump bb23
+bb23:
+  push 352
   mload
   dup1
   push 256
@@ -129,7 +129,7 @@ bb24:
   mload
   push 32
   mstore
-  push 416
+  push 384
   mload
   push 32
   mload
@@ -142,9 +142,9 @@ bb24:
   swap1
   jump
 bb14:
-  push bb26
-  jump bb24
-bb25:
+  push bb25
+  jump bb23
+bb24:
   push 32
   mload
   push 32
@@ -157,11 +157,11 @@ bb25:
   push 160
   mstore
   dup1
-  push 320
+  push 288
   mstore
   push 192
   mstore
-  push 320
+  push 288
   mload
   dup2
   add
@@ -169,11 +169,11 @@ bb25:
   push 224
   mstore
   lt
-  push bb22
+  jump bb22
+bb22:
+  push bb21
   jumpi
   push 224
-  jump bb23
-bb23:
   mload
   dup1
   push 128
@@ -183,32 +183,32 @@ bb23:
   push 32
   push 128
   return
-bb26:
+bb25:
   push 32
   mload
   push 32
   add
   mload
+  push 192
+  mload
+  swap1
+  dup2
+  add
+  swap1
+  dup2
+  lt
+  swap2
   dup2
   add
   dup1
   push 224
   mstore
+  swap1
+  dup2
   lt
-  push bb22
-  jumpi
-  push 192
-  mload
-  push 224
-  mload
-  add
-  dup1
-  push 288
-  mstore
-  push 224
-  mload
-  gt
-  push bb22
-  jumpi
-  push 288
-  jump bb23
+  swap1
+  swap2
+  or
+  swap1
+  pop
+  jump bb22

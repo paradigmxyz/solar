@@ -62,20 +62,15 @@ fn @triple(arg0: u256) -> (u256, u256, u256) [abi_returns=[word, word, word]] {
   bb4:
     v5 = add arg0, arg0
     v6 = lt v5, arg0
-    jumpi v6, bb5, bb6
+    v7 = add v5, arg0
+    v8 = lt v7, v5
+    v9 = or v6, v8
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = add v5, arg0
-    v8 = lt v7, v5
-    jumpi v8, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
     ret arg0, v3, v7
 }
 
