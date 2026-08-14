@@ -256,6 +256,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Ok(byte_len) = u64::try_from(bytes.as_byte_str().len())
             && byte_len <= 32
         {
+            if byte_len != 0
+                && self.modifiers.last().is_some_and(|context| context.modifiers.len() >= 2)
+            {
+                let value = self.lower_word_literal(lit)?;
+                let length = self.builder.imm_u64(byte_len);
+                let helper = self.ensure_revert_string_helper();
+                self.builder.internal_call_void(helper, vec![length, value], 0);
+                self.builder.invalid();
+                return Some(());
+            }
             let bytes = bytes.as_byte_str();
             let data_size = if bytes.is_empty() { 0 } else { 32 };
             let size = 68u64.checked_add(data_size)?;
@@ -298,6 +308,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.slice_len(encoded);
         self.builder.revert(pointer, length);
         Some(())
+    }
+
+    fn ensure_revert_string_helper(&mut self) -> FunctionId {
+        if let Some(id) = *self.revert_string_helper {
+            return id;
+        }
+
+        let mut function = Function::new(Ident::with_dummy_span(sym::__revert_string));
+        function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let length = builder.add_param(MirType::uint256());
+            let value = builder.add_param(MirType::uint256());
+            let selector = keccak256("Error(string)");
+            let selector = builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
+            let zero = builder.imm_u64(0);
+            builder.mstore(zero, selector);
+            let offset = builder.imm_u64(4);
+            let tuple_offset = builder.imm_u64(32);
+            builder.mstore(offset, tuple_offset);
+            let length_offset = builder.imm_u64(36);
+            builder.mstore(length_offset, length);
+            let data_offset = builder.imm_u64(68);
+            builder.mstore(data_offset, value);
+            let size = builder.imm_u64(100);
+            builder.revert(zero, size);
+        }
+        let id = self.module.add_function(function);
+        *self.revert_string_helper = Some(id);
+        id
     }
 
     pub(super) fn lower_custom_error_revert(

@@ -411,7 +411,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             base,
             length,
             &layout,
-            None,
             true,
         )
     }

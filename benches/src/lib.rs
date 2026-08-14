@@ -46,31 +46,24 @@ pub fn get_srcs() -> &'static [Source] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
-        // on unsupported compiler behavior. Only project codegen cases that
-        // keep the full simulated suite under ten minutes opt in below.
+        // Keep every vendored project in the lowering and codegen benchmark
+        // set so unsupported behavior cannot hide behind a capability flag.
         sources.extend([
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/codegen-runtime/projects/openzeppelin-5.6.1.json.gz",
-                Capabilities::no_codegen(),
+                Capabilities::all(),
             ),
             include_source(
                 "../testdata/codegen-runtime/projects/solady-0.1.26.json.gz",
                 Capabilities::all(),
             ),
-            include_source(
-                "../testdata/projects/v4-core-4.0.0.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/v4-core-4.0.0.json.gz", Capabilities::all()),
             include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
             include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
-            include_source(
-                "../testdata/projects/prb-math-4.1.1.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/prb-math-4.1.1.json.gz", Capabilities::all()),
             include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
             include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())

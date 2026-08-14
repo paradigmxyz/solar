@@ -6,6 +6,7 @@
 //@ run-call: BaseConstructorReturn::value() => 2
 //@ run-call: FunctionUsageDerived::getA() => 2
 //@ run-call: VirtualFunctionUsageDerived::getA() => 2
+//@ run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
@@ -152,4 +153,30 @@ contract VirtualFunctionUsageDerived is VirtualFunctionUsageBase {
     function overridden() public pure override returns (uint256) {
         return 2;
     }
+}
+
+contract DomainBase {
+    string internal domainName;
+    string internal domainVersion;
+
+    constructor(string memory name_, string memory version_) {
+        domainName = name_;
+        domainVersion = version_;
+    }
+
+    function domain() external view returns (string memory, string memory) {
+        return (domainName, domainVersion);
+    }
+}
+
+contract PermitBase is DomainBase {
+    constructor(string memory name_) DomainBase(name_, "1") {}
+}
+
+contract TokenBase {
+    constructor(string memory, string memory) {}
+}
+
+contract EmptyBaseArgumentMask is TokenBase, PermitBase {
+    constructor() TokenBase("Token", "TKN") PermitBase("Token") {}
 }

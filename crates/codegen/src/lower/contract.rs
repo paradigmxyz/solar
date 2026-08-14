@@ -141,6 +141,8 @@ pub(super) fn lower(
     let mut mir_ids = FxHashMap::default();
     let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
     let mut storage_bytes_helper = None;
+    let mut storage_clear_helper = None;
+    let mut revert_string_helper = None;
     let mut visiting_storage_structs = FxHashSet::default();
     let share_storage_bytes = contract
         .linearized_bases
@@ -177,6 +179,8 @@ pub(super) fn lower(
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
+            storage_clear_helper: &mut storage_clear_helper,
+            revert_string_helper: &mut revert_string_helper,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
@@ -196,7 +200,12 @@ pub(super) fn lower(
     }
 
     let has_state_initializers = contract.linearized_bases.iter().rev().any(|&base| {
-        gcx.hir.contract(base).variables().any(|id| gcx.hir.variable(id).initializer.is_some())
+        gcx.hir.contract(base).variables().any(|id| {
+            let variable = gcx.hir.variable(id);
+            variable.is_state_variable()
+                && !variable.is_constant()
+                && variable.initializer.is_some()
+        })
     });
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
@@ -217,6 +226,8 @@ pub(super) fn lower(
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
+            storage_clear_helper: &mut storage_clear_helper,
+            revert_string_helper: &mut revert_string_helper,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {

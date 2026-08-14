@@ -57,6 +57,8 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
     pub(super) pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
     pub(super) storage_bytes_helper: &'ctx mut Option<FunctionId>,
+    pub(super) storage_clear_helper: &'ctx mut Option<FunctionId>,
+    pub(super) revert_string_helper: &'ctx mut Option<FunctionId>,
     pub(super) share_storage_bytes: bool,
 }
 
@@ -74,6 +76,8 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             invalid_event_topics: &mut *self.invalid_event_topics,
             pointer_registry: &mut *self.pointer_registry,
             storage_bytes_helper: &mut *self.storage_bytes_helper,
+            storage_clear_helper: &mut *self.storage_clear_helper,
+            revert_string_helper: &mut *self.revert_string_helper,
             share_storage_bytes: self.share_storage_bytes,
         }
     }
@@ -194,6 +198,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
     pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
     storage_bytes_helper: &'ctx mut Option<FunctionId>,
+    storage_clear_helper: &'ctx mut Option<FunctionId>,
+    revert_string_helper: &'ctx mut Option<FunctionId>,
     share_storage_bytes: bool,
     builder: FunctionBuilder<'ctx>,
     types: types::TypeLowerer<'gcx>,
@@ -357,6 +363,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             invalid_event_topics,
             pointer_registry,
             storage_bytes_helper,
+            storage_clear_helper,
+            revert_string_helper,
             share_storage_bytes,
         } = context;
         Self {
@@ -371,6 +379,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             invalid_event_topics,
             pointer_registry,
             storage_bytes_helper,
+            storage_clear_helper,
+            revert_string_helper,
             share_storage_bytes,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),

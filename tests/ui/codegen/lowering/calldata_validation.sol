@@ -72,6 +72,17 @@ contract CalldataValidation {
         return x;
     }
 
+    // A canonical narrow input is already valid when returned through a
+    // wider unsigned ABI type, so no second cleanup is needed.
+    // CHECK-LABEL: fn @vWidened{{[( ]}}
+    // CHECK-NOT: and arg0
+    // CHECK: mstore 128, arg0
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: {{v[0-9]+}} = and [[RAW]], 255
+    function vWidened(uint8 x) external pure returns (uint16) {
+        return x;
+    }
+
     // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
     // CHECK: {{v[0-9]+}} = and [[A]], 0xffffffff

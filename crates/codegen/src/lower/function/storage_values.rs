@@ -15,6 +15,40 @@ pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId
     module.add_function(function)
 }
 
+/// Adds the module-wide helper for clearing the data words of a storage bytes value.
+pub(super) fn synthesize_storage_clear_helper(module: &mut Module) -> FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::__clear_storage_words));
+    function.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let slot = builder.add_param(MirType::uint256());
+        let first_word = builder.add_param(MirType::uint256());
+        let words = builder.add_param(MirType::uint256());
+        let zero = builder.imm_u64(0);
+        let data_slot = builder.storage_array_data_slot(slot);
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let index = builder.phi(vec![(preheader, first_word)]);
+        let condition = builder.lt(index, words);
+        builder.branch(condition, body, exit);
+        builder.switch_to_block(body);
+        let element_slot = builder.add(data_slot, index);
+        builder.sstore(element_slot, zero);
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, backedge, next);
+        builder.switch_to_block(exit);
+        builder.stop();
+    }
+    module.add_function(function)
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_constant_storage_assignment(
         &self,
@@ -860,7 +894,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(needs_cleanup, cleanup_block, write_block);
 
         self.builder.switch_to_block(cleanup_block);
-        self.clear_storage_words(slot, new_words, old_words, zero);
+        self.clear_storage_words_with_helper(slot, new_words, old_words);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);
@@ -944,6 +978,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(exit);
     }
 
+    fn clear_storage_words_with_helper(
+        &mut self,
+        slot: ValueId,
+        first_word: ValueId,
+        words: ValueId,
+    ) {
+        let helper = match *self.storage_clear_helper {
+            Some(helper) => helper,
+            None => {
+                let helper = synthesize_storage_clear_helper(self.module);
+                *self.storage_clear_helper = Some(helper);
+                helper
+            }
+        };
+        self.builder.internal_call_void(helper, vec![slot, first_word, words], 0);
+    }
+
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
         let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
         let length = self.builder.imm_u64(bytes.len() as u64);
@@ -963,8 +1014,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64(bytes.len().div_ceil(32) as u64)
         };
-        let zero = self.builder.imm_u64(0);
-        self.clear_storage_words(slot, new_words, old_words, zero);
+        self.clear_storage_words_with_helper(slot, new_words, old_words);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);
