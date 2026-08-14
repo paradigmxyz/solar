@@ -962,6 +962,10 @@ pub struct EvmCodegen<'gcx> {
     /// Functions whose stack-only argument convention had to materialize a frame fallback during
     /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
     disabled_stack_only_functions: DenseBitSet<FunctionId>,
+    /// Whether stack-native return tuples may be selected. Cleared when the
+    /// whole-program stack proof fails even without preserved prefixes or
+    /// stack arguments, falling back to the frame-backed return convention.
+    stack_returns_enabled: bool,
     /// Enables the optional caller-prefix convention for this emission. If
     /// post-emission stack validation rejects it, runtime codegen reruns once
     /// with this disabled.
@@ -1068,6 +1072,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
+            stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
             recursion_reaching_functions: DenseBitSet::new_empty(0),
@@ -1818,6 +1823,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     runtime_stack_args = false;
                     continue;
                 }
+                if self.stack_returns_enabled {
+                    self.stack_returns_enabled = false;
+                    continue;
+                }
             }
             break;
         }
@@ -1852,6 +1861,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.function_stack_peaks.clear();
         self.internal_call_stack_edges.clear();
         self.runtime_stack_args = true;
+        self.stack_returns_enabled = true;
         self.emitting_entry = false;
         self.reset_switch_gas_code_growth();
     }
@@ -1897,7 +1907,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // prefix, return address, complete argument tuple, and target label. Arguments
                 // become part of the callee's modeled stack (or are consumed by its prologue), so
                 // only the preserved prefix and return address propagate as its hidden prefix.
-                if candidate.saturating_add(edge.argument_words).saturating_add(1) > MAX_STACK_DEPTH
+                let entry_transient = edge.argument_words.saturating_add(1);
+                // After the callee returns, multiword stack-return adoption stages the
+                // buffer pointer and one address above the returned tuple, peaking at
+                // `base + preserved + arity + 2` = `candidate + arity + 1`.
+                let adoption_transient = self
+                    .stack_return_plan(edge.callee)
+                    .map_or(0, |plan| if plan.arity > 1 { plan.arity as usize + 1 } else { 0 });
+                if candidate.saturating_add(entry_transient.max(adoption_transient))
+                    > MAX_STACK_DEPTH
                 {
                     return false;
                 }
@@ -3206,8 +3224,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
-            let interferences =
-                Self::parallel_phi_interferences(&colorable, &self.block_copies, Some(liveness));
+            let interferences = Self::parallel_phi_interferences(
+                func,
+                &colorable,
+                &self.block_copies,
+                Some(liveness),
+            );
 
             let mut colors = Vec::<SpillColor>::new();
             for value in &colorable {
@@ -3342,6 +3364,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// must coexist at the successor, and a destination store must not alias a source that the
     /// schedule loads later. Sources already loaded before a store may safely share its slot.
     fn parallel_phi_interferences(
+        func: &Function,
         colorable: &DenseBitSet<ValueId>,
         block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
         liveness: Option<&Liveness>,
@@ -3374,11 +3397,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // live out of the predecessor. The copy's own source is exempt:
                 // the store writes that source's current value, so a shared
                 // slot keeps serving it.
+                let own_source = match &copy.src {
+                    CopySource::Value(source) => Some(*source),
+                    _ => None,
+                };
                 if let Some(liveness) = liveness {
-                    let own_source = match &copy.src {
-                        CopySource::Value(source) => Some(*source),
-                        _ => None,
-                    };
                     for live in liveness.live_out(*block_id) {
                         if Some(live) != own_source {
                             Self::add_spill_interference(
@@ -3386,6 +3409,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 colorable,
                                 *destination,
                                 live,
+                            );
+                        }
+                    }
+                }
+                // A value consumed only by this predecessor's terminator is not
+                // live-out, but the copy stores execute before the terminator: a
+                // destination sharing the condition's slot would clobber a
+                // pending reload and take the wrong branch.
+                if let Some(term) =
+                    func.blocks.get(*block_id).and_then(|block| block.terminator.as_ref())
+                {
+                    for operand in term.operands() {
+                        if Some(operand) != own_source {
+                            Self::add_spill_interference(
+                                &mut interferences,
+                                colorable,
+                                *destination,
+                                operand,
                             );
                         }
                     }
@@ -5063,7 +5104,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for abi in self.static_call_abis.values_mut() {
             abi.returns = None;
         }
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if !self.stack_returns_enabled || !self.gcx.sess.opts.optimization.is_gas() {
             return;
         }
 
@@ -5269,7 +5310,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         scores.retain(|func_id, _| {
-            self.static_frame_functions.contains(*func_id) && !excluded.contains(*func_id)
+            self.static_frame_functions.contains(*func_id)
+                && !excluded.contains(*func_id)
+                && !self.disabled_stack_only_functions.contains(*func_id)
         });
         let mut masks = FxHashMap::default();
         for (func_id, score) in scores {
@@ -5280,7 +5323,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     mask.insert(index.index());
                 }
             }
-            if !mask.is_empty() {
+            // The tail-call emitter shuffles the selected tuple into an exact
+            // entry layout, so a mask beyond DUP16/SWAP16 reach could never be
+            // constructed.
+            if !mask.is_empty() && mask.count() <= MAX_STACK_ACCESS {
                 masks.insert(func_id, mask);
             }
         }
@@ -6272,6 +6318,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                         func.inst(inst_id).kind,
                         InstKind::InternalCall { function, .. }
                             if !self.static_frame_functions.contains(function)
+                    )
+                }) || func.blocks.iter().any(|block| {
+                    // Dispatch and external-fusion tail calls never touch internal
+                    // frames; only a selector-less callee outside the static set
+                    // could imply dynamic frames (a shape `lower-evm-shaped` does
+                    // not currently form).
+                    matches!(
+                        &block.terminator,
+                        Some(Terminator::TailCall { function, .. })
+                            if module.functions[*function].selector.is_none()
+                                && !self.static_frame_functions.contains(*function)
                     )
                 })
             });
@@ -8427,13 +8484,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                         let target: Vec<_> =
                             stack_args.iter().copied().map(TargetSlot::Value).collect();
-                        let shuffle =
-                            self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
-                                panic!(
-                                    "could not construct stack tail-call entry for `{}`",
-                                    func.name
-                                )
-                            });
+                        let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+                            // An unconstructible entry layout regenerates the
+                            // runtime with the callee on the frame convention;
+                            // the partially emitted attempt is discarded.
+                            self.disabled_stack_only_functions.insert(*function);
+                            return;
+                        };
                         for op in shuffle.ops {
                             self.asm.emit_op(op.opcode());
                         }
@@ -9084,7 +9141,9 @@ mod tests {
             ],
         )]);
 
-        let interferences = EvmCodegen::parallel_phi_interferences(&colorable, &block_copies, None);
+        let function = Function::new(Ident::DUMMY);
+        let interferences =
+            EvmCodegen::parallel_phi_interferences(&function, &colorable, &block_copies, None);
         assert!(interferences[&destination0].contains(&destination1));
         assert!(interferences[&destination0].contains(&source1));
         assert!(!interferences[&destination0].contains(&source0));
