@@ -1737,6 +1737,9 @@ fn spawn_watched_file_registration_update(
             previous_ids
         };
         for previous_id in previous_ids {
+            if coordinator.generation.load(Ordering::Acquire) != generation {
+                break;
+            }
             match unregister_watched_file_registration(&mut client, previous_id.clone()).await {
                 Ok(()) => {
                     coordinator.active_registration_ids.lock().retain(|id| id != &previous_id);

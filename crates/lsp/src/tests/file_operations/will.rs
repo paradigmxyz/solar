@@ -139,6 +139,39 @@ fn will_delete_edits_closed_default_named_source_importers() {
 }
 
 #[test]
+fn will_delete_refuses_closed_excluded_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /Main.sol
+        import "./Target.sol";
+
+        //- /out/Generated.sol
+        import "../Target.sol";
+
+        //- /Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[test]
 fn will_rename_does_not_edit_open_foundry_dependencies() {
     let project = TestProject::from_fixture(
         r#"
@@ -246,6 +279,40 @@ fn will_rename_edits_closed_default_named_source_importers() {
     assert!(
         changes.contains_key(&Url::from_file_path(project.path("/src/lib/Library.sol")).unwrap())
     );
+}
+
+#[test]
+fn will_rename_refuses_closed_excluded_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+
+        //- /Main.sol
+        import "./Target.sol";
+
+        //- /out/Generated.sol
+        import "../Target.sol";
+
+        //- /Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Url::from_file_path(project.path("/Target.sol")).unwrap().to_string(),
+                new_uri: Url::from_file_path(project.path("/Renamed.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
 }
 
 #[test]

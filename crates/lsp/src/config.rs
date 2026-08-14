@@ -447,6 +447,11 @@ impl Config {
             .is_some()
     }
 
+    pub(crate) fn may_omit_default_excluded_source_files(&self) -> bool {
+        self.index_policy.uses_default_excludes()
+            && self.workspaces.iter().any(Workspace::has_whole_root_foundry_source)
+    }
+
     pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
         WorkspacePathIndex::new(&self.workspaces)
             .workspace_idx_for_flycheck_path(&self.index_policy, path)

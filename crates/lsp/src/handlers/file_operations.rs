@@ -391,6 +391,9 @@ fn workspace_source_edits_are_complete(
     plan: &ImportEditPlan,
     config: &crate::config::Config,
 ) -> bool {
+    if config.may_omit_default_excluded_source_files() {
+        return false;
+    }
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
     plan.all_files(is_workspace_source)

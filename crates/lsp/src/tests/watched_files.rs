@@ -891,7 +891,7 @@ async fn failed_watched_file_replacement_keeps_the_previous_registration() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn superseded_in_flight_registration_stays_active_until_replacement() {
+async fn superseded_replacement_preserves_previous_registration_until_latest_is_active() {
     let project = TestProject::new();
     std::fs::create_dir(project.path("/workspace")).unwrap();
     let mut params = project.initialize_params_with_roots(&["/workspace"]);
@@ -910,13 +910,13 @@ async fn superseded_in_flight_registration_stays_active_until_replacement() {
         router
     });
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let (first_ack_tx, first_ack_rx) = oneshot::channel();
+    let (replacement_ack_tx, replacement_ack_rx) = oneshot::channel();
     let (client_main, server_socket) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new((events_tx, Some(first_ack_rx), 0usize));
+        let mut router = Router::new((events_tx, Some(replacement_ack_rx), 0usize));
         router.request::<request::RegisterCapability, _>(
-            |(events, first_ack, attempts), params| {
+            |(events, replacement_ack, attempts), params| {
                 events.send(WatchedFileClientEvent::Register(params)).unwrap();
-                let ack = (*attempts == 0).then(|| first_ack.take().unwrap());
+                let ack = (*attempts == 1).then(|| replacement_ack.take().unwrap());
                 *attempts += 1;
                 async move {
                     if let Some(ack) = ack {
@@ -945,7 +945,8 @@ async fn superseded_in_flight_registration_stays_active_until_replacement() {
     let client_task =
         tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
 
-    let first_specs = vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")];
+    let shared_root = project.path("/shared");
+    let first_specs = vec![WatchedFileSpec::new(shared_root.clone(), "**/*.sol")];
     let first =
         prepare_watched_file_registration_update(&config, &coordinator, first_specs).unwrap();
     spawn_watched_file_registration_update(&client_socket, &coordinator, Some(first));
@@ -956,24 +957,56 @@ async fn superseded_in_flight_registration_stays_active_until_replacement() {
     };
     let first_id = first_registration.registrations[0].id.clone();
 
-    let second_specs = vec![WatchedFileSpec::new(project.path("/second"), "**/*.sol")];
+    let second_specs = vec![WatchedFileSpec::new(project.path("/stale"), "**/*.sol")];
     let second =
         prepare_watched_file_registration_update(&config, &coordinator, second_specs).unwrap();
     spawn_watched_file_registration_update(&client_socket, &coordinator, Some(second));
-    first_ack_tx.send(()).unwrap();
-
     let WatchedFileClientEvent::Register(second_registration) =
         next_watched_file_client_event(&mut events_rx).await
     else {
-        panic!("expected replacement registration before any unregistration")
+        panic!("expected replacement watched-file registration")
     };
     let second_id = second_registration.registrations[0].id.clone();
     assert_ne!(second_id, first_id);
+
+    let latest_root = project.path("/latest");
+    let third = prepare_watched_file_registration_update(
+        &config,
+        &coordinator,
+        vec![
+            WatchedFileSpec::new(shared_root.clone(), "**/*.sol"),
+            WatchedFileSpec::new(latest_root.clone(), "**/*.sol"),
+        ],
+    )
+    .unwrap();
+    spawn_watched_file_registration_update(&client_socket, &coordinator, Some(third));
+    replacement_ack_tx.send(()).unwrap();
+
+    let WatchedFileClientEvent::Register(third_registration) =
+        next_watched_file_client_event(&mut events_rx).await
+    else {
+        panic!("expected latest registration before any unregistration")
+    };
+    let third_id = third_registration.registrations[0].id.clone();
+    assert!(watched_file_registration_has_spec(&third_registration, &shared_root, "**/*.sol"));
+    assert!(watched_file_registration_has_spec(&third_registration, &latest_root, "**/*.sol"));
     assert!(matches!(
         next_watched_file_client_event(&mut events_rx).await,
         WatchedFileClientEvent::Unregister(params)
             if params.unregisterations[0].id == first_id
     ));
+    assert!(matches!(
+        next_watched_file_client_event(&mut events_rx).await,
+        WatchedFileClientEvent::Unregister(params)
+            if params.unregisterations[0].id == second_id
+    ));
+    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    while *coordinator.active_registration_ids.lock() != [third_id.clone()]
+        && Instant::now() < deadline
+    {
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(*coordinator.active_registration_ids.lock(), [third_id]);
 
     server_socket.notify::<notification::Exit>(()).unwrap();
     assert!(server_task.await.unwrap().is_ok());

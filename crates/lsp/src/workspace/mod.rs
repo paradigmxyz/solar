@@ -106,6 +106,15 @@ impl Workspace {
         &self.source_roots
     }
 
+    pub(crate) fn has_whole_root_foundry_source(&self) -> bool {
+        self.kind == WorkspaceKind::Foundry
+            && self
+                .compile_opts
+                .base_path
+                .as_deref()
+                .is_some_and(|base_path| self.source_roots.iter().any(|root| root == base_path))
+    }
+
     pub(crate) fn source_watch_roots(&self) -> &[SourceWatchRoot] {
         &self.source_watch_roots
     }
