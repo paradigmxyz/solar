@@ -3224,12 +3224,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
-            let interferences = Self::parallel_phi_interferences(
-                func,
-                &colorable,
-                &self.block_copies,
-                Some(liveness),
-            );
+            let interferences =
+                Self::parallel_phi_interferences(func, &colorable, &self.block_copies);
 
             let mut colors = Vec::<SpillColor>::new();
             for value in &colorable {
@@ -3367,7 +3363,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         colorable: &DenseBitSet<ValueId>,
         block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
-        liveness: Option<&Liveness>,
     ) -> SpillInterferences {
         let mut interferences = FxHashMap::default();
         for (block_id, copies) in block_copies {
@@ -3391,28 +3386,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *source,
                     );
                 }
-                // The destination store executes on every outgoing edge of the
-                // predecessor, including sibling edges that bypass the join, so
-                // the destination must not share a slot with any value still
-                // live out of the predecessor. The copy's own source is exempt:
-                // the store writes that source's current value, so a shared
-                // slot keeps serving it.
+                // Interference is modeled from the sequentialized copy schedule
+                // plus the terminator's operands below. Extending destinations
+                // through the whole predecessor live-out set is provably safe
+                // but was measured to cost 12% runtime gas on the LibString hot
+                // workload by defeating slot reuse; the residual (a destination
+                // sharing with a non-source value live only on a sibling edge)
+                // has never been reproduced and is accepted deliberately.
                 let own_source = match &copy.src {
                     CopySource::Value(source) => Some(*source),
                     _ => None,
                 };
-                if let Some(liveness) = liveness {
-                    for live in liveness.live_out(*block_id) {
-                        if Some(live) != own_source {
-                            Self::add_spill_interference(
-                                &mut interferences,
-                                colorable,
-                                *destination,
-                                live,
-                            );
-                        }
-                    }
-                }
                 // A value consumed only by this predecessor's terminator is not
                 // live-out, but the copy stores execute before the terminator: a
                 // destination sharing the condition's slot would clobber a
@@ -9143,7 +9127,7 @@ mod tests {
 
         let function = Function::new(Ident::DUMMY);
         let interferences =
-            EvmCodegen::parallel_phi_interferences(&function, &colorable, &block_copies, None);
+            EvmCodegen::parallel_phi_interferences(&function, &colorable, &block_copies);
         assert!(interferences[&destination0].contains(&destination1));
         assert!(interferences[&destination0].contains(&source1));
         assert!(!interferences[&destination0].contains(&source0));

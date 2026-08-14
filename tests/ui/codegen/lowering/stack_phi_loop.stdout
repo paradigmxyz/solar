@@ -176,7 +176,7 @@ bb20:
   jump bb23
 bb23:
   dup1
-  push 256
+  push 224
   mstore
   push 4
   calldataload

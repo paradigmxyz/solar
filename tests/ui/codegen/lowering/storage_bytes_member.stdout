@@ -81,7 +81,7 @@ bb7:
   jumpi
   jump bb19
 bb15:
-  push 896
+  push 832
   push 64
   mstore
   calldatasize
@@ -587,7 +587,7 @@ bb32:
   mload
   jump bb32
 bb37:
-  push 896
+  push 832
   push 64
   mstore
   caller
@@ -886,7 +886,7 @@ bb43:
   mload
   jump bb43
 bb49:
-  push 896
+  push 832
   push 64
   mstore
   caller
@@ -916,7 +916,7 @@ bb78:
   push 128
   return
 bb51:
-  push 896
+  push 832
   push 64
   mstore
   calldatasize
@@ -1108,7 +1108,7 @@ bb64:
   sstore
   jump bb48
 bb66:
-  push 896
+  push 832
   push 64
   mstore
   caller
