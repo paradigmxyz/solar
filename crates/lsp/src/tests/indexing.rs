@@ -704,3 +704,182 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
         vec![(project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()),)]
     );
 }
+
+#[test]
+fn nested_external_source_root_outranks_an_outer_workspace_base() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Outer.sol
+        contract Outer {}
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "../../shared"
+
+        //- /shared/Shared.sol
+        contract Shared {}
+        "#,
+    );
+    let config = project.config();
+    let shared = project.path("/shared/Shared.sol");
+    let nested_root = project.path("/packages/app");
+    let nested = config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
+        .unwrap();
+
+    assert_eq!(nested.source_roots(), [project.path("/shared")]);
+    assert!(nested.source_files().contains(&shared));
+    assert!(config.tracks_source_file(&shared));
+}
+
+#[test]
+fn nested_external_flycheck_root_outranks_an_outer_workspace_base() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "src"
+        test = "../../checks"
+
+        //- /checks/Nested.t.sol
+        contract NestedTest {}
+        "#,
+    );
+    let config = project.config();
+    let nested_root = project.path("/packages/app");
+    let path = project.path("/checks/Nested.t.sol");
+    let nested = config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
+        .unwrap();
+
+    assert!(nested.flycheck_source_files().contains(&path));
+    assert!(config.tracks_flycheck_file(&path));
+}
+
+#[test]
+fn discovery_finds_nested_projects_under_dedicated_flycheck_roots() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        test = "out/checks"
+
+        //- /out/checks/deep/app/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /out/checks/deep/app/src/Check.sol
+        contract Check {}
+        "#,
+    );
+    let config = project.config();
+    let root = project.path("/out/checks/deep/app");
+    let source = project.path("/out/checks/deep/app/src/Check.sol");
+    let workspace = config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&root))
+        .unwrap();
+
+    assert_eq!(workspace.source_files(), [source]);
+}
+
+#[test]
+fn discovery_reaches_nested_manifest_fixed_point() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "../shared/contracts"
+
+        //- /shared/contracts/first/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /shared/contracts/first/src/First.sol
+        contract First {}
+
+        //- /shared/contracts/first/src/second/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /shared/contracts/first/src/second/src/Second.sol
+        contract Second {}
+        "#,
+    );
+    let config = project.config();
+    let first_root = project.path("/shared/contracts/first");
+    let second_root = project.path("/shared/contracts/first/src/second");
+    let second_source = project.path("/shared/contracts/first/src/second/src/Second.sol");
+
+    assert!(
+        config.workspaces().iter().any(|workspace| {
+            workspace.compile_opts().base_path.as_deref() == Some(&first_root)
+        })
+    );
+    let second = config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&second_root))
+        .unwrap();
+    assert_eq!(second.source_files(), [second_source]);
+}
+
+#[test]
+fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "src"
+        test = "../../src/shared"
+
+        //- /src/shared/Shared.t.sol
+        contract SharedTest {}
+        "#,
+    );
+    let mut config = project.config();
+    let path = project.path("/src/shared/Shared.t.sol");
+    let outer_root = project.root();
+    let nested_root = project.path("/packages/app");
+    fn workspace<'a>(root: &Path, config: &'a Config) -> &'a crate::workspace::Workspace {
+        config
+            .workspaces()
+            .iter()
+            .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
+            .unwrap()
+    }
+
+    let outer = workspace(outer_root, &config);
+    let nested = workspace(&nested_root, &config);
+    assert!(outer.source_files().contains(&path));
+    assert!(!outer.flycheck_source_files().contains(&path));
+    assert!(nested.flycheck_source_files().contains(&path));
+
+    config.remove_source_file(&path);
+    assert!(!workspace(outer_root, &config).source_files().contains(&path));
+    assert!(!workspace(outer_root, &config).flycheck_source_files().contains(&path));
+    assert!(!workspace(&nested_root, &config).flycheck_source_files().contains(&path));
+
+    config.add_source_file(path.clone());
+    assert!(workspace(outer_root, &config).source_files().contains(&path));
+    assert!(!workspace(outer_root, &config).flycheck_source_files().contains(&path));
+    assert!(workspace(&nested_root, &config).flycheck_source_files().contains(&path));
+}

@@ -105,6 +105,286 @@ async fn watched_nested_manifest_create_discovers_the_project() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn watched_nested_manifest_create_under_external_foundry_roots_discovers_projects() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        src = "../shared/contracts"
+        test = "../shared/checks"
+
+        //- /shared/.keep
+        "#,
+    );
+    let config = project.config();
+    let source_project_root = project.path("/shared/contracts/deep/app");
+    let flycheck_project_root = project.path("/shared/checks/deep/app");
+    assert!(config.workspaces().iter().all(|workspace| {
+        workspace.compile_opts().base_path.as_deref() != Some(&source_project_root)
+            && workspace.compile_opts().base_path.as_deref() != Some(&flycheck_project_root)
+    }));
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    project.write_file(
+        "/shared/contracts/deep/app/foundry.toml",
+        "[profile.default]\nsrc = \"src\"\n",
+    );
+    project.write_file("/shared/contracts/deep/app/src/Source.sol", "contract Source {}");
+    project
+        .write_file("/shared/checks/deep/app/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
+    project.write_file("/shared/checks/deep/app/src/Check.sol", "contract Check {}");
+
+    let changes =
+        ["/shared/contracts/deep/app/foundry.toml", "/shared/checks/deep/app/foundry.toml"].map(
+            |path| FileEvent {
+                uri: Url::from_file_path(project.path(path)).unwrap(),
+                typ: FileChangeType::CREATED,
+            },
+        );
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams { changes: changes.into() },
+        ),
+        ControlFlow::Continue(())
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("external nested manifest analysis should finish")
+        .unwrap();
+
+    for root in [source_project_root, flycheck_project_root] {
+        assert!(state.config.workspaces().iter().any(|workspace| {
+            workspace.compile_opts().base_path.as_deref() == Some(root.as_path())
+        }));
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_nested_repository_marker_create_prunes_cached_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /src/nested/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let nested_root = project.path("/src/nested");
+    let nested_source = project.path("/src/nested/Nested.sol");
+    let marker = project.path("/src/nested/.git");
+    let config = project.config();
+    assert_eq!(
+        config.tracked_source_files_under(std::slice::from_ref(&nested_root)),
+        [nested_source]
+    );
+    project.write_file("/src/nested/.git", "gitdir: elsewhere");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(marker).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert!(state.config.tracked_source_files_under(&[nested_root]).is_empty());
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_nested_repository_marker_is_ignored_when_policy_is_disabled() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/nested/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({
+        "indexing": { "excludeNestedRepositories": false }
+    }));
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    assert!(
+        config
+            .watched_file_specs()
+            .iter()
+            .all(|spec| spec.pattern != "**/.git" && spec.pattern != ".git")
+    );
+    let marker = project.path("/src/nested/.git");
+    let nested_source = project.path("/src/nested/Nested.sol");
+    project.write_file("/src/nested/.git", "gitdir: elsewhere");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(marker).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+    assert_eq!(
+        state.config.tracked_source_files_under(&[project.path("/src/nested")]),
+        [nested_source]
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_nested_repository_marker_delete_restores_nested_project() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /packages/app/.git
+        gitdir: elsewhere
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /packages/app/src/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let packages_root = project.path("/packages");
+    let nested_source = project.path("/packages/app/src/Nested.sol");
+    let marker = project.path("/packages/app/.git");
+    let config = project.config();
+    assert!(config.tracked_source_files_under(std::slice::from_ref(&packages_root)).is_empty());
+    std::fs::remove_file(&marker).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(marker).unwrap(),
+                    typ: FileChangeType::DELETED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert_eq!(state.config.tracked_source_files_under(&[packages_root]), [nested_source]);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_created_directory_under_shallow_manifest_root_discovers_nested_project() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "contracts"
+
+        //- /contracts/Main.sol
+        contract Main {}
+
+        //- /node_modules/dependency/foundry.toml
+        "#,
+    );
+    let config = project.config();
+    let directory = project.path("/packages");
+    let nested_source = project.path("/packages/app/src/Nested.sol");
+    project.write_file("/packages/app/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
+    project.write_file("/packages/app/src/Nested.sol", "contract Nested {}");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(directory).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert_eq!(
+        state.config.tracked_source_files_under(&[project.path("/packages")]),
+        [nested_source]
+    );
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_created_directory_under_shallow_flycheck_root_discovers_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        test = "test"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /test/node_modules/dependency/Skipped.t.sol
+        contract Skipped {}
+        "#,
+    );
+    let config = project.config();
+    let directory = project.path("/test/generated");
+    let source = project.path("/test/generated/Generated.t.sol");
+    project.write_file("/test/generated/Generated.t.sol", "contract GeneratedTest {}");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(directory).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    assert!(
+        state
+            .config
+            .workspaces()
+            .iter()
+            .any(|workspace| workspace.flycheck_source_files().contains(&source))
+    );
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn created_directory_under_overlapping_source_root_schedules_analysis() {
     let project = TestProject::from_fixture(
         r#"
@@ -318,16 +598,16 @@ async fn watched_external_source_create_change_and_delete_schedule_analysis() {
             r#"
             //- /project/foundry.toml
             [profile.default]
-            src = "../shared"
+            src = "../shared/contracts"
             "#,
         );
-        let path = project.path("/shared/External.sol");
+        let path = project.path("/shared/contracts/External.sol");
         if typ != FileChangeType::CREATED {
-            project.write_file("/shared/External.sol", "contract External {}");
+            project.write_file("/shared/contracts/External.sol", "contract External {}");
         }
-        let config = project.config_with_roots(&["/project"]);
+        let config = project.config_with_roots(&["/project", "/shared"]);
         if typ == FileChangeType::CREATED {
-            project.write_file("/shared/External.sol", "contract External {}");
+            project.write_file("/shared/contracts/External.sol", "contract External {}");
         } else if typ == FileChangeType::DELETED {
             std::fs::remove_file(&path).unwrap();
         }
@@ -353,6 +633,93 @@ async fn watched_external_source_create_change_and_delete_schedule_analysis() {
         }
         state.analysis_scheduler.tasks.lock().cancel();
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_flycheck_only_source_change_schedules_analysis() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        test = "test"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /test/Main.t.sol
+        contract MainTest {}
+        "#,
+    );
+    let path = project.path("/test/Main.t.sol");
+    let config = project.config();
+    assert!(!config.tracks_source_file(&path));
+    assert!(config.tracks_flycheck_file(&path));
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(path).unwrap(),
+                    typ: FileChangeType::CHANGED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_source_respects_the_most_specific_flycheck_owner() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        test = "."
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /packages/app/foundry.toml
+        [profile.default]
+        src = "src"
+        test = "test"
+        script = "script"
+        "#,
+    );
+    let config = project.config();
+    let path = project.path("/packages/app/Outside.sol");
+    project.write_file("/packages/app/Outside.sol", "contract Outside {}");
+    assert!(!config.tracks_flycheck_file(&path));
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&path).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+    assert!(
+        state
+            .config
+            .workspaces()
+            .iter()
+            .all(|workspace| !workspace.flycheck_source_files().contains(&path))
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

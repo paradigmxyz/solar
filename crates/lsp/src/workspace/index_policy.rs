@@ -3,7 +3,7 @@
 use glob::{MatchOptions, Pattern};
 use serde::Deserialize;
 use std::{
-    path::{Component, Path},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -90,11 +90,25 @@ impl WorkspaceIndexPolicy {
         Self { options, excludes }
     }
 
+    pub(crate) fn excludes_nested_repositories(&self) -> bool {
+        self.options.exclude_nested_repositories
+    }
+
     pub(crate) fn should_prune_directory(
         &self,
         workspace_root: &Path,
         source_root: &Path,
         directory: &Path,
+    ) -> bool {
+        self.should_prune_source_directory(workspace_root, source_root, directory, true)
+    }
+
+    pub(crate) fn should_prune_source_directory(
+        &self,
+        workspace_root: &Path,
+        source_root: &Path,
+        directory: &Path,
+        apply_default_excludes: bool,
     ) -> bool {
         if !directory.starts_with(source_root) {
             return false;
@@ -106,17 +120,18 @@ impl WorkspaceIndexPolicy {
             return false;
         }
 
-        self.excludes_by_name(directory)
+        self.excludes_by_name(directory, apply_default_excludes)
             || self.options.exclude_nested_repositories
                 && (directory.file_name().is_some_and(|name| name == ".git")
                     || directory.join(".git").exists())
     }
 
-    pub(crate) fn excludes_file(
+    pub(crate) fn excludes_source_file(
         &self,
         workspace_root: &Path,
         source_root: &Path,
         path: &Path,
+        apply_default_excludes: bool,
     ) -> bool {
         if !path.starts_with(source_root) {
             return true;
@@ -125,8 +140,14 @@ impl WorkspaceIndexPolicy {
             return true;
         }
 
-        path.parent()
-            .is_some_and(|parent| self.excludes_directory(workspace_root, source_root, parent))
+        path.parent().is_some_and(|parent| {
+            self.excludes_source_directory(
+                workspace_root,
+                source_root,
+                parent,
+                apply_default_excludes,
+            )
+        })
     }
 
     pub(crate) fn excludes_directory(
@@ -135,21 +156,48 @@ impl WorkspaceIndexPolicy {
         source_root: &Path,
         directory: &Path,
     ) -> bool {
+        self.excludes_source_directory(workspace_root, source_root, directory, true)
+    }
+
+    pub(crate) fn excludes_source_directory(
+        &self,
+        workspace_root: &Path,
+        source_root: &Path,
+        directory: &Path,
+        apply_default_excludes: bool,
+    ) -> bool {
         if !directory.starts_with(source_root) {
             return true;
         }
-        directory
-            .ancestors()
-            .take_while(|ancestor| ancestor.starts_with(source_root))
-            .any(|ancestor| self.should_prune_directory(workspace_root, source_root, ancestor))
+        directory.ancestors().take_while(|ancestor| ancestor.starts_with(source_root)).any(
+            |ancestor| {
+                self.should_prune_source_directory(
+                    workspace_root,
+                    source_root,
+                    ancestor,
+                    apply_default_excludes,
+                )
+            },
+        )
     }
 
-    fn excludes_by_name(&self, directory: &Path) -> bool {
+    pub(crate) fn nested_repository_marker_root(&self, directory: &Path) -> Option<PathBuf> {
+        if !self.options.exclude_nested_repositories
+            || directory.file_name().is_some_and(|name| name == ".git")
+        {
+            return None;
+        }
+        directory.join(".git").exists().then(|| directory.to_path_buf())
+    }
+
+    fn excludes_by_name(&self, directory: &Path, apply_default_excludes: bool) -> bool {
         let Some(name) = directory.file_name().and_then(|name| name.to_str()) else {
             return false;
         };
         self.options.exclude_hidden_directories && name.starts_with('.')
-            || self.options.use_default_excludes && DEFAULT_EXCLUDED_DIRECTORIES.contains(&name)
+            || apply_default_excludes
+                && self.options.use_default_excludes
+                && DEFAULT_EXCLUDED_DIRECTORIES.contains(&name)
     }
 
     fn excludes_relative_path(&self, workspace_root: &Path, path: &Path, directory: bool) -> bool {
@@ -239,10 +287,11 @@ mod tests {
             &project.path("/src/vendor/xold7")
         ));
         assert!(!policy.should_prune_directory(workspace_root, &source_root, &source_root));
-        assert!(!policy.excludes_file(
+        assert!(!policy.excludes_source_file(
             workspace_root,
             &source_root,
-            &project.path("/src/contracts/Token.sol")
+            &project.path("/src/contracts/Token.sol"),
+            true,
         ));
     }
 

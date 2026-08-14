@@ -31,6 +31,8 @@ pub(crate) struct Workspace {
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
     source_watch_roots: Vec<SourceWatchRoot>,
+    flycheck_watch_roots: Vec<SourceWatchRoot>,
+    git_marker_watch_roots: Vec<PathBuf>,
     source_files: Vec<PathBuf>,
     flycheck_source_roots: Vec<PathBuf>,
     flycheck_source_files: Vec<PathBuf>,
@@ -71,6 +73,8 @@ impl Workspace {
             flycheck_source_roots: source_roots.clone(),
             source_roots,
             source_watch_roots: Vec::new(),
+            flycheck_watch_roots: Vec::new(),
+            git_marker_watch_roots: Vec::new(),
             source_files: Vec::new(),
             flycheck_source_files: Vec::new(),
         }
@@ -82,6 +86,8 @@ impl Workspace {
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
             source_watch_roots: Vec::new(),
+            flycheck_watch_roots: Vec::new(),
+            git_marker_watch_roots: Vec::new(),
             source_files: Vec::new(),
             flycheck_source_roots: Vec::new(),
             flycheck_source_files: Vec::new(),
@@ -102,6 +108,14 @@ impl Workspace {
 
     pub(crate) fn source_watch_roots(&self) -> &[SourceWatchRoot] {
         &self.source_watch_roots
+    }
+
+    pub(crate) fn flycheck_watch_roots(&self) -> &[SourceWatchRoot] {
+        &self.flycheck_watch_roots
+    }
+
+    pub(crate) fn git_marker_watch_roots(&self) -> &[PathBuf] {
+        &self.git_marker_watch_roots
     }
 
     pub(crate) fn import_source_roots(&self) -> &[PathBuf] {
@@ -130,18 +144,23 @@ impl Workspace {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
     ) -> bool {
-        let Some((source_files, source_watch_roots)) =
+        let Some((source_files, source_watch_roots, mut git_marker_watch_roots)) =
             self.collect_source_files(policy, cancellation, metrics, None)
         else {
             return false;
         };
-        let Some(flycheck_source_files) =
+        let Some((flycheck_source_files, flycheck_watch_roots, flycheck_marker_watch_roots)) =
             self.collect_flycheck_source_files(&source_files, policy, cancellation, None)
         else {
             return false;
         };
+        git_marker_watch_roots.extend(flycheck_marker_watch_roots);
+        git_marker_watch_roots.sort_unstable();
+        git_marker_watch_roots.dedup();
         self.source_files = source_files;
         self.source_watch_roots = source_watch_roots;
+        self.flycheck_watch_roots = flycheck_watch_roots;
+        self.git_marker_watch_roots = git_marker_watch_roots;
         self.flycheck_source_files = flycheck_source_files;
         true
     }
@@ -160,30 +179,56 @@ impl Workspace {
         {
             let index = WorkspacePathIndex::new(&*workspaces);
             for (idx, workspace) in workspaces.iter().enumerate() {
-                let Some((source_files, source_watch_roots)) = workspace.collect_source_files(
-                    policy,
-                    cancellation,
-                    metrics,
-                    Some((&index, idx)),
-                ) else {
+                let Some((source_files, source_watch_roots, mut git_marker_watch_roots)) =
+                    workspace.collect_source_files(
+                        policy,
+                        cancellation,
+                        metrics,
+                        Some((&index, idx)),
+                    )
+                else {
                     return false;
                 };
-                let Some(flycheck_source_files) = workspace.collect_flycheck_source_files(
+                let Some((
+                    flycheck_source_files,
+                    flycheck_watch_roots,
+                    flycheck_marker_watch_roots,
+                )) = workspace.collect_flycheck_source_files(
                     &source_files,
                     policy,
                     cancellation,
                     Some((&index, idx)),
-                ) else {
+                )
+                else {
                     return false;
                 };
-                collected.push((source_files, source_watch_roots, flycheck_source_files));
+                git_marker_watch_roots.extend(flycheck_marker_watch_roots);
+                git_marker_watch_roots.sort_unstable();
+                git_marker_watch_roots.dedup();
+                collected.push((
+                    source_files,
+                    source_watch_roots,
+                    flycheck_source_files,
+                    flycheck_watch_roots,
+                    git_marker_watch_roots,
+                ));
             }
         }
-        for (workspace, (source_files, source_watch_roots, flycheck_source_files)) in
-            workspaces.iter_mut().zip(collected)
+        for (
+            workspace,
+            (
+                source_files,
+                source_watch_roots,
+                flycheck_source_files,
+                flycheck_watch_roots,
+                git_marker_watch_roots,
+            ),
+        ) in workspaces.iter_mut().zip(collected)
         {
             workspace.source_files = source_files;
             workspace.source_watch_roots = source_watch_roots;
+            workspace.flycheck_watch_roots = flycheck_watch_roots;
+            workspace.git_marker_watch_roots = git_marker_watch_roots;
             workspace.flycheck_source_files = flycheck_source_files;
         }
         true
@@ -195,13 +240,14 @@ impl Workspace {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
         ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
-    ) -> Option<(Vec<PathBuf>, Vec<SourceWatchRoot>)> {
+    ) -> Option<(Vec<PathBuf>, Vec<SourceWatchRoot>, Vec<PathBuf>)> {
         let mut source_files = Vec::new();
         let mut source_watch_roots = Vec::new();
+        let mut git_marker_watch_roots = Vec::new();
         for root in &self.source_roots {
             let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
             let watch_root_start = source_watch_roots.len();
-            match (SourceFileCollector {
+            let state = (SourceFileCollector {
                 workspace_root,
                 source_root: root,
                 source_roots: &self.source_roots,
@@ -211,10 +257,13 @@ impl Workspace {
                 metrics,
                 files: &mut source_files,
                 watch_roots: &mut source_watch_roots,
+                marker_watch_roots: &mut git_marker_watch_roots,
                 ownership,
+                flycheck: false,
+                apply_default_excludes: self.applies_default_excludes(root),
             })
-            .collect(root, root == workspace_root)
-            {
+            .collect(root, root == workspace_root);
+            match state {
                 SourceTreeState::Cancelled => return None,
                 SourceTreeState::Pruned => continue,
                 SourceTreeState::Clean | SourceTreeState::Partitioned => {}
@@ -231,7 +280,9 @@ impl Workspace {
         source_files.dedup();
         source_watch_roots.sort_unstable();
         source_watch_roots.dedup();
-        Some((source_files, source_watch_roots))
+        git_marker_watch_roots.sort_unstable();
+        git_marker_watch_roots.dedup();
+        Some((source_files, source_watch_roots, git_marker_watch_roots))
     }
 
     fn collect_flycheck_source_files<'index, 'workspaces>(
@@ -240,16 +291,26 @@ impl Workspace {
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
-    ) -> Option<Vec<PathBuf>> {
-        let mut files = source_files.to_vec();
+    ) -> Option<(Vec<PathBuf>, Vec<SourceWatchRoot>, Vec<PathBuf>)> {
+        let mut files = source_files
+            .iter()
+            .filter(|path| {
+                ownership.is_none_or(|(index, workspace_idx)| {
+                    index.workspace_idx_for_flycheck_path(policy, path) == Some(workspace_idx)
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut watch_roots = Vec::new();
+        let mut marker_watch_roots = Vec::new();
         for root in &self.flycheck_source_roots {
             if self.source_roots.contains(root) {
                 continue;
             }
             let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
             let mut metrics = WorkspaceIndexMetrics::default();
-            let mut watch_roots = Vec::new();
-            match (SourceFileCollector {
+            let watch_root_start = watch_roots.len();
+            let state = (SourceFileCollector {
                 workspace_root,
                 source_root: root,
                 source_roots: &self.flycheck_source_roots,
@@ -259,30 +320,42 @@ impl Workspace {
                 metrics: &mut metrics,
                 files: &mut files,
                 watch_roots: &mut watch_roots,
+                marker_watch_roots: &mut marker_watch_roots,
                 ownership,
+                flycheck: true,
+                apply_default_excludes: self.applies_default_excludes(root),
             })
-            .collect(root, false)
-            {
+            .collect(root, false);
+            match state {
                 SourceTreeState::Cancelled => return None,
-                SourceTreeState::Clean | SourceTreeState::Partitioned | SourceTreeState::Pruned => {
-                }
+                SourceTreeState::Pruned => continue,
+                SourceTreeState::Clean | SourceTreeState::Partitioned => {}
+            }
+            if watch_roots.len() == watch_root_start {
+                watch_roots.push(if root == workspace_root {
+                    SourceWatchRoot::shallow(root)
+                } else {
+                    SourceWatchRoot::recursive(root)
+                });
             }
         }
         files.sort_unstable();
         files.dedup();
-        Some(files)
+        watch_roots.sort_unstable();
+        watch_roots.dedup();
+        marker_watch_roots.sort_unstable();
+        marker_watch_roots.dedup();
+        Some((files, watch_roots, marker_watch_roots))
     }
 
     pub(crate) fn add_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: PathBuf) {
         if self.tracks_disk_file(policy, &path) {
-            insert_sorted(&mut self.source_files, path.clone());
+            insert_sorted(&mut self.source_files, path);
         }
-        self.add_flycheck_source_file(policy, &path);
     }
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
         remove_sorted(&mut self.source_files, path);
-        self.remove_flycheck_source_file(path);
     }
 
     pub(crate) fn add_flycheck_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: &Path) {
@@ -300,7 +373,13 @@ impl Workspace {
             && !self.is_import_only_path(path)
             && self.source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
-                path.starts_with(root) && !policy.excludes_file(workspace_root, root, path)
+                path.starts_with(root)
+                    && !policy.excludes_source_file(
+                        workspace_root,
+                        root,
+                        path,
+                        self.applies_default_excludes(root),
+                    )
             })
     }
 
@@ -309,28 +388,79 @@ impl Workspace {
             && !is_import_only_path(&self.flycheck_source_roots, self.import_only_roots(), path)
             && self.flycheck_source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
-                path.starts_with(root) && !policy.excludes_file(workspace_root, root, path)
+                path.starts_with(root)
+                    && !policy.excludes_source_file(
+                        workspace_root,
+                        root,
+                        path,
+                        self.applies_default_excludes(root),
+                    )
             })
     }
 
+    pub(crate) fn excludes_source_directory(
+        &self,
+        policy: &WorkspaceIndexPolicy,
+        source_root: &Path,
+        path: &Path,
+    ) -> bool {
+        let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(source_root);
+        policy.excludes_source_directory(
+            workspace_root,
+            source_root,
+            path,
+            self.applies_default_excludes(source_root),
+        )
+    }
+
+    fn applies_default_excludes(&self, source_root: &Path) -> bool {
+        self.kind != WorkspaceKind::Foundry
+            || self.compile_opts.base_path.as_deref().is_none_or(|root| root == source_root)
+    }
+
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
+        Self::load_foundry_inner(path, None)
+    }
+
+    pub(crate) fn load_foundry_bounded(
+        path: PathBuf,
+        workspace_roots: &[PathBuf],
+    ) -> Result<Self, WorkspaceError> {
+        Self::load_foundry_inner(path, Some(workspace_roots))
+    }
+
+    fn load_foundry_inner(
+        path: PathBuf,
+        workspace_roots: Option<&[PathBuf]>,
+    ) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?.normalize();
         let profile = load_foundry_document(&path)?.default_profile();
-        let source_roots =
-            profile.source_roots(&root).into_iter().map(|path| path.normalize()).collect();
-        let flycheck_source_roots =
-            profile.flycheck_source_roots(&root).into_iter().map(|path| path.normalize()).collect();
+        let approved = |path: &Path| {
+            workspace_roots
+                .is_none_or(|workspace_roots| is_approved_index_root(path, &root, workspace_roots))
+        };
+        let source_roots = profile
+            .source_roots(&root)
+            .into_iter()
+            .map(|path| path.normalize())
+            .filter(|path| approved(path))
+            .collect();
+        let flycheck_source_roots = profile
+            .flycheck_source_roots(&root)
+            .into_iter()
+            .map(|path| path.normalize())
+            .filter(|path| approved(path))
+            .collect();
         let import_only_roots = profile
             .include_paths(&root)
             .into_iter()
             .map(|path| path.normalize())
+            .filter(|path| approved(path))
             .collect::<Vec<_>>();
-        let compile_opts = compile_opts(
-            root.clone(),
-            import_only_roots,
-            profile.remappings(&root),
-            profile.evm_version(),
-        );
+        let import_remappings = profile.remappings_with_include_paths(&root, &import_only_roots);
+        let compile_opts =
+            compile_opts(root.clone(), import_only_roots, import_remappings, profile.evm_version());
 
         Ok(Self {
             kind: WorkspaceKind::Foundry,
@@ -338,10 +468,22 @@ impl Workspace {
             flycheck_source_roots,
             compile_opts,
             source_watch_roots: Vec::new(),
+            flycheck_watch_roots: Vec::new(),
+            git_marker_watch_roots: Vec::new(),
             source_files: Vec::new(),
             flycheck_source_files: Vec::new(),
         })
     }
+}
+
+pub(crate) fn is_approved_index_root(
+    path: &Path,
+    manifest_root: &Path,
+    workspace_roots: &[PathBuf],
+) -> bool {
+    let path = path.normalize();
+    path.starts_with(manifest_root.normalize())
+        || workspace_roots.iter().any(|root| path.starts_with(root.normalize()))
 }
 
 fn insert_sorted(files: &mut Vec<PathBuf>, path: PathBuf) {
@@ -396,14 +538,10 @@ impl<'a> WorkspacePathIndex<'a> {
         self.query(path).workspace_idx_for_import_path()
     }
 
-    pub(crate) fn workspace_idx_containing_path(&self, path: &Path) -> Option<usize> {
-        workspace_idx_containing_path(self.workspaces, path)
-    }
-
     /// Returns the owning workspace when `path` is an active disk source under its policy.
     ///
-    /// The most specific base path owns paths inside it even when its policy rejects them. Source
-    /// roots are used as ownership boundaries only for paths outside every workspace base path.
+    /// The most specific matching base path or explicit source root owns the path. At the same
+    /// depth, base paths take precedence over source roots.
     pub(crate) fn workspace_idx_for_source_path(
         &self,
         policy: &WorkspaceIndexPolicy,
@@ -411,6 +549,15 @@ impl<'a> WorkspacePathIndex<'a> {
     ) -> Option<usize> {
         let idx = self.workspace_idx_for_source_region(path)?;
         self.workspaces[idx].tracks_disk_file(policy, path).then_some(idx)
+    }
+
+    pub(crate) fn workspace_idx_for_flycheck_path(
+        &self,
+        policy: &WorkspaceIndexPolicy,
+        path: &Path,
+    ) -> Option<usize> {
+        let idx = self.workspace_idx_for_flycheck_region(path)?;
+        self.workspaces[idx].tracks_flycheck_file(policy, path).then_some(idx)
     }
 
     pub(crate) fn reconcile_source_files(
@@ -441,27 +588,49 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 
     fn workspace_idx_for_source_region(&self, path: &Path) -> Option<usize> {
-        self.workspace_idx_containing_path(path).or_else(|| {
-            self.workspaces
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, workspace)| {
-                    let source_depth = workspace
-                        .source_roots()
-                        .iter()
-                        .filter(|root| path.starts_with(root))
-                        .map(|root| root.components().count())
-                        .max()?;
-                    let base_depth = workspace
-                        .compile_opts()
-                        .base_path
-                        .as_deref()
-                        .map_or(0, |base_path| base_path.components().count());
-                    Some((idx, source_depth, base_depth))
-                })
-                .max_by_key(|&(idx, source_depth, base_depth)| (source_depth, base_depth, idx))
-                .map(|(idx, _, _)| idx)
-        })
+        self.workspace_idx_for_region(path, false)
+    }
+
+    fn workspace_idx_for_flycheck_region(&self, path: &Path) -> Option<usize> {
+        self.workspace_idx_for_region(path, true)
+    }
+
+    fn workspace_idx_for_region(&self, path: &Path, flycheck: bool) -> Option<usize> {
+        const SOURCE: u8 = 0;
+        const BASE: u8 = 1;
+
+        self.workspaces
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, workspace)| {
+                let base_match = workspace
+                    .compile_opts()
+                    .base_path
+                    .as_deref()
+                    .filter(|base_path| path.starts_with(base_path))
+                    .map(|base_path| (base_path.components().count(), BASE));
+                let roots = if flycheck {
+                    workspace.import_source_roots()
+                } else {
+                    workspace.source_roots()
+                };
+                let source_match = roots
+                    .iter()
+                    .filter(|root| path.starts_with(root))
+                    .map(|root| (root.components().count(), SOURCE))
+                    .max();
+                let (root_depth, root_kind) = base_match.into_iter().chain(source_match).max()?;
+                let base_depth = workspace
+                    .compile_opts()
+                    .base_path
+                    .as_deref()
+                    .map_or(0, |base_path| base_path.components().count());
+                Some((idx, root_depth, root_kind, base_depth))
+            })
+            .max_by_key(|&(idx, root_depth, root_kind, base_depth)| {
+                (root_depth, root_kind, base_depth, idx)
+            })
+            .map(|(idx, _, _, _)| idx)
     }
 }
 
@@ -585,7 +754,10 @@ struct SourceFileCollector<'a, 'index, 'workspaces> {
     metrics: &'a mut WorkspaceIndexMetrics,
     files: &'a mut Vec<PathBuf>,
     watch_roots: &'a mut Vec<SourceWatchRoot>,
+    marker_watch_roots: &'a mut Vec<PathBuf>,
     ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
+    flycheck: bool,
+    apply_default_excludes: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -602,8 +774,15 @@ impl SourceFileCollector<'_, '_, '_> {
             return SourceTreeState::Cancelled;
         }
         self.metrics.visited += 1;
-        if let Some((index, workspace_idx)) = self.ownership
-            && index.workspace_idx_for_source_region(path).is_some_and(|idx| idx != workspace_idx)
+        let owner = self.ownership.and_then(|(index, _)| {
+            if self.flycheck {
+                index.workspace_idx_for_flycheck_region(path)
+            } else {
+                index.workspace_idx_for_source_region(path)
+            }
+        });
+        if let Some((_, workspace_idx)) = self.ownership
+            && owner.is_some_and(|idx| idx != workspace_idx)
         {
             self.metrics.pruned += 1;
             return SourceTreeState::Pruned;
@@ -619,7 +798,12 @@ impl SourceFileCollector<'_, '_, '_> {
             if !is_solidity_file(path) {
                 return SourceTreeState::Clean;
             }
-            if self.policy.excludes_file(self.workspace_root, self.source_root, path) {
+            if self.policy.excludes_source_file(
+                self.workspace_root,
+                self.source_root,
+                path,
+                self.apply_default_excludes,
+            ) {
                 self.metrics.pruned += 1;
             } else {
                 self.files.push(path.to_path_buf());
@@ -630,7 +814,15 @@ impl SourceFileCollector<'_, '_, '_> {
         if !metadata.is_dir() {
             return SourceTreeState::Partitioned;
         }
-        if self.policy.should_prune_directory(self.workspace_root, self.source_root, path) {
+        if self.policy.should_prune_source_directory(
+            self.workspace_root,
+            self.source_root,
+            path,
+            self.apply_default_excludes,
+        ) {
+            if let Some(root) = self.policy.nested_repository_marker_root(path) {
+                self.marker_watch_roots.push(root);
+            }
             self.metrics.pruned += 1;
             return SourceTreeState::Pruned;
         }

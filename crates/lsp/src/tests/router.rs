@@ -142,12 +142,22 @@ fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: 
     );
 }
 
-fn assert_watched_unregistration(params: &UnregistrationParams) {
+fn watched_registration_id(params: &RegistrationParams) -> &str {
+    let [registration] = params.registrations.as_slice() else {
+        panic!("expected one watched-file registration, got {params:?}")
+    };
+    assert!(registration.id.starts_with("solar-watched-files-"));
+    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
+    &registration.id
+}
+
+fn watched_unregistration_id(params: &UnregistrationParams) -> &str {
     let [unregistration] = params.unregisterations.as_slice() else {
         panic!("expected one watched-file unregistration, got {params:?}")
     };
-    assert_eq!(unregistration.id, "solar-watched-files");
+    assert!(unregistration.id.starts_with("solar-watched-files-"));
     assert_eq!(unregistration.method, notif::DidChangeWatchedFiles::METHOD);
+    &unregistration.id
 }
 
 async fn acknowledge_watched_events_until_registration(
@@ -164,7 +174,7 @@ async fn acknowledge_watched_events_until_registration(
                 }
             }
             WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
-                assert_watched_unregistration(&params);
+                watched_unregistration_id(&params);
                 acknowledge.send(()).unwrap();
             }
         }
@@ -1147,6 +1157,7 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     })
     .await;
     assert_watched_registration_root(&params, &initial_path);
+    watched_registration_id(&params);
 
     server
         .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
@@ -1156,12 +1167,23 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
             },
         })
         .unwrap();
-    let WatchedRegistrationClientEvent::Unregister(params, stale_unregister) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected first watched-file unregistration")
+    let (stale_params, stale_register) = loop {
+        match next_watched_registration_event(&mut events_rx).await {
+            WatchedRegistrationClientEvent::Register(params, acknowledge)
+                if watched_registration_has_discovered_root(&params, &stale_path) =>
+            {
+                break (params, acknowledge);
+            }
+            WatchedRegistrationClientEvent::Register(_, acknowledge) => {
+                acknowledge.send(()).unwrap();
+            }
+            WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
+                watched_unregistration_id(&params);
+                acknowledge.send(()).unwrap();
+            }
+        }
     };
-    assert_watched_unregistration(&params);
+    watched_registration_id(&stale_params);
 
     server
         .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
@@ -1169,14 +1191,36 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
         })
         .unwrap();
 
-    stale_unregister.send(()).unwrap();
-    let params = acknowledge_watched_events_until_registration(&mut events_rx, |params| {
-        watched_registration_has_discovered_root(params, &latest_path)
-    })
-    .await;
+    stale_register.send(()).unwrap();
+    let (params, acknowledge) = loop {
+        match next_watched_registration_event(&mut events_rx).await {
+            WatchedRegistrationClientEvent::Register(params, acknowledge)
+                if watched_registration_has_discovered_root(&params, &latest_path) =>
+            {
+                break (params, acknowledge);
+            }
+            WatchedRegistrationClientEvent::Register(params, acknowledge) => {
+                watched_registration_id(&params);
+                acknowledge.send(()).unwrap();
+            }
+            WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
+                watched_unregistration_id(&params);
+                acknowledge.send(()).unwrap();
+            }
+        }
+    };
     assert_watched_registration_root(&params, &latest_path);
     assert_watched_registration_excludes_root(&params, &initial_path);
     assert_watched_registration_excludes_root(&params, &stale_path);
+    let latest_id = watched_registration_id(&params).to_owned();
+    acknowledge.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Unregister(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected superseded watched-file unregistration")
+    };
+    assert_ne!(watched_unregistration_id(&params), latest_id);
+    acknowledge.send(()).unwrap();
 
     server.shutdown(()).await.unwrap();
     server.exit(()).unwrap();
@@ -1240,6 +1284,7 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
         panic!("expected initial watched-file registration")
     };
     assert_watched_registration_root(&params, &old_root);
+    let old_registration_id = watched_registration_id(&params).to_owned();
     acknowledge.send(()).unwrap();
 
     std::fs::rename(&old_root, &new_root).unwrap();
@@ -1251,18 +1296,20 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
             }],
         })
         .unwrap();
-    let WatchedRegistrationClientEvent::Unregister(_, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected watched-file unregistration after root rename")
-    };
-    acknowledge.send(()).unwrap();
     let WatchedRegistrationClientEvent::Register(params, acknowledge) =
         next_watched_registration_event(&mut events_rx).await
     else {
         panic!("expected watched-file registration after root rename")
     };
     assert_watched_registration_root(&params, &new_root);
+    let new_registration_id = watched_registration_id(&params).to_owned();
+    acknowledge.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Unregister(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected old watched-file unregistration after root rename")
+    };
+    assert_eq!(watched_unregistration_id(&params), old_registration_id);
     acknowledge.send(()).unwrap();
 
     std::fs::remove_dir(&new_root).unwrap();
@@ -1273,12 +1320,6 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
             }],
         })
         .unwrap();
-    let WatchedRegistrationClientEvent::Unregister(_, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected watched-file unregistration after root deletion")
-    };
-    acknowledge.send(()).unwrap();
     let WatchedRegistrationClientEvent::Register(params, acknowledge) =
         next_watched_registration_event(&mut events_rx).await
     else {
@@ -1290,6 +1331,13 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
     assert!(
         registration.register_options.as_ref().unwrap()["watchers"].as_array().unwrap().is_empty()
     );
+    acknowledge.send(()).unwrap();
+    let WatchedRegistrationClientEvent::Unregister(params, acknowledge) =
+        next_watched_registration_event(&mut events_rx).await
+    else {
+        panic!("expected old watched-file unregistration after root deletion")
+    };
+    assert_eq!(watched_unregistration_id(&params), new_registration_id);
     acknowledge.send(()).unwrap();
 
     server.shutdown(()).await.unwrap();

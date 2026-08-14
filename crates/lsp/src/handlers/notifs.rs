@@ -142,6 +142,13 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
+            Some(".git")
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) =>
+            {
+                if state.config.nested_repository_marker_event_is_relevant(&path) {
+                    should_rediscover = true;
+                }
+            }
             Some("foundry.toml" | "remappings.txt") => {
                 if !state.config.workspace_config_event_is_relevant(&path) {
                     continue;
@@ -193,11 +200,12 @@ pub(crate) fn did_change_watched_files(
                 disk_paths.push(path);
             }
             _ if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) => {
+                let shallow_watch = state.config.shallow_watch_event_is_relevant(&path);
                 let relevant = if event.typ == FileChangeType::CREATED {
                     std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir())
-                        && state.created_file_operation_path_is_relevant(&path)
+                        && (shallow_watch || state.created_file_operation_path_is_relevant(&path))
                 } else {
-                    state.deleted_file_operation_path_is_relevant(&path)
+                    shallow_watch || state.deleted_file_operation_path_is_relevant(&path)
                 };
                 if !relevant {
                     continue;

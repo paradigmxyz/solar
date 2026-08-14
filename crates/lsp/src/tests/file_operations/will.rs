@@ -66,6 +66,79 @@ fn will_delete_returns_import_edits_without_mutating_state() {
 }
 
 #[test]
+fn will_delete_refuses_partial_import_edits() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        remappings = ["@lib/=lib/"]
+
+        //- /src/Main.sol
+        import "@lib/Target.sol";
+
+        //- /lib/Dependency.sol open
+        import "./Target.sol";
+
+        //- /lib/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/lib/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[test]
+fn will_delete_edits_closed_default_named_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "./Target.sol";
+
+        //- /src/lib/Library.sol
+        import "../Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap()
+    .unwrap();
+
+    let changes = edit.changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    assert!(changes.contains_key(&Url::from_file_path(project.path("/src/Main.sol")).unwrap()));
+    assert!(
+        changes.contains_key(&Url::from_file_path(project.path("/src/lib/Library.sol")).unwrap())
+    );
+}
+
+#[test]
 fn will_rename_does_not_edit_open_foundry_dependencies() {
     let project = TestProject::from_fixture(
         r#"
@@ -98,6 +171,81 @@ fn will_rename_does_not_edit_open_foundry_dependencies() {
     .unwrap();
 
     assert!(edit.is_none());
+}
+
+#[test]
+fn will_rename_refuses_partial_import_edits() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+        remappings = ["@lib/=lib/"]
+
+        //- /src/Main.sol
+        import "@lib/Target.sol";
+
+        //- /lib/Dependency.sol open
+        import "./Target.sol";
+
+        //- /lib/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Url::from_file_path(project.path("/lib/Target.sol")).unwrap().to_string(),
+                new_uri: Url::from_file_path(project.path("/lib/Renamed.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[test]
+fn will_rename_edits_closed_default_named_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "./Target.sol";
+
+        //- /src/lib/Library.sol
+        import "../Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+                new_uri: Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap()
+    .unwrap();
+
+    let changes = edit.changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    assert!(changes.contains_key(&Url::from_file_path(project.path("/src/Main.sol")).unwrap()));
+    assert!(
+        changes.contains_key(&Url::from_file_path(project.path("/src/lib/Library.sol")).unwrap())
+    );
 }
 
 #[test]

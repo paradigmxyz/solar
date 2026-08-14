@@ -1404,6 +1404,7 @@ fn watched_file_registration_watches_solidity_and_foundry_configuration() {
                 { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                { "globPattern": "**/.git", "kind": WatchKind::Create | WatchKind::Delete },
             ],
         }))
     );
@@ -2274,7 +2275,7 @@ fn analysis_batches_use_import_ownership_for_external_files() {
         contract SecondTarget {}
         "#,
     );
-    let mut config = project.config_with_roots(&["/first", "/second"]);
+    let mut config = project.config_with_roots(&["/"]);
     let main_path = project.path("/external/src/Main.sol");
     let overlay_path = project.path("/external/include/Overlay.sol");
     let cached_path = project.path("/external/src/Cached.sol");
@@ -2347,7 +2348,7 @@ fn analysis_batches_share_external_open_files_across_matching_contexts() {
         crate::vfs::VfsPath::from(project.path("/shared/Overlay.sol")),
         Some(crop::Rope::from(overlay_contents)),
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/"]);
     let overlay = project.path("/shared/Overlay.sol");
     let snapshot = snapshot_with_config(config, vfs);
 
@@ -2412,7 +2413,7 @@ fn analysis_batches_share_external_open_files_across_overlapping_contexts() {
         crate::vfs::VfsPath::from(overlay.clone()),
         Some(crop::Rope::from(overlay_contents)),
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/"]);
     let snapshot = snapshot_with_config(config, vfs);
 
     let batches = snapshot.analysis_batches(Vec::new());

@@ -296,13 +296,14 @@ struct WatchedFileRegistrationCoordinator {
     gate: AsyncMutex<()>,
     generation: AtomicUsize,
     desired_specs: Mutex<Option<Vec<WatchedFileSpec>>>,
+    active_registration_ids: Mutex<Vec<String>>,
 }
 
 struct WatchedFileRegistrationUpdate {
     generation: usize,
     desired_specs: Vec<WatchedFileSpec>,
+    registration_id: String,
     registration: RegistrationParams,
-    replace: bool,
 }
 
 impl Default for AnalysisScheduler {
@@ -456,7 +457,7 @@ impl GlobalState {
     }
 
     pub(crate) fn source_file_event_is_relevant(&self, path: &Path, include_missing: bool) -> bool {
-        if self.config.tracks_source_file(path)
+        if self.config.tracks_watched_source_file(path)
             || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
         {
             return true;
@@ -471,7 +472,7 @@ impl GlobalState {
         path: &Path,
         typ: FileChangeType,
     ) -> SourceFileEventDisposition {
-        if self.config.tracks_source_file(path)
+        if self.config.tracks_watched_source_file(path)
             || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
         {
             return SourceFileEventDisposition::Relevant;
@@ -573,14 +574,17 @@ impl GlobalState {
         }
 
         for workspace in self.config.workspaces() {
-            let Some(base_path) = workspace.compile_opts().base_path.as_deref() else { continue };
             for source_root in workspace.source_roots() {
                 if source_root.starts_with(path) {
                     return true;
                 }
                 if path.starts_with(source_root)
                     && !workspace.is_import_only_path(path)
-                    && !self.config.index_policy().excludes_directory(base_path, source_root, path)
+                    && !workspace.excludes_source_directory(
+                        self.config.index_policy(),
+                        source_root,
+                        path,
+                    )
                 {
                     return include_missing;
                 }
@@ -621,7 +625,7 @@ impl GlobalState {
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
-        self.update_watched_file_registration(false);
+        self.update_watched_file_registration();
 
         self.reindex();
 
@@ -633,10 +637,10 @@ impl GlobalState {
     }
 
     pub(crate) fn reregister_watched_files(&self) {
-        self.update_watched_file_registration(true);
+        self.update_watched_file_registration();
     }
 
-    fn update_watched_file_registration(&self, replace: bool) {
+    fn update_watched_file_registration(&self) {
         if !self.config.supports_watched_file_dynamic_registration() {
             return;
         }
@@ -647,7 +651,6 @@ impl GlobalState {
                 &self.config,
                 &self.watched_file_registration,
                 specs,
-                replace,
             )
         };
         spawn_watched_file_registration_update(
@@ -944,7 +947,7 @@ impl GlobalState {
         let mut deferred_paths = Vec::new();
         let mut still_deferred = FxHashMap::default();
         for (path, typ) in deferred_source_file_events {
-            if !self.config.tracks_source_file(&path)
+            if !self.config.tracks_watched_source_file(&path)
                 && !self.vfs.read().exists(&crate::vfs::VfsPath::from(path.clone()))
             {
                 still_deferred.insert(path, typ);
@@ -1672,7 +1675,6 @@ fn prepare_watched_file_registration_update(
     config: &Config,
     coordinator: &WatchedFileRegistrationCoordinator,
     specs: Vec<WatchedFileSpec>,
-    replace: bool,
 ) -> Option<WatchedFileRegistrationUpdate> {
     if !config.supports_watched_file_dynamic_registration() {
         return None;
@@ -1689,8 +1691,10 @@ fn prepare_watched_file_registration_update(
     let generation = coordinator.generation.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
     drop(current_specs);
 
-    let registration = watched_file_registration_params_with_specs(config, &desired_specs);
-    Some(WatchedFileRegistrationUpdate { generation, desired_specs, registration, replace })
+    let registration_id = format!("solar-watched-files-{generation}");
+    let registration =
+        watched_file_registration_params_with_specs(config, &desired_specs, &registration_id);
+    Some(WatchedFileRegistrationUpdate { generation, desired_specs, registration_id, registration })
 }
 
 fn spawn_watched_file_registration_update(
@@ -1698,8 +1702,12 @@ fn spawn_watched_file_registration_update(
     coordinator: &Arc<WatchedFileRegistrationCoordinator>,
     update: Option<WatchedFileRegistrationUpdate>,
 ) {
-    let Some(WatchedFileRegistrationUpdate { generation, desired_specs, registration, replace }) =
-        update
+    let Some(WatchedFileRegistrationUpdate {
+        generation,
+        desired_specs,
+        registration_id,
+        registration,
+    }) = update
     else {
         return;
     };
@@ -1707,20 +1715,6 @@ fn spawn_watched_file_registration_update(
     let mut client = client.clone();
     tokio::spawn(async move {
         let _guard = coordinator.gate.lock().await;
-        if coordinator.generation.load(Ordering::Acquire) != generation {
-            return;
-        }
-        if replace {
-            let params = UnregistrationParams {
-                unregisterations: vec![Unregistration {
-                    id: "solar-watched-files".into(),
-                    method: DidChangeWatchedFiles::METHOD.into(),
-                }],
-            };
-            if let Err(error) = client.unregister_capability(params).await {
-                tracing::warn!(%error, "failed to unregister watched-file notifications");
-            }
-        }
         if coordinator.generation.load(Ordering::Acquire) != generation {
             return;
         }
@@ -1734,18 +1728,50 @@ fn spawn_watched_file_registration_update(
                     *current_specs = None;
                 }
             }
+            return;
+        }
+        let previous_ids = {
+            let mut active_ids = coordinator.active_registration_ids.lock();
+            let previous_ids = active_ids.clone();
+            active_ids.push(registration_id);
+            previous_ids
+        };
+        for previous_id in previous_ids {
+            match unregister_watched_file_registration(&mut client, previous_id.clone()).await {
+                Ok(()) => {
+                    coordinator.active_registration_ids.lock().retain(|id| id != &previous_id);
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "failed to unregister watched-file notifications");
+                }
+            }
         }
     });
 }
 
+async fn unregister_watched_file_registration(
+    client: &mut ClientSocket,
+    id: String,
+) -> async_lsp::Result<()> {
+    let params = UnregistrationParams {
+        unregisterations: vec![Unregistration { id, method: DidChangeWatchedFiles::METHOD.into() }],
+    };
+    client.unregister_capability(params).await
+}
+
 #[cfg(test)]
 fn watched_file_registration_params(config: &Config) -> RegistrationParams {
-    watched_file_registration_params_with_specs(config, &config.watched_file_specs())
+    watched_file_registration_params_with_specs(
+        config,
+        &config.watched_file_specs(),
+        "solar-watched-files",
+    )
 }
 
 fn watched_file_registration_params_with_specs(
     config: &Config,
     specs: &[WatchedFileSpec],
+    registration_id: &str,
 ) -> RegistrationParams {
     let watchers = if config.supports_watched_file_relative_patterns() {
         specs
@@ -1762,20 +1788,30 @@ fn watched_file_registration_params_with_specs(
             })
             .collect::<Vec<_>>()
     } else {
-        let kind = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
-        ["**/*.sol", "**/foundry.toml", "**/remappings.txt"]
-            .into_iter()
-            .map(|pattern| FileSystemWatcher {
-                glob_pattern: GlobPattern::String(pattern.into()),
-                kind,
-            })
-            .collect()
+        let mut watchers = [
+            ("**/*.sol", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+            ("**/foundry.toml", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+            ("**/remappings.txt", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+        ]
+        .into_iter()
+        .map(|(pattern, kind)| FileSystemWatcher {
+            glob_pattern: GlobPattern::String(pattern.into()),
+            kind: Some(kind),
+        })
+        .collect::<Vec<_>>();
+        if config.watches_nested_repository_markers() {
+            watchers.push(FileSystemWatcher {
+                glob_pattern: GlobPattern::String("**/.git".into()),
+                kind: Some(WatchKind::Create | WatchKind::Delete),
+            });
+        }
+        watchers
     };
     let options = DidChangeWatchedFilesRegistrationOptions { watchers };
 
     RegistrationParams {
         registrations: vec![Registration {
-            id: "solar-watched-files".into(),
+            id: registration_id.into(),
             method: DidChangeWatchedFiles::METHOD.into(),
             register_options: Some(serde_json::to_value(options).unwrap()),
         }],
@@ -1990,7 +2026,7 @@ impl GlobalStateSnapshot {
                 deferred_source_file_events
                     .into_iter()
                     .filter(|(path, typ)| {
-                        self.config.tracks_source_file(path)
+                        self.config.tracks_watched_source_file(path)
                             || vfs.exists(&crate::vfs::VfsPath::from(path.clone()))
                             || analysis_paths
                                 .includes(path, *typ == FileChangeType::CREATED || path.exists())
@@ -2061,7 +2097,6 @@ impl GlobalStateSnapshot {
                         &self.config,
                         &self.watched_file_registration,
                         watched_file_specs(&self.config, &commit.analysis_paths),
-                        true,
                     )
                 } else {
                     None
@@ -2398,7 +2433,7 @@ mod analysis_batch_tests {
         project.write_file("/workspace/contracts/Tracked.sol", "contract Tracked {}");
         project.write_file("/checks/Tracked.t.sol", "contract TrackedTest {}");
         project.write_file("/workspace/deployments/Tracked.s.sol", "contract TrackedScript {}");
-        let mut params = project.initialize_params_with_roots(&["/workspace"]);
+        let mut params = project.initialize_params();
         params.initialization_options = Some(serde_json::json!({
             "flychecks": [{
                 "id": "custom",

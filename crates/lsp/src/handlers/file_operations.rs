@@ -65,9 +65,8 @@ pub(crate) fn will_rename_files(
                 return Ok(None);
             };
             let symbol_tables = latest_analysis.await?;
-            let mut plan = symbol_tables.read().import_rename_edits(&moves);
-            retain_workspace_source_edits(&mut plan, &config);
-            if plan.is_empty() {
+            let plan = symbol_tables.read().import_rename_edits(&moves);
+            if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
                 return Ok(None);
             }
             tokio::task::spawn_blocking(move || {
@@ -375,9 +374,8 @@ pub(crate) fn will_delete_files(
             return Ok(None);
         };
         let symbol_tables = latest_analysis.await?;
-        let mut plan = symbol_tables.read().import_delete_edits(&deleted_paths);
-        retain_workspace_source_edits(&mut plan, &config);
-        if plan.is_empty() {
+        let plan = symbol_tables.read().import_delete_edits(&deleted_paths);
+        if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
             return Ok(None);
         }
         tokio::task::spawn_blocking(move || {
@@ -389,10 +387,13 @@ pub(crate) fn will_delete_files(
     }
 }
 
-fn retain_workspace_source_edits(plan: &mut ImportEditPlan, config: &crate::config::Config) {
+fn workspace_source_edits_are_complete(
+    plan: &ImportEditPlan,
+    config: &crate::config::Config,
+) -> bool {
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
-    plan.retain(is_workspace_source);
+    plan.all_files(is_workspace_source)
 }
 
 fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {
