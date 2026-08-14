@@ -72,7 +72,7 @@ bb6:
   add
   calldataload
   dup1
-  push 192
+  push 224
   mstore
   push 31
   dup2
@@ -106,7 +106,7 @@ bb6:
   dup2
   add
   dup1
-  push 224
+  push 192
   mstore
   lt
   push bb12
@@ -116,18 +116,19 @@ bb6:
   dup1
   push 256
   mstore
-  push 224
+  push 192
   mload
   dup2
   add
   push 64
   mstore
-  push 192
+  push 224
   mload
-  dup2
+  dup1
+  dup3
   mstore
   push 32
-  dup2
+  dup3
   add
   push 32
   push 160
@@ -142,10 +143,9 @@ bb6:
   dup1
   calldataload
   add
-  push 192
-  mload
-  swap1
-  dup3
+  dup2
+  swap3
+  swap2
   calldatacopy
   swap1
   mload

@@ -7518,6 +7518,57 @@ impl<'gcx> EvmCodegen<'gcx> {
         )
     }
 
+    /// Plans operands for an instruction that may overwrite compiler-managed memory.
+    ///
+    /// A normal operand plan may discard a resident value when it can later be loaded from an
+    /// internal argument or spill slot. A memory write can invalidate that recovery path, so keep
+    /// every live memory-backed operand resident across the instruction.
+    fn plan_memory_write_operands(
+        &self,
+        func: &Function,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<OperandPlan> {
+        let mut preserved =
+            self.preserved_operands_for(&self.scheduler, func, operands, liveness, block, inst_idx);
+        let memory_backed = |value| {
+            (self.in_internal_function && matches!(func.value(value), crate::mir::Value::Arg(_)))
+                || self.scheduler.reloadable_spill(value).is_some()
+        };
+
+        for &value in operands {
+            if !preserved.contains(&value)
+                && !liveness.is_dead_after(value, block, inst_idx)
+                && memory_backed(value)
+            {
+                preserved.push(value);
+            }
+        }
+
+        let plan = self.scheduler.plan_operands(
+            operands,
+            &preserved,
+            func,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version,
+            self.operand_cost_model(),
+        )?;
+
+        // A surviving physical copy is only a valid replacement for mutable-memory recovery while
+        // it remains reachable by the legacy EVM's DUP1..DUP16 instructions after consumption.
+        // This clone should be removed if stack movement can be validated without replaying it.
+        let mut post = self.scheduler.clone();
+        post.apply_operand_plan(plan.clone());
+        post.instruction_executed(operands.len(), None);
+        preserved
+            .iter()
+            .filter(|&&value| memory_backed(value))
+            .all(|&value| post.stack.find(value).is_some_and(|depth| depth < MAX_STACK_ACCESS))
+            .then_some(plan)
+    }
+
     fn preserved_operands_for(
         &self,
         scheduler: &StackScheduler,
@@ -8167,7 +8218,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
         if !self.gcx.sess.opts.unstable.evm_no_specialized_operand_plans
-            && let Some(plan) = self.plan_operands(func, &[val, addr], liveness, block, inst_idx)
+            && let Some(plan) = if matches!(opcode, op::MSTORE | op::MSTORE8) {
+                self.plan_memory_write_operands(func, &[val, addr], liveness, block, inst_idx)
+            } else {
+                self.plan_operands(func, &[val, addr], liveness, block, inst_idx)
+            }
         {
             self.emit_operand_plan(func, plan);
             self.asm.emit_op(opcode);
@@ -8249,7 +8304,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 });
         if !self.gcx.sess.opts.unstable.evm_no_specialized_operand_plans
             && !retains_nonrematerializable
-            && let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx)
+            && let Some(plan) =
+                self.plan_memory_write_operands(func, operands, liveness, block, inst_idx)
         {
             self.emit_operand_plan(func, plan);
             self.asm.emit_op(opcode);

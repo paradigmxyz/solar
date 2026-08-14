@@ -18,6 +18,7 @@
 //@[specialized] run-call: extCodeCopyPreserves 31 => 574
 //@[default] run-call: returnDataCopyPreserves 37 => 586
 //@[specialized] run-call: returnDataCopyPreserves 37 => 586
+//@[specialized] run-call: internalArgSurvivesMemoryWrite => true
 
 contract SpecializedOperandPlans {
     uint256 private stored;
@@ -99,4 +100,23 @@ contract SpecializedOperandPlans {
     }
 
     function noop(uint256) external {}
+
+    function internalArgSurvivesMemoryWrite() external pure returns (bool) {
+        uint256 pointer;
+        assembly {
+            pointer := add(mload(0x40), 0x40)
+        }
+        (uint256 a, uint256 b) = overwriteInternalArg(pointer, 0);
+        return a == pointer && b == pointer;
+    }
+
+    function overwriteInternalArg(uint256 x, uint256 depth) internal pure returns (uint256, uint256) {
+        if (depth != 0) {
+            return overwriteInternalArg(x, depth - 1);
+        }
+        assembly {
+            mstore(x, 7)
+        }
+        return (x, x);
+    }
 }
