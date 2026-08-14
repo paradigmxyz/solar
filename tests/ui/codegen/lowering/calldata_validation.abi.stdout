@@ -7,11 +7,10 @@ fn @vUint8() [selector=0xd5f6949e, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v5 = and arg0, 255
-    mstore 128, v5
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    mstore 128, arg0
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -29,11 +28,10 @@ fn @vInt16() [selector=0xe9697b4d, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v5 = signextend 1, arg0
-    mstore 128, v5
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    mstore 128, arg0
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -51,12 +49,10 @@ fn @vBool() [selector=0x18a11c47, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v6 = iszero arg0
-    v7 = iszero v6
-    mstore 128, v7
-    v8 = add 128, 32
-    v9 = sub v8, 128
-    returndata 128, v9
+    mstore 128, arg0
+    v6 = add 128, 32
+    v7 = sub v6, 128
+    returndata 128, v7
   bb2:
     revert 0, 0
   bb3:
@@ -75,11 +71,10 @@ fn @vAddress() [selector=0x23347413, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v5 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v5
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    mstore 128, arg0
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -97,11 +92,10 @@ fn @vBytes4() [selector=0x2c920949, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v5 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v5
-    v6 = add 128, 32
-    v7 = sub v6, 128
-    returndata 128, v7
+    mstore 128, arg0
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
   bb2:
     revert 0, 0
   bb3:
@@ -119,9 +113,10 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
     v1 = lt v0, 36
     jumpi v1, bb2, bb3
   bb1:
-    v4 = lt arg0, 3
-    v5 = iszero v4
-    jumpi v5, bb5, bb6
+    mstore 128, arg0
+    v4 = add 128, 32
+    v5 = sub v4, 128
+    returndata 128, v5
   bb2:
     revert 0, 0
   bb3:
@@ -130,16 +125,6 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
     jumpi v3, bb4, bb2
   bb4:
     jump bb1
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v6 = and arg0, 255
-    mstore 128, v6
-    v7 = add 128, 32
-    v8 = sub v7, 128
-    returndata 128, v8
 }
 
 fn @vMulti() [selector=0x403ecab4, pure] {

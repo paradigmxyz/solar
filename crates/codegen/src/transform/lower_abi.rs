@@ -1085,6 +1085,8 @@ impl LowerAbiCx {
             module.function_mut(wrapper_id),
             return_params.as_ref(),
             &self.helpers,
+            abi_params.as_ref(),
+            lazy_args,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -2823,6 +2825,36 @@ fn can_encode_live_returns(func: &Function) -> bool {
     })
 }
 
+fn canonical_input_for_arg<'a>(
+    func: &Function,
+    value: ValueId,
+    input_params: Option<&'a AbiParamLayout>,
+) -> Option<&'a AbiParamType> {
+    let crate::mir::Value::Arg(index) = func.value(value) else { return None };
+    let mut physical = 0;
+    for ty in input_params?.types.iter() {
+        if matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. })
+            && physical == index.index()
+        {
+            return Some(ty);
+        }
+        physical += (ty.head_size() / EvmMemoryLayout::WORD_SIZE) as usize;
+    }
+    None
+}
+
+fn canonical_input_covers_return(input: &AbiParamType, output: &AbiParamType) -> bool {
+    match (input, output) {
+        (AbiParamType::Scalar(input), AbiParamType::Scalar(output)) => input == output,
+        (AbiParamType::Enum { ty: input, .. }, AbiParamType::Scalar(output)) => input == output,
+        (
+            AbiParamType::Enum { ty: input, variants: input_variants },
+            AbiParamType::Enum { ty: output, variants: output_variants },
+        ) => input == output && input_variants == output_variants,
+        _ => false,
+    }
+}
+
 fn canonicalize_return_value(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiParamType,
@@ -2915,6 +2947,8 @@ fn encode_live_returns(
     func: &mut Function,
     return_params: Option<&AbiParamLayout>,
     helpers: &CleanupHelpers,
+    input_params: Option<&AbiParamLayout>,
+    lazy_args: bool,
 ) -> usize {
     let Some(layout) = func.abi_returns.clone() else { return 0 };
     if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
@@ -2945,12 +2979,27 @@ fn encode_live_returns(
                 if let Some(return_params) = &return_params
                     && let Some(ty) = return_params.get(index)
                 {
-                    canonicalize_return_value(&mut builder, ty, value, helpers)
+                    if lazy_args
+                        && canonical_input_for_arg(builder.func(), value, input_params)
+                            .is_some_and(|input| canonical_input_covers_return(input, ty))
+                    {
+                        value
+                    } else {
+                        canonicalize_return_value(&mut builder, ty, value, helpers)
+                    }
                 } else {
                     let Some(ty) = return_types.get(index).copied() else { return value };
-                    AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
-                        validator.cleanup_with_helpers(&mut builder, value, helpers)
-                    })
+                    if lazy_args
+                        && canonical_input_for_arg(builder.func(), value, input_params).is_some_and(
+                            |input| canonical_input_covers_return(input, &AbiParamType::Scalar(ty)),
+                        )
+                    {
+                        value
+                    } else {
+                        AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
+                            validator.cleanup_with_helpers(&mut builder, value, helpers)
+                        })
+                    }
                 }
             })
             .collect::<Vec<_>>()
