@@ -2833,9 +2833,7 @@ fn canonical_input_for_arg<'a>(
     let crate::mir::Value::Arg(index) = func.value(value) else { return None };
     let mut physical = 0;
     for ty in input_params?.types.iter() {
-        if matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. })
-            && physical == index.index()
-        {
+        if LowerAbiCx::is_constructor_word(ty) && physical == index.index() {
             return Some(ty);
         }
         physical += (ty.head_size() / EvmMemoryLayout::WORD_SIZE) as usize;
@@ -2853,6 +2851,18 @@ fn canonical_input_covers_return(input: &AbiParamType, output: &AbiParamType) ->
         ) => input == output && input_variants == output_variants,
         _ => false,
     }
+}
+
+fn reuses_validated_input(
+    func: &Function,
+    value: ValueId,
+    input_params: Option<&AbiParamLayout>,
+    lazy_args: bool,
+    output: &AbiParamType,
+) -> bool {
+    lazy_args
+        && canonical_input_for_arg(func, value, input_params)
+            .is_some_and(|input| canonical_input_covers_return(input, output))
 }
 
 fn canonicalize_return_value(
@@ -2976,30 +2986,17 @@ fn encode_live_returns(
             .into_iter()
             .enumerate()
             .map(|(index, value)| {
-                if let Some(return_params) = &return_params
-                    && let Some(ty) = return_params.get(index)
-                {
-                    if lazy_args
-                        && canonical_input_for_arg(builder.func(), value, input_params)
-                            .is_some_and(|input| canonical_input_covers_return(input, ty))
-                    {
-                        value
-                    } else {
-                        canonicalize_return_value(&mut builder, ty, value, helpers)
-                    }
+                let Some(ty) = return_params
+                    .as_ref()
+                    .and_then(|params| params.get(index).cloned())
+                    .or_else(|| return_types.get(index).copied().map(AbiParamType::Scalar))
+                else {
+                    return value;
+                };
+                if reuses_validated_input(builder.func(), value, input_params, lazy_args, &ty) {
+                    value
                 } else {
-                    let Some(ty) = return_types.get(index).copied() else { return value };
-                    if lazy_args
-                        && canonical_input_for_arg(builder.func(), value, input_params).is_some_and(
-                            |input| canonical_input_covers_return(input, &AbiParamType::Scalar(ty)),
-                        )
-                    {
-                        value
-                    } else {
-                        AbiWordValidator::from_return_mir_type(ty).map_or(value, |validator| {
-                            validator.cleanup_with_helpers(&mut builder, value, helpers)
-                        })
-                    }
+                    canonicalize_return_value(&mut builder, &ty, value, helpers)
                 }
             })
             .collect::<Vec<_>>()
