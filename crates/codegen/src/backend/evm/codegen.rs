@@ -1913,7 +1913,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // `base + preserved + arity + 2` = `candidate + arity + 1`.
                 let adoption_transient = self
                     .stack_return_plan(edge.callee)
-                    .map_or(0, |plan| if plan.arity > 1 { plan.arity as usize + 1 } else { 0 });
+                    .map_or(0, |plan| if plan.arity > 1 { plan.arity + 1 } else { 0 });
                 if candidate.saturating_add(entry_transient.max(adoption_transient))
                     > MAX_STACK_DEPTH
                 {
