@@ -2,7 +2,10 @@
 
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Value},
+    mir::{
+        AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, Value,
+    },
     pass::MirPass,
 };
 use solar_data_structures::{
@@ -99,6 +102,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
         return false;
     }
 
+    materialize_mixed_byte_phis(func);
     let mut replacements = FxHashMap::default();
     let mut removed = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
@@ -358,6 +362,65 @@ fn lower_function<P: MemoryLayoutPolicy>(
     }
     erase_object_types(func, stats);
     true
+}
+
+/// Materializes a calldata slice before it enters a memory-object phi.
+///
+/// A conditional assignment such as `bytes memory x = condition ? bytes(0) :
+/// msg.data[...]` has one memory-object incoming edge and one slice incoming
+/// edge. The memory-object users after this pass expect the same header/data
+/// representation on both edges, so copy the slice into a fresh bytes object
+/// before forming the phi.
+fn materialize_mixed_byte_phis(func: &mut Function) {
+    let blocks: Vec<_> = func.blocks.indices().collect();
+    for block in blocks {
+        let instructions = func.blocks[block].instructions.clone();
+        for inst in instructions {
+            let Some(result) = func.inst_result_value(inst) else { continue };
+            if !matches!(
+                func.value_ty(result),
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+            ) {
+                continue;
+            }
+            let InstKind::Phi(incoming) = func.inst(inst).kind.clone() else { continue };
+            if !incoming
+                .iter()
+                .any(|(_, value)| matches!(func.value_ty(*value), Some(MirType::Slice(_))))
+                || !incoming.iter().all(|(_, value)| {
+                    matches!(
+                        func.value_ty(*value),
+                        Some(MirType::Slice(_) | MirType::MemoryObject(MemoryObjectKind::Bytes),)
+                    )
+                })
+            {
+                continue;
+            }
+
+            let mut lowered = Vec::with_capacity(incoming.len());
+            for (predecessor, value) in incoming {
+                if !matches!(func.value_ty(value), Some(MirType::Slice(_))) {
+                    lowered.push((predecessor, value));
+                    continue;
+                }
+
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(predecessor);
+                let length = builder.slice_len(value);
+                let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+                let size = builder.add(length, word);
+                let semantics = AllocationSemantics {
+                    alignment: AllocationAlignment::Word,
+                    ..AllocationSemantics::SOLIDITY_UNINITIALIZED
+                };
+                let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+                builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+                builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, value);
+                lowered.push((predecessor, object));
+            }
+            func.inst_mut(inst).kind = InstKind::Phi(lowered);
+        }
+    }
 }
 
 fn offset_address(

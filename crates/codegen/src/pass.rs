@@ -199,8 +199,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
-    // ABI lowering synthesizes tiny canonical-word cleanup helpers after the
-    // earlier inlining pass; expand those leaves before encoding wrappers.
+    // ABI lowering leaves tiny canonical-word helpers after the earlier
+    // inlining pass; expand those leaves before encoding wrappers.
     &GasOnly(inline::InlineTinyLeaves),
     &SizeOnly(inline::InlineTinyLeaves),
     &cfg_simplify::FunctionDce,

@@ -175,8 +175,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: usize,
     ) -> Option<hir::CallArgs<'gcx>> {
         let contract = self.gcx.hir.contract(contract_id);
+        let mut empty = None;
         if let Some(modifier) = contract.linearized_bases_args.get(index).copied().flatten() {
-            return Some(modifier.args);
+            if !modifier.args.is_empty() {
+                return Some(modifier.args);
+            }
+            empty = Some(modifier.args);
         }
 
         for &ancestor_id in contract.linearized_bases.iter().skip(1) {
@@ -189,10 +193,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(modifier) =
                 ancestor.linearized_bases_args.get(ancestor_index).copied().flatten()
             {
-                return Some(modifier.args);
+                if !modifier.args.is_empty() {
+                    return Some(modifier.args);
+                }
+                empty.get_or_insert(modifier.args);
             }
         }
-        None
+        empty
     }
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
