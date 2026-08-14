@@ -90,12 +90,6 @@ impl<'gcx> Lowerer<'gcx> {
         if !self.collect_checked_uint256_add_leaves(expr, &mut leaves) || leaves.len() < 3 {
             return None;
         }
-        if leaves.iter().enumerate().any(|(index, leaf)| {
-            let Some(res) = self.gcx.resolved_expr(leaf) else { return true };
-            leaves[..index].iter().any(|previous| self.gcx.resolved_expr(previous) == Some(res))
-        }) {
-            return None;
-        }
 
         // Resolve leaves in source order, then consume them in reverse order. Locals are commonly
         // produced in source order, so this gives the stack scheduler shallow operands while
