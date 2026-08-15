@@ -8,10 +8,10 @@ use super::{
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AllocationSemantics,
-        BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId,
-        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation,
-        Value, ValueId,
+        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
+        AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+        PanicCode, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};

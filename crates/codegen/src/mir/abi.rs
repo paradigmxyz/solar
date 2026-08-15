@@ -1,6 +1,7 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{MirType, SliceLocation};
+use super::{FunctionBuilder, MirType, SliceLocation, ValueId};
+use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
 /// An interned ABI tuple layout.
@@ -331,5 +332,135 @@ impl fmt::Display for AbiType {
                 write!(f, ">")
             }
         }
+    }
+}
+
+/// Validation and canonicalization of a narrow ABI word.
+///
+/// Shared by the ABI lowering phase (wrappers, constructors, returns) and the
+/// calldata decoding helpers in the function lowerer.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) enum AbiWordValidator {
+    /// Word must equal itself masked to a low-bit (or high-bit) range.
+    Mask(U256),
+    /// Word must equal its sign-extension of `byte_index` bytes.
+    SignExtend(u64),
+    /// Word must be a canonical 0 or 1.
+    Bool,
+    /// Word must be less than the number of enum variants.
+    EnumRange(u64),
+}
+
+impl AbiWordValidator {
+    /// Returns the validator for a scalar MIR type, or `None` when a full word
+    /// carries no canonicality requirement.
+    #[must_use]
+    pub(crate) fn from_mir_type(ty: MirType) -> Option<Self> {
+        Some(match ty {
+            MirType::UInt(size) => {
+                let bits = size.bits();
+                if bits >= 256 {
+                    return None;
+                }
+                Self::Mask(U256::MAX >> (256 - usize::from(bits)))
+            }
+            MirType::Int(size) => {
+                let bits = size.bits();
+                if bits >= 256 {
+                    return None;
+                }
+                Self::SignExtend(u64::from(bits / 8) - 1)
+            }
+            MirType::Address => Self::Mask(U256::MAX >> 96),
+            MirType::FixedBytes(size) => {
+                let bytes = size.bytes();
+                if bytes >= 32 {
+                    return None;
+                }
+                Self::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
+            }
+            MirType::Function => Self::Mask(U256::MAX << 64),
+            MirType::Bool => Self::Bool,
+            _ => return None,
+        })
+    }
+
+    /// Returns the validator for a scalar return type.
+    #[must_use]
+    pub(crate) fn from_return_mir_type(ty: MirType) -> Option<Self> {
+        if ty == MirType::Function {
+            return Some(Self::Mask(U256::MAX >> 64));
+        }
+        Self::from_mir_type(ty)
+    }
+
+    /// Builds the condition that is true when `word` is canonical.
+    pub(crate) fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            Self::Bool => {
+                let zero = builder.iszero(word);
+                let canonical = builder.iszero(zero);
+                builder.eq(word, canonical)
+            }
+            Self::EnumRange(variants) => {
+                let variants = builder.imm_u64(variants);
+                builder.lt(word, variants)
+            }
+        }
+    }
+
+    /// Builds the canonical form of `word`.
+    pub(crate) fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+        match self {
+            Self::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                builder.and(word, mask)
+            }
+            Self::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                builder.signextend(byte_index, word)
+            }
+            Self::Bool => {
+                let zero = builder.iszero(word);
+                builder.iszero(zero)
+            }
+            Self::EnumRange(variants) => {
+                let mask = enum_cleanup_mask(variants);
+                let mask = builder.imm_u256(mask);
+                builder.and(word, mask)
+            }
+        }
+    }
+}
+
+/// Returns the mask keeping the low `bits` bits needed to represent `variants`
+/// distinct enum values, where `bits = ceil(log2(variants))` and at least 1.
+#[must_use]
+pub(crate) fn enum_cleanup_mask(variants: u64) -> U256 {
+    let bits = (u64::BITS - (variants.max(1) - 1).leading_zeros()).max(1);
+    U256::MAX >> (256 - bits as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enum_cleanup_mask;
+    use alloy_primitives::U256;
+
+    #[test]
+    fn enum_cleanup_mask_masks_low_bits() {
+        assert_eq!(enum_cleanup_mask(1), U256::from(0b1));
+        assert_eq!(enum_cleanup_mask(2), U256::from(0b1));
+        assert_eq!(enum_cleanup_mask(3), U256::from(0b11));
+        assert_eq!(enum_cleanup_mask(256), U256::from(0xff));
     }
 }

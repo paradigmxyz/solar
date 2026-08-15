@@ -37,10 +37,10 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiParamLayout, AbiParamLocation, AbiParamType, AllocationSemantics, ArgIdx, BlockId,
-        FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
-        Terminator, ValueId,
+        AbiParamLayout, AbiParamLocation, AbiParamType, AbiWordValidator, AllocationSemantics,
+        ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
+        MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
+        SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
@@ -48,120 +48,6 @@ use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, Span, Symbol, kw};
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum AbiWordValidator {
-    Mask(U256),
-    SignExtend(u64),
-    Bool,
-    EnumRange(u64),
-}
-
-impl AbiWordValidator {
-    fn from_mir_type(ty: MirType) -> Option<Self> {
-        Some(match ty {
-            MirType::UInt(size) => {
-                let bits = size.bits();
-                if bits >= 256 {
-                    return None;
-                }
-                Self::Mask(U256::MAX >> (256 - usize::from(bits)))
-            }
-            MirType::Int(size) => {
-                let bits = size.bits();
-                if bits >= 256 {
-                    return None;
-                }
-                Self::SignExtend(u64::from(bits / 8) - 1)
-            }
-            MirType::Address => Self::Mask(U256::MAX >> 96),
-            MirType::FixedBytes(size) => {
-                let bytes = size.bytes();
-                if bytes >= 32 {
-                    return None;
-                }
-                Self::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
-            }
-            MirType::Function => Self::Mask(U256::MAX << 64),
-            MirType::Bool => Self::Bool,
-            _ => return None,
-        })
-    }
-
-    fn from_return_mir_type(ty: MirType) -> Option<Self> {
-        if ty == MirType::Function {
-            return Some(Self::Mask(U256::MAX >> 64));
-        }
-        Self::from_mir_type(ty)
-    }
-
-    fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
-        match self {
-            Self::Mask(mask) => {
-                let mask = builder.imm_u256(mask);
-                let canonical = builder.and(word, mask);
-                builder.eq(word, canonical)
-            }
-            Self::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
-                let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
-            }
-            Self::Bool => {
-                let zero = builder.iszero(word);
-                let canonical = builder.iszero(zero);
-                builder.eq(word, canonical)
-            }
-            Self::EnumRange(variants) => {
-                let variants = builder.imm_u64(variants);
-                builder.lt(word, variants)
-            }
-        }
-    }
-
-    fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
-        match self {
-            Self::Mask(mask) => {
-                let mask = builder.imm_u256(mask);
-                builder.and(word, mask)
-            }
-            Self::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
-                builder.signextend(byte_index, word)
-            }
-            Self::Bool => {
-                let zero = builder.iszero(word);
-                builder.iszero(zero)
-            }
-            Self::EnumRange(variants) => {
-                let mask = enum_cleanup_mask(variants);
-                let mask = builder.imm_u256(mask);
-                builder.and(word, mask)
-            }
-        }
-    }
-}
-
-/// Returns the mask keeping the low `bits` bits needed to represent `variants` distinct enum
-/// values, where `bits = ceil(log2(variants))` and at least 1.
-fn enum_cleanup_mask(variants: u64) -> U256 {
-    let bits = (u64::BITS - (variants.max(1) - 1).leading_zeros()).max(1);
-    U256::MAX >> (256 - bits as usize)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::enum_cleanup_mask;
-    use alloy_primitives::U256;
-
-    #[test]
-    fn enum_cleanup_mask_masks_low_bits() {
-        assert_eq!(enum_cleanup_mask(1), U256::from(0b1));
-        assert_eq!(enum_cleanup_mask(2), U256::from(0b1));
-        assert_eq!(enum_cleanup_mask(3), U256::from(0b11));
-        assert_eq!(enum_cleanup_mask(256), U256::from(0xff));
-    }
-}
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
