@@ -23,7 +23,7 @@ use solar_sema::{
     builtins::Builtin,
     eval::ConstValue,
     hir::{self, ExprKind, LoopSource, StmtKind, VariableId},
-    ty::{CallableParamSource, Ty, TyKind},
+    ty::{CallableParamNames, CallableParamSource, Ty, TyKind},
 };
 use std::sync::Arc;
 
