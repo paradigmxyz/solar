@@ -746,10 +746,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.check_calldata_range(position, word);
         }
         let value = self.calldata_load_word(position);
-        let mask = self.builder.imm_u256(U256::MAX << 64);
-        let canonical = self.builder.and(value, mask);
-        let equal = self.builder.eq(value, canonical);
-        let invalid = self.builder.iszero(equal);
+        let valid = AbiWordValidator::from_mir_type(MirType::Function)
+            .expect("function words always validate")
+            .condition(
+                &mut self.builder,
+                value,
+                self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            );
+        let invalid = self.builder.iszero(valid);
         self.revert_if_calldata_invalid(invalid);
         let shift = self.builder.imm_u64(64);
         self.builder.shr(shift, value)
@@ -772,47 +776,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.check_calldata_range(position, word);
         }
         let value = self.calldata_load_word(position);
-        let valid = match ty.kind {
+        let validator = match ty.kind {
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len() as u64;
-                let variants = self.builder.imm_u64(variants);
-                Some(self.builder.lt(value, variants))
+                AbiWordValidator::EnumRange(variants)
             }
-            _ => match types::TypeLowerer::mir_type(ty) {
-                MirType::UInt(size) if size.bits() < 256 => {
-                    let mask = U256::MAX >> (256 - usize::from(size.bits()));
-                    let mask = self.builder.imm_u256(mask);
-                    let canonical = self.builder.and(value, mask);
-                    Some(self.builder.eq(value, canonical))
-                }
-                MirType::Int(size) if size.bits() < 256 => {
-                    let byte_index = self.builder.imm_u64(u64::from(size.bits() / 8) - 1);
-                    let canonical = self.builder.signextend(byte_index, value);
-                    Some(self.builder.eq(value, canonical))
-                }
-                MirType::Address => {
-                    let mask = self.builder.imm_u256(U256::MAX >> 96);
-                    let canonical = self.builder.and(value, mask);
-                    Some(self.builder.eq(value, canonical))
-                }
-                MirType::FixedBytes(size) if size.bytes() < 32 => {
-                    let mask =
-                        self.builder.imm_u256(U256::MAX << (256 - 8 * usize::from(size.bytes())));
-                    let canonical = self.builder.and(value, mask);
-                    Some(self.builder.eq(value, canonical))
-                }
-                MirType::Bool => {
-                    let zero = self.builder.iszero(value);
-                    let canonical = self.builder.iszero(zero);
-                    Some(self.builder.eq(value, canonical))
-                }
-                _ => None,
+            _ => match AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)) {
+                Some(validator) => validator,
+                None => return value,
             },
         };
-        if let Some(valid) = valid {
-            let invalid = self.builder.iszero(valid);
-            self.revert_if_calldata_invalid(invalid);
-        }
+        let valid = validator.condition(
+            &mut self.builder,
+            value,
+            self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+        );
+        let invalid = self.builder.iszero(valid);
+        self.revert_if_calldata_invalid(invalid);
         value
     }
 
