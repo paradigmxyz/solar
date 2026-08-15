@@ -11,9 +11,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if builtin.is_yul() {
-            let Some(returns) = builtin.ty(self.gcx).returns() else {
+            let Some(returns) = builtin.ty(self.context.gcx).returns() else {
                 return report_error(
-                    self.gcx,
+                    self.context.gcx,
                     callee.span,
                     "codegen expected Yul builtin to have a function type",
                 );
@@ -99,12 +99,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let data_span = data.span;
-        let data_ty = self.gcx.type_of_expr(data.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let data_ty = self.context.gcx.type_of_expr(data.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
         let zero = self.builder.imm_u256(U256::ZERO);
-        if capture_returndata && !self.gcx.sess.opts.evm_version.supports_returndata() {
+        if capture_returndata && !self.context.gcx.sess.opts.evm_version.supports_returndata() {
             return report_error(
-                self.gcx,
+                self.context.gcx,
                 call_span,
                 "codegen cannot bind low-level call returndata before Byzantium",
             );
@@ -117,7 +117,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match option.name.name {
                     kw::Gas => gas = option_value,
                     sym::value if builtin == Builtin::AddressCall => value = option_value,
-                    _ => return report_unsupported(self.gcx, option.name.span, "call option"),
+                    _ => {
+                        return report_unsupported(
+                            self.context.gcx,
+                            option.name.span,
+                            "call option",
+                        );
+                    }
                 }
             }
         }
@@ -130,9 +136,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.call(gas, address, value, input, input_size, zero, zero)
             }
             Builtin::AddressStaticcall => {
-                if !self.gcx.sess.opts.evm_version.has_static_call() {
+                if !self.context.gcx.sess.opts.evm_version.has_static_call() {
                     return report_error(
-                        self.gcx,
+                        self.context.gcx,
                         call_span,
                         "codegen cannot use `staticcall` before Byzantium",
                     );
@@ -189,7 +195,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => {
                 return report_error(
-                    self.gcx,
+                    self.context.gcx,
                     args.span,
                     "codegen routed a value builtin through unit lowering",
                 );
@@ -219,7 +225,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(hash);
                 }
                 if let ExprKind::Call(callee, encode_args, _) = &value.kind
-                    && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
+                    && self.context.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
                     let encoded = self.lower_abi_encode_slice(exprs, None)?;
@@ -227,8 +233,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
-                let value_ty = self.gcx.type_of_expr(value.id)?;
-                let memory_ty = value_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                let value_ty = self.context.gcx.type_of_expr(value.id)?;
+                let memory_ty = value_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                 let span = value.span;
                 let value = self.lower_typed_expr(value, memory_ty)?;
                 let value = self.materialize_memory_argument(memory_ty, value, span)?;
@@ -281,7 +287,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | Builtin::Assert
             | Builtin::Revert
             | Builtin::RevertMsg => report_error(
-                self.gcx,
+                self.context.gcx,
                 args.span,
                 "codegen routed a unit builtin through value lowering",
             ),
@@ -302,8 +308,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
         } else {
-            let argument_ty = self.gcx.type_of_expr(argument.id)?;
-            let memory_ty = argument_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let argument_ty = self.context.gcx.type_of_expr(argument.id)?;
+            let memory_ty = argument_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let span = argument.span;
             let value = self.lower_typed_expr(argument, memory_ty)?;
             let value = self.materialize_memory_argument(memory_ty, value, span)?;
@@ -344,7 +350,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut total = self.builder.imm_u64(0);
         let mut parts = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let ty = self.gcx.type_of_expr(expr.id)?;
+            let ty = self.context.gcx.type_of_expr(expr.id)?;
             match ty.peel_refs().kind {
                 TyKind::StringLiteral(..)
                 | TyKind::Elementary(
@@ -368,7 +374,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let length = self.builder.imm_u64(all_literals.len() as u64);
                         total = self.builder.add(total, length);
                     }
-                    let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                    let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
@@ -386,7 +392,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     total = self.builder.add(total, length_value);
                     parts.push(Part::Fixed { value, length });
                 }
-                _ => return report_unsupported(self.gcx, expr.span, "concat argument"),
+                _ => return report_unsupported(self.context.gcx, expr.span, "concat argument"),
             }
         }
 
@@ -454,7 +460,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.mstore8(offset, value);
             }
             Builtin::YulMcopy => {
-                if !self.gcx.sess.opts.evm_version.has_mcopy() {
+                if !self.context.gcx.sess.opts.evm_version.has_mcopy() {
                     return self.unsupported_yul_version(
                         "codegen requires Cancun-compatible EVM for memory copy",
                         "compile with `--evm-version cancun` or newer",
@@ -535,7 +541,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => {
                 return report_error(
-                    self.gcx,
+                    self.context.gcx,
                     args.span,
                     "codegen routed a value Yul builtin through unit lowering",
                 );
@@ -583,7 +589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => {
                 let [value] = self.lower_builtin_args(builtin, &args)?;
-                if !self.gcx.sess.opts.evm_version.has_clz() {
+                if !self.context.gcx.sess.opts.evm_version.has_clz() {
                     return self.unsupported_yul_version(
                         "codegen requires Osaka-compatible EVM for `clz`",
                         "compile with `--evm-version osaka` or newer",
@@ -638,7 +644,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulExtcall => {
                 let [address, input_offset, input_size, value] =
                     self.lower_builtin_args(builtin, &args)?;
-                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
                     return self.unsupported_yul_version(
                         "codegen requires Prague-compatible EVM for `extcall`",
                         "compile with `--evm-version prague` or newer",
@@ -650,7 +656,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulExtdelegatecall => {
                 let [address, input_offset, input_size] =
                     self.lower_builtin_args(builtin, &args)?;
-                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
                     return self.unsupported_yul_version(
                         "codegen requires Prague-compatible EVM for `extdelegatecall`",
                         "compile with `--evm-version prague` or newer",
@@ -662,7 +668,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulExtstaticcall => {
                 let [address, input_offset, input_size] =
                     self.lower_builtin_args(builtin, &args)?;
-                if !self.gcx.sess.opts.evm_version.has_ext_call() {
+                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
                     return self.unsupported_yul_version(
                         "codegen requires Prague-compatible EVM for `extstaticcall`",
                         "compile with `--evm-version prague` or newer",
@@ -672,7 +678,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.extstaticcall(address, input_offset, input_size))
             }
             _ => report_error(
-                self.gcx,
+                self.context.gcx,
                 args.span,
                 "codegen routed a unit Yul builtin through value lowering",
             ),
@@ -688,7 +694,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) {
         let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
         let expected = expected.description();
-        self.gcx
+        self.context
+            .gcx
             .dcx()
             .err(format!(
                 "wrong number of arguments for {kind} `{}`: expected {expected}, found {actual}",
@@ -707,7 +714,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             hir::CallArgsKind::Unnamed(exprs) => Some(exprs),
             hir::CallArgsKind::Named(_) => {
                 let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
-                self.gcx
+                self.context
+                    .gcx
                     .dcx()
                     .err(format!(
                         "named arguments are not supported for {kind} `{}` in codegen",
@@ -787,7 +795,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(exprs) = self.builtin_arg_exprs(builtin, args) else {
             return false;
         };
-        let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
+        let TyKind::Fn(function) = builtin.ty(self.context.gcx).kind else {
             return true;
         };
         let variadic =
@@ -817,7 +825,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
-        self.gcx
+        self.context
+            .gcx
             .dcx()
             .err(format!("unsupported builtin call `{}`", builtin.name()))
             .span(span)
@@ -831,7 +840,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         help: &'static str,
         span: Span,
     ) -> Option<T> {
-        self.gcx.dcx().err(message).span(span).help(help).emit();
+        self.context.gcx.dcx().err(message).span(span).help(help).emit();
         None
     }
 }

@@ -6,10 +6,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
-            let value = self
-                .builder
-                .add_param(types::TypeLowerer::mir_type(self.gcx.type_of_item(param.into())));
-            let ty = self.gcx.type_of_item(param.into());
+            let value = self.builder.add_param(types::TypeLowerer::mir_type(
+                self.context.gcx.type_of_item(param.into()),
+            ));
+            let ty = self.context.gcx.type_of_item(param.into());
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -24,9 +24,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         for &ret in function.returns {
-            self.builder
-                .add_return(types::TypeLowerer::mir_return_type(self.gcx.type_of_item(ret.into())));
-            let ty = self.gcx.type_of_item(ret.into());
+            self.builder.add_return(types::TypeLowerer::mir_return_type(
+                self.context.gcx.type_of_item(ret.into()),
+            ));
+            let ty = self.context.gcx.type_of_item(ret.into());
             if ty.is_ref_at(DataLocation::Storage) {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 self.storage_refs.insert(
@@ -46,18 +47,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers only one contract's own state initializers.
     pub(super) fn lower_state_initializers(&mut self, contract_id: hir::ContractId) -> Option<()> {
-        let contract = self.gcx.hir.contract(contract_id);
+        let contract = self.context.gcx.hir.contract(contract_id);
         for id in contract.variables() {
-            let variable = self.gcx.hir.variable(id);
+            let variable = self.context.gcx.hir.variable(id);
             if !variable.is_state_variable() || variable.is_constant() {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            let ty = self.gcx.type_of_item(id.into());
-            let source_ty = self.gcx.type_of_expr(initializer.id)?;
+            let ty = self.context.gcx.type_of_item(id.into());
+            let source_ty = self.context.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
             let value = self.coerce_value(value, source_ty, ty);
-            if let Some(&immutable_id) = self.immutable_ids.get(&id) {
+            if let Some(&immutable_id) = self.context.immutable_ids.get(&id) {
                 self.builder.store_immutable(immutable_id, value);
             } else {
                 self.store_state_variable(id, value, source_ty, initializer.span)?;
@@ -76,17 +77,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn prepare_base_constructor_arguments(&mut self, contract_id: hir::ContractId) -> Option<()> {
-        let bases = self.gcx.hir.contract(contract_id).linearized_bases;
+        let bases = self.context.gcx.hir.contract(contract_id).linearized_bases;
         let mut prepared = FxHashSet::default();
         let mut saved_parameters = Vec::new();
         for (index, &base_id) in bases.iter().skip(1).enumerate() {
             if !prepared.insert(base_id) {
                 continue;
             }
-            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else {
+            let Some(constructor_id) = self.context.gcx.hir.contract(base_id).ctor else {
                 continue;
             };
-            let constructor = self.gcx.hir.function(constructor_id);
+            let constructor = self.context.gcx.hir.function(constructor_id);
             let Some(args) = self
                 .base_constructor_args(contract_id, base_id, index)
                 .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
@@ -95,27 +96,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             if args.len() != constructor.parameters.len() {
                 return report_unsupported(
-                    self.gcx,
+                    self.context.gcx,
                     constructor.span,
                     "base constructor arguments",
                 );
             }
-            let parameter_names = self.gcx.callable_param_names(CallableParamSource::Function {
-                id: constructor_id,
-                skips_receiver: false,
-            });
+            let parameter_names =
+                self.context.gcx.callable_param_names(CallableParamSource::Function {
+                    id: constructor_id,
+                    skips_receiver: false,
+                });
             let mut values = Vec::with_capacity(constructor.parameters.len());
             for (index, &parameter) in constructor.parameters.iter().enumerate() {
                 let Some(argument) =
                     args.argument_for_parameter(index, Some(parameter_names.as_slice()))
                 else {
                     return report_unsupported(
-                        self.gcx,
+                        self.context.gcx,
                         constructor.span,
                         "named base constructor argument",
                     );
                 };
-                let parameter_ty = self.gcx.type_of_item(parameter.into());
+                let parameter_ty = self.context.gcx.type_of_item(parameter.into());
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 let value = self.coerce_call_argument(argument, parameter_ty, value);
                 values.push(value);
@@ -141,16 +143,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         contract_id: hir::ContractId,
         lowered: &mut FxHashSet<hir::ContractId>,
     ) -> Option<()> {
-        let bases = self.gcx.hir.contract(contract_id).linearized_bases;
+        let bases = self.context.gcx.hir.contract(contract_id).linearized_bases;
         for (index, &base_id) in bases.iter().skip(1).enumerate().rev() {
             if !lowered.insert(base_id) {
                 continue;
             }
-            let Some(constructor_id) = self.gcx.hir.contract(base_id).ctor else {
+            let Some(constructor_id) = self.context.gcx.hir.contract(base_id).ctor else {
                 self.lower_state_initializers(base_id)?;
                 continue;
             };
-            let constructor = self.gcx.hir.function(constructor_id);
+            let constructor = self.context.gcx.hir.function(constructor_id);
             let Some(args) = self
                 .base_constructor_args(contract_id, base_id, index)
                 .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
@@ -174,7 +176,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         base_id: hir::ContractId,
         index: usize,
     ) -> Option<hir::CallArgs<'gcx>> {
-        let contract = self.gcx.hir.contract(contract_id);
+        let contract = self.context.gcx.hir.contract(contract_id);
         let mut empty = None;
         if let Some(modifier) = contract.linearized_bases_args.get(index).copied().flatten() {
             if !modifier.args.is_empty() {
@@ -184,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         for &ancestor_id in contract.linearized_bases.iter().skip(1) {
-            let ancestor = self.gcx.hir.contract(ancestor_id);
+            let ancestor = self.context.gcx.hir.contract(ancestor_id);
             let Some(ancestor_index) =
                 ancestor.linearized_bases.iter().skip(1).position(|&id| id == base_id)
             else {
@@ -208,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             let mut values = Vec::with_capacity(returns.len());
             for &id in returns {
-                let ty = self.gcx.type_of_item(id.into());
+                let ty = self.context.gcx.type_of_item(id.into());
                 let value = if ty.is_ref_at(DataLocation::Storage) {
                     self.storage_refs.get(&id).copied()?.slot
                 } else {
@@ -220,7 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values.push(self.materialize_memory_argument(
                     ty,
                     value,
-                    self.gcx.hir.variable(id).span,
+                    self.context.gcx.hir.variable(id).span,
                 )?);
             }
             self.builder.ret(values);
@@ -245,7 +247,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .filter(|id| !self.values.contains_key(id))
             .collect::<Vec<_>>();
         for id in ids {
-            let ty = self.gcx.type_of_item(id.into());
+            let ty = self.context.gcx.type_of_item(id.into());
             let value = if self.default_bindings.contains(&id) {
                 self.default_binding_value(ty)
             } else {

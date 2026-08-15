@@ -339,7 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.clean_bit_not_result(result, ty)
             }
             UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
-                return report_unsupported(self.gcx, span, "increment or decrement");
+                return report_unsupported(self.context.gcx, span, "increment or decrement");
             }
         })
     }

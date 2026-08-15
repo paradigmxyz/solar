@@ -70,28 +70,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
         let hir::ItemId::Function(modifier_id) = modifier.id else {
-            return report_unsupported(self.gcx, modifier.span, "base constructor modifier");
+            return report_unsupported(
+                self.context.gcx,
+                modifier.span,
+                "base constructor modifier",
+            );
         };
-        let modifier_id = self.gcx.resolve_virtual_function(self.contract_id, modifier_id);
-        let modifier_function = self.gcx.hir.function(modifier_id);
+        let modifier_id =
+            self.context.gcx.resolve_virtual_function(self.context.contract_id, modifier_id);
+        let modifier_function = self.context.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
         if !modifier_function.kind.is_modifier() {
-            return report_unsupported(self.gcx, modifier.span, "modifier target");
+            return report_unsupported(self.context.gcx, modifier.span, "modifier target");
         }
         let Some(modifier_body) = modifier_function.body else {
-            return report_unsupported(self.gcx, modifier.span, "modifier body");
+            return report_unsupported(self.context.gcx, modifier.span, "modifier body");
         };
         if modifier.args.len() != modifier_function.parameters.len() {
-            return report_unsupported(self.gcx, modifier.span, "modifier argument list");
+            return report_unsupported(self.context.gcx, modifier.span, "modifier argument list");
         }
         let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
         let mut saved_locals = Vec::with_capacity(local_ids.len());
         let mut saved_storage_locals = Vec::new();
         for id in local_ids {
-            if Self::is_storage_parameter(self.gcx.type_of_item(id.into())) {
+            if Self::is_storage_parameter(self.context.gcx.type_of_item(id.into())) {
                 saved_storage_locals.push((id, self.storage_refs.get(&id).copied()));
             } else {
                 saved_locals.push((id, self.values.get(&id).copied()));
@@ -99,7 +104,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let parameter_names = match modifier.args.kind {
             hir::CallArgsKind::Named(_) => {
-                Some(self.gcx.callable_param_names(CallableParamSource::Function {
+                Some(self.context.gcx.callable_param_names(CallableParamSource::Function {
                     id: modifier_id,
                     skips_receiver: false,
                 }))
@@ -112,9 +117,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 modifier.args.argument_for_parameter(index, parameter_names.as_deref())
             else {
-                return report_unsupported(self.gcx, modifier.span, "named modifier argument");
+                return report_unsupported(
+                    self.context.gcx,
+                    modifier.span,
+                    "named modifier argument",
+                );
             };
-            let parameter_ty = self.gcx.type_of_item(parameter.into());
+            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             if Self::is_storage_parameter(parameter_ty) {
                 let access = self.storage_access(argument)?;
                 saved_storage_parameters
@@ -173,7 +182,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn modifier_local_ids(&self, body: hir::Block<'gcx>) -> Vec<hir::VariableId> {
-        let mut visitor = ModifierLocalIds { hir: &self.gcx.hir, ids: FxHashSet::default() };
+        let mut visitor =
+            ModifierLocalIds { hir: &self.context.gcx.hir, ids: FxHashSet::default() };
         for stmt in body.stmts {
             let _ = visitor.visit_stmt(stmt);
         }
@@ -187,17 +197,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         constructor: &'gcx hir::Function<'gcx>,
     ) -> Option<()> {
         let Some(body) = constructor.body else {
-            return report_unsupported(self.gcx, modifier.span, "base constructor body");
+            return report_unsupported(self.context.gcx, modifier.span, "base constructor body");
         };
         if modifier.args.len() != constructor.parameters.len() {
-            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
+            return report_unsupported(
+                self.context.gcx,
+                modifier.span,
+                "base constructor arguments",
+            );
         }
         let contract_id = constructor.contract;
         let Some(values) = self.constructor_arguments.remove(&constructor_id) else {
-            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
+            return report_unsupported(
+                self.context.gcx,
+                modifier.span,
+                "base constructor arguments",
+            );
         };
         if values.len() != constructor.parameters.len() {
-            return report_unsupported(self.gcx, modifier.span, "base constructor arguments");
+            return report_unsupported(
+                self.context.gcx,
+                modifier.span,
+                "base constructor arguments",
+            );
         }
         let mut saved_parameters = Vec::with_capacity(constructor.parameters.len());
         for (&parameter, value) in constructor.parameters.iter().zip(values) {
@@ -233,7 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
         let Some(context) = self.modifiers.pop() else {
-            return report_unsupported(self.gcx, span, "modifier placeholder");
+            return report_unsupported(self.context.gcx, span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();

@@ -6,7 +6,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
-            TyKind::Slice(_) => ty.base_type(self.gcx),
+            TyKind::Slice(_) => ty.base_type(self.context.gcx),
             _ => None,
         }
     }
@@ -27,10 +27,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
-            return report_unsupported(self.gcx, expr.span, "index");
+            return report_unsupported(self.context.gcx, expr.span, "index");
         };
         let index = self.lower_expr(index)?;
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let object = self.lower_expr(receiver)?;
         if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
             let length = self.builder.slice_len(object);
@@ -47,7 +47,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
                         SliceLocation::Returndata => {
-                            return report_unsupported(self.gcx, expr.span, "returndata index");
+                            return report_unsupported(
+                                self.context.gcx,
+                                expr.span,
+                                "returndata index",
+                            );
                         }
                     };
                     let zero = self.builder.imm_u64(0);
@@ -56,11 +60,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
                     if location != SliceLocation::Calldata {
-                        return report_unsupported(self.gcx, expr.span, "memory array slice index");
+                        return report_unsupported(
+                            self.context.gcx,
+                            expr.span,
+                            "memory array slice index",
+                        );
                     }
                     let element = self.array_element_type(receiver_ty)?;
                     let element = if matches!(element.peel_refs().kind, TyKind::Struct(_)) {
-                        element.with_loc_if_ref(self.gcx, DataLocation::Calldata)
+                        element.with_loc_if_ref(self.context.gcx, DataLocation::Calldata)
                     } else {
                         element
                     };
@@ -81,14 +89,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         validate_bounds,
                     )
                 }
-                _ => report_unsupported(self.gcx, expr.span, "slice index"),
+                _ => report_unsupported(self.context.gcx, expr.span, "slice index"),
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
             MemoryObjectLayout::DynamicArray { .. } => {
                 let TyKind::DynArray(element) = receiver_ty.peel_refs().kind else {
-                    return report_unsupported(self.gcx, expr.span, "array index");
+                    return report_unsupported(self.context.gcx, expr.span, "array index");
                 };
                 let length = self.builder.memory_object_len(object, layout.kind());
                 self.bounds_check(index, length);
@@ -100,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             MemoryObjectLayout::FixedArray { len, .. } => {
                 let TyKind::Array(element, _) = receiver_ty.peel_refs().kind else {
-                    return report_unsupported(self.gcx, expr.span, "array index");
+                    return report_unsupported(self.context.gcx, expr.span, "array index");
                 };
                 let length = self.builder.imm_u64(len);
                 self.bounds_check(index, length);
@@ -117,7 +125,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
-                report_unsupported(self.gcx, expr.span, "struct index")
+                report_unsupported(self.context.gcx, expr.span, "struct index")
             }
         }
     }
@@ -129,14 +137,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
             _ => {
                 let layout = self.types.memory_layout(receiver_ty)?;
                 if layout != MemoryObjectLayout::Bytes {
-                    return report_unsupported(self.gcx, expr.span, "slice");
+                    return report_unsupported(self.context.gcx, expr.span, "slice");
                 }
                 let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
                 let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
@@ -158,15 +166,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             1
         } else {
             if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
-                return report_unsupported(self.gcx, expr.span, "slice");
+                return report_unsupported(self.context.gcx, expr.span, "slice");
             }
             if location != SliceLocation::Calldata {
-                return report_unsupported(self.gcx, expr.span, "slice");
+                return report_unsupported(self.context.gcx, expr.span, "slice");
             }
             let element = self.array_element_type(receiver_ty)?;
             let element_type = self.types.abi_type(element)?;
             if element_type.is_dynamic() {
-                return report_unsupported(self.gcx, expr.span, "slice");
+                return report_unsupported(self.context.gcx, expr.span, "slice");
             }
             element_type.head_size()
         };

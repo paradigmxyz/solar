@@ -9,7 +9,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
         if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
-            if let Some(builtin) = self.gcx.resolved_builtin(callee)
+            if let Some(builtin) = self.context.gcx.resolved_builtin(callee)
                 && matches!(
                     builtin,
                     Builtin::AddressCall
@@ -24,7 +24,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let returndata = returndata?;
                 return Some(vec![success, returndata]);
             }
-            if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+            if self.context.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
                 && let ExprKind::Call(_, args, _) = &expr.kind
                 && let Some(types) = args.exprs().nth(1)
                 && let ExprKind::Tuple(elements) = types.kind
@@ -36,7 +36,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values.push(first);
                 for index in 1..elements.len() {
                     let ty = elements[index].and_then(|element| {
-                        let TyKind::Type(ty) = self.gcx.type_of_expr(element.id)?.kind else {
+                        let TyKind::Type(ty) = self.context.gcx.type_of_expr(element.id)?.kind
+                        else {
                             return None;
                         };
                         Some(ty)
@@ -52,11 +53,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(values);
             }
             let returns = self
+                .context
                 .gcx
                 .resolved_function(callee)
-                .map(|function_id| self.gcx.hir.function(function_id).returns.len())
+                .map(|function_id| self.context.gcx.hir.function(function_id).returns.len())
                 .or_else(|| {
-                    self.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                    self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                         TyKind::Fn(function)
                             if function.function_id.is_none()
                                 && (function.is_internal() || function.is_external()) =>
@@ -66,7 +68,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         _ => None,
                     })
                 });
-            if let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            if let Some(TyKind::Fn(function)) =
+                self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
                 && function.is_external()
                 && function.function_id.is_none()
             {
@@ -83,18 +86,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values.push(first);
                 for index in 1..returns {
                     let ty = self
+                        .context
                         .gcx
                         .resolved_function(callee)
                         .and_then(|function_id| {
-                            self.gcx
+                            self.context
+                                .gcx
                                 .hir
                                 .function(function_id)
                                 .returns
                                 .get(index)
-                                .map(|&id| self.gcx.type_of_item(id.into()))
+                                .map(|&id| self.context.gcx.type_of_item(id.into()))
                         })
                         .or_else(|| {
-                            self.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                            self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                                 TyKind::Fn(function) => function.returns.get(index).copied(),
                                 _ => None,
                             })
@@ -108,7 +113,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(values);
             }
             let returns_empty = returns.is_some_and(|returns| returns == 0)
-                || self.gcx.resolved_builtin(callee).is_some_and(|builtin| {
+                || self.context.gcx.resolved_builtin(callee).is_some_and(|builtin| {
                     matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
                 });
             if returns_empty {
@@ -135,7 +140,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(returns)
                 .map(|(value, id)| {
                     let value = (*value)?;
-                    let ty = self.gcx.type_of_item(id.into());
+                    let ty = self.context.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
                         self.storage_access(value).map(|access| access.slot)
                     } else {
@@ -158,17 +163,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(values) = self.lower_storage_reference_call(rhs)
         {
             if values.len() != elements.len() {
-                return report_unsupported(self.gcx, rhs.span, "storage reference tuple");
+                return report_unsupported(self.context.gcx, rhs.span, "storage reference tuple");
             }
             for (element, (value, access)) in elements.iter().zip(values) {
                 let Some(element) = element else { continue };
                 if let Some(access) = access {
                     if !self.is_storage_reference_binding(element) {
-                        return report_unsupported(self.gcx, element.span, "mixed storage tuple");
-                    }
-                    let Some(id) = self.gcx.resolved_variable(element) else {
                         return report_unsupported(
-                            self.gcx,
+                            self.context.gcx,
+                            element.span,
+                            "mixed storage tuple",
+                        );
+                    }
+                    let Some(id) = self.context.gcx.resolved_variable(element) else {
+                        return report_unsupported(
+                            self.context.gcx,
                             element.span,
                             "storage reference target",
                         );
@@ -176,7 +185,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.storage_refs.insert(id, access);
                 } else {
                     if self.is_storage_reference_binding(element) {
-                        return report_unsupported(self.gcx, element.span, "mixed storage tuple");
+                        return report_unsupported(
+                            self.context.gcx,
+                            element.span,
+                            "mixed storage tuple",
+                        );
                     }
                     self.store_lvalue(element, value)?;
                 }
@@ -192,7 +205,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
                 let Some(rhs) = rhs else {
                     if lhs.is_some() {
-                        return report_unsupported(self.gcx, tuple_span, "storage reference tuple");
+                        return report_unsupported(
+                            self.context.gcx,
+                            tuple_span,
+                            "storage reference tuple",
+                        );
                     }
                     continue;
                 };
@@ -201,11 +218,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     continue;
                 };
                 if !self.is_storage_reference_binding(lhs) {
-                    return report_unsupported(self.gcx, lhs.span, "mixed storage tuple");
+                    return report_unsupported(self.context.gcx, lhs.span, "mixed storage tuple");
                 }
                 let access = self.storage_access(rhs)?;
-                let Some(id) = self.gcx.resolved_variable(lhs) else {
-                    return report_unsupported(self.gcx, lhs.span, "storage reference target");
+                let Some(id) = self.context.gcx.resolved_variable(lhs) else {
+                    return report_unsupported(
+                        self.context.gcx,
+                        lhs.span,
+                        "storage reference target",
+                    );
                 };
                 bindings.push((id, access));
             }
@@ -221,7 +242,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 elements.first().is_some_and(Option::is_none),
             )?;
             if values.len() != elements.iter().flatten().count() {
-                return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+                return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
             }
             for (element, value) in elements.iter().flatten().zip(values) {
                 self.store_lvalue(element, value)?;
@@ -244,13 +265,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             if rhs_elements.len() < elements.len() {
-                return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+                return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
             }
             let mut values = Vec::with_capacity(rhs_elements.len());
             for (index, value) in rhs_elements.iter().enumerate() {
                 let Some(value) = value else {
                     if elements.get(index).is_some_and(Option::is_some) {
-                        return report_unsupported(self.gcx, rhs.span, "tuple assignment value");
+                        return report_unsupported(
+                            self.context.gcx,
+                            rhs.span,
+                            "tuple assignment value",
+                        );
                     }
                     continue;
                 };
@@ -259,7 +284,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             for (index, rhs, value) in values {
                 let Some(Some(element)) = elements.get(index) else { continue };
                 let lhs_ty = self.type_of_expr_or_variable(element)?;
-                let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let value = if lhs_ty.is_ref_at(DataLocation::Storage) {
                     value
                 } else {
@@ -272,7 +297,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let values = self.lower_values(rhs)?;
         if values.len() < elements.len() {
-            return report_unsupported(self.gcx, rhs.span, "tuple assignment arity");
+            return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
         }
         for (element, value) in elements.iter().zip(values) {
             if let Some(element) = element {
@@ -287,14 +312,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<Vec<(ValueId, Option<StorageAccess>)>> {
         let ExprKind::Call(callee, ..) = &expr.kind else { return None };
-        let function_id = self.gcx.resolved_function(callee)?;
-        let returns = self.gcx.hir.function(function_id).returns;
+        let function_id = self.context.gcx.resolved_function(callee)?;
+        let returns = self.context.gcx.hir.function(function_id).returns;
         if returns.is_empty() {
             return None;
         }
         let has_storage_return = returns
             .iter()
-            .any(|&id| self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage));
+            .any(|&id| self.context.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage));
         if !has_storage_return {
             return None;
         }
@@ -304,14 +329,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .into_iter()
                 .zip(returns)
                 .map(|(value, id)| {
-                    let access =
-                        self.gcx.type_of_item((*id).into()).is_ref_at(DataLocation::Storage).then(
-                            || StorageAccess {
-                                slot: value,
-                                location: StorageLocation::word(U256::ZERO),
-                                offset: None,
-                            },
-                        );
+                    let access = self
+                        .context
+                        .gcx
+                        .type_of_item((*id).into())
+                        .is_ref_at(DataLocation::Storage)
+                        .then(|| StorageAccess {
+                            slot: value,
+                            location: StorageLocation::word(U256::ZERO),
+                            offset: None,
+                        });
                     (value, access)
                 })
                 .collect()

@@ -8,9 +8,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         elements: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
+        let ty = self.context.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
-            return report_unsupported(self.gcx, expr.span, "array literal");
+            return report_unsupported(self.context.gcx, expr.span, "array literal");
         };
         let layout = self.types.memory_layout(ty)?;
         let (size, kind) = match layout {
@@ -23,7 +23,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     u64::try_from(elements.len()).ok()?.checked_mul(u64::from(element_words))?;
                 (words.checked_add(1)?.checked_mul(32)?, MemoryObjectKind::DynamicArray)
             }
-            _ => return report_unsupported(self.gcx, expr.span, "array literal"),
+            _ => return report_unsupported(self.context.gcx, expr.span, "array literal"),
         };
         let size = self.builder.imm_u64(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
@@ -33,7 +33,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         for (index, element) in elements.iter().enumerate() {
             let value = self.lower_expr(element)?;
-            let value = self.coerce_value(value, self.gcx.type_of_expr(element.id)?, element_ty);
+            let value =
+                self.coerce_value(value, self.context.gcx.type_of_expr(element.id)?, element_ty);
             let index = self.builder.imm_u64(index as u64);
             self.builder.memory_object_store_element(object, layout, index, value);
         }
@@ -71,12 +72,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: hir::StructId,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        let struct_fields = self.gcx.hir.strukt(struct_id).fields;
+        let struct_fields = self.context.gcx.hir.strukt(struct_id).fields;
         let fields = struct_fields.len() as u64;
         if args.len() != fields as usize {
-            return report_unsupported(self.gcx, expr.span, "struct constructor arguments");
+            return report_unsupported(self.context.gcx, expr.span, "struct constructor arguments");
         }
-        let parameter_names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+        let parameter_names =
+            self.context.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let layout = MemoryObjectLayout::Struct { fields };
         let size = self.builder.imm_u64(fields.saturating_mul(32));
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
@@ -84,12 +86,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
-                return report_unsupported(self.gcx, args.span, "struct constructor argument");
+                return report_unsupported(
+                    self.context.gcx,
+                    args.span,
+                    "struct constructor argument",
+                );
             };
-            let field_ty = self.gcx.type_of_item(field.into());
+            let field_ty = self.context.gcx.type_of_item(field.into());
             let value = self.lower_typed_expr(argument, field_ty)?;
             let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
-            let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, field_ty);
+            let value =
+                self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, field_ty);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)
@@ -100,9 +107,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         values: &[Option<&hir::Expr<'_>>],
     ) -> Option<ValueId> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
+        let ty = self.context.gcx.type_of_expr(expr.id)?;
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
-            return report_unsupported(self.gcx, expr.span, "tuple object");
+            return report_unsupported(self.context.gcx, expr.span, "tuple object");
         };
         let size = fields.checked_mul(32)?;
         let size = self.builder.imm_u64(size);
@@ -268,8 +275,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             solar_sema::ty::TyKind::Struct(id) => {
                 let zero = self.builder.imm_u256(U256::ZERO);
-                for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
+                for (index, &field) in self.context.gcx.hir.strukt(id).fields.iter().enumerate() {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
                     let value =
                         self.default_object_with_semantics(field_ty, semantics).unwrap_or(zero);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
@@ -307,8 +314,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
             | solar_sema::ty::TyKind::DynArray(_) => true,
             solar_sema::ty::TyKind::Struct(id) => {
-                self.gcx.hir.strukt(id).fields.iter().all(|&field| {
-                    let field_ty = self.gcx.type_of_item(field.into());
+                self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
                     self.types.memory_layout(field_ty).and_then(Self::default_object_size).is_some()
                 })
             }

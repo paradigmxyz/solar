@@ -13,7 +13,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn validate_enum_value(&mut self, ty: solar_sema::ty::Ty<'gcx>, value: ValueId) {
         let TyKind::Enum(id) = ty.peel_refs().kind else { return };
-        let variants = self.gcx.hir.enumm(id).variants.len() as u64;
+        let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
         let limit = self.builder.imm_u64(variants);
         let valid = self.builder.lt(value, limit);
         let invalid = self.builder.iszero(valid);

@@ -204,12 +204,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ) {
                     false
                 } else {
-                    ty.base_type(self.gcx)
+                    ty.base_type(self.context.gcx)
                         .is_some_and(|element| self.calldata_aggregate_requires_validation(element))
                 }
             }
-            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.iter().any(|&field| {
-                self.calldata_aggregate_requires_validation(self.gcx.type_of_item(field.into()))
+            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().any(|&field| {
+                self.calldata_aggregate_requires_validation(
+                    self.context.gcx.type_of_item(field.into()),
+                )
             }),
             TyKind::Tuple(fields) => {
                 fields.iter().any(|&field| self.calldata_aggregate_requires_validation(field))
@@ -246,10 +248,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     solar_sema::hir::ElementaryType::Bytes
                     | solar_sema::hir::ElementaryType::String,
                 ) => Some(self.materialize_memory_slice(value)),
-                _ => report_unsupported(self.gcx, span, "memory slice materialization"),
+                _ => report_unsupported(self.context.gcx, span, "memory slice materialization"),
             },
             SliceLocation::Returndata => {
-                report_unsupported(self.gcx, span, "returndata slice materialization")
+                report_unsupported(self.context.gcx, span, "returndata slice materialization")
             }
         }
     }
@@ -279,6 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()
             && self
+                .context
                 .gcx
                 .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
@@ -388,7 +391,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::DynArray(_) | TyKind::Slice(_) => {
                 let element = self.array_element_type(ty).or_else(|| {
-                    report_unsupported(self.gcx, span, "calldata argument materialization")
+                    report_unsupported(self.context.gcx, span, "calldata argument materialization")
                 })?;
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
@@ -406,15 +409,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.materialize_calldata_fixed_array(element, length, data, span, true)
             }
             TyKind::Struct(id) => {
-                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
                 let field_types = fields
                     .iter()
-                    .map(|&field| self.gcx.type_of_item(field.into()))
+                    .map(|&field| self.context.gcx.type_of_item(field.into()))
                     .collect::<Vec<_>>();
                 let base = self.builder.slice_ptr(value);
                 self.materialize_calldata_fields(field_types, base, span, true)
             }
-            _ => report_unsupported(self.gcx, span, "calldata argument materialization"),
+            _ => report_unsupported(self.context.gcx, span, "calldata argument materialization"),
         }
     }
 
@@ -636,10 +639,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Calldata,
                     ));
                 }
-                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
                 let field_types = fields
                     .iter()
-                    .map(|&field| self.gcx.type_of_item(field.into()))
+                    .map(|&field| self.context.gcx.type_of_item(field.into()))
                     .collect::<Vec<_>>();
                 self.materialize_calldata_fields(field_types, value_pos, span, validate_bounds)
             }
@@ -778,7 +781,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.calldata_load_word(position);
         let validator = match ty.kind {
             TyKind::Enum(id) => {
-                let variants = self.gcx.hir.enumm(id).variants.len() as u64;
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
                 AbiWordValidator::EnumRange(variants)
             }
             _ => match AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)) {

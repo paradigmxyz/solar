@@ -203,30 +203,9 @@ pub(super) fn lower_synthetic_constructor(
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
 struct FunctionLowerer<'gcx, 'ctx> {
-    gcx: Gcx<'gcx>,
-    module: &'ctx mut Module,
-    storage: &'ctx StorageLayout<'gcx>,
-    contract_id: hir::ContractId,
-    function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
-    immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
-    child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
-    child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
-    invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
-    pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
-    storage_bytes_helper: &'ctx mut Option<FunctionId>,
-    storage_bytes_array_helper: &'ctx mut Option<FunctionId>,
-    storage_word_array_helper: &'ctx mut Option<FunctionId>,
-    packed_array_helpers: &'ctx mut FxHashMap<(u8, u8), FunctionId>,
-    storage_struct_array_helpers: &'ctx mut FxHashMap<hir::StructId, FunctionId>,
-    storage_clear_helper: &'ctx mut Option<FunctionId>,
-    revert_error_helper: &'ctx mut Option<FunctionId>,
-    literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
-    literal_word_helper: &'ctx mut Option<FunctionId>,
-    shared_literals: &'ctx FxHashSet<Vec<u8>>,
-    shared_word_literals: &'ctx FxHashSet<Vec<u8>>,
-    share_storage_bytes: bool,
-    builder: FunctionBuilder<'ctx>,
+    context: LoweringContext<'gcx, 'ctx>,
     types: types::TypeLowerer<'gcx>,
+    builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
@@ -375,53 +354,9 @@ fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn new(context: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
-        let LoweringContext {
-            gcx,
-            module,
-            storage,
-            contract_id,
-            function_ids,
-            immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            invalid_event_topics,
-            pointer_registry,
-            storage_bytes_helper,
-            storage_bytes_array_helper,
-            storage_word_array_helper,
-            packed_array_helpers,
-            storage_struct_array_helpers,
-            storage_clear_helper,
-            revert_error_helper,
-            literal_helpers,
-            literal_word_helper,
-            shared_literals,
-            shared_word_literals,
-            share_storage_bytes,
-        } = context;
+        let gcx = context.gcx;
         Self {
-            gcx,
-            module,
-            storage,
-            contract_id,
-            function_ids,
-            immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            invalid_event_topics,
-            pointer_registry,
-            storage_bytes_helper,
-            storage_bytes_array_helper,
-            storage_word_array_helper,
-            packed_array_helpers,
-            storage_struct_array_helpers,
-            storage_clear_helper,
-            revert_error_helper,
-            literal_helpers,
-            literal_word_helper,
-            shared_literals,
-            shared_word_literals,
-            share_storage_bytes,
+            context,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -443,16 +378,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
-                if let Some(builtin) = self.gcx.resolved_builtin(expr) {
+                if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
                     return self.lower_environment_builtin(expr, builtin);
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
                     return Some(value);
                 }
-                let id = self.gcx.resolved_variable(expr)?;
+                let id = self.context.gcx.resolved_variable(expr)?;
                 let value = self.load_variable(id, expr.span)?;
-                if self.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
-                    && self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
+                if self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+                    && self.context.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
                         Some(MirType::Slice(SliceLocation::Calldata))
@@ -467,17 +402,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
-                if let Some(function_id) = self.gcx.user_operator(expr.id) {
+                if let Some(function_id) = self.context.gcx.user_operator(expr.id) {
                     let lhs = self.lower_expr(lhs)?;
                     let rhs = self.lower_expr(rhs)?;
                     return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
                 }
-                if self.gcx.unsupported_udvt_operator(expr.id) {
+                if self.context.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let lhs_ty = self.gcx.type_of_expr(lhs.id);
+                let lhs_ty = self.context.gcx.type_of_expr(lhs.id);
                 let lhs = self.lower_expr(lhs)?;
-                let rhs_ty = self.gcx.type_of_expr(rhs.id);
+                let rhs_ty = self.context.gcx.type_of_expr(rhs.id);
                 let rhs = self.lower_expr(rhs)?;
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
@@ -507,12 +442,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | BinOpKind::Shl
                     | BinOpKind::Shr
                     | BinOpKind::Sar => lhs_ty,
-                    _ => self.gcx.type_of_expr(expr.id),
+                    _ => self.context.gcx.type_of_expr(expr.id),
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
                 Some(
-                    if let Some(bytes) =
-                        self.gcx.type_of_expr(expr.id).and_then(operators::fixed_bytes_width)
+                    if let Some(bytes) = self
+                        .context
+                        .gcx
+                        .type_of_expr(expr.id)
+                        .and_then(operators::fixed_bytes_width)
                     {
                         self.clean_fixed_bytes(result, bytes)
                     } else {
@@ -540,7 +478,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     } else {
                         BinOpKind::Sub
                     };
-                    let new = self.binary(kind, old, one, self.gcx.type_of_expr(value.id));
+                    let new = self.binary(kind, old, one, self.context.gcx.type_of_expr(value.id));
                     self.store_lvalue_place(&place, new)?;
                     return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
                         new
@@ -548,18 +486,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         old
                     });
                 }
-                if let Some(function_id) = self.gcx.user_operator(expr.id) {
+                if let Some(function_id) = self.context.gcx.user_operator(expr.id) {
                     let value = self.lower_expr(value)?;
                     return self.lower_user_operator(expr.span, function_id, &[value]);
                 }
-                if self.gcx.unsupported_udvt_operator(expr.id) {
+                if self.context.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 let value = self.lower_expr(value)?;
-                self.unary(op.kind, value, expr.span, self.gcx.type_of_expr(expr.id))
+                self.unary(op.kind, value, expr.span, self.context.gcx.type_of_expr(expr.id))
             }
             ExprKind::Assign(lhs, op, rhs) => {
-                if op.is_some() && self.gcx.unsupported_udvt_operator(expr.id) {
+                if op.is_some() && self.context.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none()
@@ -570,15 +508,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let access = self.storage_access(rhs)?;
-                    let Some(id) = self.gcx.resolved_variable(lhs) else {
-                        return report_unsupported(self.gcx, lhs.span, "storage reference target");
+                    let Some(id) = self.context.gcx.resolved_variable(lhs) else {
+                        return report_unsupported(
+                            self.context.gcx,
+                            lhs.span,
+                            "storage reference target",
+                        );
                     };
                     self.storage_refs.insert(id, access);
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
-                let rhs_ty = self.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
-                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                 let rhs_value = if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
@@ -618,13 +560,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
-            _ if self.gcx.dcx().has_errors().is_err() => Some(self.builder.imm_u256(U256::ZERO)),
-            _ => report_unsupported(self.gcx, expr.span, "expression"),
+            _ if self.context.gcx.dcx().has_errors().is_err() => {
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            _ => report_unsupported(self.context.gcx, expr.span, "expression"),
         }
     }
 
     fn report_unsupported_udvt_operator(&self, span: Span) -> Option<ValueId> {
-        self.gcx
+        self.context
+            .gcx
             .dcx()
             .err("user-defined operators are not supported in this codegen path")
             .span(span)
