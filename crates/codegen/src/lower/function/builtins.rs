@@ -406,13 +406,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(total, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let one = self.builder.imm_u64(1);
-        let words = self.checked_add(words, one);
-        let size = self.checked_mul(words, word_size);
+        let size = self.checked_padded_size(total);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,

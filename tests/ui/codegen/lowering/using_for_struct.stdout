@@ -22,36 +22,25 @@ fn @hashLib(arg0: memorystruct) -> bytes32 [pure] {
     v3 = and v2, 0xffffffff
     v4 = memory_object_load_field memorystruct<4>, arg0, 2
     v5 = memory_object_load_field memorystruct<4>, arg0, 3
-    v6 = div 132, 32
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb1, bb2
+    v6 = add 101, 63
+    v7 = lt v6, 101
+    jumpi v7, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = mul v7, 32
-    v10 = iszero 32
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = iszero v13
-    jumpi v14, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v15, 101
-    memory_object_store_word memorybytes, v15, 0, 0x7800000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v15, 1, v0
-    v16 = shl 224, v3
-    memory_object_store_word memorybytes, v15, 33, v16
-    memory_object_store_word memorybytes, v15, 37, v4
-    memory_object_store_word memorybytes, v15, 69, v5
-    v17 = keccak256_bytes v15
-    ret v17
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, 101
+    memory_object_store_word memorybytes, v10, 0, 0x7800000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v10, 1, v0
+    v11 = shl 224, v3
+    memory_object_store_word memorybytes, v10, 33, v11
+    memory_object_store_word memorybytes, v10, 37, v4
+    memory_object_store_word memorybytes, v10, 69, v5
+    v12 = keccak256_bytes v10
+    ret v12
 }
 

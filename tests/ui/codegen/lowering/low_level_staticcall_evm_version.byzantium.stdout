@@ -20,7 +20,7 @@ fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_args=lazy, abi_pa
     v3 = memory_object_len memorybytes, v1
     v4 = call v0, arg0, 0, v2, v3, 0, 0
     v5 = returndata_size
-    v6 = add v5, 31
+    v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb1, bb2
   bb1:
@@ -28,32 +28,13 @@ fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_args=lazy, abi_pa
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v8 = div v6, 32
-    v9 = add v8, 1
-    v10 = lt v9, v8
-    jumpi v10, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v11 = mul v9, 32
-    v12 = iszero 32
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = iszero v15
-    jumpi v16, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v17, v5
-    v18 = make_returndata_slice 0, v5
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = memory_object_len memorybytes, v17
-    ret v19
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v10, v11
+    v12 = memory_object_len memorybytes, v10
+    ret v12
 }
 

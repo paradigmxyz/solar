@@ -92,25 +92,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let len = self.lower_expr(arg)?;
             let ty = self.gcx.type_of_expr(expr.id)?;
             let layout = self.types.memory_layout(ty)?;
-            let words = match layout {
-                MemoryObjectLayout::Bytes => {
-                    let thirty_one = self.builder.imm_u64(31);
-                    let rounded = self.checked_add(len, thirty_one);
-                    let thirty_two = self.builder.imm_u64(32);
-                    let words = self.builder.div(rounded, thirty_two);
-                    let one = self.builder.imm_u64(1);
-                    self.checked_add(words, one)
-                }
+            let size = match layout {
+                MemoryObjectLayout::Bytes => self.checked_padded_size(len),
                 MemoryObjectLayout::DynamicArray { element_words } => {
                     let stride = self.builder.imm_u64(u64::from(element_words));
                     let payload = self.checked_mul(len, stride);
                     let one = self.builder.imm_u64(1);
-                    self.checked_add(payload, one)
+                    let words = self.checked_add(payload, one);
+                    let word_size = self.builder.imm_u64(32);
+                    self.checked_mul(words, word_size)
                 }
                 _ => return report_unsupported(self.gcx, expr.span, "allocation type"),
             };
-            let word_size = self.builder.imm_u64(32);
-            let size = self.checked_mul(words, word_size);
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
             self.builder.set_memory_object_len(object, len, layout.kind());
@@ -262,13 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
         let bytecode_len_value = self.builder.imm_u64(bytecode_len);
         let total_len = self.checked_add(bytecode_len_value, encoded_len);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(total_len, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let one = self.builder.imm_u64(1);
-        let object_words = self.checked_add(words, one);
-        let size = self.checked_mul(object_words, word_size);
+        let size = self.checked_padded_size(total_len);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,

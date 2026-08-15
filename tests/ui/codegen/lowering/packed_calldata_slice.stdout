@@ -52,7 +52,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v18 = add v16, 31
+    v18 = add v16, 63
     v19 = lt v18, v16
     jumpi v19, bb13, bb14
   bb13:
@@ -60,48 +60,29 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v20 = div v18, 32
-    v21 = add v20, 1
-    v22 = lt v21, v20
-    jumpi v22, bb15, bb16
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v16
+    memory_object_copy_from_slice_at memorybytes, v22, 0, v6
+    v23 = add 0, v13
+    v24 = lt v23, 0
+    jumpi v24, bb15, bb16
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb16:
-    v23 = mul v21, 32
-    v24 = iszero 32
-    v25 = div v23, 32
-    v26 = eq v25, v21
-    v27 = or v24, v26
-    v28 = iszero v27
-    jumpi v28, bb17, bb18
+    memory_object_store_word memorybytes, v22, v23, 0x2100000000000000000000000000000000000000000000000000000000000000
+    v25 = add v23, 1
+    v26 = lt v25, v23
+    jumpi v26, bb17, bb18
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v29, v16
-    memory_object_copy_from_slice_at memorybytes, v29, 0, v6
-    v30 = add 0, v13
-    v31 = lt v30, 0
-    jumpi v31, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb20:
-    memory_object_store_word memorybytes, v29, v30, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v32 = add v30, 1
-    v33 = lt v32, v30
-    jumpi v33, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb22:
-    ret v29
+    ret v22
 }
 
 fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
@@ -131,7 +112,7 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_args=lazy, abi_params=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v11 = add v9, 31
+    v11 = add v9, 63
     v12 = lt v11, v9
     jumpi v12, bb7, bb8
   bb7:
@@ -139,38 +120,19 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_args=lazy, abi_params=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v13 = div v11, 32
-    v14 = add v13, 1
-    v15 = lt v14, v13
-    jumpi v15, bb9, bb10
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
+    set_memory_object_len memorybytes, v15, v9
+    memory_object_copy_from_slice_at memorybytes, v15, 0, v1
+    v16 = add 0, v8
+    v17 = lt v16, 0
+    jumpi v17, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v16 = mul v14, 32
-    v17 = iszero 32
-    v18 = div v16, 32
-    v19 = eq v18, v14
-    v20 = or v17, v19
-    v21 = iszero v20
-    jumpi v21, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v22, v9
-    memory_object_copy_from_slice_at memorybytes, v22, 0, v1
-    v23 = add 0, v8
-    v24 = lt v23, 0
-    jumpi v24, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    ret v22
+    ret v15
 }
 

@@ -390,12 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
         let one = self.builder.imm_u64(1);
         let length = self.checked_add(old_length, one);
-        let word_size = self.builder.imm_u64(32);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
-        let words = self.builder.div(rounded, word_size);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let size = self.checked_padded_size(length);
         let layout = MemoryObjectLayout::Bytes;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
         self.builder.set_memory_object_len(object, length, layout.kind());
@@ -428,12 +423,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.panic_if(empty, PanicCode::EmptyArrayPop);
             let one = self.builder.imm_u64(1);
             let length = self.builder.sub(old_length, one);
-            let word_size = self.builder.imm_u64(32);
-            let thirty_one = self.builder.imm_u64(31);
-            let rounded = self.checked_add(length, thirty_one);
-            let words = self.builder.div(rounded, word_size);
-            let total_words = self.checked_add(words, one);
-            let size = self.checked_mul(total_words, word_size);
+            let size = self.checked_padded_size(length);
             let layout = MemoryObjectLayout::Bytes;
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);

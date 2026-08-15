@@ -13,7 +13,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b2
   bb0:
     v0 = abi_encode [word, word, word], args arg0, arg1, arg2
     v1 = slice_len v0
-    v2 = add v1, 31
+    v2 = add v1, 63
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
@@ -21,38 +21,19 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b2
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = div v2, 32
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v7 = mul v5, 32
-    v8 = iszero 32
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = iszero v11
-    jumpi v12, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v7
-    set_memory_object_len memorybytes, v13, v1
-    memory_object_copy_from_slice memorybytes, v13, v0
-    ret v13
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, v1
+    memory_object_copy_from_slice memorybytes, v6, v0
+    ret v6
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], args arg0, arg1
     v1 = slice_len v0
-    v2 = add v1, 31
+    v2 = add v1, 63
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
@@ -60,31 +41,12 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925b
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = div v2, 32
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v7 = mul v5, 32
-    v8 = iszero 32
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = iszero v11
-    jumpi v12, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v7
-    set_memory_object_len memorybytes, v13, v1
-    memory_object_copy_from_slice memorybytes, v13, v0
-    ret v13
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, v1
+    memory_object_copy_from_slice memorybytes, v6, v0
+    ret v6
 }
 
 fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
@@ -100,7 +62,7 @@ fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_args=lazy, abi
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = slice_len v0
-    v2 = add v1, 31
+    v2 = add v1, 63
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
   bb1:
@@ -108,31 +70,12 @@ fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_args=lazy, abi
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = div v2, 32
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v7 = mul v5, 32
-    v8 = iszero 32
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = iszero v11
-    jumpi v12, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v7
-    set_memory_object_len memorybytes, v13, v1
-    memory_object_copy_from_slice memorybytes, v13, v0
-    v14 = abi_decode [u256], v13
-    ret v14
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, v1
+    memory_object_copy_from_slice memorybytes, v6, v0
+    v7 = abi_decode [u256], v6
+    ret v7
 }
 

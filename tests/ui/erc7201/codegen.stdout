@@ -43,7 +43,7 @@ fn @memoryParam() -> u256 [selector=0x21aa88e0, pure, abi_args=lazy, abi_params=
 fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
-    v1 = add v0, 31
+    v1 = add v0, 63
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
@@ -51,39 +51,20 @@ fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, pure, abi_a
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = div v1, 32
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v6 = mul v4, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = iszero v10
-    jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v6
-    set_memory_object_len memorybytes, v12, v0
-    memory_object_copy_from_slice memorybytes, v12, arg0
-    v13 = keccak256_bytes v12
-    v14 = sub v13, 1
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v15, 32
-    memory_object_store_word memorybytes, v15, 0, v14
-    v16 = memory_object_data memorybytes, v15
-    v17 = keccak256 v16, 32
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v18
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
+    set_memory_object_len memorybytes, v5, v0
+    memory_object_copy_from_slice memorybytes, v5, arg0
+    v6 = keccak256_bytes v5
+    v7 = sub v6, 1
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v8, 32
+    memory_object_store_word memorybytes, v8, 0, v7
+    v9 = memory_object_data memorybytes, v8
+    v10 = keccak256 v9, 32
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v11
 }
 
 fn @storageValue() -> u256 [selector=0xa977a973, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {

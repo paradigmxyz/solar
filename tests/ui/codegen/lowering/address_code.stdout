@@ -15,7 +15,7 @@ fn @codeHash(arg0: address) -> bytes32 [selector=0x3dc44827, view, abi_args=lazy
 fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_args=lazy, abi_params=[address], abi_returns=[memory_bytes]] {
   bb0:
     v0 = extcodesize arg0
-    v1 = add v0, 31
+    v1 = add v0, 63
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb1:
@@ -23,32 +23,13 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_args=lazy
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = div v1, 32
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v6 = mul v4, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = iszero v10
-    jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v12, v0
-    v13 = memory_object_data memorybytes, v12
-    extcodecopy arg0, v13, 0, v0
-    ret v12
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, v0
+    v6 = memory_object_data memorybytes, v5
+    extcodecopy arg0, v6, 0, v0
+    ret v5
 }
 
 fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi_args=lazy, abi_params=[bytes20], abi_returns=[word]] {

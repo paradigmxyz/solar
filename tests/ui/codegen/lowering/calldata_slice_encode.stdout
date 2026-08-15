@@ -30,7 +30,7 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0xa8c06a13,
   bb6:
     v12 = abi_encode [calldata_bytes], args v5
     v13 = slice_len v12
-    v14 = add v13, 31
+    v14 = add v13, 63
     v15 = lt v14, v13
     jumpi v15, bb7, bb8
   bb7:
@@ -38,31 +38,12 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0xa8c06a13,
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v16 = div v14, 32
-    v17 = add v16, 1
-    v18 = lt v17, v16
-    jumpi v18, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v19 = mul v17, 32
-    v20 = iszero 32
-    v21 = div v19, 32
-    v22 = eq v21, v17
-    v23 = or v20, v22
-    v24 = iszero v23
-    jumpi v24, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v25, v13
-    memory_object_copy_from_slice memorybytes, v25, v12
-    ret v25
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    memory_object_copy_from_slice memorybytes, v18, v12
+    ret v18
 }
 
 fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08, abi_args=lazy, abi_params=[bytes, u256, address], abi_returns=[]] {

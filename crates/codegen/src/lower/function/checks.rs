@@ -28,6 +28,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.checked_mul(lhs, rhs)
     }
 
+    /// Returns the word-aligned allocation size for a bytes-like object.
+    pub(super) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.builder.imm_u64(63);
+        let rounded = self.builder.add(length, padding);
+        let overflow = self.builder.lt(rounded, length);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = self.builder.imm_u64(31);
+        let mask = self.builder.not(mask);
+        self.builder.and(rounded, mask)
+    }
+
     pub(super) fn bounds_check(&mut self, index: ValueId, length: ValueId) {
         let in_range = self.builder.lt(index, length);
         let invalid = self.builder.iszero(in_range);

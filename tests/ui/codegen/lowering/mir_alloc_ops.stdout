@@ -42,7 +42,7 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_
     revert 0, 0
   bb4:
     v6 = slice_len arg0
-    v7 = add v6, 31
+    v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb5, bb6
   bb5:
@@ -50,31 +50,12 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = div v7, 32
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v12 = mul v10, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = iszero v16
-    jumpi v17, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v18, v6
-    memory_object_copy_from_slice memorybytes, v18, arg0
-    ret v18
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    memory_object_copy_from_slice memorybytes, v11, arg0
+    ret v11
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {

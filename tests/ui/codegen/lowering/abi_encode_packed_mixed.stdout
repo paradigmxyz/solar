@@ -4,35 +4,24 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [selector=
   bb0:
     v0 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v2 = div 85, 32
-    v3 = add v2, 1
-    v4 = lt v3, v2
-    jumpi v4, bb1, bb2
+    v2 = add 54, 63
+    v3 = lt v2, 54
+    jumpi v3, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v5 = mul v3, 32
-    v6 = iszero 32
-    v7 = div v5, 32
-    v8 = eq v7, v3
-    v9 = or v6, v8
-    v10 = iszero v9
-    jumpi v10, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v11, 54
-    memory_object_store_word memorybytes, v11, 0, arg0
-    v12 = shl 96, v0
-    memory_object_store_word memorybytes, v11, 32, v12
-    memory_object_store_word memorybytes, v11, 52, v1
-    v13 = keccak256_bytes v11
-    ret v13
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, 54
+    memory_object_store_word memorybytes, v6, 0, arg0
+    v7 = shl 96, v0
+    memory_object_store_word memorybytes, v6, 32, v7
+    memory_object_store_word memorybytes, v6, 52, v1
+    v8 = keccak256_bytes v6
+    ret v8
 }
 
 fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d, pure, abi_args=lazy, abi_params=[bytes32, bytes], abi_returns=[word]] {
@@ -48,7 +37,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d
   bb2:
     v3 = memory_object_data memorybytes, arg1
     v4 = make_memory_slice v3, v0
-    v5 = add v1, 31
+    v5 = add v1, 63
     v6 = lt v5, v1
     jumpi v6, bb3, bb4
   bb3:
@@ -56,41 +45,22 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v7 = div v5, 32
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb5, bb6
+    v7 = not 31
+    v8 = and v5, v7
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    set_memory_object_len memorybytes, v9, v1
+    memory_object_store_word memorybytes, v9, 0, arg0
+    memory_object_copy_from_slice_at memorybytes, v9, 32, v4
+    v10 = add 32, v0
+    v11 = lt v10, 32
+    jumpi v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = mul v8, 32
-    v11 = iszero 32
-    v12 = div v10, 32
-    v13 = eq v12, v8
-    v14 = or v11, v13
-    v15 = iszero v14
-    jumpi v15, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v16, v1
-    memory_object_store_word memorybytes, v16, 0, arg0
-    memory_object_copy_from_slice_at memorybytes, v16, 32, v4
-    v17 = add 32, v0
-    v18 = lt v17, 32
-    jumpi v18, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v19 = keccak256_bytes v16
-    ret v19
+    v12 = keccak256_bytes v9
+    ret v12
 }
 
 fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selector=0x16cbcf25, pure, abi_args=lazy, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
@@ -117,7 +87,7 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selec
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = add v8, 31
+    v10 = add v8, 63
     v11 = lt v10, v8
     jumpi v11, bb5, bb6
   bb5:
@@ -125,51 +95,32 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selec
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v12 = div v10, 32
-    v13 = add v12, 1
-    v14 = lt v13, v12
-    jumpi v14, bb7, bb8
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v8
+    v15 = shl 240, v0
+    memory_object_store_word memorybytes, v14, 0, v15
+    memory_object_copy_from_slice_at memorybytes, v14, 2, v5
+    v16 = add 2, v1
+    v17 = lt v16, 2
+    jumpi v17, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v15 = mul v13, 32
-    v16 = iszero 32
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = iszero v19
+    v18 = shl 248, v7
+    memory_object_store_word memorybytes, v14, v16, v18
+    v19 = add v16, 1
+    v20 = lt v19, v16
     jumpi v20, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v21, v8
-    v22 = shl 240, v0
-    memory_object_store_word memorybytes, v21, 0, v22
-    memory_object_copy_from_slice_at memorybytes, v21, 2, v5
-    v23 = add 2, v1
-    v24 = lt v23, 2
-    jumpi v24, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v25 = shl 248, v7
-    memory_object_store_word memorybytes, v21, v23, v25
-    v26 = add v23, 1
-    v27 = lt v26, v23
-    jumpi v27, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    ret v21
+    ret v14
 }
 
 fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_args=lazy, abi_params=[array<_, bytes32>], abi_returns=[word]] {
@@ -195,7 +146,7 @@ fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_args
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v9 = add v7, 31
+    v9 = add v7, 63
     v10 = lt v9, v7
     jumpi v10, bb5, bb6
   bb5:
@@ -203,82 +154,63 @@ fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_args
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v11 = div v9, 32
-    v12 = add v11, 1
-    v13 = lt v12, v11
-    jumpi v13, bb7, bb8
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v7
+    v14 = mul v0, 32
+    v15 = iszero 32
+    v16 = div v14, 32
+    v17 = eq v16, v0
+    v18 = or v15, v17
+    v19 = iszero v18
+    jumpi v19, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v14 = mul v12, 32
-    v15 = iszero 32
-    v16 = div v14, 32
-    v17 = eq v16, v12
-    v18 = or v15, v17
-    v19 = iszero v18
-    jumpi v19, bb9, bb10
+    v20 = add 0, v14
+    v21 = lt v20, 0
+    jumpi v21, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v20, v7
-    v21 = mul v0, 32
-    v22 = iszero 32
-    v23 = div v21, 32
-    v24 = eq v23, v0
-    v25 = or v22, v24
-    v26 = iszero v25
-    jumpi v26, bb11, bb12
+    jump bb11
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v22 = phi [bb10: 0], [bb17: v33]
+    v23 = lt v22, v0
+    jumpi v23, bb12, bb13
   bb12:
-    v27 = add 0, v21
-    v28 = lt v27, 0
-    jumpi v28, bb13, bb14
+    v24 = mul v22, 32
+    v25 = iszero 32
+    v26 = div v24, 32
+    v27 = eq v26, v22
+    v28 = or v25, v27
+    v29 = iszero v28
+    jumpi v29, bb14, bb15
   bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v34 = keccak256_bytes v13
+    ret v34
   bb14:
-    jump bb15
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb15:
-    v29 = phi [bb14: 0], [bb21: v40]
-    v30 = lt v29, v0
-    jumpi v30, bb16, bb17
+    v30 = add 0, v24
+    v31 = lt v30, 0
+    jumpi v31, bb16, bb17
   bb16:
-    v31 = mul v29, 32
-    v32 = iszero 32
-    v33 = div v31, 32
-    v34 = eq v33, v29
-    v35 = or v32, v34
-    v36 = iszero v35
-    jumpi v36, bb18, bb19
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb17:
-    v41 = keccak256_bytes v20
-    ret v41
-  bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    v37 = add 0, v31
-    v38 = lt v37, 0
-    jumpi v38, bb20, bb21
-  bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    v39 = memory_object_load_element memoryarray<1>, arg0, v29
-    memory_object_store_word memorybytes, v20, v37, v39
-    v40 = add v29, 1
-    jump bb15
+    v32 = memory_object_load_element memoryarray<1>, arg0, v22
+    memory_object_store_word memorybytes, v13, v30, v32
+    v33 = add v22, 1
+    jump bb11
 }
 
 fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0xc570e197, pure, abi_args=lazy, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
@@ -286,37 +218,26 @@ fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0xc5
     v0 = and arg0, 255
     v1 = signextend 1, arg1
     v2 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v3 = div 37, 32
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb1, bb2
+    v3 = add 6, 63
+    v4 = lt v3, 6
+    jumpi v4, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v6 = mul v4, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v6
-    set_memory_object_len memorybytes, v12, 6
-    v13 = shl 248, v0
-    v14 = or 0, v13
-    v15 = and v1, 0xffff
-    v16 = shl 232, v15
-    v17 = or v14, v16
-    memory_object_store_word memorybytes, v12, 0, v17
-    memory_object_store_word memorybytes, v12, 3, v2
-    v18 = keccak256_bytes v12
-    ret v18
+    v5 = not 31
+    v6 = and v3, v5
+    v7 = alloc memorybytes, exact, uninitialized, infallible, v6
+    set_memory_object_len memorybytes, v7, 6
+    v8 = shl 248, v0
+    v9 = or 0, v8
+    v10 = and v1, 0xffff
+    v11 = shl 232, v10
+    v12 = or v9, v11
+    memory_object_store_word memorybytes, v7, 0, v12
+    memory_object_store_word memorybytes, v7, 3, v2
+    v13 = keccak256_bytes v7
+    ret v13
 }
 

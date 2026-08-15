@@ -280,13 +280,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => unreachable!("scalar array layout checked above"),
         };
-        let word = self.builder.imm_u64(32);
         let words = if kind == MemoryObjectKind::DynamicArray {
             let one = self.builder.imm_u64(1);
             self.checked_add(length, one)
         } else {
             length
         };
+        let word = self.builder.imm_u64(32);
         let size = self.checked_mul(words, word);
         let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if kind == MemoryObjectKind::DynamicArray {
@@ -555,13 +555,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
         let length = self.builder.slice_len(slice);
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let one = self.builder.imm_u64(1);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let size = self.checked_padded_size(length);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -574,13 +568,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
         let length = self.builder.returndata_size();
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let one = self.builder.imm_u64(1);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let size = self.checked_padded_size(length);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -697,13 +685,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             pieces.push(PackedPiece::Static { value, length, fixed_bytes, signed });
         }
 
-        let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(total, thirty_one);
-        let word_size = self.builder.imm_u64(32);
-        let words = self.builder.div(rounded, word_size);
-        let one = self.builder.imm_u64(1);
-        let words = self.checked_add(words, one);
-        let size = self.checked_mul(words, word_size);
+        let size = self.checked_padded_size(total);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,

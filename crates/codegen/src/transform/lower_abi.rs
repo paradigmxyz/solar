@@ -1198,7 +1198,7 @@ impl LowerAbiCx {
                 module.function_mut(wrapper_id),
                 body_id.expect("body clone for a calling wrapper"),
                 original_entry_inst.expect("calling wrapper has an entry instruction"),
-                original.returns[0],
+                &original.returns,
                 logical_values.into_iter().map(Option::unwrap).collect(),
             );
         }
@@ -1232,10 +1232,14 @@ impl LowerAbiCx {
                     || (Self::is_supported_aggregate(abi_ty)
                         && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
             })
-            && func.returns.len() == 1
-            && !matches!(func.returns[0], MirType::Slice(SliceLocation::Returndata))
+            && !func
+                .returns
+                .iter()
+                .any(|&ty| matches!(ty, MirType::Slice(SliceLocation::Returndata)))
+            && (func.returns.len() <= 1
+                || func.returns.iter().all(|&ty| !matches!(ty, MirType::Slice(_))))
             && func.blocks.iter().all(|block| {
-                !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != 1)
+                !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != func.returns.len())
             })
     }
 
@@ -1243,7 +1247,7 @@ impl LowerAbiCx {
         func: &mut Function,
         body_id: FunctionId,
         original_entry_inst: crate::mir::InstId,
-        return_ty: MirType,
+        return_types: &[MirType],
         args: Vec<ValueId>,
     ) {
         let Some(block) = func
@@ -1257,8 +1261,40 @@ impl LowerAbiCx {
         func.blocks[block].terminator = None;
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        let result = builder.internal_call(body_id, args, return_ty, 1);
-        builder.ret([result]);
+        if return_types.is_empty() {
+            builder.internal_call_void(body_id, args, 0);
+            builder.ret([]);
+        } else if return_types.len() == 1 {
+            let result = builder.internal_call(body_id, args, return_types[0], 1);
+            builder.ret([result]);
+        } else {
+            let result = builder.internal_call(body_id, args, return_types[0], return_types.len());
+            let mut values = Vec::with_capacity(return_types.len());
+            values.push(result);
+            if return_types.len() > 1 {
+                let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
+                for index in 1..return_types.len() {
+                    let index_value = builder.imm_u64(index as u64);
+                    let value = match return_types[index] {
+                        MirType::MemoryObject(kind) => builder.memory_object_load_object(
+                            base,
+                            MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
+                            index_value,
+                            kind,
+                        ),
+                        _ => {
+                            let offset = builder.imm_u64(
+                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
+                            );
+                            let position = builder.add(base, offset);
+                            builder.mload(position)
+                        }
+                    };
+                    values.push(value);
+                }
+            }
+            builder.ret(values);
+        }
         let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
     }
 
@@ -2101,11 +2137,7 @@ impl LowerAbiCx {
                     // allocating and copying an equivalent object.
                     return base;
                 }
-                let total = if constructor {
-                    Self::checked_add(builder, bytes, word, current)
-                } else {
-                    builder.add(bytes, word)
-                };
+                let total = builder.add(bytes, word);
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -2191,11 +2223,7 @@ impl LowerAbiCx {
                 // head size also proves this word-array allocation cannot
                 // overflow.
                 let bytes = builder.mul(len, word);
-                let total = if constructor {
-                    Self::checked_add(builder, bytes, word, current)
-                } else {
-                    builder.add(bytes, word)
-                };
+                let total = builder.add(bytes, word);
                 let ptr = builder.alloc_object(
                     total,
                     crate::mir::MemoryObjectLayout::WORD_ARRAY,
@@ -2284,16 +2312,12 @@ impl LowerAbiCx {
                 // The source range check bounds calldata lengths before
                 // rounding; only memory-input decoding needs the explicit
                 // overflow branches used by Solidity's allocator.
-                let rounded = if constructor {
-                    Self::checked_add(builder, len, thirty_one, current)
-                } else {
-                    builder.add(len, thirty_one)
-                };
-                let mask = builder.not(thirty_one);
-                let data_size = builder.and(rounded, mask);
                 let total = if constructor {
-                    Self::checked_add(builder, data_size, word, current)
+                    Self::checked_padded_size(builder, len, current)
                 } else {
+                    let rounded = builder.add(len, thirty_one);
+                    let mask = builder.not(thirty_one);
+                    let data_size = builder.and(rounded, mask);
                     builder.add(data_size, word)
                 };
                 let ptr = builder.alloc_object(
@@ -3033,6 +3057,28 @@ impl LowerAbiCx {
         builder.switch_to_block(next);
         *current = next;
         result
+    }
+
+    fn checked_padded_size(
+        builder: &mut FunctionBuilder<'_>,
+        length: ValueId,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let padding = builder.imm_u64(63);
+        let rounded = builder.add(length, padding);
+        let overflow = builder.lt(rounded, length);
+        let next = builder.create_block();
+        let revert = builder.create_block();
+        builder.branch(overflow, revert, next);
+        builder.switch_to_block(revert);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(next);
+        *current = next;
+        let mask = builder.imm_u64(31);
+        let mask = builder.not(mask);
+        builder.and(rounded, mask)
     }
 
     fn checked_mul(

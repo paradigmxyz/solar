@@ -7,7 +7,10 @@
 // single-byte `mstore8` writes at `data + i`.
 contract BytesMemoryElements {
     // CHECK-LABEL: fn @alloc{{[( ]}}
-    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = mul {{v[0-9]+}}, 32
+    // CHECK: [[PADDED:v[0-9]+]] = add 96, 63
+    // CHECK: {{v[0-9]+}} = lt [[PADDED]], 96
+    // CHECK: [[MASK:v[0-9]+]] = not 31
+    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 96
     // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
@@ -32,7 +35,10 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @allocDynamic{{[( ]}}
-    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = mul {{v[0-9]+}}, 32
+    // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
+    // CHECK: {{v[0-9]+}} = lt [[PADDED]], arg0
+    // CHECK: [[MASK:v[0-9]+]] = not 31
+    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], arg0
     function allocDynamic(uint n) external pure returns (uint) {
