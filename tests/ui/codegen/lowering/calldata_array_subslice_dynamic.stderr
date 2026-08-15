@@ -1,4 +1,4 @@
-error: codegen rewrite does not support this slice yet
+error: index range access is not supported for arrays with dynamically encoded base types
    ╭▸ ROOT/tests/ui/codegen/lowering/calldata_array_subslice_dynamic.sol:LL:CC
    │
 LL │         return data[1:];
