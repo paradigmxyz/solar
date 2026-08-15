@@ -9,7 +9,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use std::collections::VecDeque;
 
 /// Conservative memory effects and pointer captures for one MIR function.
@@ -312,15 +312,60 @@ fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn is_monotonic_fmp_advance(func: &Function, value: ValueId) -> bool {
     let Value::Inst(inst_id) = func.value(value) else { return false };
-    let InstKind::Add(first, second) = func.inst(*inst_id).kind else { return false };
-    (is_fmp_load(func, first) && is_nonnegative_offset(func, second))
-        || (is_fmp_load(func, second) && is_nonnegative_offset(func, first))
+    if !matches!(func.inst(*inst_id).kind, InstKind::Add(_, _)) {
+        return false;
+    }
+    let mut visiting = FxHashSet::default();
+    is_fmp_derived(func, value, &mut visiting, None, false)
 }
 
-fn is_fmp_load(func: &Function, value: ValueId) -> bool {
-    let Value::Inst(inst_id) = func.value(value) else { return false };
-    let InstKind::MLoad(address) = func.inst(*inst_id).kind else { return false };
-    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+/// Proves that a value is the free-memory pointer plus only nonnegative offsets.
+///
+/// Loop-carried pointer increments form cyclic phi dependencies. A cycle is
+/// accepted only when the phi that anchors it also has a separately proven FMP
+/// input; unrelated cycles remain rejected.
+fn is_fmp_derived(
+    func: &Function,
+    value: ValueId,
+    visiting: &mut FxHashSet<ValueId>,
+    anchor: Option<ValueId>,
+    supported: bool,
+) -> bool {
+    if anchor == Some(value) && supported && visiting.contains(&value) {
+        return true;
+    }
+    if !visiting.insert(value) {
+        return false;
+    }
+
+    let result = match func.value(value) {
+        Value::Inst(inst_id) => match func.inst(*inst_id).kind.clone() {
+            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Add(first, second) => {
+                (is_fmp_derived(func, first, visiting, anchor, supported)
+                    && is_nonnegative_offset(func, second))
+                    || (is_fmp_derived(func, second, visiting, anchor, supported)
+                        && is_nonnegative_offset(func, first))
+            }
+            InstKind::Phi(incoming) if !incoming.is_empty() => {
+                let is_root = anchor.is_none();
+                let externally_supported = is_root
+                    && incoming
+                        .iter()
+                        .any(|&(_, value)| is_fmp_derived(func, value, visiting, None, false));
+                let anchor = anchor.or(is_root.then_some(value));
+                let supported = supported || externally_supported;
+                incoming
+                    .iter()
+                    .all(|&(_, value)| is_fmp_derived(func, value, visiting, anchor, supported))
+            }
+            _ => false,
+        },
+        _ => false,
+    };
+
+    visiting.remove(&value);
+    result
 }
 
 fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
