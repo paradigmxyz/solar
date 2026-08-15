@@ -113,6 +113,11 @@ impl InstructionMetadata {
         self.flags.set_deferred_alloc();
     }
 
+    /// Clears the deferred-allocation marker after an allocation is rewritten.
+    pub(crate) fn clear_deferred_alloc(&mut self) {
+        self.flags.clear_deferred_alloc();
+    }
+
     /// Returns whether this instruction must survive optimization until ABI lowering.
     #[must_use]
     pub(crate) fn abi_validation(&self) -> bool {
@@ -179,6 +184,10 @@ impl MetadataFlags {
 
     fn set_deferred_alloc(&mut self) {
         self.0 |= Self::DEFERRED_ALLOC;
+    }
+
+    fn clear_deferred_alloc(&mut self) {
+        self.0 &= !Self::DEFERRED_ALLOC;
     }
 
     fn abi_validation(self) -> bool {

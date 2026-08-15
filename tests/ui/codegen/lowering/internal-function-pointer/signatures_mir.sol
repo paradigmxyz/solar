@@ -64,7 +64,8 @@ contract FunctionPointerSignatures {
     // CHECK: eq arg0, [[PAIR]]
     // CHECK: internal_call @pair, 2, arg1
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: memory_slice_load_word memory
+    // CHECK: [[PAIR_OFFSET:v[0-9]+]] = add
+    // CHECK: mload [[PAIR_OFFSET]]
     // CHECK-LABEL: fn @__internal_dispatch_2(
     // CHECK: eq arg0, 7
     // CHECK: internal_call @sum, 1, arg1, arg2

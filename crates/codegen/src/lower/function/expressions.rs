@@ -3,6 +3,31 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    pub(super) fn lower_string_literal_word(&mut self, bytes: &[u8]) -> ValueId {
+        let len = bytes.len().min(32);
+        let mut padded = [0_u8; 32];
+        padded[..len].copy_from_slice(&bytes[..len]);
+        self.builder.imm_u256(U256::from_be_bytes(padded))
+    }
+
+    pub(super) fn lower_fixed_bytes_literal(
+        &mut self,
+        ty: Ty<'gcx>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        if !matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+        ) {
+            return None;
+        }
+        let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
+            return None;
+        };
+        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+        Some(self.lower_string_literal_word(bytes.as_byte_str()))
+    }
+
     pub(super) fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
         match kind {
             LitKind::Str(_, value, _) => self.lower_bytes_literal(value.as_byte_str(), span),
@@ -57,6 +82,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if name.name == sym::length {
             let receiver_ty = self.gcx.type_of_expr(receiver.id)?;
+            if matches!(
+                receiver_ty.peel_refs().kind,
+                TyKind::StringLiteral(..)
+                    | TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+            ) && let ExprKind::Lit(lit) = self.peel_bytes_conversion(receiver).peel_parens().kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                return Some(self.builder.imm_u64(bytes.as_byte_str().len() as u64));
+            }
             if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
                 if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                     self.lower_expr(receiver)?;
@@ -136,7 +173,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let head = self.builder.add(base, offset);
             let field_ty =
                 self.gcx.type_of_item(id.into()).with_loc_if_ref(self.gcx, DataLocation::Calldata);
-            return self.materialize_calldata_value_at_inner(field_ty, head, base, expr.span, true);
+            let validate_bounds = fields[field].is_dynamic();
+            return self.materialize_calldata_value_at_inner(
+                field_ty,
+                head,
+                base,
+                expr.span,
+                validate_bounds,
+            );
         }
         let layout = self.types.memory_layout(receiver_ty)?;
         let value = self.builder.memory_object_load_field(object, layout, field as u64);

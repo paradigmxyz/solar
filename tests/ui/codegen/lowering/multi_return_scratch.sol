@@ -16,8 +16,8 @@ contract MultiReturnScratch {
     // CHECK-LABEL: fn @assign{{[( ]}}
     // CHECK: internal_call
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: memory_slice_load_word
-    // CHECK: memory_slice_load_word
+    // CHECK: mload
+    // CHECK: mload
     // CHECK: = mapping_slot
     // CHECK: sstore
     function assign(uint256 key, uint256 seed)

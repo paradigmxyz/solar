@@ -175,6 +175,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             {
                                 return Some(vec![self.lower_typed_expr(expr, ty)?]);
                             }
+                            if let ExprKind::Lit(lit) =
+                                self.peel_bytes_conversion(expr).peel_parens().kind
+                                && matches!(lit.kind, LitKind::Str(..))
+                                && matches!(
+                                    ty.peel_refs().kind,
+                                    TyKind::Elementary(
+                                        solar_sema::hir::ElementaryType::Bytes
+                                            | solar_sema::hir::ElementaryType::String,
+                                    )
+                                )
+                            {
+                                return Some(vec![self.lower_typed_expr(expr, ty)?]);
+                            }
                         }
                         self.lower_return_values(expr)
                     },
@@ -446,7 +459,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::Tuple(_) => {
                         let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
-                        if self.needs_calldata_materialization(value, &abi_type) {
+                        let validated_static =
+                            self.validate_calldata_static_argument(value, parameter_ty);
+                        let calldata_dynamic = matches!(
+                            self.builder.func().value_ty(value),
+                            Some(MirType::Slice(SliceLocation::Calldata))
+                        ) && abi_type.is_dynamic();
+                        if (calldata_dynamic
+                            || self.needs_calldata_materialization(value, &abi_type))
+                            && !validated_static
+                        {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,
@@ -482,7 +504,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
-                if self.needs_calldata_materialization(value, &abi_type) {
+                let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
+                if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
                     value =
                         self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                     abi_type = Self::memory_abi_type(abi_type);
@@ -549,11 +572,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             return value;
         }
-        if let ExprKind::Lit(lit) = &expr.kind
-            && let LitKind::Str(_, bytes, _) = &lit.kind
-        {
-            let bytes = bytes.as_byte_str();
-            return self.builder.imm_u256(U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8));
+        if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
+            return value;
         }
         if matches!(
             self.builder.func().value_ty(value),

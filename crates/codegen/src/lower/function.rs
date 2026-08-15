@@ -670,17 +670,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     if shape.returns.len() > 1 {
                         let base =
                             builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                        let size = builder.imm_u64(
-                            u64::try_from(shape.returns.len())
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(EvmMemoryLayout::WORD_SIZE),
-                        );
-                        let slice = builder.make_slice(base, size, SliceLocation::Memory);
                         for index in 1..shape.returns.len() {
                             let offset = builder.imm_u64(
                                 u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
                             );
-                            values.push(builder.memory_slice_load_word(slice, offset));
+                            let position = builder.add(base, offset);
+                            values.push(builder.mload(position));
                         }
                     }
                     builder.ret(values);

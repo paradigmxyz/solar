@@ -13,8 +13,8 @@ contract C {
     // CHECK-LABEL: fn @pair{{[( ]}}
     // CHECK: delegatecall
     // CHECK: returndata_size
-    // CHECK: memory_slice_load_word
-    // CHECK: memory_slice_load_word
+    // CHECK: mload
+    // CHECK: mload
     function pair() external pure returns (uint256, uint256) {
         return Lib.pair();
     }

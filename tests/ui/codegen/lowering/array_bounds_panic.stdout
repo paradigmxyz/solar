@@ -2,7 +2,7 @@
 @module ArrayBoundsPanic
 fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
     v1 = lt 1, 3
     v2 = iszero v1
@@ -27,7 +27,7 @@ fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, pure, abi_args=lazy, abi_pa
 
 fn @memFixConst() -> u256 [selector=0x50d13ed0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
     v1 = lt 2, 3
     v2 = iszero v1
@@ -52,7 +52,7 @@ fn @memFixConst() -> u256 [selector=0x50d13ed0, pure, abi_args=lazy, abi_params=
 
 fn @memFixConstOob() -> u256 [selector=0xba496133, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
     v1 = lt 5, 3
     v2 = iszero v1
@@ -232,23 +232,9 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, pur
     revert 0, 36
   bb2:
     v3 = slice_ptr arg0
-    v4 = slice_ptr arg0
-    v5 = slice_len arg0
-    v6 = gt v5, 0xffffffffffffffff
-    jumpi v6, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = calldatasize
-    v8 = sub v7, v5
-    v9 = sgt v4, v8
-    jumpi v9, bb5, bb6
-  bb5:
-    revert 0, 0
-  bb6:
-    v10 = calldata_slice_load_word calldata, arg0, arg1
-    v11 = byte 0, v10
-    v12 = shl 248, v11
-    ret v12
+    v4 = calldata_slice_load_word calldata, arg0, arg1
+    v5 = byte 0, v4
+    v6 = shl 248, v5
+    ret v6
 }
 

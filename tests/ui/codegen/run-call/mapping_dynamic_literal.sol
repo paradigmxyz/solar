@@ -1,4 +1,6 @@
 //@ run-call: readCalldata(string) "abc" => 7
+//@ run-call: readMemory(string) "abc" => 7
+//@ run-call: callReadMemory(string) "abc" => 7
 //@ run-call: readStorage() => 7
 //@ run-call: readLongLiteral() => 11
 //@ run-call: overwriteShort() => 13
@@ -15,6 +17,18 @@ contract MappingDynamicLiteral {
 
     function readCalldata(string calldata query) external view returns (uint256) {
         return values[query];
+    }
+
+    function readMemory(string memory query) external view returns (uint256) {
+        return values[query];
+    }
+
+    function readMemoryPublic(string memory query) public view returns (uint256) {
+        return values[query];
+    }
+
+    function callReadMemory(string memory query) external view returns (uint256) {
+        return readMemoryPublic(query);
     }
 
     function readStorage() external view returns (uint256) {

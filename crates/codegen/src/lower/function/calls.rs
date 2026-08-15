@@ -54,7 +54,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => None,
                 })
             })?;
-            let value = if source_ty.is_ref_at(DataLocation::Storage)
+            let value = if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
+                value
+            } else if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
                     TyKind::Elementary(
@@ -68,7 +70,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         solar_sema::hir::ElementaryType::Bytes
                             | solar_sema::hir::ElementaryType::String
                     )
-                ) {
+                )
+            {
                 let access = self.storage_access(arg)?;
                 self.load_storage_bytes(access.slot)?
             } else {
@@ -274,10 +277,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.set_memory_object_len(object, total_len, MemoryObjectKind::Bytes);
 
         for (index, chunk) in bytecode.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
             let offset = self.builder.imm_u64(u64::try_from(index).ok()?.saturating_mul(32));
-            let value = self.builder.imm_u256(U256::from_be_bytes(padded));
+            let value = self.lower_string_literal_word(chunk);
             self.builder.memory_object_store_word(object, offset, value);
         }
         self.builder.memory_object_copy_from_slice_at(
@@ -597,6 +598,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(size) = destination_size else {
             return value;
         };
+        if matches!(from.peel_refs().kind, TyKind::StringLiteral(..))
+            && !matches!(
+                self.builder.func().value_ty(value),
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+            )
+        {
+            return value;
+        }
         if matches!(from.peel_refs().kind, TyKind::StringLiteral(..)) {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
@@ -845,7 +854,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.types
                 .abi_return_type(self.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
-        }) || self.gcx.sess.opts.evm_version.supports_returndata();
+        });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
             |(_, data, _)| *data,
@@ -918,6 +927,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             return values.into_iter().next().or(Some(zero));
+        }
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            let size = self.builder.imm_u64((returns as u64).saturating_mul(32));
+            self.revert_if_short_returndata(size);
+            for (index, &ret) in function.returns.iter().enumerate() {
+                let value = self.load_multi_return_value(ret_offset, index, returns);
+                self.validate_external_return_value(self.gcx.type_of_item(ret.into()), value);
+            }
         }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
@@ -1056,6 +1073,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let revert = self.builder.create_block();
         let continue_block = self.builder.create_block();
         self.builder.branch(short, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
+    }
+
+    fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            self.validate_external_return_value(inner, value);
+            return;
+        }
+
+        let valid = match ty.kind {
+            TyKind::Enum(id) => {
+                let variants = self.builder.imm_u64(self.gcx.hir.enumm(id).variants.len() as u64);
+                self.builder.lt(value, variants)
+            }
+            TyKind::Elementary(elementary) => match elementary {
+                solar_sema::hir::ElementaryType::UInt(size) if size.bits() < 256 => {
+                    let mask = U256::MAX >> (256 - usize::from(size.bits()));
+                    let mask = self.builder.imm_u256(mask);
+                    let canonical = self.builder.and(value, mask);
+                    self.builder.eq(value, canonical)
+                }
+                solar_sema::hir::ElementaryType::Int(size) if size.bits() < 256 => {
+                    let byte = self.builder.imm_u64(u64::from(size.bits() / 8 - 1));
+                    let canonical = self.builder.signextend(byte, value);
+                    self.builder.eq(value, canonical)
+                }
+                solar_sema::hir::ElementaryType::Address(_) => {
+                    let mask = self.builder.imm_u256(U256::MAX >> 96);
+                    let canonical = self.builder.and(value, mask);
+                    self.builder.eq(value, canonical)
+                }
+                solar_sema::hir::ElementaryType::FixedBytes(size) if size.bytes() < 32 => {
+                    let mask = U256::MAX << (256 - usize::from(size.bytes()) * 8);
+                    let mask = self.builder.imm_u256(mask);
+                    let canonical = self.builder.and(value, mask);
+                    self.builder.eq(value, canonical)
+                }
+                solar_sema::hir::ElementaryType::Bool => {
+                    let zero = self.builder.iszero(value);
+                    let canonical = self.builder.iszero(zero);
+                    self.builder.eq(value, canonical)
+                }
+                _ => return,
+            },
+            TyKind::Contract(_) | TyKind::Super(_) => {
+                let mask = self.builder.imm_u256(U256::MAX >> 96);
+                let canonical = self.builder.and(value, mask);
+                self.builder.eq(value, canonical)
+            }
+            _ => return,
+        };
+
+        let invalid = self.builder.iszero(valid);
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(invalid, revert, continue_block);
         self.builder.switch_to_block(revert);
         let zero = self.builder.imm_u256(U256::ZERO);
         self.builder.revert(zero, zero);

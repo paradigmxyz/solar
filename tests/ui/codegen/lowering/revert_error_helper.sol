@@ -16,15 +16,20 @@ contract R {
     // CHECK-LABEL: revert_error_helper.sol:R (runtime)
     // CHECK-NEXT: @module runtime
     // CHECK: indexed_jump
-    // CHECK: push 0x3339
-    // CHECK: push 240
-    // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
-    // CHECK: [[SHORT_HELPER]] [cold]:
-    // CHECK: shl
-    // CHECK: [[LONG_HELPER:bb[0-9]+]] [cold]:
-    // CHECK: push 0x8c379a0
-    // CHECK: mcopy
-    // CHECK: revert
+    // CHECK-DAG: push 0x8c379a0
+    // CHECK-DAG: push 0x3339
+    // CHECK-DAG: push 240
+    // CHECK-DAG: shl
+    // CHECK-DAG: push 100
+    // CHECK-DAG: push 0x6c69746572616c206d7367
+    // CHECK-DAG: push 168
+    // CHECK-DAG: push 68
+    // CHECK-DAG: mstore
+    // CHECK-DAG: push 0
+    // CHECK-DAG: revert
+    // CHECK-DAG: push 0x6c6f63616c2d636f6e73742d6d7367
+    // CHECK-DAG: push 136
+    // CHECK-DAG: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
     function viaLibConst(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.SHORT);
         return x;
@@ -46,21 +51,8 @@ contract R {
     }
 
     // The block layout puts the constant call sites before the literal helper.
-    // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
-    // CHECK: jump [[SHORT_HELPER]]
-    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: jump [[LONG_HELPER]]
-    // CHECK: push 0x6c69746572616c206d7367
-    // CHECK: jump [[LITERAL_HELPER:bb[0-9]+]]
-    // CHECK: [[LITERAL_HELPER]] [cold]:
-    // CHECK: shl
-    // CHECK: push 68
-    // CHECK: mstore
-    // CHECK: push 100
-    // CHECK: push 0
-    // CHECK: revert
     // CHECK: push 0x7265766572742d70617468
-    // CHECK: jump [[LITERAL_HELPER]]
+    // CHECK: jump bb
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

@@ -4,49 +4,31 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
-    v2 = add v1, 32
-    v3 = lt v2, v1
-    v4 = calldatasize
-    v5 = gt v2, v4
-    v6 = or v3, v5
-    jumpi v6, bb1, bb2
+    v2 = calldataload v1
+    v3 = and v2, 255
+    v4 = eq v2, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v7 = calldataload v1
-    v8 = and v7, 255
-    v9 = eq v7, v8
-    v10 = iszero v9
-    jumpi v10, bb3, bb4
+    v6 = add v2, arg1
+    v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v7, bb3, bb4
   bb3:
-    revert 0, 0
-  bb4:
-    v11 = add v7, arg1
-    v12 = gt v11, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v12, bb5, bb6
-  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    ret v11
+  bb4:
+    ret v6
 }
 
 fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_args=lazy, abi_params=[tuple<u256, address>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
-    v2 = add v1, 32
-    v3 = lt v2, v1
-    v4 = calldatasize
-    v5 = gt v2, v4
-    v6 = or v3, v5
-    jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v7 = calldataload v1
-    ret v7
+    v2 = calldataload v1
+    ret v2
 }
 
 fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_args=lazy, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
@@ -93,25 +75,16 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_args=lazy
     v23 = slice_len v22
     v24 = slice_ptr arg0
     v25 = add v24, 32
-    v26 = add v25, 32
-    v27 = lt v26, v25
-    v28 = calldatasize
-    v29 = gt v26, v28
-    v30 = or v27, v29
-    jumpi v30, bb9, bb10
+    v26 = calldataload v25
+    v27 = add v23, v26
+    v28 = lt v27, v23
+    jumpi v28, bb9, bb10
   bb9:
-    revert 0, 0
-  bb10:
-    v31 = calldataload v25
-    v32 = add v23, v31
-    v33 = lt v32, v23
-    jumpi v33, bb11, bb12
-  bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    ret v32
+  bb10:
+    ret v27
 }
 
 fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_args=lazy, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
@@ -158,25 +131,16 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_arg
     v23 = slice_len v22
     v24 = slice_ptr arg0
     v25 = add v24, 32
-    v26 = add v25, 32
-    v27 = lt v26, v25
-    v28 = calldatasize
-    v29 = gt v26, v28
-    v30 = or v27, v29
-    jumpi v30, bb9, bb10
+    v26 = calldataload v25
+    v27 = add v23, v26
+    v28 = lt v27, v23
+    jumpi v28, bb9, bb10
   bb9:
-    revert 0, 0
-  bb10:
-    v31 = calldataload v25
-    v32 = add v23, v31
-    v33 = lt v32, v23
-    jumpi v33, bb11, bb12
-  bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    ret v32
+  bb10:
+    ret v27
 }
 
 fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_args=lazy, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {

@@ -241,12 +241,26 @@ fn @pop() [selector=0xa4ece52c] {
     v53 = mul v2, 2
     v52 = keccak256 0, 32 !metadata(memory=scratch)
     v54 = add v52, v53
-    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v62 = add v4, 64
-    v63 = lt v62, v4
-    v64 = gt v62, 0xffffffffffffffff
-    v65 = or v63, v64
-    jumpi v65, bb11, bb10
+    v4 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    mstore v4, 0
+    v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v62 = add v5, 32
+    mstore 64, v62 !metadata(memory=scratch)
+    mstore v5, 0
+    v57 = add v4, 32
+    mstore v57, v5
+    v6 = mload v4
+    v7 = sload v54 !metadata(storage=symbolic(v3))
+    v9 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore v54, v11 !metadata(storage=symbolic(v3))
+    v12 = add v54, 1
+    v13 = mload v57
+    v14 = mload v13
+    v15 = sload v12 !metadata(storage=offset(v3, 1))
+    v16 = gt v15, v14
+    jumpi v16, bb3, bb4
   bb3:
     jump bb5
   bb4:
@@ -300,41 +314,6 @@ fn @pop() [selector=0xa4ece52c] {
     jump bb7
   bb9:
     stop
-  bb10:
-    mstore 64, v62 !metadata(memory=scratch)
-    v70 = calldatasize
-    calldatacopy v4, v70, 64
-    v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v66 = add v5, 32
-    v67 = lt v66, v5
-    v68 = gt v66, 0xffffffffffffffff
-    v69 = or v67, v68
-    jumpi v69, bb13, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    mstore 64, v66 !metadata(memory=scratch)
-    mstore v5, 0
-    v57 = add v4, 32
-    mstore v57, v5
-    v6 = mload v4
-    v7 = sload v54 !metadata(storage=symbolic(v3))
-    v9 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore v54, v11 !metadata(storage=symbolic(v3))
-    v12 = add v54, 1
-    v13 = mload v57
-    v14 = mload v13
-    v15 = sload v12 !metadata(storage=offset(v3, 1))
-    v16 = gt v15, v14
-    jumpi v16, bb3, bb4
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @assignFixed() [selector=0xb7ffd825] {
@@ -447,9 +426,9 @@ fn @entry() [entry] {
     v0 = callvalue
     jumpi v0, bb6, bb1
   bb1:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
   bb2:
     tail_call @assign
   bb3:

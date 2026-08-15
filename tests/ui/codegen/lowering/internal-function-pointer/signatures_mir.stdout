@@ -34,8 +34,8 @@ fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_args=lazy, ab
   bb0:
     v0 = internal_call @__internal_dispatch_1, 2, 5, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = make_memory_slice v1, 64
-    v3 = memory_slice_load_word memory, v2, 32
+    v2 = add v1, 32
+    v3 = mload v2
     ret v0, v3
 }
 
@@ -97,8 +97,8 @@ fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) [function_
   bb1:
     v1 = internal_call @pair, 2, arg1
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v3 = make_memory_slice v2, 64
-    v4 = memory_slice_load_word memory, v3, 32
+    v3 = add v2, 32
+    v4 = mload v3
     ret v1, v4
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

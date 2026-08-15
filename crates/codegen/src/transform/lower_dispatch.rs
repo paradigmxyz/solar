@@ -19,7 +19,7 @@
 //! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, SliceLocation, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
     pass::MirPass,
 };
 use alloy_primitives::U256;
@@ -275,9 +275,7 @@ impl LowerDispatchCx {
     /// Loads the 4-byte function selector from the first calldata word.
     fn load_selector(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
         let zero = builder.imm_u64(0);
-        let size = builder.imm_u64(32);
-        let slice = builder.make_slice(zero, size, SliceLocation::Calldata);
-        let word = builder.calldata_slice_load_word(slice, zero);
+        let word = builder.calldataload(zero);
         if self.has_bitwise_shifting {
             let shift = builder.imm_u64(224);
             builder.shr(shift, word)

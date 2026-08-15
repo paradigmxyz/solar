@@ -20,26 +20,21 @@ fn @asValue() [selector=0x440a9300, pure] {
     jumpi v11, bb4, bb1
   bb4:
     v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v55 = add v14, v8
-    mstore 64, v55 !metadata(memory=scratch)
+    v50 = add v14, v8
+    mstore 64, v50 !metadata(memory=scratch)
     mstore v14, 68
-    v52 = add v14, 32
-    mcopy v52, v23, 68
-    v27 = mload v14
-    v28 = add v27, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = add v30, 64
-    v34 = add v30, 95
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v56 = add v37, v36
-    mstore 64, v56 !metadata(memory=scratch)
-    v38 = add v37, 32
-    v39 = sub v38, v37
-    mstore v37, v39
-    mstore v38, v27
-    v44 = add v37, 64
-    jumpi v30, bb8, bb9
+    v47 = add v14, 32
+    mcopy v47, v23, 68
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 32
+    v29 = sub v28, v27
+    mstore v27, v29
+    v30 = mload v14
+    mstore v28, v30
+    v32 = add v30, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = add v27, 64
+    jumpi v33, bb8, bb9
   bb5:
     revert 0, 0
   bb6:
@@ -50,8 +45,8 @@ fn @asValue() [selector=0x440a9300, pure] {
   bb7:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v57 = add v23, 96
-    mstore 64, v57 !metadata(memory=scratch)
+    v51 = add v23, 96
+    mstore 64, v51 !metadata(memory=scratch)
     mstore v23, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v24 = add v23, 4
     mstore v24, v0
@@ -61,13 +56,20 @@ fn @asValue() [selector=0x440a9300, pure] {
     v4 = lt v3, 68
     jumpi v4, bb1, bb2
   bb8:
-    v46 = sub v30, 32
-    v47 = add v44, v46
-    mstore v47, 0
+    v36 = sub v33, 32
+    v37 = add v34, v36
+    mstore v37, 0
     jump bb9
   bb9:
-    mcopy v44, v52, v27
-    returndata v37, v32
+    v39 = add v34, v33
+    mcopy v34, v47, v30
+    v40 = sub v39, v27
+    v42 = add v40, 31
+    v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v52 = add v45, v44
+    mstore 64, v52 !metadata(memory=scratch)
+    returndata v45, v40
 }
 
 fn @viaCall() [selector=0x23d014a1] {
@@ -144,9 +146,9 @@ fn @entry() [entry] {
     v2 = lt v1, 4
     jumpi v2, bb5, bb2
   bb2:
-    v4 = calldataload 0
-    v5 = shr 224, v4
-    switch v5, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
   bb3:
     tail_call @viaCall
   bb4:

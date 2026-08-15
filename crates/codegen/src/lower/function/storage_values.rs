@@ -376,7 +376,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
             };
             let source_ty = self.gcx.type_of_expr(argument.id)?;
-            let value = self.lower_expr(argument)?;
+            let value = self.lower_typed_expr(argument, self.gcx.types.fixed_bytes(1))?;
             let value = self.coerce_value(value, source_ty, self.gcx.types.fixed_bytes(1));
             let shift = self.builder.imm_u64(248);
             self.builder.shr(shift, value)

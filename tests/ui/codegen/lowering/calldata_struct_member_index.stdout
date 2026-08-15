@@ -3,9 +3,9 @@
 @phase evm-shaped
 fn @plain() [selector=0xc2dcee6a, pure] {
   bb0:
-    v20 = calldatasize
-    v21 = lt v20, 68
-    jumpi v21, bb5, bb7
+    v15 = calldatasize
+    v16 = lt v15, 68
+    jumpi v16, bb5, bb6
   bb1:
     tail_call @__revert_stub0
   bb2:
@@ -16,61 +16,44 @@ fn @plain() [selector=0xc2dcee6a, pure] {
   bb3:
     tail_call @__revert_stub1
   bb4:
-    v10 = add v37, v4
+    v10 = add v19, v4
     v13 = add v10, 96
-    v14 = add v10, 128
-    v15 = lt v14, v13
-    v16 = calldatasize
-    v17 = gt v14, v16
-    v18 = or v15, v17
-    jumpi v18, bb5, bb6
+    v14 = calldataload v13
+    mstore 128, v14
+    returndata 128, 32
   bb5:
     revert 0, 0
   bb6:
-    v19 = calldataload v13
-    mstore 128, v19
-    returndata 128, 32
+    v17 = calldataload 4
+    v18 = add v17, 4
+    v19 = add v17, 36
+    v20 = gt v17, 0xffffffffffffffff
+    v21 = gt v19, v15
+    v22 = or v20, v21
+    jumpi v22, bb5, bb7
   bb7:
-    v22 = calldataload 4
-    v23 = add v22, 4
-    v24 = calldatasize
-    v25 = sub v24, 4
-    v26 = gt v22, v25
-    jumpi v26, bb5, bb8
+    v23 = calldataload v18
+    v25 = sub v15, v19
+    v26 = shr 7, v25
+    v27 = gt v23, v26
+    jumpi v27, bb5, bb8
   bb8:
-    v27 = calldatasize
-    v28 = sub v27, v23
-    v29 = gt 32, v28
-    jumpi v29, bb5, bb9
-  bb9:
-    v30 = calldataload v23
-    v31 = shl 7, v30
-    v33 = shr 7, v31
-    v34 = eq v33, v30
-    jumpi v34, bb10, bb5
-  bb10:
-    v37 = add v22, 36
-    v38 = calldatasize
-    v39 = sub v38, v37
-    v40 = gt v31, v39
-    jumpi v40, bb5, bb11
-  bb11:
-    v1 = lt arg1, v30
+    v1 = lt arg1, v23
     jumpi v1, bb2, bb1
 }
 
 fn @member() [selector=0x49eb8b89, pure] {
   bb0:
-    v43 = calldatasize
-    v44 = lt v43, 68
-    jumpi v44, bb1, bb11
+    v38 = calldatasize
+    v39 = lt v38, 68
+    jumpi v39, bb1, bb10
   bb1:
     revert 0, 0
   bb2:
     v7 = calldataload v1
-    v8 = add v46, v7
+    v8 = add v41, v7
     v9 = calldatasize
-    v10 = sub v9, v46
+    v10 = sub v9, v41
     v11 = sub v10, 31
     v12 = slt v7, v11
     jumpi v12, bb3, bb1
@@ -100,31 +83,24 @@ fn @member() [selector=0x49eb8b89, pure] {
   bb9:
     v33 = add v17, v27
     v36 = add v33, 96
-    v37 = add v33, 128
-    v38 = lt v37, v36
-    v39 = calldatasize
-    v40 = gt v37, v39
-    v41 = or v38, v40
-    jumpi v41, bb1, bb10
-  bb10:
-    v42 = calldataload v36
-    mstore 128, v42
+    v37 = calldataload v36
+    mstore 128, v37
     returndata 128, 32
+  bb10:
+    v40 = calldataload 4
+    v41 = add v40, 4
+    v42 = calldatasize
+    v43 = sub v42, 4
+    v44 = gt v40, v43
+    jumpi v44, bb1, bb11
   bb11:
-    v45 = calldataload 4
-    v46 = add v45, 4
-    v47 = calldatasize
-    v48 = sub v47, 4
-    v49 = gt v45, v48
-    jumpi v49, bb1, bb12
+    v45 = calldatasize
+    v46 = sub v45, v41
+    v47 = gt 128, v46
+    jumpi v47, bb1, bb12
   bb12:
-    v50 = calldatasize
-    v51 = sub v50, v46
-    v52 = gt 128, v51
-    jumpi v52, bb1, bb13
-  bb13:
-    v1 = add v46, 32
-    v2 = add v46, 64
+    v1 = add v41, 32
+    v2 = add v41, 64
     v3 = lt v2, v1
     v4 = calldatasize
     v5 = gt v2, v4
@@ -320,9 +296,9 @@ fn @entry() [entry] {
     v0 = callvalue
     jumpi v0, bb6, bb1
   bb1:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
   bb2:
     tail_call @member
   bb3:

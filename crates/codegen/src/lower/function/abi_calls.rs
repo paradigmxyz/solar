@@ -18,7 +18,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             AbiType::Bytes(SliceLocation::Memory)
             | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
             | AbiType::FixedArray { .. }
-            | AbiType::Tuple(_) => true,
+            | AbiType::Tuple(_) => false,
             AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
                 !matches!(element.as_ref(), AbiType::Word | AbiType::Function)
             }
@@ -39,6 +39,94 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
         matches!(self.builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
             && self.calldata_aggregate_requires_validation(ty)
+    }
+
+    /// Validates a static calldata aggregate in place so ABI encoding can read
+    /// its words directly without copying the aggregate to memory.
+    pub(super) fn validate_calldata_static_argument(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> bool {
+        if !self.needs_calldata_aggregate_validation(value, ty) {
+            return false;
+        }
+        let Some(abi_type) = self.types.abi_type(ty) else { return false };
+        if abi_type.is_dynamic() {
+            return false;
+        }
+
+        let base = self.builder.slice_ptr(value);
+        let length = self.builder.slice_len(value);
+        let size = self.builder.imm_u64(abi_type.head_size());
+        let too_short = self.builder.gt(size, length);
+        self.revert_if_calldata_invalid(too_short);
+        self.check_calldata_range(base, size);
+        self.validate_calldata_static_value(ty, base);
+        true
+    }
+
+    fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
+        let ty = ty.peel_refs();
+        if let TyKind::Udvt(inner, _) = ty.kind {
+            self.validate_calldata_static_value(inner, base);
+            return;
+        }
+
+        match ty.kind {
+            TyKind::Array(element, length) => {
+                let Ok(length) = u64::try_from(length) else { return };
+                let Some(element_size) = self.types.abi_type(element).map(|ty| ty.head_size())
+                else {
+                    return;
+                };
+                for index in 0..length {
+                    let offset = self.builder.imm_u64(index.saturating_mul(element_size));
+                    let position = self.builder.add(base, offset);
+                    self.validate_calldata_static_value(element, position);
+                }
+            }
+            TyKind::Struct(id) => {
+                let mut offset = 0;
+                for &field in self.gcx.hir.strukt(id).fields {
+                    let field_ty = self.gcx.type_of_item(field.into());
+                    let position = if offset == 0 {
+                        base
+                    } else {
+                        let offset_value = self.builder.imm_u64(offset);
+                        self.builder.add(base, offset_value)
+                    };
+                    self.validate_calldata_static_value(field_ty, position);
+                    let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size())
+                    else {
+                        return;
+                    };
+                    offset = offset.saturating_add(field_size);
+                }
+            }
+            TyKind::Tuple(fields) => {
+                let mut offset = 0;
+                for &field_ty in fields {
+                    let position = if offset == 0 {
+                        base
+                    } else {
+                        let offset_value = self.builder.imm_u64(offset);
+                        self.builder.add(base, offset_value)
+                    };
+                    self.validate_calldata_static_value(field_ty, position);
+                    let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size())
+                    else {
+                        return;
+                    };
+                    offset = offset.saturating_add(field_size);
+                }
+            }
+            _ => {
+                if !Self::calldata_word_is_full_width(ty) {
+                    let _ = self.decode_calldata_word(ty, base, false);
+                }
+            }
+        }
     }
 
     pub(super) fn validate_calldata_array_head(
@@ -147,7 +235,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
+        if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
+            return Some(value);
+        }
         let source_expr = self.peel_bytes_conversion(expr);
+        if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+            && matches!(
+                ty.peel_refs().kind,
+                TyKind::StringLiteral(..)
+                    | TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String,
+                    )
+            )
+        {
+            return self.lower_bytes_literal(bytes.as_byte_str(), expr.span);
+        }
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()
             && self
@@ -171,7 +275,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
         self.validate_calldata_bytes_argument(value, &abi_type);
-        if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty) {
+        let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
+        if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty)
+            && !validated_static
+        {
             value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
         } else {

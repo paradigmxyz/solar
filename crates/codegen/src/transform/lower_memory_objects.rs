@@ -4,12 +4,15 @@ use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder,
-        InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, Value,
+        Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module,
+        SliceLocation, Value,
     },
     pass::MirPass,
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
@@ -121,6 +124,12 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.allocations += 1;
                 }
                 InstKind::MemoryObjectLen(object, kind) => {
+                    if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
+                        builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
+                        stats.accesses += 1;
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    }
                     let Some(offset) = P::object_length_offset(kind) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
@@ -139,6 +148,16 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectData(object, kind) => {
+                    if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
+                        let Some(result) = builder.func().inst_result_value(inst) else {
+                            continue;
+                        };
+                        let pointer = builder.slice_ptr(object);
+                        replacements.insert(result, pointer);
+                        removed.insert(inst);
+                        stats.accesses += 1;
+                        continue;
+                    }
                     let offset = P::object_data_offset(kind);
                     if offset == 0 {
                         if let Some(result) = builder.func().inst_result_value(inst) {
@@ -152,6 +171,24 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                    if let Some(location) = slice_location(builder.func(), object) {
+                        if location != SliceLocation::Memory {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        }
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        };
+                        let base = builder.slice_ptr(object);
+                        let address = offset_address(&mut builder, base, offset);
+                        if let Some(result) = builder.func().inst_result_value(inst) {
+                            replacements.insert(result, address);
+                        }
+                        removed.insert(inst);
+                        stats.accesses += 1;
+                        continue;
+                    }
                     let Some(offset) = P::field_offset(layout, field) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
@@ -168,6 +205,27 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::Keccak256Bytes(object) => {
+                    if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {
+                        let source = builder.slice_ptr(object);
+                        let len = builder.slice_len(object);
+                        let data = match location {
+                            SliceLocation::Memory => source,
+                            SliceLocation::Calldata => {
+                                let data = builder.alloc_raw(len, AllocationSemantics::INTERNAL);
+                                builder.calldatacopy(data, source, len);
+                                data
+                            }
+                            SliceLocation::Returndata => {
+                                let data = builder.alloc_raw(len, AllocationSemantics::INTERNAL);
+                                builder.returndatacopy(data, source, len);
+                                data
+                            }
+                        };
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
+                        stats.accesses += 1;
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    }
                     let kind = crate::mir::MemoryObjectKind::Bytes;
                     let Some(length_offset) = P::object_length_offset(kind) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
@@ -202,6 +260,26 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadField { object, layout, field } => {
+                    if let Some(location) = slice_location(builder.func(), object) {
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        };
+                        let base = builder.slice_ptr(object);
+                        let address = offset_address(&mut builder, base, offset);
+                        let kind = match location {
+                            SliceLocation::Calldata => InstKind::CalldataLoad(address),
+                            SliceLocation::Memory => InstKind::MLoad(address),
+                            SliceLocation::Returndata => {
+                                builder.func_mut().blocks[block].instructions.push(inst);
+                                continue;
+                            }
+                        };
+                        builder.func_mut().inst_mut(inst).kind = kind;
+                        stats.accesses += 1;
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    }
                     let Some(offset) = P::field_offset(layout, field) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
@@ -220,6 +298,42 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadElement { object, layout, index } => {
+                    if let Some(location) = slice_location(builder.func(), object) {
+                        if !matches!(
+                            layout,
+                            MemoryObjectLayout::DynamicArray { element_words: 1 }
+                                | MemoryObjectLayout::FixedArray { element_words: 1, .. }
+                        ) {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        }
+                        let Some(stride) = P::element_stride(layout) else {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        };
+                        let base = builder.slice_ptr(object);
+                        let address = if let Some(index) = builder.func().value_u64(index)
+                            && let Some(offset) = index.checked_mul(stride)
+                        {
+                            offset_address(&mut builder, base, offset)
+                        } else {
+                            let stride = builder.imm_u64(stride);
+                            let offset = builder.mul(index, stride);
+                            builder.add(base, offset)
+                        };
+                        let kind = match location {
+                            crate::mir::SliceLocation::Calldata => InstKind::CalldataLoad(address),
+                            crate::mir::SliceLocation::Memory => InstKind::MLoad(address),
+                            crate::mir::SliceLocation::Returndata => {
+                                builder.func_mut().blocks[block].instructions.push(inst);
+                                continue;
+                            }
+                        };
+                        builder.func_mut().inst_mut(inst).kind = kind;
+                        stats.accesses += 1;
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    }
                     let Some(stride) = P::element_stride(layout) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
@@ -241,6 +355,26 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadByte { object, index } => {
+                    if let Some(location) = slice_location(builder.func(), object) {
+                        let source = builder.slice_ptr(object);
+                        let address = dynamic_offset_address(&mut builder, source, index);
+                        let word = match location {
+                            crate::mir::SliceLocation::Calldata => builder.calldataload(address),
+                            crate::mir::SliceLocation::Memory => builder.mload(address),
+                            crate::mir::SliceLocation::Returndata => {
+                                builder.func_mut().blocks[block].instructions.push(inst);
+                                continue;
+                            }
+                        };
+                        let zero = builder.imm_u64(0);
+                        let byte = builder.byte(zero, word);
+                        if let Some(result) = builder.func().inst_result_value(inst) {
+                            replacements.insert(result, byte);
+                        }
+                        removed.insert(inst);
+                        stats.accesses += 1;
+                        continue;
+                    }
                     let base = offset_address(
                         &mut builder,
                         object,
@@ -361,7 +495,155 @@ fn lower_function<P: MemoryLayoutPolicy>(
         func.replace_uses_canonicalized(&replacements);
     }
     erase_object_types(func, stats);
+    coalesce_constant_allocations(func);
     true
+}
+
+/// Combines adjacent exact internal allocations before their first observable
+/// operation. Lowering a call's literal arguments commonly emits one small
+/// allocation per argument; one bump for the whole group keeps the same
+/// disjoint ranges while removing repeated free-memory-pointer updates.
+fn coalesce_constant_allocations(func: &mut Function) {
+    for block in func.blocks.indices().collect::<Vec<_>>() {
+        let instructions = func.blocks[block].instructions.clone();
+        let mut position = 0;
+        while position < instructions.len() {
+            let inst_id = instructions[position];
+            let Some(first) = constant_raw_allocation(func, inst_id) else {
+                position += 1;
+                continue;
+            };
+
+            let mut allocations = vec![(inst_id, first)];
+            let mut derived = DenseBitSet::new_empty(func.num_values());
+            let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
+            let mut stored = Vec::new();
+            derived.insert(first.result);
+            owners[first.result] = Some(0);
+            stored.push(false);
+            let mut scan = position + 1;
+            while scan < instructions.len() {
+                let next_id = instructions[scan];
+                if let Some(allocation) = constant_raw_allocation(func, next_id)
+                    && allocation.semantics == first.semantics
+                    && allocation.size == first.size
+                {
+                    let index = allocations.len();
+                    allocations.push((next_id, allocation));
+                    derived.insert(allocation.result);
+                    owners[allocation.result] = Some(index);
+                    stored.push(false);
+                    scan += 1;
+                    continue;
+                }
+
+                let kind = func.inst(next_id).kind.clone();
+                let result = func.inst_result_value(next_id);
+                let is_derived_address = result.is_some_and(|result| {
+                    derived.contains(result)
+                        || matches!(kind, InstKind::Add(lhs, rhs)
+                            if (derived.contains(lhs) && func.value_u64(rhs).is_some())
+                                || (derived.contains(rhs) && func.value_u64(lhs).is_some()))
+                });
+                let is_initial_store = matches!(kind, InstKind::MStore(address, value)
+                    | InstKind::MStore8(address, value)
+                    if derived.contains(address) && !derived.contains(value));
+                if is_initial_store || is_derived_address {
+                    if is_initial_store && let Some(owner) = owners[address_owner(&kind)] {
+                        stored[owner] = true;
+                    }
+                    if let Some(result) = result
+                        && matches!(func.inst(next_id).kind, InstKind::Add(..))
+                    {
+                        if let InstKind::Add(lhs, rhs) = kind {
+                            let source = if derived.contains(lhs) { lhs } else { rhs };
+                            owners[result] = owners[source];
+                        }
+                        derived.insert(result);
+                    }
+                    scan += 1;
+                    continue;
+                }
+                break;
+            }
+
+            if allocations.len() < 2 || stored.iter().any(|stored| !stored) {
+                position += 1;
+                continue;
+            }
+
+            let Some(total) = allocations
+                .iter()
+                .try_fold(0_u64, |total, (_, allocation)| total.checked_add(allocation.size))
+            else {
+                position = scan;
+                continue;
+            };
+            let base = allocations[0].1.result;
+            let size = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(total))));
+            let mut offset = 0_u64;
+            for (index, (allocation_id, allocation)) in allocations.iter().enumerate() {
+                if index == 0 {
+                    let inst = func.inst_mut(*allocation_id);
+                    inst.kind = InstKind::Alloc {
+                        size,
+                        kind: AllocationKind::Raw,
+                        semantics: allocation.semantics,
+                    };
+                } else {
+                    let offset_value =
+                        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset))));
+                    let inst = func.inst_mut(*allocation_id);
+                    inst.kind = InstKind::Add(base, offset_value);
+                    inst.metadata.set_effect(Some(inst.kind.effect_kind()));
+                    inst.metadata.set_memory_region(None);
+                    inst.metadata.set_storage_alias(None);
+                    inst.metadata.clear_deferred_alloc();
+                }
+                offset = offset.saturating_add(allocation.size);
+            }
+            position = scan;
+        }
+    }
+}
+
+fn address_owner(kind: &InstKind) -> crate::mir::ValueId {
+    match *kind {
+        InstKind::MStore(address, _) | InstKind::MStore8(address, _) => address,
+        _ => unreachable!("initial store expected"),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ConstantRawAllocation {
+    result: crate::mir::ValueId,
+    size: u64,
+    semantics: AllocationSemantics,
+}
+
+fn constant_raw_allocation(
+    func: &Function,
+    inst_id: crate::mir::InstId,
+) -> Option<ConstantRawAllocation> {
+    let InstKind::Alloc { size, kind: AllocationKind::Raw, semantics } = func.inst(inst_id).kind
+    else {
+        return None;
+    };
+    if semantics != AllocationSemantics::INTERNAL {
+        return None;
+    }
+    Some(ConstantRawAllocation {
+        result: func.inst_result_value(inst_id)?,
+        size: func.value_u64(size)?,
+        semantics,
+    })
+}
+
+fn slice_location(func: &Function, object: crate::mir::ValueId) -> Option<SliceLocation> {
+    match func.value_ty(object) {
+        Some(MirType::Slice(location)) => Some(location),
+        _ => None,
+    }
 }
 
 /// Materializes a calldata slice before it enters a memory-object phi.

@@ -41,12 +41,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     solar_sema::hir::ElementaryType::Bytes
                     | solar_sema::hir::ElementaryType::String,
                 ) => {
-                    if location == SliceLocation::Calldata {
-                        self.validate_calldata_bytes_argument(
-                            object,
-                            &AbiType::Bytes(SliceLocation::Calldata),
-                        );
-                    }
                     let word = match location {
                         SliceLocation::Calldata => {
                             self.builder.calldata_slice_load_word(object, index)

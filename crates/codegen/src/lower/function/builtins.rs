@@ -208,6 +208,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match builtin {
             Builtin::Keccak256 => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
+                if let ExprKind::Lit(lit) = self.peel_bytes_conversion(value).peel_parens().kind
+                    && let LitKind::Str(_, bytes, _) = &lit.kind
+                {
+                    let hash = keccak256(bytes.as_byte_str());
+                    return Some(self.builder.imm_u256(U256::from_be_slice(hash.as_slice())));
+                }
                 if let ExprKind::Call(callee, encode_args, _) = &value.kind
                     && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
@@ -335,6 +341,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        enum Part {
+            Literal(Vec<u8>),
+            Dynamic { value: ValueId, length: ValueId },
+            Fixed { value: ValueId, length: u64 },
+        }
+
         let exprs = self.variadic_builtin_args(builtin, &args)?;
         let mut total = self.builder.imm_u64(0);
         let mut parts = Vec::with_capacity(exprs.len());
@@ -346,19 +358,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     solar_sema::hir::ElementaryType::String
                     | solar_sema::hir::ElementaryType::Bytes,
                 ) => {
+                    if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+                        && let LitKind::Str(_, bytes, _) = &lit.kind
+                    {
+                        let bytes = bytes.as_byte_str().to_vec();
+                        let length = self.builder.imm_u64(bytes.len() as u64);
+                        total = self.checked_add(total, length);
+                        parts.push(Part::Literal(bytes));
+                        continue;
+                    }
                     let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
                     total = self.checked_add(total, length);
-                    parts.push((value, Some(length), 0));
+                    parts.push(Part::Dynamic { value, length });
                 }
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
                     let length_value = self.builder.imm_u64(length);
                     total = self.checked_add(total, length_value);
-                    parts.push((value, None, length));
+                    parts.push(Part::Fixed { value, length });
                 }
                 _ => return report_unsupported(self.gcx, expr.span, "concat argument"),
             }
@@ -379,21 +400,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
 
         let mut offset = self.builder.imm_u64(0);
-        for (value, dynamic_length, static_length) in parts {
-            if let Some(length) = dynamic_length {
-                let source_ptr = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                let source = self.builder.make_slice(source_ptr, length, SliceLocation::Memory);
-                self.builder.memory_object_copy_from_slice_at(
-                    output,
-                    MemoryObjectKind::Bytes,
-                    offset,
-                    source,
-                );
-                offset = self.checked_add(offset, length);
-            } else {
-                self.builder.memory_object_store_word(output, offset, value);
-                let length = self.builder.imm_u64(static_length);
-                offset = self.checked_add(offset, length);
+        for part in parts {
+            match part {
+                Part::Literal(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        let value = self.lower_string_literal_word(chunk);
+                        self.builder.memory_object_store_word(output, offset, value);
+                        let length = self.builder.imm_u64(chunk.len() as u64);
+                        offset = self.checked_add(offset, length);
+                    }
+                }
+                Part::Dynamic { value, length } => {
+                    let source_ptr =
+                        self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                    let source = self.builder.make_slice(source_ptr, length, SliceLocation::Memory);
+                    self.builder.memory_object_copy_from_slice_at(
+                        output,
+                        MemoryObjectKind::Bytes,
+                        offset,
+                        source,
+                    );
+                    offset = self.checked_add(offset, length);
+                }
+                Part::Fixed { value, length } => {
+                    self.builder.memory_object_store_word(output, offset, value);
+                    let length = self.builder.imm_u64(length);
+                    offset = self.checked_add(offset, length);
+                }
             }
         }
         Some(output)

@@ -20,7 +20,7 @@ contract C {
     // CHECK-LABEL: fn @sat{{[( ]}}
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: memory_slice_load_word
+    // CHECK: mload
     function sat(uint256 a, uint256 b) public pure returns (uint256) {
         (bool ok, uint256 c) = Math.tryAdd(a, b);
         if (!ok) return type(uint256).max;
@@ -31,7 +31,7 @@ contract C {
     // CHECK-LABEL: fn @tryA{{[( ]}}
     // CHECK: internal_call @tryAdd, 2, arg0, arg1
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: memory_slice_load_word
+    // CHECK: mload
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);

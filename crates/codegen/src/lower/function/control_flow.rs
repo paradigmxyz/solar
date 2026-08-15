@@ -480,9 +480,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if bytes.len() > 32 {
                 return report_unsupported(self.gcx, lit.span, "switch literal");
             }
-            return Some(
-                self.builder.imm_u256(U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)),
-            );
+            return Some(self.lower_string_literal_word(bytes));
         }
         if let LitKind::Bool(value) = lit.kind {
             return Some(self.builder.imm_u256(if value { U256::ONE } else { U256::ZERO }));

@@ -172,7 +172,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
-        self.default_object_with_semantics(ty, AllocationSemantics::SOLIDITY_UNINITIALIZED)
+        self.default_object_with_semantics(ty, AllocationSemantics::INTERNAL)
     }
 
     fn default_object_with_semantics(
@@ -193,14 +193,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
             solar_sema::ty::TyKind::Struct(id) => {
-                if !self.default_object_is_fully_initialized(ty) {
-                    self.builder.memory_zero(object, size);
-                }
+                let zero = self.builder.imm_u256(U256::ZERO);
                 for (index, &field) in self.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
-                    if let Some(value) = self.default_object_with_semantics(field_ty, semantics) {
-                        self.builder.memory_object_store_field(object, layout, index as u64, value);
-                    }
+                    let value =
+                        self.default_object_with_semantics(field_ty, semantics).unwrap_or(zero);
+                    self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
             }
             solar_sema::ty::TyKind::Array(element, len) => {

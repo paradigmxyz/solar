@@ -54,15 +54,15 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_args=lazy, abi_params
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, u256], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = make_memory_slice v20, 64
-    v22 = memory_slice_load_word memory, v21, 32
+    v21 = add v20, 32
+    v22 = mload v21
     v23 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v24 = memory_object_data memoryfixedarray, v23
     frame_store multi_return, word, 0, v24 !metadata(memory=scratch)
     memory_object_store_element memoryfixedarray<2, 1>, v23, 1, v22
     v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v26 = make_memory_slice v25, 64
-    v27 = memory_slice_load_word memory, v26, 32
+    v26 = add v25, 32
+    v27 = mload v26
     ret v19, v27
 }
 

@@ -40,7 +40,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
-            if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
+            let validated_static = self.validate_calldata_static_argument(value, ty);
+            if self.needs_validated_calldata_materialization(value, &abi_type, ty)
+                && !validated_static
+            {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
@@ -54,7 +57,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        let value = self.lower_expr(expr)?;
+        let value = if let ExprKind::Lit(lit) = expr.peel_parens().kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            self.lower_string_literal_word(bytes.as_byte_str())
+        } else {
+            self.lower_expr(expr)?
+        };
         let fixed_bytes = self.gcx.type_of_expr(expr.id).is_some_and(|ty| {
             matches!(
                 ty.peel_refs().kind,
@@ -166,7 +175,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
-            if self.needs_validated_calldata_materialization(value, &abi_type, ty) {
+            let validated_static = self.validate_calldata_static_argument(value, ty);
+            if self.needs_validated_calldata_materialization(value, &abi_type, ty)
+                && !validated_static
+            {
                 value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 abi_type = Self::memory_abi_type(abi_type);
             } else {
@@ -189,7 +201,50 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    fn value_is_canonical(&self, value: ValueId, seen: &mut FxHashSet<ValueId>) -> bool {
+        if !seen.insert(value) {
+            return true;
+        }
+        let Value::Inst(inst) = self.builder.func().value(value) else { return false };
+        let kind = &self.builder.func().inst(*inst).kind;
+        match kind {
+            InstKind::InternalCall { function, args, .. } => {
+                // An aggregate argument may carry dirty ABI words into an
+                // otherwise pure helper. Keep the cleanup in that case.
+                if args.iter().any(|&arg| {
+                    matches!(self.builder.func().value_ty(arg), Some(MirType::MemoryObject(_)))
+                }) {
+                    return false;
+                }
+                let function = self.module.function(*function);
+                !function.instructions().any(|inst| {
+                    matches!(
+                        function.inst(inst).kind,
+                        InstKind::MStore(..)
+                            | InstKind::MStore8(..)
+                            | InstKind::CalldataCopy(..)
+                            | InstKind::CodeCopy(..)
+                            | InstKind::ReturnDataCopy(..)
+                            | InstKind::ExtCodeCopy(..)
+                            | InstKind::MCopy(..)
+                    )
+                })
+            }
+            InstKind::MemoryObjectLoadField { object, .. }
+            | InstKind::MemoryObjectLoadElement { object, .. } => {
+                self.value_is_canonical(*object, seen)
+            }
+            InstKind::Phi(incoming) => {
+                incoming.iter().all(|(_, value)| self.value_is_canonical(*value, seen))
+            }
+            _ => false,
+        }
+    }
+
     fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if self.value_is_canonical(value, &mut FxHashSet::default()) {
+            return value;
+        }
         let element_ty = match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => element,
             _ => return value,
@@ -213,7 +268,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !value_is_memory_object {
             return value;
         }
-
         let (kind, length) = match layout {
             MemoryObjectLayout::DynamicArray { .. } => {
                 let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
@@ -264,6 +318,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_struct(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if self.value_is_canonical(value, &mut FxHashSet::default()) {
+            return value;
+        }
         if !self.abi_value_needs_normalization(ty) {
             return value;
         }
@@ -280,7 +337,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !value_is_memory_object {
             return value;
         }
-
         let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
         let fields = self.gcx.hir.strukt(id).fields.to_vec();
         let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32))
@@ -406,13 +462,71 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        crate::transform::lower_abi::decode_memory_tuple(
-            &mut self.builder,
-            base,
-            length,
-            &layout,
-            true,
-        )
+        let mut counts = FxHashMap::default();
+        for ty in &layout.types {
+            Self::count_dynamic_tuple_types(ty, &mut counts);
+        }
+        let mut helpers = FxHashMap::default();
+        for (ty, count) in counts {
+            if count >= 2
+                && matches!(
+                    &ty,
+                    crate::mir::AbiParamType::Tuple(fields)
+                        if fields.iter().any(crate::mir::AbiParamType::is_dynamic)
+                )
+            {
+                let helper = crate::transform::lower_abi::synthesize_memory_decode_helper(
+                    self.module,
+                    ty.clone(),
+                );
+                helpers.insert(ty, helper);
+            }
+        }
+        if helpers.is_empty() {
+            crate::transform::lower_abi::decode_memory_tuple(
+                &mut self.builder,
+                base,
+                length,
+                &layout,
+                true,
+            )
+        } else {
+            crate::transform::lower_abi::decode_memory_tuple_with_helpers(
+                &mut self.builder,
+                base,
+                length,
+                &layout,
+                true,
+                &helpers,
+            )
+        }
+    }
+
+    fn count_dynamic_tuple_types(
+        ty: &crate::mir::AbiParamType,
+        counts: &mut FxHashMap<crate::mir::AbiParamType, usize>,
+    ) {
+        if matches!(
+            ty,
+            crate::mir::AbiParamType::Tuple(fields)
+                if fields.iter().any(crate::mir::AbiParamType::is_dynamic)
+        ) {
+            *counts.entry(ty.clone()).or_default() += 1;
+        }
+        match ty {
+            crate::mir::AbiParamType::FixedArray { element, .. }
+            | crate::mir::AbiParamType::DynamicArray(element) => {
+                Self::count_dynamic_tuple_types(element, counts)
+            }
+            crate::mir::AbiParamType::Tuple(fields) => {
+                for field in fields {
+                    Self::count_dynamic_tuple_types(field, counts);
+                }
+            }
+            crate::mir::AbiParamType::Scalar(_)
+            | crate::mir::AbiParamType::Enum { .. }
+            | crate::mir::AbiParamType::Bytes => {}
+        }
     }
 
     fn needs_eager_abi_decode(ty: &crate::mir::AbiParamType) -> bool {
@@ -506,7 +620,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut pieces = Vec::with_capacity(exprs.len());
         for expr in exprs {
             let ty = self.gcx.type_of_expr(expr.id)?;
-            if let ExprKind::Lit(lit) = &expr.kind
+            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 let bytes = bytes.as_byte_str().to_vec();

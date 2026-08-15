@@ -341,11 +341,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: usize,
         words: usize,
     ) -> ValueId {
-        let offset = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX) * 32);
-        let size =
-            self.builder.imm_u64(u64::try_from(words).unwrap_or(u64::MAX).saturating_mul(32));
-        let slice = self.builder.make_slice(base, size, SliceLocation::Memory);
-        self.builder.memory_slice_load_word(slice, offset)
+        let offset =
+            self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
+        debug_assert!(index < words);
+        let position = self.builder.add(base, offset);
+        self.builder.mload(position)
     }
 
     pub(super) fn load_multi_return_value_as(

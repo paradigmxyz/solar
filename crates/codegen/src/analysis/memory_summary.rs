@@ -5,7 +5,10 @@
 //! fact only moves from false to true.
 
 use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{ArgIdx, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
+};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use std::collections::VecDeque;
 
@@ -17,13 +20,21 @@ pub(crate) struct FunctionMemorySummary {
     /// Written address spaces as a bit per [`space_index`].
     writes: u8,
     may_reset_fmp: bool,
+    /// Whether the function may move the free-memory pointer below its current value.
+    may_recycle_fmp: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
 }
 
 impl FunctionMemorySummary {
     fn empty(params: usize) -> Self {
-        Self { reads: 0, writes: 0, may_reset_fmp: false, captures: DenseBitSet::new_empty(params) }
+        Self {
+            reads: 0,
+            writes: 0,
+            may_reset_fmp: false,
+            may_recycle_fmp: false,
+            captures: DenseBitSet::new_empty(params),
+        }
     }
 
     fn conservative(params: usize) -> Self {
@@ -31,6 +42,7 @@ impl FunctionMemorySummary {
             reads: 0b1111,
             writes: 0b1111,
             may_reset_fmp: true,
+            may_recycle_fmp: true,
             captures: DenseBitSet::new_filled(params),
         }
     }
@@ -53,6 +65,12 @@ impl FunctionMemorySummary {
         self.may_reset_fmp
     }
 
+    /// Returns whether the function may recycle the free-memory pointer.
+    #[must_use]
+    pub(crate) const fn may_recycle_fmp(&self) -> bool {
+        self.may_recycle_fmp
+    }
+
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
     pub(crate) fn captures_param(&self, index: ArgIdx) -> bool {
@@ -63,6 +81,7 @@ impl FunctionMemorySummary {
         self.reads |= other.reads;
         self.writes |= other.writes;
         self.may_reset_fmp |= other.may_reset_fmp;
+        self.may_recycle_fmp |= other.may_recycle_fmp;
     }
 }
 
@@ -225,6 +244,7 @@ fn local_summary(
                 summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
+            summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
 
             match kind {
                 InstKind::MStore(_, value)
@@ -258,6 +278,74 @@ fn local_summary(
         }
     }
     summary
+}
+
+fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
+    match func.inst(inst_id).kind {
+        InstKind::SetFmp(_) => true,
+        InstKind::MStore(address, value) => {
+            if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
+                return false;
+            }
+            !is_monotonic_fmp_advance(func, value)
+        }
+        InstKind::MStore8(address, _)
+        | InstKind::MCopy(address, _, _)
+        | InstKind::MemoryZero(address, _)
+        | InstKind::CalldataCopy(address, _, _)
+        | InstKind::CodeCopy(address, _, _)
+        | InstKind::ReturnDataCopy(address, _, _) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        InstKind::ExtCodeCopy(_, address, _, _) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        InstKind::Call { ret_offset, .. }
+        | InstKind::CallCode { ret_offset, .. }
+        | InstKind::StaticCall { ret_offset, .. }
+        | InstKind::DelegateCall { ret_offset, .. } => {
+            func.value_u64(ret_offset) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        _ => false,
+    }
+}
+
+fn is_monotonic_fmp_advance(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst_id) = func.value(value) else { return false };
+    let InstKind::Add(first, second) = func.inst(*inst_id).kind else { return false };
+    (is_fmp_load(func, first) && is_nonnegative_offset(func, second))
+        || (is_fmp_load(func, second) && is_nonnegative_offset(func, first))
+}
+
+fn is_fmp_load(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst_id) = func.value(value) else { return false };
+    let InstKind::MLoad(address) = func.inst(*inst_id).kind else { return false };
+    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+}
+
+fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst_id) = func.value(value) else { return true };
+    !matches!(
+        func.inst(*inst_id).kind,
+        InstKind::Sub(_, _)
+            | InstKind::SDiv(_, _)
+            | InstKind::SMod(_, _)
+            | InstKind::Sar(_, _)
+            | InstKind::Not(_)
+            | InstKind::SetFmp(_)
+            | InstKind::MStore(_, _)
+            | InstKind::MStore8(_, _)
+            | InstKind::MCopy(_, _, _)
+            | InstKind::MemoryZero(_, _)
+            | InstKind::CalldataCopy(_, _, _)
+            | InstKind::CodeCopy(_, _, _)
+            | InstKind::ReturnDataCopy(_, _, _)
+            | InstKind::ExtCodeCopy(_, _, _, _)
+            | InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+    )
 }
 
 fn capture_sources(

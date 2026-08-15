@@ -56,24 +56,19 @@ fn @use() [selector=0x01bd03f7, pure] {
   bb2:
     v4 = calldataload 4
     v5 = add v4, 4
-    v6 = calldatasize
-    v7 = sub v6, 4
-    v8 = gt v4, v7
-    jumpi v8, bb1, bb3
+    v6 = add v4, 36
+    v7 = gt v4, 0xffffffffffffffff
+    v8 = gt v6, v2
+    v9 = or v7, v8
+    jumpi v9, bb1, bb3
   bb3:
-    v9 = calldatasize
-    v10 = sub v9, v5
-    v11 = gt 32, v10
-    jumpi v11, bb1, bb4
+    v10 = calldataload v5
+    v12 = calldatasize
+    v13 = sub v12, v6
+    v14 = gt v10, v13
+    jumpi v14, bb1, bb4
   bb4:
-    v12 = calldataload v5
-    v13 = add v4, 36
-    v14 = calldatasize
-    v15 = sub v14, v13
-    v16 = gt v12, v15
-    jumpi v16, bb1, bb5
-  bb5:
-    v0 = internal_call @unwrap, 1, v13, v12
+    v0 = internal_call @unwrap, 1, v6, v10
     v1 = mload v0
     mstore 128, v1
     returndata 128, 32
@@ -84,9 +79,9 @@ fn @entry() [entry] {
     v0 = callvalue
     jumpi v0, bb3, bb1
   bb1:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb3, [0x1bd03f7 => bb2]
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x1bd03f7 => bb2]
   bb2:
     tail_call @use
   bb3:
