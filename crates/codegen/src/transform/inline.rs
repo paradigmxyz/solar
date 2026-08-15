@@ -185,6 +185,9 @@ struct MirInlineSummary {
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
+    /// A one-block helper that only forwards an internal call's return value.
+    /// Such wrappers are safe to inline even when the value is memory-backed.
+    is_transparent_forwarder: bool,
     is_entry_point: bool,
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
@@ -435,8 +438,8 @@ impl MirInliner {
                         self.max_instructions
                     }
                 || summary.return_count != 1
-                || summary.has_reference_return
-                || summary.has_internal_call
+                || (summary.has_reference_return && !summary.is_transparent_forwarder)
+                || (summary.has_internal_call && !summary.is_transparent_forwarder)
                 || summary.has_control_flow)
         {
             return false;
@@ -546,6 +549,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                     | MirType::Slice(_)
             )
         }),
+        is_transparent_forwarder: is_transparent_forwarder(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         ..MirInlineSummary::default()
@@ -630,6 +634,28 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     }
 
     summary
+}
+
+fn is_transparent_forwarder(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.selector.is_some()
+        || func.attributes.is_constructor
+        || func.attributes.is_fallback
+        || func.attributes.is_receive
+        || func.blocks.len() != 1
+        || func.internal_frame_size != 0
+        || func.returns.len() != 1
+    {
+        return false;
+    }
+
+    let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
+    let InstKind::InternalCall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let Some(result) = func.inst_result_value(*call) else { return false };
+    matches!(
+        func.blocks[BlockId::ENTRY].terminator.as_ref(),
+        Some(Terminator::Return { values }) if values.as_slice() == [result]
+    )
 }
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
