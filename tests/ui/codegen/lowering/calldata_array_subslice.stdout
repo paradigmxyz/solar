@@ -12,46 +12,34 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_arg
     revert 0, 36
   bb2:
     v3 = sub v1, 1
-    v4 = mul 1, 32
-    v5 = iszero 32
-    v6 = div v4, 32
-    v7 = eq v6, 1
-    v8 = or v5, v7
-    v9 = iszero v8
-    jumpi v9, bb3, bb4
+    v4 = add v0, 32
+    v5 = make_calldata_slice v4, v3
+    v6 = slice_len v5
+    v7 = slice_ptr v5
+    v8 = mul v6, 32
+    v9 = iszero 32
+    v10 = div v8, 32
+    v11 = eq v10, v6
+    v12 = or v9, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = add v0, v4
-    v11 = make_calldata_slice v10, v3
-    v12 = slice_len v11
-    v13 = slice_ptr v11
-    v14 = mul v12, 32
-    v15 = iszero 32
-    v16 = div v14, 32
-    v17 = eq v16, v12
-    v18 = or v15, v17
-    v19 = iszero v18
-    jumpi v19, bb5, bb6
+    v14 = add 32, v8
+    v15 = lt v14, 32
+    jumpi v15, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v20 = add 32, v14
-    v21 = lt v20, 32
-    jumpi v21, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v20
-    set_memory_object_len memoryarray, v22, v12
-    v23 = make_calldata_slice v13, v14
-    memory_object_copy_from_slice memoryarray, v22, v23
-    ret v22
+    v16 = alloc memoryarray<1>, exact, uninitialized, infallible, v14
+    set_memory_object_len memoryarray, v16, v6
+    v17 = make_calldata_slice v7, v8
+    memory_object_copy_from_slice memoryarray, v16, v17
+    ret v16
 }
 

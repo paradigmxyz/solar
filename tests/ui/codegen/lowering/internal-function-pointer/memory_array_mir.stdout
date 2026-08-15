@@ -67,102 +67,70 @@ fn @arrayE(arg0: u256) -> u256 [selector=0x866ce1e6, pure, abi_args=lazy, abi_pa
 
 fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = mul 10, 1
-    v1 = iszero 1
-    v2 = div v0, 1
-    v3 = eq v2, 10
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
+    set_memory_object_len memoryarray, v0, 10
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v6 = add v0, 1
-    v7 = lt v6, v0
-    jumpi v7, bb3, bb4
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = mul v6, 32
-    v9 = iszero 32
-    v10 = div v8, 32
-    v11 = eq v10, v6
-    v12 = or v9, v11
-    v13 = iszero v12
-    jumpi v13, bb5, bb6
+    memory_object_store_element memoryarray<1>, v0, 1, 2
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 2, v7
+    v9 = iszero v8
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
-    set_memory_object_len memoryarray, v14, 10
-    v15 = memory_object_len memoryarray, v14
-    v16 = lt 0, v15
-    v17 = iszero v16
-    jumpi v17, bb7, bb8
+    memory_object_store_element memoryarray<1>, v0, 2, 3
+    v10 = memory_object_len memoryarray, v0
+    v11 = lt 3, v10
+    v12 = iszero v11
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    memory_object_store_element memoryarray<1>, v14, 0, 1
-    v18 = memory_object_len memoryarray, v14
-    v19 = lt 1, v18
-    v20 = iszero v19
-    jumpi v20, bb9, bb10
+    memory_object_store_element memoryarray<1>, v0, 3, 4
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 4, v13
+    v15 = iszero v14
+    jumpi v15, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    memory_object_store_element memoryarray<1>, v14, 1, 2
-    v21 = memory_object_len memoryarray, v14
-    v22 = lt 2, v21
-    v23 = iszero v22
-    jumpi v23, bb11, bb12
+    memory_object_store_element memoryarray<1>, v0, 4, 5
+    v16 = memory_object_len memoryarray, v0
+    v17 = lt arg1, v16
+    v18 = iszero v17
+    jumpi v18, bb11, bb12
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    memory_object_store_element memoryarray<1>, v14, 2, 3
-    v24 = memory_object_len memoryarray, v14
-    v25 = lt 3, v24
-    v26 = iszero v25
-    jumpi v26, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    memory_object_store_element memoryarray<1>, v14, 3, 4
-    v27 = memory_object_len memoryarray, v14
-    v28 = lt 4, v27
-    v29 = iszero v28
-    jumpi v29, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb16:
-    memory_object_store_element memoryarray<1>, v14, 4, 5
-    v30 = memory_object_len memoryarray, v14
-    v31 = lt arg1, v30
-    v32 = iszero v31
-    jumpi v32, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb18:
-    v33 = memory_object_load_element memoryarray<1>, v14, arg1
-    v34 = internal_call @__internal_dispatch_0, 1, v33, arg0
-    ret v34
+    v19 = memory_object_load_element memoryarray<1>, v0, arg1
+    v20 = internal_call @__internal_dispatch_0, 1, v19, arg0
+    ret v20
 }
 
 fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {

@@ -117,70 +117,38 @@ fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, pure, abi_args=lazy, ab
     revert 0, 36
   bb2:
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
-    v3 = mul 1, 1
-    v4 = iszero 1
-    v5 = div v3, 1
-    v6 = eq v5, 1
-    v7 = or v4, v6
-    v8 = iszero v7
-    jumpi v8, bb3, bb4
+    v3 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v3, 1
+    v4 = memory_object_len memoryarray, v3
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v9 = add v3, 1
-    v10 = lt v9, v3
-    jumpi v10, bb5, bb6
+    memory_object_store_element memoryarray<1>, v3, 0, 9
+    v7 = lt 2, 3
+    v8 = iszero v7
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v11 = mul v9, 32
-    v12 = iszero 32
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = iszero v15
-    jumpi v16, bb7, bb8
+    v9 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    v10 = memory_object_len memoryarray, v3
+    v11 = lt 0, v10
+    v12 = iszero v11
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v17 = alloc memoryarray<1>, exact, zeroed, panic, v11
-    set_memory_object_len memoryarray, v17, 1
-    v18 = memory_object_len memoryarray, v17
-    v19 = lt 0, v18
-    v20 = iszero v19
-    jumpi v20, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    memory_object_store_element memoryarray<1>, v17, 0, 9
-    v21 = lt 2, 3
-    v22 = iszero v21
-    jumpi v22, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v23 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    v24 = memory_object_len memoryarray, v17
-    v25 = lt 0, v24
-    v26 = iszero v25
-    jumpi v26, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    v27 = memory_object_load_element memoryarray<1>, v17, 0
-    ret v23, v27
+    v13 = memory_object_load_element memoryarray<1>, v3, 0
+    ret v9, v13
 }
 
 fn @literal() -> u256 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -241,62 +209,54 @@ fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_ar
     revert 0, 36
   bb4:
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
-    v5 = add 32, 31
-    v6 = lt v5, 32
-    jumpi v6, bb5, bb6
+    v5 = div 63, 32
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = div v5, 32
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb7, bb8
+    v8 = mul v6, 32
+    v9 = iszero 32
+    v10 = div v8, 32
+    v11 = eq v10, v6
+    v12 = or v9, v11
+    v13 = iszero v12
+    jumpi v13, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v10 = mul v8, 32
-    v11 = iszero 32
-    v12 = div v10, 32
-    v13 = eq v12, v8
-    v14 = or v11, v13
-    v15 = iszero v14
-    jumpi v15, bb9, bb10
+    v14 = alloc memorybytes, exact, zeroed, panic, v8
+    set_memory_object_len memorybytes, v14, 32
+    v15 = shl 248, 238
+    v16 = memory_object_len memorybytes, v14
+    v17 = lt 0, v16
+    v18 = iszero v17
+    jumpi v18, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v16 = alloc memorybytes, exact, zeroed, panic, v10
-    set_memory_object_len memorybytes, v16, 32
-    v17 = shl 248, 238
-    v18 = memory_object_len memorybytes, v16
-    v19 = lt 0, v18
-    v20 = iszero v19
-    jumpi v20, bb11, bb12
+    v19 = byte 0, v15
+    memory_object_store_byte memorybytes, v14, 0, v19
+    v20 = memory_object_len memorybytes, v14
+    v21 = lt 0, v20
+    v22 = iszero v21
+    jumpi v22, bb11, bb12
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v21 = byte 0, v17
-    memory_object_store_byte memorybytes, v16, 0, v21
-    v22 = memory_object_len memorybytes, v16
-    v23 = lt 0, v22
-    v24 = iszero v23
-    jumpi v24, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    v25 = memory_object_load_byte memorybytes, v16, 0
-    v26 = shl 248, v25
-    v27 = shr 248, v26
-    ret v0, v27
+    v23 = memory_object_load_byte memorybytes, v14, 0
+    v24 = shl 248, v23
+    v25 = shr 248, v24
+    ret v0, v25
 }
 
 fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -368,81 +328,41 @@ fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_args=
 
 fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_args=lazy, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
-    v0 = mul 1, 1
-    v1 = iszero 1
-    v2 = div v0, 1
-    v3 = eq v2, 1
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v2, 0
+    memory_object_store_field memorystruct<2>, v1, 0, v2
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v3, 0
+    memory_object_store_field memorystruct<2>, v1, 1, v3
+    memory_object_store_field memorystruct<2>, v1, 0, v0
+    v4 = div 32, 32
+    v5 = add v4, 1
+    v6 = lt v5, v4
+    jumpi v6, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v6 = add v0, 1
-    v7 = lt v6, v0
-    jumpi v7, bb3, bb4
+    v7 = mul v5, 32
+    v8 = iszero 32
+    v9 = div v7, 32
+    v10 = eq v9, v5
+    v11 = or v8, v10
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = mul v6, 32
-    v9 = iszero 32
-    v10 = div v8, 32
-    v11 = eq v10, v6
-    v12 = or v9, v11
-    v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
-    set_memory_object_len memoryarray, v14, 1
-    v15 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v16 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v16, 0
-    memory_object_store_field memorystruct<2>, v15, 0, v16
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v17, 0
-    memory_object_store_field memorystruct<2>, v15, 1, v17
-    memory_object_store_field memorystruct<2>, v15, 0, v14
-    v18 = add 1, 31
-    v19 = lt v18, 1
-    jumpi v19, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v20 = div v18, 32
-    v21 = add v20, 1
-    v22 = lt v21, v20
-    jumpi v22, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v23 = mul v21, 32
-    v24 = iszero 32
-    v25 = div v23, 32
-    v26 = eq v25, v21
-    v27 = or v24, v26
-    v28 = iszero v27
-    jumpi v28, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v29 = alloc memorybytes, exact, zeroed, panic, v23
-    set_memory_object_len memorybytes, v29, 1
-    memory_object_store_field memorystruct<2>, v15, 1, v29
-    ret v15
+    v13 = alloc memorybytes, exact, zeroed, panic, v7
+    set_memory_object_len memorybytes, v13, 1
+    memory_object_store_field memorystruct<2>, v1, 1, v13
+    ret v1
 }
 
 fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {

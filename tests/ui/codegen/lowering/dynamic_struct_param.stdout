@@ -234,88 +234,76 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_arg
     revert 0, 36
   bb18:
     v50 = slice_ptr v46
-    v51 = mul 0, 32
-    v52 = iszero 32
-    v53 = div v51, 32
-    v54 = eq v53, 0
-    v55 = or v52, v54
-    v56 = iszero v55
+    v51 = add v50, 0
+    v52 = add v51, 32
+    v53 = lt v52, v51
+    v54 = calldatasize
+    v55 = gt v52, v54
+    v56 = or v53, v55
     jumpi v56, bb19, bb20
   bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb20:
-    v57 = add v50, v51
-    v58 = add v57, 32
-    v59 = lt v58, v57
-    v60 = calldatasize
-    v61 = gt v58, v60
-    v62 = or v59, v61
-    jumpi v62, bb21, bb22
+    v57 = calldataload v51
+    v58 = add v50, v57
+    v59 = calldatasize
+    v60 = sub v59, v50
+    v61 = sub v60, 31
+    v62 = slt v57, v61
+    v63 = iszero v62
+    jumpi v63, bb21, bb22
   bb21:
     revert 0, 0
   bb22:
-    v63 = calldataload v57
-    v64 = add v50, v63
-    v65 = calldatasize
-    v66 = sub v65, v50
-    v67 = sub v66, 31
-    v68 = slt v63, v67
-    v69 = iszero v68
-    jumpi v69, bb23, bb24
+    v64 = calldataload v58
+    v65 = gt v64, 0xffffffffffffffff
+    jumpi v65, bb23, bb24
   bb23:
     revert 0, 0
   bb24:
-    v70 = calldataload v64
-    v71 = gt v70, 0xffffffffffffffff
-    jumpi v71, bb25, bb26
+    v66 = mul v64, 32
+    v67 = add v58, 32
+    v68 = calldatasize
+    v69 = sub v68, v66
+    v70 = sgt v67, v69
+    jumpi v70, bb25, bb26
   bb25:
     revert 0, 0
   bb26:
-    v72 = mul v70, 32
-    v73 = add v64, 32
-    v74 = calldatasize
-    v75 = sub v74, v72
-    v76 = sgt v73, v75
-    jumpi v76, bb27, bb28
+    v71 = add v58, 32
+    v72 = mul v64, 32
+    v73 = iszero 32
+    v74 = div v72, 32
+    v75 = eq v74, v64
+    v76 = or v73, v75
+    v77 = iszero v76
+    jumpi v77, bb27, bb28
   bb27:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb28:
-    v77 = add v64, 32
-    v78 = mul v70, 32
-    v79 = iszero 32
-    v80 = div v78, 32
-    v81 = eq v80, v70
-    v82 = or v79, v81
-    v83 = iszero v82
-    jumpi v83, bb29, bb30
+    v78 = add 32, v72
+    v79 = lt v78, 32
+    jumpi v79, bb29, bb30
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb30:
-    v84 = add 32, v78
-    v85 = lt v84, 32
-    jumpi v85, bb31, bb32
+    v80 = alloc memoryarray<1>, exact, uninitialized, infallible, v78
+    set_memory_object_len memoryarray, v80, v64
+    v81 = make_calldata_slice v71, v72
+    memory_object_copy_from_slice memoryarray, v80, v81
+    v82 = memory_object_len memoryarray, v80
+    v83 = add v23, v82
+    v84 = lt v83, v23
+    jumpi v84, bb31, bb32
   bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb32:
-    v86 = alloc memoryarray<1>, exact, uninitialized, infallible, v84
-    set_memory_object_len memoryarray, v86, v70
-    v87 = make_calldata_slice v77, v78
-    memory_object_copy_from_slice memoryarray, v86, v87
-    v88 = memory_object_len memoryarray, v86
-    v89 = add v23, v88
-    v90 = lt v89, v23
-    jumpi v90, bb33, bb34
-  bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb34:
-    ret v89
+  bb32:
+    ret v83
 }
 

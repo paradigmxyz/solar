@@ -88,68 +88,32 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_args=l
     revert 0, 36
   bb2:
     v3 = sub v1, 1
-    v4 = mul 1, 32
-    v5 = iszero 32
-    v6 = div v4, 32
-    v7 = eq v6, 1
-    v8 = or v5, v7
-    v9 = iszero v8
-    jumpi v9, bb3, bb4
+    v4 = add v0, 32
+    v5 = make_calldata_slice v4, v3
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = lt v7, 1
+    jumpi v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = add v0, v4
-    v11 = make_calldata_slice v10, v3
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = lt v13, 1
+    v9 = sub v7, 1
+    v10 = add v6, 32
+    v11 = make_calldata_slice v10, v9
+    v12 = slice_len v11
+    v13 = lt 0, v12
+    v14 = iszero v13
     jumpi v14, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v15 = sub v13, 1
-    v16 = mul 1, 32
-    v17 = iszero 32
-    v18 = div v16, 32
-    v19 = eq v18, 1
-    v20 = or v17, v19
-    v21 = iszero v20
-    jumpi v21, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v22 = add v12, v16
-    v23 = make_calldata_slice v22, v15
-    v24 = slice_len v23
-    v25 = lt 0, v24
-    v26 = iszero v25
-    jumpi v26, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v27 = slice_ptr v23
-    v28 = mul 0, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, 0
-    v32 = or v29, v31
-    v33 = iszero v32
-    jumpi v33, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v34 = add v27, v28
-    v35 = calldataload v34
-    ret v35
+    v15 = slice_ptr v11
+    v16 = add v15, 0
+    v17 = calldataload v16
+    ret v17
 }
 

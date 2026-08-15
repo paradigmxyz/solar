@@ -2,94 +2,38 @@
 @module AbiEncodePackedStaticHash
 fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, pure, abi_args=lazy, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
   bb0:
-    v0 = add 0, 7
-    v1 = lt v0, 0
-    jumpi v1, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffff
+    v2 = div 86, 32
+    v3 = add v2, 1
+    v4 = lt v3, v2
+    jumpi v4, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v2 = and arg0, 0xffffffffffffffff
-    v3 = add v0, 8
-    v4 = lt v3, v0
-    jumpi v4, bb3, bb4
+    v5 = mul v3, 32
+    v6 = iszero 32
+    v7 = div v5, 32
+    v8 = eq v7, v3
+    v9 = or v6, v8
+    v10 = iszero v9
+    jumpi v10, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v5 = and arg1, 0xffffffffffffffff
-    v6 = add v3, 8
-    v7 = lt v6, v3
-    jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v8 = add v6, 32
-    v9 = lt v8, v6
-    jumpi v9, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v10 = add v8, 31
-    v11 = lt v10, v8
-    jumpi v11, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v12 = div v10, 32
-    v13 = add v12, 1
-    v14 = lt v13, v12
-    jumpi v14, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v15 = mul v13, 32
-    v16 = iszero 32
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = iszero v19
-    jumpi v20, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v21, v8
-    v22 = shl 136, v2
-    v23 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v22
-    v24 = shl 72, v5
-    v25 = or v23, v24
-    memory_object_store_word memorybytes, v21, 0, v25
-    v26 = add 0, 23
-    v27 = lt v26, 0
-    jumpi v27, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb16:
-    memory_object_store_word memorybytes, v21, v26, arg2
-    v28 = add v26, 32
-    v29 = lt v28, v26
-    jumpi v29, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb18:
-    v30 = keccak256_bytes v21
-    ret v30
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v11, 55
+    v12 = shl 136, v0
+    v13 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v12
+    v14 = shl 72, v1
+    v15 = or v13, v14
+    memory_object_store_word memorybytes, v11, 0, v15
+    memory_object_store_word memorybytes, v11, 23, arg2
+    v16 = keccak256_bytes v11
+    ret v16
 }
 

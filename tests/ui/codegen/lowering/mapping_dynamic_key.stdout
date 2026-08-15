@@ -333,39 +333,31 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8fc72899, 
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
-    v1 = add 32, 31
-    v2 = lt v1, 32
-    jumpi v2, bb1, bb2
+    v1 = div 63, 32
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = div v1, 32
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v4 = mul v2, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, v2
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = mul v4, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = iszero v10
-    jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v12 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v12, 32
-    v13 = memory_object_len memorybytes, v12
-    ret v13
+    v10 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v10, 32
+    v11 = memory_object_len memorybytes, v10
+    ret v11
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
