@@ -159,8 +159,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let rhs = rhs.peel_parens();
-        if elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
-            && let Some(values) = self.lower_storage_reference_call(rhs)
+        if elements.iter().flatten().any(|element| {
+            self.is_storage_reference_binding(element)
+                || self
+                    .type_of_expr_or_variable(element)
+                    .map_or(false, |ty| ty.is_ref_at(DataLocation::Storage))
+        }) && let Some(values) = self.lower_storage_reference_call(rhs)
         {
             if values.len() != elements.len() {
                 return report_unsupported(self.context.gcx, rhs.span, "storage reference tuple");
@@ -169,11 +173,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(element) = element else { continue };
                 if let Some(access) = access {
                     if !self.is_storage_reference_binding(element) {
-                        return report_unsupported(
-                            self.context.gcx,
-                            element.span,
-                            "mixed storage tuple",
-                        );
+                        // A storage-reference return assigned to a plain
+                        // storage lvalue copies the referenced value, matching
+                        // solc: the reference itself only binds to a local
+                        // storage variable.
+                        let ty = self.type_of_expr_or_variable(element)?;
+                        let value = self.load_storage_object(ty, value, element.span)?;
+                        self.store_lvalue(element, value)?;
+                        continue;
                     }
                     let Some(id) = self.context.gcx.resolved_variable(element) else {
                         return report_unsupported(
