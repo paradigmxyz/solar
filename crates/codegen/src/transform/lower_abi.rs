@@ -504,9 +504,11 @@ impl LowerAbiCx {
         }
         let mut static_decode_helpers = FxHashMap::default();
         let mut static_alias_decode_helpers = FxHashMap::default();
+        let mut static_alias_ptr_decode_helpers = FxHashMap::default();
         let mut aggregate_decode_helpers = FxHashMap::default();
         let mut static_decode_counts = FxHashMap::<AbiParamLayout, usize>::default();
         let mut static_alias_decode_counts = FxHashMap::<AbiParamLayout, usize>::default();
+        let mut static_alias_ptr_layouts = FxHashSet::default();
         for (layout, count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
                 static_decode_counts.insert(layout, count);
@@ -518,15 +520,21 @@ impl LowerAbiCx {
 
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind else {
+                let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
-                if !static_decode_counts.contains_key(layout.as_ref()) {
+                if layout.types.len() != 1 || layout.types[0].is_dynamic() {
                     continue;
                 }
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
                 if Self::can_alias_static_decode(func, result, &layout.types[0]) {
-                    *static_alias_decode_counts.entry(layout.as_ref().clone()).or_default() += 1;
+                    if static_decode_counts.contains_key(layout.as_ref()) {
+                        *static_alias_decode_counts.entry(layout.as_ref().clone()).or_default() +=
+                            1;
+                    }
+                    if matches!(func.value_ty(*data), Some(MirType::MemPtr)) {
+                        static_alias_ptr_layouts.insert(layout.as_ref().clone());
+                    }
                 }
             }
         }
@@ -534,13 +542,18 @@ impl LowerAbiCx {
         for (layout, count) in static_decode_counts {
             let alias_count = static_alias_decode_counts.get(&layout).copied().unwrap_or_default();
             if alias_count >= 2 {
-                let helper = self.synthesize_static_alias_decode_helper(module, layout.clone());
+                let helper =
+                    self.synthesize_static_alias_decode_helper(module, layout.clone(), false);
                 static_alias_decode_helpers.insert(layout.clone(), helper);
             }
             if count != alias_count {
                 let helper = self.synthesize_static_decode_helper(module, layout.clone());
                 static_decode_helpers.insert(layout, helper);
             }
+        }
+        for layout in static_alias_ptr_layouts {
+            let helper = self.synthesize_static_alias_decode_helper(module, layout.clone(), true);
+            static_alias_ptr_decode_helpers.insert(layout, helper);
         }
 
         let mut changed = false;
@@ -578,14 +591,27 @@ impl LowerAbiCx {
                         .inst_result_value(inst)
                         .expect("ABI decode must produce a value");
                     if layout.types.len() == 1
-                        && let Some(&helper) = static_alias_decode_helpers.get(layout.as_ref())
                         && Self::can_alias_static_decode(builder.func(), result, &layout.types[0])
                     {
-                        let value = builder.internal_call(helper, vec![data], MirType::MemPtr, 1);
-                        replacements.insert(result, value);
-                        changed = true;
-                        continue;
+                        let helper =
+                            if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
+                                static_alias_ptr_decode_helpers.get(layout.as_ref()).copied()
+                            } else {
+                                static_alias_decode_helpers.get(layout.as_ref()).copied()
+                            };
+                        if let Some(helper) = helper {
+                            let value =
+                                builder.internal_call(helper, vec![data], MirType::MemPtr, 1);
+                            replacements.insert(result, value);
+                            changed = true;
+                            continue;
+                        }
                     }
+                    let data = if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
+                        Self::materialize_static_decode_bytes(&mut builder, data, &layout)
+                    } else {
+                        data
+                    };
                     if let Some(&helper) = static_decode_helpers.get(layout.as_ref()) {
                         let value = builder.internal_call(
                             helper,
@@ -808,21 +834,54 @@ impl LowerAbiCx {
         &self,
         module: &mut Module,
         layout: AbiParamLayout,
+        raw_ptr: bool,
     ) -> FunctionId {
-        let name = format!("__decode_static_alias_{}", module.functions.len());
+        let prefix = if raw_ptr { "__decode_static_ptr_" } else { "__decode_static_alias_" };
+        let name = format!("{prefix}{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
         {
             let mut builder = FunctionBuilder::new(&mut function);
-            let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let data_ty = if raw_ptr {
+                MirType::MemPtr
+            } else {
+                MirType::MemoryObject(MemoryObjectKind::Bytes)
+            };
+            let data = builder.add_param(data_ty);
             builder.add_return(MirType::MemPtr);
-            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+            let (base, length) = if raw_ptr {
+                (data, builder.imm_u64(layout.checked_head_size().expect("static ABI layout")))
+            } else {
+                (
+                    builder.memory_object_data(data, MemoryObjectKind::Bytes),
+                    builder.memory_object_len(data, MemoryObjectKind::Bytes),
+                )
+            };
             let mut current = builder.current_block();
             Self::validate_static_memory_tuple(&mut builder, base, length, &layout, &mut current);
             builder.switch_to_block(current);
             builder.ret([base]);
         }
         module.add_function(function)
+    }
+
+    fn materialize_static_decode_bytes(
+        builder: &mut FunctionBuilder<'_>,
+        data: ValueId,
+        layout: &AbiParamLayout,
+    ) -> ValueId {
+        let size = layout.checked_head_size().expect("static ABI layout");
+        let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE).expect("static ABI size");
+        let object_size = builder.imm_u64(object_size);
+        let object = builder.alloc_object(
+            object_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        let size = builder.imm_u64(size);
+        builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
+        let source = builder.make_slice(data, size, SliceLocation::Memory);
+        builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+        object
     }
 
     fn validate_static_memory_tuple(

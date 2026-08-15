@@ -119,6 +119,11 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Adds two words and reverts when the result overflows.
     pub(crate) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
+            && let Some(result) = lhs.checked_add(rhs)
+        {
+            return self.imm_u256(result);
+        }
         let result = self.add(lhs, rhs);
         let overflow = self.lt(result, lhs);
         self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
@@ -127,6 +132,11 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Multiplies two words and reverts when the result overflows.
     pub(crate) fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
+            && let Some(result) = lhs.checked_mul(rhs)
+        {
+            return self.imm_u256(result);
+        }
         let result = self.mul(lhs, rhs);
         let rhs_zero = self.iszero(rhs);
         let quotient = self.div(result, rhs);

@@ -170,7 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn is_external_abi_argument(&self, value: ValueId) -> bool {
+    pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
         self.builder.func().abi_args_lazy
             && self.builder.func().selector.is_some()
             && matches!(self.builder.func().value(value), Value::Arg(_))

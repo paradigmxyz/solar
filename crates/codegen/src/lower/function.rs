@@ -59,6 +59,8 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage_bytes_helper: &'ctx mut Option<FunctionId>,
     pub(super) storage_clear_helper: &'ctx mut Option<FunctionId>,
     pub(super) revert_string_helper: &'ctx mut Option<FunctionId>,
+    pub(super) literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
+    pub(super) shared_literals: &'ctx FxHashSet<Vec<u8>>,
     pub(super) share_storage_bytes: bool,
 }
 
@@ -78,6 +80,8 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             storage_bytes_helper: &mut *self.storage_bytes_helper,
             storage_clear_helper: &mut *self.storage_clear_helper,
             revert_string_helper: &mut *self.revert_string_helper,
+            literal_helpers: &mut *self.literal_helpers,
+            shared_literals: self.shared_literals,
             share_storage_bytes: self.share_storage_bytes,
         }
     }
@@ -200,6 +204,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     storage_bytes_helper: &'ctx mut Option<FunctionId>,
     storage_clear_helper: &'ctx mut Option<FunctionId>,
     revert_string_helper: &'ctx mut Option<FunctionId>,
+    literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
+    shared_literals: &'ctx FxHashSet<Vec<u8>>,
     share_storage_bytes: bool,
     builder: FunctionBuilder<'ctx>,
     types: types::TypeLowerer<'gcx>,
@@ -365,6 +371,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_bytes_helper,
             storage_clear_helper,
             revert_string_helper,
+            literal_helpers,
+            shared_literals,
             share_storage_bytes,
         } = context;
         Self {
@@ -381,6 +389,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_bytes_helper,
             storage_clear_helper,
             revert_string_helper,
+            literal_helpers,
+            shared_literals,
             share_storage_bytes,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),

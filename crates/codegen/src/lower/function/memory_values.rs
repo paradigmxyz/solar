@@ -127,26 +127,60 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
+        let value = if self.shared_literals.contains(bytes) {
+            let helper = self.ensure_bytes_literal_helper(bytes);
+            self.builder.internal_call(
+                helper,
+                Vec::new(),
+                MirType::MemoryObject(MemoryObjectKind::Bytes),
+                1,
+            )
+        } else {
+            Self::build_bytes_literal(&mut self.builder, bytes, AllocationSemantics::INTERNAL)?
+        };
+        let _ = span;
+        Some(value)
+    }
+
+    pub(super) fn build_bytes_literal(
+        builder: &mut FunctionBuilder<'_>,
+        bytes: &[u8],
+        semantics: AllocationSemantics,
+    ) -> Option<ValueId> {
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = words.checked_add(1)?.checked_mul(32)?;
-        let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        let kind = MemoryObjectKind::Bytes;
-        let length = self.builder.imm_u64(u64::try_from(bytes.len()).ok()?);
-        self.builder.set_memory_object_len(object, length, kind);
+        let size = builder.imm_u64(size);
+        let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let length = builder.imm_u64(u64::try_from(bytes.len()).ok()?);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
         for (index, chunk) in bytes.chunks(32).enumerate() {
             let mut word = U256::from_be_slice(chunk);
             word <<= (32 - chunk.len()) * 8;
-            let value = self.builder.imm_u256(word);
-            let offset = self.builder.imm_u64(index as u64 * 32);
-            self.builder.memory_object_store_word(object, offset, value);
+            let value = builder.imm_u256(word);
+            let offset = builder.imm_u64(index as u64 * 32);
+            builder.memory_object_store_word(object, offset, value);
         }
-        let _ = span;
         Some(object)
+    }
+
+    fn ensure_bytes_literal_helper(&mut self, bytes: &[u8]) -> FunctionId {
+        if let Some(&id) = self.literal_helpers.get(bytes) {
+            return id;
+        }
+        let index = self.literal_helpers.len();
+        let mut function = Function::new(Ident::from_str(&format!("__literal_bytes_{index}")));
+        function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let object =
+                Self::build_bytes_literal(&mut builder, bytes, AllocationSemantics::INTERNAL)
+                    .expect("literal length fits in a memory object");
+            builder.ret([object]);
+        }
+        let id = self.module.add_function(function);
+        self.literal_helpers.insert(bytes.to_vec(), id);
+        id
     }
 
     pub(super) fn default_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {

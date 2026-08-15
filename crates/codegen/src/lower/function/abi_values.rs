@@ -193,7 +193,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        self.validate_enum_value(ty, value);
+        if !self.is_external_abi_argument(value) {
+            self.validate_enum_value(ty, value);
+        }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),

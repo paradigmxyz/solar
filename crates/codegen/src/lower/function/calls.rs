@@ -1054,17 +1054,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId, ValueId)> {
         let size = layout.checked_head_size()?;
-        let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE)?;
-        let object_size = self.builder.imm_u64(object_size);
-        let object = self.builder.alloc_object(
-            object_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        if layout.types.len() != 1 {
+            let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE)?;
+            let object_size = self.builder.imm_u64(object_size);
+            let object = self.builder.alloc_object(
+                object_size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::INTERNAL,
+            );
+            let size = self.builder.imm_u64(size);
+            self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
+            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            return Some((object, data, size));
+        }
         let size = self.builder.imm_u64(size);
-        self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        Some((object, data, size))
+        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+        Some((data, data, size))
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {

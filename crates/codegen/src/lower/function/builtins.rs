@@ -348,6 +348,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let exprs = self.variadic_builtin_args(builtin, &args)?;
+        let mut all_literals = Some(Vec::new());
         let mut total = self.builder.imm_u64(0);
         let mut parts = Vec::with_capacity(exprs.len());
         for expr in exprs {
@@ -362,10 +363,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         && let LitKind::Str(_, bytes, _) = &lit.kind
                     {
                         let bytes = bytes.as_byte_str().to_vec();
-                        let length = self.builder.imm_u64(bytes.len() as u64);
-                        total = self.checked_add(total, length);
+                        if let Some(all_literals) = &mut all_literals {
+                            all_literals.extend_from_slice(&bytes);
+                        } else {
+                            let length = self.builder.imm_u64(bytes.len() as u64);
+                            total = self.checked_add(total, length);
+                        }
                         parts.push(Part::Literal(bytes));
                         continue;
+                    }
+                    if let Some(all_literals) = all_literals.take() {
+                        let length = self.builder.imm_u64(all_literals.len() as u64);
+                        total = self.checked_add(total, length);
                     }
                     let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
@@ -375,6 +384,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     parts.push(Part::Dynamic { value, length });
                 }
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                    if let Some(all_literals) = all_literals.take() {
+                        let length = self.builder.imm_u64(all_literals.len() as u64);
+                        total = self.checked_add(total, length);
+                    }
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
                     let length_value = self.builder.imm_u64(length);
@@ -383,6 +396,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 _ => return report_unsupported(self.gcx, expr.span, "concat argument"),
             }
+        }
+
+        if let Some(bytes) = all_literals {
+            return Self::build_bytes_literal(
+                &mut self.builder,
+                &bytes,
+                AllocationSemantics::SOLIDITY_UNINITIALIZED,
+            );
         }
 
         let thirty_one = self.builder.imm_u64(31);

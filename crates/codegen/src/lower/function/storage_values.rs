@@ -651,8 +651,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let layout = MemoryObjectLayout::Struct { fields };
                 let size = self.builder.imm_u64(fields.saturating_mul(32));
-                let object =
-                    self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+                let object = self.builder.alloc_object(
+                    size,
+                    layout,
+                    AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
                 for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.gcx.type_of_item(field.into());
                     let location = self.storage.field_location(struct_id, index)?;
@@ -673,8 +676,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size = self
                     .builder
                     .imm_u64(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
-                let object =
-                    self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+                let object = self.builder.alloc_object(
+                    size,
+                    layout,
+                    AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                );
                 for index in 0..len {
                     let index_value = self.builder.imm_u64(index);
                     let access =
@@ -706,7 +712,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word_size = self.builder.imm_u64(32);
         let size = self.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::DynamicArray { element_words };
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+        let object =
+            self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         self.builder.set_memory_object_len(object, length, layout.kind());
 
         let preheader = self.builder.current_block();

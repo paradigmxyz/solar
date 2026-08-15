@@ -2,13 +2,17 @@
 
 use super::{function, storage::StorageLayout, types::TypeLowerer};
 use alloy_primitives::Bytes;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    Never,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::Ident;
 use solar_sema::{
     Gcx,
-    hir::{self, ContractId},
+    hir::{self, ContractId, Visit},
     ty::TyKind,
 };
+use std::ops::ControlFlow;
 
 use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
@@ -138,11 +142,13 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
+    let shared_literals = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
     let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
     let mut storage_bytes_helper = None;
     let mut storage_clear_helper = None;
     let mut revert_string_helper = None;
+    let mut literal_helpers = FxHashMap::default();
     let mut visiting_storage_structs = FxHashSet::default();
     let share_storage_bytes = contract
         .linearized_bases
@@ -181,6 +187,8 @@ pub(super) fn lower(
             storage_bytes_helper: &mut storage_bytes_helper,
             storage_clear_helper: &mut storage_clear_helper,
             revert_string_helper: &mut revert_string_helper,
+            literal_helpers: &mut literal_helpers,
+            shared_literals: &shared_literals,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
@@ -228,6 +236,8 @@ pub(super) fn lower(
             storage_bytes_helper: &mut storage_bytes_helper,
             storage_clear_helper: &mut storage_clear_helper,
             revert_string_helper: &mut revert_string_helper,
+            literal_helpers: &mut literal_helpers,
+            shared_literals: &shared_literals,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {
@@ -249,6 +259,39 @@ pub(super) fn lower(
         module.is_interface = true;
     }
     module
+}
+
+fn shared_string_literals(
+    gcx: Gcx<'_>,
+    function_ids: &[(hir::FunctionId, bool)],
+) -> FxHashSet<Vec<u8>> {
+    struct Counter<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+        counts: FxHashMap<Vec<u8>, usize>,
+    }
+
+    impl<'hir> Visit<'hir> for Counter<'hir> {
+        type BreakValue = Never;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            if let hir::ExprKind::Lit(lit) = expr.kind
+                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
+            {
+                *self.counts.entry(bytes.as_byte_str().to_vec()).or_default() += 1;
+            }
+            self.walk_expr(expr)
+        }
+    }
+
+    let mut counter = Counter { hir: &gcx.hir, counts: FxHashMap::default() };
+    for &(function_id, _) in function_ids {
+        let _ = counter.visit_function(gcx.hir.function(function_id));
+    }
+    counter.counts.into_iter().filter_map(|(bytes, count)| (count >= 3).then_some(bytes)).collect()
 }
 
 /// Creates the MIR declaration for a HIR function.
