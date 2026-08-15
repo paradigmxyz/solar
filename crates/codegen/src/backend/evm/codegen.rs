@@ -6100,7 +6100,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
         callee: FunctionId,
-        stack_mask: Option<&DenseBitSet<usize>>,
         returns: usize,
         result: Option<ValueId>,
         liveness: &Liveness,
@@ -6109,7 +6108,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<StaticCallStackPlan> {
         let depth = self.scheduler.stack.depth();
         if !self.preserve_caller_stack
-            || stack_mask.is_some()
             || !(1..MAX_STACK_ACCESS).contains(&depth)
             || self.recursive_stack_functions.contains(func_id)
             || self.recursion_reaching_functions.contains(callee)
@@ -6298,15 +6296,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
-                func_id,
-                func,
-                callee,
-                stack_mask.as_ref(),
-                returns,
-                result,
-                liveness,
-                block,
-                inst_idx,
+                func_id, func, callee, returns, result, liveness, block, inst_idx,
             )
         });
         let caller_stack_plan = caller_stack_plan.flatten();
@@ -6357,7 +6347,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.instruction_executed(2, None);
         }
 
-        let mut retention_plan = (!carries_resident_stack)
+        let mut retention_plan = (!carries_resident_stack && caller_stack_plan.is_none())
             .then(|| {
                 stack_mask.as_ref().and_then(|mask| self.plan_retained_stack_args(func, args, mask))
             })
