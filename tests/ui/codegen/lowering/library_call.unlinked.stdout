@@ -159,12 +159,16 @@ bb4:
   calldataload
   push 36
   calldataload
-  swap1
+  dup2
   push 0
   mstore
   swap1
+  pop
+  dup2
   push 32
   mstore
+  swap1
+  pop
   push 64
   push 0
   keccak256

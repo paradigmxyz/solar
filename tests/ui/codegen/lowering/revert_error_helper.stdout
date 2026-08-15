@@ -23,7 +23,7 @@ bb0:
   push 64
   mstore
   dup1
-  push 192
+  push 224
   mstore
   push 32
   dup2
@@ -38,36 +38,35 @@ bb0:
   shl
   mload
   dup1
-  push 224
+  push 128
   mstore
-  dup1
-  swap2
+  swap1
   mstore
   push 31
-  dup2
+  push 128
+  mload
   add
   push 31
   not
   and
   dup1
-  push 160
+  push 192
   mstore
   push 64
-  dup4
+  dup3
   add
-  push 128
+  push 160
   mstore
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb7
   jumpi
   push 32
-  push 160
+  push 192
   mload
   sub
-  push 128
+  push 160
   mload
   add
   push 0
@@ -75,9 +74,9 @@ bb0:
   mstore
   jump bb7
 bb7:
-  push 160
+  push 192
   mload
-  push 128
+  push 160
   mload
   add
   push 32
@@ -87,13 +86,14 @@ bb7:
   jump bb11
 bb11:
   add
-  push 224
-  mload
-  swap1
   push 128
   mload
+  dup2
+  push 160
+  mload
   mcopy
-  push 192
+  pop
+  push 224
   mload
   swap1
   sub
@@ -126,7 +126,7 @@ bb8:
   push 64
   mstore
   dup1
-  push 192
+  push 224
   mstore
   push 32
   dup2
@@ -145,36 +145,35 @@ bb12:
 bb13:
   mload
   dup1
-  push 224
+  push 128
   mstore
-  dup1
-  swap2
+  swap1
   mstore
   push 31
-  dup2
+  push 128
+  mload
   add
   push 31
   not
   and
   dup1
-  push 160
+  push 192
   mstore
   push 64
-  dup4
+  dup3
   add
-  push 128
+  push 160
   mstore
-  swap2
-  pop
+  swap1
   pop
   iszero
   push bb10
   jumpi
   push 32
-  push 160
+  push 192
   mload
   sub
-  push 128
+  push 160
   mload
   add
   push 0
@@ -182,9 +181,9 @@ bb13:
   mstore
   jump bb10
 bb10:
-  push 160
+  push 192
   mload
-  push 128
+  push 160
   mload
   add
   push 32
@@ -426,9 +425,10 @@ bb32 [cold]:
   push 32
   add
   push 33
-  swap1
+  dup2
   push 68
   mcopy
+  pop
   push 132
   push 0
   revert
