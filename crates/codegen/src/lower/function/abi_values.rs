@@ -29,8 +29,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let ty = self.gcx.type_of_expr(expr.id)?;
-            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let ty = self.context.gcx.type_of_expr(expr.id)?;
+            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             let mut abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                 AbiType::Bytes(SliceLocation::Memory)
@@ -55,7 +55,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let value = self.lower_expr(expr)?;
-        let fixed_bytes = self.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+        let fixed_bytes = self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| {
             matches!(
                 ty.peel_refs().kind,
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
@@ -99,7 +99,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.builder.select(condition, then_selector, else_selector));
         }
 
-        let signature_ty = self.gcx.type_of_expr(signature.id);
+        let signature_ty = self.context.gcx.type_of_expr(signature.id);
         let signature = self.lower_expr(signature)?;
         if let Some(signature_ty) = signature_ty
             && let Some(abi_type) = self.types.abi_type(signature_ty)
@@ -121,25 +121,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = &args[0];
         let tuple = &args[1];
         let (selector, parameter_types) =
-            if let Some(function_id) = self.gcx.resolved_function(function) {
-                let selector = self.gcx.function_selector(function_id).0;
+            if let Some(function_id) = self.context.gcx.resolved_function(function) {
+                let selector = self.context.gcx.function_selector(function_id).0;
                 let parameter_types = self
+                    .context
                     .gcx
                     .hir
                     .function(function_id)
                     .parameters
                     .iter()
-                    .map(|&parameter| self.gcx.type_of_item(parameter.into()))
+                    .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
                     .collect::<Vec<_>>();
                 (self.builder.imm_u256(U256::from_be_slice(&selector) << 224), parameter_types)
             } else {
                 let Some(TyKind::Fn(function_ty)) =
-                    self.gcx.type_of_expr(function.id).map(|ty| ty.kind)
+                    self.context.gcx.type_of_expr(function.id).map(|ty| ty.kind)
                 else {
-                    return report_unsupported(self.gcx, function.span, "abi.encodeCall function");
+                    return report_unsupported(
+                        self.context.gcx,
+                        function.span,
+                        "abi.encodeCall function",
+                    );
                 };
                 if !function_ty.is_external() {
-                    return report_unsupported(self.gcx, function.span, "abi.encodeCall function");
+                    return report_unsupported(
+                        self.context.gcx,
+                        function.span,
+                        "abi.encodeCall function",
+                    );
                 }
                 let function_value = self.lower_expr(function)?;
                 let mask = self.builder.imm_u256(U256::from(u32::MAX));
@@ -152,14 +161,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => vec![tuple],
         };
         if exprs.len() != parameter_types.len() {
-            return report_unsupported(self.gcx, tuple.span, "abi.encodeCall argument list");
+            return report_unsupported(
+                self.context.gcx,
+                tuple.span,
+                "abi.encodeCall argument list",
+            );
         }
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
-            let from_ty = self.gcx.type_of_expr(expr.id)?;
-            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let from_ty = self.context.gcx.type_of_expr(expr.id)?;
+            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
@@ -282,7 +295,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
-        let fields = self.gcx.hir.strukt(id).fields.to_vec();
+        let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
         let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32))
         else {
             return value;
@@ -290,7 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm_u64(size);
         let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         for (index, &field) in fields.iter().enumerate() {
-            let field_ty = self.gcx.type_of_item(field.into());
+            let field_ty = self.context.gcx.type_of_item(field.into());
             let field_value = self.builder.memory_object_load_field(value, layout, index as u64);
             let field_value = self.canonicalize_abi_child(field_ty, field_value);
             self.builder.memory_object_store_field(output, layout, index as u64, field_value);
@@ -315,8 +328,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.abi_value_needs_normalization(element)
             }
-            TyKind::Struct(id) => self.gcx.hir.strukt(id).fields.iter().any(|&field| {
-                self.abi_value_needs_normalization(self.gcx.type_of_item(field.into()))
+            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().any(|&field| {
+                self.abi_value_needs_normalization(self.context.gcx.type_of_item(field.into()))
             }),
             TyKind::Udvt(inner, _) => self.abi_value_needs_normalization(inner),
             TyKind::Elementary(
@@ -338,26 +351,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let args = self.builtin_args::<2>(Builtin::AbiDecode, &args)?;
         let types = match args[1].kind {
             ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
-            _ => return report_unsupported(self.gcx, args[1].span, "abi.decode target type"),
+            _ => {
+                return report_unsupported(
+                    self.context.gcx,
+                    args[1].span,
+                    "abi.decode target type",
+                );
+            }
         };
         if types.is_empty() {
-            return report_unsupported(self.gcx, args[1].span, "abi.decode target type");
+            return report_unsupported(self.context.gcx, args[1].span, "abi.decode target type");
         }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
-            let Some(TyKind::Type(ty)) = self.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
-                return report_unsupported(self.gcx, ty_expr.span, "abi.decode target type");
+            let Some(TyKind::Type(ty)) =
+                self.context.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
+            else {
+                return report_unsupported(
+                    self.context.gcx,
+                    ty_expr.span,
+                    "abi.decode target type",
+                );
             };
-            decoded_types.push(ty.with_loc_if_ref(self.gcx, DataLocation::Memory));
+            decoded_types.push(ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory));
         }
 
         let data_expr = &args[0];
-        let data_ty = self.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let data_ty = self.context.gcx.type_of_expr(data_expr.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
         let data = self.lower_typed_expr(data_expr, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
-        let layout = self.module.intern_abi_param_layout(layout);
+        let layout = self.context.module.intern_abi_param_layout(layout);
         Some(self.builder.abi_decode(layout, data))
     }
 
@@ -374,7 +399,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
-                return report_unsupported(self.gcx, span, "abi.decode target type");
+                return report_unsupported(self.context.gcx, span, "abi.decode target type");
             };
             abi_types.push(abi_type);
         }
@@ -389,7 +414,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
         if !layout.types.iter().any(Self::needs_eager_abi_decode) {
-            let layout = self.module.intern_abi_param_layout(layout);
+            let layout = self.context.module.intern_abi_param_layout(layout);
             let first = self.builder.abi_decode(layout, data);
             let mut values = Vec::with_capacity(types.len());
             values.push(first);
@@ -488,7 +513,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let payload_slice =
             self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
         let payload = self.materialize_memory_slice(payload_slice);
-        let layout = self.module.intern_abi_param_layout(AbiParamLayout::new(
+        let layout = self.context.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
         Some(self.builder.abi_decode(layout, payload))
@@ -509,7 +534,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut total = self.builder.imm_u64(0);
         let mut pieces = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let ty = self.gcx.type_of_expr(expr.id)?;
+            let ty = self.context.gcx.type_of_expr(expr.id)?;
             if let ExprKind::Lit(lit) = &expr.kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
@@ -520,7 +545,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
 
-            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             self.validate_enum_value(ty, value);
             if let Some(abi_type) = self.types.abi_type(ty) {
@@ -576,7 +601,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "abi.encodePacked argument",
+                );
             };
             let value = self.normalize_abi_scalar(value, ty);
             let signed = is_signed_packed_scalar(ty);
@@ -766,13 +795,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.inplace_dynamic_shape(element)
             }
-            TyKind::Struct(id) => self
-                .gcx
-                .hir
-                .strukt(id)
-                .fields
-                .iter()
-                .all(|&field| self.inplace_dynamic_shape(self.gcx.type_of_item(field.into()))),
+            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                self.inplace_dynamic_shape(self.context.gcx.type_of_item(field.into()))
+            }),
             TyKind::Fn(function) => function.is_external(),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
@@ -793,11 +818,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
             TyKind::Struct(id) => {
-                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
                 let layout = self.inplace_struct_layout(fields.len());
                 let mut total = self.builder.imm_u64(0);
                 for (index, field) in fields.into_iter().enumerate() {
-                    let field = self.gcx.type_of_item(field.into());
+                    let field = self.context.gcx.type_of_item(field.into());
                     let field_value =
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     let field_words = self.count_inplace_dynamic_value(field, field_value)?;
@@ -867,11 +892,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.copy_inplace_array(ty, value, output, offset)
             }
             TyKind::Struct(id) => {
-                let fields = self.gcx.hir.strukt(id).fields.to_vec();
+                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
                 let layout = self.inplace_struct_layout(fields.len());
                 let mut offset = offset;
                 for (index, field) in fields.into_iter().enumerate() {
-                    let field = self.gcx.type_of_item(field.into());
+                    let field = self.context.gcx.type_of_item(field.into());
                     let field_value =
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     offset = self.copy_inplace_dynamic_value(field, field_value, output, offset)?;
@@ -1211,7 +1236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Contract(_) => Some((20, false)),
             TyKind::Fn(function) if function.is_external() => Some((24, false)),
             TyKind::Enum(id) => {
-                let variants = self.gcx.hir.enumm(id).variants.len().max(1);
+                let variants = self.context.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
                 Some((u64::from(bits.div_ceil(8)), false))
             }
@@ -1227,12 +1252,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
-        let input_ty = self.gcx.type_of_expr(input.id)?;
+        let input_ty = self.context.gcx.type_of_expr(input.id)?;
         if !matches!(self.types.memory_layout(input_ty)?, MemoryObjectLayout::Bytes) {
-            return report_unsupported(self.gcx, input.span, "precompile input");
+            return report_unsupported(self.context.gcx, input.span, "precompile input");
         }
         let span = input.span;
-        let memory_ty = input_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let memory_ty = input_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
@@ -1313,7 +1338,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output_ptr: ValueId,
         output_size: ValueId,
     ) {
-        let evm_version = self.gcx.sess.opts.evm_version;
+        let evm_version = self.context.gcx.sess.opts.evm_version;
         let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
         if evm_version.has_static_call() {
             self.builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);

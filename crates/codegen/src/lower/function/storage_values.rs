@@ -56,12 +56,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> bool {
         let ExprKind::Ident(_) = lhs.peel_parens().kind else { return false };
-        let Some(id) = self.gcx.resolved_variable(lhs) else { return false };
-        if !self.gcx.hir.variable(id).is_state_variable() {
+        let Some(id) = self.context.gcx.resolved_variable(lhs) else { return false };
+        if !self.context.gcx.hir.variable(id).is_state_variable() {
             return false;
         }
-        let Some(lhs_ty) = self.gcx.type_of_expr(lhs.id) else { return false };
-        let Some(rhs_ty) = self.gcx.type_of_expr(rhs.id) else { return false };
+        let Some(lhs_ty) = self.context.gcx.type_of_expr(lhs.id) else { return false };
+        let Some(rhs_ty) = self.context.gcx.type_of_expr(rhs.id) else { return false };
         let target_ty = lhs_ty.peel_refs();
         if self.types.memory_layout(target_ty).is_none() || target_ty != rhs_ty.peel_refs() {
             return false;
@@ -85,36 +85,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.peel_refs().kind {
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => matches!(self.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_))),
+            ) => matches!(self.context.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_))),
             TyKind::Struct(struct_id) => {
                 let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
                     return false;
                 };
-                let Some(hir::Res::Item(hir::ItemId::Struct(id))) = self.gcx.resolved_expr(callee)
+                let Some(hir::Res::Item(hir::ItemId::Struct(id))) =
+                    self.context.gcx.resolved_expr(callee)
                 else {
                     return false;
                 };
                 if id != struct_id {
                     return false;
                 }
-                let fields = self.gcx.hir.strukt(struct_id).fields;
+                let fields = self.context.gcx.hir.strukt(struct_id).fields;
                 if args.len() != fields.len() {
                     return false;
                 }
-                let names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                let names =
+                    self.context.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
                 fields.iter().enumerate().all(|(index, &field)| {
                     args.argument_for_parameter(index, Some(names.as_slice())).is_some_and(
                         |argument| {
                             self.is_constant_storage_value(
                                 argument,
-                                self.gcx.type_of_item(field.into()),
+                                self.context.gcx.type_of_item(field.into()),
                             )
                         },
                     )
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            TyKind::Elementary(_) => self.gcx.try_eval_const_value(expr).is_ok(),
+            TyKind::Elementary(_) => self.context.gcx.try_eval_const_value(expr).is_ok(),
             _ => false,
         }
     }
@@ -124,7 +126,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs: &hir::Expr<'_>,
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
-        let ty = self.gcx.type_of_expr(lhs.id)?.peel_refs();
+        let ty = self.context.gcx.type_of_expr(lhs.id)?.peel_refs();
         let access = self.storage_access(lhs)?;
         self.store_constant_storage_value(ty, access, rhs)
     }
@@ -139,29 +141,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => {
-                let Ok(ConstValue::String(value)) = self.gcx.try_eval_const_value(expr) else {
+                let Ok(ConstValue::String(value)) = self.context.gcx.try_eval_const_value(expr)
+                else {
                     return None;
                 };
-                self.store_constant_storage_bytes(access.slot, value.as_byte_str_in(self.gcx.sess));
+                self.store_constant_storage_bytes(
+                    access.slot,
+                    value.as_byte_str_in(self.context.gcx.sess),
+                );
                 Some(())
             }
             TyKind::Struct(struct_id) => {
                 let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
                     return None;
                 };
-                let hir::Res::Item(hir::ItemId::Struct(id)) = self.gcx.resolved_expr(callee)?
+                let hir::Res::Item(hir::ItemId::Struct(id)) =
+                    self.context.gcx.resolved_expr(callee)?
                 else {
                     return None;
                 };
                 if id != struct_id {
                     return None;
                 }
-                let fields = self.gcx.hir.strukt(struct_id).fields;
-                let names = self.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                let fields = self.context.gcx.hir.strukt(struct_id).fields;
+                let names =
+                    self.context.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
                 for (index, &field) in fields.iter().enumerate() {
                     let argument = args.argument_for_parameter(index, Some(names.as_slice()))?;
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(struct_id, index)?;
+                    let field_ty = self.context.gcx.type_of_item(field.into());
+                    let location = self.context.storage.field_location(struct_id, index)?;
                     let slot = self.add_storage_offset(access.slot, location.slot);
                     self.store_constant_storage_value(
                         field_ty,
@@ -172,8 +180,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             _ => {
-                let source_ty = self.gcx.type_of_expr(expr.id)?;
-                let value = match self.gcx.try_eval_const_value(expr) {
+                let source_ty = self.context.gcx.type_of_expr(expr.id)?;
+                let value = match self.context.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => self.builder.imm_bool(*value),
                     Ok(ConstValue::Integer(value)) => self.builder.imm_u256(value.as_u256()?),
                     _ => self.lower_typed_expr(expr, ty)?,
@@ -187,37 +195,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         match &expr.peel_parens().kind {
             ExprKind::Ident(_) => {
-                let id = self.gcx.resolved_variable(expr)?;
+                let id = self.context.gcx.resolved_variable(expr)?;
                 if let Some(access) = self.storage_refs.get(&id).copied() {
                     return Some(access);
                 }
-                let var = self.gcx.hir.variable(id);
+                let var = self.context.gcx.hir.variable(id);
                 if !var.is_state_variable() {
                     return None;
                 }
-                let location = self.storage.get(id)?;
+                let location = self.context.storage.get(id)?;
                 let slot = self.builder.imm_u256(location.slot);
                 Some(StorageAccess { slot, location, offset: None })
             }
             ExprKind::Member(receiver, _) => {
-                let id = self.gcx.resolved_variable(expr)?;
-                let variable = self.gcx.hir.variable(id);
+                let id = self.context.gcx.resolved_variable(expr)?;
+                let variable = self.context.gcx.hir.variable(id);
                 let hir::ItemId::Struct(struct_id) = variable.parent? else { return None };
-                let field =
-                    self.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)?;
+                let field = self
+                    .context
+                    .gcx
+                    .hir
+                    .strukt(struct_id)
+                    .fields
+                    .iter()
+                    .position(|&field| field == id)?;
                 let base = self.storage_access(receiver)?;
-                let location = self.storage.field_location(struct_id, field)?;
+                let location = self.context.storage.field_location(struct_id, field)?;
                 let slot = self.add_storage_offset(base.slot, location.slot);
                 Some(StorageAccess { slot, location, offset: None })
             }
             ExprKind::Index(receiver, Some(index)) => {
                 let base = self.storage_access(receiver)?;
-                let ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
-                let index_ty = self.gcx.type_of_expr(index.id)?;
+                let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
+                let index_ty = self.context.gcx.type_of_expr(index.id)?;
                 let index = self.lower_expr(index)?;
                 if let TyKind::Mapping(_, value) = ty.kind {
                     let slot = self.mapping_slot(index, index_ty, base.slot);
-                    if let Some((size, encoding)) = self.storage.packed_encoding(value) {
+                    if let Some((size, encoding)) = self.context.storage.packed_encoding(value) {
                         let location =
                             StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
                         return Some(StorageAccess { slot, location, offset: None });
@@ -243,7 +257,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Call(callee, arguments, _)
                 if arguments.is_empty()
-                    && self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
+                    && self.context.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
                 let ExprKind::Member(receiver, _) = &callee.kind else { return None };
                 let (access, _, new_length, base_slot) =
@@ -264,9 +278,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
-        self.gcx.resolved_function(callee).is_some_and(|function_id| {
-            self.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
-                self.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
+        self.context.gcx.resolved_function(callee).is_some_and(|function_id| {
+            self.context.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
+                self.context.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
             })
         })
     }
@@ -295,10 +309,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !matches!(expr.peel_parens().kind, ExprKind::Ident(_)) {
             return false;
         }
-        self.gcx
+        self.context
+            .gcx
             .resolved_variable(expr)
-            .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable())
-            && self.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+            .is_some_and(|id| !self.context.gcx.hir.variable(id).is_state_variable())
+            && self
+                .context
+                .gcx
+                .type_of_expr(expr.id)
+                .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
     }
 
     pub(super) fn storage_array_push_access(
@@ -306,7 +325,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>, ValueId, ValueId)> {
         let base = self.storage_access(receiver)?;
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = receiver_ty.kind else { return None };
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
@@ -323,9 +342,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         arguments: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
-            return report_unsupported(self.gcx, expr.span, "storage array push target");
+            return report_unsupported(self.context.gcx, expr.span, "storage array push target");
         };
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
             receiver_ty.kind,
             TyKind::Elementary(
@@ -335,14 +354,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_storage_bytes_push(expr, receiver, builtin, arguments);
         }
         let Some((base, element)) = self.storage_array_base(receiver) else {
-            return report_unsupported(self.gcx, expr.span, "storage array push target");
+            return report_unsupported(self.context.gcx, expr.span, "storage array push target");
         };
         let value = if builtin == Builtin::ArrayPush {
             let [argument] = arguments else {
-                return report_unsupported(self.gcx, expr.span, "storage array push arguments");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "storage array push arguments",
+                );
             };
             let value = self.lower_typed_expr(argument, element)?;
-            let value = self.coerce_value(value, self.gcx.type_of_expr(argument.id)?, element);
+            let value =
+                self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, element);
             if self.types.memory_layout(element).is_some() {
                 self.materialize_memory_argument(element, value, argument.span)?
             } else {
@@ -350,7 +374,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         } else {
             if !arguments.is_empty() {
-                return report_unsupported(self.gcx, expr.span, "storage array push arguments");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "storage array push arguments",
+                );
             }
             self.default_value(element)
         };
@@ -373,16 +401,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let access = self.storage_access(receiver)?;
         let value = if builtin == Builtin::ArrayPush {
             let [argument] = arguments else {
-                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "storage bytes push arguments",
+                );
             };
-            let source_ty = self.gcx.type_of_expr(argument.id)?;
+            let source_ty = self.context.gcx.type_of_expr(argument.id)?;
             let value = self.lower_expr(argument)?;
-            let value = self.coerce_value(value, source_ty, self.gcx.types.fixed_bytes(1));
+            let value = self.coerce_value(value, source_ty, self.context.gcx.types.fixed_bytes(1));
             let shift = self.builder.imm_u64(248);
             self.builder.shr(shift, value)
         } else {
             if !arguments.is_empty() {
-                return report_unsupported(self.gcx, expr.span, "storage bytes push arguments");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "storage bytes push arguments",
+                );
             }
             self.builder.imm_u64(0)
         };
@@ -411,9 +447,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
-            return report_unsupported(self.gcx, expr.span, "storage array pop target");
+            return report_unsupported(self.context.gcx, expr.span, "storage array pop target");
         };
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
             receiver_ty.kind,
             TyKind::Elementary(
@@ -444,7 +480,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let Some((base, element)) = self.storage_array_base(receiver) else {
-            return report_unsupported(self.gcx, expr.span, "storage array pop target");
+            return report_unsupported(self.context.gcx, expr.span, "storage array pop target");
         };
         let length = self.builder.sload(base.slot);
         let zero = self.builder.imm_u64(0);
@@ -464,7 +500,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
         let base = self.storage_access(receiver)?;
-        let ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
+        let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
     }
@@ -497,7 +533,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: solar_sema::ty::Ty<'gcx>,
         dynamic: bool,
     ) -> Option<StorageAccess> {
-        if let Some((size, encoding)) = self.storage.packed_encoding(element)
+        if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
         {
             let bytes = u64::from(size.bytes());
@@ -512,7 +548,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let location = StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
-        let element_slots = self.storage.element_slots(element);
+        let element_slots = self.context.storage.element_slots(element);
         let slot = if dynamic {
             self.builder.storage_array_element_slot(base_slot, index, element_slots)
         } else {
@@ -550,7 +586,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         access: StorageAccess,
     ) -> Option<ValueId> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
+        let ty = self.context.gcx.type_of_expr(expr.id)?;
         if ty.is_ref_at(DataLocation::Storage) {
             return Some(access.slot);
         }
@@ -563,7 +599,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         access: StorageAccess,
         value: ValueId,
     ) -> Option<()> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
+        let ty = self.context.gcx.type_of_expr(expr.id)?;
         self.store_storage_value(ty, access, value, expr.span)
     }
 
@@ -574,7 +610,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         source_ty: Ty<'gcx>,
     ) -> Option<()> {
-        let ty = self.gcx.type_of_expr(expr.id)?;
+        let ty = self.context.gcx.type_of_expr(expr.id)?;
         self.store_storage_value_with_source(ty, source_ty, access, value, expr.span)
     }
 
@@ -588,14 +624,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_object(ty, access.slot, span);
         }
         let value = if let Some(offset) = access.offset {
-            self.storage.load_packed_at_slot(
+            self.context.storage.load_packed_at_slot(
                 &mut self.builder,
                 access.location,
                 access.slot,
                 offset,
             )
         } else {
-            self.storage.load_at_slot(&mut self.builder, access.location, access.slot)
+            self.context.storage.load_at_slot(&mut self.builder, access.location, access.slot)
         };
         self.validate_enum_value(ty, value);
         Some(value)
@@ -624,7 +660,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         self.validate_enum_value(ty, value);
         if let Some(offset) = access.offset {
-            self.storage.store_packed_at_slot(
+            self.context.storage.store_packed_at_slot(
                 &mut self.builder,
                 access.location,
                 access.slot,
@@ -632,7 +668,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 value,
             );
         } else {
-            self.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
+            self.context.storage.store_at_slot(
+                &mut self.builder,
+                access.location,
+                access.slot,
+                value,
+            );
         }
         Some(())
     }
@@ -648,14 +689,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             ) => self.load_storage_bytes(slot),
             solar_sema::ty::TyKind::Struct(struct_id) => {
-                let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let layout = MemoryObjectLayout::Struct { fields };
                 let size = self.builder.imm_u64(fields.saturating_mul(32));
                 let object =
                     self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-                for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(struct_id, index)?;
+                for (index, &field) in
+                    self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
+                {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
+                    let location = self.context.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.load_storage_value(
                         field_ty,
@@ -687,7 +730,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             solar_sema::ty::TyKind::DynArray(element) => {
                 self.load_dynamic_storage_object(element, slot, span)
             }
-            _ => report_unsupported(self.gcx, span, "storage object copy"),
+            _ => report_unsupported(self.context.gcx, span, "storage object copy"),
         }
     }
 
@@ -760,21 +803,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             solar_sema::ty::TyKind::Struct(struct_id) => {
                 let solar_sema::ty::TyKind::Struct(source_struct_id) = source_ty.peel_refs().kind
                 else {
-                    return report_unsupported(self.gcx, span, "storage struct conversion");
+                    return report_unsupported(self.context.gcx, span, "storage struct conversion");
                 };
-                let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
-                let source_fields = self.gcx.hir.strukt(source_struct_id).fields.len() as u64;
+                let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
+                let source_fields =
+                    self.context.gcx.hir.strukt(source_struct_id).fields.len() as u64;
                 if fields != source_fields {
-                    return report_unsupported(self.gcx, span, "storage struct conversion");
+                    return report_unsupported(self.context.gcx, span, "storage struct conversion");
                 }
                 let layout = self.types.memory_layout(source_ty)?;
-                for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(struct_id, index)?;
+                for (index, &field) in
+                    self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
+                {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
+                    let location = self.context.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(slot, location.slot);
                     let value = self.builder.memory_object_load_field(object, layout, index as u64);
-                    let source_field = self.gcx.hir.strukt(source_struct_id).fields[index];
-                    let source_field_ty = self.gcx.type_of_item(source_field.into());
+                    let source_field = self.context.gcx.hir.strukt(source_struct_id).fields[index];
+                    let source_field_ty = self.context.gcx.type_of_item(source_field.into());
                     let access = StorageAccess { slot: field_slot, location, offset: None };
                     if self.types.memory_layout(field_ty).is_some() {
                         self.store_storage_object_with_source(
@@ -794,7 +840,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let solar_sema::ty::TyKind::Array(source_element, source_len) =
                     source_ty.peel_refs().kind
                 else {
-                    return report_unsupported(self.gcx, span, "storage array conversion");
+                    return report_unsupported(self.context.gcx, span, "storage array conversion");
                 };
                 let len = u64::try_from(len).ok()?;
                 let source_len = u64::try_from(source_len).ok()?;
@@ -831,19 +877,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             solar_sema::ty::TyKind::DynArray(element) => {
                 self.store_dynamic_storage_object(element, source_ty, slot, object, span)
             }
-            _ => report_unsupported(self.gcx, span, "storage object copy"),
+            _ => report_unsupported(self.context.gcx, span, "storage object copy"),
         }
     }
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> Option<ValueId> {
-        if !self.share_storage_bytes {
+        if !self.context.share_storage_bytes {
             return Some(lower_storage_bytes_inline(&mut self.builder, slot));
         }
-        let helper = match *self.storage_bytes_helper {
+        let helper = match *self.context.storage_bytes_helper {
             Some(helper) => helper,
             None => {
-                let helper = synthesize_storage_bytes_helper(self.module);
-                *self.storage_bytes_helper = Some(helper);
+                let helper = synthesize_storage_bytes_helper(self.context.module);
+                *self.context.storage_bytes_helper = Some(helper);
                 helper
             }
         };
@@ -984,11 +1030,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first_word: ValueId,
         words: ValueId,
     ) {
-        let helper = match *self.storage_clear_helper {
+        let helper = match *self.context.storage_clear_helper {
             Some(helper) => helper,
             None => {
-                let helper = synthesize_storage_clear_helper(self.module);
-                *self.storage_clear_helper = Some(helper);
+                let helper = synthesize_storage_clear_helper(self.context.module);
+                *self.context.storage_clear_helper = Some(helper);
                 helper
             }
         };
@@ -1061,7 +1107,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let source_len = self.builder.imm_u64(u64::try_from(source_len).ok()?);
                 (source_element, source_len)
             }
-            _ => return report_unsupported(self.gcx, span, "storage array conversion"),
+            _ => return report_unsupported(self.context.gcx, span, "storage array conversion"),
         };
 
         let old_length = self.builder.sload(slot);
@@ -1170,9 +1216,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.switch_to_block(exit);
             }
             TyKind::Struct(struct_id) => {
-                for (index, &field) in self.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
-                    let field_ty = self.gcx.type_of_item(field.into());
-                    let location = self.storage.field_location(struct_id, index)?;
+                for (index, &field) in
+                    self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
+                {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
+                    let location = self.context.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(access.slot, location.slot);
                     self.clear_storage_access(
                         field_ty,
@@ -1191,7 +1239,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => {
                 if let Some(offset) = access.offset {
-                    self.storage.store_packed_at_slot(
+                    self.context.storage.store_packed_at_slot(
                         &mut self.builder,
                         access.location,
                         access.slot,
@@ -1199,7 +1247,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         zero,
                     );
                 } else {
-                    self.storage.store_at_slot(
+                    self.context.storage.store_at_slot(
                         &mut self.builder,
                         access.location,
                         access.slot,
