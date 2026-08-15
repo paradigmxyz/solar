@@ -56,3 +56,4 @@ fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi
     v0 = shr 96, arg0
     ret v0
 }
+

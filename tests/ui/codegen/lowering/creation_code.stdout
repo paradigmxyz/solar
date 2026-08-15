@@ -17,3 +17,4 @@ fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_args=lazy, abi
     memory_object_store_word memorybytes, v0, 96, 0x5f8060685f395ff3000000000000000000000000000000000000000000000000
     ret v0
 }
+
