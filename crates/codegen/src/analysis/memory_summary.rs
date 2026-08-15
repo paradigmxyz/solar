@@ -230,7 +230,15 @@ fn local_summary(
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            if matches!(kind, InstKind::InternalCall { .. }) {
+            if let InstKind::InternalCall { returns, .. } = kind {
+                // Callee effects merge through the call graph, but a multi-result
+                // call also writes the caller-side multi-return buffer during
+                // backend lowering. That traffic exists in no MIR body, so it
+                // must be a local memory effect of the calling function.
+                if *returns > 1 {
+                    summary.reads |= 1 << space_index(AddressSpace::Memory);
+                    summary.writes |= 1 << space_index(AddressSpace::Memory);
+                }
                 continue;
             }
             let effects = aa.instruction_mod_ref(func, inst_id);

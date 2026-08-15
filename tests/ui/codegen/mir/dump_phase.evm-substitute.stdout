@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

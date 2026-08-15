@@ -424,13 +424,25 @@ fn prune_unused_returns(module: &mut Module) -> usize {
                 }
             }
             for block in &caller.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && candidates.contains(*function)
-                    && !live.contains(*function)
-                    && live.contains(caller_id)
-                {
-                    live.insert(*function);
-                    changed = true;
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    if candidates.contains(*function)
+                        && !live.contains(*function)
+                        && live.contains(caller_id)
+                    {
+                        live.insert(*function);
+                        changed = true;
+                    }
+                    // The reverse direction: a candidate tail-caller cannot drop its
+                    // return contract while the callee still delivers a result, or the
+                    // rewritten call sites would disagree with the value the tail
+                    // callee leaves behind.
+                    if live.contains(*function)
+                        && candidates.contains(caller_id)
+                        && !live.contains(caller_id)
+                    {
+                        live.insert(caller_id);
+                        changed = true;
+                    }
                 }
             }
         }

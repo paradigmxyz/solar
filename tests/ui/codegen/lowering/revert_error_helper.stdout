@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 192
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -21,8 +18,10 @@ bb0:
   sub
   push bb4
   jumpi
+  push 192
+  dup1
   push 64
-  mload
+  mstore
   dup1
   push 128
   mstore
@@ -75,8 +74,10 @@ bb4 [cold]:
   dup1
   revert
 bb6:
+  push 192
+  dup1
   push 64
-  mload
+  mstore
   dup1
   push 128
   mstore
@@ -110,9 +111,6 @@ bb6:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
-  push 224
-  push 64
-  mstore
   callvalue
   push bb12
   jumpi
@@ -164,6 +162,9 @@ bb6:
   jumpi
   jump bb12
 bb13:
+  push 224
+  push 64
+  mstore
   calldatasize
   push 36
   gt
@@ -186,6 +187,9 @@ bb37:
   push 128
   return
 bb18:
+  push 160
+  push 64
+  mstore
   calldatasize
   push 36
   gt
@@ -199,6 +203,9 @@ bb18:
   push bb21
   jump bb37
 bb23:
+  push 224
+  push 64
+  mstore
   calldatasize
   push 36
   gt
@@ -212,6 +219,9 @@ bb23:
   push bb26
   jump bb37
 bb28:
+  push 224
+  push 64
+  mstore
   calldatasize
   push 36
   gt
@@ -225,6 +235,9 @@ bb28:
   push bb31
   jump bb37
 bb33:
+  push 160
+  push 64
+  mstore
   calldatasize
   push 36
   gt

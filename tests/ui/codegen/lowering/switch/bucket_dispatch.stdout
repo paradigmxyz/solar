@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/bucket_dispatch.sol:SwitchBucketDispatch (runtime) ===
 @module runtime
 bb0:
-  push 128
-  push 64
-  mstore
   callvalue
   push bb58
   jumpi

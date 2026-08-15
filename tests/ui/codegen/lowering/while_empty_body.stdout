@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 43
+  push 38
   dup1
   push 9
   push 0
@@ -13,9 +13,6 @@ bb0:
 // === runtime ===
 @module runtime
 bb0:
-  push 128
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 224
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -104,9 +101,6 @@ bb4:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 352
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -137,6 +131,9 @@ bb13 [cold]:
   push 0
   revert
 bb4:
+  push 352
+  push 64
+  mstore
   calldatasize
   push 68
   gt

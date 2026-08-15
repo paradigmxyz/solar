@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
 @module runtime
 bb0:
-  push 320
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi

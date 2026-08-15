@@ -1,0 +1,45 @@
+//@ compile-flags: -Zmir-pipeline=dead-arg-elim -Osize
+//@ filecheck:
+@module TailCallReturnContract
+
+// A discarded tail-caller must keep its return contract while its tail callee
+// still delivers a result: clearing only the caller side would leave its call
+// sites adopting a phantom value from the callee's intact return protocol.
+
+// CHECK-LABEL: fn @keep() -> u256
+// CHECK: ret v0
+fn @keep() -> u256 {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}
+
+// The display hides return types on tail-call-only bodies; the retained
+// one-result call site in `@entry` is the contract assertion.
+// CHECK-LABEL: fn @forward()
+// CHECK: tail_call @keep
+fn @forward() -> u256 {
+  bb0:
+    tail_call fn0
+}
+
+// The stored result is a material use that keeps `@keep`'s return live.
+// CHECK-LABEL: fn @user()
+// CHECK: v0 = internal_call @keep, 1
+// CHECK: mstore 0, v0
+fn @user() -> u256 {
+  bb0:
+    v0 = internal_call fn0, 1
+    mstore 0, v0
+    ret 7
+}
+
+// CHECK-LABEL: fn @entry()
+// CHECK: v0 = internal_call @forward, 1
+// CHECK: internal_call @user, 0
+fn @entry() [selector=0x01020304] {
+  bb0:
+    v0 = internal_call fn1, 1
+    v1 = internal_call fn2, 1
+    ret
+}

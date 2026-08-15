@@ -1854,6 +1854,7 @@ impl InstKind {
             | Self::MSize
             | Self::Keccak256(_, _)
             | Self::Keccak256Bytes(_)
+            | Self::MappingSlot(_, _)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {
@@ -1906,7 +1907,6 @@ impl InstKind {
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
-            | Self::MappingSlot(_, _)
             | Self::StorageArrayDataSlot(_)
             | Self::StorageArrayElementSlot { .. }
             | Self::Sub(_, _)

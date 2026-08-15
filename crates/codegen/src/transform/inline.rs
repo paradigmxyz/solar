@@ -532,8 +532,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         block_count: func.blocks.len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
-        is_entry_point: func.is_public()
-            || func.attributes.is_fallback
+        is_entry_point: func.attributes.is_fallback
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
@@ -925,6 +924,12 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
                     specialized += 1;
                 }
             } else if dispatcher.instructions().take(4097).count() <= 4096
+                // Constructors resolve cloned `InternalFrameAddr` offsets through the
+                // uninitialized internal-frame pointer, so a framed dispatcher must never
+                // be inlined into one. Dispatchers are frameless by construction today;
+                // this mirrors `framed_constructor_call` in case that ever changes.
+                && !(dispatcher.internal_frame_size != 0
+                    && module.function(caller).attributes.is_constructor)
                 && inline_call(module.function_mut(caller), block, inst_index, &dispatcher)
             {
                 specialized += 1;

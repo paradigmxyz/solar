@@ -25,3 +25,15 @@
       ret
   }
   
+  fn @mapping_slot() -> bytes32 {
+    bb0:
+      v0 = mapping_slot 1, 2
+      ret v0
+  }
+  
+  fn @mapping_entry() [selector=0x090a0b0c] {
+    bb0:
+      v0 = internal_call @mapping_slot, 1
+      ret
+  }
+  

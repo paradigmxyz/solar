@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
 bb0:
-  push 192
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

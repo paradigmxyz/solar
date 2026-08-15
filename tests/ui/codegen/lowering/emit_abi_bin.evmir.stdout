@@ -35,11 +35,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 100
+  push 95
   codesize
   sub
   dup1
-  push 100
+  push 95
   push 192
   codecopy
   push 192
@@ -53,7 +53,7 @@ bb0:
   mstore
   push 192
   dup1
-  push 100
+  push 95
   codesize
   sub
   add
@@ -72,7 +72,7 @@ bb0:
   mload
   push 0
   sstore
-  push 38
+  push 33
   dup1
   push 62
   push 0
@@ -87,9 +87,6 @@ bb2 [cold]:
 // === runtime ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -116,9 +113,6 @@ bb3 [cold]:
 // === ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

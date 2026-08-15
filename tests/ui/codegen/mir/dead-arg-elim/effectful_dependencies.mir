@@ -37,3 +37,22 @@ fn @argument_entry() [selector=0x05060708] {
     internal_call fn2, 0, v0
     ret
 }
+
+// Mapping slots expand to scratch-memory writes and a hash after dead-argument elimination. Keep
+// that dependency slice when its returned value is discarded so a later `msize` remains stable.
+// CHECK-LABEL: fn @mapping_slot() -> bytes32
+// CHECK: v0 = mapping_slot 1, 2
+// CHECK-NEXT: ret v0
+fn @mapping_slot() -> bytes32 {
+  bb0:
+    v0 = mapping_slot 1, 2
+    ret v0
+}
+
+// CHECK-LABEL: fn @mapping_entry()
+// CHECK: v0 = internal_call @mapping_slot, 1
+fn @mapping_entry() [selector=0x090a0b0c] {
+  bb0:
+    v0 = internal_call fn4, 1
+    ret
+}

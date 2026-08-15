@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 544
-  push 64
-  mstore
   callvalue
   push bb6
   jumpi
@@ -61,6 +58,9 @@ bb52:
   push 128
   return
 bb8:
+  push 384
+  push 64
+  mstore
   calldatasize
   dup1
   push 160
@@ -201,6 +201,9 @@ bb51 [cold]:
   push 17
   jump bb53
 bb23:
+  push 320
+  push 64
+  mstore
   calldatasize
   dup1
   push 160
@@ -256,6 +259,9 @@ bb23:
   push bb56
   jump bb54
 bb31:
+  push 544
+  push 64
+  mstore
   calldatasize
   dup1
   push 192

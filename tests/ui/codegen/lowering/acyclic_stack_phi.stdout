@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
 @module runtime
 bb0:
-  push 544
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -34,6 +31,9 @@ bb21 [cold]:
   push 0
   revert
 bb4:
+  push 544
+  push 64
+  mstore
   calldatasize
   dup1
   push 160
@@ -84,32 +84,25 @@ bb4:
   lt
   push bb3
   jumpi
+  push bb8
   push 192
   mload
-  push 288
-  mstore
   push 160
   mload
-  push 320
-  mstore
-  push bb8
   push 4
-  push 320
-  mload
+  dup2
   gt
   iszero
   push bb16
   jumpi
   push 4
-  push 320
-  mload
+  swap1
   sub
   dup1
   push 352
   mstore
+  swap1
   push 4
-  push 288
-  mload
   add
   push 384
   mstore
@@ -184,8 +177,6 @@ bb4:
   push 352
   mload
   push 384
-  jump bb22
-bb22:
   mload
   dup3
   calldatacopy
@@ -204,18 +195,15 @@ bb8:
   return
 bb16:
   calldatasize
-  push 320
-  mload
+  dup2
   swap1
   sub
-  push 288
-  mload
+  dup3
   sgt
   push bb3
   jumpi
   push 31
-  push 320
-  mload
+  dup2
   add
   push 5
   shr
@@ -254,14 +242,19 @@ bb16:
   add
   push 64
   mstore
-  push 320
-  mload
+  dup2
   dup2
   mstore
   push 32
   dup2
   add
-  push 320
-  mload
-  push 288
-  jump bb22
+  dup3
+  dup5
+  dup3
+  calldatacopy
+  pop
+  swap2
+  pop
+  pop
+  swap1
+  jump

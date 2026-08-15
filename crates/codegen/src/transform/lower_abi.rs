@@ -1231,6 +1231,7 @@ impl LowerAbiCx {
         if !Self::lower_bytes_fallback_returns(&mut body) {
             return false;
         }
+        body.returns.clear();
         let body_id = module.add_function(body);
 
         let mut wrapper = Function::new(Ident::with_dummy_span(original.name.symbol));
