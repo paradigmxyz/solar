@@ -863,6 +863,10 @@ pub(crate) enum InstKind {
     /// Address inside the current internal-call frame.
     InternalFrameAddr(u64),
     /// Load a mutable local through its logical frame slot.
+    ///
+    /// A plain memory read: deletable when its result is dead. Ordering
+    /// against frame stores, calls, and other frame traffic is carried by
+    /// effect kinds and the alias model's `frame_location`.
     FrameLoad {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -1772,7 +1776,6 @@ impl InstKind {
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
-            | Self::FrameLoad { .. }
             | Self::SetFmp(_)
             | Self::Alloc { .. }
             | Self::SetMemoryObjectLen(_, _, _)
