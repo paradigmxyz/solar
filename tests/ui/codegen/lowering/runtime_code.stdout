@@ -16,4 +16,3 @@ fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_args=lazy, abi_params=[], 
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
-

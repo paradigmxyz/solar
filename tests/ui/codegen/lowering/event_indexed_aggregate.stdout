@@ -90,4 +90,3 @@ fn @emitDynamicArray(arg0: memoryarray) [selector=0xf38510d4, abi_args=lazy, abi
     v29 = add v18, 1
     jump bb9
 }
-
