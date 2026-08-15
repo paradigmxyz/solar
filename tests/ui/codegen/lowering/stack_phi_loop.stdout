@@ -332,10 +332,10 @@ bb40:
   push 224
   mstore
   dup4
-  push 288
+  push 256
   mstore
   dup5
-  push 320
+  push 288
   mstore
   swap4
   pop
@@ -347,31 +347,31 @@ bb40:
   jumpi
   push 224
   mload
-  push 320
+  push 288
   mload
   lt
   push bb46
   jumpi
-  push 320
-  mload
   push 288
+  mload
+  push 256
   mload
   lt
   push bb46
   jumpi
   push 128
   mload
-  push 288
+  push 256
   mload
   dup2
   add
   dup1
-  push 256
+  push 320
   mstore
   lt
   push bb46
   jumpi
-  push 256
+  push 320
   mload
   push 128
   mstore
@@ -380,11 +380,11 @@ bb40:
   mload
   add
   push 1
-  push 288
+  push 256
   mload
   add
   push 1
-  push 320
+  push 288
   mload
   add
   push 224

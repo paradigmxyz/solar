@@ -109,6 +109,8 @@ pub struct Module {
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
+    /// Whether HIR lowering proved that specialized memory operand planning is safe.
+    pub(crate) memory_operand_planning_safe: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
 }
@@ -133,6 +135,9 @@ impl Module {
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
             is_interface: false,
+            // Textual/constructed MIR has no HIR provenance certificate. Only Solidity lowering
+            // may enable this after scanning the complete contract.
+            memory_operand_planning_safe: false,
             phase: MirPhase::Built,
         }
     }

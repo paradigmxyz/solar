@@ -165,6 +165,7 @@ impl<'gcx> Lowerer<'gcx> {
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
             StmtKind::AssemblyBlock(block) => {
+                self.module.memory_operand_planning_safe = false;
                 self.lower_block(builder, block);
             }
 

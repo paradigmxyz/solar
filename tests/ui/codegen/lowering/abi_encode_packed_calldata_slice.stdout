@@ -36,7 +36,7 @@ bb20 [cold]:
   push 0
   revert
 bb5:
-  push 384
+  push 352
   push 64
   mstore
   calldatasize
@@ -84,7 +84,7 @@ bb5:
   swap2
   sub
   dup1
-  push 192
+  push 224
   mstore
   swap1
   push 160
@@ -96,7 +96,7 @@ bb5:
   dup2
   add
   dup1
-  push 224
+  push 192
   mstore
   dup2
   gt
@@ -104,12 +104,9 @@ bb5:
   pop
   push bb20
   jumpi
-  push bb23
-  jump bb22
-bb22:
   push 31
   not
-  push 224
+  push 192
   mload
   and
   dup1
@@ -124,7 +121,7 @@ bb22:
   pop
   add
   dup1
-  push 224
+  push 192
   mstore
   push 32
   dup2
@@ -133,10 +130,68 @@ bb22:
   push 256
   mstore
   lt
+  push bb20
+  jumpi
+  push 64
+  mload
+  dup1
+  push 288
+  mstore
+  push 256
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 224
+  mload
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 32
+  push 192
+  mload
+  sub
+  dup2
+  add
+  push 0
   swap1
-  jump
+  mstore
+  push 224
+  mload
+  push 160
+  mload
+  dup3
+  calldatacopy
+  push 64
+  mload
+  dup1
+  push 320
+  mstore
+  swap2
+  mload
+  dup1
+  swap2
+  dup4
+  mcopy
+  dup2
+  jump bb21
+bb21:
+  add
+  dup2
+  swap1
+  sub
+  swap1
+  keccak256
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb13:
-  push 384
+  push 352
   push 64
   mstore
   calldatasize
@@ -193,84 +248,38 @@ bb13:
   pop
   push bb20
   jumpi
-  push bb24
-  jump bb22
-bb23:
-  push bb20
-  jumpi
-  push 64
-  mload
-  dup1
-  push 352
-  mstore
-  push 256
-  mload
-  dup2
-  add
-  push 64
-  mstore
-  push 192
-  mload
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 32
+  push 31
+  not
   push 224
   mload
-  sub
-  dup2
-  add
-  push 0
+  and
+  dup1
+  iszero
+  push 32
   swap1
-  mstore
-  push 192
-  mload
-  push 160
-  mload
   dup3
-  calldatacopy
-  push 64
-  mload
-  dup1
-  push 288
-  mstore
-  swap2
-  mload
-  dup1
-  push 320
-  mstore
-  dup2
-  dup4
-  dup1
-  push 288
-  mstore
-  mcopy
+  dup3
+  sub
+  mul
+  swap1
   pop
-  push 320
-  mload
-  dup2
-  jump bb21
-bb21:
   add
-  dup2
-  swap1
-  sub
-  swap1
-  keccak256
-  push 128
+  dup1
+  push 224
   mstore
   push 32
-  push 128
-  return
-bb24:
+  dup2
+  add
+  dup1
+  push 256
+  mstore
+  lt
   push bb20
   jumpi
   push 64
   mload
   dup1
-  push 320
+  push 288
   mstore
   push 256
   mload
@@ -303,7 +312,7 @@ bb24:
   push 64
   mload
   dup1
-  push 352
+  push 320
   mstore
   push 112
   push 248
@@ -316,16 +325,10 @@ bb24:
   swap3
   mload
   dup1
-  push 288
-  mstore
-  dup3
+  swap3
   dup5
   mcopy
-  swap1
-  pop
-  swap1
-  push 288
-  mload
+  swap2
   add
   push 1
   dup2

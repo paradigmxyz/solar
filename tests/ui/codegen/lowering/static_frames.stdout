@@ -213,7 +213,7 @@ bb10:
   add
   mload
   dup1
-  push 320
+  push 288
   mstore
   push 160
   mload
@@ -226,7 +226,7 @@ bb10:
   mload
   push 160
   mstore
-  push 320
+  push 288
   mstore
   push 5
   push 4
@@ -296,9 +296,6 @@ bb60:
   lt
   push bb70
   jumpi
-  dup1
-  push 416
-  mstore
   push 0
   sstore
   push 97
@@ -314,7 +311,7 @@ bb11:
   add
   mload
   dup1
-  push 352
+  push 320
   mstore
   push 160
   mload
@@ -327,7 +324,7 @@ bb11:
   mload
   push 160
   mstore
-  push 352
+  push 320
   mstore
   push 0
   sload
@@ -336,12 +333,12 @@ bb11:
   dup2
   add
   dup1
-  push 288
+  push 352
   mstore
   lt
   push bb70
   jumpi
-  push 288
+  push 352
   mload
   push 0
   sstore
@@ -358,7 +355,7 @@ bb11:
   gt
   push bb70
   jumpi
-  push 320
+  push 288
   mload
   push 224
   mload
@@ -371,7 +368,7 @@ bb11:
   gt
   push bb70
   jumpi
-  push 352
+  push 320
   mload
   push 256
   mload

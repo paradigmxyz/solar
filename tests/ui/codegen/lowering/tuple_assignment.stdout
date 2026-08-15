@@ -144,10 +144,9 @@ bb6:
   add
   push 192
   mload
-  dup2
-  dup4
+  swap1
+  dup3
   calldatacopy
-  pop
   swap1
   mload
   gas

@@ -1042,6 +1042,8 @@ pub struct EvmCodegen<'gcx> {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
+    /// Whether source provenance permits memory store/copy operand planning.
+    memory_operand_planning_safe: bool,
     /// Whether we're emitting the MIR `entry` function. Its switch
     /// keeps the selector on the physical stack through the case chain and
     /// leaves it inert below the taken arm. This is only sound for `entry`: it
@@ -1102,6 +1104,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_exit: None,
             constructor_param_count: 0,
             in_internal_function: false,
+            memory_operand_planning_safe: false,
             emitting_entry: false,
             switch_gas_code_growth_remaining,
             capture_mir: false,
@@ -1361,6 +1364,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             return EvmArtifact::default();
         }
+        self.memory_operand_planning_safe = module.memory_operand_planning_safe;
         self.immutable_staging_base = immutable_staging_base(module);
         self.immutable_encodings.clear();
         for (id, immutable) in module.iter_immutables() {
@@ -7496,9 +7500,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Plans operand preparation for operations whose inputs remain valid while
-    /// they are rearranged. Memory-mutating stores/copies and calls keep their
-    /// freshness-aware emitters until the stack model represents value epochs.
+    /// Plans operand preparation for operations whose inputs remain valid while they are
+    /// rearranged. Memory-mutating operations use this only when HIR lowering certified that
+    /// inline assembly cannot invalidate compiler-managed memory; calls retain their
+    /// freshness-aware emitters.
     fn plan_operands(
         &self,
         func: &Function,
@@ -8167,8 +8172,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
-        if !self.gcx.sess.opts.unstable.evm_no_specialized_storage_operand_plans
-            && !matches!(opcode, op::MSTORE | op::MSTORE8)
+        if (!matches!(opcode, op::MSTORE | op::MSTORE8) || self.memory_operand_planning_safe)
             && let Some(plan) = self.plan_operands(func, &[val, addr], liveness, block, inst_idx)
         {
             self.emit_operand_plan(func, plan);
@@ -8241,6 +8245,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+
+        // Under `-Osize`, retaining a live value that cannot be rematerialized can extend its
+        // physical lifetime enough to cost more bytecode than the freshness-aware fallback.
+        let retains_nonrematerializable =
+            matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size)
+                && operands.iter().any(|&value| {
+                    !liveness.is_dead_after(value, block, inst_idx)
+                        && !Self::is_rematerializable_value(func, value)
+                });
+        if self.memory_operand_planning_safe
+            && !retains_nonrematerializable
+            && let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx)
+        {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(operands.len(), None);
+            return;
+        }
 
         for (i, &op) in operands.iter().enumerate() {
             if i == 0 {
