@@ -20,7 +20,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | AbiType::FixedArray { .. }
             | AbiType::Tuple(_) => false,
             AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
-                !matches!(element.as_ref(), AbiType::Word | AbiType::Function)
+                !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
             }
             _ => false,
         }
@@ -135,6 +135,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         abi_type: &AbiType,
     ) {
+        if self.is_external_abi_argument(value) {
+            return;
+        }
         if !matches!(
             self.builder.func().value_ty(value),
             Some(MirType::Slice(SliceLocation::Calldata))
@@ -153,6 +156,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn validate_calldata_bytes_argument(&mut self, value: ValueId, abi_type: &AbiType) {
+        if self.is_external_abi_argument(value) {
+            return;
+        }
         if matches!(
             (self.builder.func().value_ty(value), abi_type),
             (
@@ -162,6 +168,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             self.validate_calldata_bytes_slice(value);
         }
+    }
+
+    fn is_external_abi_argument(&self, value: ValueId) -> bool {
+        self.builder.func().abi_args_lazy
+            && self.builder.func().selector.is_some()
+            && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {

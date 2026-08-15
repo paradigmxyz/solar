@@ -15,15 +15,10 @@ interface StructSink {
 }
 
 contract NestedCalldataForward {
-    // A calldata array of reference elements re-encodes through a memory
-    // rebuild: each element materializes as a memory pointer, and the encode
-    // layout keeps the dynamic element type instead of collapsing it to one
-    // word.
+    // A calldata array of bytes stays in calldata while the encoder walks its
+    // offsets and copies each element into the outgoing ABI payload.
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: set_memory_object_len memoryarray
-    // CHECK-DAG: set_memory_object_len memorybytes
-    // CHECK-DAG: abi_encode [memory_array<memory_bytes>]
-    // CHECK: memory_object_store_element memoryarray
+    // CHECK: abi_encode [calldata_array<memory_bytes>]
     function forward(bytes[] calldata data, BytesSink sink) external {
         sink.consume(data);
     }
