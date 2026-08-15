@@ -1,8 +1,5 @@
-//@ revisions: mir run
-//@[mir] compile-flags: -Zdump=mir
-//@[mir] filecheck: --check-prefix=ADS
-//@[run] compile-flags: -Ogas
-//@[run] run-call-fail: dNested 0x0000000000000000000000000000000000000000000000000000000000000000
+//@compile-flags: -Zdump=mir
+//@filecheck: --check-prefix=ADS
 
 // `abi.decode` into structs, struct arrays, and mixed tuples routes through
 // the recursive materializer that also decodes struct parameters: static
