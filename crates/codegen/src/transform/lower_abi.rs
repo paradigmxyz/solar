@@ -174,13 +174,32 @@ impl AbiWordValidator {
                 builder.iszero(zero)
             }
             Self::EnumRange(variants) => {
-                let variants = variants.max(1);
-                let bits = (u64::BITS - (variants - 1).leading_zeros()).max(1);
-                let mask = U256::MAX >> bits as usize;
+                let mask = enum_cleanup_mask(variants);
                 let mask = builder.imm_u256(mask);
                 builder.and(word, mask)
             }
         }
+    }
+}
+
+/// Returns the mask keeping the low `bits` bits needed to represent `variants` distinct enum
+/// values, where `bits = ceil(log2(variants))` and at least 1.
+fn enum_cleanup_mask(variants: u64) -> U256 {
+    let bits = (u64::BITS - (variants.max(1) - 1).leading_zeros()).max(1);
+    U256::MAX >> (256 - bits as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enum_cleanup_mask;
+    use alloy_primitives::U256;
+
+    #[test]
+    fn enum_cleanup_mask_masks_low_bits() {
+        assert_eq!(enum_cleanup_mask(1), U256::from(0b1));
+        assert_eq!(enum_cleanup_mask(2), U256::from(0b1));
+        assert_eq!(enum_cleanup_mask(3), U256::from(0b11));
+        assert_eq!(enum_cleanup_mask(256), U256::from(0xff));
     }
 }
 
