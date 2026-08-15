@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 384
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -39,6 +36,9 @@ bb19 [cold]:
   push 0
   revert
 bb5:
+  push 384
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -107,6 +107,9 @@ bb21:
   swap1
   jump
 bb12:
+  push 384
+  push 64
+  mstore
   calldatasize
   push 4
   swap1

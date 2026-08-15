@@ -1902,6 +1902,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         default: BlockId,
         cases: &[(ValueId, BlockId)],
         fallthrough: Option<BlockId>,
+        preserve_stack: bool,
     ) {
         let constant_entries = self.constant_switch_entries(func, cases);
         let plan = constant_entries.as_ref().map_or(
@@ -1942,7 +1943,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         let plan = plan.plan;
         let constant_entries = constant_entries.map(|(_, entries)| entries);
 
-        if self.emitting_entry {
+        if preserve_stack {
+            debug_assert_eq!(self.scheduler.stack.top(), Some(value));
+        } else if self.emitting_entry {
             // The entry's just-computed selector stays on the stack
             // through the case chain — no spill, clear, and reload —
             // and is left inert below the taken arm instead of paying
@@ -1959,8 +1962,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             operands.extend(cases.iter().map(|(case_val, _)| *case_val));
             self.spill_values_before_stack_clear(func, &operands);
 
-            self.pop_all_stack_values();
-            self.emit_value(func, value);
+            if self.scheduler.is_stack_only_value(value) {
+                // A stack-only scrutinee has no memory home to reload after
+                // the drain. Copy it to the top while it is still tracked and
+                // pop the rest from beneath, like the entry dispatch path.
+                self.emit_value(func, value);
+                while self.scheduler.depth() > 1 {
+                    self.emit_stack_op(StackOp::Swap(1));
+                    self.emit_stack_op(StackOp::Pop);
+                }
+            } else {
+                self.pop_all_stack_values();
+                self.emit_value(func, value);
+            }
         }
 
         match (plan, constant_entries) {

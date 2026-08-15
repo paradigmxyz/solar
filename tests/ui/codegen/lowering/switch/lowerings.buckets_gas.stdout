@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -131,11 +128,8 @@ bb2 [cold]:
   dup1
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
-PUSH1 0xa0
-PUSH1 0x40
-MSTORE
 CALLVALUE
-PUSH1 0xc9 ; bb19
+PUSH1 0xc4 ; bb19
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -148,7 +142,7 @@ SWAP1
 MOD
 PUSH1 0x03
 SHL
-PUSH9 0xb6a3907d6a57442d27
+PUSH9 0xb19e8b7865523f2822
 SWAP1
 SHR
 PUSH1 0xff
@@ -167,7 +161,7 @@ JUMPDEST
 DUP1
 PUSH1 0x40
 SUB
-PUSH1 0x3f ; bb4
+PUSH1 0x3a ; bb4
 JUMPI
 POP
 PUSH1 0x6b
@@ -181,119 +175,119 @@ RETURN
 ; bb4
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb5
 JUMPDEST
 DUP1
 PUSH1 0x38
 SUB
-PUSH1 0x52 ; bb6
+PUSH1 0x4d ; bb6
 JUMPI
 POP
 PUSH1 0x6a
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb6
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb7
 JUMPDEST
 DUP1
 PUSH1 0x30
 SUB
-PUSH1 0x65 ; bb8
+PUSH1 0x60 ; bb8
 JUMPI
 POP
 PUSH1 0x69
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb8
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb9
 JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x78 ; bb10
+PUSH1 0x73 ; bb10
 JUMPI
 POP
 PUSH1 0x68
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb10
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb11
 JUMPDEST
 DUP1
 PUSH1 0x20
 SUB
-PUSH1 0x8b ; bb12
+PUSH1 0x86 ; bb12
 JUMPI
 POP
 PUSH1 0x67
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb12
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb13
 JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x9e ; bb14
+PUSH1 0x99 ; bb14
 JUMPI
 POP
 PUSH1 0x66
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb14
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb15
 JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0xb1 ; bb16
+PUSH1 0xac ; bb16
 JUMPI
 POP
 PUSH1 0x65
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb16
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb17
 JUMPDEST
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0xc4 ; bb18
+PUSH1 0xbf ; bb18
 JUMPI
 POP
 PUSH1 0x64
-PUSH1 0x38 ; bb3
+PUSH1 0x33 ; bb3
 JUMP
 ; bb18
 JUMPDEST
 POP
-PUSH1 0x29 ; bb1
+PUSH1 0x24 ; bb1
 JUMP
 ; bb19
 JUMPDEST
