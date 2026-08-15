@@ -1,8 +1,8 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
-    MirType,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Disambiguator, Function,
+    FunctionId, ImmutableId, MangledSymbol, MirType,
 };
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
@@ -103,6 +103,8 @@ pub struct Module {
     pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
+    /// Canonical ABI input layouts referenced by decode instructions.
+    pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Whether this is an interface (no bytecode generation).
@@ -128,6 +130,7 @@ impl Module {
             functions: IndexVec::new(),
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
+            abi_param_layouts: Vec::new(),
             immutables: IndexVec::new(),
             is_interface: false,
             phase: MirPhase::Built,
@@ -186,6 +189,18 @@ impl Module {
         }
         let layout = Arc::new(layout);
         self.abi_layouts.push(Arc::clone(&layout));
+        layout
+    }
+
+    /// Interns an ABI input layout and returns its canonical shared reference.
+    pub(crate) fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
+        if let Some(existing) =
+            self.abi_param_layouts.iter().find(|existing| existing.as_ref() == &layout)
+        {
+            return Arc::clone(existing);
+        }
+        let layout = Arc::new(layout);
+        self.abi_param_layouts.push(Arc::clone(&layout));
         layout
     }
 

@@ -697,7 +697,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Decodes a memory-backed ABI tuple into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
-        layout: crate::mir::AbiParamLayout,
+        layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
     ) -> ValueId {
         let result_ty = layout
@@ -705,7 +705,7 @@ impl<'a> FunctionBuilder<'a> {
             .first()
             .map(crate::mir::AbiParamType::mir_type)
             .expect("ABI decode requires at least one result");
-        self.emit_inst(InstKind::AbiDecode { data, layout: Box::new(layout) }, Some(result_ty))
+        self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
     /// Emits an mcopy instruction.

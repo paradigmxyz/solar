@@ -12,8 +12,8 @@ pub(crate) use types::{
 
 mod abi;
 pub(crate) use abi::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType,
-    AbiWordValidator,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
+    AbiType, AbiWordValidator,
 };
 
 mod storage;

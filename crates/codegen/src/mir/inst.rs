@@ -1,7 +1,7 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, AbiParamLayout, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
+    AbiLayoutRef, AbiParamLayoutRef, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
     ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
     Value, ValueId,
 };
@@ -786,8 +786,8 @@ pub(crate) enum InstKind {
     AbiDecode {
         /// ABI-encoded bytes object.
         data: ValueId,
-        /// ABI input layout, including scalar validation types.
-        layout: Box<AbiParamLayout>,
+        /// Interned ABI input layout, including scalar validation types.
+        layout: AbiParamLayoutRef,
     },
     /// Copy a statically shaped aggregate from storage into an existing memory allocation.
     StorageToMemory {

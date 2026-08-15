@@ -64,6 +64,9 @@ impl AbiParamLayout {
     }
 }
 
+/// Shared reference returned by the module ABI input-layout interner.
+pub(crate) type AbiParamLayoutRef = Arc<AbiParamLayout>;
+
 /// Source data location of an ABI parameter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AbiParamLocation {
