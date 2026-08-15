@@ -497,15 +497,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 topics.push(self.builder.keccak256_bytes(packed));
                                 continue;
                             }
-                            self.context
-                                .gcx
-                                .dcx()
-                                .err(
-                                    "codegen does not support indexed event aggregate encoding yet",
-                                )
-                                .span(argument.span)
-                                .emit();
-                            return Some(());
+                            return report_unsupported(
+                                self.context.gcx,
+                                argument.span,
+                                "indexed event aggregate encoding",
+                            );
                         }
                         let layout = Arc::new(AbiLayout::new(vec![abi_type].into_boxed_slice()));
                         let encoded = self.builder.abi_encode(layout, None, [value]);
