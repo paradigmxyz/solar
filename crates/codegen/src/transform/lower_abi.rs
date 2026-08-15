@@ -605,6 +605,58 @@ impl LowerAbiCx {
         }
     }
 
+    fn can_share_aggregate_helper(func: &Function, layout: &AbiParamLayout) -> bool {
+        Self::can_share_aggregate_args(layout, &func.params.iter().copied().collect::<Vec<_>>())
+    }
+
+    fn can_share_aggregate_args(layout: &AbiParamLayout, arg_types: &[MirType]) -> bool {
+        layout.types.iter().enumerate().all(|(index, ty)| {
+            !Self::is_supported_aggregate(ty)
+                || matches!(arg_types.get(index), Some(MirType::MemoryObject(_)))
+        }) && layout.types.iter().any(Self::is_supported_aggregate)
+    }
+
+    fn synthesize_calldata_aggregate_helper(
+        &self,
+        module: &mut Module,
+        layout: AbiParamLayout,
+    ) -> FunctionId {
+        let name = format!("__decode_calldata_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let input = builder.add_param(MirType::Slice(SliceLocation::Calldata));
+            let base = builder.slice_ptr(input);
+            let input_end = builder.calldatasize();
+            let mut current = builder.current_block();
+            let mut values = Vec::new();
+            let mut head_offset = 0_u64;
+            for ty in &layout.types {
+                if Self::is_supported_aggregate(ty) {
+                    let offset = builder.imm_u64(head_offset);
+                    let head = builder.add(base, offset);
+                    let value = Self::decode_aggregate_argument(
+                        &mut builder,
+                        ty,
+                        ty.mir_type(),
+                        head,
+                        base,
+                        input_end,
+                        false,
+                        &mut current,
+                        true,
+                        false,
+                    );
+                    builder.add_return(ty.mir_type());
+                    values.push(value);
+                }
+                head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
+            }
+            builder.ret(values);
+        }
+        module.add_function(function)
+    }
+
     fn synthesize_calldata_aggregate_type_helper(
         &self,
         module: &mut Module,
@@ -817,7 +869,9 @@ impl LowerAbiCx {
                 &mut valid,
                 has_bitwise_shifting,
             );
-            offset = offset.saturating_add(ty.head_size());
+            offset = offset.saturating_add(
+                ty.checked_head_size().expect("ABI head size exceeds u64 range"),
+            );
         }
 
         let invalid = builder.iszero(valid);
@@ -863,7 +917,9 @@ impl LowerAbiCx {
                         valid,
                         has_bitwise_shifting,
                     );
-                    offset = offset.saturating_add(element.head_size());
+                    offset = offset.saturating_add(
+                        element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    );
                 }
             }
             AbiParamType::Tuple(fields) => {
@@ -878,7 +934,9 @@ impl LowerAbiCx {
                         valid,
                         has_bitwise_shifting,
                     );
-                    offset = offset.saturating_add(field.head_size());
+                    offset = offset.saturating_add(
+                        field.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    );
                 }
             }
             AbiParamType::Bytes | AbiParamType::DynamicArray(_) => {
@@ -924,7 +982,9 @@ impl LowerAbiCx {
         let Some(_) = fields.get(field_index) else { return false };
         let Some(offset) = fields[..field_index]
             .iter()
-            .try_fold(0_u64, |offset, field| offset.checked_add(field.head_size()))
+            .try_fold(0_u64, |offset, field| {
+                offset.checked_add(field.checked_head_size()?)
+            })
         else {
             return false;
         };
@@ -1335,7 +1395,7 @@ impl LowerAbiCx {
                     (!Self::is_supported_aggregate(ty))
                         .then(|| crate::mir::ArgIdx::new((head_offset / 32) as usize)),
                 );
-                head_offset += ty.head_size();
+                head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
             let preserve_word_types = abi_params.is_some_and(|layout| {
                 layout.types.len() == arg_types.len()
@@ -1382,8 +1442,9 @@ impl LowerAbiCx {
                 if constructor { builder.constructor_args_base() } else { builder.imm_u64(4) };
             let input_end =
                 if constructor { builder.constructor_args_end() } else { builder.calldatasize() };
-            let head_size =
-                abi_params.map_or((arg_types.len() as u64) * 32, AbiParamLayout::head_size);
+            let head_size = abi_params.map_or((arg_types.len() as u64) * 32, |layout| {
+                layout.checked_head_size().expect("ABI head size exceeds u64 range")
+            });
             let invalid = if constructor {
                 let head_size_value = builder.imm_u64(head_size);
                 let required = builder.add(input_base, head_size_value);
@@ -1413,9 +1474,10 @@ impl LowerAbiCx {
                             _ => None,
                         })
                         .or_else(|| AbiWordValidator::from_mir_type(ty));
-                    head_offset += abi_params
-                        .and_then(|layout| layout.types.get(index))
-                        .map_or(32, crate::mir::AbiParamType::head_size);
+                    head_offset +=
+                        abi_params.and_then(|layout| layout.types.get(index)).map_or(32, |ty| {
+                            ty.checked_head_size().expect("ABI head size exceeds u64 range")
+                        });
                     let Some(validator) = validator else { continue };
                     builder.switch_to_block(current);
                     // `Value::Arg` values carry the canonicality invariant that this
@@ -1441,15 +1503,18 @@ impl LowerAbiCx {
                     let arg_index = crate::mir::ArgIdx::new(index);
                     let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
                     if !Self::is_supported_aggregate(ty) {
-                        head_offset += ty.head_size();
+                        head_offset +=
+                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
                         continue;
                     }
                     let Some(arg_type) = arg_types.get(index).copied() else {
-                        head_offset += ty.head_size();
+                        head_offset +=
+                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
                         continue;
                     };
                     if !matches!(arg_type, MirType::MemoryObject(_) | MirType::Slice(_)) {
-                        head_offset += ty.head_size();
+                        head_offset +=
+                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
                         continue;
                     }
                     builder.switch_to_block(current);
@@ -1569,7 +1634,7 @@ impl LowerAbiCx {
                             replacements.insert(use_value, value);
                         }
                     }
-                    head_offset += ty.head_size();
+                    head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
             }
 
@@ -1751,18 +1816,23 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element) => {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
+                let element_head_size = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
                 let data = builder.add(base, word);
                 Self::checked_dynamic_array_bytes(
                     builder,
                     len,
                     data,
-                    element.head_size(),
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
                     current,
                 );
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
-                let head_size = len.saturating_mul(element.head_size());
+                let head_size = len.saturating_mul(
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                );
                 if !head_checked || ty.is_dynamic() {
                     Self::guard_source_range(
                         builder,
@@ -1775,8 +1845,11 @@ impl LowerAbiCx {
                 }
             }
             crate::mir::AbiParamType::Tuple(fields) => {
-                let head_size =
-                    fields.iter().fold(0_u64, |size, field| size.saturating_add(field.head_size()));
+                let head_size = fields.iter().fold(0_u64, |size, field| {
+                    size.saturating_add(
+                        field.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    )
+                });
                 if !head_checked || ty.is_dynamic() {
                     Self::guard_source_range(
                         builder,
@@ -1873,7 +1946,7 @@ impl LowerAbiCx {
                 Self::guard_source_range(
                     builder,
                     base,
-                    ty.head_size(),
+                    ty.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
                     constructor,
                     current,
@@ -1927,7 +2000,9 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { element, len }
                 if Self::is_supported_tuple_field(element) =>
             {
-                let head_size = len.saturating_mul(element.head_size());
+                let head_size = len.saturating_mul(
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                );
                 if !head_checked || ty.is_dynamic() {
                     Self::guard_source_range(
                         builder,
@@ -1966,7 +2041,8 @@ impl LowerAbiCx {
                             true,
                             has_bitwise_shifting,
                         );
-                        offset += element.head_size();
+                        offset +=
+                            element.checked_head_size().expect("ABI head size exceeds u64 range");
                     }
                     return base;
                 }
@@ -2042,7 +2118,7 @@ impl LowerAbiCx {
                         elem_index,
                         value,
                     );
-                    offset += element.head_size();
+                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 ptr
             }
@@ -2051,12 +2127,15 @@ impl LowerAbiCx {
             {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
+                let element_head_size = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                let bytes = Self::checked_mul(builder, len, element_head_size, current);
                 let data = builder.add(base, word);
                 Self::checked_dynamic_array_bytes(
                     builder,
                     len,
                     data,
-                    element.head_size(),
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
                     current,
                 );
@@ -2208,12 +2287,15 @@ impl LowerAbiCx {
             {
                 let len = Self::load_input_word(builder, base, input_end, constructor);
                 let word = builder.imm_u64(32);
+                let element_head_size = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
                 let head = builder.add(base, word);
                 let _ = Self::checked_dynamic_array_bytes(
                     builder,
                     len,
                     head,
-                    element.head_size(),
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
                     current,
                 );
@@ -2306,7 +2388,8 @@ impl LowerAbiCx {
                 );
                 let one = builder.imm_u64(1);
                 let next_remaining = builder.sub(remaining, one);
-                let element_head_size = builder.imm_u64(element.head_size());
+                let element_head_size = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
                 let next_source = builder.add(source, element_head_size);
                 let next_destination_index = builder.add(destination_index, one);
                 builder.switch_to_block(element_current);
@@ -2381,7 +2464,8 @@ impl LowerAbiCx {
                     );
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
-                    let length = builder.imm_u64(ty.head_size());
+                    let length = builder
+                        .imm_u64(ty.checked_head_size().expect("ABI head size exceeds u64 range"));
                     return builder.make_slice(base, length, SliceLocation::Calldata);
                 }
                 if constructor
@@ -2402,7 +2486,8 @@ impl LowerAbiCx {
                             true,
                             has_bitwise_shifting,
                         );
-                        offset += field.head_size();
+                        offset +=
+                            field.checked_head_size().expect("ABI head size exceeds u64 range");
                     }
                     return base;
                 }
@@ -2433,7 +2518,7 @@ impl LowerAbiCx {
                         has_bitwise_shifting,
                     );
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
-                    offset += field.head_size();
+                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 if carries_base {
                     builder.memory_object_store_field(ptr, layout, fields.len() as u64, base);
@@ -2565,7 +2650,8 @@ impl LowerAbiCx {
                 )
             };
             values.push(value);
-            head_offset = head_offset.checked_add(ty.head_size())?;
+            head_offset = head_offset
+                .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
         }
         Some(values)
     }
@@ -2634,7 +2720,7 @@ impl LowerAbiCx {
                     );
                     let index_value = builder.imm_u64(index);
                     builder.memory_object_store_element(object, layout, index_value, value);
-                    offset += element.head_size();
+                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 object
             }
@@ -2655,7 +2741,7 @@ impl LowerAbiCx {
                         has_bitwise_shifting,
                     );
                     builder.memory_object_store_field(object, layout, index as u64, value);
-                    offset += field.head_size();
+                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 object
             }
@@ -2833,7 +2919,7 @@ impl LowerAbiCx {
                     );
                     let index_value = builder.imm_u64(index);
                     builder.memory_object_store_element(object, layout, index_value, value);
-                    offset += element.head_size();
+                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 object
             }
@@ -2854,7 +2940,7 @@ impl LowerAbiCx {
                         has_bitwise_shifting,
                     );
                     builder.memory_object_store_field(object, layout, index as u64, value);
-                    offset += field.head_size();
+                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 object
             }
@@ -3876,7 +3962,8 @@ fn canonical_input_for_arg<'a>(
         if LowerAbiCx::is_constructor_word(ty) && physical == index.index() {
             return Some(ty);
         }
-        physical += (ty.head_size() / EvmMemoryLayout::WORD_SIZE) as usize;
+        physical += (ty.checked_head_size().expect("ABI head size exceeds u64 range")
+            / EvmMemoryLayout::WORD_SIZE) as usize;
     }
     None
 }
