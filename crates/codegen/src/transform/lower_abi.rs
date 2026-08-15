@@ -199,17 +199,14 @@ struct LowerAbiCx {
     stats: LowerAbiStats,
     aggregate_helpers: FxHashMap<AbiParamLayout, FunctionId>,
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
-    function_params: FxHashMap<FunctionId, Vec<MirType>>,
+    function_params: IndexVec<FunctionId, Vec<MirType>>,
 }
 
 impl LowerAbiCx {
     fn run(&mut self, module: &mut Module, evm_version: EvmVersion) -> bool {
         self.stats = LowerAbiStats::default();
-        self.function_params = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| (id, func.params.iter().copied().collect()))
-            .collect();
+        self.function_params =
+            module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
 
         // Idempotent: only `built`/`optimized` modules have an implicit ABI
         // boundary to materialize.
@@ -3156,7 +3153,7 @@ impl LowerAbiCx {
                         tainted.contains(*value)
                             && !matches!(
                                 self.function_params
-                                    .get(function)
+                                    .get(*function)
                                     .and_then(|params| params.get(index)),
                                 Some(MirType::Slice(SliceLocation::Calldata))
                             )
