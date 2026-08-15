@@ -57,6 +57,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
+    &checked_add_aggregate::CheckedAddAggregate,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
@@ -176,6 +177,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // equivalent terminal blocks: lowering and stack scheduling can
     // hide their shared semantic shape from the backend passes.
     &outline_reverts::OutlineReverts,
+    // Checked additions share their outlined panic target here, allowing
+    // adjacent MIR regions to defer their overflow branch without relying on
+    // the source expression's syntactic shape.
+    &checked_add_aggregate::CheckedAddAggregate,
     // Outlining and late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
     // simplified graph in one pass through the pipeline.

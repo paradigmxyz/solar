@@ -6,9 +6,10 @@ pragma solidity ^0.8.0;
 contract StackTooDeepCall {
     // CHECK-LABEL: @module runtime
     // CHECK: push 0x2b096926
-    // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: push [[REVERT:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: calldatasize
     // CHECK: push 1{{$}}
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
