@@ -893,32 +893,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn merge_loop_storage_refs(
         &mut self,
-        mut before: FxHashMap<VariableId, StorageAccess>,
+        before: FxHashMap<VariableId, StorageAccess>,
         exits: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before
-            .keys()
-            .chain(exits.iter().flat_map(|state| state.storage_refs.keys()))
-            .copied()
-            .collect::<solar_data_structures::map::FxHashSet<_>>();
-        for id in ids {
-            let fallback = before.get(&id).copied();
-            let incoming = exits
-                .iter()
-                .filter_map(|state| {
-                    state
-                        .storage_refs
-                        .get(&id)
-                        .copied()
-                        .or(fallback)
-                        .map(|access| (state.block, access))
-                })
-                .collect::<Vec<_>>();
-            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
-                before.insert(id, access);
-            }
-        }
-        before
+        self.merge_many_storage_refs(before, exits)
     }
 
     pub(super) fn merge_storage_accesses(

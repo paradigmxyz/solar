@@ -19,10 +19,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             return if returns.is_empty() {
-                match self.lower_yul_unit_builtin_call(builtin, args) {
-                    Some(()) => Some(self.builder.imm_u256(U256::ZERO)),
-                    None => Some(self.builder.imm_u256(U256::ZERO)),
-                }
+                let _ = self.lower_yul_unit_builtin_call(builtin, args);
+                Some(self.builder.imm_u256(U256::ZERO))
             } else {
                 self.lower_yul_value_builtin_call(builtin, args)
                     .or_else(|| Some(self.builder.imm_u256(U256::ZERO)))
@@ -59,10 +57,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | Builtin::Require
             | Builtin::Assert
             | Builtin::Revert
-            | Builtin::RevertMsg => match self.lower_unit_builtin_call(builtin, args) {
-                Some(()) => Some(self.builder.imm_u256(U256::ZERO)),
-                None => Some(self.builder.imm_u256(U256::ZERO)),
-            },
+            | Builtin::RevertMsg => {
+                let _ = self.lower_unit_builtin_call(builtin, args);
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
             _ => self
                 .lower_solidity_value_builtin_call(builtin, args)
                 .or_else(|| Some(self.builder.imm_u256(U256::ZERO))),
