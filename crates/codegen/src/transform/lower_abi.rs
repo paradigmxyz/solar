@@ -3541,7 +3541,14 @@ fn is_canonical_return_value_inner(
         AbiParamType::FixedArray { element, len } => {
             is_canonical_return_array(func, element, *len, value, input_params, lazy_args, visiting)
         }
-        AbiParamType::DynamicArray(_) => false,
+        AbiParamType::DynamicArray(element) => is_canonical_return_dynamic_array(
+            func,
+            element,
+            value,
+            input_params,
+            lazy_args,
+            visiting,
+        ),
     };
     visiting.remove(&value);
     result
@@ -3559,6 +3566,15 @@ fn is_canonical_return_scalar(func: &Function, ty: MirType, value: ValueId) -> b
         }
         return matches!(ty, MirType::Int(size) if size.bits() >= 256);
     };
+    if let MirType::FixedBytes(size) = ty
+        && size.bytes() < 32
+        && let Value::Inst(inst) = func.value(value)
+        && let InstKind::Shl(shift, source) = func.inst(*inst).kind
+        && func.value_u64(shift) == Some((32 - u64::from(size.bytes())) * 8)
+        && is_canonical_low_bits(func, source, u64::from(size.bytes()) * 8)
+    {
+        return true;
+    }
     let Value::Inst(inst) = func.value(value) else {
         return func.value_u256(value).is_some_and(|value| value & !expected == U256::ZERO);
     };
@@ -3571,6 +3587,17 @@ fn is_canonical_return_scalar(func: &Function, ty: MirType, value: ValueId) -> b
         return false;
     };
     mask == expected && source != value
+}
+
+fn is_canonical_low_bits(func: &Function, value: ValueId, bits: u64) -> bool {
+    let mask = U256::MAX >> (256 - usize::try_from(bits).expect("bit width fits usize"));
+    if func.value_u256(value).is_some_and(|value| value & !mask == U256::ZERO) {
+        return true;
+    }
+    let Value::Inst(inst) = func.value(value) else { return false };
+    let InstKind::And(lhs, rhs) = func.inst(*inst).kind else { return false };
+    func.value_u256(lhs).is_some_and(|value| value == mask)
+        || func.value_u256(rhs).is_some_and(|value| value == mask)
 }
 
 fn return_cleanup_mask(ty: MirType) -> Option<U256> {
@@ -3612,6 +3639,8 @@ fn is_canonical_return_object(
                 stores.insert(*field, *value);
             }
             InstKind::MemoryObjectLoadField { object: base, .. } if *base == object => {}
+            InstKind::MemoryObjectStoreField { value: stored, .. } if *stored == object => {}
+            InstKind::MemoryObjectStoreElement { value: stored, .. } if *stored == object => {}
             _ if func.inst(inst).operands().contains(&object) => return false,
             _ => {}
         }
@@ -3626,9 +3655,11 @@ fn is_canonical_return_object(
     }
 
     fields.iter().enumerate().all(|(index, ty)| {
-        stores.get(&(index as u64)).is_some_and(|&value| {
+        let canonical = stores.get(&(index as u64)).is_some_and(|&value| {
             is_canonical_return_value_inner(func, ty, value, input_params, lazy_args, visiting)
-        }) || (zeroed && !ty.needs_return_cleanup())
+        });
+        let zero = zeroed && !ty.needs_return_cleanup();
+        canonical || zero
     })
 }
 
@@ -3653,6 +3684,10 @@ fn is_canonical_return_array(
         {
             let Some(index) = func.value_u64(index) else { return false };
             stores.insert(index, value);
+        } else if let InstKind::MemoryObjectStoreElement { value: stored, .. } =
+            func.inst(inst).kind
+            && stored == object
+        {
         } else if inst != *alloc && func.inst(inst).operands().contains(&object) {
             return false;
         }
@@ -3662,6 +3697,139 @@ fn is_canonical_return_array(
             is_canonical_return_value_inner(func, element, value, input_params, lazy_args, visiting)
         })
     })
+}
+
+/// Proves canonicality for arrays built by a counted loop with no escaping reads.
+fn is_canonical_return_dynamic_array(
+    func: &Function,
+    element: &AbiParamType,
+    object: ValueId,
+    input_params: Option<&AbiParamLayout>,
+    lazy_args: bool,
+    visiting: &mut FxHashSet<ValueId>,
+) -> bool {
+    let Value::Inst(alloc) = func.value(object) else { return false };
+    let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } = &func.inst(*alloc).kind
+    else {
+        return false;
+    };
+    if layout.kind() != MemoryObjectKind::DynamicArray {
+        return false;
+    }
+
+    let mut length = None;
+    let mut store = None;
+    let inst_blocks = func.inst_blocks();
+    for inst in func.instructions() {
+        match &func.inst(inst).kind {
+            InstKind::SetMemoryObjectLen(base, value, kind)
+                if *base == object && *kind == MemoryObjectKind::DynamicArray =>
+            {
+                if length.replace(*value).is_some() {
+                    return false;
+                }
+            }
+            InstKind::MemoryObjectStoreElement { object: base, index, value, .. }
+                if *base == object =>
+            {
+                if store.replace((inst, *index, *value)).is_some() {
+                    return false;
+                }
+            }
+            _ if inst != *alloc && func.inst(inst).operands().contains(&object) => return false,
+            _ => {}
+        }
+    }
+    let (Some(length), Some((store_inst, index, value))) = (length, store) else {
+        return false;
+    };
+    if !is_canonical_return_value_inner(func, element, value, input_params, lazy_args, visiting) {
+        return false;
+    }
+
+    let Some(&store_block) = inst_blocks.get(&store_inst) else {
+        return false;
+    };
+    let Value::Inst(phi_inst) = func.value(index) else {
+        return false;
+    };
+    let Some(&phi_block) = inst_blocks.get(phi_inst) else {
+        return false;
+    };
+    let InstKind::Phi(incoming) = &func.inst(*phi_inst).kind else {
+        return false;
+    };
+    if incoming.len() != 2 {
+        return false;
+    }
+
+    let Some(&(preheader, _zero)) =
+        incoming.iter().find(|(_, value)| func.value_u64(*value) == Some(0))
+    else {
+        return false;
+    };
+    let Some(&(backedge, next)) = incoming.iter().find(|(_, value)| {
+        let Value::Inst(inst) = func.value(*value) else { return false };
+        matches!(func.inst(*inst).kind, InstKind::Add(lhs, rhs) if
+            (lhs == index && func.value_u64(rhs) == Some(1))
+                || (rhs == index && func.value_u64(lhs) == Some(1)))
+    }) else {
+        return false;
+    };
+    let Value::Inst(next_inst) = func.value(next) else {
+        return false;
+    };
+    let InstKind::Add(lhs, rhs) = func.inst(*next_inst).kind else {
+        return false;
+    };
+    if !((lhs == index && func.value_u64(rhs) == Some(1))
+        || (rhs == index && func.value_u64(lhs) == Some(1)))
+    {
+        return false;
+    }
+    if preheader == backedge
+        || !func.blocks[backedge]
+            .terminator
+            .as_ref()
+            .is_some_and(|term| matches!(term, Terminator::Jump(target) if *target == phi_block))
+    {
+        return false;
+    }
+
+    let Some(Terminator::Branch { condition, then_block, .. }) = &func.blocks[phi_block].terminator
+    else {
+        return false;
+    };
+    let Value::Inst(condition_inst) = func.value(*condition) else { return false };
+    if !matches!(func.inst(*condition_inst).kind, InstKind::Lt(lhs, rhs) if lhs == index && rhs == length)
+    {
+        return false;
+    }
+
+    let mut work = vec![(*then_block, false)];
+    let mut seen = FxHashSet::default();
+    while let Some((block, stored)) = work.pop() {
+        if !seen.insert((block, stored)) {
+            continue;
+        }
+        let stored = stored || block == store_block;
+        if block == phi_block {
+            if !stored {
+                return false;
+            }
+            continue;
+        }
+        let Some(terminator) = &func.blocks[block].terminator else {
+            return false;
+        };
+        if matches!(terminator, Terminator::Return { .. } | Terminator::ReturnData { .. }) {
+            return false;
+        }
+        for successor in terminator.successors() {
+            work.push((successor, stored));
+        }
+    }
+    true
 }
 
 fn canonicalize_return_value(
