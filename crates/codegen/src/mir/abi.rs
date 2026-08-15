@@ -51,12 +51,6 @@ impl AbiParamLayout {
         Self { types: types.into() }
     }
 
-    /// Returns the tuple head size in bytes.
-    #[must_use]
-    pub(crate) fn head_size(&self) -> u64 {
-        self.types.iter().map(AbiParamType::head_size).sum()
-    }
-
     /// Returns the tuple head size, or `None` when it exceeds the ABI layout range.
     #[must_use]
     pub(crate) fn checked_head_size(&self) -> Option<u64> {
@@ -194,27 +188,19 @@ impl AbiParamType {
         }
     }
 
-    /// Returns the size occupied by this value in its containing tuple head.
-    #[must_use]
-    pub(crate) fn head_size(&self) -> u64 {
-        if self.is_dynamic() {
-            return 32;
-        }
-        match self {
-            Self::FixedArray { element, len } => element.head_size() * len,
-            Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
-            _ => 32,
-        }
-    }
-
     /// Returns the size of this value's in-place ABI head.
     #[must_use]
     pub(crate) fn data_head_size(&self) -> u64 {
         match self {
-            Self::FixedArray { element, len } => element.head_size().saturating_mul(*len),
-            Self::Tuple(fields) => {
-                fields.iter().fold(0, |size, field| size.saturating_add(field.head_size()))
-            }
+            Self::FixedArray { element, len } => element
+                .checked_head_size()
+                .expect("ABI head size exceeds u64 range")
+                .saturating_mul(*len),
+            Self::Tuple(fields) => fields.iter().fold(0, |size, field| {
+                size.saturating_add(
+                    field.checked_head_size().expect("ABI head size exceeds u64 range"),
+                )
+            }),
             _ => 32,
         }
     }

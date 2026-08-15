@@ -704,7 +704,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             (30 + words * 12, 8 + args.len() * 3)
         }
         InstKind::AbiDecode { layout, .. } => {
-            let words = layout.head_size() / 32;
+            let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
             (30 + words * 12, 8 + layout.types.len() * 3)
         }
         InstKind::StorageToMemory { layout, .. } => {
