@@ -37,11 +37,11 @@
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AllocationKind,
-        AllocationSemantics, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId, InstId, InstKind, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-        MirPhase, MirType, Module, PanicCode, SliceLocation, Terminator, Value, ValueId,
+        AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
+        AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
+        Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -403,7 +403,7 @@ impl LowerAbiCx {
                 let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind else {
                     continue;
                 };
-                *decode_counts.entry(layout.as_ref().clone()).or_insert(0) += 1;
+                *decode_counts.entry(layout.clone()).or_insert(0) += 1;
             }
         }
         let mut static_decode_helpers = FxHashMap::default();
@@ -415,10 +415,10 @@ impl LowerAbiCx {
         let mut static_alias_ptr_layouts = FxHashSet::default();
         for (layout, count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
-                static_decode_counts.insert(layout, count);
+                static_decode_counts.insert(layout.clone(), count);
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper = self.synthesize_aggregate_decode_helper(module, layout.clone());
-                aggregate_decode_helpers.insert(layout, helper);
+                aggregate_decode_helpers.insert(layout.clone(), helper);
             }
         }
 
@@ -545,7 +545,7 @@ impl LowerAbiCx {
                         &mut builder,
                         base,
                         length,
-                        &layout,
+                        layout.as_ref(),
                         false,
                         self.has_bitwise_shifting,
                     ) else {
@@ -696,7 +696,7 @@ impl LowerAbiCx {
     fn synthesize_static_decode_helper(
         &self,
         module: &mut Module,
-        layout: AbiParamLayout,
+        layout: AbiParamLayoutRef,
     ) -> FunctionId {
         let name = format!("__decode_static_{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
@@ -707,15 +707,15 @@ impl LowerAbiCx {
             builder.add_return(result_ty);
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple(
-                &mut builder,
-                base,
-                length,
-                &layout,
-                false,
-                self.has_bitwise_shifting,
-            )
-            .expect("checked static ABI layout");
+            let values =
+                Self::decode_memory_tuple(
+                    &mut builder,
+                    base,
+                    length, layout.as_ref(),
+                    false,
+                    self.has_bitwise_shifting,
+                )
+                .expect("checked static ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -934,7 +934,7 @@ impl LowerAbiCx {
     fn synthesize_aggregate_decode_helper(
         &self,
         module: &mut Module,
-        layout: AbiParamLayout,
+        layout: AbiParamLayoutRef,
     ) -> FunctionId {
         let name = format!("__decode_aggregate_{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
@@ -946,15 +946,15 @@ impl LowerAbiCx {
             }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple(
-                &mut builder,
-                base,
-                length,
-                &layout,
-                false,
-                self.has_bitwise_shifting,
-            )
-            .expect("checked aggregate ABI layout");
+            let values =
+                Self::decode_memory_tuple(
+                    &mut builder,
+                    base,
+                    length, layout.as_ref(),
+                    false,
+                    self.has_bitwise_shifting,
+                )
+                .expect("checked aggregate ABI layout");
             builder.ret(values);
         }
         module.add_function(function)

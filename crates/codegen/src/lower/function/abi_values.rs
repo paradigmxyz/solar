@@ -460,6 +460,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.lower_typed_expr(data_expr, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
+        let layout = self.module.intern_abi_param_layout(layout);
         Some(self.builder.abi_decode(layout, data))
     }
 
@@ -491,6 +492,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
         if !layout.types.iter().any(Self::needs_eager_abi_decode) {
+            let layout = self.module.intern_abi_param_layout(layout);
             let first = self.builder.abi_decode(layout, data);
             let mut values = Vec::with_capacity(types.len());
             values.push(first);
@@ -638,7 +640,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let payload_slice =
             self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
         let payload = self.materialize_memory_slice(payload_slice);
-        let layout = AbiParamLayout::new(vec![AbiParamType::Bytes].into_boxed_slice());
+        let layout = self.module.intern_abi_param_layout(AbiParamLayout::new(
+            vec![AbiParamType::Bytes].into_boxed_slice(),
+        ));
         Some(self.builder.abi_decode(layout, payload))
     }
 

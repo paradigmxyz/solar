@@ -32,12 +32,12 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamType, AbiType, AllocationAlignment,
-    AllocationFailure, AllocationInitialization, AllocationKind, AllocationSemantics, BlockId,
-    Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
-    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType, AbiType,
+    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+    AllocationSemantics, BlockId, Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function,
+    FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
+    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
+    StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -88,6 +88,8 @@ struct Parser<'sess, 'ast> {
     immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
+    /// ABI input layouts interned while parsing instructions.
+    abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
     pending_gt: u32,
 }
@@ -122,6 +124,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             value_labels: FxHashMap::default(),
             immutable_names: FxHashMap::default(),
             abi_layouts: Vec::new(),
+            abi_param_layouts: Vec::new(),
             pending_gt: 0,
         }
     }
@@ -210,6 +213,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.resolve_function_refs(&mut module, function_refs)?;
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
+        module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         Ok(module)
     }
 
@@ -721,6 +725,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let layout = std::sync::Arc::new(layout);
         self.abi_layouts.push(std::sync::Arc::clone(&layout));
         Ok(layout)
+    }
+
+    fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
+        if let Some(existing) = self.abi_param_layouts.iter().find(|item| item.as_ref() == &layout)
+        {
+            return std::sync::Arc::clone(existing);
+        }
+        let layout = std::sync::Arc::new(layout);
+        self.abi_param_layouts.push(std::sync::Arc::clone(&layout));
+        layout
     }
 
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
@@ -1701,7 +1715,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .first()
                     .map(AbiParamType::mir_type)
                     .ok_or_else(|| self.parser.error("ABI decode requires a result type"))?;
-                (InstKind::AbiDecode { data, layout: Box::new(layout) }, Some(result_ty))
+                let layout = self.intern_abi_param_layout(layout);
+                (InstKind::AbiDecode { data, layout }, Some(result_ty))
             }
             // Aggregate storage/memory copies with recursive layouts.
             sym::storage_to_memory => {
