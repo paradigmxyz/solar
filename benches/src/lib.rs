@@ -92,7 +92,7 @@ pub fn get_srcs() -> &'static [Source] {
             .with_codspeed_codegen(),
             include_source(
                 "../testdata/projects/uniswap-v2-pair.json.gz",
-                Capabilities::lex_and_parse(),
+                Capabilities::lex_only(),
             ),
         ]);
 
@@ -329,29 +329,38 @@ impl Source {
 #[derive(Clone, Debug)]
 pub struct Capabilities {
     lex: bool,
+    parse: bool,
     lower: bool,
     codegen: bool,
 }
 
 impl Capabilities {
     pub fn all() -> Self {
-        Self { lex: true, lower: true, codegen: true }
+        Self { lex: true, parse: true, lower: true, codegen: true }
     }
 
     pub fn parse_only() -> Self {
-        Self { lex: false, lower: false, codegen: false }
+        Self { lex: false, parse: true, lower: false, codegen: false }
     }
 
     pub fn lex_and_parse() -> Self {
-        Self { lex: true, lower: false, codegen: false }
+        Self { lex: true, parse: true, lower: false, codegen: false }
+    }
+
+    pub fn lex_only() -> Self {
+        Self { lex: true, parse: false, lower: false, codegen: false }
     }
 
     pub fn no_codegen() -> Self {
-        Self { lex: true, lower: true, codegen: false }
+        Self { lex: true, parse: true, lower: true, codegen: false }
     }
 
     pub fn can_lex(&self) -> bool {
         self.lex
+    }
+
+    pub fn can_parse(&self) -> bool {
+        self.parse
     }
 
     pub fn can_lower(&self) -> bool {

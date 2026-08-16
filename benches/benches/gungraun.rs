@@ -131,7 +131,6 @@ mk_project_groups!(
     "lilweb3-runtime",
     "maple-erc20",
     "nitro-one-step-proof",
-    "uniswap-v2-pair",
 );
 
 #[inline]
