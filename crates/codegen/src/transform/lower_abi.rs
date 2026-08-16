@@ -831,7 +831,7 @@ impl LowerAbiCx {
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
-            let tuple_base = builder.add_param(MirType::uint256());
+            let tuple_base = builder.imm_u64(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
             let value = Self::decode_aggregate_argument(
@@ -891,7 +891,7 @@ impl LowerAbiCx {
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
-            let tuple_base = builder.add_param(MirType::uint256());
+            let tuple_base = builder.imm_u64(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
             let (data, len) = Self::decode_calldata_bytes_slice_values(
@@ -1747,12 +1747,7 @@ impl LowerAbiCx {
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
-                                let value = builder.internal_call(
-                                    helper,
-                                    vec![head, tuple_base],
-                                    arg_type,
-                                    1,
-                                );
+                                let value = builder.internal_call(helper, vec![head], arg_type, 1);
                                 logical_values[index] = Some(value);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1790,19 +1785,15 @@ impl LowerAbiCx {
                             && matches!(arg_type, MirType::MemoryObject(_))
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
-                            builder.internal_call(helper, vec![head, tuple_base], arg_type, 1)
+                            builder.internal_call(helper, vec![head], arg_type, 1)
                         } else if !constructor
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(&helper) = self.calldata_slice_helpers.get(ty)
                         {
-                            let data = builder.internal_call(
-                                helper,
-                                vec![head, tuple_base],
-                                MirType::uint256(),
-                                2,
-                            );
+                            let data =
+                                builder.internal_call(helper, vec![head], MirType::uint256(), 2);
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                             let word = builder.imm_u64(32);
