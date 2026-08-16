@@ -22,12 +22,6 @@ impl AbiLayout {
     pub(crate) fn head_size(&self) -> u64 {
         self.types.iter().map(AbiType::head_size).sum()
     }
-
-    /// Returns the number of scratch words required by the encoder.
-    #[must_use]
-    pub(crate) fn scratch_words(&self) -> u64 {
-        self.types.iter().map(AbiType::loop_depth).max().unwrap_or(0) * 5
-    }
 }
 
 /// Shared reference returned by the module ABI-layout interner.
@@ -281,18 +275,6 @@ impl AbiType {
             Self::FixedArray { element, len } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
             _ => 32,
-        }
-    }
-
-    /// Returns the maximum nested dynamic-array loop depth.
-    #[must_use]
-    pub(crate) fn loop_depth(&self) -> u64 {
-        match self {
-            Self::DynamicArray { element, .. } if matches!(element.as_ref(), Self::Word) => 0,
-            Self::DynamicArray { element, .. } => 1 + element.loop_depth(),
-            Self::FixedArray { element, .. } => element.loop_depth(),
-            Self::Tuple(fields) => fields.iter().map(Self::loop_depth).max().unwrap_or(0),
-            Self::Word | Self::Function | Self::Bytes(_) => 0,
         }
     }
 }

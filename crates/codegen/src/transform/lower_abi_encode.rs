@@ -38,12 +38,6 @@ impl MirPass for LowerAbiEncode {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct AbiScratch {
-    pub(crate) base: Option<ValueId>,
-    pub(crate) depth: u64,
-}
-
-#[derive(Clone, Copy)]
 struct AbiValueDest {
     head_addr: ValueId,
     tuple_base: ValueId,
@@ -186,18 +180,10 @@ fn lower_encode(
             builder.mstore(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
-        encode_tuple(builder, args, &layout.types, dest, AbiScratch { base: None, depth: 0 });
+        encode_tuple(builder, args, &layout.types, dest);
         let total = builder.imm_u64(total_size);
         return builder.make_slice(buffer, total, SliceLocation::Memory);
     }
-
-    let scratch_words = layout.scratch_words();
-    let scratch_base = if scratch_words == 0 {
-        None
-    } else {
-        let size = builder.imm_u64(scratch_words * 32);
-        Some(builder.alloc_raw(size, crate::mir::AllocationSemantics::INTERNAL))
-    };
 
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
@@ -206,13 +192,7 @@ fn lower_encode(
         builder.mstore(buffer, selector);
     }
     let dest = offset_ptr(builder, buffer, selector_size);
-    let encoded_size = encode_tuple(
-        builder,
-        args,
-        &layout.types,
-        dest,
-        AbiScratch { base: scratch_base, depth: 0 },
-    );
+    let encoded_size = encode_tuple(builder, args, &layout.types, dest);
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(encoded_size, selector_size);
     let thirty_one = builder.imm_u64(31);
@@ -287,7 +267,6 @@ pub(crate) fn encode_tuple(
     values: &[ValueId],
     types: &[AbiType],
     dest: ValueId,
-    scratch: AbiScratch,
 ) -> ValueId {
     let head_size: u64 = types.iter().map(AbiType::head_size).sum();
     if !types.iter().any(AbiType::is_dynamic) {
@@ -305,13 +284,7 @@ pub(crate) fn encode_tuple(
     let mut head_offset = 0;
     for (&value, ty) in values.iter().zip(types) {
         let head_addr = offset_ptr(builder, dest, head_offset);
-        tail = encode_value(
-            builder,
-            ty,
-            value,
-            AbiValueDest { head_addr, tuple_base: dest, tail },
-            scratch,
-        );
+        tail = encode_value(builder, ty, value, AbiValueDest { head_addr, tuple_base: dest, tail });
         head_offset += ty.head_size();
     }
     builder.sub(tail, dest)
@@ -322,12 +295,11 @@ fn encode_value(
     ty: &AbiType,
     value: ValueId,
     dest: AbiValueDest,
-    scratch: AbiScratch,
 ) -> ValueId {
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.mstore(dest.head_addr, relative);
-        encode_dynamic_body(builder, ty, value, dest.tail, scratch)
+        encode_dynamic_body(builder, ty, value, dest.tail)
     } else {
         encode_static(builder, ty, value, dest.head_addr);
         dest.tail
@@ -466,7 +438,6 @@ fn encode_dynamic_body(
     ty: &AbiType,
     value: ValueId,
     dest: ValueId,
-    scratch: AbiScratch,
 ) -> ValueId {
     match ty {
         AbiType::Bytes(location) => {
@@ -488,12 +459,10 @@ fn encode_dynamic_body(
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder, value, *location);
             match location {
-                SliceLocation::Memory => {
-                    encode_dynamic_array(builder, element, value, dest, scratch)
-                }
+                SliceLocation::Memory => encode_dynamic_array(builder, element, value, dest),
                 SliceLocation::Calldata => {
                     if matches!(element.as_ref(), AbiType::Bytes(_)) {
-                        encode_calldata_bytes_array(builder, element, value, dest, scratch)
+                        encode_calldata_bytes_array(builder, element, value, dest)
                     } else {
                         unreachable!(
                             "non-word calldata arrays are materialized before ABI encoding"
@@ -517,7 +486,7 @@ fn encode_dynamic_body(
                 values.push(builder.mload(slot));
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            let size = encode_tuple(builder, &values, &types, dest, scratch);
+            let size = encode_tuple(builder, &values, &types, dest);
             builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
@@ -530,7 +499,7 @@ fn encode_dynamic_body(
                 );
                 values.push(builder.mload(slot));
             }
-            let size = encode_tuple(builder, &values, fields, dest, scratch);
+            let size = encode_tuple(builder, &values, fields, dest);
             builder.add(dest, size)
         }
         AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
@@ -573,9 +542,7 @@ fn encode_dynamic_array(
     element: &AbiType,
     value: ValueId,
     dest: ValueId,
-    scratch: AbiScratch,
 ) -> ValueId {
-    let scratch_base = scratch.base.expect("dynamic ABI array encoding requires scratch memory");
     let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
     builder.mstore(dest, len);
 
@@ -586,57 +553,43 @@ fn encode_dynamic_array(
     let initial_tail = builder.add(element_area, head_bytes);
     let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
 
-    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
-    let tail_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
-    let head_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
-    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 3);
-    let tuple_base_slot = scratch_slot(builder, scratch_base, scratch.depth, 4);
-    builder.mstore(remaining_slot, len);
-    builder.mstore(tail_slot, initial_tail);
-    builder.mstore(head_slot, element_area);
-    builder.mstore(source_slot, source_cursor);
-    builder.mstore(tuple_base_slot, element_area);
-
+    let preheader = builder.current_block();
     let cond = builder.create_block();
     let body = builder.create_block();
     let done = builder.create_block();
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = builder.mload(remaining_slot);
+    let remaining = builder.phi(vec![(preheader, len)]);
+    let current_tail = builder.phi(vec![(preheader, initial_tail)]);
+    let element_head = builder.phi(vec![(preheader, element_area)]);
+    let source = builder.phi(vec![(preheader, source_cursor)]);
     let zero = builder.imm_u64(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source = builder.mload(source_slot);
     let element_value = builder.mload(source);
-    let element_head = builder.mload(head_slot);
-    let current_tail = builder.mload(tail_slot);
-    let tuple_base = builder.mload(tuple_base_slot);
     let new_tail = encode_value(
         builder,
         element,
         element_value,
-        AbiValueDest { head_addr: element_head, tuple_base, tail: current_tail },
-        AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
+        AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
     );
-    builder.mstore(tail_slot, new_tail);
 
-    let remaining = builder.mload(remaining_slot);
     let one = builder.imm_u64(1);
     let next_remaining = builder.sub(remaining, one);
-    builder.mstore(remaining_slot, next_remaining);
-    let source = builder.mload(source_slot);
     let next_source = builder.add(source, word);
-    builder.mstore(source_slot, next_source);
-    let element_head = builder.mload(head_slot);
     let next_head = builder.add(element_head, element_head_size);
-    builder.mstore(head_slot, next_head);
+    let backedge = builder.current_block();
     builder.jump(cond);
+    builder.add_phi_incoming(remaining, backedge, next_remaining);
+    builder.add_phi_incoming(current_tail, backedge, new_tail);
+    builder.add_phi_incoming(element_head, backedge, next_head);
+    builder.add_phi_incoming(source, backedge, next_source);
 
     builder.switch_to_block(done);
-    builder.mload(tail_slot)
+    current_tail
 }
 
 fn encode_calldata_bytes_array(
@@ -644,9 +597,7 @@ fn encode_calldata_bytes_array(
     element: &AbiType,
     value: ValueId,
     dest: ValueId,
-    scratch: AbiScratch,
 ) -> ValueId {
-    let scratch_base = scratch.base.expect("dynamic ABI array encoding requires scratch memory");
     let len = builder.slice_len(value);
     builder.mstore(dest, len);
 
@@ -656,67 +607,53 @@ fn encode_calldata_bytes_array(
     let initial_tail = builder.add(element_area, head_bytes);
     let source_base = builder.slice_ptr(value);
 
-    let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
-    let tail_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
-    let head_slot = scratch_slot(builder, scratch_base, scratch.depth, 2);
-    let source_slot = scratch_slot(builder, scratch_base, scratch.depth, 3);
-    let tuple_base_slot = scratch_slot(builder, scratch_base, scratch.depth, 4);
-    builder.mstore(remaining_slot, len);
-    builder.mstore(tail_slot, initial_tail);
-    builder.mstore(head_slot, element_area);
-    builder.mstore(source_slot, source_base);
-    builder.mstore(tuple_base_slot, source_base);
-
+    let preheader = builder.current_block();
     let cond = builder.create_block();
     let body = builder.create_block();
     let done = builder.create_block();
     builder.jump(cond);
 
     builder.switch_to_block(cond);
-    let remaining = builder.mload(remaining_slot);
+    let remaining = builder.phi(vec![(preheader, len)]);
+    let current_tail = builder.phi(vec![(preheader, initial_tail)]);
+    let element_head = builder.phi(vec![(preheader, element_area)]);
+    let source_head = builder.phi(vec![(preheader, source_base)]);
     let zero = builder.imm_u64(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let source_head = builder.mload(source_slot);
-    let tuple_base = builder.mload(tuple_base_slot);
     let offset = builder.calldataload(source_head);
     let calldata_size = builder.calldatasize();
-    let available = builder.sub(calldata_size, tuple_base);
+    let available = builder.sub(calldata_size, source_base);
     let invalid_offset = builder.gt(offset, available);
     revert_if_calldata_invalid(builder, invalid_offset);
-    let element_base = builder.add(tuple_base, offset);
+    let element_base = builder.add(source_base, offset);
     check_calldata_range(builder, element_base, word);
     let length = builder.calldataload(element_base);
     let data = builder.add(element_base, word);
     check_calldata_range(builder, data, length);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
-    let element_head = builder.mload(head_slot);
-    let current_tail = builder.mload(tail_slot);
     let new_tail = encode_value(
         builder,
         element,
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
-        AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
     );
-    builder.mstore(tail_slot, new_tail);
 
     let one = builder.imm_u64(1);
-    let remaining = builder.mload(remaining_slot);
     let next_remaining = builder.sub(remaining, one);
-    builder.mstore(remaining_slot, next_remaining);
-    let source_head = builder.mload(source_slot);
     let next_source = builder.add(source_head, word);
-    builder.mstore(source_slot, next_source);
-    let element_head = builder.mload(head_slot);
     let next_head = builder.add(element_head, word);
-    builder.mstore(head_slot, next_head);
+    let backedge = builder.current_block();
     builder.jump(cond);
+    builder.add_phi_incoming(remaining, backedge, next_remaining);
+    builder.add_phi_incoming(current_tail, backedge, new_tail);
+    builder.add_phi_incoming(element_head, backedge, next_head);
+    builder.add_phi_incoming(source_head, backedge, next_source);
 
     builder.switch_to_block(done);
-    builder.mload(tail_slot)
+    current_tail
 }
 
 fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: ValueId) {
@@ -972,15 +909,6 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
     }
-}
-
-fn scratch_slot(
-    builder: &mut FunctionBuilder<'_>,
-    base: ValueId,
-    depth: u64,
-    slot: u64,
-) -> ValueId {
-    offset_ptr(builder, base, depth * 160 + slot * 32)
 }
 
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
