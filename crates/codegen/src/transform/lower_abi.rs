@@ -233,7 +233,6 @@ struct LowerAbiStats {
 #[derive(Debug, Default)]
 struct LowerAbiCx {
     stats: LowerAbiStats,
-    aggregate_helpers: FxHashMap<AbiParamLayout, FunctionId>,
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
@@ -322,7 +321,6 @@ impl LowerAbiCx {
             return true;
         }
 
-        self.synthesize_shared_aggregate_helpers(module, &targets);
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
 
@@ -711,89 +709,6 @@ impl LowerAbiCx {
             changed |= repaired;
         }
         changed
-    }
-
-    fn synthesize_shared_aggregate_helpers(&mut self, module: &mut Module, targets: &[FunctionId]) {
-        let mut counts = FxHashMap::<AbiParamLayout, usize>::default();
-        for &id in targets {
-            let func = module.function(id);
-            let Some(layout) = func.abi_params.as_ref() else { continue };
-            if !Self::can_share_aggregate_helper(func, layout) {
-                continue;
-            }
-            *counts.entry(layout.clone()).or_default() += 1;
-        }
-
-        for (layout, count) in counts {
-            if count < 2 {
-                continue;
-            }
-            // A helper call saves duplicated decoding only for a single
-            // aggregate. For several aggregates, the extra frame and return
-            // handling cost more than the shared body on the current backend.
-            if layout.types.iter().filter(|ty| Self::is_supported_aggregate(ty)).count() > 1 {
-                continue;
-            }
-            let helper = self.synthesize_calldata_aggregate_helper(module, layout.clone());
-            self.aggregate_helpers.insert(layout, helper);
-        }
-    }
-
-    fn can_share_aggregate_helper(func: &Function, layout: &AbiParamLayout) -> bool {
-        Self::can_share_aggregate_args(layout, &func.params.iter().copied().collect::<Vec<_>>())
-    }
-
-    fn can_share_aggregate_args(layout: &AbiParamLayout, arg_types: &[MirType]) -> bool {
-        layout.types.iter().enumerate().all(|(index, ty)| {
-            !Self::is_supported_aggregate(ty)
-                || matches!(arg_types.get(index), Some(MirType::MemoryObject(_)))
-        }) && layout.types.iter().any(Self::is_supported_aggregate)
-    }
-
-    fn synthesize_calldata_aggregate_helper(
-        &self,
-        module: &mut Module,
-        layout: AbiParamLayout,
-    ) -> FunctionId {
-        let name = format!("__decode_calldata_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            // Callers always pass the external calldata base. The helper
-            // reads the full calldata size itself, so a slice length would
-            // add a dead parameter and frame value.
-            let base = builder.add_param(MirType::uint256());
-            let input_end = builder.calldatasize();
-            let mut current = builder.current_block();
-            let mut values = Vec::new();
-            let mut head_offset = 0_u64;
-            for ty in &layout.types {
-                if Self::is_supported_aggregate(ty) {
-                    let offset = builder.imm_u64(head_offset);
-                    let head = builder.add(base, offset);
-                    let value = Self::decode_aggregate_argument(
-                        &mut builder,
-                        ty,
-                        ty.mir_type(),
-                        head,
-                        base,
-                        input_end,
-                        false,
-                        &mut current,
-                        true,
-                        false,
-                        true,
-                        None,
-                        self.has_bitwise_shifting,
-                    );
-                    builder.add_return(ty.mir_type());
-                    values.push(value);
-                }
-                head_offset += ty.head_size();
-            }
-            builder.ret(values);
-        }
-        module.add_function(function)
     }
 
     fn synthesize_shared_aggregate_type_helpers(
@@ -1650,53 +1565,7 @@ impl LowerAbiCx {
                 }
             }
 
-            if let Some(layout) = abi_params
-                && !constructor
-                && let Some(&helper) = self.aggregate_helpers.get(layout)
-                && Self::can_share_aggregate_args(layout, &arg_types)
-            {
-                let aggregate_types = layout
-                    .types
-                    .iter()
-                    .filter(|ty| Self::is_supported_aggregate(ty))
-                    .collect::<Vec<_>>();
-                let returns = aggregate_types.len();
-                let value = builder.internal_call(
-                    helper,
-                    vec![input_base],
-                    aggregate_types[0].mir_type(),
-                    returns,
-                );
-                let return_base = (returns > 1)
-                    .then(|| builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word));
-                let return_layout = MemoryObjectLayout::word_fixed_array(returns as u64);
-                let mut aggregate_index = 0;
-                for (index, ty) in layout.types.iter().enumerate() {
-                    if !Self::is_supported_aggregate(ty) {
-                        continue;
-                    }
-                    let value = if aggregate_index == 0 {
-                        value
-                    } else {
-                        let index_value = builder.imm_u64(aggregate_index as u64);
-                        builder.memory_object_load_object(
-                            return_base.expect("multi-return buffer for aggregate helper"),
-                            return_layout,
-                            index_value,
-                            match ty.mir_type() {
-                                MirType::MemoryObject(kind) => kind,
-                                _ => unreachable!("aggregate helper returns memory objects"),
-                            },
-                        )
-                    };
-                    for &use_value in
-                        arg_uses.get(crate::mir::ArgIdx::new(index)).into_iter().flatten()
-                    {
-                        replacements.insert(use_value, value);
-                    }
-                    aggregate_index += 1;
-                }
-            } else if let Some(layout) = abi_params {
+            if let Some(layout) = abi_params {
                 let mut head_offset = 0;
                 for (index, ty) in layout.types.iter().enumerate() {
                     let arg_index = crate::mir::ArgIdx::new(index);

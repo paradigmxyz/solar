@@ -5,7 +5,7 @@ fn @words() [selector=0x5a7641c8, pure] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36
-    v25 = internal_call @__decode_calldata_4, 1, 4
+    v25 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v24, bb2, bb5
   bb1:
     v8 = mload v1
@@ -63,7 +63,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 36
-    v35 = internal_call @__decode_calldata_4, 1, 4
+    v35 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v34, bb2, bb9
   bb1:
     v8 = mload v1
@@ -172,7 +172,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
   bb0:
     v48 = calldatasize
     v49 = lt v48, 36
-    v50 = internal_call @__decode_calldata_4, 1, 4
+    v50 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v49, bb2, bb11
   bb1:
     v8 = mload v1
@@ -299,7 +299,7 @@ fn @mixed() [selector=0x6791505c, pure] {
   bb0:
     v48 = calldatasize
     v49 = lt v48, 36
-    v50 = internal_call @__decode_calldata_4, 1, 4
+    v50 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v49, bb2, bb8
   bb1:
     v11 = mload v4
@@ -414,35 +414,35 @@ fn @mixed() [selector=0x6791505c, pure] {
     returndata v80, v75
 }
 
-fn @__decode_calldata_4(arg0: u256) -> memptr {
+fn @__decode_calldata_type_4(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
-    v2 = calldataload arg0
-    v3 = add arg0, v2
-    v4 = add v3, 32
-    v5 = gt v2, 0xffffffffffffffff
-    v6 = gt v4, v0
-    v7 = or v5, v6
-    jumpi v7, bb2, bb1
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v1, 36
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb2, bb1
   bb1:
-    v8 = calldataload v3
-    v10 = calldatasize
-    v11 = sub v10, v4
-    v12 = gt v8, v11
-    jumpi v12, bb2, bb3
+    v7 = calldataload v2
+    v9 = calldatasize
+    v10 = sub v9, v3
+    v11 = gt v7, v10
+    jumpi v11, bb2, bb3
   bb2:
     revert 0, 0
   bb3:
-    v13 = add v8, 31
-    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v15, 32
-    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v23 = add v17, v16
-    mstore 64, v23 !metadata(memory=scratch)
-    mstore v17, v8
-    v20 = add v17, 32
-    calldatacopy v20, v4, v8
-    ret v17
+    v12 = add v7, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v16 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v22 = add v16, v15
+    mstore 64, v22 !metadata(memory=scratch)
+    mstore v16, v7
+    v19 = add v16, 32
+    calldatacopy v19, v3, v7
+    ret v16
 }
 
 fn @entry() [entry] {
