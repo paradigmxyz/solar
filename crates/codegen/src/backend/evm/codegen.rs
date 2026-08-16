@@ -7677,9 +7677,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 // For instruction results, we need to check if they're spilled
                 // or if they're instruction results that produce fresh values (like GAS, MLOAD)
-                if let Some(slot) = self.scheduler.spills.get(val)
-                    && self.scheduler.spills.is_stored(val)
-                {
+                if let Some(slot) = self.scheduler.reloadable_spill(val) {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
                     // executes before any use at runtime.
