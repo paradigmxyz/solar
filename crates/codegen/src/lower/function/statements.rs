@@ -263,10 +263,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         if let Some(bytes) = self.constant_string_bytes(expr)
-            && (1..=32).contains(&bytes.len())
+            && (1..=32).contains(&bytes.as_byte_str().len())
         {
-            let length = self.builder.imm_u64(bytes.len() as u64);
-            let data = self.lower_string_literal_word(&bytes);
+            let length = self.builder.imm_u64(bytes.as_byte_str().len() as u64);
+            let data = self.lower_string_literal_word(bytes.as_byte_str());
             let helper = self.ensure_revert_error_helper();
             self.builder.internal_call_void(helper, vec![length, data], 0);
             self.builder.invalid();
@@ -315,13 +315,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
+    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
         let mut expr = expr.peel_parens();
         for _ in 0..4 {
             match &expr.kind {
                 ExprKind::Lit(lit) => {
                     let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-                    return Some(bytes.as_byte_str().to_vec());
+                    return Some(*bytes);
                 }
                 ExprKind::Ident(_) | ExprKind::Member(..) => {
                     let variable_id = self.gcx.resolved_variable(expr)?;

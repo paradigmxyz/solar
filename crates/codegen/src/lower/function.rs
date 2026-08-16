@@ -17,7 +17,7 @@ use crate::{
 use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
-use solar_interface::{Ident, Span, kw, sym};
+use solar_interface::{ByteSymbol, Ident, Span, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
