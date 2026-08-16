@@ -19,7 +19,7 @@ bb3 [cold]:
   dup1
   revert
 bb4:
-  push 480
+  push 448
   push 64
   mstore
   calldatasize
@@ -174,7 +174,7 @@ bb13:
   push 64
   mload
   dup1
-  push 448
+  push 416
   mstore
   swap1
   dup2
