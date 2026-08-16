@@ -72,13 +72,11 @@ pub fn get_srcs() -> &'static [Source] {
                 .with_codspeed_codegen(),
             include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
-            // Runtime-only projects share this archive corpus. Keep the
+            // These archives are also used by the runtime benchmark. Keep
             // unsupported or expensive full-project codegen cases in the
             // parser and lowering benches.
-            include_source(
-                "../testdata/projects/aave-l2-encoder.json.gz",
-                Capabilities::no_codegen(),
-            ),
+            include_source("../testdata/projects/aave-l2-encoder.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
             include_source("../testdata/projects/lilweb3-ens.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
             include_source("../testdata/projects/lilweb3-runtime.json.gz", Capabilities::all())

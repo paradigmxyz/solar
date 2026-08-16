@@ -50,6 +50,22 @@ class CorpusTests(unittest.TestCase):
             )
             self.assertTrue(payload["settings"]["viaIR"])
 
+    def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
+        criterion_sources = (
+            benchmark.REPOSITORY_ROOT / "benches/src/lib.rs"
+        ).read_text()
+        runtime_projects = {
+            case.project_file
+            for case in benchmark.TEST_CASES
+            if case.project_file is not None
+        }
+        missing = sorted(
+            project_file
+            for project_file in runtime_projects
+            if f'"../testdata/projects/{project_file}"' not in criterion_sources
+        )
+        self.assertEqual(missing, [])
+
     def test_micro_sources_are_externalized(self) -> None:
         payload = json.loads(benchmark.standard_json_input(benchmark.TEST_CASES[0]))
 

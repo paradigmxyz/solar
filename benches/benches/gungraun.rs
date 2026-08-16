@@ -106,33 +106,6 @@ mk_groups!(
     "Optimism",
 );
 
-macro_rules! mk_project_groups {
-    ($($name:literal),* $(,)?) => {
-        #[library_benchmark]
-        #[benches::project_lex($($name),*)]
-        fn project_lex(name: &str) {
-            run_lex(name, &Solar);
-        }
-
-        #[library_benchmark]
-        #[benches::project_parse($($name),*)]
-        fn project_parse(name: &str) {
-            run_parse(name, &Solar);
-        }
-    };
-}
-
-// Keep the small runtime closures in the instruction-count bench. The large
-// full-project archives remain in Criterion and the runtime harness because
-// instrumenting them is not useful for routine parser comparisons.
-mk_project_groups!(
-    "aave-l2-encoder",
-    "lilweb3-ens",
-    "lilweb3-runtime",
-    "maple-erc20",
-    "nitro-one-step-proof",
-);
-
 #[inline]
 fn run_lex(name: &str, compiler: &dyn Compiler) {
     assert!(compiler.capabilities().can_lex(), "{} can't lex", compiler.name());
@@ -153,5 +126,5 @@ fn run_parse(name: &str, compiler: &dyn Compiler) {
 
 // gungraun::main!(library_benchmark_groups = lex, parse);
 
-library_benchmark_group!(name = all; benchmarks = solar_enter, lex, parse, project_lex, project_parse);
+library_benchmark_group!(name = all; benchmarks = solar_enter, lex, parse);
 gungraun::main!(library_benchmark_groups = all);
