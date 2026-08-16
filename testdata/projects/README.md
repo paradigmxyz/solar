@@ -11,8 +11,11 @@ whole-project and focused runtime workloads without keeping a second extracted a
 keeps its existing benchmark set and is not expanded with these projects.
 
 Several archives include upstream test sources. Criterion sees those files in its whole-project
-parse, lowering, and codegen phases when the project enables that phase. The runtime benchmark
-compiles only the selected test or production entrypoint and its imports.
+parse, lowering, and codegen phases when the project enables that phase. These are the files in
+each pinned project's benchmark profile, not a promise to include every file in the repository.
+For example, Solady's default profile excludes its EIP-7702, transient-storage, Ithaca, and
+ZKsync paths. The runtime benchmark compiles only the selected test or production entrypoint and
+its imports.
 
 The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Seaport, Solady,
 Solarray, Solmate, and v4-core. The runtime suite currently exercises OpenZeppelin and Solady test

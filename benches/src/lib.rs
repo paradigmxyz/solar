@@ -44,7 +44,8 @@ pub fn get_srcs() -> &'static [Source] {
 
         // Whole-project inputs mirroring solc's external benchmarks
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
-        // projects compiled with their full test suites.
+        // project inputs, including the test sources selected by each
+        // project's benchmark profile.
         //
         // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
         // on unsupported compiler behavior. Only project codegen cases that
