@@ -1583,6 +1583,7 @@ impl LowerAbiCx {
                         head_offset += ty.head_size();
                         continue;
                     }
+                    builder.switch_to_block(current);
                     let (head, tuple_base) = if constructor {
                         let head_offset_value = builder.imm_u64(head_offset);
                         (builder.add(input_base, head_offset_value), input_base)

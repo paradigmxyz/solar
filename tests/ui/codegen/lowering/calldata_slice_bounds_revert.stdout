@@ -5,10 +5,6 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 68
-    v21 = internal_call @__decode_calldata_slice_3, 2, 4
-    v49 = mload 32 !metadata(memory=scratch)
-    v23 = add v49, 32
-    v24 = mload v23
     jumpi v20, bb4, bb7
   bb1:
     tail_call @__revert_stub0
@@ -43,6 +39,10 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v36 = add v29, 64
     jumpi v35, bb8, bb9
   bb7:
+    v21 = internal_call @__decode_calldata_slice_3, 2, 4
+    v49 = mload 32 !metadata(memory=scratch)
+    v23 = add v49, 32
+    v24 = mload v23
     v2 = gt arg1, v24
     jumpi v2, bb1, bb2
   bb8:
@@ -66,10 +66,6 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 100
-    v21 = internal_call @__decode_calldata_slice_3, 2, 4
-    v49 = mload 32 !metadata(memory=scratch)
-    v23 = add v49, 32
-    v24 = mload v23
     jumpi v20, bb4, bb7
   bb1:
     tail_call @__revert_stub0
@@ -105,6 +101,10 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v36 = add v29, 64
     jumpi v35, bb8, bb9
   bb7:
+    v21 = internal_call @__decode_calldata_slice_3, 2, 4
+    v49 = mload 32 !metadata(memory=scratch)
+    v23 = add v49, 32
+    v24 = mload v23
     v2 = gt arg2, v24
     jumpi v2, bb1, bb2
   bb8:

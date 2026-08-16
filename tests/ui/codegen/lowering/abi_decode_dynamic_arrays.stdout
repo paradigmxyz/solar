@@ -5,7 +5,6 @@ fn @words() [selector=0x5a7641c8, pure] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36
-    v25 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v24, bb2, bb5
   bb1:
     v8 = mload v1
@@ -50,6 +49,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     mstore 64, v48 !metadata(memory=scratch)
     returndata v42, v37
   bb5:
+    v25 = internal_call @__decode_calldata_type_4, 1, 4
     v1 = add v25, 32
     v2 = mload v25
     v3 = add v1, v2
@@ -63,7 +63,6 @@ fn @bools() [selector=0xcfb203c5, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 36
-    v35 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v34, bb2, bb9
   bb1:
     v8 = mload v1
@@ -113,6 +112,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v32 = add v26, 1
     jump bb5
   bb9:
+    v35 = internal_call @__decode_calldata_type_4, 1, 4
     v1 = add v35, 32
     v2 = mload v35
     v3 = add v1, v2
@@ -172,7 +172,6 @@ fn @strs() [selector=0x68f4ce0b, pure] {
   bb0:
     v48 = calldatasize
     v49 = lt v48, 36
-    v50 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v49, bb2, bb11
   bb1:
     v8 = mload v1
@@ -249,6 +248,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     v47 = add v26, 1
     jump bb5
   bb11:
+    v50 = internal_call @__decode_calldata_type_4, 1, 4
     v1 = add v50, 32
     v2 = mload v50
     v3 = add v1, v2
@@ -299,7 +299,6 @@ fn @mixed() [selector=0x6791505c, pure] {
   bb0:
     v48 = calldatasize
     v49 = lt v48, 36
-    v50 = internal_call @__decode_calldata_type_4, 1, 4
     jumpi v49, bb2, bb8
   bb1:
     v11 = mload v4
@@ -389,6 +388,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     v69 = add v62, 32
     jumpi v68, bb9, bb10
   bb8:
+    v50 = internal_call @__decode_calldata_type_4, 1, 4
     v4 = add v50, 32
     v5 = mload v50
     v6 = add v4, v5

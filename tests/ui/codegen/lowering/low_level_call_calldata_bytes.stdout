@@ -36,9 +36,9 @@ bb5:
   calldataload
   push 160
   shr
-  push 256
-  mstore
-  push bb7
+  push bb4
+  jumpi
+  push bb8
   push 36
   jump bb19
 bb19:
@@ -80,7 +80,7 @@ bb19:
   jumpi
   swap2
   jump
-bb7:
+bb8:
   push 64
   mload
   dup1
@@ -96,12 +96,9 @@ bb7:
   push 32
   add
   mload
+  dup1
   push 160
   mstore
-  push 256
-  mload
-  push bb4
-  jumpi
   gas
   push 224
   mstore
@@ -109,9 +106,10 @@ bb7:
   not
   push 192
   shr
-  push 160
-  mload
+  dup2
   gt
+  swap1
+  pop
   push bb4
   jumpi
   calldatasize
@@ -163,12 +161,12 @@ bb12:
   calldataload
   push 160
   shr
-  push 256
-  mstore
-  push bb14
+  push bb4
+  jumpi
+  push bb15
   push 36
   jump bb19
-bb14:
+bb15:
   push 64
   mload
   dup1
@@ -184,12 +182,9 @@ bb14:
   push 32
   add
   mload
+  dup1
   push 160
   mstore
-  push 256
-  mload
-  push bb4
-  jumpi
   gas
   push 224
   mstore
@@ -197,9 +192,10 @@ bb14:
   not
   push 192
   shr
-  push 160
-  mload
+  dup2
   gt
+  swap1
+  pop
   push bb4
   jumpi
   calldatasize

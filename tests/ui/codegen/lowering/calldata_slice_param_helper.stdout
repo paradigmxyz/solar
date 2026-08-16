@@ -5,14 +5,14 @@ fn @lastWord() [selector=0x3955f902, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = internal_call @__decode_calldata_slice_3, 2, 4
-    v10 = mload 32 !metadata(memory=scratch)
-    v5 = add v10, 32
-    v6 = mload v5
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
+    v3 = internal_call @__decode_calldata_slice_3, 2, 4
+    v10 = mload 32 !metadata(memory=scratch)
+    v5 = add v10, 32
+    v6 = mload v5
     v0 = internal_call @_last, 1, v3, v6
     mstore 128, v0
     returndata 128, 32
@@ -22,10 +22,6 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 36
-    v11 = internal_call @__decode_calldata_slice_3, 2, 4
-    v18 = mload 32 !metadata(memory=scratch)
-    v13 = add v18, 32
-    v14 = mload v13
     jumpi v10, bb3, bb4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -41,6 +37,10 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
   bb3:
     revert 0, 0
   bb4:
+    v11 = internal_call @__decode_calldata_slice_3, 2, 4
+    v18 = mload 32 !metadata(memory=scratch)
+    v13 = add v18, 32
+    v14 = mload v13
     v0 = internal_call @_last, 1, v11, v14
     jumpi v14, bb2, bb1
 }
