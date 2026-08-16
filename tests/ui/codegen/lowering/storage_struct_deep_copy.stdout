@@ -63,14 +63,12 @@ fn @assign() [selector=0x4bd0273c] {
     revert 0, 0
   bb9:
     v53 = calldataload 4
-    v54 = and v53, 0xffffffffffffffffffffffffffffffffffffffff
-    v55 = eq v53, v54
-    jumpi v55, bb10, bb8
+    v54 = shr 160, v53
+    jumpi v54, bb8, bb10
   bb10:
     v56 = calldataload 36
-    v57 = and v56, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v58 = eq v56, v57
-    jumpi v58, bb11, bb8
+    v57 = shl 32, v56
+    jumpi v57, bb8, bb11
   bb11:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v67 = add v0, 64
@@ -190,14 +188,12 @@ fn @push() [selector=0xa60249a3] {
     revert 0, 0
   bb11:
     v57 = calldataload 4
-    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffff
-    v59 = eq v57, v58
-    jumpi v59, bb12, bb10
+    v58 = shr 160, v57
+    jumpi v58, bb10, bb12
   bb12:
     v60 = calldataload 36
-    v61 = and v60, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v62 = eq v60, v61
-    jumpi v62, bb13, bb10
+    v61 = shl 32, v60
+    jumpi v61, bb10, bb13
   bb13:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v74 = add v0, 64
@@ -241,11 +237,9 @@ fn @pop() [selector=0xa4ece52c] {
     v53 = mul v2, 2
     v52 = keccak256 0, 32 !metadata(memory=scratch)
     v54 = add v52, v53
-    v4 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v4 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     mstore v4, 0
-    v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v62 = add v5, 32
-    mstore 64, v62 !metadata(memory=scratch)
+    v5 = add v4, 64
     mstore v5, 0
     v57 = add v4, 32
     mstore v57, v5
@@ -378,14 +372,12 @@ fn @assignFixed() [selector=0xb7ffd825] {
     revert 0, 0
   bb9:
     v57 = calldataload 4
-    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffff
-    v59 = eq v57, v58
-    jumpi v59, bb10, bb8
+    v58 = shr 160, v57
+    jumpi v58, bb8, bb10
   bb10:
     v60 = calldataload 36
-    v61 = and v60, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v62 = eq v60, v61
-    jumpi v62, bb11, bb8
+    v61 = shl 32, v60
+    jumpi v61, bb8, bb11
   bb11:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v71 = add v0, 64

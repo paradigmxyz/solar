@@ -12,7 +12,7 @@ contract ConstructorAbiValidation {
     bool public second;
 
     // CHECK-LABEL: fn @_anonymous(arg0: bool, arg1: bool, arg2: bool)
-    // CHECK: iszero arg0
+    // CHECK: lt arg0, 2
     // CHECK: memory_object_store_element memoryfixedarray<2, 1>, {{v[0-9]+}}, 1, arg2
     // CHECK: revert 0, 0
     constructor(bool flag_, bool[2] memory flags) {

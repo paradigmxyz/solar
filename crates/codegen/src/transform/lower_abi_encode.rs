@@ -88,9 +88,38 @@ fn lower_function(func: &mut Function) -> bool {
         }
         move_terminator(&mut builder, block, original_terminator);
     }
+    fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
+}
+
+fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
+    for inst_id in func.instructions() {
+        let Some(result) = func.inst_result_value(inst_id) else { continue };
+        let replacement = match &func.inst(inst_id).kind {
+            InstKind::SlicePtr(slice) => {
+                let slice = resolve(*slice, replacements);
+                let Value::Inst(make_slice) = func.value(slice) else { continue };
+                let InstKind::MakeSlice { ptr, .. } = &func.inst(*make_slice).kind else {
+                    continue;
+                };
+                Some(*ptr)
+            }
+            InstKind::SliceLen(slice) => {
+                let slice = resolve(*slice, replacements);
+                let Value::Inst(make_slice) = func.value(slice) else { continue };
+                let InstKind::MakeSlice { len, .. } = &func.inst(*make_slice).kind else {
+                    continue;
+                };
+                Some(*len)
+            }
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            replacements.insert(result, resolve(replacement, replacements));
+        }
+    }
 }
 
 pub(crate) fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {

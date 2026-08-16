@@ -262,26 +262,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_custom_error_revert(error_id, *args);
         }
 
+        if let Some(bytes) = self.constant_string_bytes(expr)
+            && (1..=32).contains(&bytes.len())
+        {
+            let length = self.builder.imm_u64(bytes.len() as u64);
+            let data = self.lower_string_literal_word(&bytes);
+            let helper = self.ensure_revert_error_helper();
+            self.builder.internal_call_void(helper, vec![length, data], 0);
+            self.builder.invalid();
+            return Some(());
+        }
+
         let literal = expr.peel_parens();
         if let ExprKind::Lit(lit) = &literal.kind
             && let LitKind::Str(StrKind::Str | StrKind::Unicode | StrKind::Hex, bytes, _) =
                 &lit.kind
-            && let Ok(byte_len) = u64::try_from(bytes.as_byte_str().len())
-            && byte_len <= 32
+            && bytes.as_byte_str().is_empty()
         {
-            if byte_len != 0
-                && self.modifiers.last().is_some_and(|context| context.modifiers.len() >= 2)
-            {
-                let value = self.lower_word_literal(lit)?;
-                let length = self.builder.imm_u64(byte_len);
-                let helper = self.ensure_revert_string_helper();
-                self.builder.internal_call_void(helper, vec![length, value], 0);
-                self.builder.invalid();
-                return Some(());
-            }
-            let bytes = bytes.as_byte_str();
-            let data_size = if bytes.is_empty() { 0 } else { 32 };
-            let size = 68u64.checked_add(data_size)?;
             let selector = keccak256("Error(string)");
             let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
             let zero = self.builder.imm_u64(0);
@@ -290,14 +287,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let tuple_offset = self.builder.imm_u64(32);
             self.builder.mstore(offset, tuple_offset);
             let length = self.builder.imm_u64(36);
-            let byte_len = self.builder.imm_u64(byte_len);
+            let byte_len = self.builder.imm_u64(0);
             self.builder.mstore(length, byte_len);
-            if !bytes.is_empty() {
-                let value = self.lower_word_literal(lit)?;
-                let offset = self.builder.imm_u64(68);
-                self.builder.mstore(offset, value);
-            }
-            let size = self.builder.imm_u64(size);
+            let size = self.builder.imm_u64(68);
             self.builder.revert(zero, size);
             return Some(());
         }
@@ -323,12 +315,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn ensure_revert_string_helper(&mut self) -> FunctionId {
-        if let Some(id) = *self.revert_string_helper {
+    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
+        let mut expr = expr.peel_parens();
+        for _ in 0..4 {
+            match &expr.kind {
+                ExprKind::Lit(lit) => {
+                    let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+                    return Some(bytes.as_byte_str().to_vec());
+                }
+                ExprKind::Ident(_) | ExprKind::Member(..) => {
+                    let variable_id = self.gcx.resolved_variable(expr)?;
+                    let variable = self.gcx.hir.variable(variable_id);
+                    if !variable.is_constant() {
+                        return None;
+                    }
+                    expr = variable.initializer?.peel_parens();
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    fn ensure_revert_error_helper(&mut self) -> FunctionId {
+        if let Some(id) = *self.revert_error_helper {
             return id;
         }
 
-        let mut function = Function::new(Ident::with_dummy_span(sym::__revert_string));
+        let mut function = Function::new(Ident::with_dummy_span(sym::__revert_error));
         function.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut function);
@@ -349,7 +363,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.revert(zero, size);
         }
         let id = self.module.add_function(function);
-        *self.revert_string_helper = Some(id);
+        *self.revert_error_helper = Some(id);
         id
     }
 

@@ -33,7 +33,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
     ) -> bool {
         self.needs_calldata_materialization(value, abi_type)
-            || self.needs_calldata_aggregate_validation(value, ty)
+            || (self.needs_calldata_aggregate_validation(value, ty)
+                && !self.can_defer_calldata_validation(value, abi_type))
+    }
+
+    fn can_defer_calldata_validation(&self, value: ValueId, abi_type: &AbiType) -> bool {
+        self.is_external_abi_argument(value)
+            && matches!(
+                abi_type,
+                AbiType::DynamicArray {
+                    element,
+                    location: SliceLocation::Calldata,
+                } if matches!(element.as_ref(), AbiType::Word | AbiType::Bytes(_))
+            )
     }
 
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {

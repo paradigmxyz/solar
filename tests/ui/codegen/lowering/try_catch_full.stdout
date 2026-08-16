@@ -65,7 +65,7 @@ fn @full() [selector=0xd17b272f, view] {
   bb6:
     v40 = add v174, 4
     v41 = sub v26, 4
-    v44 = add v41, 63
+    v44 = add v26, 59
     v45 = lt v44, v41
     jumpi v45, bb3, bb8
   bb7:
@@ -100,13 +100,10 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v122, 32
     v123 = add v122, 32
     mstore v123, v53
-    v56 = add 32, 63
-    v57 = lt v56, 32
-    jumpi v57, bb3, bb10
+    jumpi 0, bb3, bb10
   bb10:
-    v59 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v60 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v189 = add v60, v59
+    v189 = add v60, 64
     mstore 64, v189 !metadata(memory=scratch)
     mstore v60, 32
     v182 = add v60, 32
@@ -265,7 +262,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
   bb7:
     v39 = add v63, 4
     v40 = sub v25, 4
-    v43 = add v40, 63
+    v43 = add v25, 59
     v44 = lt v43, v40
     jumpi v44, bb4, bb9
   bb8:

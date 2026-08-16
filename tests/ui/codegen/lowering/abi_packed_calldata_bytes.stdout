@@ -16,143 +16,116 @@ bb0:
   dup1
   push 0xf1245422
   eq
-  push bb13
+  push bb9
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   dup1
   revert
-bb23 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 65
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 bb5:
-  push 320
+  push 416
   push 64
   mstore
   calldatasize
-  dup1
-  push 160
-  mstore
   push 68
   gt
-  push bb4
-  jumpi
-  push 4
-  calldataload
-  push 4
-  dup2
-  add
-  push 224
+  push 256
   mstore
-  push 36
+  push bb6
+  jump bb17
+bb17:
+  push 4
+  dup1
+  calldatasize
+  swap2
+  calldataload
+  dup1
+  swap2
+  add
+  push 32
   dup2
   add
   dup1
-  push 256
+  push 352
   mstore
-  swap1
+  swap2
   push 0
   not
   push 192
   shr
   lt
-  push 160
-  mload
-  dup3
+  dup4
+  dup4
   gt
   or
   swap1
-  pop
-  push bb4
-  jumpi
-  push 224
-  mload
   calldataload
   dup1
+  push 384
+  mstore
+  dup3
+  swap1
+  swap4
+  sub
+  dup4
+  gt
+  or
+  push bb16
+  jumpi
+  swap2
+  jump
+bb6:
+  push 64
+  mload
+  dup1
+  push 32
+  mstore
+  push 32
+  add
+  mstore
   push 192
   mstore
-  calldatasize
+  push 32
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
   push 256
   mload
-  swap1
-  sub
-  lt
   push bb4
   jumpi
-  push 32
-  push 192
+  push 64
   mload
-  add
-  dup1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb23
-  jumpi
-  push 95
-  push 192
-  mload
-  add
   dup1
   push 224
   mstore
   push 160
   mload
-  gt
-  push bb23
-  jumpi
-  push 31
-  not
-  push 224
-  mload
-  and
-  push 64
-  mload
-  dup1
-  push 288
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup2
-  mstore
-  push 32
-  dup2
-  add
   push 192
-  mload
-  push 256
   mload
   dup3
+  dup1
+  push 224
+  mstore
   calldatacopy
-  push 192
+  push 160
   mload
   dup2
   add
   push 36
   calldataload
-  swap1
-  jump bb24
-bb24:
+  dup2
   mstore
+  push 32
+  jump bb18
+bb18:
+  add
+  dup2
   swap1
-  mload
+  sub
   swap1
   keccak256
   push 128
@@ -160,137 +133,57 @@ bb24:
   push 32
   push 128
   return
-bb13:
-  push 384
+bb9:
+  push 416
   push 64
   mstore
   calldatasize
-  dup1
-  push 160
-  mstore
   push 68
   gt
   push bb4
   jumpi
   push 36
   calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup2
-  and
-  sub
-  push bb4
-  jumpi
-  push 4
-  calldataload
-  push 4
-  dup2
-  add
-  push 224
-  mstore
-  push 36
-  dup2
-  add
-  dup1
-  push 288
-  mstore
-  swap1
-  push 0
-  not
-  push 192
-  shr
-  lt
   push 160
-  mload
-  dup3
-  gt
-  or
-  swap1
-  pop
-  push bb4
-  jumpi
-  push 224
-  mload
-  calldataload
-  dup1
-  push 192
-  mstore
-  calldatasize
-  push 288
-  mload
-  swap1
-  sub
-  lt
-  push bb4
-  jumpi
-  push 3
-  push 192
-  mload
-  add
-  dup1
-  push 160
-  mstore
-  push 3
-  gt
-  push bb23
-  jumpi
-  push 0
-  not
-  push 96
   shr
-  push 36
-  calldataload
-  and
-  push 224
-  mstore
-  push 23
-  push 192
-  mload
-  add
-  dup1
   push 256
   mstore
-  push 160
-  mload
-  gt
-  push bb23
-  jumpi
-  push 86
-  push 192
-  mload
-  add
-  dup1
-  push 320
-  mstore
-  push 256
-  mload
-  gt
-  push bb23
-  jumpi
-  push 31
-  not
-  push 320
-  mload
-  and
+  push bb11
+  jump bb17
+bb11:
   push 64
   mload
   dup1
-  push 352
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  push 256
-  mload
-  dup2
+  push 32
   mstore
   push 32
-  dup2
   add
+  mstore
+  push 192
+  mstore
+  push 32
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  push 256
+  mload
+  push bb4
+  jumpi
+  push 0
+  not
+  push 96
+  shr
+  push 36
+  calldataload
+  and
+  push 64
+  mload
+  dup1
+  push 224
+  mstore
   push 0x707265
   push 232
   shl
@@ -299,19 +192,26 @@ bb13:
   push 3
   dup2
   add
-  push 192
+  push 160
   mload
-  push 288
+  push 192
   mload
   dup3
   calldatacopy
-  pop
-  push 224
-  mload
-  push 96
-  shl
   push 160
   mload
-  dup3
   add
-  jump bb24
+  swap2
+  push 96
+  shl
+  dup3
+  mstore
+  swap1
+  push 20
+  jump bb18
+bb16 [cold]:
+  pop
+  pop
+  push 0
+  dup1
+  revert

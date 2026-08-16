@@ -11,7 +11,7 @@ bb0:
   dup1
   push 0x6a57f6c7
   eq
-  push bb13
+  push bb12
   jumpi
   dup1
   push 0x6b995abd
@@ -24,143 +24,87 @@ bb4 [cold]:
   dup1
   revert
 bb5:
-  push 352
+  push 480
   push 64
   mstore
   calldatasize
-  dup1
-  push 192
-  mstore
   push 68
   gt
   push bb4
   jumpi
   push 4
   calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup2
-  and
-  sub
-  push bb4
-  jumpi
-  push bb18
-  jump bb15
-bb15:
-  push 36
-  calldataload
-  push 4
-  dup2
-  add
   push 160
+  shr
+  push 256
   mstore
+  push bb7
+  jump bb22
+bb22:
   push 36
+  push 4
+  calldatasize
+  swap2
+  calldataload
+  dup1
+  swap2
+  add
+  push 32
   dup2
   add
   dup1
-  push 224
+  push 416
   mstore
-  swap1
+  swap2
   push 0
   not
   push 192
   shr
   lt
-  push 192
-  mload
-  dup3
+  dup4
+  dup4
   gt
   or
   swap1
-  pop
-  swap1
-  jump
-bb13:
-  push 352
-  push 64
-  mstore
-  calldatasize
+  calldataload
   dup1
-  push 192
+  push 448
   mstore
-  push 68
+  dup3
+  swap1
+  swap4
+  sub
+  dup4
   gt
-  push bb4
+  or
+  push bb21
   jumpi
-  push 4
-  calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup2
-  and
-  sub
-  push bb4
-  jumpi
-  push bb20
-  jump bb15
-bb17:
-  push 32
-  dup2
-  add
-  push 160
-  mload
-  push 224
-  mload
-  dup3
-  calldatacopy
-  swap1
-  mload
-  dup2
-  push 288
-  mstore
-  dup1
-  push 320
-  mstore
-  push 0
-  push 0
-  dup3
-  dup5
-  push 0
-  push 4
-  calldataload
-  push 192
-  mload
-  call
-  jump bb14
-bb14:
   swap2
-  pop
-  pop
-  iszero
-  iszero
-  push 128
+  jump
+bb7:
+  push 64
+  mload
+  dup1
+  push 32
   mstore
   push 32
-  push 128
-  return
-bb18:
-  push bb4
-  jumpi
-  push 160
+  add
+  mstore
+  push 192
+  mstore
+  push 32
   mload
-  calldataload
-  dup1
+  push 32
+  add
+  mload
   push 160
   mstore
-  calldatasize
-  push 224
+  push 256
   mload
-  swap1
-  sub
-  lt
   push bb4
   jumpi
   gas
-  push 192
+  push 224
   mstore
   push 0
   not
@@ -176,14 +120,14 @@ bb18:
   mload
   swap1
   sub
-  push 224
+  push 192
   mload
   sgt
   push bb4
   jumpi
-  push bb17
-  jump bb16
-bb16:
+  push bb25
+  jump bb24
+bb24:
   push 63
   push 160
   mload
@@ -194,7 +138,7 @@ bb16:
   push 64
   mload
   dup1
-  push 256
+  push 288
   mstore
   swap1
   dup2
@@ -207,53 +151,47 @@ bb16:
   mstore
   swap1
   jump
-bb19:
-  push 32
-  dup2
-  add
-  push 160
-  mload
-  push 224
-  mload
-  dup3
-  calldatacopy
-  swap1
-  mload
-  dup2
-  push 288
-  mstore
-  dup1
-  push 320
-  mstore
-  push 0
-  push 0
-  dup3
-  dup5
-  push 4
-  calldataload
-  push 192
-  mload
-  delegatecall
-  jump bb14
-bb20:
-  push bb4
-  jumpi
-  push 160
-  mload
-  calldataload
-  dup1
-  push 160
+bb12:
+  push 480
+  push 64
   mstore
   calldatasize
-  push 224
+  push 68
+  gt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 160
+  shr
+  push 256
+  mstore
+  push bb14
+  jump bb22
+bb14:
+  push 64
   mload
-  swap1
-  sub
-  lt
+  dup1
+  push 32
+  mstore
+  push 32
+  add
+  mstore
+  push 192
+  mstore
+  push 32
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  push 256
+  mload
   push bb4
   jumpi
   gas
-  push 192
+  push 224
   mstore
   push 0
   not
@@ -269,10 +207,84 @@ bb20:
   mload
   swap1
   sub
-  push 224
+  push 192
   mload
   sgt
   push bb4
   jumpi
-  push bb19
-  jump bb16
+  push bb26
+  jump bb24
+bb25:
+  push 32
+  dup2
+  add
+  push 160
+  mload
+  push 192
+  mload
+  dup3
+  calldatacopy
+  swap1
+  mload
+  dup2
+  push 256
+  mstore
+  dup1
+  push 320
+  mstore
+  push 0
+  push 0
+  dup3
+  dup5
+  push 0
+  push 4
+  calldataload
+  push 224
+  mload
+  call
+  jump bb23
+bb23:
+  swap2
+  pop
+  pop
+  iszero
+  iszero
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb26:
+  push 32
+  dup2
+  add
+  push 160
+  mload
+  push 192
+  mload
+  dup3
+  calldatacopy
+  swap1
+  mload
+  dup2
+  push 256
+  mstore
+  dup1
+  push 320
+  mstore
+  push 0
+  push 0
+  dup3
+  dup5
+  push 4
+  calldataload
+  push 224
+  mload
+  delegatecall
+  jump bb23
+bb21 [cold]:
+  pop
+  pop
+  push 0
+  dup1
+  revert

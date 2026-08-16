@@ -7,10 +7,8 @@
 // single-byte `mstore8` writes at `data + i`.
 contract BytesMemoryElements {
     // CHECK-LABEL: fn @alloc{{[( ]}}
-    // CHECK: [[PADDED:v[0-9]+]] = add 96, 63
-    // CHECK: {{v[0-9]+}} = lt [[PADDED]], 96
     // CHECK: [[MASK:v[0-9]+]] = not 31
-    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
+    // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 96
     // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}

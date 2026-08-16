@@ -31,9 +31,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns the word-aligned allocation size for a bytes-like object.
     pub(super) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
         let padding = self.builder.imm_u64(63);
-        let rounded = self.builder.add(length, padding);
-        let overflow = self.builder.lt(rounded, length);
-        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        let rounded = self.builder.checked_add(length, padding);
         let mask = self.builder.imm_u64(31);
         let mask = self.builder.not(mask);
         self.builder.and(rounded, mask)

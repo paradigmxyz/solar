@@ -147,7 +147,7 @@ pub(super) fn lower(
     let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
     let mut storage_bytes_helper = None;
     let mut storage_clear_helper = None;
-    let mut revert_string_helper = None;
+    let mut revert_error_helper = None;
     let mut literal_helpers = FxHashMap::default();
     let mut visiting_storage_structs = FxHashSet::default();
     let share_storage_bytes = contract
@@ -186,7 +186,7 @@ pub(super) fn lower(
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
             storage_clear_helper: &mut storage_clear_helper,
-            revert_string_helper: &mut revert_string_helper,
+            revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
             shared_literals: &shared_literals,
             share_storage_bytes,
@@ -235,7 +235,7 @@ pub(super) fn lower(
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
             storage_clear_helper: &mut storage_clear_helper,
-            revert_string_helper: &mut revert_string_helper,
+            revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
             shared_literals: &shared_literals,
             share_storage_bytes,

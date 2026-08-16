@@ -38,13 +38,8 @@ bb4:
   jumpi
   push 36
   calldataload
-  push 0
-  not
-  push 96
+  push 160
   shr
-  dup2
-  and
-  sub
   push bb3
   jumpi
   push 36
@@ -138,13 +133,8 @@ bb4:
   jumpi
   push 4
   calldataload
-  push 0
-  not
-  push 96
+  push 160
   shr
-  dup2
-  and
-  sub
   push bb3
   jumpi
   push bb7

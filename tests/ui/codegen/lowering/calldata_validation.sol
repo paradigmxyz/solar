@@ -7,11 +7,11 @@
 // external parameters.
 // Like solc via-ir, every value-type argument word must be its canonical ABI
 // encoding or the call reverts with empty revert data (`revert(0, 0)`):
-// - uintN: high bits zero (`eq(word, and(word, mask))`)
+// - uintN: high bits zero (`iszero(shr(bits, word))`)
 // - intN: word equals its sign extension (`eq(word, signextend(N/8-1, word))`)
 // - address/contract: top 96 bits zero
-// - bool: word is 0 or 1 (`eq(word, iszero(iszero(word)))`)
-// - bytesN: low 32-N bytes zero
+// - bool: word is less than 2 (`lt(word, 2)`)
+// - bytesN: low 32-N bytes zero (`iszero(shl(bits, word))`)
 // - enum: word < member count (`lt(word, count)`)
 // Full-word types (uint256, int256, bytes32) need no canonicalization
 // validator, but still need the short-calldata guard. The validators read the
@@ -26,8 +26,8 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 255
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: [[HIGH:v[0-9]+]] = shr 8, [[RAW]]
+    // CHECK: iszero [[HIGH]]
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
@@ -42,25 +42,23 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[ZERO:v[0-9]+]] = iszero [[RAW]]
-    // CHECK: [[CANON:v[0-9]+]] = iszero [[ZERO]]
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: {{v[0-9]+}} = lt [[RAW]], 2
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
+    // CHECK: iszero [[HIGH]]
     function vAddress(address x) external pure returns (address) {
         return x;
     }
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffff00000000000000000000000000000000000000000000000000000000
-    // CHECK: eq [[RAW]], [[CANON]]
+    // CHECK: [[LOW:v[0-9]+]] = shl 32, [[RAW]]
+    // CHECK: iszero [[LOW]]
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
     }
@@ -78,14 +76,14 @@ contract CalldataValidation {
     // CHECK-NOT: and arg0
     // CHECK: mstore 128, arg0
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = and [[RAW]], 255
+    // CHECK: {{v[0-9]+}} = shr 8, [[RAW]]
     function vWidened(uint8 x) external pure returns (uint16) {
         return x;
     }
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = and [[A]], 0xffffffff
+    // CHECK: {{v[0-9]+}} = shr 32, [[A]]
     // CHECK: [[B:v[0-9]+]] = calldataload 36
     // CHECK: {{v[0-9]+}} = signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {

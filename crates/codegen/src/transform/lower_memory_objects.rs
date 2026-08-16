@@ -526,7 +526,6 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let next_id = instructions[scan];
                 if let Some(allocation) = constant_raw_allocation(func, next_id)
                     && allocation.semantics == first.semantics
-                    && allocation.size == first.size
                 {
                     let index = allocations.len();
                     allocations.push((next_id, allocation));

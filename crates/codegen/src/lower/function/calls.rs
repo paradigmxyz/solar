@@ -249,8 +249,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.push(abi_type);
         }
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, None, values.into_boxed_slice());
-        let encoded_len = self.builder.slice_len(encoded);
+        let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
+        let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
+            self.builder.slice_len(encoded)
+        } else {
+            self.builder.imm_u64(layout.head_size())
+        };
 
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
         let bytecode_len_value = self.builder.imm_u64(bytecode_len);
@@ -766,6 +770,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
+        if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
+            return Some(value);
+        }
         if function.returns.is_empty() {
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
@@ -774,6 +781,46 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.gcx.type_of_item((*function.returns.first()?).into()),
         );
         Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
+    }
+
+    fn lower_pure_struct_constructor(
+        &mut self,
+        function: &hir::Function<'_>,
+        values: &[ValueId],
+    ) -> Option<ValueId> {
+        if function.state_mutability != StateMutability::Pure
+            || !function.modifiers.is_empty()
+            || function.parameters.len() != values.len()
+            || function.returns.len() != 1
+        {
+            return None;
+        }
+        let return_ty = self.gcx.type_of_item(function.returns[0].into());
+        if !return_ty.is_ref_at(DataLocation::Memory) {
+            return None;
+        }
+        let TyKind::Struct(return_struct) = return_ty.peel_refs().kind else { return None };
+        let body = function.body?;
+        let [stmt] = body.stmts else { return None };
+        let StmtKind::Return(Some(return_expr)) = stmt.kind else { return None };
+        let ExprKind::Call(constructor, args, None) = return_expr.peel_parens().kind else {
+            return None;
+        };
+        let Some(hir::Res::Item(item)) = self.gcx.resolved_expr(constructor) else {
+            return None;
+        };
+        let struct_id = item.as_struct()?;
+        if struct_id != return_struct {
+            return None;
+        }
+
+        let saved = self.snapshot_bindings(function.parameters);
+        for (&id, &value) in function.parameters.iter().zip(values) {
+            self.values.insert(id, value);
+        }
+        let result = self.lower_struct_constructor(return_expr, struct_id, args);
+        self.restore_bindings(&saved);
+        result
     }
 
     pub(super) fn lower_external_function_call(

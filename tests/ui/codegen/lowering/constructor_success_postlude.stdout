@@ -43,10 +43,9 @@ bb0:
   push 192
   mload
   mload
-  dup1
+  push 2
+  gt
   iszero
-  iszero
-  sub
   push bb4
   jumpi
   push 224

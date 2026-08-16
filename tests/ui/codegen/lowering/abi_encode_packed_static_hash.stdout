@@ -4,25 +4,13 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, p
   bb0:
     v0 = and arg0, 0xffffffffffffffff
     v1 = and arg1, 0xffffffffffffffff
-    v2 = add 55, 63
-    v3 = lt v2, 55
-    jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, 55
-    v7 = shl 136, v0
-    v8 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v7
-    v9 = shl 72, v1
-    v10 = or v8, v9
-    memory_object_store_word memorybytes, v6, 0, v10
-    memory_object_store_word memorybytes, v6, 23, arg2
-    v11 = keccak256_bytes v6
-    ret v11
+    v2 = shl 136, v0
+    v3 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v2
+    v4 = shl 72, v1
+    v5 = or v3, v4
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 23, arg2 !metadata(memory=scratch)
+    v6 = keccak256 0, 55 !metadata(memory=scratch)
+    ret v6
 }
 

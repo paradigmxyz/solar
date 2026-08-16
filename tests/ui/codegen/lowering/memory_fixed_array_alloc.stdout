@@ -209,43 +209,35 @@ fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_ar
     revert 0, 36
   bb4:
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
-    v5 = add 32, 63
-    v6 = lt v5, 32
-    jumpi v6, bb5, bb6
+    v5 = not 31
+    v6 = and 95, v5
+    v7 = alloc memorybytes, exact, zeroed, panic, v6
+    set_memory_object_len memorybytes, v7, 32
+    v8 = shl 248, 238
+    v9 = memory_object_len memorybytes, v7
+    v10 = lt 0, v9
+    v11 = iszero v10
+    jumpi v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = not 31
-    v8 = and v5, v7
-    v9 = alloc memorybytes, exact, zeroed, panic, v8
-    set_memory_object_len memorybytes, v9, 32
-    v10 = shl 248, 238
-    v11 = memory_object_len memorybytes, v9
-    v12 = lt 0, v11
-    v13 = iszero v12
-    jumpi v13, bb7, bb8
+    v12 = byte 0, v8
+    memory_object_store_byte memorybytes, v7, 0, v12
+    v13 = memory_object_len memorybytes, v7
+    v14 = lt 0, v13
+    v15 = iszero v14
+    jumpi v15, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v14 = byte 0, v10
-    memory_object_store_byte memorybytes, v9, 0, v14
-    v15 = memory_object_len memorybytes, v9
-    v16 = lt 0, v15
-    v17 = iszero v16
-    jumpi v17, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v18 = memory_object_load_byte memorybytes, v9, 0
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    ret v0, v20
+    v16 = memory_object_load_byte memorybytes, v7, 0
+    v17 = shl 248, v16
+    v18 = shr 248, v17
+    ret v0, v18
 }
 
 fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -327,19 +319,11 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     set_memory_object_len memorybytes, v3, 0
     memory_object_store_field memorystruct<2>, v1, 1, v3
     memory_object_store_field memorystruct<2>, v1, 0, v0
-    v4 = add 1, 63
-    v5 = lt v4, 1
-    jumpi v5, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc memorybytes, exact, zeroed, panic, v7
-    set_memory_object_len memorybytes, v8, 1
-    memory_object_store_field memorystruct<2>, v1, 1, v8
+    v4 = not 31
+    v5 = and 64, v4
+    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    set_memory_object_len memorybytes, v6, 1
+    memory_object_store_field memorystruct<2>, v1, 1, v6
     ret v1
 }
 

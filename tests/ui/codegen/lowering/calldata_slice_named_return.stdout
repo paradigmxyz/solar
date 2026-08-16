@@ -47,14 +47,12 @@ fn @use() [selector=0x01bd03f7, pure] {
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2
     v9 = or v7, v8
-    jumpi v9, bb1, bb3
-  bb3:
     v10 = calldataload v5
-    v12 = calldatasize
-    v13 = sub v12, v6
-    v14 = gt v10, v13
-    jumpi v14, bb1, bb4
-  bb4:
+    v12 = sub v2, v6
+    v13 = gt v10, v12
+    v14 = or v9, v13
+    jumpi v14, bb1, bb3
+  bb3:
     v0 = internal_call @unwrap, 1, v6, v10
     v1 = mload v0
     mstore 128, v1

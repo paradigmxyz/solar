@@ -2,47 +2,39 @@
 @module BytesMemoryElements
 fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = add 96, 63
-    v1 = lt v0, 96
-    jumpi v1, bb1, bb2
+    v0 = not 31
+    v1 = and 159, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 96
+    v3 = shl 248, 170
+    v4 = memory_object_len memorybytes, v2
+    v5 = lt 5, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 96
-    v5 = shl 248, 170
-    v6 = memory_object_len memorybytes, v4
-    v7 = lt 5, v6
-    v8 = iszero v7
-    jumpi v8, bb3, bb4
+    v7 = byte 0, v3
+    memory_object_store_byte memorybytes, v2, 5, v7
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v8, 1
+    memory_object_store_word memorybytes, v8, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v9 = memory_object_load_element memorybytes, v8, 0
+    v10 = memory_object_len memorybytes, v2
+    v11 = lt 95, v10
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v9 = byte 0, v5
-    memory_object_store_byte memorybytes, v4, 5, v9
-    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v10, 1
-    memory_object_store_word memorybytes, v10, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v11 = memory_object_load_element memorybytes, v10, 0
-    v12 = memory_object_len memorybytes, v4
-    v13 = lt 95, v12
-    v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v15 = byte 0, v11
-    memory_object_store_byte memorybytes, v4, 95, v15
-    v16 = keccak256_bytes v4
-    ret v16
+    v13 = byte 0, v9
+    memory_object_store_byte memorybytes, v2, 95, v13
+    v14 = keccak256_bytes v2
+    ret v14
 }
 
 fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {

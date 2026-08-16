@@ -50,7 +50,7 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    v7 = memory_object_load_element memoryfixedarray<2, 1>, v26, 1
+    v7 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
     v8 = eq v7, 0
     v9 = iszero v8
     v10 = shl 8, 255
@@ -63,30 +63,24 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     sstore 0, v16 !metadata(storage=slot(0))
     stop
   bb4:
-    v23 = iszero arg0
-    v24 = iszero v23
-    v25 = eq arg0, v24
-    jumpi v25, bb6, bb7
+    v23 = lt arg0, 2
+    jumpi v23, bb6, bb7
   bb5:
     revert 0, 0
   bb6:
-    v26 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v27 = iszero arg1
-    v28 = iszero v27
-    v29 = eq arg1, v28
-    jumpi v29, bb8, bb9
+    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v25 = lt arg1, 2
+    jumpi v25, bb8, bb9
   bb7:
     revert 0, 0
   bb8:
-    memory_object_store_element memoryfixedarray<2, 1>, v26, 0, arg1
-    v30 = iszero arg2
-    v31 = iszero v30
-    v32 = eq arg2, v31
-    jumpi v32, bb10, bb11
+    memory_object_store_element memoryfixedarray<2, 1>, v24, 0, arg1
+    v26 = lt arg2, 2
+    jumpi v26, bb10, bb11
   bb9:
     revert 0, 0
   bb10:
-    memory_object_store_element memoryfixedarray<2, 1>, v26, 1, arg2
+    memory_object_store_element memoryfixedarray<2, 1>, v24, 1, arg2
     jump bb1
   bb11:
     revert 0, 0

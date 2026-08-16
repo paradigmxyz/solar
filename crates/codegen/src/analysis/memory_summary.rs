@@ -442,12 +442,11 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             }
         };
         match &func.inst(inst_id).kind {
-            InstKind::Add(first, second)
-            | InstKind::Sub(first, second)
-            | InstKind::MakeSlice { ptr: first, len: second, .. } => {
+            InstKind::Add(first, second) | InstKind::Sub(first, second) => {
                 add_user(*first);
                 add_user(*second);
             }
+            InstKind::MakeSlice { ptr, .. } => add_user(*ptr),
             InstKind::Select(_, first, second) => {
                 add_user(*first);
                 add_user(*second);
@@ -460,9 +459,8 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             InstKind::SlicePtr(value)
             | InstKind::MemoryObjectData(value, _)
             | InstKind::MemoryObjectFieldAddr { object: value, .. } => add_user(*value),
-            InstKind::MemoryObjectElementAddr { object, index, .. } => {
+            InstKind::MemoryObjectElementAddr { object, .. } => {
                 add_user(*object);
-                add_user(*index);
             }
             _ => {}
         }

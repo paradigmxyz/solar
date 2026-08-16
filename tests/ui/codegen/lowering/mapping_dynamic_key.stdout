@@ -333,20 +333,12 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8fc72899, 
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
-    v1 = add 32, 63
-    v2 = lt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
-    set_memory_object_len memorybytes, v5, 32
-    v6 = memory_object_len memorybytes, v5
-    ret v6
+    v1 = not 31
+    v2 = and 95, v1
+    v3 = alloc memorybytes, exact, zeroed, panic, v2
+    set_memory_object_len memorybytes, v3, 32
+    v4 = memory_object_len memorybytes, v3
+    ret v4
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {

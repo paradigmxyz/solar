@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
-use solar_ast::{BinOpKind, DataLocation, LitKind, StrKind, UnOpKind};
+use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
 use solar_interface::{Ident, Span, kw, sym};
 use solar_sema::{
@@ -58,7 +58,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
     pub(super) storage_bytes_helper: &'ctx mut Option<FunctionId>,
     pub(super) storage_clear_helper: &'ctx mut Option<FunctionId>,
-    pub(super) revert_string_helper: &'ctx mut Option<FunctionId>,
+    pub(super) revert_error_helper: &'ctx mut Option<FunctionId>,
     pub(super) literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
     pub(super) shared_literals: &'ctx FxHashSet<Vec<u8>>,
     pub(super) share_storage_bytes: bool,
@@ -79,7 +79,7 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             pointer_registry: &mut *self.pointer_registry,
             storage_bytes_helper: &mut *self.storage_bytes_helper,
             storage_clear_helper: &mut *self.storage_clear_helper,
-            revert_string_helper: &mut *self.revert_string_helper,
+            revert_error_helper: &mut *self.revert_error_helper,
             literal_helpers: &mut *self.literal_helpers,
             shared_literals: self.shared_literals,
             share_storage_bytes: self.share_storage_bytes,
@@ -203,7 +203,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
     storage_bytes_helper: &'ctx mut Option<FunctionId>,
     storage_clear_helper: &'ctx mut Option<FunctionId>,
-    revert_string_helper: &'ctx mut Option<FunctionId>,
+    revert_error_helper: &'ctx mut Option<FunctionId>,
     literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
     shared_literals: &'ctx FxHashSet<Vec<u8>>,
     share_storage_bytes: bool,
@@ -370,7 +370,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             pointer_registry,
             storage_bytes_helper,
             storage_clear_helper,
-            revert_string_helper,
+            revert_error_helper,
             literal_helpers,
             shared_literals,
             share_storage_bytes,
@@ -388,7 +388,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             pointer_registry,
             storage_bytes_helper,
             storage_clear_helper,
-            revert_string_helper,
+            revert_error_helper,
             literal_helpers,
             shared_literals,
             share_storage_bytes,

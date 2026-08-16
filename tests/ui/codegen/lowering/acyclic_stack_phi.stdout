@@ -35,15 +35,13 @@ bb4:
   push 4
   dup2
   add
-  push 224
-  mstore
   push 36
-  dup2
+  dup3
   add
   dup1
   push 192
   mstore
-  swap1
+  swap2
   push 0
   not
   push 192
@@ -51,37 +49,38 @@ bb4:
   lt
   push 160
   mload
-  dup3
+  dup4
   gt
   or
   swap1
+  calldataload
+  dup1
+  push 224
+  mstore
+  dup3
+  push 160
+  mload
+  sub
+  dup2
+  gt
+  swap1
+  swap2
+  or
+  swap2
+  pop
   pop
   push bb3
   jumpi
+  push bb7
+  push 192
+  mload
   push 224
-  mload
-  calldataload
-  dup1
-  push 160
-  mstore
-  calldatasize
-  push 192
-  mload
-  swap1
-  sub
-  lt
-  push bb3
-  jumpi
-  push bb8
-  push 192
-  mload
-  push 160
   mload
   push 4
   dup2
   gt
   iszero
-  push bb14
+  push bb13
   jumpi
   push 4
   swap1
@@ -147,7 +146,7 @@ bb4:
   pop
   swap1
   jump
-bb8:
+bb7:
   dup1
   push 256
   mstore
@@ -157,7 +156,7 @@ bb8:
   push 32
   push 128
   return
-bb14:
+bb13:
   calldatasize
   dup2
   swap1

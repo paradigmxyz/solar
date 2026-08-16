@@ -14,3 +14,17 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
     stop
 }
 
+fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_args=lazy, abi_params=[address, array<_, u8>], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [calldata_array<word>], selector 0xd55990ff00000000000000000000000000000000000000000000000000000000, args arg1
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = call v0, arg0, 0, v2, v3, 0, 0
+    jumpi v4, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+

@@ -244,6 +244,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if self.is_external_abi_argument(value)
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
+        {
+            return value;
+        }
         if self.value_is_canonical(value, &mut FxHashSet::default()) {
             return value;
         }
@@ -480,6 +485,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let helper = crate::transform::lower_abi::synthesize_memory_decode_helper(
                     self.module,
                     ty.clone(),
+                    self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 );
                 helpers.insert(ty, helper);
             }
@@ -491,6 +497,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 length,
                 &layout,
                 true,
+                self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
             )
         } else {
             crate::transform::lower_abi::decode_memory_tuple_with_helpers(
@@ -500,6 +507,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 &layout,
                 true,
                 &helpers,
+                self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
             )
         }
     }
@@ -606,84 +614,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
-        let mut total = self.builder.imm_u64(0);
-        let mut pieces = Vec::with_capacity(exprs.len());
-        for expr in exprs {
-            let ty = self.gcx.type_of_expr(expr.id)?;
-            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
-                && let LitKind::Str(_, bytes, _) = &lit.kind
-            {
-                let bytes = bytes.as_byte_str().to_vec();
-                let length = self.builder.imm_u64(bytes.len() as u64);
-                total = self.checked_add(total, length);
-                pieces.push(PackedPiece::Bytes(bytes));
-                continue;
-            }
-
-            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
-            let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            self.validate_enum_value(ty, value);
-            if let Some(abi_type) = self.types.abi_type(ty) {
-                self.validate_calldata_bytes_argument(value, &abi_type);
-                self.validate_calldata_array_head(value, ty, &abi_type);
-            }
-            if self.needs_calldata_aggregate_validation(value, ty) {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
-            }
-            if self.is_calldata_dynamic_bytes_type(ty)
-                || matches!(
-                    ty.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
-                )
-            {
-                let value_ty = self.builder.func().value_ty(value);
-                let is_slice = matches!(
-                    value_ty,
-                    Some(MirType::Slice(SliceLocation::Calldata | SliceLocation::Memory))
-                );
-                let length = if is_slice {
-                    self.builder.slice_len(value)
-                } else {
-                    self.builder.memory_object_len(value, MemoryObjectKind::Bytes)
-                };
-                total = self.checked_add(total, length);
-                let source = if is_slice {
-                    value
-                } else {
-                    let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                    self.builder.make_slice(pointer, length, SliceLocation::Memory)
-                };
-                pieces.push(PackedPiece::Dynamic { source, length });
-                continue;
-            }
-
-            if let Some((length, element, element_bytes, source)) =
-                self.packed_array_shape(ty, value)
-            {
-                let element_bytes_value = self.builder.imm_u64(element_bytes);
-                let byte_length = self.checked_mul(length, element_bytes_value);
-                total = self.checked_add(total, byte_length);
-                pieces.push(PackedPiece::Array {
-                    value,
-                    length,
-                    element: PackedArrayElement { abi: element.abi, ty: element.ty },
-                    source,
-                });
-                continue;
-            }
-
-            let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
-            };
-            let value = self.normalize_abi_scalar(value, ty);
-            let signed = is_signed_packed_scalar(ty);
-            let length_value = self.builder.imm_u64(length);
-            total = self.checked_add(total, length_value);
-            pieces.push(PackedPiece::Static { value, length, fixed_bytes, signed });
-        }
+        let (pieces, total) = self.lower_packed_pieces(exprs, true)?;
 
         let size = self.checked_padded_size(total);
         let output = self.builder.alloc_object(
@@ -744,6 +675,251 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             index += 1;
         }
         Some(output)
+    }
+
+    /// Hashes a statically packed input without allocating a bytes object.
+    pub(super) fn lower_keccak_abi_encode_packed(
+        &mut self,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+        if !exprs.iter().all(|expr| self.is_scratch_packed_expr(expr)) {
+            return None;
+        }
+        let (pieces, total) = self.lower_packed_pieces(exprs, false)?;
+        let has_dynamic = pieces.iter().any(|piece| matches!(piece, PackedPiece::Dynamic { .. }));
+        let base = if has_dynamic {
+            Some(self.builder.fmp())
+        } else {
+            let _ = u64::try_from(self.builder.func().value_u256(total)?).ok()?;
+            let mut max_write_end = 0u64;
+            let mut offset = 0u64;
+            for piece in &pieces {
+                match piece {
+                    PackedPiece::Bytes(bytes) => {
+                        for chunk in bytes.chunks(32) {
+                            max_write_end = max_write_end.max(offset.checked_add(32)?);
+                            offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
+                        }
+                    }
+                    PackedPiece::Static { length, .. } => {
+                        max_write_end = max_write_end.max(offset.checked_add(32)?);
+                        offset = offset.checked_add(*length)?;
+                    }
+                    PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
+                }
+            }
+            (max_write_end > EvmMemoryLayout::FMP_SLOT).then(|| self.builder.fmp())
+        };
+
+        let zero = base.unwrap_or_else(|| self.builder.imm_u64(0));
+        let mut offset = 0u64;
+        let mut cursor = has_dynamic.then(|| base.expect("dynamic packed input has a base"));
+        let mut index = 0;
+        while index < pieces.len() {
+            if let Some((consumed, length, value)) = self.try_pack_packed_word(&pieces[index..]) {
+                let dest = self.packed_scratch_offset(cursor.or(base), offset);
+                self.builder.mstore(dest, value);
+                offset = offset.checked_add(length)?;
+                index += consumed;
+                continue;
+            }
+
+            let piece = &pieces[index];
+            match piece {
+                PackedPiece::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        let mut padded = [0u8; 32];
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                        let value = self.builder.imm_u256(U256::from_be_bytes(padded));
+                        let dest = self.packed_scratch_offset(cursor.or(base), offset);
+                        self.builder.mstore(dest, value);
+                        offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
+                    }
+                }
+                PackedPiece::Dynamic { source, length } => {
+                    let dest = if let Some(cursor) = cursor {
+                        self.packed_scratch_offset(Some(cursor), offset)
+                    } else {
+                        self.packed_scratch_offset(None, offset)
+                    };
+                    self.copy_packed_slice(dest, *source)?;
+                    cursor = Some(self.builder.add(dest, *length));
+                    offset = 0;
+                }
+                PackedPiece::Static { value, length, fixed_bytes, .. } => {
+                    let value = if *fixed_bytes || *length == 32 {
+                        *value
+                    } else {
+                        let shift = self.builder.imm_u64((32 - *length) * 8);
+                        self.builder.shl(shift, *value)
+                    };
+                    let dest = self.packed_scratch_offset(cursor.or(base), offset);
+                    self.builder.mstore(dest, value);
+                    offset = offset.checked_add(*length)?;
+                }
+                PackedPiece::Array { .. } => return None,
+            }
+            index += 1;
+        }
+
+        let size = if has_dynamic {
+            let cursor = cursor.expect("dynamic packed input has a cursor");
+            if offset == 0 {
+                self.builder.sub(cursor, zero)
+            } else {
+                let offset = self.builder.imm_u64(offset);
+                let end = self.builder.add(cursor, offset);
+                self.builder.sub(end, zero)
+            }
+        } else {
+            total
+        };
+        Some(self.builder.keccak256(zero, size))
+    }
+
+    fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        if matches!(
+            self.peel_bytes_conversion(expr).peel_parens().kind,
+            ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Str(..))
+        ) {
+            return true;
+        }
+        let Some(ty) = self.gcx.type_of_expr(expr.id) else { return false };
+        self.packed_static_shape(ty).is_some() || self.is_dynamic_bytes_type(ty)
+    }
+
+    fn is_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
+        matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String
+            )
+        ) || matches!(
+            ty.kind,
+            TyKind::Slice(inner)
+                if matches!(
+                    inner.peel_refs().kind,
+                    TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                            | solar_sema::hir::ElementaryType::String
+                    )
+                )
+        )
+    }
+
+    fn packed_scratch_offset(&mut self, base: Option<ValueId>, offset: u64) -> ValueId {
+        match base {
+            Some(base) if offset != 0 => {
+                let offset = self.builder.imm_u64(offset);
+                self.builder.add(base, offset)
+            }
+            Some(base) => base,
+            None => self.builder.imm_u64(offset),
+        }
+    }
+
+    fn copy_packed_slice(&mut self, destination: ValueId, source: ValueId) -> Option<()> {
+        let location = match self.builder.func().value_ty(source)? {
+            MirType::Slice(location) => location,
+            _ => return None,
+        };
+        let length = self.builder.slice_len(source);
+        let pointer = self.builder.slice_ptr(source);
+        match location {
+            SliceLocation::Memory => self.builder.mcopy(destination, pointer, length),
+            SliceLocation::Calldata => self.builder.calldatacopy(destination, pointer, length),
+            SliceLocation::Returndata => self.builder.returndatacopy(destination, pointer, length),
+        }
+        Some(())
+    }
+
+    fn lower_packed_pieces(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+        checked: bool,
+    ) -> Option<(Vec<PackedPiece<'gcx>>, ValueId)> {
+        let mut total = self.builder.imm_u64(0);
+        let mut pieces = Vec::with_capacity(exprs.len());
+        for expr in exprs {
+            let ty = self.gcx.type_of_expr(expr.id)?;
+            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                let bytes = bytes.as_byte_str().to_vec();
+                let length = self.builder.imm_u64(bytes.len() as u64);
+                total = self.add_packed_total(total, length, checked);
+                pieces.push(PackedPiece::Bytes(bytes));
+                continue;
+            }
+
+            let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let mut value = self.lower_typed_expr(expr, memory_ty)?;
+            self.validate_enum_value(ty, value);
+            if let Some(abi_type) = self.types.abi_type(ty) {
+                self.validate_calldata_bytes_argument(value, &abi_type);
+                self.validate_calldata_array_head(value, ty, &abi_type);
+            }
+            if self.needs_calldata_aggregate_validation(value, ty) {
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+            }
+            if self.is_dynamic_bytes_type(ty) {
+                let value_ty = self.builder.func().value_ty(value);
+                let is_slice = matches!(
+                    value_ty,
+                    Some(MirType::Slice(SliceLocation::Calldata | SliceLocation::Memory))
+                );
+                let length = if is_slice {
+                    self.builder.slice_len(value)
+                } else {
+                    self.builder.memory_object_len(value, MemoryObjectKind::Bytes)
+                };
+                total = self.add_packed_total(total, length, checked);
+                let source = if is_slice {
+                    value
+                } else {
+                    let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                    self.builder.make_slice(pointer, length, SliceLocation::Memory)
+                };
+                pieces.push(PackedPiece::Dynamic { source, length });
+                continue;
+            }
+
+            if let Some((length, element, element_bytes, source)) =
+                self.packed_array_shape(ty, value)
+            {
+                let element_bytes_value = self.builder.imm_u64(element_bytes);
+                let byte_length = self.checked_mul(length, element_bytes_value);
+                total = self.add_packed_total(total, byte_length, checked);
+                pieces.push(PackedPiece::Array {
+                    value,
+                    length,
+                    element: PackedArrayElement { abi: element.abi, ty: element.ty },
+                    source,
+                });
+                continue;
+            }
+
+            let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
+                return report_unsupported(self.gcx, expr.span, "abi.encodePacked argument");
+            };
+            let value = self.normalize_abi_scalar(value, ty);
+            let signed = is_signed_packed_scalar(ty);
+            let length_value = self.builder.imm_u64(length);
+            total = self.add_packed_total(total, length_value, checked);
+            pieces.push(PackedPiece::Static { value, length, fixed_bytes, signed });
+        }
+        Some((pieces, total))
+    }
+
+    fn add_packed_total(&mut self, lhs: ValueId, rhs: ValueId, checked: bool) -> ValueId {
+        if let (Some(lhs), Some(rhs)) =
+            (self.builder.func().value_u256(lhs), self.builder.func().value_u256(rhs))
+            && let Some(result) = lhs.checked_add(rhs)
+        {
+            return self.builder.imm_u256(result);
+        }
+        if checked { self.checked_add(lhs, rhs) } else { self.builder.add(lhs, rhs) }
     }
 
     fn packed_array_shape(
@@ -1221,12 +1397,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn try_write_packed_word(
+    fn try_pack_packed_word(
         &mut self,
-        output: ValueId,
-        offset: ValueId,
         pieces: &[PackedPiece<'gcx>],
-    ) -> Option<(usize, u64)> {
+    ) -> Option<(usize, u64, ValueId)> {
         let mut constant = U256::ZERO;
         let mut terms = Vec::new();
         let mut length = 0u64;
@@ -1282,6 +1456,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             value = self.builder.or(value, term);
         }
+        Some((consumed, length, value))
+    }
+
+    fn try_write_packed_word(
+        &mut self,
+        output: ValueId,
+        offset: ValueId,
+        pieces: &[PackedPiece<'gcx>],
+    ) -> Option<(usize, u64)> {
+        let (consumed, length, value) = self.try_pack_packed_word(pieces)?;
         self.builder.memory_object_store_word(output, offset, value);
         Some((consumed, length))
     }

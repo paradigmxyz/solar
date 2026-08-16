@@ -57,11 +57,8 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v22 = phi [bb8: v21], [bb9: 1]
     jump bb7
   bb11:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, 2 !metadata(memory=scratch)
-    mstore 68, 0x5446000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    revert 0, 100
+    internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    invalid
   bb12:
     stop
 }
@@ -140,5 +137,14 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf7
     revert 0, 0
   bb4:
     ret v9
+}
+
+fn @__revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
 }
 

@@ -7875,9 +7875,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 // For instruction results, we need to check if they're spilled
                 // or if they're instruction results that produce fresh values (like GAS, MLOAD)
-                if let Some(slot) = self.scheduler.spills.get(val)
-                    && self.scheduler.spills.is_stored(val)
-                {
+                if let Some(slot) = self.scheduler.reloadable_spill(val) {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
                     // executes before any use at runtime.
@@ -8590,14 +8588,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.name
             );
             self.pop_stack_values_not_needed_by(values);
-            for &value in values {
-                self.emit_value(func, value);
-            }
             // StackModel and the shuffler use top-to-bottom order. The physical ABI leaves the
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
             let target: Vec<_> = values.iter().rev().copied().map(TargetSlot::Value).collect();
-            let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
+            let shuffle = self.scheduler.shuffle_to_layout(&target).or_else(|| {
+                for &value in values {
+                    self.emit_value(func, value);
+                }
+                self.scheduler.shuffle_to_layout(&target)
+            });
+            let shuffle = shuffle.unwrap_or_else(|| {
                 panic!(
                     "could not construct {}-word stack return for `{}`: stack={:?}",
                     plan.arity, func.name, self.scheduler.stack

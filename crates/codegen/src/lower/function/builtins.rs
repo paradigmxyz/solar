@@ -213,6 +213,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.imm_u256(U256::from_be_slice(hash.as_slice())));
                 }
                 if let ExprKind::Call(callee, encode_args, _) = &value.kind
+                    && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
+                    && let Some(hash) = self.lower_keccak_abi_encode_packed(*encode_args)
+                {
+                    return Some(hash);
+                }
+                if let ExprKind::Call(callee, encode_args, _) = &value.kind
                     && self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;

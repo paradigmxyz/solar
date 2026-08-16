@@ -26,7 +26,7 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
+    pub(super) fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
         BindingSnapshot {
             ids: ids.to_vec(),
             values: ids
@@ -40,7 +40,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
+    pub(super) fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
         for &id in &snapshot.ids {
             self.values.remove(&id);
             self.storage_refs.remove(&id);

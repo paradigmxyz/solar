@@ -2,22 +2,29 @@
 //@filecheck:
 
 // Packed encoding writes each value's top `size` bytes: fixed-bytes values
-// are already left-aligned and must not be shifted again, and `bytes`/
-// `string` values copy their data without padding (runtime-length cursor).
+// are already left-aligned and must not be shifted again. Hashes use an
+// unbumped scratch buffer; materialized encodings still use bytes objects.
 contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg{{[( ]}}
     // CHECK: {{v[0-9]+}} = and arg1, {{.*}}
+    // CHECK: fmp
+    // CHECK: mstore {{v[0-9]+}}, arg0
     // CHECK: {{v[0-9]+}} = shl 96, {{v[0-9]+}}
-    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, {{v[0-9]+}}
-    // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
+    // CHECK: mstore {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: mstore {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 54
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
     }
 
     // CHECK-LABEL: fn @dynamicArg{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
-    // CHECK: memory_object_copy_from_slice_at memorybytes
-    // CHECK: [[OBJECT:v[0-9]+]] = keccak256_bytes
+    // CHECK: [[DATA:v[0-9]+]] = memory_object_data memorybytes
+    // CHECK: [[SLICE:v[0-9]+]] = make_memory_slice [[DATA]], [[LEN]]
+    // CHECK: [[BASE:v[0-9]+]] = fmp
+    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[HASH:v[0-9]+]] = keccak256 [[BASE]], {{v[0-9]+}}
+    // CHECK-NOT: keccak256_bytes
     function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(h, tail));
     }
@@ -45,7 +52,8 @@ contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @signedStaticRun{{[( ]}}
     // CHECK: [[CLEAN:v[0-9]+]] = and {{v[0-9]+}}, 0xffff
     // CHECK: [[SIGNED:v[0-9]+]] = shl 232, [[CLEAN]]
-    // CHECK: keccak256_bytes
+    // CHECK: mstore 0, {{v[0-9]+}}
+    // CHECK: keccak256 0, 6
     function signedStaticRun(uint8 prefix, int16 value, bytes3 suffix)
         external
         pure

@@ -162,7 +162,7 @@ bb6:
   jumpi
   jump bb12
 bb13:
-  push 224
+  push 160
   push 64
   mstore
   calldatasize
@@ -176,8 +176,8 @@ bb13:
   gt
   iszero
   push bb16
-  jump bb37
-bb37:
+  jump bb39
+bb39:
   jumpi
   push 4
   calldataload
@@ -186,6 +186,32 @@ bb37:
   push 32
   push 128
   return
+bb16 [cold]:
+  push 0x3339
+  push 240
+  shl
+  push 2
+  swap1
+  jump bb38
+bb38 [cold]:
+  push 0x8c379a0
+  push 224
+  shl
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  dup2
+  push 36
+  mstore
+  swap1
+  pop
+  push 68
+  mstore
+  push 100
+  push 0
+  revert
 bb18:
   push 160
   push 64
@@ -201,9 +227,18 @@ bb18:
   gt
   iszero
   push bb21
-  jump bb37
+  jump bb39
+bb21 [cold]:
+  push 0x6c69746572616c206d7367
+  jump bb40
+bb40 [cold]:
+  push 168
+  shl
+  push 11
+  swap1
+  jump bb38
 bb23:
-  push 224
+  push 160
   push 64
   mstore
   calldatasize
@@ -217,7 +252,14 @@ bb23:
   gt
   iszero
   push bb26
-  jump bb37
+  jump bb39
+bb26 [cold]:
+  push 0x6c6f63616c2d636f6e73742d6d7367
+  push 136
+  shl
+  push 15
+  swap1
+  jump bb38
 bb28:
   push 224
   push 64
@@ -233,7 +275,7 @@ bb28:
   gt
   iszero
   push bb31
-  jump bb37
+  jump bb39
 bb33:
   push 160
   push 64
@@ -249,11 +291,11 @@ bb33:
   gt
   iszero
   push bb36
-  jump bb37
-bb16 [cold]:
-  push bb43
-  jump bb42
-bb42:
+  jump bb39
+bb36 [cold]:
+  push 0x7265766572742d70617468
+  jump bb40
+bb31 [cold]:
   push 64
   mload
   dup1
@@ -264,119 +306,6 @@ bb42:
   shl
   dup2
   mstore
-  swap1
-  jump
-bb21 [cold]:
-  push bb44
-  jump bb41
-bb41:
-  push 0x8c379a0
-  push 224
-  shl
-  push 0
-  mstore
-  push 32
-  push 4
-  mstore
-  push 11
-  push 36
-  mstore
-  jump
-bb26 [cold]:
-  push bb45
-  jump bb42
-bb31 [cold]:
-  push bb46
-  jump bb42
-bb36 [cold]:
-  push bb47
-  jump bb41
-bb43 [cold]:
-  push 4
-  dup2
-  add
-  push 36
-  dup3
-  add
-  dup2
-  dup2
-  sub
-  dup3
-  mstore
-  push 2
-  swap1
-  mstore
-  push 68
-  dup3
-  add
-  push 0x3339
-  push 240
-  jump bb39
-bb39 [cold]:
-  shl
-  swap1
-  mstore
-  swap1
-  push 100
-  jump bb38
-bb38 [cold]:
-  add
-  sub
-  push 4
-  dup2
-  add
-  swap1
-  push 35
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup1
-  push 192
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  revert
-bb44 [cold]:
-  push 0x6c69746572616c206d7367
-  jump bb40
-bb40 [cold]:
-  push 168
-  shl
-  push 68
-  mstore
-  push 100
-  push 0
-  revert
-bb45 [cold]:
-  push 4
-  dup2
-  add
-  push 36
-  dup3
-  add
-  dup2
-  dup2
-  sub
-  dup3
-  mstore
-  push 15
-  swap1
-  mstore
-  push 68
-  dup3
-  add
-  push 0x6c6f63616c2d636f6e73742d6d7367
-  push 136
-  jump bb39
-bb46 [cold]:
   push 4
   dup2
   add
@@ -407,7 +336,27 @@ bb46 [cold]:
   mstore
   swap1
   push 132
-  jump bb38
-bb47 [cold]:
-  push 0x7265766572742d70617468
-  jump bb40
+  add
+  sub
+  push 4
+  dup2
+  add
+  swap1
+  push 35
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup1
+  push 192
+  mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  revert

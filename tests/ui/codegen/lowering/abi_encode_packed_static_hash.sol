@@ -1,15 +1,15 @@
 //@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
-// Nitro-style compact hashes should coalesce adjacent sub-word writes into one
-// word store in a semantic bytes object.
+// Nitro-style compact hashes can use the scratch area without allocating a
+// temporary bytes object.
 contract AbiEncodePackedStaticHash {
     // CHECK-LABEL: fn @hash{{[( ]}}
-    // CHECK: {{v[0-9]+}} = shl 136, {{v[0-9]+}}
+    // CHECK: [[WORD:v[0-9]+]] = or 0x4d656d6f72793a{{.*}}, {{v[0-9]+}}
     // CHECK: {{v[0-9]+}} = shl 72, {{v[0-9]+}}
-    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, {{v[0-9]+}}
-    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, arg2
-    // CHECK: keccak256_bytes {{v[0-9]+}}
+    // CHECK: mstore 0, {{v[0-9]+}}
+    // CHECK: mstore 23, arg2
+    // CHECK: {{v[0-9]+}} = keccak256 0, 55
     function hash(uint64 size, uint64 maxSize, bytes32 root) external pure returns (bytes32) {
         return keccak256(abi.encodePacked("Memory:", size, maxSize, root));
     }

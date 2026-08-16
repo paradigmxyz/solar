@@ -23,14 +23,9 @@ bb0:
   jumpi
   push 4
   calldataload
-  push 0
-  not
-  push 96
+  dup1
+  push 160
   shr
-  dup2
-  and
-  dup2
-  sub
   push bb3
   jumpi
   push 1

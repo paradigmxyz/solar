@@ -126,9 +126,9 @@
 +     v5 = sub v4, v3
 +     mstore v3, v5
 +     v6 = slice_len v1
-+     mstore v4, v6
++     mstore v4, v0
 +     v7 = not 31
-+     v8 = add v6, 31
++     v8 = add v0, 31
 +     v9 = and v8, v7
 +     v10 = add v4, 32
 +     v11 = iszero v9
@@ -141,7 +141,7 @@
 +   bb2:
 +     v14 = slice_ptr v1
 +     v15 = add v10, v9
-+     returndatacopy v10, v14, v6
++     returndatacopy v10, 0, v0
 +     v16 = sub v15, v3
 +     v17 = add v16, 0
 +     v18 = add v17, 31
@@ -162,12 +162,12 @@
 +     v4 = sub v3, v2
 +     mstore v2, v4
 +     v5 = slice_len v0
-+     mstore v3, v5
-+     v6 = mul v5, 32
++     mstore v3, arg0
++     v6 = mul arg0, 32
 +     v7 = add v3, 32
 +     v8 = slice_ptr v0
 +     v9 = add v7, v6
-+     returndatacopy v7, v8, v6
++     returndatacopy v7, 0, v6
 +     v10 = sub v9, v2
 +     v11 = add v10, 0
 +     v12 = add v11, 31

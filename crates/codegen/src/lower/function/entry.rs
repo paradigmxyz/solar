@@ -240,12 +240,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ids = self
             .default_bindings
             .iter()
+            .chain(self.deferred_bindings.iter())
             .copied()
             .filter(|id| !self.values.contains_key(id))
             .collect::<Vec<_>>();
         for id in ids {
             let ty = self.gcx.type_of_item(id.into());
-            let value = self.default_binding_value(ty);
+            let value = if self.default_bindings.contains(&id) {
+                self.default_binding_value(ty)
+            } else {
+                self.default_value(ty)
+            };
             self.values.insert(id, value);
         }
     }

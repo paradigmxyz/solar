@@ -85,18 +85,14 @@ bb15:
   jumpi
   push 4
   calldataload
-  push 255
-  dup2
-  and
-  sub
+  push 8
+  shr
   push bb50
   jumpi
   push 36
   calldataload
-  push 255
-  dup2
-  and
-  sub
+  push 8
+  shr
   push bb50
   jumpi
   caller
@@ -1368,12 +1364,8 @@ bb115:
   jumpi
   push 36
   calldataload
-  push 255
-  push 248
+  push 8
   shl
-  dup2
-  and
-  sub
   push bb50
   jumpi
   caller
