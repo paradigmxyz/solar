@@ -9,6 +9,7 @@ library stdError {
     bytes public constant arithmeticError = abi.encodeWithSignature("Panic(uint256)", 0x11);
 }
 
+// Dynamic revert data followed by a self-call exercises the stale FMP reload path.
 contract FmpReloadComputedOperand {
     Vm private constant vm = Vm(address(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D));
 
