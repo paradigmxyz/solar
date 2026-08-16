@@ -52,13 +52,10 @@ pub fn get_srcs() -> &'static [Source] {
         sources.extend([
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
             include_source(
-                "../testdata/codegen-runtime/projects/openzeppelin-5.6.1.json.gz",
+                "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source(
-                "../testdata/codegen-runtime/projects/solady-0.1.26.json.gz",
-                Capabilities::all(),
-            ),
+            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
@@ -75,6 +72,28 @@ pub fn get_srcs() -> &'static [Source] {
                 .with_codspeed_codegen(),
             include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
                 .with_codspeed_codegen(),
+            // Runtime-only projects share this archive corpus. Keep the
+            // unsupported or expensive full-project codegen cases in the
+            // parser and lowering benches.
+            include_source(
+                "../testdata/projects/aave-l2-encoder.json.gz",
+                Capabilities::no_codegen(),
+            ),
+            include_source("../testdata/projects/lilweb3-ens.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/lilweb3-runtime.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source("../testdata/projects/maple-erc20.json.gz", Capabilities::all())
+                .with_codspeed_codegen(),
+            include_source(
+                "../testdata/projects/nitro-one-step-proof.json.gz",
+                Capabilities::all(),
+            )
+            .with_codspeed_codegen(),
+            include_source(
+                "../testdata/projects/uniswap-v2-pair.json.gz",
+                Capabilities::lex_and_parse(),
+            ),
         ]);
 
         sources

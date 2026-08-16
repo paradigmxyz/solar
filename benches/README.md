@@ -39,7 +39,8 @@ Anvil, executes ordered stateful workloads, and requires normalized return value
 observations to match. The corpus contains four micro contracts, including the shared
 `testdata/Counter.sol`, nine minimal import closures from real repositories, and three large
 contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its sources and
-upstream commits are documented in
+upstream commits are documented in the shared project archive
+[`testdata/projects/`](../testdata/projects/) and in
 [`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
 The runtime harness and its tests are in [`runtime/`](runtime/).
 

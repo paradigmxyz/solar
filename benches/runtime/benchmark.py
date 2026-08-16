@@ -37,6 +37,7 @@ from cases import (
 from common import (
     DEFAULT_PRIVATE_KEY,
     DEFAULT_RPC_URL,
+    PROJECTS_ROOT,
     REPOSITORY_ROOT,
     RUNTIME_CORPUS_ROOT,
     load_project,
@@ -54,6 +55,11 @@ CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
+RUNTIME_OUTPUTS = [
+    "abi",
+    "evm.bytecode.object",
+    "evm.deployedBytecode.object",
+]
 
 RESET = "\033[0m"
 YELLOW = "\033[33m"
@@ -179,11 +185,7 @@ def standard_json_input(test_case: TestCase) -> str:
             "viaIR": True,
             "outputSelection": {
                 "*": {
-                    "*": [
-                        "abi",
-                        "evm.bytecode.object",
-                        "evm.deployedBytecode.object",
-                    ]
+                    "*": RUNTIME_OUTPUTS,
                 }
             },
         },
@@ -192,17 +194,23 @@ def standard_json_input(test_case: TestCase) -> str:
 
 
 @lru_cache(maxsize=None)
-def project_standard_json_input(project_file: str, source: str, contract_name: str) -> str:
-    path = REPOSITORY_ROOT / project_file
+def project_standard_json_input(
+    project_file: str, source: str, contract_name: str, settings_profile: str = ""
+) -> str:
+    path = PROJECTS_ROOT / project_file
     project = load_project(path)
-    settings = dict(project["settings"])
+    if settings_profile == "runtime":
+        project_settings = project["settings"]
+        settings = {
+            "optimizer": {"enabled": True, "runs": 200},
+            "remappings": project_settings.get("remappings", []),
+            "viaIR": True,
+        }
+    else:
+        settings = dict(project["settings"])
     settings["outputSelection"] = {
         source: {
-            contract_name: [
-                "abi",
-                "evm.bytecode.object",
-                "evm.deployedBytecode.object",
-            ]
+            contract_name: RUNTIME_OUTPUTS,
         }
     }
     payload = {
@@ -233,7 +241,10 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
         input_text = project_standard_json_input(
-            test_case.project_file, test_case.source, test_case.contract_name
+            test_case.project_file,
+            test_case.source,
+            test_case.contract_name,
+            test_case.settings_profile,
         )
         timeout = 180
     else:

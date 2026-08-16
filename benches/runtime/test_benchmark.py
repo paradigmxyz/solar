@@ -38,7 +38,10 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(case.project_path.is_file(), case.test_id)
             payload = json.loads(
                 benchmark.project_standard_json_input(
-                    case.project_file, case.source, case.contract_name
+                    case.project_file,
+                    case.source,
+                    case.contract_name,
+                    case.settings_profile,
                 )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
