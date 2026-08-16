@@ -1457,6 +1457,7 @@ impl LowerAbiCx {
         let abi_param_locations = func.abi_param_locations.clone();
         let mut logical_values = Vec::new();
         let mut replacements = FxHashMap::default();
+        let mut slice_values_to_retag = Vec::new();
         if let Some(layout) = abi_params {
             let mut head_offset = 0_u64;
             let mut logical_physical = Vec::with_capacity(layout.types.len());
@@ -1690,6 +1691,11 @@ impl LowerAbiCx {
                             )
                         };
                         logical_values[index] = Some(value);
+                        if matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
+                            && Self::is_scalar_array(ty)
+                        {
+                            slice_values_to_retag.push(value);
+                        }
                         for &use_value in uses {
                             replacements.insert(use_value, value);
                         }
@@ -1721,6 +1727,9 @@ impl LowerAbiCx {
             guard
         };
         func.replace_uses_canonicalized(&replacements);
+        for value in slice_values_to_retag {
+            Self::retag_calldata_slice_values(func, value);
+        }
         Self::rewrite_calldata_canonicalization(func);
         func.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
         let order = std::iter::once(guard)
@@ -2062,6 +2071,16 @@ impl LowerAbiCx {
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm_u64(*len);
+                    if Self::is_scalar_array(ty) {
+                        Self::validate_calldata_scalar_array(
+                            builder,
+                            base,
+                            element,
+                            length,
+                            current,
+                            has_bitwise_shifting,
+                        );
+                    }
                     return builder.make_slice(base, length, SliceLocation::Calldata);
                 }
                 if constructor && allow_alias && Self::is_scalar_or_enum(element) {
@@ -3434,6 +3453,7 @@ impl LowerAbiCx {
     ) -> bool {
         if !matches!(arg_type, MirType::MemoryObject(_))
             || !(matches!(ty, crate::mir::AbiParamType::Bytes)
+                || Self::is_scalar_array(ty)
                 || matches!(
                     ty,
                     crate::mir::AbiParamType::DynamicArray(element)
@@ -3528,6 +3548,27 @@ impl LowerAbiCx {
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.
                 InstKind::Add(..) | InstKind::Sub(..) | InstKind::MLoad(_) => (true, false),
+                InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
+                    let Some(result) = func.inst_result_value(inst_id) else {
+                        return false;
+                    };
+                    let compatible = incoming
+                        .iter()
+                        .all(|(_, value)| tainted.contains(*value) || *value == result);
+                    (!compatible, compatible)
+                }
+                InstKind::Select(condition, then_value, else_value)
+                    if Self::is_scalar_array(ty) =>
+                {
+                    let Some(result) = func.inst_result_value(inst_id) else {
+                        return false;
+                    };
+                    let compatible = !tainted.contains(*condition)
+                        && [then_value, else_value]
+                            .into_iter()
+                            .all(|value| tainted.contains(*value) || *value == result);
+                    (!compatible, compatible)
+                }
                 InstKind::Phi(_) | InstKind::Select(..) => (false, true),
                 _ => (false, true),
             };
@@ -3548,21 +3589,66 @@ impl LowerAbiCx {
         true
     }
 
+    /// Retags loop-carried or selected aggregate values that carry the same
+    /// calldata slice. ABI lowering replaces the original memory-object
+    /// argument uses after MIR construction, so the original result type still
+    /// needs to follow that replacement before memory-object lowering.
+    fn retag_calldata_slice_values(func: &mut Function, root: ValueId) {
+        let mut tainted = DenseBitSet::new_empty(func.num_values());
+        tainted.insert(root);
+        let inst_ids: Vec<_> = func.instructions().collect();
+        loop {
+            let mut changed = false;
+            for &inst_id in &inst_ids {
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                if tainted.contains(result) {
+                    continue;
+                }
+                let compatible = match &func.inst(inst_id).kind {
+                    InstKind::Phi(incoming) => incoming
+                        .iter()
+                        .all(|(_, value)| tainted.contains(*value) || *value == result),
+                    InstKind::Select(condition, then_value, else_value) => {
+                        !tainted.contains(*condition)
+                            && [then_value, else_value]
+                                .into_iter()
+                                .all(|value| tainted.contains(*value) || *value == result)
+                    }
+                    _ => false,
+                };
+                if !compatible {
+                    continue;
+                }
+                func.inst_mut(inst_id).result_ty = Some(MirType::Slice(SliceLocation::Calldata));
+                tainted.insert(result);
+                changed = true;
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
     fn can_read_calldata_slice_use(kind: &InstKind, ty: &crate::mir::AbiParamType) -> bool {
         match kind {
             InstKind::MemoryObjectLen(..) => {
-                matches!(ty, crate::mir::AbiParamType::Bytes)
-                    || matches!(
-                        ty,
-                        crate::mir::AbiParamType::DynamicArray(element)
-                            if Self::is_scalar_or_enum(element)
-                    )
+                matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty)
             }
             InstKind::MemoryObjectLoadByte { .. } => {
                 matches!(ty, crate::mir::AbiParamType::Bytes)
             }
+            InstKind::MemoryObjectLoadElement { .. } => Self::is_scalar_array(ty),
             _ => false,
         }
+    }
+
+    fn is_scalar_array(ty: &crate::mir::AbiParamType) -> bool {
+        matches!(
+            ty,
+            crate::mir::AbiParamType::DynamicArray(element)
+                | crate::mir::AbiParamType::FixedArray { element, .. }
+                if Self::is_scalar_or_enum(element)
+        )
     }
 
     /// Returns whether a calldata scalar array must be validated in full.
@@ -3660,6 +3746,7 @@ impl LowerAbiCx {
 
     fn can_encode_calldata_slice(ty: &crate::mir::AbiParamType) -> bool {
         matches!(ty, crate::mir::AbiParamType::Bytes)
+            || Self::is_scalar_array(ty)
             || matches!(
                 ty,
                 crate::mir::AbiParamType::DynamicArray(element)
