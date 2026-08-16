@@ -5,7 +5,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 68
-    v21 = internal_call @__decode_calldata_slice_3, 2, 4, 4
+    v21 = internal_call @__decode_calldata_slice_3, 2, 4
     v49 = mload 32 !metadata(memory=scratch)
     v23 = add v49, 32
     v24 = mload v23
@@ -66,7 +66,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 100
-    v21 = internal_call @__decode_calldata_slice_3, 2, 4, 4
+    v21 = internal_call @__decode_calldata_slice_3, 2, 4
     v49 = mload 32 !metadata(memory=scratch)
     v23 = add v49, 32
     v24 = mload v23
@@ -131,12 +131,12 @@ fn @__revert_stub0() {
     revert 0, 36
 }
 
-fn @__decode_calldata_slice_3(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @__decode_calldata_slice_3(arg0: u256) -> (u256, u256) {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
-    v2 = add arg1, v1
-    v3 = add v2, 32
+    v2 = add v1, 4
+    v3 = add v1, 36
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5

@@ -24,7 +24,7 @@ bb4 [cold]:
   dup1
   revert
 bb5:
-  push 384
+  push 352
   push 64
   mstore
   calldatasize
@@ -33,21 +33,20 @@ bb5:
   push 224
   mstore
   push bb6
-  jump bb17
-bb17:
   push 4
-  dup1
+  jump bb14
+bb14:
   calldatasize
-  swap2
+  swap1
   calldataload
-  dup1
-  swap2
-  add
-  push 32
+  push 4
   dup2
   add
+  push 36
+  dup3
+  add
   dup1
-  push 320
+  push 288
   mstore
   swap2
   push 0
@@ -62,7 +61,7 @@ bb17:
   swap1
   calldataload
   dup1
-  push 352
+  push 320
   mstore
   dup3
   swap1
@@ -120,8 +119,8 @@ bb6:
   dup2
   mstore
   push 32
-  jump bb18
-bb18:
+  jump bb17
+bb17:
   add
   dup2
   swap1
@@ -134,7 +133,7 @@ bb18:
   push 128
   return
 bb9:
-  push 384
+  push 352
   push 64
   mstore
   calldatasize
@@ -149,7 +148,8 @@ bb9:
   push 224
   mstore
   push bb11
-  jump bb17
+  push 4
+  jump bb14
 bb11:
   push 64
   mload
@@ -208,7 +208,7 @@ bb11:
   mstore
   swap1
   push 20
-  jump bb18
+  jump bb17
 bb16 [cold]:
   pop
   pop

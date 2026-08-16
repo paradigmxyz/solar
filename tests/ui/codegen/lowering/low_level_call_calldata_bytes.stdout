@@ -24,7 +24,7 @@ bb4 [cold]:
   dup1
   revert
 bb5:
-  push 480
+  push 448
   push 64
   mstore
   calldatasize
@@ -39,21 +39,20 @@ bb5:
   push 256
   mstore
   push bb7
-  jump bb22
-bb22:
   push 36
-  push 4
+  jump bb19
+bb19:
   calldatasize
-  swap2
+  swap1
   calldataload
-  dup1
-  swap2
-  add
-  push 32
+  push 4
   dup2
   add
+  push 36
+  dup3
+  add
   dup1
-  push 416
+  push 384
   mstore
   swap2
   push 0
@@ -68,7 +67,7 @@ bb22:
   swap1
   calldataload
   dup1
-  push 448
+  push 416
   mstore
   dup3
   swap1
@@ -125,9 +124,9 @@ bb7:
   sgt
   push bb4
   jumpi
-  push bb25
-  jump bb24
-bb24:
+  push bb24
+  jump bb23
+bb23:
   push 63
   push 160
   mload
@@ -152,7 +151,7 @@ bb24:
   swap1
   jump
 bb12:
-  push 480
+  push 448
   push 64
   mstore
   calldatasize
@@ -167,7 +166,8 @@ bb12:
   push 256
   mstore
   push bb14
-  jump bb22
+  push 36
+  jump bb19
 bb14:
   push 64
   mload
@@ -212,9 +212,9 @@ bb14:
   sgt
   push bb4
   jumpi
-  push bb26
-  jump bb24
-bb25:
+  push bb25
+  jump bb23
+bb24:
   push 32
   dup2
   add
@@ -242,8 +242,8 @@ bb25:
   push 224
   mload
   call
-  jump bb23
-bb23:
+  jump bb22
+bb22:
   swap2
   pop
   pop
@@ -254,7 +254,7 @@ bb23:
   push 32
   push 128
   return
-bb26:
+bb25:
   push 32
   dup2
   add
@@ -281,7 +281,7 @@ bb26:
   push 224
   mload
   delegatecall
-  jump bb23
+  jump bb22
 bb21 [cold]:
   pop
   pop

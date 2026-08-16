@@ -52,67 +52,48 @@
     bb0:
 -     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
 -     ret v0
-+     v1 = alloc raw, exact, uninitialized, infallible, 160
-+     v2 = fmp
-+     v3 = add v2, 32
-+     v4 = sub v3, v2
++     v1 = fmp
++     v2 = add v1, 32
++     v3 = sub v2, v1
++     mstore v1, v3
++     v4 = memory_object_len memoryarray, arg0
 +     mstore v2, v4
-+     v5 = memory_object_len memoryarray, arg0
-+     mstore v3, v5
-+     v6 = add v3, 32
-+     v7 = mul v5, 32
-+     v8 = add v6, v7
-+     v9 = memory_object_data memoryarray, arg0
-+     v10 = add v1, 32
-+     v11 = add v1, 64
-+     v12 = add v1, 96
-+     v13 = add v1, 128
-+     mstore v1, v5
-+     mstore v10, v8
-+     mstore v11, v6
-+     mstore v12, v9
-+     mstore v13, v6
++     v5 = add v2, 32
++     v6 = mul v4, 32
++     v7 = add v5, v6
++     v8 = memory_object_data memoryarray, arg0
 +     jump bb1
 +   bb1:
-+     v14 = mload v1
-+     v15 = gt v14, 0
-+     jumpi v15, bb2, bb3
++     v9 = phi [bb0: v4], [bb2: v21]
++     v10 = phi [bb0: v7], [bb2: v20]
++     v11 = phi [bb0: v5], [bb2: v23]
++     v12 = phi [bb0: v8], [bb2: v22]
++     v13 = gt v9, 0
++     jumpi v13, bb2, bb3
 +   bb2:
-+     v16 = mload v12
-+     v17 = mload v16
-+     v18 = mload v11
-+     v19 = mload v10
-+     v20 = mload v13
-+     v21 = sub v19, v20
-+     mstore v18, v21
-+     v22 = memory_object_len memoryarray, v17
-+     mstore v19, v22
-+     v23 = mul v22, 32
-+     v24 = add v19, 32
-+     v25 = memory_object_data memoryarray, v17
-+     v26 = add v24, v23
-+     mcopy v24, v25, v23
-+     mstore v10, v26
-+     v27 = mload v1
-+     v28 = sub v27, 1
-+     mstore v1, v28
-+     v29 = mload v12
-+     v30 = add v29, 32
-+     mstore v12, v30
-+     v31 = mload v11
-+     v32 = add v31, 32
-+     mstore v11, v32
++     v14 = mload v12
++     v15 = sub v10, v5
++     mstore v11, v15
++     v16 = memory_object_len memoryarray, v14
++     mstore v10, v16
++     v17 = mul v16, 32
++     v18 = add v10, 32
++     v19 = memory_object_data memoryarray, v14
++     v20 = add v18, v17
++     mcopy v18, v19, v17
++     v21 = sub v9, 1
++     v22 = add v12, 32
++     v23 = add v11, 32
 +     jump bb1
 +   bb3:
-+     v33 = mload v10
-+     v34 = sub v33, v2
-+     v35 = add v34, 0
-+     v36 = add v35, 31
-+     v37 = not 31
-+     v38 = and v36, v37
-+     v39 = alloc raw, exact, uninitialized, infallible, v38
-+     v40 = make_memory_slice v39, v35
-+     ret v40
++     v24 = sub v10, v1
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28
++     v30 = make_memory_slice v29, v25
++     ret v30
   }
   
   fn @returndata_bytes() -> memoryslice {
