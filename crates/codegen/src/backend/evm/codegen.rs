@@ -3332,11 +3332,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.preallocate_spill_metadata(func, &values);
 
-        // A free-memory-pointer load cannot be recomputed after the pointer moves. Give every
-        // load a stable slot so a call operand can always recover the value even when block
-        // layout emits its use before the defining block.
+        // A free-memory-pointer load cannot be recomputed after the pointer moves. Give loads
+        // that cross a block or are directly reloaded a stable slot so a call operand can recover
+        // the value even when block layout emits its use before the defining block.
+        let reserve_all = matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size);
+        let reloaded = Self::cross_block_reload_values(func);
         for val in Self::fmp_load_values(func) {
-            if !reachable_values.contains(val) {
+            if !reachable_values.contains(val)
+                || (!reserve_all && !values.contains(val) && !reloaded.contains(val))
+            {
                 continue;
             }
             self.scheduler.spills.reserve(val);
@@ -3352,6 +3356,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if func.inst(inst_id).metadata.deferred_alloc()
                 && let Some(value) = func.inst_result_value(inst_id)
                 && reachable_values.contains(value)
+                && (reserve_all || values.contains(value) || reloaded.contains(value))
             {
                 self.scheduler.spills.reserve(value);
                 self.scheduler.spills.require_store(value);
