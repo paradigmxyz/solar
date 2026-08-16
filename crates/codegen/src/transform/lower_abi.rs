@@ -759,8 +759,10 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
         {
             let mut builder = FunctionBuilder::new(&mut function);
-            let input = builder.add_param(MirType::Slice(SliceLocation::Calldata));
-            let base = builder.slice_ptr(input);
+            // Callers always pass the external calldata base. The helper
+            // reads the full calldata size itself, so a slice length would
+            // add a dead parameter and frame value.
+            let base = builder.add_param(MirType::uint256());
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
             let mut values = Vec::new();
@@ -1653,8 +1655,6 @@ impl LowerAbiCx {
                 && let Some(&helper) = self.aggregate_helpers.get(layout)
                 && Self::can_share_aggregate_args(layout, &arg_types)
             {
-                let length = builder.sub(input_end, input_base);
-                let input = builder.make_slice(input_base, length, SliceLocation::Calldata);
                 let aggregate_types = layout
                     .types
                     .iter()
@@ -1663,7 +1663,7 @@ impl LowerAbiCx {
                 let returns = aggregate_types.len();
                 let value = builder.internal_call(
                     helper,
-                    vec![input],
+                    vec![input_base],
                     aggregate_types[0].mir_type(),
                     returns,
                 );
