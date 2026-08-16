@@ -3443,6 +3443,15 @@ impl LowerAbiCx {
         {
             return false;
         }
+        if uses.is_empty()
+            && matches!(
+                ty,
+                crate::mir::AbiParamType::DynamicArray(element)
+                    if !Self::is_scalar_or_enum(element)
+            )
+        {
+            return false;
+        }
 
         let mut tainted = DenseBitSet::new_empty(func.num_values());
         for &value in uses {
@@ -3458,12 +3467,9 @@ impl LowerAbiCx {
                 | InstKind::MemoryObjectFieldAddr { object, .. }
                 | InstKind::MemoryObjectElementAddr { object, .. }
                 | InstKind::MemoryObjectLoadField { object, .. }
-                | InstKind::MemoryObjectLoadElement { object, .. }
-                | InstKind::MemoryObjectLen(object, _)
                 | InstKind::SetMemoryObjectLen(object, ..)
                 | InstKind::MemoryObjectStoreField { object, .. }
                 | InstKind::MemoryObjectStoreElement { object, .. }
-                | InstKind::MemoryObjectLoadByte { object, .. }
                 | InstKind::MemoryObjectStoreByte { object, .. }
                 | InstKind::MemoryObjectStoreWord { object, .. }
                 | InstKind::MemoryObjectCopyFromSlice { object, .. }
@@ -3480,6 +3486,13 @@ impl LowerAbiCx {
                     if tainted.contains(*object) =>
                 {
                     (true, false)
+                }
+                InstKind::MemoryObjectLen(object, _)
+                | InstKind::MemoryObjectLoadByte { object, .. }
+                | InstKind::MemoryObjectLoadElement { object, .. }
+                    if tainted.contains(*object) =>
+                {
+                    (!Self::can_read_calldata_slice_use(&inst.kind, ty), false)
                 }
                 InstKind::AbiEncode { args, .. }
                     if args.iter().any(|&arg| tainted.contains(arg))
@@ -3533,6 +3546,23 @@ impl LowerAbiCx {
             }
         }
         true
+    }
+
+    fn can_read_calldata_slice_use(kind: &InstKind, ty: &crate::mir::AbiParamType) -> bool {
+        match kind {
+            InstKind::MemoryObjectLen(..) => {
+                matches!(ty, crate::mir::AbiParamType::Bytes)
+                    || matches!(
+                        ty,
+                        crate::mir::AbiParamType::DynamicArray(element)
+                            if Self::is_scalar_or_enum(element)
+                    )
+            }
+            InstKind::MemoryObjectLoadByte { .. } => {
+                matches!(ty, crate::mir::AbiParamType::Bytes)
+            }
+            _ => false,
+        }
     }
 
     /// Returns whether a calldata scalar array must be validated in full.
