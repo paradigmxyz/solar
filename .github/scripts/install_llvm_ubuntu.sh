@@ -12,12 +12,15 @@ apt-get install -y --no-install-recommends \
     lsb-release wget gnupg ca-certificates
 apt-get install -y --no-install-recommends software-properties-common 2>/dev/null || true
 
+# Pass the codename explicitly because llvm.sh overwrites VERSION from /etc/os-release.
+codename=$(lsb_release -cs)
+
 # Use the official LLVM install script which handles distro detection,
 # GPG key import, and apt source configuration for all Debian/Ubuntu versions.
 llvm_sh=$(mktemp)
 wget -qO "$llvm_sh" https://apt.llvm.org/llvm.sh
 chmod +x "$llvm_sh"
-"$llvm_sh" "$v" all
+"$llvm_sh" "$v" all -n "$codename"
 rm -f "$llvm_sh"
 
 for bin in "${bins[@]}"; do
