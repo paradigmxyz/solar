@@ -62,7 +62,6 @@ const STACK_ARG_ROTATION_LIMIT: usize = 16;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
-    executable_len: usize,
     evm_ir: Option<ir::Module>,
 }
 
@@ -1458,7 +1457,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
-            runtime_executable_len: runtime_code.executable_len,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
@@ -1780,11 +1778,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         deferred_values.push((prepared.runtime_offset, U256::from(runtime_offset)));
         let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
-        GeneratedCode {
-            bytecode: result.bytecode,
-            executable_len: result.executable_len,
-            evm_ir: result.evm_ir,
-        }
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -1839,11 +1833,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
         self.runtime_immutable_refs = result.immutable_refs;
-        GeneratedCode {
-            bytecode: result.bytecode,
-            executable_len: result.executable_len,
-            evm_ir: result.evm_ir,
-        }
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {
@@ -8626,8 +8616,6 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
-    /// Number of executable runtime bytes before appended literal data.
-    pub(crate) runtime_executable_len: usize,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

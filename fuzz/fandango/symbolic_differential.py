@@ -1,944 +1,697 @@
 #!/usr/bin/env python3
-"""Pure helpers for bounded Solc-vs-Solar symbolic differentials."""
+"""Run a focused Solc-vs-Solar symbolic differential."""
 
 from __future__ import annotations
 
-import contextlib
+import argparse
+import hashlib
 import json
+import math
 import os
 import pathlib
 import re
-import secrets
+import shutil
 import subprocess
 import tempfile
-import time
-from collections.abc import Iterator
 from typing import Any
 
-import evm_runtime as evm
+
+SCHEMA = "solar:solsymdiff@v1"
+TEST_NAME = "checkSymbolicDifferential"
+DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
+MAX_DYNAMIC_LENGTH = 256
+MAX_RETURNDATA_BYTES = 256
+SYMBOLIC_QUERY_TIMEOUT = 30
+SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
+SYMBOLIC_MAX_CALLDATA_BYTES = 4096
+CALL_GAS = 10_000_000
+SOLC_RUNTIME_ADDRESS = "0x1000000000000000000000000000000000000001"
+SOLAR_RUNTIME_ADDRESS = "0x1000000000000000000000000000000000000002"
+ROUTER_ADDRESS = "0x1000000000000000000000000000000000000003"
+STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 
 
-RESULT_SCHEMA = "solar:symbolic-differential@v1"
-CAMPAIGN_SCHEMA = "solar:symbolic-differential-campaign@v1"
-# Keep automatic dynamic-shape expansion small enough for multi-argument cross
-# products while covering empty, singleton, and short multi-element encodings.
-DEFAULT_SYMBOLIC_DYNAMIC_LENGTHS = (0, 1, 2, 3)
-# Match Foundry's default hard bound so this wrapper cannot silently request a
-# shape that the pinned symbolic engine must reject.
-MAX_SYMBOLIC_DYNAMIC_LENGTH = 256
-# Pin the engine defaults in the orchestration layer and verify that Forge
-# reports them back. This prevents a Foundry upgrade from silently changing a
-# differential campaign's search budget.
-DEFAULT_SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
-DEFAULT_SYMBOLIC_MAX_CALLDATA_BYTES = 4_096
-UNSUPPORTED_RUNTIME_OPCODES = {
-    # The symbolic router and independent Anvil replay intentionally use
-    # different callers and fresh execution environments. Reject opcodes that
-    # could make a compiler-introduced context dependency invisible in one of
-    # those fixed contexts.
-    0x31: "BALANCE",
-    0x32: "ORIGIN",
-    0x33: "CALLER",
-    0x3A: "GASPRICE",
-    0x3B: "EXTCODESIZE",
-    0x3C: "EXTCODECOPY",
-    0x3F: "EXTCODEHASH",
-    0x40: "BLOCKHASH",
-    0x41: "COINBASE",
-    0x42: "TIMESTAMP",
-    0x43: "NUMBER",
-    0x44: "PREVRANDAO",
-    0x45: "GASLIMIT",
-    0x46: "CHAINID",
-    0x47: "SELFBALANCE",
-    0x48: "BASEFEE",
-    0x49: "BLOBHASH",
-    0x4A: "BLOBBASEFEE",
-    0x58: "PC",
-    0x59: "MSIZE",
-    0x5A: "GAS",
-    # A pure entry point can reach a caller-supplied contract through an
-    # interface that claims to be pure. The stateless comparison router cannot
-    # soundly model those open-world calls, so the entire runtime is rejected.
-    0xF0: "CREATE",
-    0xF1: "CALL",
-    0xF2: "CALLCODE",
-    0xF4: "DELEGATECALL",
-    0xF5: "CREATE2",
-    0xFA: "STATICCALL",
-    # The single-call stateful oracle compares final storage and logs, not
-    # account lifetime or balance changes.
-    0xFF: "SELFDESTRUCT",
-}
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="solsymdiff",
+        description="Symbolically compare one function compiled by Solc and Solar.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--source", type=pathlib.Path, required=True)
+    parser.add_argument("--contract", required=True)
+    parser.add_argument("--signature", required=True)
+    parser.add_argument(
+        "--include-view",
+        action="store_true",
+        help="allow a view target under the clean zero-storage model",
+    )
+    parser.add_argument(
+        "--include-stateful",
+        action="store_true",
+        help=(
+            "allow a nonpayable target under the clean zero-storage, "
+            "single-call model"
+        ),
+    )
+    parser.add_argument("--project-root", type=pathlib.Path)
+    parser.add_argument("--include-path", type=pathlib.Path, action="append", default=[])
+    parser.add_argument("--remapping", action="append", default=[])
+    parser.add_argument("--solc", default="solc")
+    parser.add_argument("--solar", default="target/debug/solar")
+    parser.add_argument("--forge", default="forge")
+    parser.add_argument("--solver", default="z3")
+    parser.add_argument("--timeout", type=_positive_seconds, default=60.0)
+    parser.add_argument(
+        "--symbolic-timeout",
+        type=_positive_int,
+        default=SYMBOLIC_QUERY_TIMEOUT,
+    )
+    parser.add_argument("--max-paths", type=_positive_int, default=1024)
+    parser.add_argument(
+        "--max-solver-queries",
+        type=_positive_int,
+        default=SYMBOLIC_MAX_SOLVER_QUERIES,
+    )
+    parser.add_argument(
+        "--max-calldata-bytes",
+        type=_positive_int,
+        default=SYMBOLIC_MAX_CALLDATA_BYTES,
+    )
+    parser.add_argument("--max-depth", type=_positive_int)
+    parser.add_argument(
+        "--exploration-order",
+        choices=("bfs", "dfs"),
+        default="bfs",
+    )
+    parser.add_argument(
+        "--dynamic-lengths",
+        type=_dynamic_lengths,
+        default=DEFAULT_DYNAMIC_LENGTHS,
+    )
+    parser.add_argument(
+        "--input-length",
+        type=_input_lengths,
+        action="append",
+        default=[],
+        metavar="INDEX=LENGTHS",
+    )
+    parser.add_argument(
+        "--max-returndata-bytes",
+        type=_positive_int,
+        default=MAX_RETURNDATA_BYTES,
+    )
+    parser.add_argument("--evm-version", default="osaka")
+    parser.add_argument(
+        "--optimize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--optimizer-runs", type=_nonnegative_int, default=200)
+    parser.add_argument(
+        "--via-ir",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    args = parser.parse_args(argv)
 
-
-def runtime_source_map_instructions(source_map: str | None) -> int | None:
-    """Return the executable instruction count encoded by a source map."""
-    if source_map is None or source_map == "":
-        return None
-    if not isinstance(source_map, str):
-        raise ValueError("runtime source map must be text")
-    return source_map.count(";") + 1
-
-
-def runtime_scope_opcodes(
-    runtime: str,
-    *,
-    instruction_count: int | None = None,
-    executable_bytes: int | None = None,
-) -> list[dict[str, Any]]:
-    """Return fail-closed opcodes in the executable legacy EVM bytecode."""
-    if not isinstance(runtime, str):
-        raise ValueError("runtime bytecode must be text")
-    if instruction_count is not None and (
-        not isinstance(instruction_count, int)
-        or isinstance(instruction_count, bool)
-        or instruction_count <= 0
-    ):
-        raise ValueError("runtime instruction count must be a positive integer")
-    if executable_bytes is not None and (
-        not isinstance(executable_bytes, int)
-        or isinstance(executable_bytes, bool)
-        or executable_bytes <= 0
-    ):
-        raise ValueError("runtime executable byte length must be a positive integer")
-    if instruction_count is not None and executable_bytes is not None:
-        raise ValueError(
-            "runtime scope accepts an instruction count or executable byte "
-            "length, not both"
-        )
-    payload = runtime.removeprefix("0x")
-    if len(payload) % 2:
-        raise ValueError("runtime bytecode must be byte-aligned hex")
     try:
-        code = bytes.fromhex(payload)
-    except ValueError as err:
-        raise ValueError("runtime bytecode must be hex") from err
-    if code.startswith(b"\xef"):
-        return [{"offset": 0, "opcode": "EF_PREFIXED_NON_LEGACY_RUNTIME"}]
-    scan_end = len(code) if executable_bytes is None else executable_bytes
-    if scan_end > len(code):
-        raise ValueError("runtime executable byte length exceeds deployed bytecode")
-    found = []
-    offset = 0
-    instructions = 0
-    while offset < scan_end and (
-        instruction_count is None or instructions < instruction_count
-    ):
-        opcode = code[offset]
-        if opcode in UNSUPPORTED_RUNTIME_OPCODES:
-            found.append(
-                {
-                    "offset": offset,
-                    "opcode": UNSUPPORTED_RUNTIME_OPCODES[opcode],
-                }
-            )
-        offset += 1
-        if 0x60 <= opcode <= 0x7F:
-            offset += opcode - 0x5F
-        instructions += 1
-    if executable_bytes is not None and offset != scan_end:
-        raise ValueError(
-            "runtime executable byte boundary splits an instruction"
-        )
-    if instruction_count is not None and instructions != instruction_count:
-        raise ValueError("runtime source map exceeds deployed bytecode")
-    if (
-        instruction_count is not None
-        and offset < len(code)
-        and code[offset] != 0xFE
-    ):
-        raise ValueError(
-            "runtime source map boundary is not followed by an INVALID data "
-            "separator"
-        )
-    return found
+        result = run(args)
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as err:
+        result = {
+            "schema": SCHEMA,
+            "status": "incomplete",
+            "reason": str(err),
+            "source": str(args.source),
+            "contract": args.contract,
+            "signature": args.signature,
+        }
+
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return {
+        "bounded_agreement": 0,
+        "mismatch": 1,
+        "incomplete": 2,
+    }[result["status"]]
 
 
-def function_inventory(
-    solc_artifact: dict[str, Any],
-    solar_artifact: dict[str, Any],
-    *,
-    include_view: bool = False,
-    include_stateful: bool = False,
-) -> dict[str, list[dict[str, Any]]]:
-    """Inventory the shared runtime surface without silently intersecting ABIs."""
-    allowed_mutabilities = _allowed_symbolic_mutabilities(
-        include_view, include_stateful
+def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> dict[str, Any]:
+    source = args.source.resolve()
+    if not source.is_file():
+        raise ValueError(f"source file does not exist: {source}")
+
+    tools = {
+        name: _resolve_executable(getattr(args, name))
+        for name in ("solc", "solar", "forge", "solver")
+    }
+    standard_input = _standard_input(
+        tools["solc"],
+        source,
+        evm_version=args.evm_version,
+        optimize=args.optimize,
+        optimizer_runs=args.optimizer_runs,
+        via_ir=args.via_ir,
+        project_root=args.project_root,
+        include_paths=tuple(args.include_path),
+        remappings=tuple(args.remapping),
+        timeout=args.timeout,
     )
-    solc_functions, solc_errors = _collect_functions(
-        solc_artifact.get("abi"), "solc"
+    serialized_input = json.dumps(
+        standard_input["input"],
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
     )
-    solar_functions, solar_errors = _collect_functions(
-        solar_artifact.get("abi"), "Solar"
+    solc_artifact = _compile(
+        tools["solc"],
+        serialized_input,
+        standard_input["root_source"],
+        args.contract,
+        args.timeout,
+        "Solc",
     )
-    solc_hashes, solc_hash_errors = _collect_method_identifiers(
-        solc_artifact.get(
-            "hashes", solc_artifact.get("method_identifiers", {})
-        ),
-        "solc",
-    )
-    solar_hashes, solar_hash_errors = _collect_method_identifiers(
-        solar_artifact.get(
-            "hashes", solar_artifact.get("method_identifiers", {})
-        ),
+    solar_artifact = _compile(
+        tools["solar"],
+        serialized_input,
+        standard_input["root_source"],
+        args.contract,
+        args.timeout,
         "Solar",
     )
-    errors = solc_errors + solar_errors + solc_hash_errors + solar_hash_errors
-    for compiler, functions, identifiers in (
-        ("solc", solc_functions, solc_hashes),
-        ("Solar", solar_functions, solar_hashes),
-    ):
-        errors.extend(
-            {
-                "signature": signature,
-                "compiler": compiler,
-                "reason": "method identifier has no matching function ABI entry",
-            }
-            for signature in sorted(set(identifiers) - set(functions))
-        )
-    eligible = []
-    excluded = []
-    for signature in sorted(set(solc_functions) | set(solar_functions)):
-        solc_entry = solc_functions.get(signature)
-        solar_entry = solar_functions.get(signature)
-        if solc_entry is None:
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": "solc",
-                    "reason": "function is missing from the solc ABI",
-                }
-            )
-            continue
-        if solar_entry is None:
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": "Solar",
-                    "reason": "function is missing from the Solar ABI",
-                }
-            )
-            continue
-        if _function_shape(solc_entry) != _function_shape(solar_entry):
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": "both",
-                    "reason": "compiler ABI shapes disagree",
-                }
-            )
-            continue
-        if solc_entry.get("stateMutability") not in allowed_mutabilities:
-            allowed = ", ".join(sorted(allowed_mutabilities))
-            excluded.append(
-                {
-                    "signature": signature,
-                    "reason": f"state mutability is not one of: {allowed}",
-                }
-            )
-            continue
-        if not _has_supported_symbolic_inputs(
-            solc_entry,
-            include_view=include_view,
-            include_stateful=include_stateful,
-        ):
-            excluded.append(
-                {
-                    "signature": signature,
-                    "reason": "inputs use an unsupported ABI shape",
-                }
-            )
-            continue
-        solc_selector = _inventory_selector(solc_hashes.get(signature))
-        solar_selector = _inventory_selector(solar_hashes.get(signature))
-        if solc_selector is None or solar_selector is None:
-            missing = []
-            if solc_selector is None:
-                missing.append("solc")
-            if solar_selector is None:
-                missing.append("Solar")
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": " and ".join(missing),
-                    "reason": "method identifier is missing or invalid",
-                }
-            )
-            continue
-        if solc_selector != solar_selector:
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": "both",
-                    "reason": (
-                        "compiler selectors disagree: "
-                        f"solc={solc_selector[2:]}, "
-                        f"solar={solar_selector[2:]}"
-                    ),
-                }
-            )
-            continue
-        eligible.append(
-            _selected_function(signature, solc_entry, solc_selector)
-        )
-
-    return {
-        "eligible": eligible,
-        "excluded": sorted(excluded, key=lambda item: item["signature"]),
-        "errors": sorted(
-            errors,
-            key=lambda item: (
-                item.get("signature") or "",
-                item.get("compiler") or "",
-                item["reason"],
-            ),
+    function = _select_function(
+        solc_artifact,
+        solar_artifact,
+        args.signature,
+        include_view=args.include_view,
+        include_stateful=args.include_stateful,
+    )
+    input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
+    bounds = {
+        "command_timeout_seconds": args.timeout,
+        "solver_timeout_seconds": args.symbolic_timeout,
+        "max_paths": args.max_paths,
+        "max_solver_queries": args.max_solver_queries,
+        "max_calldata_bytes": args.max_calldata_bytes,
+        "max_depth": args.max_depth,
+        "exploration_order": args.exploration_order,
+        "storage_layout": (
+            "zero_init" if function["mutability"] != "pure" else "solidity"
         ),
+        "call_gas": CALL_GAS,
+        "dynamic_lengths": list(args.dynamic_lengths),
+        "input_lengths": {
+            name: list(lengths) for name, lengths in input_lengths.items()
+        },
+        "max_returndata_bytes": args.max_returndata_bytes,
     }
 
-
-def select_function(
-    solc_artifact: dict[str, Any],
-    solar_artifact: dict[str, Any],
-    signature: str | None,
-    *,
-    include_view: bool = False,
-    include_stateful: bool = False,
-) -> dict[str, Any]:
-    """Validate compiler agreement and select one eligible function."""
-    allowed_mutabilities = _allowed_symbolic_mutabilities(
-        include_view, include_stateful
+    if output_root is None:
+        output_root = pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
+    output_root.mkdir(parents=True, exist_ok=True)
+    project = pathlib.Path(
+        tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root)
     )
-    solc_abi = solc_artifact.get("abi")
-    solar_abi = solar_artifact.get("abi")
-    _validate_abi(solc_abi, "solc")
-    _validate_abi(solar_abi, "Solar")
-    if signature is not None:
-        solc_entries = {
-            _abi_signature(entry): entry
-            for entry in solc_abi
-            if entry.get("type") == "function"
+    (project / "standard-input.json").write_text(
+        serialized_input + "\n",
+        encoding="utf-8",
+    )
+    _write_project(
+        project,
+        solc_artifact["runtime"],
+        solar_artifact["runtime"],
+        function,
+        args.evm_version,
+        dynamic_lengths=args.dynamic_lengths,
+        input_lengths=input_lengths,
+        exploration_order=args.exploration_order,
+        max_returndata_bytes=args.max_returndata_bytes,
+    )
+    report = _run_forge(
+        tools["forge"],
+        tools["solc"],
+        tools["solver"],
+        project,
+        args,
+    )
+    result = _classify(report, function["selector"], bounds)
+    result.update(
+        {
+            "schema": SCHEMA,
+            "source": str(source),
+            "contract": args.contract,
+            "signature": function["signature"],
+            "mutability": function["mutability"],
+            "settings": standard_input["settings"],
+            "standard_input_sha256": standard_input["sha256"],
+            "sources": sorted(standard_input["sources"]),
+            "bounds": bounds,
+            "project": str(project),
         }
-        solar_entries = {
-            _abi_signature(entry): entry
-            for entry in solar_abi
-            if entry.get("type") == "function"
-        }
-        if signature not in solc_entries or signature not in solar_entries:
-            raise ValueError(f"function `{signature}` was not found in both compiler ABIs")
-        solc_entry = solc_entries[signature]
-        solar_entry = solar_entries[signature]
-        if _function_shape(solc_entry) != _function_shape(solar_entry):
-            raise ValueError(f"compiler ABI disagreement for `{signature}`")
-        if (
-            solc_entry.get("stateMutability") not in allowed_mutabilities
-            or solar_entry.get("stateMutability") not in allowed_mutabilities
-        ):
-            allowed = ", ".join(sorted(allowed_mutabilities))
-            raise ValueError(
-                f"function `{signature}` state mutability must be one of: {allowed}"
-            )
-        if not _has_supported_symbolic_inputs(
-            solc_entry,
-            include_view=include_view,
-            include_stateful=include_stateful,
-        ) or not _has_supported_symbolic_inputs(
-            solar_entry,
-            include_view=include_view,
-            include_stateful=include_stateful,
-        ):
-            raise ValueError(
-                f"function `{signature}` uses an unsupported symbolic ABI input"
-            )
+    )
+    (project / "result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return result
 
-    solc_hashes = solc_artifact.get("hashes", solc_artifact.get("method_identifiers", {}))
-    solar_hashes = solar_artifact.get(
-        "hashes", solar_artifact.get("method_identifiers", {})
-    )
-    _validate_method_identifiers(solc_hashes, "solc")
-    _validate_method_identifiers(solar_hashes, "Solar")
-    selected = select_symbolic_function(
-        solc_abi,
-        solar_abi,
-        solc_hashes,
-        signature,
-        include_view=include_view,
-        include_stateful=include_stateful,
-    )
-    selector = selected["selector"][2:]
-    solar_selector = solar_hashes.get(selected["signature"], "").removeprefix("0x").lower()
-    if selector != solar_selector:
-        raise ValueError(
-            f"compiler selector disagreement for `{selected['signature']}`: "
-            f"solc={selector}, solar={solar_selector or 'missing'}"
+
+def _positive_seconds(value: str) -> float:
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("timeout must be finite and positive")
+    return seconds
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("value must be positive")
+    return number
+
+
+def _nonnegative_int(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("value must be non-negative")
+    return number
+
+
+def _dynamic_lengths(value: str) -> tuple[int, ...]:
+    parts = value.split(",")
+    try:
+        lengths = tuple(int(part) for part in parts)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            "dynamic lengths must be comma-separated integers"
+        ) from err
+    if (
+        not lengths
+        or any(
+            not part or length < 0 or length > MAX_DYNAMIC_LENGTH
+            for part, length in zip(parts, lengths, strict=True)
         )
-    solar_entries = {
-        _abi_signature(entry): entry
-        for entry in solar_abi
-        if entry.get("type") == "function"
-    }
-    solc_entry = next(
-        entry
-        for entry in solc_abi
-        if entry.get("type") == "function"
-        and _abi_signature(entry) == selected["signature"]
-    )
-    solar_entry = solar_entries[selected["signature"]]
-    if _function_shape(solc_entry) != _function_shape(solar_entry):
-        raise ValueError(f"compiler ABI disagreement for `{selected['signature']}`")
-    selected["abi"] = solc_entry
-    return selected
-
-
-def select_symbolic_function(
-    solc_abi: list[dict[str, Any]],
-    solar_abi: list[dict[str, Any]],
-    hashes: dict[str, str],
-    signature: str | None,
-    *,
-    include_view: bool = False,
-    include_stateful: bool = False,
-) -> dict[str, Any]:
-    """Select one supported function shared by both compiler ABIs."""
-    _allowed_symbolic_mutabilities(include_view, include_stateful)
-    _validate_abi(solc_abi, "solc")
-    _validate_abi(solar_abi, "Solar")
-    _validate_method_identifiers(hashes, "solc")
-    solc_functions = {
-        _abi_signature(entry): entry
-        for entry in solc_abi
-        if entry.get("type") == "function"
-    }
-    solar_functions = {
-        _abi_signature(entry): entry
-        for entry in solar_abi
-        if entry.get("type") == "function"
-    }
-    candidates = []
-    for candidate, solc_entry in solc_functions.items():
-        solar_entry = solar_functions.get(candidate)
-        if (
-            solar_entry is not None
-            and _has_supported_symbolic_inputs(
-                solc_entry,
-                include_view=include_view,
-                include_stateful=include_stateful,
-            )
-            and _has_supported_symbolic_inputs(
-                solar_entry,
-                include_view=include_view,
-                include_stateful=include_stateful,
-            )
-            and _function_shape(solc_entry) == _function_shape(solar_entry)
-            and candidate in hashes
-        ):
-            candidates.append(candidate)
-
-    if signature is None:
-        if len(candidates) != 1:
-            available = ", ".join(sorted(candidates)) or "none"
-            raise ValueError(
-                "select a supported function using "
-                "--signature; "
-                f"eligible functions: {available}"
-            )
-        signature = candidates[0]
-    if signature not in solc_functions or signature not in solar_functions:
-        raise ValueError(f"function `{signature}` is not present in both compiler ABIs")
-    if signature not in candidates:
-        raise ValueError(
-            f"function `{signature}` is not a shared eligible function with "
-            "supported symbolic ABI inputs"
+        or len(set(lengths)) != len(lengths)
+    ):
+        raise argparse.ArgumentTypeError(
+            f"dynamic lengths must be unique integers from 0 through {MAX_DYNAMIC_LENGTH}"
         )
-
-    entry = solc_functions[signature]
-    selector = hashes[signature].removeprefix("0x").lower()
-    if len(selector) != 8:
-        raise ValueError(f"invalid selector `{selector}` for `{signature}`")
-    int(selector, 16)
-    return {
-        "name": entry["name"],
-        "signature": signature,
-        "selector": "0x" + selector,
-        "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
-        "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
-        "state_mutability": entry["stateMutability"],
-        "test": f"checkDiff_{selector}",
-    }
+    return lengths
 
 
-def validate_input_length_overrides(
-    function: dict[str, Any], overrides: dict[str, tuple[int, ...]]
-) -> None:
-    """Require each named override to target a top-level dynamic ABI input."""
-    abi = function.get("abi")
-    inputs = abi.get("inputs") if isinstance(abi, dict) else None
-    if not isinstance(inputs, list):
-        raise ValueError("selected function has no ABI inputs")
-    for name in overrides:
-        match = re.fullmatch(r"arg([0-9]+)", name)
-        if match is None:
-            raise ValueError(f"invalid symbolic input override name `{name}`")
-        index = int(match.group(1))
+def _input_lengths(value: str) -> tuple[int, tuple[int, ...]]:
+    index, separator, lengths = value.partition("=")
+    if not separator or not index.isdigit():
+        raise argparse.ArgumentTypeError("input lengths must use INDEX=LENGTHS")
+    return int(index), _dynamic_lengths(lengths)
+
+
+def _normalize_input_lengths(
+    overrides: list[tuple[int, tuple[int, ...]]],
+    inputs: list[dict[str, Any]],
+) -> dict[str, tuple[int, ...]]:
+    normalized = {}
+    for index, lengths in overrides:
         if index >= len(inputs):
-            raise ValueError(
-                f"symbolic input override index {index} exceeds the "
-                f"{len(inputs)} function inputs"
-            )
+            raise ValueError(f"input length override index {index} is out of range")
         abi_type = inputs[index].get("type")
         if not isinstance(abi_type, str) or not (
             abi_type in {"bytes", "string"} or abi_type.endswith("[]")
         ):
-            raise ValueError(
-                f"symbolic input override index {index} does not select a "
-                "top-level dynamic array, bytes, or string input"
-            )
+            raise ValueError(f"input {index} is not a top-level dynamic input")
+        name = f"arg{index}"
+        if name in normalized:
+            raise ValueError(f"input length override repeats index {index}")
+        normalized[name] = lengths
+    return normalized
 
 
-def target_calldata(selector: str, wrapper_calldata: str) -> str:
-    """Replace a generated check function selector with the target selector."""
-    selector = _normalized_selector(selector)
-    if not isinstance(wrapper_calldata, str) or not wrapper_calldata.startswith("0x"):
-        raise ValueError("wrapper calldata must be 0x-prefixed hex")
-    payload = wrapper_calldata[2:]
-    if len(payload) < 8 or len(payload) % 2:
-        raise ValueError("wrapper calldata must contain a four-byte selector")
-    int(payload, 16)
-    return selector + payload[8:]
+def _resolve_executable(value: str) -> str:
+    path = pathlib.Path(value).expanduser()
+    if path.parent != pathlib.Path("."):
+        if path.is_file():
+            return str(path.resolve())
+        raise OSError(f"executable was not found: {value}")
+    resolved = shutil.which(value)
+    if resolved is None:
+        raise OSError(f"executable was not found: {value}")
+    return str(pathlib.Path(resolved).resolve())
 
 
-def classify_forge_json(report: dict[str, Any]) -> dict[str, Any]:
-    """Extract exactly one symbolic result from Forge's stable JSON output."""
-    matches = []
-    for suite_name, suite in report.items():
-        if not isinstance(suite, dict):
-            continue
-        test_results = suite.get("test_results", {})
-        if not isinstance(test_results, dict):
-            raise ValueError("Forge test_results must be an object")
-        for test_name, result in test_results.items():
-            if isinstance(result, dict) and isinstance(result.get("symbolic"), dict):
-                matches.append((suite_name, test_name, result, result["symbolic"]))
-    if len(matches) != 1:
-        raise ValueError(f"expected exactly one symbolic test result, found {len(matches)}")
-
-    suite_name, test_name, result, symbolic = matches[0]
-    forge_status = symbolic.get("status")
-    outer_status = result.get("status")
-    replay = symbolic.get("replay")
-    bounds = symbolic.get("bounds")
-    solver = symbolic.get("solver")
-    assumptions = symbolic.get("assumptions", [])
-    if not isinstance(bounds, dict) or not isinstance(solver, dict):
-        raise ValueError("Forge symbolic bounds and solver metadata must be objects")
-    if not isinstance(assumptions, list) or not all(
-        isinstance(assumption, dict) for assumption in assumptions
-    ):
-        raise ValueError("Forge symbolic assumptions must be an array of objects")
-    if forge_status == "pass":
-        if (
-            outer_status != "Success"
-            or symbolic.get("counterexample") is not None
-            or not isinstance(replay, dict)
-            or replay.get("status") != "not_required"
-        ):
-            raise ValueError("inconsistent Forge pass result")
-        status = "no_mismatch_within_bounds"
-    elif forge_status == "incomplete":
-        if (
-            outer_status != "Failure"
-            or not isinstance(symbolic.get("incomplete"), dict)
-            or not isinstance(replay, dict)
-            or replay.get("status") != "not_required"
-        ):
-            raise ValueError("inconsistent Forge incomplete result")
-        status = "incomplete"
-    elif forge_status == "fail_counterexample":
-        artifact = symbolic.get("artifact")
-        counterexample = symbolic.get("counterexample")
-        if (
-            outer_status != "Failure"
-            or not isinstance(replay, dict)
-            or replay.get("status") != "confirmed"
-            or not isinstance(counterexample, dict)
-            or not isinstance(artifact, dict)
-            or artifact.get("schema") != "foundry:symbolic.counterexample@v1"
-            or not isinstance(artifact.get("path"), str)
-            or not artifact["path"]
-        ):
-            raise ValueError(
-                "Forge counterexample was not concretely replay-confirmed with "
-                "a durable artifact"
-            )
-        target_calldata("0x00000000", counterexample.get("calldata"))
-        status = "replay_confirmed_mismatch"
-    else:
-        raise ValueError(f"unsupported Forge symbolic status `{forge_status}`")
-    return {
-        "status": status,
-        "forge_status": forge_status,
-        "suite": suite_name,
-        "test": test_name,
-        "replay": symbolic.get("replay"),
-        "counterexample": symbolic.get("counterexample"),
-        "artifact": symbolic.get("artifact"),
-        "incomplete": symbolic.get("incomplete"),
-        "bounds": bounds,
-        "solver": solver,
-        "assumptions": assumptions,
-        "result": result,
-    }
-
-
-def confirm_outcomes(
-    solc_outcome: dict[str, Any], solar_outcome: dict[str, Any]
-) -> bool:
-    """Return true only when independent concrete EVM outcomes differ exactly."""
-    _validate_outcome(solc_outcome)
-    _validate_outcome(solar_outcome)
-    return solc_outcome != solar_outcome
-
-
-def confirm_stateful_outcomes(
-    solc_outcome: dict[str, Any], solar_outcome: dict[str, Any]
-) -> bool:
-    """Return true when concrete call, log, or final-storage outcomes differ."""
-    _validate_stateful_outcome(solc_outcome)
-    _validate_stateful_outcome(solar_outcome)
-    return solc_outcome != solar_outcome
-
-
-def run_direct_replay(
+def _standard_input(
     solc: str,
-    anvil: str,
-    evm_version: str,
-    solc_runtime: str,
-    solar_runtime: str,
-    calldata: str,
-    timeout: float,
+    source: pathlib.Path,
     *,
-    deadline: evm.Deadline | None = None,
-) -> dict[str, Any]:
-    """Replay one call against both runtimes on a fresh ephemeral Anvil."""
-    proxy_source = pathlib.Path(__file__).with_name("StaticCallProxy.sol")
-    proxy = evm.compile_standard_artifact(
-        solc,
-        proxy_source,
-        "FandangoStaticCallProxy",
-        timeout,
-        kind="solc",
-        evm_version=evm_version,
-        deadline=deadline,
-    )
-    with _anvil(anvil, evm_version, timeout, deadline=deadline) as instance:
-        rpc_url = instance["rpc_url"]
-        target = evm.SOLC_ADDRESS
-        proxy_calldata = _proxy_calldata(target, calldata)
-        block_response = evm.rpc(
-            rpc_url,
-            "eth_getBlockByNumber",
-            ["latest", False],
-            timeout,
-            deadline=deadline,
-        )
-        block = block_response.get("result")
-        if not isinstance(block, dict):
-            raise evm.InfraError(
-                f"Anvil latest block was unavailable: {block_response!r}"
-            )
-        evm.set_code(
-            rpc_url,
-            evm.STATIC_PROXY_ADDRESS,
-            proxy["runtime"],
-            timeout,
-            deadline=deadline,
-        )
-        evm.set_code(
-            rpc_url,
-            target,
-            solc_runtime,
-            timeout,
-            deadline=deadline,
-        )
-        solc_outcome = evm.eth_call(
-            rpc_url,
-            evm.STATIC_PROXY_ADDRESS,
-            proxy_calldata,
-            timeout,
-            deadline=deadline,
-        )
-        evm.set_code(
-            rpc_url,
-            target,
-            solar_runtime,
-            timeout,
-            deadline=deadline,
-        )
-        solar_outcome = evm.eth_call(
-            rpc_url,
-            evm.STATIC_PROXY_ADDRESS,
-            proxy_calldata,
-            timeout,
-            deadline=deadline,
-        )
-        return {
-            "call_kind": "staticcall",
-            "calldata": calldata,
-            "implementation_address": target,
-            "proxy_address": evm.STATIC_PROXY_ADDRESS,
-            "rpc_block": "latest",
-            "rpc_transaction": {
-                "to": evm.STATIC_PROXY_ADDRESS,
-                "data": proxy_calldata,
-            },
-            "anvil": {
-                "command": instance["command"],
-                "chain_id": instance["chain_id"],
-                "block": block,
-            },
-            "solc": solc_outcome,
-            "solar": solar_outcome,
-            "proxy": proxy,
-        }
-
-
-def run_stateful_replay(
-    anvil: str,
     evm_version: str,
-    solc_runtime: str,
-    solar_runtime: str,
-    calldata: str,
+    optimize: bool,
+    optimizer_runs: int,
+    via_ir: bool,
+    project_root: pathlib.Path | None,
+    include_paths: tuple[pathlib.Path, ...],
+    remappings: tuple[str, ...],
     timeout: float,
-    *,
-    deadline: evm.Deadline | None = None,
 ) -> dict[str, Any]:
-    """Replay one zero-state transaction against both runtimes at one address."""
-    with _anvil(anvil, evm_version, timeout, deadline=deadline) as instance:
-        rpc_url = instance["rpc_url"]
-        target = evm.SOLC_ADDRESS
-        block_response = evm.rpc(
-            rpc_url,
-            "eth_getBlockByNumber",
-            ["latest", False],
-            timeout,
-            deadline=deadline,
-        )
-        block = block_response.get("result")
-        if not isinstance(block, dict):
-            raise evm.InfraError(
-                f"Anvil latest block was unavailable: {block_response!r}"
-            )
-        snapshot_response = evm.rpc(
-            rpc_url,
-            "evm_snapshot",
-            [],
-            timeout,
-            deadline=deadline,
-        )
-        snapshot = snapshot_response.get("result")
-        if not isinstance(snapshot, str):
-            raise evm.InfraError(
-                f"Anvil snapshot was unavailable: {snapshot_response!r}"
-            )
+    source = source.resolve()
+    project_root = (project_root or source.parent).resolve()
+    include_paths = tuple(path.resolve() for path in include_paths)
+    if not project_root.is_dir():
+        raise ValueError(f"project root is not a directory: {project_root}")
+    if not source.is_relative_to(project_root):
+        raise ValueError(f"source is outside project root: {source}")
+    if any(not path.is_dir() for path in include_paths):
+        raise ValueError("every include path must be a directory")
+    if any(
+        not remapping or "=" not in remapping or not all(remapping.split("=", 1))
+        for remapping in remappings
+    ):
+        raise ValueError("remappings must use non-empty prefix=target syntax")
 
-        evm.set_code(
-            rpc_url,
-            target,
-            solc_runtime,
-            timeout,
-            deadline=deadline,
-        )
-        solc_outcome = _stateful_runtime_outcome(
-            rpc_url, target, calldata, timeout, deadline
-        )
-
-        revert_response = evm.rpc(
-            rpc_url,
-            "evm_revert",
-            [snapshot],
-            timeout,
-            deadline=deadline,
-        )
-        if revert_response.get("result") is not True:
-            raise evm.InfraError(
-                f"Anvil snapshot revert failed: {revert_response!r}"
-            )
-
-        evm.set_code(
-            rpc_url,
-            target,
-            solar_runtime,
-            timeout,
-            deadline=deadline,
-        )
-        solar_outcome = _stateful_runtime_outcome(
-            rpc_url, target, calldata, timeout, deadline
-        )
-        return {
-            "call_kind": "zero_state_transaction",
-            "calldata": calldata,
-            "implementation_address": target,
-            "proxy_address": None,
-            "rpc_block": "latest",
-            "rpc_transaction": {
-                "from": evm.ANVIL_SENDER,
-                "to": target,
-                "data": calldata,
-                "value": "0x0",
-            },
-            "anvil": {
-                "command": instance["command"],
-                "chain_id": instance["chain_id"],
-                "block": block,
-            },
-            "solc": solc_outcome,
-            "solar": solar_outcome,
-            "proxy": None,
-        }
-
-
-def _stateful_runtime_outcome(
-    rpc_url: str,
-    target: str,
-    calldata: str,
-    timeout: float,
-    deadline: evm.Deadline | None,
-) -> dict[str, Any]:
-    envelope = {
-        "from": evm.ANVIL_SENDER,
-        "gas": evm.TX_GAS,
-        "value": "0x0",
+    root_source = source.relative_to(project_root).as_posix()
+    discovery_input = {
+        "language": "Solidity",
+        "sources": {root_source: {"content": source.read_text(encoding="utf-8")}},
+        "settings": {
+            "outputSelection": {"*": {"": ["ast"]}},
+            **({"remappings": list(remappings)} if remappings else {}),
+        },
     }
-    call = evm.eth_call(
-        rpc_url,
-        target,
-        calldata,
-        timeout,
-        envelope,
-        deadline=deadline,
-    )
-    receipt = evm.send_tx(
-        rpc_url,
-        evm.ANVIL_SENDER,
-        target,
-        calldata,
-        timeout,
-        deadline=deadline,
-    )
-    if receipt.get("status") not in {"ok", "revert"}:
-        raise evm.InfraError(
-            f"stateful transaction did not produce a receipt: {receipt!r}"
+    command = [solc, "--base-path", str(project_root)]
+    for include_path in include_paths:
+        command.extend(["--include-path", str(include_path)])
+    command.append("--standard-json")
+    with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-imports-") as cwd:
+        result = subprocess.run(
+            command,
+            input=json.dumps(discovery_input),
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
         )
-    return {"call": call, "receipt": receipt}
+    output = _compiler_json(result, "Solc import discovery")
+    discovered = output.get("sources")
+    if not isinstance(discovered, dict) or root_source not in discovered:
+        raise ValueError("Solc import discovery did not return the root source")
+
+    roots = (project_root, *include_paths)
+    sources = {}
+    for name in sorted(discovered):
+        if name == root_source:
+            path = source
+        else:
+            candidates = tuple((root / name).resolve() for root in roots)
+            path = next((candidate for candidate in candidates if candidate.is_file()), None)
+            if path is None:
+                raise ValueError(f"could not snapshot imported source unit: {name}")
+        sources[name] = {"content": path.read_text(encoding="utf-8")}
+
+    settings = {
+        "optimizer": {"enabled": optimize, "runs": optimizer_runs},
+        "viaIR": via_ir,
+        "evmVersion": evm_version,
+        "metadata": {"bytecodeHash": "none"},
+        "outputSelection": {
+            "*": {
+                "*": [
+                    "abi",
+                    "evm.deployedBytecode.immutableReferences",
+                    "evm.deployedBytecode.linkReferences",
+                    "evm.deployedBytecode.object",
+                    "evm.methodIdentifiers",
+                ]
+            }
+        },
+        **({"remappings": list(remappings)} if remappings else {}),
+    }
+    value = {"language": "Solidity", "sources": sources, "settings": settings}
+    serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return {
+        "input": value,
+        "root_source": root_source,
+        "settings": settings,
+        "sources": sources,
+        "sha256": hashlib.sha256(serialized.encode()).hexdigest(),
+    }
 
 
-def parse_json_output(stdout: str, stderr: str, label: str) -> dict[str, Any]:
-    if not stdout.strip():
-        detail = stderr.strip() or "no output"
-        raise ValueError(f"{label} did not emit JSON: {detail}")
-    try:
-        value = json.loads(stdout)
-    except json.JSONDecodeError as err:
-        raise ValueError(f"{label} emitted invalid JSON: {err}") from err
-    if not isinstance(value, dict):
-        raise ValueError(f"{label} JSON must be an object")
-    return value
+def _compile(
+    compiler: str,
+    standard_input: str,
+    source_name: str,
+    contract: str,
+    timeout: float,
+    label: str,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-compile-") as cwd:
+        result = subprocess.run(
+            [compiler, "--standard-json"],
+            input=standard_input,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    output = _compiler_json(result, label)
 
-
-def unit_replay_reproduced(
-    report: dict[str, Any], expected_test: str, expected_calldata: str
-) -> bool:
-    """Check that durable artifact replay ran the intended test and failed."""
-    matches = []
-    for suite in report.values():
-        if not isinstance(suite, dict):
-            continue
-        test_results = suite.get("test_results", {})
-        if not isinstance(test_results, dict):
-            return False
-        for test_name, result in test_results.items():
-            if test_name == expected_test and isinstance(result, dict):
-                matches.append(result)
-    if len(matches) != 1:
-        return False
-    result = matches[0]
-    counterexamples = result.get("counterexample")
-    if not isinstance(counterexamples, dict):
-        return False
-    counterexample = counterexamples.get("Single")
-    return (
-        result.get("status") == "Failure"
-        and isinstance(result.get("kind"), dict)
-        and isinstance(result["kind"].get("Unit"), dict)
-        and isinstance(counterexample, dict)
-        and counterexample.get("calldata") == expected_calldata
+    contracts = output.get("contracts")
+    source_contracts = contracts.get(source_name) if isinstance(contracts, dict) else None
+    artifact = (
+        source_contracts.get(contract)
+        if isinstance(source_contracts, dict)
+        else None
     )
-
-
-def counterexample_artifact_matches(
-    artifact: dict[str, Any], expected_test: str, expected_calldata: str
-) -> bool:
     if not isinstance(artifact, dict):
-        return False
-    replay = artifact.get("replay")
-    test = artifact.get("test")
-    calls = artifact.get("calls")
+        raise ValueError(f"{label} did not emit {source_name}:{contract}")
+
+    evm = artifact.get("evm")
+    deployed = evm.get("deployedBytecode") if isinstance(evm, dict) else None
+    identifiers = evm.get("methodIdentifiers") if isinstance(evm, dict) else None
+    abi = artifact.get("abi")
+    if (
+        not isinstance(deployed, dict)
+        or not isinstance(identifiers, dict)
+        or not isinstance(abi, list)
+    ):
+        raise ValueError(f"{label} emitted a malformed contract artifact")
+    if deployed.get("immutableReferences"):
+        raise ValueError("contracts with immutables require constructor execution")
+    if deployed.get("linkReferences"):
+        raise ValueError("contracts with unresolved libraries are unsupported")
+
+    runtime = deployed.get("object")
+    if not isinstance(runtime, str) or not runtime:
+        raise ValueError(f"{label} emitted no deployed runtime")
+    payload = runtime.removeprefix("0x")
+    if len(payload) % 2:
+        raise ValueError(f"{label} emitted bytecode with an odd length")
+    try:
+        bytes.fromhex(payload)
+    except ValueError as err:
+        raise ValueError(f"{label} emitted non-hex runtime bytecode") from err
+
+    return {
+        "abi": abi,
+        "method_identifiers": identifiers,
+        "runtime": "0x" + payload.lower(),
+    }
+
+
+def _compiler_json(
+    result: subprocess.CompletedProcess[str],
+    label: str,
+) -> dict[str, Any]:
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as err:
+        detail = result.stderr.strip() or str(err)
+        raise ValueError(f"{label} did not emit Standard JSON: {detail}") from err
+    if not isinstance(output, dict):
+        raise ValueError(f"{label} Standard JSON output must be an object")
+    errors = output.get("errors", [])
+    failures = [
+        error.get("formattedMessage") or error.get("message") or str(error)
+        for error in errors
+        if isinstance(error, dict) and error.get("severity") == "error"
+    ]
+    if result.returncode != 0 or failures:
+        detail = "\n".join(failures) or result.stderr.strip()
+        raise ValueError(f"{label} compilation failed: {detail}")
+    return output
+
+
+def _select_function(
+    solc_artifact: dict[str, Any],
+    solar_artifact: dict[str, Any],
+    signature: str,
+    *,
+    include_view: bool = False,
+    include_stateful: bool = False,
+) -> dict[str, Any]:
+    solc_entry = _function_entry(solc_artifact["abi"], signature, "Solc")
+    solar_entry = _function_entry(solar_artifact["abi"], signature, "Solar")
+    if _function_shape(solc_entry) != _function_shape(solar_entry):
+        raise ValueError(f"compiler ABI disagreement for {signature}")
+    mutability = solc_entry.get("stateMutability")
+    allowed = {"pure"}
+    if include_view:
+        allowed.add("view")
+    if include_stateful:
+        allowed.add("nonpayable")
+    if mutability not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise ValueError(f"{signature} has mutability {mutability!r}; allowed: {choices}")
+    if not all(_supported_input(item) for item in solc_entry["inputs"]):
+        raise ValueError(f"{signature} uses an unsupported symbolic input")
+
+    solc_selector = _selector(solc_artifact["method_identifiers"], signature, "Solc")
+    solar_selector = _selector(
+        solar_artifact["method_identifiers"],
+        signature,
+        "Solar",
+    )
+    if solc_selector != solar_selector:
+        raise ValueError(
+            f"compiler selector disagreement for {signature}: "
+            f"Solc={solc_selector}, Solar={solar_selector}"
+        )
+    return {
+        "signature": signature,
+        "selector": solc_selector,
+        "inputs": solc_entry["inputs"],
+        "mutability": mutability,
+    }
+
+
+def _function_entry(
+    abi: list[dict[str, Any]],
+    signature: str,
+    label: str,
+) -> dict[str, Any]:
+    matches = [
+        entry
+        for entry in abi
+        if isinstance(entry, dict)
+        and entry.get("type") == "function"
+        and _abi_signature(entry) == signature
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"{label} must contain exactly one {signature} function")
+    return matches[0]
+
+
+def _abi_signature(entry: dict[str, Any]) -> str:
+    name = entry.get("name")
+    inputs = entry.get("inputs")
+    if not isinstance(name, str) or not isinstance(inputs, list):
+        raise ValueError("function ABI entry is malformed")
+    return f"{name}({','.join(_canonical_type(item) for item in inputs)})"
+
+
+def _canonical_type(item: dict[str, Any]) -> str:
+    abi_type = item.get("type")
+    if not isinstance(abi_type, str):
+        raise ValueError("ABI value has no type")
+    if not abi_type.startswith("tuple"):
+        return abi_type
+    components = item.get("components")
+    if not isinstance(components, list):
+        raise ValueError("tuple ABI value has no components")
+    suffix = abi_type[len("tuple") :]
+    return f"({','.join(_canonical_type(component) for component in components)}){suffix}"
+
+
+def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
+    inputs = entry.get("inputs")
+    outputs = entry.get("outputs")
+    if not isinstance(inputs, list) or not isinstance(outputs, list):
+        raise ValueError("function ABI entry is malformed")
     return (
-        artifact.get("schema") == "foundry:symbolic.counterexample@v1"
-        and isinstance(replay, dict)
-        and replay.get("status") == "confirmed"
-        and isinstance(test, dict)
-        and test.get("test") == expected_test
-        and isinstance(calls, list)
-        and len(calls) == 1
-        and isinstance(calls[0], dict)
-        and calls[0].get("calldata") == expected_calldata
+        tuple(_canonical_type(item) for item in inputs),
+        tuple(_canonical_type(item) for item in outputs),
+        entry.get("stateMutability"),
     )
 
 
-def solidity_parameter_declarations(types: list[str]) -> list[str]:
-    declarations = []
-    for index, abi_type in enumerate(types):
-        location = (
-            " calldata"
-            if abi_type in {"bytes", "string"} or "[" in abi_type
-            else ""
+def _selector(identifiers: dict[str, Any], signature: str, label: str) -> str:
+    value = identifiers.get(signature)
+    if not isinstance(value, str):
+        raise ValueError(f"{label} emitted no selector for {signature}")
+    payload = value.removeprefix("0x")
+    if len(payload) != 8:
+        raise ValueError(f"{label} emitted an invalid selector for {signature}")
+    try:
+        bytes.fromhex(payload)
+    except ValueError as err:
+        raise ValueError(
+            f"{label} emitted a non-hex selector for {signature}"
+        ) from err
+    return "0x" + payload.lower()
+
+
+def _supported_input(item: dict[str, Any]) -> bool:
+    abi_type = item.get("type")
+    if not isinstance(abi_type, str):
+        return False
+    if abi_type.startswith("tuple"):
+        components = item.get("components")
+        base_type = "uint256" + abi_type[len("tuple") :]
+        return (
+            isinstance(components, list)
+            and bool(components)
+            and _supported_elementary(base_type)
+            and all(
+                isinstance(component, dict) and _supported_input(component)
+                for component in components
+            )
         )
-        declarations.append(f"{abi_type}{location} arg{index}")
-    return declarations
+    return _supported_elementary(abi_type)
 
 
-def solidity_symbolic_parameters(
+def _supported_elementary(abi_type: str) -> bool:
+    while abi_type.endswith("]"):
+        start = abi_type.rfind("[")
+        if start < 0:
+            return False
+        length = abi_type[start + 1 : -1]
+        if length and (not length.isdigit() or int(length) <= 0):
+            return False
+        abi_type = abi_type[:start]
+
+    if abi_type in {"address", "bool", "bytes", "string"}:
+        return True
+    if abi_type.startswith("uint") or abi_type.startswith("int"):
+        width = abi_type[4:] if abi_type.startswith("uint") else abi_type[3:]
+        return not width or (width.isdigit() and int(width) in range(8, 257, 8))
+    if abi_type.startswith("bytes"):
+        width = abi_type[5:]
+        return width.isdigit() and 1 <= int(width) <= 32
+    return False
+
+
+def _solidity_parameters(
     inputs: list[dict[str, Any]],
 ) -> tuple[str, list[str]]:
-    """Render ABI inputs as Solidity parameters, synthesizing tuple structs."""
-    if not isinstance(inputs, list) or not all(
-        isinstance(item, dict) for item in inputs
-    ):
-        raise ValueError("symbolic ABI inputs must be an array")
     definitions = []
     declarations = []
     for index, item in enumerate(inputs):
-        _validate_abi_value(item, "symbolic")
-        if not _is_supported_symbolic_input(item):
-            raise ValueError("symbolic ABI input uses an unsupported shape")
-        type_name = _solidity_symbolic_input_type(
+        type_name = _solidity_type(
             item,
             f"SymbolicInput{index}",
             definitions,
         )
+        abi_type = item["type"]
         location = (
             " calldata"
-            if item["type"].startswith("tuple")
-            or item["type"] in {"bytes", "string"}
-            or "[" in item["type"]
+            if abi_type.startswith("tuple")
+            or abi_type in {"bytes", "string"}
+            or "[" in abi_type
             else ""
         )
         declarations.append(f"{type_name}{location} arg{index}")
     return "\n\n".join(definitions), declarations
 
 
-def _solidity_symbolic_input_type(
+def _solidity_type(
     item: dict[str, Any],
     name: str,
     definitions: list[str],
@@ -946,10 +699,10 @@ def _solidity_symbolic_input_type(
     abi_type = item["type"]
     if not abi_type.startswith("tuple"):
         return abi_type
-    components = item["components"]
+
     fields = []
-    for index, component in enumerate(components):
-        field_type = _solidity_symbolic_input_type(
+    for index, component in enumerate(item["components"]):
+        field_type = _solidity_type(
             component,
             f"{name}_{index}",
             definitions,
@@ -967,422 +720,506 @@ def _solidity_symbolic_input_type(
     return name + abi_type[len("tuple") :]
 
 
-def _collect_functions(
-    abi: Any, label: str
-) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
-    if not isinstance(abi, list):
-        return {}, [
-            {
-                "signature": None,
-                "compiler": label,
-                "reason": "ABI must be an array",
-            }
-        ]
-    functions = {}
-    errors = []
-    duplicate_signatures = set()
-    for index, entry in enumerate(abi):
-        if not isinstance(entry, dict):
-            errors.append(
-                {
-                    "signature": None,
-                    "compiler": label,
-                    "reason": f"ABI entry {index} must be an object",
-                }
-            )
-            continue
-        if entry.get("type") != "function":
-            continue
-        try:
-            _validate_function_entry(entry, label)
-            signature = _abi_signature(entry)
-        except ValueError as err:
-            errors.append(
-                {
-                    "signature": _best_effort_signature(entry),
-                    "compiler": label,
-                    "reason": f"ABI entry {index}: {err}",
-                }
-            )
-            continue
-        if signature in functions or signature in duplicate_signatures:
-            duplicate_signatures.add(signature)
-            functions.pop(signature, None)
-            errors.append(
-                {
-                    "signature": signature,
-                    "compiler": label,
-                    "reason": "ABI contains duplicate function signatures",
-                }
-            )
-            continue
-        functions[signature] = entry
-    return functions, errors
+def _write_project(
+    project: pathlib.Path,
+    solc_runtime: str,
+    solar_runtime: str,
+    function: dict[str, Any],
+    evm_version: str,
+    *,
+    dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
+    input_lengths: dict[str, tuple[int, ...]] | None = None,
+    exploration_order: str = "bfs",
+    max_returndata_bytes: int = MAX_RETURNDATA_BYTES,
+) -> None:
+    (project / "src").mkdir()
+    (project / "test").mkdir()
 
-
-def _collect_method_identifiers(
-    identifiers: Any, label: str
-) -> tuple[dict[str, str], list[dict[str, Any]]]:
-    if not isinstance(identifiers, dict):
-        return {}, [
-            {
-                "signature": None,
-                "compiler": label,
-                "reason": "method identifiers must be an object",
-            }
-        ]
-    valid = {}
-    errors = []
-    for signature, selector in identifiers.items():
-        if not isinstance(signature, str) or not isinstance(selector, str):
-            errors.append(
-                {
-                    "signature": signature if isinstance(signature, str) else None,
-                    "compiler": label,
-                    "reason": "method identifier must map strings to strings",
-                }
-            )
-            continue
-        valid[signature] = selector
-    return valid, errors
-
-
-def _validate_function_entry(entry: dict[str, Any], label: str) -> None:
-    if not isinstance(entry.get("name"), str) or not entry["name"]:
-        raise ValueError(f"{label} ABI function name must be non-empty text")
-    if not isinstance(entry.get("stateMutability"), str):
-        raise ValueError(f"{label} ABI function stateMutability must be text")
-    for field in ("inputs", "outputs"):
-        values = entry.get(field)
-        if not isinstance(values, list) or not all(
-            isinstance(value, dict) for value in values
-        ):
-            raise ValueError(f"{label} ABI function {field} must be an array")
-        for value in values:
-            _validate_abi_value(value, label)
-
-
-def _best_effort_signature(entry: dict[str, Any]) -> str | None:
-    name = entry.get("name")
-    inputs = entry.get("inputs")
-    if (
-        not isinstance(name, str)
-        or not name
-        or not isinstance(inputs, list)
-        or not all(
-            isinstance(value, dict) and isinstance(value.get("type"), str)
-            for value in inputs
+    definitions, declarations = _solidity_parameters(function["inputs"])
+    arguments = ", ".join(
+        f"arg{index}" for index in range(len(function["inputs"]))
+    )
+    encode_arguments = f", {arguments}" if arguments else ""
+    word_checks = "\n".join(
+        (
+            f"        if (retA.length > {offset}) "
+            f"assert(_word(retA, {offset}) == _word(retB, {offset}));"
         )
-    ):
-        return None
-    try:
-        return _abi_signature(entry)
-    except (KeyError, TypeError, ValueError):
-        return None
+        for offset in range(0, max_returndata_bytes, 32)
+    )
+    template = (
+        _STATEFUL_TEST_TEMPLATE
+        if function.get("mutability") == "nonpayable"
+        else _STATELESS_TEST_TEMPLATE
+    )
+    test_source = template.format(
+        definitions=definitions,
+        declarations=", ".join(declarations),
+        encode_arguments=encode_arguments,
+        selector=function["selector"],
+        solc_runtime=solc_runtime.removeprefix("0x"),
+        solar_runtime=solar_runtime.removeprefix("0x"),
+        solc_address=SOLC_RUNTIME_ADDRESS,
+        solar_address=SOLAR_RUNTIME_ADDRESS,
+        router_address=ROUTER_ADDRESS,
+        state_mirror_address=STATE_MIRROR_ADDRESS,
+        call_gas=CALL_GAS,
+        max_returndata=max_returndata_bytes,
+        word_checks=word_checks,
+    )
+    (project / "test" / "SymbolicDifferential.t.sol").write_text(
+        test_source,
+        encoding="utf-8",
+    )
+    lengths = ", ".join(str(length) for length in dynamic_lengths)
+    named_lengths = ", ".join(
+        f"{name} = [{', '.join(str(length) for length in values)}]"
+        for name, values in sorted((input_lengths or {}).items())
+    )
+    (project / "foundry.toml").write_text(
+        _FOUNDRY_TOML.format(
+            evm_version=evm_version,
+            dynamic_lengths=lengths,
+            input_lengths=named_lengths,
+            exploration_order=exploration_order,
+            storage_layout=(
+                "zero_init"
+                if function.get("mutability", "pure") != "pure"
+                else "solidity"
+            ),
+        ),
+        encoding="utf-8",
+    )
 
 
-def _inventory_selector(selector: str | None) -> str | None:
-    if not isinstance(selector, str):
-        return None
-    payload = selector.removeprefix("0x").lower()
-    if len(payload) != 8:
-        return None
-    try:
-        int(payload, 16)
-    except ValueError:
-        return None
-    return "0x" + payload
-
-
-def _selected_function(
-    signature: str, entry: dict[str, Any], selector: str
+def _run_forge(
+    forge: str,
+    solc: str,
+    solver: str,
+    project: pathlib.Path,
+    args: argparse.Namespace,
 ) -> dict[str, Any]:
+    help_output = subprocess.run(
+        [forge, "test", "--help"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=args.timeout,
+    ).stdout
+    command = [
+        forge,
+        "test",
+        "--root",
+        str(project),
+        "--use",
+        solc,
+        "--evm-version",
+        args.evm_version,
+        "--symbolic",
+        "--match-test",
+        f"^{TEST_NAME}",
+        "--symbolic-solver",
+        solver,
+        "--symbolic-timeout",
+        str(args.symbolic_timeout),
+        "--symbolic-max-paths",
+        str(args.max_paths),
+        "--symbolic-max-solver-queries",
+        str(args.max_solver_queries),
+        "--symbolic-max-calldata-bytes",
+        str(args.max_calldata_bytes),
+        "--json",
+    ]
+    if "--allow-local-compiler" in help_output:
+        command.insert(command.index("--evm-version"), "--allow-local-compiler")
+    if args.max_depth is not None:
+        command.extend(["--symbolic-max-depth", str(args.max_depth)])
+    home = project / ".home"
+    home.mkdir()
+    env = os.environ.copy()
+    for name in list(env):
+        if name.startswith(("FOUNDRY_", "DAPP_")) or name == "SVM_HOME":
+            del env[name]
+    env.update(
+        {
+            "HOME": str(home),
+            "XDG_CACHE_HOME": str(home / ".cache"),
+            "XDG_CONFIG_HOME": str(home / ".config"),
+            "XDG_DATA_HOME": str(home / ".local" / "share"),
+        }
+    )
+    result = subprocess.run(
+        command,
+        cwd=project,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=args.timeout,
+    )
+    if not result.stdout.strip():
+        detail = result.stderr.strip() or "no output"
+        raise ValueError(f"Forge did not emit JSON: {detail}")
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError as err:
+        raise ValueError(f"Forge emitted invalid JSON: {err}") from err
+    if not isinstance(report, dict):
+        raise ValueError("Forge JSON output must be an object")
+    return report
+
+
+def _classify(
+    report: dict[str, Any],
+    target_selector: str,
+    expected_bounds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    matches = []
+    for suite in report.values():
+        if not isinstance(suite, dict):
+            continue
+        results = suite.get("test_results")
+        if not isinstance(results, dict):
+            continue
+        for test_name, result in results.items():
+            symbolic = result.get("symbolic") if isinstance(result, dict) else None
+            if isinstance(symbolic, dict):
+                matches.append((test_name, result, symbolic))
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected one symbolic result, found {len(matches)}"
+        )
+
+    test_name, result, symbolic = matches[0]
+    if not test_name.startswith(TEST_NAME):
+        raise ValueError(f"Forge ran an unexpected test: {test_name}")
+
+    status = symbolic.get("status")
+    replay = symbolic.get("replay")
+    if status == "pass":
+        if result.get("status") != "Success":
+            raise ValueError("Forge emitted an inconsistent symbolic pass")
+        if expected_bounds is not None:
+            _validate_bounded_agreement(symbolic, expected_bounds)
+        return {"status": "bounded_agreement"}
+
+    if status == "incomplete":
+        incomplete = symbolic.get("incomplete")
+        reason = (
+            incomplete.get("reason")
+            if isinstance(incomplete, dict)
+            else "symbolic execution was incomplete"
+        )
+        return {"status": "incomplete", "reason": reason}
+
+    if status != "fail_counterexample":
+        raise ValueError(f"unsupported Forge symbolic status: {status}")
+    if not isinstance(replay, dict) or replay.get("status") != "confirmed":
+        raise ValueError("Forge did not concretely replay the counterexample")
+
+    counterexample = symbolic.get("counterexample")
+    artifact = symbolic.get("artifact")
+    if not isinstance(counterexample, dict) or not isinstance(artifact, dict):
+        raise ValueError("Forge did not emit a counterexample artifact")
+    wrapper_calldata = counterexample.get("calldata")
+    artifact_path = artifact.get("path")
+    if not isinstance(artifact_path, str) or not artifact_path:
+        raise ValueError("Forge emitted an invalid artifact path")
     return {
-        "name": entry["name"],
-        "signature": signature,
-        "selector": selector,
-        "inputs": [_canonical_type(item) for item in entry.get("inputs", [])],
-        "outputs": [_canonical_type(item) for item in entry.get("outputs", [])],
-        "state_mutability": entry["stateMutability"],
-        "test": f"checkDiff_{selector[2:]}",
-        "abi": entry,
+        "status": "mismatch",
+        "counterexample": {
+            "calldata": _target_calldata(target_selector, wrapper_calldata),
+            "forge_artifact": artifact_path,
+        },
     }
 
 
-def _abi_signature(entry: dict[str, Any]) -> str:
-    inputs = ",".join(_canonical_type(item) for item in entry.get("inputs", []))
-    return f"{entry.get('name', '')}({inputs})"
+def _validate_bounded_agreement(
+    symbolic: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    actual = symbolic.get("bounds")
+    if not isinstance(actual, dict):
+        raise ValueError("Forge did not report its effective symbolic bounds")
+    fields = {
+        "timeout_seconds": expected["solver_timeout_seconds"],
+        "max_paths": expected["max_paths"],
+        "max_solver_queries": expected["max_solver_queries"],
+        "max_calldata_bytes": expected["max_calldata_bytes"],
+        "exploration_order": expected["exploration_order"],
+        "storage_layout": expected["storage_layout"],
+        "default_array_lengths": expected["dynamic_lengths"],
+        "default_bytes_lengths": expected["dynamic_lengths"],
+        "dynamic_lengths": expected["input_lengths"],
+    }
+    if expected["max_depth"] is not None:
+        fields["max_depth"] = expected["max_depth"]
+    disagreements = [
+        f"{name}={actual.get(name)!r}"
+        for name, value in fields.items()
+        if actual.get(name) != value
+    ]
+    requested_lengths = expected["dynamic_lengths"] + [
+        length
+        for lengths in expected["input_lengths"].values()
+        for length in lengths
+    ]
+    if actual.get("max_dynamic_length", -1) < max(requested_lengths):
+        disagreements.append(
+            f"max_dynamic_length={actual.get('max_dynamic_length')!r}"
+        )
+    assumptions = symbolic.get("assumptions")
+    kinds = set()
+    if isinstance(assumptions, list):
+        kinds = {
+            item.get("kind")
+            for item in assumptions
+            if isinstance(item, dict) and isinstance(item.get("kind"), str)
+        }
+    if kinds != {"bounded_exploration", "hash_model"}:
+        disagreements.append(f"assumptions={sorted(kinds)!r}")
+    if disagreements:
+        raise ValueError(
+            "Forge effective symbolic configuration disagrees with the request: "
+            + ", ".join(disagreements)
+        )
 
 
-def _validate_abi(abi: Any, label: str) -> None:
-    if not isinstance(abi, list) or not all(isinstance(entry, dict) for entry in abi):
-        raise ValueError(f"{label} ABI must be an array of objects")
-    signatures = set()
-    for entry in abi:
-        if entry.get("type") != "function":
-            continue
-        _validate_function_entry(entry, label)
-        signature = _abi_signature(entry)
-        if signature in signatures:
-            raise ValueError(
-                f"{label} ABI contains duplicate function `{signature}`"
-            )
-        signatures.add(signature)
-
-
-def _validate_method_identifiers(identifiers: Any, label: str) -> None:
-    if not isinstance(identifiers, dict) or not all(
-        isinstance(signature, str) and isinstance(selector, str)
-        for signature, selector in identifiers.items()
+def _target_calldata(selector: str, wrapper_calldata: Any) -> str:
+    if not isinstance(wrapper_calldata, str) or not re.fullmatch(
+        r"0x[0-9a-fA-F]{8,}",
+        wrapper_calldata,
     ):
-        raise ValueError(f"{label} method identifiers must map strings to strings")
+        raise ValueError("Forge emitted invalid counterexample calldata")
+    if len(wrapper_calldata) % 2:
+        raise ValueError("Forge emitted odd-length counterexample calldata")
+    return selector + wrapper_calldata[10:]
 
 
-def _validate_abi_value(value: dict[str, Any], label: str) -> None:
-    abi_type = value.get("type")
-    if not isinstance(abi_type, str):
-        raise ValueError(f"{label} ABI value type must be text")
-    if not abi_type.startswith("tuple"):
-        return
-    components = value.get("components")
-    if not isinstance(components, list) or not all(
-        isinstance(component, dict) for component in components
-    ):
-        raise ValueError(f"{label} ABI tuple components must be an array")
-    for component in components:
-        _validate_abi_value(component, label)
+_FOUNDRY_TOML = """\
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "{evm_version}"
+code_size_limit = 1000000
+
+[symbolic]
+exploration_order = "{exploration_order}"
+storage_layout = "{storage_layout}"
+dynamic_lengths = {{ {input_lengths} }}
+default_array_lengths = [{dynamic_lengths}]
+default_bytes_lengths = [{dynamic_lengths}]
+"""
 
 
-def _canonical_type(item: dict[str, Any]) -> str:
-    abi_type = item.get("type", "")
-    if not abi_type.startswith("tuple"):
-        return abi_type
-    suffix = abi_type[len("tuple") :]
-    components = ",".join(_canonical_type(component) for component in item.get("components", []))
-    return f"({components}){suffix}"
+_STATELESS_TEST_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    function assume(bool condition) external pure;
+    function etch(address target, bytes calldata runtimeCode) external;
+}}
+
+contract RuntimeRouter {{
+    fallback() external payable {{
+        assembly ("memory-safe") {{
+            if lt(calldatasize(), 20) {{ revert(0, 0) }}
+            let target := shr(96, calldataload(0))
+            let size := sub(calldatasize(), 20)
+            calldatacopy(0, 20, size)
+            let ok := delegatecall(gas(), target, 0, size, 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 {{ revert(0, returndatasize()) }}
+            default {{ return(0, returndatasize()) }}
+        }}
+    }}
+}}
+
+contract SymbolicDifferentialTest {{
+{definitions}
+    Vm private constant vm =
+        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+    address private constant SOLC_RUNTIME = {solc_address};
+    address private constant SOLAR_RUNTIME = {solar_address};
+    address private constant ROUTER = {router_address};
+    // Prevent sequential calls from observing different gas stipends.
+    uint256 private constant CALL_GAS = {call_gas};
+    bytes4 private constant TARGET_SELECTOR = bytes4({selector});
+    bytes private constant SOLC_CODE = hex"{solc_runtime}";
+    bytes private constant SOLAR_CODE = hex"{solar_runtime}";
+
+    function setUp() public {{
+        vm.etch(ROUTER, type(RuntimeRouter).runtimeCode);
+        vm.etch(SOLC_RUNTIME, SOLC_CODE);
+        vm.etch(SOLAR_RUNTIME, SOLAR_CODE);
+    }}
+
+    function checkSymbolicDifferential({declarations}) public {{
+        bytes memory callData =
+            abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
+        _warmRouter();
+        (bool okA, bytes memory retA) =
+            ROUTER.staticcall{{gas: CALL_GAS}}(
+                abi.encodePacked(SOLC_RUNTIME, callData)
+            );
+        (bool okB, bytes memory retB) =
+            ROUTER.staticcall{{gas: CALL_GAS}}(
+                abi.encodePacked(SOLAR_RUNTIME, callData)
+            );
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+        vm.assume(retA.length <= {max_returndata});
+{word_checks}
+    }}
+
+    function _warmRouter() private {{
+        (bool ok,) = ROUTER.staticcall("");
+        assert(!ok);
+    }}
+
+    function _word(
+        bytes memory value,
+        uint256 offset
+    ) private pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
+    }}
+}}
+"""
 
 
-def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
-    return (
-        entry.get("stateMutability"),
-        tuple(_canonical_type(item) for item in entry.get("inputs", [])),
-        tuple(_canonical_type(item) for item in entry.get("outputs", [])),
-    )
+_STATEFUL_TEST_TEMPLATE = """\
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Vm {{
+    struct Log {{
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }}
+
+    function accesses(address target)
+        external
+        view
+        returns (bytes32[] memory reads, bytes32[] memory writes);
+    function assume(bool condition) external pure;
+    function etch(address target, bytes calldata runtimeCode) external;
+    function getRecordedLogs() external returns (Log[] memory logs);
+    function load(address target, bytes32 slot) external view returns (bytes32 value);
+    function record() external;
+    function recordLogs() external;
+    function revertToState(uint256 snapshotId) external returns (bool success);
+    function snapshotState() external returns (uint256 snapshotId);
+    function stopRecord() external;
+    function store(address target, bytes32 slot, bytes32 value) external;
+}}
+
+contract RuntimeRouter {{
+    fallback() external payable {{
+        assembly ("memory-safe") {{
+            if lt(calldatasize(), 20) {{ revert(0, 0) }}
+            let target := shr(96, calldataload(0))
+            let size := sub(calldatasize(), 20)
+            calldatacopy(0, 20, size)
+            let ok := delegatecall(gas(), target, 0, size, 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 {{ revert(0, returndatasize()) }}
+            default {{ return(0, returndatasize()) }}
+        }}
+    }}
+}}
+
+contract SymbolicDifferentialTest {{
+{definitions}
+    Vm private constant vm =
+        Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+    address private constant SOLC_RUNTIME = {solc_address};
+    address private constant SOLAR_RUNTIME = {solar_address};
+    address private constant ROUTER = {router_address};
+    address private constant STATE_MIRROR = {state_mirror_address};
+    // Prevent sequential calls from observing different gas stipends.
+    uint256 private constant CALL_GAS = {call_gas};
+    bytes4 private constant TARGET_SELECTOR = bytes4({selector});
+    bytes private constant SOLC_CODE = hex"{solc_runtime}";
+    bytes private constant SOLAR_CODE = hex"{solar_runtime}";
+
+    function setUp() public {{
+        vm.etch(ROUTER, type(RuntimeRouter).runtimeCode);
+        vm.etch(SOLC_RUNTIME, SOLC_CODE);
+        vm.etch(SOLAR_RUNTIME, SOLAR_CODE);
+    }}
+
+    function checkSymbolicDifferential({declarations}) public {{
+        bytes memory callData =
+            abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
+        uint256 snapshot = vm.snapshotState();
+
+        vm.record();
+        vm.recordLogs();
+        (bool okA, bytes memory retA) =
+            ROUTER.call{{gas: CALL_GAS}}(abi.encodePacked(SOLC_RUNTIME, callData));
+        (, bytes32[] memory writesA) = vm.accesses(ROUTER);
+        vm.stopRecord();
+        Vm.Log[] memory logsA = vm.getRecordedLogs();
+
+        bytes32[] memory valuesA = new bytes32[](writesA.length);
+        for (uint256 i; i < writesA.length; ++i) {{
+            valuesA[i] = vm.load(ROUTER, writesA[i]);
+        }}
+        assert(vm.revertToState(snapshot));
+        for (uint256 i; i < writesA.length; ++i) {{
+            vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
+        }}
+
+        vm.record();
+        vm.recordLogs();
+        (bool okB, bytes memory retB) =
+            ROUTER.call{{gas: CALL_GAS}}(abi.encodePacked(SOLAR_RUNTIME, callData));
+        (, bytes32[] memory writesB) = vm.accesses(ROUTER);
+        vm.stopRecord();
+        Vm.Log[] memory logsB = vm.getRecordedLogs();
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+        vm.assume(retA.length <= {max_returndata});
+{word_checks}
+        assert(keccak256(abi.encode(logsA)) == keccak256(abi.encode(logsB)));
+
+        for (uint256 i; i < writesA.length; ++i) {{
+            assert(vm.load(STATE_MIRROR, writesA[i]) == vm.load(ROUTER, writesA[i]));
+        }}
+        for (uint256 i; i < writesB.length; ++i) {{
+            assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(ROUTER, writesB[i]));
+        }}
+    }}
+
+    function _word(
+        bytes memory value,
+        uint256 offset
+    ) private pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
+    }}
+}}
+"""
 
 
-def _has_supported_symbolic_inputs(
-    entry: dict[str, Any], *, include_view: bool = False, include_stateful: bool = False
-) -> bool:
-    allowed_mutabilities = _allowed_symbolic_mutabilities(
-        include_view, include_stateful
-    )
-    return (
-        entry.get("stateMutability") in allowed_mutabilities
-        and all(
-            _is_supported_symbolic_input(item)
-            for item in entry.get("inputs", [])
-        )
-    )
-
-
-def _allowed_symbolic_mutabilities(
-    include_view: bool, include_stateful: bool
-) -> set[str]:
-    if not isinstance(include_view, bool):
-        raise ValueError("include_view must be a boolean")
-    if not isinstance(include_stateful, bool):
-        raise ValueError("include_stateful must be a boolean")
-    allowed = {"pure"}
-    if include_view:
-        allowed.add("view")
-    if include_stateful:
-        allowed.add("nonpayable")
-    return allowed
-
-
-def _is_supported_symbolic_input(item: dict[str, Any]) -> bool:
-    abi_type = item.get("type", "")
-    if not abi_type.startswith("tuple"):
-        return _is_supported_symbolic_input_type(abi_type)
-    components = item.get("components")
-    return (
-        _is_supported_symbolic_input_type(
-            "uint256" + abi_type[len("tuple") :]
-        )
-        and isinstance(components, list)
-        and bool(components)
-        and all(
-            isinstance(component, dict)
-            and _is_supported_symbolic_input(component)
-            for component in components
-        )
-    )
-
-
-def _is_supported_symbolic_input_type(abi_type: str) -> bool:
-    while abi_type.endswith("]"):
-        start = abi_type.rfind("[")
-        if start < 0:
-            return False
-        length = abi_type[start + 1 : -1]
-        if length and (not length.isdigit() or int(length) <= 0):
-            return False
-        abi_type = abi_type[:start]
-    if abi_type in {"address", "bool", "bytes", "string"}:
-        return True
-    if abi_type.startswith("uint") or abi_type.startswith("int"):
-        width = abi_type[4:] if abi_type.startswith("uint") else abi_type[3:]
-        return not width or (width.isdigit() and int(width) in range(8, 257, 8))
-    if abi_type.startswith("bytes"):
-        width = abi_type[5:]
-        return width.isdigit() and 1 <= int(width) <= 32
-    return False
-
-
-def _normalized_selector(selector: str) -> str:
-    if not isinstance(selector, str) or not selector.startswith("0x"):
-        raise ValueError("selector must be 0x-prefixed hex")
-    payload = selector[2:]
-    if len(payload) != 8:
-        raise ValueError("selector must be exactly four bytes")
-    int(payload, 16)
-    return "0x" + payload.lower()
-
-
-def _proxy_calldata(target: str, calldata: str) -> str:
-    target_payload = target.removeprefix("0x")
-    if len(target_payload) != 40:
-        raise ValueError("proxy target must be a 20-byte address")
-    return "0x" + target_payload + calldata.removeprefix("0x")
-
-
-def _validate_outcome(outcome: dict[str, Any]) -> None:
-    if not isinstance(outcome, dict) or outcome.get("status") not in {"ok", "revert"}:
-        raise ValueError("concrete outcome must have status `ok` or `revert`")
-    data = outcome.get("data")
-    if not isinstance(data, str) or not data.startswith("0x") or len(data) % 2:
-        raise ValueError("concrete outcome data must be 0x-prefixed byte-aligned hex")
-    try:
-        int(data[2:] or "0", 16)
-    except ValueError as err:
-        raise ValueError("concrete outcome data is not hex") from err
-
-
-def _validate_stateful_outcome(outcome: dict[str, Any]) -> None:
-    if not isinstance(outcome, dict):
-        raise ValueError("stateful concrete outcome must be an object")
-    _validate_outcome(outcome.get("call"))
-    receipt = outcome.get("receipt")
-    if not isinstance(receipt, dict) or receipt.get("status") not in {"ok", "revert"}:
-        raise ValueError("stateful receipt must have status `ok` or `revert`")
-    logs = receipt.get("logs")
-    if not isinstance(logs, list) or not all(isinstance(log, dict) for log in logs):
-        raise ValueError("stateful receipt logs must be an array of objects")
-    storage = receipt.get("storage")
-    if not isinstance(storage, str) or not storage.startswith("0x"):
-        raise ValueError("stateful receipt storage root must be 0x-prefixed hex")
-    try:
-        int(storage[2:] or "0", 16)
-    except ValueError as err:
-        raise ValueError("stateful receipt storage root is not hex") from err
-
-
-@contextlib.contextmanager
-def _anvil(
-    anvil: str,
-    evm_version: str,
-    timeout: float,
-    *,
-    deadline: evm.Deadline | None = None,
-) -> Iterator[dict[str, Any]]:
-    deadline = deadline or evm.Deadline(timeout)
-    chain_id = secrets.randbits(31) or 1
-    with tempfile.TemporaryDirectory(prefix="solar-symbolic-anvil-") as temporary:
-        log_path = pathlib.Path(temporary) / "anvil.log"
-        with log_path.open("w", encoding="utf-8") as log:
-            command = [
-                anvil,
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "0",
-                "--chain-id",
-                str(chain_id),
-                "--hardfork",
-                evm_version,
-            ]
-            process = subprocess.Popen(
-                command,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=_anvil_environment(),
-                cwd=temporary,
-                **evm.process_group_options(),
-            )
-            try:
-                with evm.cleanup_process_on_signals(process):
-                    rpc_url = _anvil_rpc_url(
-                        process, log_path, chain_id, timeout, deadline
-                    )
-                    yield {
-                        "rpc_url": rpc_url,
-                        "chain_id": chain_id,
-                        "command": command,
-                    }
-            finally:
-                evm.terminate_process_tree(process)
-
-
-def _anvil_environment() -> dict[str, str]:
-    env = os.environ.copy()
-    for name in list(env):
-        if name.startswith(("ANVIL_", "FOUNDRY_")):
-            del env[name]
-    return env
-
-
-def _anvil_rpc_url(
-    process: subprocess.Popen[Any],
-    log_path: pathlib.Path,
-    chain_id: int,
-    timeout: float,
-    deadline: evm.Deadline,
-) -> str:
-    expected_chain_id = hex(chain_id)
-    rpc_url = None
-    while rpc_url is None:
-        if process.poll() is not None:
-            detail = log_path.read_text(encoding="utf-8", errors="replace").strip()
-            raise evm.InfraError(
-                f"anvil exited with status {process.returncode}: {detail}"
-            )
-        output = log_path.read_text(encoding="utf-8", errors="replace")
-        match = re.search(r"Listening on 127\.0\.0\.1:(\d+)", output)
-        if match:
-            rpc_url = f"http://127.0.0.1:{match.group(1)}"
-            break
-        time.sleep(min(0.05, deadline.remaining("Anvil startup")))
-
-    while True:
-        if process.poll() is not None:
-            raise evm.InfraError(f"anvil exited with status {process.returncode}")
-        try:
-            response = evm.rpc(
-                rpc_url,
-                "eth_chainId",
-                [],
-                min(timeout, 1),
-                retries=0,
-                deadline=deadline,
-            )
-        except evm.InfraError:
-            pass
-        else:
-            if response.get("result") == expected_chain_id:
-                return rpc_url
-            if "result" in response:
-                raise evm.InfraError(
-                    "Anvil chain identity did not match the spawned process"
-                )
-        time.sleep(min(0.05, deadline.remaining("Anvil startup")))
+if __name__ == "__main__":
+    raise SystemExit(main())

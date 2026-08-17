@@ -414,9 +414,6 @@ fn make_bytecode_output(
     let mut output = BytecodeOutput::default();
     if output_selection.contains(object_flag) {
         output.object = Some(bytecode.cloned().unwrap_or_default());
-        if deployed {
-            output.solar_executable_length = artifact.map(ContractArtifact::runtime_executable_len);
-        }
     }
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
