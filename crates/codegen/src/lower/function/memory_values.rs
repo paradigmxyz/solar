@@ -127,7 +127,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
-        let value = if self.shared_literals.contains(bytes) {
+        let value = if !bytes.is_empty()
+            && bytes.len() <= 32
+            && self.shared_word_literals.contains(bytes)
+        {
+            let helper = self.ensure_bytes_word_helper();
+            let word = self.lower_string_literal_word(bytes);
+            let length = self.builder.imm_u64(bytes.len() as u64);
+            self.builder.internal_call(
+                helper,
+                vec![word, length],
+                MirType::MemoryObject(MemoryObjectKind::Bytes),
+                1,
+            )
+        } else if self.shared_literals.contains(bytes) {
             let helper = self.ensure_bytes_literal_helper(bytes);
             self.builder.internal_call(
                 helper,
@@ -140,6 +153,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let _ = span;
         Some(value)
+    }
+
+    fn ensure_bytes_word_helper(&mut self) -> FunctionId {
+        if let Some(id) = *self.literal_word_helper {
+            return id;
+        }
+        let mut function = Function::new(Ident::from_str("__literal_bytes_word"));
+        function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let word = builder.add_param(MirType::bytes32());
+            let length = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let size = builder.imm_u64(64);
+            let object = builder.alloc_object(
+                size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::INTERNAL,
+            );
+            builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+            let zero = builder.imm_u64(0);
+            builder.memory_object_store_word(object, zero, word);
+            builder.ret([object]);
+        }
+        let id = self.module.add_function(function);
+        *self.literal_word_helper = Some(id);
+        id
     }
 
     pub(super) fn build_bytes_literal(

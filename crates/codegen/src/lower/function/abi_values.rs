@@ -298,6 +298,46 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.set_memory_object_len(output, length, kind);
         }
 
+        if !matches!(
+            element_ty.peel_refs().kind,
+            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_)
+        ) {
+            let source = self.builder.memory_object_data(value, kind);
+            let destination = self.builder.memory_object_data(output, kind);
+            let preheader = self.builder.current_block();
+            let header = self.builder.create_block();
+            let body = self.builder.create_block();
+            let exit = self.builder.create_block();
+            self.builder.jump(header);
+
+            self.builder.switch_to_block(header);
+            let zero = self.builder.imm_u64(0);
+            let index = self.builder.phi(vec![(preheader, zero)]);
+            let source = self.builder.phi(vec![(preheader, source)]);
+            let destination = self.builder.phi(vec![(preheader, destination)]);
+            let more = self.builder.lt(index, length);
+            self.builder.branch(more, body, exit);
+
+            self.builder.switch_to_block(body);
+            let element_value = self.builder.mload(source);
+            self.validate_enum_value(element_ty, element_value);
+            let element_value = self.normalize_abi_scalar(element_value, element_ty);
+            self.builder.mstore(destination, element_value);
+            let word = self.builder.imm_u64(32);
+            let next_source = self.builder.add(source, word);
+            let next_destination = self.builder.add(destination, word);
+            let one = self.builder.imm_u64(1);
+            let next_index = self.builder.add(index, one);
+            let backedge = self.builder.current_block();
+            self.builder.jump(header);
+            self.builder.add_phi_incoming(index, backedge, next_index);
+            self.builder.add_phi_incoming(source, backedge, next_source);
+            self.builder.add_phi_incoming(destination, backedge, next_destination);
+
+            self.builder.switch_to_block(exit);
+            return output;
+        }
+
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();

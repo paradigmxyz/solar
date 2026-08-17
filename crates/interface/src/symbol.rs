@@ -964,6 +964,8 @@ symbols! {
         X,
         __clear_storage_words,
         __load_storage_bytes,
+        __load_storage_bytes_array,
+        __load_storage_word_array,
         __ret_bytes,
         __revert_empty,
         __revert_error,

@@ -1610,8 +1610,7 @@ impl LowerAbiCx {
                     };
                     let validate_array_elements = constructor
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
-                        || Self::needs_full_calldata_array_validation(builder.func(), uses, ty)
-                        || Self::requires_calldata_element_validation(ty);
+                        || Self::needs_full_calldata_array_validation(builder.func(), uses, ty);
                     if uses.is_empty() {
                         if location == AbiParamLocation::Memory {
                             if !constructor
@@ -3679,7 +3678,7 @@ impl LowerAbiCx {
                     if args.iter().any(|&arg| tainted.contains(arg))
                         && Self::can_encode_calldata_slice(ty) =>
                 {
-                    false
+                    Self::requires_calldata_element_validation(ty)
                 }
                 InstKind::AbiEncode { .. }
                 | InstKind::MemoryObjectCopyFromSlice { .. }

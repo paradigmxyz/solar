@@ -811,7 +811,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: &hir::CallArgs<'_>,
     ) -> Option<[ValueId; N]> {
         let exprs = self.builtin_args::<N>(builtin, args)?;
-        let values = exprs.iter().map(|arg| self.lower_expr(arg)).collect::<Option<Vec<_>>>()?;
+        let values =
+            exprs.iter().map(|arg| self.lower_yul_word_expr(arg)).collect::<Option<Vec<_>>>()?;
         values.try_into().ok()
     }
 

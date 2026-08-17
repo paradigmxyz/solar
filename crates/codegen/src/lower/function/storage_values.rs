@@ -2,6 +2,14 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+enum StorageStructField {
+    Scalar { location: StorageLocation },
+    Enum { location: StorageLocation, variants: u64 },
+    Bytes { location: StorageLocation, helper: FunctionId },
+    Array { location: StorageLocation, helper: FunctionId },
+}
+
 /// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
 pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes));
@@ -13,6 +21,293 @@ pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId
         builder.ret([object]);
     }
     module.add_function(function)
+}
+
+/// Adds a helper for copying a dynamic storage array of `bytes` or `string`.
+fn synthesize_storage_bytes_array_helper(
+    module: &mut Module,
+    bytes_helper: FunctionId,
+) -> FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes_array));
+    function.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let slot = builder.add_param(MirType::uint256());
+        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+
+        let length = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let words = builder.checked_add(length, one);
+        let word_size = builder.imm_u64(32);
+        let size = builder.checked_mul(words, word_size);
+        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
+        let object =
+            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        builder.set_memory_object_len(object, length, layout.kind());
+
+        let data_slot = builder.storage_array_data_slot(slot);
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let zero = builder.imm_u64(0);
+        let index = builder.phi(vec![(preheader, zero)]);
+        let condition = builder.lt(index, length);
+        builder.branch(condition, body, exit);
+
+        builder.switch_to_block(body);
+        let element_slot = builder.add(data_slot, index);
+        let value = builder.internal_call(
+            bytes_helper,
+            vec![element_slot],
+            MirType::MemoryObject(MemoryObjectKind::Bytes),
+            1,
+        );
+        builder.memory_object_store_element(object, layout, index, value);
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, backedge, next);
+        builder.switch_to_block(exit);
+        builder.ret([object]);
+    }
+    module.add_function(function)
+}
+
+/// Adds the module-wide helper for copying a full-word dynamic storage array.
+pub(super) fn synthesize_storage_word_array_helper(module: &mut Module) -> FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_word_array));
+    function.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let slot = builder.add_param(MirType::uint256());
+        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+
+        let length = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let words = builder.checked_add(length, one);
+        let word_size = builder.imm_u64(32);
+        let size = builder.checked_mul(words, word_size);
+        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
+        let object =
+            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        builder.set_memory_object_len(object, length, layout.kind());
+
+        let data_slot = builder.storage_array_data_slot(slot);
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let zero = builder.imm_u64(0);
+        let index = builder.phi(vec![(preheader, zero)]);
+        let condition = builder.lt(index, length);
+        builder.branch(condition, body, exit);
+        builder.switch_to_block(body);
+        let element_slot = builder.add(data_slot, index);
+        let value = builder.sload(element_slot);
+        builder.memory_object_store_element(object, layout, index, value);
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, backedge, next);
+        builder.switch_to_block(exit);
+        builder.ret([object]);
+    }
+    module.add_function(function)
+}
+
+/// Adds a helper for copying one packed dynamic storage array shape.
+fn synthesize_storage_packed_array_helper(
+    module: &mut Module,
+    bytes: u8,
+    encoding: u8,
+) -> FunctionId {
+    let name = format!("__load_storage_packed_array_{bytes}_{encoding}");
+    let mut function = Function::new(Ident::from_str(&name));
+    function.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let slot = builder.add_param(MirType::uint256());
+        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+
+        let length = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let words = builder.checked_add(length, one);
+        let word_size = builder.imm_u64(32);
+        let size = builder.checked_mul(words, word_size);
+        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
+        let object =
+            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        builder.set_memory_object_len(object, length, layout.kind());
+
+        let data_slot = builder.storage_array_data_slot(slot);
+        let preheader = builder.current_block();
+        let loop_header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(loop_header);
+        builder.switch_to_block(loop_header);
+        let zero = builder.imm_u64(0);
+        let index = builder.phi(vec![(preheader, zero)]);
+        let condition = builder.lt(index, length);
+        builder.branch(condition, body, exit);
+        builder.switch_to_block(body);
+
+        let per_slot = u64::from(32 / bytes);
+        let per_slot_value = builder.imm_u64(per_slot);
+        let (slot_index, index_in_slot) = if per_slot.is_power_of_two() {
+            let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
+            let slot_index = builder.shr(slot_shift, index);
+            let slot_mask = builder.imm_u64(per_slot - 1);
+            let index_in_slot = builder.and(index, slot_mask);
+            (slot_index, index_in_slot)
+        } else {
+            let slot_index = builder.div(index, per_slot_value);
+            let index_in_slot = builder.mod_(index, per_slot_value);
+            (slot_index, index_in_slot)
+        };
+        let storage_slot = builder.add(data_slot, slot_index);
+        let word = builder.sload(storage_slot);
+        let byte_shift = u64::from(bytes) * 8;
+        let shift = if byte_shift.is_power_of_two() {
+            let shift = builder.imm_u64(u64::from(byte_shift.trailing_zeros()));
+            builder.shl(shift, index_in_slot)
+        } else {
+            let byte_shift = builder.imm_u64(byte_shift);
+            builder.mul(index_in_slot, byte_shift)
+        };
+        let shifted = builder.shr(shift, word);
+        let mask = builder.imm_u256((U256::from(1) << (u32::from(bytes) * 8)) - U256::from(1));
+        let value = builder.and(shifted, mask);
+        let value = match encoding {
+            0 => value,
+            1 => {
+                let sign_index = builder.imm_u64(u64::from(bytes - 1));
+                builder.signextend(sign_index, value)
+            }
+            2 => {
+                let align_shift = builder.imm_u64(u64::from(32 - bytes) * 8);
+                builder.shl(align_shift, value)
+            }
+            _ => unreachable!("unknown storage encoding"),
+        };
+        let address = builder.memory_object_element_addr(object, layout, index);
+        builder.mstore(address, value);
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let backedge = builder.current_block();
+        builder.jump(loop_header);
+        builder.add_phi_incoming(index, backedge, next);
+        builder.switch_to_block(exit);
+        builder.ret([object]);
+    }
+    module.add_function(function)
+}
+
+fn synthesize_storage_struct_array_helper(
+    module: &mut Module,
+    function_id: FunctionId,
+    storage: &StorageLayout<'_>,
+    fields: &[StorageStructField],
+    element_slots: u64,
+    field_count: u64,
+) {
+    let function = module.function_mut(function_id);
+    function.attributes.no_inline = true;
+    {
+        let mut builder = FunctionBuilder::new(function);
+        let slot = builder.add_param(MirType::uint256());
+        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+
+        let length = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let words = builder.checked_add(length, one);
+        let word_size = builder.imm_u64(32);
+        let size = builder.checked_mul(words, word_size);
+        let array_layout = MemoryObjectLayout::WORD_ARRAY;
+        let object =
+            builder.alloc_object(size, array_layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+
+        let data_slot = builder.storage_array_data_slot(slot);
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let zero = builder.imm_u64(0);
+        let index = builder.phi(vec![(preheader, zero)]);
+        let element_slot = builder.phi(vec![(preheader, data_slot)]);
+        let condition = builder.lt(index, length);
+        builder.branch(condition, body, exit);
+
+        builder.switch_to_block(body);
+        let field_size = builder.imm_u64(field_count.saturating_mul(32));
+        let field_layout = MemoryObjectLayout::Struct { fields: field_count };
+        let value = builder.alloc_object(
+            field_size,
+            field_layout,
+            AllocationSemantics::SOLIDITY_UNINITIALIZED,
+        );
+        for (field_index, field) in fields.iter().enumerate() {
+            let location = match field {
+                StorageStructField::Scalar { location }
+                | StorageStructField::Enum { location, .. }
+                | StorageStructField::Bytes { location, .. }
+                | StorageStructField::Array { location, .. } => *location,
+            };
+            let field_slot = if location.slot.is_zero() {
+                element_slot
+            } else {
+                let offset = builder.imm_u256(location.slot);
+                builder.add(element_slot, offset)
+            };
+            let field_value = match *field {
+                StorageStructField::Scalar { location } => {
+                    storage.load_at_slot(&mut builder, location, field_slot)
+                }
+                StorageStructField::Enum { location, variants } => {
+                    let value = storage.load_at_slot(&mut builder, location, field_slot);
+                    let limit = builder.imm_u64(variants);
+                    let valid = builder.lt(value, limit);
+                    let invalid = builder.iszero(valid);
+                    builder.panic_if(invalid, PanicCode::EnumConversion);
+                    value
+                }
+                StorageStructField::Bytes { helper, .. } => builder.internal_call(
+                    helper,
+                    vec![field_slot],
+                    MirType::MemoryObject(MemoryObjectKind::Bytes),
+                    1,
+                ),
+                StorageStructField::Array { helper, .. } => builder.internal_call(
+                    helper,
+                    vec![field_slot],
+                    MirType::MemoryObject(MemoryObjectKind::DynamicArray),
+                    1,
+                ),
+            };
+            builder.memory_object_store_field(value, field_layout, field_index as u64, field_value);
+        }
+        builder.memory_object_store_element(object, array_layout, index, value);
+        let next_index = builder.add(index, one);
+        let stride = builder.imm_u64(element_slots);
+        let next_slot = builder.add(element_slot, stride);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, backedge, next_index);
+        builder.add_phi_incoming(element_slot, backedge, next_slot);
+
+        builder.switch_to_block(exit);
+        builder.ret([object]);
+    }
 }
 
 /// Adds the module-wide helper for clearing the data words of a storage bytes value.
@@ -503,11 +798,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
         let element_slots = self.storage.element_slots(element);
-        let slot = if dynamic {
-            self.builder.storage_array_element_slot(base_slot, index, element_slots)
-        } else {
-            self.fixed_array_element_slot(base_slot, index, element_slots)
-        };
+        let base_slot =
+            if dynamic { self.builder.storage_array_data_slot(base_slot) } else { base_slot };
+        let slot = self.fixed_array_element_slot(base_slot, index, element_slots);
         Some(StorageAccess { slot, location: StorageLocation::word(U256::ZERO), offset: None })
     }
 
@@ -687,14 +980,215 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    fn ensure_storage_array_helper(
+        &mut self,
+        element: solar_sema::ty::Ty<'gcx>,
+    ) -> Option<FunctionId> {
+        if matches!(
+            element.peel_refs().kind,
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+        ) {
+            let bytes_helper = match *self.storage_bytes_helper {
+                Some(helper) => helper,
+                None => {
+                    let helper = synthesize_storage_bytes_helper(self.module);
+                    *self.storage_bytes_helper = Some(helper);
+                    helper
+                }
+            };
+            let helper = match *self.storage_bytes_array_helper {
+                Some(helper) => helper,
+                None => {
+                    let helper = synthesize_storage_bytes_array_helper(self.module, bytes_helper);
+                    *self.storage_bytes_array_helper = Some(helper);
+                    helper
+                }
+            };
+            return Some(helper);
+        }
+        if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
+            return self.ensure_storage_struct_array_helper(element, struct_id);
+        }
+        if let Some((size, encoding)) = self.storage.packed_encoding(element)
+            && size.bits() < 256
+            && self.types.memory_layout(element).is_none()
+        {
+            let encoding = match encoding {
+                StorageEncoding::Unsigned => 0,
+                StorageEncoding::Signed => 1,
+                StorageEncoding::FixedBytes => 2,
+            };
+            let key = (size.bytes(), encoding);
+            let helper = match self.packed_array_helpers.get(&key).copied() {
+                Some(helper) => helper,
+                None => {
+                    let helper = synthesize_storage_packed_array_helper(self.module, key.0, key.1);
+                    self.packed_array_helpers.insert(key, helper);
+                    helper
+                }
+            };
+            return Some(helper);
+        }
+        if self.types.element_words(element) == 1
+            && self.types.memory_layout(element).is_none()
+            && self.storage.packed_encoding(element).is_none_or(|(size, _)| size.bits() == 256)
+        {
+            let helper = match *self.storage_word_array_helper {
+                Some(helper) => helper,
+                None => {
+                    let helper = synthesize_storage_word_array_helper(self.module);
+                    *self.storage_word_array_helper = Some(helper);
+                    helper
+                }
+            };
+            return Some(helper);
+        }
+        None
+    }
+
+    fn ensure_storage_struct_array_helper(
+        &mut self,
+        element: solar_sema::ty::Ty<'gcx>,
+        struct_id: solar_sema::hir::StructId,
+    ) -> Option<FunctionId> {
+        if let Some(&helper) = self.storage_struct_array_helpers.get(&struct_id) {
+            return Some(helper);
+        }
+
+        let mut visiting = FxHashSet::default();
+        if !self.can_lower_storage_struct_array(struct_id, &mut visiting) {
+            return None;
+        }
+
+        let name = format!("__load_storage_struct_array_{}", self.module.functions.len());
+        let mut function = Function::new(Ident::from_str(&name));
+        function.attributes.no_inline = true;
+        let helper = self.module.add_function(function);
+        self.storage_struct_array_helpers.insert(struct_id, helper);
+
+        let field_ids = self.gcx.hir.strukt(struct_id).fields.to_vec();
+        let mut fields = Vec::with_capacity(field_ids.len());
+        for (index, field_id) in field_ids.into_iter().enumerate() {
+            let field_ty = self.gcx.type_of_item(field_id.into());
+            let location = self.storage.field_location(struct_id, index)?;
+            let field = match field_ty.peel_refs().kind {
+                solar_sema::ty::TyKind::Elementary(
+                    solar_sema::hir::ElementaryType::Bytes
+                    | solar_sema::hir::ElementaryType::String,
+                ) if self.share_storage_bytes => {
+                    let helper = match *self.storage_bytes_helper {
+                        Some(helper) => helper,
+                        None => {
+                            let helper = synthesize_storage_bytes_helper(self.module);
+                            *self.storage_bytes_helper = Some(helper);
+                            helper
+                        }
+                    };
+                    StorageStructField::Bytes { location, helper }
+                }
+                solar_sema::ty::TyKind::DynArray(element) => {
+                    let helper = self.ensure_storage_array_helper(element)?;
+                    StorageStructField::Array { location, helper }
+                }
+                solar_sema::ty::TyKind::Enum(id) => StorageStructField::Enum {
+                    location,
+                    variants: self.gcx.hir.enumm(id).variants.len() as u64,
+                },
+                _ if self.storage.packed_encoding(field_ty).is_some() => {
+                    StorageStructField::Scalar { location }
+                }
+                _ => return None,
+            };
+            fields.push(field);
+        }
+
+        synthesize_storage_struct_array_helper(
+            self.module,
+            helper,
+            self.storage,
+            &fields,
+            self.storage.element_slots(element),
+            self.gcx.hir.strukt(struct_id).fields.len() as u64,
+        );
+        Some(helper)
+    }
+
+    fn can_lower_storage_struct_array(
+        &self,
+        struct_id: solar_sema::hir::StructId,
+        visiting: &mut FxHashSet<solar_sema::hir::StructId>,
+    ) -> bool {
+        if !visiting.insert(struct_id) {
+            return true;
+        }
+        let supported =
+            self.gcx.hir.strukt(struct_id).fields.iter().enumerate().all(|(index, &field_id)| {
+                if self.storage.field_location(struct_id, index).is_none() {
+                    return false;
+                }
+                let field_ty = self.gcx.type_of_item(field_id.into());
+                match field_ty.peel_refs().kind {
+                    solar_sema::ty::TyKind::Elementary(
+                        solar_sema::hir::ElementaryType::Bytes
+                        | solar_sema::hir::ElementaryType::String,
+                    ) => self.share_storage_bytes,
+                    solar_sema::ty::TyKind::DynArray(element) => {
+                        self.can_lower_storage_array_element(element, visiting)
+                    }
+                    solar_sema::ty::TyKind::Enum(_) => true,
+                    _ => self.storage.packed_encoding(field_ty).is_some(),
+                }
+            });
+        visiting.remove(&struct_id);
+        supported
+    }
+
+    fn can_lower_storage_array_element(
+        &self,
+        element: solar_sema::ty::Ty<'gcx>,
+        visiting: &mut FxHashSet<solar_sema::hir::StructId>,
+    ) -> bool {
+        if matches!(
+            element.peel_refs().kind,
+            solar_sema::ty::TyKind::Elementary(
+                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
+            )
+        ) {
+            return true;
+        }
+        if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
+            return self.can_lower_storage_struct_array(struct_id, visiting);
+        }
+        if let Some((size, _)) = self.storage.packed_encoding(element)
+            && size.bits() < 256
+            && self.types.memory_layout(element).is_none()
+        {
+            return true;
+        }
+        self.types.element_words(element) == 1
+            && self.types.memory_layout(element).is_none()
+            && self.storage.packed_encoding(element).is_none_or(|(size, _)| size.bits() == 256)
+    }
+
     fn load_dynamic_storage_object(
         &mut self,
         element: solar_sema::ty::Ty<'gcx>,
         slot: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        let length = self.builder.sload(slot);
         let element_words = self.types.element_words(element);
+        if let Some(helper) = self.ensure_storage_array_helper(element) {
+            let layout = MemoryObjectLayout::DynamicArray { element_words };
+            return Some(self.builder.internal_call(
+                helper,
+                vec![slot],
+                MirType::MemoryObject(layout.kind()),
+                1,
+            ));
+        }
+        let length = self.builder.sload(slot);
         let stride = self.builder.imm_u64(u64::from(element_words));
         let words = self.checked_mul(length, stride);
         let one = self.builder.imm_u64(1);

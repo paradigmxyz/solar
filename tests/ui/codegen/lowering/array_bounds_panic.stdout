@@ -126,9 +126,10 @@ fn @stDyn(arg0: u256) -> u256 [selector=0x392580ee, view, abi_args=lazy, abi_par
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_element_slot 0, arg0, 1
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v3 = storage_array_data_slot 0
+    v4 = add v3, arg0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_args=lazy, abi_params=[u256, u256], abi_returns=[]] {
@@ -142,8 +143,9 @@ fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_args=lazy, abi_
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_element_slot 0, arg0, 1
-    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    v3 = storage_array_data_slot 0
+    v4 = add v3, arg0
+    sstore v4, arg1 !metadata(storage=symbolic(v4))
     stop
 }
 

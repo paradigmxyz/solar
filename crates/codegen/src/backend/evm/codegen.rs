@@ -197,6 +197,7 @@ struct InternalCallStackEdge {
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
+    branch_edges: FxHashMap<BlockId, StackPhiBranch>,
     edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
@@ -204,6 +205,23 @@ struct StackPhiPlan {
 struct StackPhiEdge {
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+}
+
+#[derive(Clone, Debug)]
+struct StackPhiBranch {
+    then_edge: StackPhiEdge,
+    else_edge: StackPhiEdge,
+    union: Vec<ValueId>,
+}
+
+fn union_values(first: &[ValueId], second: &[ValueId]) -> Vec<ValueId> {
+    let mut union = first.to_vec();
+    for &value in second {
+        if !union.contains(&value) {
+            union.push(value);
+        }
+    }
+    union
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -684,6 +702,22 @@ impl StackPhiPlan {
         StackPhiPlanner::new(func).plan()
     }
 
+    fn edge_fits(edge: &StackPhiEdge, values: &[ValueId]) -> bool {
+        let source_additions = values.iter().filter(|value| !edge.sources.contains(value)).count();
+        let result_additions = values.iter().filter(|value| !edge.results.contains(value)).count();
+        edge.sources.len().saturating_add(source_additions) <= MAX_STACK_ACCESS
+            && edge.results.len().saturating_add(result_additions) <= MAX_STACK_ACCESS
+    }
+
+    fn merge_edge(edge: &mut StackPhiEdge, values: &[ValueId]) {
+        let source_additions: Vec<_> =
+            values.iter().copied().filter(|value| !edge.sources.contains(value)).collect();
+        let result_additions: Vec<_> =
+            values.iter().copied().filter(|value| !edge.results.contains(value)).collect();
+        edge.sources.extend(source_additions);
+        edge.results.extend(result_additions);
+    }
+
     /// Extends planned phi edges with the resident argument prefix required by
     /// the same target. Phi values stay nearest the top, preserving the
     /// existing loop/join schedule, while invariant arguments ride below them.
@@ -698,14 +732,26 @@ impl StackPhiPlan {
         }
         for (&pred, edge) in &self.edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
-            if let Some(values) = resident.edge_layout(func, term) {
-                let source_additions =
-                    values.iter().filter(|value| !edge.sources.contains(value)).count();
-                let result_additions =
-                    values.iter().filter(|value| !edge.results.contains(value)).count();
-                if edge.sources.len().saturating_add(source_additions) > MAX_STACK_ACCESS
-                    || edge.results.len().saturating_add(result_additions) > MAX_STACK_ACCESS
-                {
+            if let Some(values) = resident.edge_layout(func, term)
+                && !Self::edge_fits(edge, values)
+            {
+                return false;
+            }
+        }
+        for (&pred, branch) in &self.branch_edges {
+            let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
+            let (then_values, else_values) =
+                if let Some((then, else_)) = resident.branch_layouts(term) {
+                    (then, else_)
+                } else if let Some(values) = resident.edge_layout(func, term) {
+                    (values, values)
+                } else {
+                    continue;
+                };
+            for (edge, values) in
+                [(&branch.then_edge, then_values), (&branch.else_edge, else_values)]
+            {
+                if !Self::edge_fits(edge, values) {
                     return false;
                 }
             }
@@ -722,14 +768,27 @@ impl StackPhiPlan {
         for (&pred, edge) in &mut self.edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
             if let Some(values) = resident.edge_layout(func, term) {
-                let source_additions: Vec<_> =
-                    values.iter().copied().filter(|value| !edge.sources.contains(value)).collect();
-                let result_additions: Vec<_> =
-                    values.iter().copied().filter(|value| !edge.results.contains(value)).collect();
-                edge.sources.extend(source_additions);
-                edge.results.extend(result_additions);
+                Self::merge_edge(edge, values);
             }
             self.edge_sources.insert(pred, edge.sources.clone());
+        }
+        for (&pred, branch) in &mut self.branch_edges {
+            let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
+            let (then_values, else_values) =
+                if let Some((then, else_)) = resident.branch_layouts(term) {
+                    (then, else_)
+                } else if let Some(values) = resident.edge_layout(func, term) {
+                    (values, values)
+                } else {
+                    continue;
+                };
+            for (edge, values) in
+                [(&mut branch.then_edge, then_values), (&mut branch.else_edge, else_values)]
+            {
+                Self::merge_edge(edge, values);
+            }
+            branch.union = union_values(&branch.then_edge.sources, &branch.else_edge.sources);
+            self.edge_sources.insert(pred, branch.union.clone());
         }
         true
     }
@@ -767,10 +826,185 @@ impl<'a> StackPhiPlanner<'a> {
         for loop_info in &self.loops {
             self.plan_loop(loop_info, &mut plan);
         }
+        self.plan_branch_phi_joins(&mut plan);
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
         plan
+    }
+
+    /// Plans branch edges whose two destinations are phi-only blocks in one loop-shaped CFG.
+    /// Other conditional joins keep the conservative spill path.
+    fn plan_branch_phi_joins(&self, plan: &mut StackPhiPlan) {
+        for branch_id in self.func.blocks.indices() {
+            let Some(loop_info) = self.loops.iter().find(|loop_info| {
+                loop_info.blocks.contains(branch_id)
+                    && loop_info.header != branch_id
+                    && loop_info.blocks.iter().any(|block| {
+                        matches!(
+                            self.func.blocks[block].terminator,
+                            Some(Terminator::Branch { .. })
+                        )
+                    })
+            }) else {
+                continue;
+            };
+            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                self.func.blocks[branch_id].terminator.as_ref()
+            else {
+                continue;
+            };
+            if then_block == else_block
+                || loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block)
+                || plan.entries.contains_key(then_block)
+                || plan.entries.contains_key(else_block)
+            {
+                continue;
+            }
+            if !self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block) {
+                continue;
+            }
+
+            let Some(then_results) = self.phi_results_for_only_block(*then_block) else {
+                continue;
+            };
+            let Some(else_results) = self.phi_results_for_only_block(*else_block) else {
+                continue;
+            };
+            if then_results.is_empty()
+                || else_results.is_empty()
+                || then_results.len() > STACK_PHI_LAYOUT_LIMIT
+                || else_results.len() > STACK_PHI_LAYOUT_LIMIT
+            {
+                continue;
+            }
+
+            let mut predecessors = self.func.blocks[*then_block].predecessors.clone();
+            for &pred in &self.func.blocks[*else_block].predecessors {
+                if !predecessors.contains(&pred) {
+                    predecessors.push(pred);
+                }
+            }
+            if predecessors.is_empty()
+                || predecessors.iter().any(|&pred| {
+                    !loop_info.blocks.contains(pred)
+                        || plan.edges.contains_key(&pred)
+                        || plan.branch_edges.contains_key(&pred)
+                        || !matches!(
+                            self.func.blocks[pred].terminator,
+                            Some(Terminator::Branch { then_block: t, else_block: e, .. })
+                                if (t == *then_block && e == *else_block)
+                                    || (t == *else_block && e == *then_block)
+                        )
+                })
+            {
+                continue;
+            }
+
+            let mut branch_edges = Vec::with_capacity(predecessors.len());
+            let mut valid = true;
+            for &pred in &predecessors {
+                let Some(then_sources) = self.phi_sources_for_block_pred(*then_block, pred) else {
+                    valid = false;
+                    break;
+                };
+                let Some(else_sources) = self.phi_sources_for_block_pred(*else_block, pred) else {
+                    valid = false;
+                    break;
+                };
+                if then_sources.len() > MAX_STACK_ACCESS || else_sources.len() > MAX_STACK_ACCESS {
+                    valid = false;
+                    break;
+                }
+                branch_edges.push((
+                    pred,
+                    StackPhiBranch {
+                        union: union_values(&then_sources, &else_sources),
+                        then_edge: StackPhiEdge {
+                            sources: then_sources,
+                            results: then_results.clone(),
+                        },
+                        else_edge: StackPhiEdge {
+                            sources: else_sources,
+                            results: else_results.clone(),
+                        },
+                    },
+                ));
+            }
+            if !valid {
+                continue;
+            }
+
+            plan.entries.insert(*then_block, then_results);
+            plan.entries.insert(*else_block, else_results);
+            for (pred, branch) in branch_edges {
+                plan.edge_sources.insert(pred, branch.union.clone());
+                plan.branch_edges.insert(pred, branch);
+            }
+        }
+    }
+
+    fn phi_results_for_only_block(&self, block_id: BlockId) -> Option<Vec<ValueId>> {
+        let block = &self.func.blocks[block_id];
+        let phi_insts = self.phi_insts(block);
+        if phi_insts.is_empty() || phi_insts.len() != block.instructions.len() {
+            return None;
+        }
+        self.phi_result_values(&phi_insts)
+    }
+
+    fn phi_sources_for_block_pred(&self, block_id: BlockId, pred: BlockId) -> Option<Vec<ValueId>> {
+        let phi_insts = self.phi_insts(&self.func.blocks[block_id]);
+        self.phi_sources_for_pred(&phi_insts, pred)
+    }
+
+    fn branch_phi_shape_is_valid(
+        &self,
+        loop_info: &Loop,
+        then_block: BlockId,
+        else_block: BlockId,
+    ) -> bool {
+        if then_block == else_block
+            || loop_info.blocks.contains(then_block) == loop_info.blocks.contains(else_block)
+        {
+            return false;
+        }
+        let Some(then_results) = self.phi_results_for_only_block(then_block) else {
+            return false;
+        };
+        let Some(else_results) = self.phi_results_for_only_block(else_block) else {
+            return false;
+        };
+        if then_results.is_empty()
+            || else_results.is_empty()
+            || then_results.len() > STACK_PHI_LAYOUT_LIMIT
+            || else_results.len() > STACK_PHI_LAYOUT_LIMIT
+        {
+            return false;
+        }
+
+        let mut predecessors = self.func.blocks[then_block].predecessors.clone();
+        for &pred in &self.func.blocks[else_block].predecessors {
+            if !predecessors.contains(&pred) {
+                predecessors.push(pred);
+            }
+        }
+        !predecessors.is_empty()
+            && predecessors.iter().all(|&pred| {
+                loop_info.blocks.contains(pred)
+                    && matches!(
+                        self.func.blocks[pred].terminator,
+                        Some(Terminator::Branch { then_block: t, else_block: e, .. })
+                            if (t == then_block && e == else_block)
+                                || (t == else_block && e == then_block)
+                    )
+                    && self
+                        .phi_sources_for_block_pred(then_block, pred)
+                        .is_some_and(|sources| sources.len() <= MAX_STACK_ACCESS)
+                    && self
+                        .phi_sources_for_block_pred(else_block, pred)
+                        .is_some_and(|sources| sources.len() <= MAX_STACK_ACCESS)
+            })
     }
 
     fn collect_header_results(&mut self) {
@@ -798,12 +1032,11 @@ impl<'a> StackPhiPlanner<'a> {
         if plan.edges.contains_key(&preheader) || plan.edges.contains_key(latch) {
             return;
         }
-        // Internal conditional exits can consume stack values before the latch.
-        // Keep the stack-phi plan for straight-line loop bodies only.
-        if loop_info.blocks.iter().any(|block_id| {
+        let has_branching_body = loop_info.blocks.iter().any(|block_id| {
             block_id != loop_info.header
                 && matches!(self.func.blocks[block_id].terminator, Some(Terminator::Branch { .. }))
-        }) {
+        });
+        if has_branching_body && !self.can_plan_branching_memory_loop(loop_info) {
             return;
         }
         let block = &self.func.blocks[loop_info.header];
@@ -820,7 +1053,9 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let mut carry_through = self.carry_through_values(loop_info);
-        self.extend_live_through_values(loop_info, &mut carry_through);
+        if !has_branching_body {
+            self.extend_live_through_values(loop_info, &mut carry_through);
+        }
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
@@ -833,6 +1068,16 @@ impl<'a> StackPhiPlanner<'a> {
             let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
                 return;
             };
+            if pred == *latch
+                && !has_branching_body
+                && phi_sources.iter().any(|&source| {
+                    self.is_phi_value(source)
+                        && !results.contains(&source)
+                        && !self.is_loop_header_phi(source)
+                })
+            {
+                return;
+            }
             let mut sources = carry_through.clone();
             sources.extend(phi_sources);
             debug_assert_eq!(sources.len(), entry.len());
@@ -844,6 +1089,76 @@ impl<'a> StackPhiPlanner<'a> {
             plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
+    }
+
+    fn can_plan_branching_memory_loop(&self, loop_info: &Loop) -> bool {
+        let mut has_load = false;
+        for block_id in loop_info.blocks.iter() {
+            for &inst_id in &self.func.blocks[block_id].instructions {
+                let kind = &self.func.inst(inst_id).kind;
+                if !matches!(
+                    kind,
+                    InstKind::Add(_, _)
+                        | InstKind::Sub(_, _)
+                        | InstKind::Mul(_, _)
+                        | InstKind::Div(_, _)
+                        | InstKind::SDiv(_, _)
+                        | InstKind::Mod(_, _)
+                        | InstKind::SMod(_, _)
+                        | InstKind::Exp(_, _)
+                        | InstKind::AddMod(_, _, _)
+                        | InstKind::MulMod(_, _, _)
+                        | InstKind::And(_, _)
+                        | InstKind::Or(_, _)
+                        | InstKind::Xor(_, _)
+                        | InstKind::Not(_)
+                        | InstKind::Clz(_)
+                        | InstKind::Shl(_, _)
+                        | InstKind::Shr(_, _)
+                        | InstKind::Sar(_, _)
+                        | InstKind::Byte(_, _)
+                        | InstKind::Lt(_, _)
+                        | InstKind::Gt(_, _)
+                        | InstKind::SLt(_, _)
+                        | InstKind::SGt(_, _)
+                        | InstKind::Eq(_, _)
+                        | InstKind::IsZero(_)
+                        | InstKind::MLoad(_)
+                        | InstKind::MStore(_, _)
+                        | InstKind::MStore8(_, _)
+                        | InstKind::MSize
+                        | InstKind::Fmp
+                        | InstKind::Keccak256(_, _)
+                        | InstKind::Phi(_)
+                        | InstKind::Select(_, _, _)
+                        | InstKind::SignExtend(_, _)
+                ) {
+                    return false;
+                }
+                has_load |= matches!(kind, InstKind::MLoad(_));
+            }
+        }
+        let function_safe = self.func.blocks.iter().all(|block| {
+            block.instructions.iter().all(|&inst_id| {
+                !matches!(
+                    self.func.inst(inst_id).kind,
+                    InstKind::CalldataCopy(_, _, _) | InstKind::SLoad(_) | InstKind::SStore(_, _)
+                )
+            })
+        });
+        let branch_shapes_safe = loop_info.blocks.iter().all(|block_id| {
+            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                self.func.blocks[block_id].terminator.as_ref()
+            else {
+                return true;
+            };
+            (loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block))
+                || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
+        });
+        has_load
+            && function_safe
+            && branch_shapes_safe
+            && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
     }
 
     fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
@@ -977,6 +1292,19 @@ impl<'a> StackPhiPlanner<'a> {
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
             })
             .collect()
+    }
+
+    fn is_phi_value(&self, value: ValueId) -> bool {
+        matches!(self.func.value(value), crate::mir::Value::Inst(inst) if matches!(self.func.inst(*inst).kind, InstKind::Phi(_)))
+    }
+
+    fn is_loop_header_phi(&self, value: ValueId) -> bool {
+        let crate::mir::Value::Inst(inst) = self.func.value(value) else {
+            return false;
+        };
+        self.loops
+            .iter()
+            .any(|loop_info| self.func.blocks[loop_info.header].instructions.contains(inst))
     }
 }
 
@@ -2409,10 +2737,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.try_emit_stack_phi_edge(func, edge)
             });
 
+            let stack_phi_branch_preserved = block
+                .terminator
+                .as_ref()
+                .and_then(|term| {
+                    let Terminator::Branch { condition, .. } = term else { return None };
+                    stack_phi_plan.branch_edges.get(&block_id).map(|branch| (*condition, branch))
+                })
+                .is_some_and(|(condition, branch)| {
+                    self.can_prepare_stack_phi_branch(func, condition, branch)
+                });
+
             // Insert phi copies before terminator. If the edge was materialized
             // as a stack-resident phi layout, the copies for this unconditional
             // predecessor are represented by the edge stack itself.
-            if stack_phi_preserved {
+            if stack_phi_preserved || stack_phi_branch_preserved {
                 self.block_copies.remove(&block_id);
             } else if let Some(copies) = self.block_copies.remove(&block_id) {
                 let mut temps = FxHashMap::default();
@@ -2475,6 +2814,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let global_branch_preserved = if !stack_phi_preserved
+                && !stack_phi_branch_preserved
                 && let Some((then_layout, else_layout)) = &global_branch_layouts
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
             {
@@ -2486,6 +2826,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             };
 
             let global_switch_preserved = if !stack_phi_preserved
+                && !stack_phi_branch_preserved
                 && global_branch_preserved.is_none()
                 && let Some(layouts) = &global_switch_layouts
                 && let Some(term @ Terminator::Switch { .. }) = block.terminator.as_ref()
@@ -2503,6 +2844,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && preserve_jump_target.is_none()
                 && preserve_branch_targets.is_empty()
                 && !stack_phi_preserved
+                && !stack_phi_branch_preserved
                 && let Some(term) = block.terminator.as_ref()
                 && let Some(layout) = global_stack_plan.edge_layout(func, term)
             {
@@ -2516,13 +2858,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || preserve_jump_target.is_some()
                 || !preserve_branch_targets.is_empty()
                 || stack_phi_preserved
+                || stack_phi_branch_preserved
                 || global_branch_preserved.is_some()
                 || global_switch_preserved.is_some()
                 || global_stack_preserved;
 
             // Spill all live-out values before the terminator so they can be reloaded in successor
             // blocks. For a preserved edge, keep stack values live instead.
-            if !preserve_stack {
+            if stack_phi_branch_preserved
+                && let Some(branch) = stack_phi_plan.branch_edges.get(&block_id)
+            {
+                self.spill_live_out_values_except(func, liveness, block_id, &branch.union);
+            } else if !preserve_stack {
                 self.spill_live_out_values(func, liveness, block_id);
             }
 
@@ -2550,6 +2897,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             ) = (&global_switch_preserved, &global_switch_layouts, &block.terminator)
             {
                 self.emit_global_stack_switch(func, *value, *default, cases, layouts, union);
+            } else if stack_phi_branch_preserved
+                && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    block.terminator.as_ref()
+                && let Some(branch) = stack_phi_plan.branch_edges.get(&block_id)
+            {
+                self.emit_stack_phi_branch(func, *condition, *then_block, *else_block, branch);
             } else if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
             }
@@ -2933,13 +3286,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn global_branch_union(then_layout: &[ValueId], else_layout: &[ValueId]) -> Vec<ValueId> {
-        let mut union = then_layout.to_vec();
-        for &value in else_layout {
-            if !union.contains(&value) {
-                union.push(value);
-            }
-        }
-        union
+        union_values(then_layout, else_layout)
     }
 
     fn try_emit_global_stack_branch(
@@ -3179,6 +3526,78 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         true
+    }
+
+    fn can_prepare_stack_phi_branch(
+        &self,
+        func: &Function,
+        condition: ValueId,
+        branch: &StackPhiBranch,
+    ) -> bool {
+        if branch.union.is_empty() || branch.union.len() > MAX_STACK_ACCESS {
+            return false;
+        }
+        self.scheduler.can_emit_value(condition, func)
+            && self.can_prepare_stack_phi_edge(func, &branch.then_edge)
+            && self.can_prepare_stack_phi_edge(func, &branch.else_edge)
+    }
+
+    fn emit_stack_phi_edge_layout(&mut self, edge: &StackPhiEdge) {
+        self.pop_stack_values_not_needed_by(&edge.sources);
+        let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
+        let shuffle = self
+            .scheduler
+            .shuffle_to_layout(&target)
+            .unwrap_or_else(|| panic!("could not construct branch stack-phi edge layout"));
+        assert_eq!(self.scheduler.depth(), edge.sources.len());
+        assert!(self.scheduler.stack.iter().eq(edge.sources.iter().copied().map(Some)));
+        for op in shuffle.ops {
+            self.asm.emit_op(op.opcode());
+        }
+        self.set_stack_to_values(&edge.results);
+    }
+
+    fn emit_stack_phi_branch(
+        &mut self,
+        func: &Function,
+        condition: ValueId,
+        then_block: BlockId,
+        else_block: BlockId,
+        branch: &StackPhiBranch,
+    ) {
+        let mut needed = Vec::with_capacity(branch.union.len() + 1);
+        needed.push(condition);
+        needed.extend_from_slice(&branch.union);
+        self.pop_stack_values_not_needed_by(&needed);
+        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
+            assert!(self.scheduler.can_emit_value(value, func));
+            self.emit_operand(func, value);
+        }
+        let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
+        let shuffle = self
+            .scheduler
+            .shuffle_to_layout(&target)
+            .unwrap_or_else(|| panic!("could not construct branch stack-phi layout"));
+        for op in shuffle.ops {
+            self.asm.emit_op(op.opcode());
+        }
+        assert_eq!(self.scheduler.stack.top(), Some(condition));
+
+        let then_cleanup = self.asm.new_label();
+        self.asm.emit_push_label(then_cleanup);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.stack.pop();
+        let union_stack = self.scheduler.stack.clone();
+
+        self.emit_stack_phi_edge_layout(&branch.else_edge);
+        self.asm.emit_push_label(self.block_labels[&else_block]);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(then_cleanup);
+        self.scheduler.stack = union_stack;
+        self.emit_stack_phi_edge_layout(&branch.then_edge);
+        self.asm.emit_push_label(self.block_labels[&then_block]);
+        self.asm.emit_op(op::JUMP);
     }
 
     fn stack_phi_source_counts_after_trim(stack: &StackModel, sources: &[ValueId]) -> Vec<ValueId> {

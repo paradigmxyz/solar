@@ -142,13 +142,18 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
-    let shared_literals = shared_string_literals(gcx, &function_ids);
+    let (shared_literals, shared_word_literals) = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
     let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
     let mut storage_bytes_helper = None;
+    let mut storage_bytes_array_helper = None;
+    let mut storage_word_array_helper = None;
+    let mut packed_array_helpers = FxHashMap::default();
+    let mut storage_struct_array_helpers = FxHashMap::default();
     let mut storage_clear_helper = None;
     let mut revert_error_helper = None;
     let mut literal_helpers = FxHashMap::default();
+    let mut literal_word_helper = None;
     let mut visiting_storage_structs = FxHashSet::default();
     let share_storage_bytes = contract
         .linearized_bases
@@ -185,10 +190,16 @@ pub(super) fn lower(
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
+            storage_bytes_array_helper: &mut storage_bytes_array_helper,
+            storage_word_array_helper: &mut storage_word_array_helper,
+            packed_array_helpers: &mut packed_array_helpers,
+            storage_struct_array_helpers: &mut storage_struct_array_helpers,
             storage_clear_helper: &mut storage_clear_helper,
             revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
+            literal_word_helper: &mut literal_word_helper,
             shared_literals: &shared_literals,
+            shared_word_literals: &shared_word_literals,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
@@ -234,10 +245,16 @@ pub(super) fn lower(
             invalid_event_topics: &mut invalid_event_topics,
             pointer_registry: &mut pointer_registry,
             storage_bytes_helper: &mut storage_bytes_helper,
+            storage_bytes_array_helper: &mut storage_bytes_array_helper,
+            storage_word_array_helper: &mut storage_word_array_helper,
+            packed_array_helpers: &mut packed_array_helpers,
+            storage_struct_array_helpers: &mut storage_struct_array_helpers,
             storage_clear_helper: &mut storage_clear_helper,
             revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
+            literal_word_helper: &mut literal_word_helper,
             shared_literals: &shared_literals,
+            shared_word_literals: &shared_word_literals,
             share_storage_bytes,
         };
         let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {
@@ -264,7 +281,7 @@ pub(super) fn lower(
 fn shared_string_literals(
     gcx: Gcx<'_>,
     function_ids: &[(hir::FunctionId, bool)],
-) -> FxHashSet<Vec<u8>> {
+) -> (FxHashSet<Vec<u8>>, FxHashSet<Vec<u8>>) {
     struct Counter<'hir> {
         hir: &'hir hir::Hir<'hir>,
         counts: FxHashMap<Vec<u8>, usize>,
@@ -283,6 +300,14 @@ fn shared_string_literals(
             {
                 *self.counts.entry(bytes.as_byte_str().to_vec()).or_default() += 1;
             }
+            if let Some(variable_id) = expr.as_variable()
+                && self.hir.variable(variable_id).is_constant()
+                && let Some(initializer) = self.hir.variable(variable_id).initializer
+                && let hir::ExprKind::Lit(lit) = initializer.peel_parens().kind
+                && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
+            {
+                *self.counts.entry(bytes.as_byte_str().to_vec()).or_default() += 1;
+            }
             self.walk_expr(expr)
         }
     }
@@ -291,7 +316,17 @@ fn shared_string_literals(
     for &(function_id, _) in function_ids {
         let _ = counter.visit_function(gcx.hir.function(function_id));
     }
-    counter.counts.into_iter().filter_map(|(bytes, count)| (count >= 3).then_some(bytes)).collect()
+    let mut shared = FxHashSet::default();
+    let mut shared_word = FxHashSet::default();
+    for (bytes, count) in counter.counts {
+        if count >= 4 {
+            shared.insert(bytes.clone());
+        }
+        if count >= 3 {
+            shared_word.insert(bytes);
+        }
+    }
+    (shared, shared_word)
 }
 
 /// Creates the MIR declaration for a HIR function.

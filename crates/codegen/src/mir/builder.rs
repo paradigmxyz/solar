@@ -998,19 +998,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
     }
 
-    /// Resolves one element slot in a dynamic storage array.
-    pub(crate) fn storage_array_element_slot(
-        &mut self,
-        slot: ValueId,
-        index: ValueId,
-        element_slots: u64,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::StorageArrayElementSlot { slot, index, element_slots },
-            Some(MirType::bytes32()),
-        )
-    }
-
     /// Resolves the first data slot of a dynamic storage array.
     pub(crate) fn storage_array_data_slot(&mut self, slot: ValueId) -> ValueId {
         self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
