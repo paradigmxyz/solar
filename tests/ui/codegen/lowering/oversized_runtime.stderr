@@ -1,4 +1,4 @@
-warning: runtime code for `OversizedRuntime` is 25206 bytes, above the 24576-byte deployable limit
+warning: runtime code for `OversizedRuntime` is 25204 bytes, above the 24576-byte deployable limit
    │
    ╰ help: compile with `-O size` or lower optimizer runs to reduce code size
 
