@@ -289,14 +289,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
 
-        let value = self.lower_expr(expr)?;
         let ty = self.gcx.type_of_expr(expr.id)?;
-        let value =
-            if self.needs_calldata_materialization(value, &AbiType::Bytes(SliceLocation::Memory)) {
-                self.materialize_calldata_argument(ty, value, expr.span)?
-            } else {
-                value
-            };
+        let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+        let value = self.lower_typed_expr(expr, memory_ty)?;
+        let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
         let selector = keccak256("Error(string)");
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
         let layout = Arc::new(AbiLayout::new(
