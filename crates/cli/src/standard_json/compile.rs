@@ -166,6 +166,7 @@ fn compile(
         } else {
             OptimizationMode::None
         };
+        opts.optimizer_runs = enabled.then_some(runs.unwrap_or(200));
     }
 
     opts.libraries = Vec::with_capacity(libraries.len());

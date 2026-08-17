@@ -516,7 +516,7 @@ impl Instruction {
 /// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
 /// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
 /// operand visitors and rewrites less variant-heavy.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum InstKind {
     // Arithmetic operations
     /// Addition: `a + b`
@@ -1447,6 +1447,7 @@ impl InstKind {
             | Self::MSize
             | Self::Keccak256(_, _)
             | Self::Keccak256Bytes(_)
+            | Self::MappingSlot(_, _)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {
@@ -1493,7 +1494,6 @@ impl InstKind {
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
-            | Self::MappingSlot(_, _)
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)

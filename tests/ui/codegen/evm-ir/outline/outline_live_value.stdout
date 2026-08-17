@@ -1,0 +1,98 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (after outline) ===
+  @module OutlineLiveValue
+  bb0:
+    push 1
++   push bb4
++   swap1
++   jump bb3
++ bb1:
++   push 2
++   push bb5
++   swap1
++   jump bb3
++ bb2:
++   push 3
++   push bb6
++   swap1
++   jump bb3
++ bb3:
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
++   swap1
++   jump
++ bb4:
+    push 100
+    mstore
+    jump bb1
+- bb1:
+-   push 2
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++ bb5:
+    push 200
+    mstore
+    jump bb2
+- bb2:
+-   push 3
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
++ bb6:
+    push 300
+    mstore
+    stop
+  

@@ -1,0 +1,34 @@
+- // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (before coalesce-copies) ===
++ // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (after coalesce-copies) ===
+  @module ConstantWords
+  bb0:
+    push 128
+    mload
+    push 256
+    mstore
+    push 160
+    mload
+    push 288
+    mstore
+    stop
+  bb1:
+    push 128
+    mload
+    push 160
+    mstore
+    push 160
+    mload
+    push 192
+    mstore
+    stop
+  bb2:
+    push 128
+    mload
+    push 256
+    mstore
+    push 192
+    mload
+    push 320
+    mstore
+    stop
+  

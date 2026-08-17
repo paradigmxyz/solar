@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 447
+  push 441
   codesize
   sub
   dup1
-  push 447
+  push 441
   push 416
   codecopy
   push 416
@@ -113,28 +113,28 @@ bb0:
   mload
   push 352
   mstore
-  push 188
+  push 182
   dup1
   push 259
   push 0
   codecopy
   push 192
   mload
-  push 26
+  push 20
   mstore8
   push 224
   mload
-  push 28
+  push 22
   mstore
   push 256
   mload
-  push 61
+  push 55
   mstore
   push 288
   mload
   push 96
   shl
-  push 94
+  push 88
   mload
   push 0
   not
@@ -142,17 +142,17 @@ bb0:
   shr
   and
   or
-  push 94
+  push 88
   mstore
   push 320
   mload
-  push 115
+  push 109
   mstore
   push 352
   mload
   push 240
   shl
-  push 148
+  push 142
   mload
   push 0
   not
@@ -160,7 +160,7 @@ bb0:
   shr
   and
   or
-  push 148
+  push 142
   mstore
   push 0
   return
@@ -172,9 +172,6 @@ bb6 [cold]:
 // === runtime ===
 @module runtime
 bb0:
-  push 320
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

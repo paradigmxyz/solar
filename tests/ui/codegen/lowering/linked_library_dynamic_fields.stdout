@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
 bb0:
-  push 480
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -44,6 +41,9 @@ bb12 [cold]:
   push 65
   jump bb25
 bb4:
+  push 480
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -383,16 +383,19 @@ bb17:
   mstore
   dup2
   mload
-  dup2
-  lt
+  gt
+  swap1
+  pop
   iszero
   push bb23
   jumpi
-  swap1
   push 32
+  push 192
+  mload
   add
-  swap1
   push 32
+  push 224
+  mload
   mul
   add
   mload
@@ -479,9 +482,6 @@ bb23 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 448
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -555,6 +555,9 @@ bb19:
   push 128
   return
 bb9:
+  push 448
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -583,7 +586,7 @@ bb9:
   push 160
   mstore
   push 36
-  push 36
+  dup1
   calldataload
   add
   push 192

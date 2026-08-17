@@ -1,0 +1,191 @@
+//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@ filecheck:
+@module module
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: push 2
+// CHECK: push 3
+// CHECK: add
+// CHECK: +   dup1
+// CHECK: add
+bb0:
+  push 2
+  push 3
+  add
+  push 3
+  push 2
+  add
+  add
+  stop
+
+// Non-commutative operands must retain their original order.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-COUNT-2: sub
+bb1:
+  push 2
+  push 3
+  sub
+  push 3
+  push 2
+  sub
+  add
+  stop
+
+// Reuse an unchanged memory load, but invalidate it at a memory write.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: push 32
+// CHECK: mload
+// CHECK: +   dup1
+// CHECK: add
+bb2:
+  push 32
+  mload
+  push 32
+  mload
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-COUNT-2: mload
+bb3:
+  push 32
+  mload
+  push 1
+  push 32
+  mstore
+  push 32
+  mload
+  add
+  stop
+
+// Fold a repeated nonzero push, but keep PUSH0 gas-neutral.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: push 5
+// CHECK: +   dup1
+// CHECK: add
+// CHECK-COUNT-2: push 0
+bb4:
+  push 5
+  push 5
+  add
+  push 0
+  push 0
+  mstore
+  stop
+
+// EOF external calls can permit reentrant storage writes, so they invalidate a cached load.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK-COUNT-2: sload
+bb5:
+  push 0
+  sload
+  push 0
+  push 0
+  push 0
+  push 0
+  extcall
+  pop
+  push 0
+  sload
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK-COUNT-2: sload
+bb6:
+  push 0
+  sload
+  push 0
+  push 0
+  push 0
+  extdelegatecall
+  pop
+  push 0
+  sload
+  add
+  stop
+
+// Contract creation can call back into the creator before returning.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK-COUNT-2: sload
+bb7:
+  push 0
+  sload
+  push 0
+  push 0
+  push 0
+  push 0
+  eofcreate
+  pop
+  push 0
+  sload
+  add
+  stop
+
+// EOF data-section copies write memory, so they invalidate a cached load.
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK-COUNT-2: mload
+bb8:
+  push 32
+  mload
+  push 1
+  push 0
+  push 32
+  datacopy
+  push 32
+  mload
+  add
+  stop
+
+// EOF extended swaps rearrange value identities through an immediate operand that this IR does
+// not model. Keep computations on opposite sides of the instruction independent.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK-COUNT-2: add
+bb9:
+  push 2
+  push 3
+  add
+  push 7
+  swapn
+  pop
+  push 2
+  push 3
+  add
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK-COUNT-2: add
+bb10:
+  push 2
+  push 3
+  add
+  push 7
+  exchange
+  pop
+  push 2
+  push 3
+  add
+  add
+  stop
+
+// An EOF internal function may mutate both the caller's memory and storage. Its explicit stack
+// effect lets block CSE continue tracking physical values, but cached reads must be invalidated.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: mload
+// CHECK: sload
+// CHECK: mload
+// CHECK: sload
+bb11:
+  push 32
+  mload
+  push 0
+  sload
+  callf !meta(stack=0->0)
+  push 32
+  mload
+  add
+  push 0
+  sload
+  add
+  stop

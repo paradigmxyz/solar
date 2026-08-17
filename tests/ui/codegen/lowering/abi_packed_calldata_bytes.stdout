@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
 @module runtime
 bb0:
-  push 352
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -39,6 +36,9 @@ bb18 [cold]:
   push 0
   revert
 bb5:
+  push 352
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -48,7 +48,7 @@ bb5:
   push bb4
   jumpi
   push 4
-  push 4
+  dup1
   calldataload
   add
   calldataload
@@ -96,6 +96,9 @@ bb20:
   swap1
   jump
 bb11:
+  push 352
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -116,7 +119,7 @@ bb11:
   push bb4
   jumpi
   push 4
-  push 4
+  dup1
   calldataload
   add
   calldataload

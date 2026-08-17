@@ -67,3 +67,56 @@ bb1:
   push 1
   pop
   stop
+
+// Zero immediates assemble as PUSH0. Their apparent two-byte EVM IR encoding must not make an
+// otherwise unprofitable repeated run eligible for outlining.
+bb4294967291:
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  stop
+bb4294967292:
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  stop
+bb4294967293:
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  stop
+bb4294967294:
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  stop
+bb4294967295:
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  push 0
+  pop
+  stop

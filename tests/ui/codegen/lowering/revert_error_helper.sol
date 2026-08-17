@@ -33,6 +33,9 @@ contract R {
     }
 
     // CHECK: push 0x6c69746572616c206d7367
+    // CHECK: jump [[LEN11_HELPER:bb[0-9]+]]
+    // CHECK: [[LEN11_HELPER]] [cold]:
+    // CHECK: push 11
     // CHECK: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
@@ -52,7 +55,7 @@ contract R {
     }
 
     // CHECK: push 0x7265766572742d70617468
-    // CHECK: jump [[SHORT_HELPER]]
+    // CHECK: jump [[LEN11_HELPER]]
     // CHECK: push 33
     // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
     // CHECK: mcopy

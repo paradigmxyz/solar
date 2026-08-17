@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
 @module runtime
 bb0:
-  push 320
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -34,6 +31,9 @@ bb18 [cold]:
   push 0
   revert
 bb4:
+  push 320
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -89,9 +89,6 @@ bb6:
   dup1
   push 256
   mstore
-  push bb20
-  jump bb19
-bb19:
   push 160
   mload
   push 64
@@ -103,7 +100,43 @@ bb19:
   mload
   push 160
   mstore
-  jump
+  push 256
+  mstore
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 224
+  mstore
+  push 4
+  calldataload
+  gt
+  push bb18
+  jumpi
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  push 224
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 192
+  add
+  push 64
+  mstore
+  push bb8
+  jump bb12
 bb8:
   push 160
   mload
@@ -113,8 +146,38 @@ bb8:
   dup1
   push 288
   mstore
-  push bb21
-  jump bb19
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  dup1
+  push 288
+  mstore
+  push 256
+  mload
+  add
+  dup1
+  push 224
+  mstore
+  push 256
+  mload
+  gt
+  push bb18
+  jumpi
+  push 224
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb14:
   push 1
   push 160
@@ -158,69 +221,17 @@ bb15:
   push 160
   add
   mstore
-  push bb22
-  jump bb19
-bb20:
-  push 256
-  mstore
-  push 1
-  push 4
-  calldataload
-  add
-  dup1
-  push 224
-  mstore
-  push 4
-  calldataload
-  gt
-  push bb18
-  jumpi
-  push 64
-  mload
   push 160
   mload
-  dup2
+  push 64
+  mstore
+  push 160
+  mload
   push 32
   add
-  mstore
-  push 224
   mload
-  dup2
-  push 64
-  add
-  mstore
-  dup1
   push 160
   mstore
-  push 192
-  add
-  push 64
-  mstore
-  push bb8
-  jump bb12
-bb21:
-  dup1
-  push 288
-  mstore
-  push 256
-  mload
-  add
-  dup1
-  push 224
-  mstore
-  push 256
-  mload
-  gt
-  push bb18
-  jumpi
-  push 224
-  mload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb22:
   dup1
   push 160
   mload

@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
 @module runtime
-bb0:
-  push 160
-  push 64
-  mstore
+bb1:
   push 0
   calldataload
   dup1
@@ -21,9 +18,6 @@ bb2:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -42,8 +36,6 @@ bb0:
   jumpi
   pop
   push 11
-  jump bb7
-bb7:
   push 0
   mstore
   jump bb6
@@ -59,7 +51,9 @@ bb4:
   jumpi
   pop
   push 22
-  jump bb7
+  push 0
+  mstore
+  jump bb6
 bb5:
   pop
   jump bb6
@@ -70,9 +64,6 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -88,10 +79,10 @@ bb0:
   jumpi
   pop
   push 27
-  jump bb7
-bb7:
   push 0
   mstore
+  jump bb6
+bb6:
   push 32
   push 0
   return
@@ -103,11 +94,15 @@ bb4:
   jumpi
   pop
   push 28
-  jump bb7
+  push 0
+  mstore
+  jump bb6
 bb5:
   pop
   push 0
-  jump bb7
+  push 0
+  mstore
+  jump bb6
 bb2 [cold]:
   push 0
   dup1
@@ -115,9 +110,6 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module runtime
 bb0:
-  push 192
-  push 64
-  mstore
   callvalue
   push bb2
   jumpi
@@ -142,10 +134,10 @@ bb0:
   jumpi
   pop
   push 1
-  jump bb10
-bb10:
   push 0
   mstore
+  jump bb5
+bb5:
   push 32
   push 0
   return
@@ -163,15 +155,21 @@ bb4:
   jumpi
   pop
   push 2
-  jump bb10
+  push 0
+  mstore
+  jump bb5
 bb7:
   pop
   push 0
-  jump bb10
+  push 0
+  mstore
+  jump bb5
 bb9:
   pop
   push 3
-  jump bb10
+  push 0
+  mstore
+  jump bb5
 bb2 [cold]:
   push 0
   dup1

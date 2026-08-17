@@ -108,7 +108,7 @@ pub(super) struct Optimizer {
     /// Whether the optimizer is enabled.
     #[serde(default)]
     pub(super) enabled: bool,
-    /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
+    /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
 }

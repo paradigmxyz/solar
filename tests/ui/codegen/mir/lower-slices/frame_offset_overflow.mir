@@ -1,0 +1,13 @@
+//@ compile-flags: -Zmir-pipeline=lower-slices
+//@ filecheck:
+
+@module FrameOffsetOverflow
+
+// CHECK-LABEL: fn @overflow(arg0: memoryslice)
+// CHECK: v0 = internal_frame_addr 18446744073709551615
+// CHECK: stop
+fn @overflow(arg0: memoryslice) {
+  bb0:
+    v0 = internal_frame_addr 18446744073709551615
+    stop
+}

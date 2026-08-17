@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (after dead-arg-elim) ===
+  @module TailCallReturnContract
+  fn @keep() -> u256 {
+    bb0:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @forward() {
+    bb0:
+      tail_call @keep
+  }
+  
+- fn @user() -> u256 {
++ fn @user() {
+    bb0:
+      v0 = internal_call @keep, 1
+      mstore 0, v0
+-     ret 7
++     ret
+  }
+  
+  fn @entry() {
+    bb0:
+      v0 = internal_call @forward, 1
+-     v1 = internal_call @user, 1
++     internal_call @user, 0
+      ret
+  }
+  

@@ -1,8 +1,7 @@
 // === compact_pushes (runtime) ===
 PUSH0
 NOT
-PUSH0
-NOT
+DUP1
 PUSH1 0x60
 SHR
 PUSH1 0x1f

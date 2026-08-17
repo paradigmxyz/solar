@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
 bb0:
-  push 480
-  push 64
-  mstore
   callvalue
   push bb5
   jumpi
@@ -65,11 +62,12 @@ bb6:
   push bb10
   jumpi
   push 11
-  jump bb47
-bb47:
-  dup1
   push 0
   mstore
+  jump bb12
+bb12:
+  push 0
+  mload
   push 0
   push 128
   mstore
@@ -89,11 +87,11 @@ bb13:
   mload
   swap2
   pop
-  jump bb49
-bb49:
-  pop
   jump bb48
 bb48:
+  pop
+  jump bb47
+bb47:
   push 128
   mstore
   push 32
@@ -101,7 +99,9 @@ bb48:
   return
 bb10:
   push 7
-  jump bb47
+  push 0
+  mstore
+  jump bb12
 bb15:
   dup1
   push 256
@@ -227,7 +227,7 @@ bb28:
   push 128
   mload
   swap1
-  jump bb49
+  jump bb48
 bb30:
   dup1
   push 288
@@ -306,7 +306,7 @@ bb37:
   jumpi
   push 128
   mload
-  jump bb48
+  jump bb47
 bb39:
   push 1
   push 224

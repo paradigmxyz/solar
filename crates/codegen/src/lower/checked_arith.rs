@@ -142,7 +142,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.require_checked_arithmetic_info(arithmetic.integer, arithmetic.span);
                 let is_signed = int_info.map_or(arithmetic.is_signed, |info| info.signed);
                 self.emit_panic_if_zero(builder, rhs, PanicCode::DivisionByZero);
-                if is_signed {
+                let result = if is_signed {
                     if !self.in_unchecked_block
                         && let Some(info) = int_info
                         && info.signed
@@ -152,6 +152,11 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.sdiv(lhs, rhs)
                 } else {
                     builder.div(lhs, rhs)
+                };
+                if self.in_unchecked_block && is_signed {
+                    self.truncate_wrapping_result(builder, result, int_info)
+                } else {
+                    result
                 }
             }
             BinOpKind::Rem => {
@@ -1025,7 +1030,12 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                     }
                 }
-                builder.sub(zero, operand)
+                let result = builder.sub(zero, operand);
+                if self.in_unchecked_block {
+                    self.truncate_wrapping_result(builder, result, int_info)
+                } else {
+                    result
+                }
             }
             UnOpKind::PreInc | UnOpKind::PostInc => {
                 let one = builder.imm_u64(1);
