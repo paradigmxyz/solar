@@ -344,6 +344,7 @@ class CompileTimeReportTests(unittest.TestCase):
                     "compile_time_seconds": solar_seconds,
                     "command": "target/release/solar --standard-json",
                     "label": "solar 0.2.0",
+                    "input_fingerprint": "input",
                 },
             },
         }
@@ -385,6 +386,18 @@ class CompileTimeReportTests(unittest.TestCase):
         baseline = self.timed_result("bench", 0.100, 0.010)
         current["compilers"]["solar"]["command"] = "target/release/solar --standard-json"
         baseline["compilers"]["solar"]["command"] = "target/debug/solar --standard-json"
+        text = "\n".join(
+            benchmark.compile_time_report(
+                [current], {("repository", "bench"): baseline}, "`main`"
+            )
+        )
+        self.assertIn("| bench | 100.0 ms | 11.0 ms (n/a) | 9.09x |", text)
+        self.assertTrue(benchmark.has_baseline_changes([current], [baseline]))
+
+    def test_compile_time_baseline_ignores_different_input(self):
+        current = self.timed_result("bench", 0.100, 0.011)
+        baseline = self.timed_result("bench", 0.100, 0.010)
+        baseline["compilers"]["solar"]["input_fingerprint"] = "old-input"
         text = "\n".join(
             benchmark.compile_time_report(
                 [current], {("repository", "bench"): baseline}, "`main`"

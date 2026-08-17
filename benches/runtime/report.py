@@ -265,6 +265,10 @@ def baseline_compile_time(
         return None
     if current_fingerprint != baseline_fingerprint:
         return None
+    current_input = compiler_data(result, compiler).get("input_fingerprint")
+    baseline_input = compiler_data(baseline, compiler).get("input_fingerprint")
+    if not current_input or current_input != baseline_input:
+        return None
     return successful_compile_time(baseline, compiler)
 
 
@@ -526,8 +530,8 @@ def compile_time_report(
     lines = [
         "### Compilation time",
         "",
-        "Solar deltas use the matching Solar baseline with the same compiler build; "
-        "speedup compares the current Solc and Solar runs.",
+        "Solar deltas use a matching Solar baseline with the same compiler build and "
+        "Standard JSON input; speedup compares the current Solc and Solar runs.",
         "",
         f"| bench | solc | Solar (delta vs {baseline_label}) | speedup |",
         "| ----- | ---- | ----- | ------- |",

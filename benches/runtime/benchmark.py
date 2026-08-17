@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import re
 import shutil
@@ -275,6 +276,7 @@ def compile_case(
         input_text = standard_json_input(test_case)
         timeout = 120
 
+    result["input_fingerprint"] = hashlib.sha256(input_text.encode()).hexdigest()
     cmd = [str(spec.path), "--standard-json"]
     samples = []
     proc = None
