@@ -291,17 +291,20 @@ def compile_case(
         return result
 
     if test_case.whole_project:
-        compiled, error = parse_whole_project_output(proc.stdout)
-        if not compiled:
+        compiled, objects, error = parse_whole_project_output(proc.stdout)
+        if error:
             result["status"] = "failed"
             result["error"] = error
             return result
         # Compile-time only: no single contract is selected, so bytecode
         # sizes and every downstream deploy/gas/runtime stage do not apply.
+        # `bytecode_objects` records how many entries carried real code so a
+        # compiler silently emitting nothing cannot count as a fast compile.
         result["status"] = "ok"
         result["bytecode_size"] = None
         result["runtime_size"] = None
         result["contracts_compiled"] = compiled
+        result["bytecode_objects"] = objects
         return result
 
     bytecode, runtime, error = parse_standard_json_output(proc.stdout, test_case)
@@ -318,23 +321,29 @@ def compile_case(
     return result
 
 
-def parse_whole_project_output(stdout: str) -> Tuple[int, str]:
-    """Returns the number of compiled contracts and an error description."""
+def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
+    """Returns contract entries, entries with nonempty bytecode, and an error."""
     try:
         output = json.loads(stdout)
     except json.JSONDecodeError as error:
-        return 0, f"invalid compiler output: {error}"
+        return 0, 0, f"invalid compiler output: {error}"
     errors = [
         entry.get("formattedMessage") or entry.get("message") or "error"
         for entry in output.get("errors", [])
         if entry.get("severity") == "error"
     ]
     if errors:
-        return 0, "; ".join(errors)[:1000]
-    compiled = sum(len(contracts) for contracts in output.get("contracts", {}).values())
-    if compiled == 0:
-        return 0, "no contracts were compiled"
-    return compiled, ""
+        return 0, 0, "; ".join(errors)[:1000]
+    compiled = 0
+    objects = 0
+    for contracts in output.get("contracts", {}).values():
+        for data in contracts.values():
+            compiled += 1
+            if ((data.get("evm") or {}).get("bytecode") or {}).get("object"):
+                objects += 1
+    if objects == 0:
+        return compiled, 0, "no bytecode objects were emitted"
+    return compiled, objects, ""
 
 
 def parse_standard_json_output(
