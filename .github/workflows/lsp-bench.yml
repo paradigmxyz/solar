@@ -1,4 +1,5 @@
 name: Solidity LSP benchmark
+run-name: Solidity LSP benchmark (${{ inputs.profile }})
 
 permissions: {}
 
@@ -8,14 +9,24 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Sampling profile
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - default
 
 env:
+  BENCHMARK_PROFILE: ${{ inputs.profile }}
   CARGO_TERM_COLOR: always
 
 jobs:
   publish:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    name: full cross-server comparison (GitHub-hosted)
+    name: cross-server comparison (GitHub-hosted)
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
@@ -100,11 +111,12 @@ jobs:
           target/debug/solar-lsp-bench doctor \
             | tee target/lsp-bench/doctor.txt
 
-      - name: Run full comparison
-        run: >-
-          target/debug/solar-lsp-bench run
-          --profile default
-          --output target/lsp-bench/publish
+      - name: Run selected comparison
+        run: |
+          set -euo pipefail
+          target/debug/solar-lsp-bench run \
+            --profile "$BENCHMARK_PROFILE" \
+            --output target/lsp-bench/publish
 
       - name: Generate comparison
         if: always() && hashFiles('target/lsp-bench/publish/summary.json') != ''
@@ -113,11 +125,20 @@ jobs:
           --input target/lsp-bench/publish/summary.json
           --output target/lsp-bench/publish/COMPARISON.md
 
+      - name: Publish comparison in job summary
+        if: always() && hashFiles('target/lsp-bench/publish/COMPARISON.md') != ''
+        shell: bash
+        run: |
+          {
+            printf 'Profile: `%s`\n\n' "$BENCHMARK_PROFILE"
+            cat target/lsp-bench/publish/COMPARISON.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload comparison artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: solidity-lsp-benchmark-${{ github.run_id }}
+          name: solidity-lsp-benchmark-${{ inputs.profile }}-${{ github.run_id }}
           path: |
             target/lsp-bench/publish/
             target/lsp-bench/probe/

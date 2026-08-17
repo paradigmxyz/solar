@@ -215,8 +215,17 @@ class LspBenchPrWorkflowTests(unittest.TestCase):
             self.assertIn("persist-credentials: false", workflow)
             self.assertIn("runs-on: ubuntu-24.04", workflow)
             self.assertNotIn("self-hosted", workflow)
-        self.assertIn("name: full cross-server comparison (GitHub-hosted)", PUBLISH_WORKFLOW)
-        self.assertIn("--profile default", PUBLISH_WORKFLOW)
+        self.assertIn("name: cross-server comparison (GitHub-hosted)", PUBLISH_WORKFLOW)
+        self.assertIn("default: smoke", PUBLISH_WORKFLOW)
+        self.assertIn("BENCHMARK_PROFILE: ${{ inputs.profile }}", PUBLISH_WORKFLOW)
+        self.assertIn('--profile "$BENCHMARK_PROFILE"', PUBLISH_WORKFLOW)
+        self.assertNotIn("--profile default", PUBLISH_WORKFLOW)
+        self.assertIn('>> "$GITHUB_STEP_SUMMARY"', PUBLISH_WORKFLOW)
+        self.assertIn("cat target/lsp-bench/publish/COMPARISON.md", PUBLISH_WORKFLOW)
+        self.assertIn(
+            "name: solidity-lsp-benchmark-${{ inputs.profile }}-${{ github.run_id }}",
+            PUBLISH_WORKFLOW,
+        )
         self.assertNotIn("doctor --publish", PUBLISH_WORKFLOW)
         self.assertNotIn("--require-authoritative", PUBLISH_WORKFLOW)
         self.assertIn("continue-on-error: true", PUBLISH_WORKFLOW)
