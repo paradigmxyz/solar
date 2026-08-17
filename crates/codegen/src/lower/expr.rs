@@ -1466,8 +1466,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Lowers `type(Contract).creationCode` or `type(Contract).runtimeCode`.
-    /// Returns a `bytes memory` pointer with layout: [length (32 bytes)][bytecode data...]
     /// Lowers `addr.code` into a fresh `bytes memory` copy of the account's
     /// runtime code.
     fn lower_address_code(&mut self, builder: &mut FunctionBuilder<'_>, addr: ValueId) -> ValueId {
@@ -1492,6 +1490,8 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
+    /// Lowers `type(Contract).creationCode` or `type(Contract).runtimeCode`.
+    /// Returns a `bytes memory` pointer with layout: [length (32 bytes)][bytecode data...]
     fn lower_type_creation_code(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
