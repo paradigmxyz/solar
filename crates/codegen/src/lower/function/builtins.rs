@@ -160,7 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
                 let condition = self.lower_expr(condition)?;
                 let invalid = self.builder.iszero(condition);
-                self.panic_if(invalid, PanicCode::Assert);
+                self.builder.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
@@ -265,7 +265,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
-                self.panic_if_zero(modulus, PanicCode::DivisionByZero);
+                self.builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
                 Some(if builtin == Builtin::AddMod {
                     self.builder.addmod(a, b, modulus)
                 } else {
@@ -404,7 +404,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        let size = self.padded_size(total);
+        let size = self.builder.padded_size(total);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,

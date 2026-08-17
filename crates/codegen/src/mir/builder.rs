@@ -117,6 +117,21 @@ impl<'a> FunctionBuilder<'a> {
         self.switch_to_block(continue_block);
     }
 
+    /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
+    pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
+        let limit = self.imm_u64(variants);
+        let valid = self.lt(value, limit);
+        let invalid = self.iszero(valid);
+        self.panic_if(invalid, PanicCode::EnumConversion);
+    }
+
+    /// Reverts with `PanicCode::ArrayOutOfBounds` when `index` is not below `length`.
+    pub(crate) fn bounds_check(&mut self, index: ValueId, length: ValueId) {
+        let in_range = self.lt(index, length);
+        let invalid = self.iszero(in_range);
+        self.panic_if(invalid, PanicCode::ArrayOutOfBounds);
+    }
+
     /// Adds two words and reverts when the result overflows.
     pub(crate) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
@@ -145,6 +160,26 @@ impl<'a> FunctionBuilder<'a> {
         let overflow = self.iszero(valid);
         self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
         result
+    }
+
+    /// Returns the word-aligned allocation size for a bytes-like object.
+    pub(crate) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm_u64(63);
+        let rounded = self.checked_add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    /// Returns the Solidity-compatible padded size for `bytes.concat`.
+    pub(crate) fn padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm_u64(63);
+        let rounded = self.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
+        let mask = self.imm_u64(31);
+        let mask = self.not(mask);
+        self.and(rounded, mask)
     }
 
     /// Creates an undefined value.

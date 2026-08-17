@@ -331,7 +331,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let length = self.builder.extcodesize(address);
-            let size = self.checked_padded_size(length);
+            let size = self.builder.checked_padded_size(length);
             let object = self.builder.alloc_object(
                 size,
                 MemoryObjectLayout::Bytes,

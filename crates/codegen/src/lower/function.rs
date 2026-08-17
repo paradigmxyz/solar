@@ -31,7 +31,6 @@ mod abi_calls;
 mod abi_values;
 mod builtins;
 mod calls;
-mod checks;
 mod control_flow;
 mod entry;
 mod expressions;
@@ -280,37 +279,6 @@ enum LValuePlace<'gcx> {
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
     StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
-}
-
-enum PackedPiece<'gcx> {
-    Bytes(Vec<u8>),
-    Static {
-        value: ValueId,
-        length: u64,
-        fixed_bytes: bool,
-        signed: bool,
-    },
-    Dynamic {
-        source: ValueId,
-        length: ValueId,
-    },
-    Array {
-        value: ValueId,
-        length: ValueId,
-        element: PackedArrayElement<'gcx>,
-        source: PackedArraySource,
-    },
-}
-
-struct PackedArrayElement<'gcx> {
-    abi: AbiType,
-    ty: Ty<'gcx>,
-}
-
-#[derive(Clone, Copy)]
-enum PackedArraySource {
-    Memory { layout: MemoryObjectLayout },
-    Slice(SliceLocation),
 }
 
 #[derive(Clone, Copy)]

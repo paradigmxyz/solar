@@ -94,14 +94,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
             let layout = self.types.memory_layout(ty)?;
             let size = match layout {
-                MemoryObjectLayout::Bytes => self.checked_padded_size(len),
+                MemoryObjectLayout::Bytes => self.builder.checked_padded_size(len),
                 MemoryObjectLayout::DynamicArray { element_words } => {
                     let stride = self.builder.imm_u64(u64::from(element_words));
-                    let payload = self.checked_mul(len, stride);
+                    let payload = self.builder.checked_mul(len, stride);
                     let one = self.builder.imm_u64(1);
-                    let words = self.checked_add(payload, one);
+                    let words = self.builder.checked_add(payload, one);
                     let word_size = self.builder.imm_u64(32);
-                    self.checked_mul(words, word_size)
+                    self.builder.checked_mul(words, word_size)
                 }
                 _ => return report_unsupported(self.context.gcx, expr.span, "allocation type"),
             };
@@ -268,8 +268,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
         let bytecode_len_value = self.builder.imm_u64(bytecode_len);
-        let total_len = self.checked_add(bytecode_len_value, encoded_len);
-        let size = self.checked_padded_size(total_len);
+        let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
+        let size = self.builder.checked_padded_size(total_len);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -609,7 +609,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let limit = self.builder.imm_u64(limit);
                 let valid = self.builder.lt(value, limit);
                 let invalid = self.builder.iszero(valid);
-                self.panic_if(invalid, PanicCode::EnumConversion);
+                self.builder.panic_if(invalid, PanicCode::EnumConversion);
             }
             return value;
         }

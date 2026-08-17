@@ -145,7 +145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let product = self.builder.mul(power, current_base);
         let product_overflow = self.mul_overflow(power, current_base, product, kind);
         let product_check = self.builder.and(odd, product_overflow);
-        self.panic_if(product_check, PanicCode::ArithmeticOverflowUnderflow);
+        self.builder.panic_if(product_check, PanicCode::ArithmeticOverflowUnderflow);
         let next_power = self.builder.select(odd, product, power);
 
         let next_exponent = self.builder.shr(one, current_exponent);
@@ -153,7 +153,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let square_overflow = self.mul_overflow(current_base, current_base, square, kind);
         let has_next_exponent = self.builder.gt(next_exponent, zero);
         let square_check = self.builder.and(has_next_exponent, square_overflow);
-        self.panic_if(square_check, PanicCode::ArithmeticOverflowUnderflow);
+        self.builder.panic_if(square_check, PanicCode::ArithmeticOverflowUnderflow);
         let latch = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(power, latch, next_power);
@@ -193,7 +193,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.signed_add_overflow(lhs, rhs, result, bits)
                             }
                         };
-                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
@@ -210,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.signed_sub_overflow(lhs, rhs, result, bits)
                             }
                         };
-                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
@@ -222,13 +222,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     if let Some(kind) = arithmetic {
                         let overflow = self.mul_overflow(lhs, rhs, result, kind);
-                        self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     }
                     result
                 }
             }
             BinOpKind::Div => {
-                self.panic_if_zero(rhs, PanicCode::DivisionByZero);
+                self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
                 if !self.unchecked
                     && let Some(ArithmeticKind::Signed(bits)) = arithmetic
                 {
@@ -237,7 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let minus_one = self.builder.imm_u256(U256::MAX);
                     let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
                     let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
-                    self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
                 let result = match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.sdiv(lhs, rhs),
@@ -250,7 +250,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             BinOpKind::Rem => {
-                self.panic_if_zero(rhs, PanicCode::DivisionByZero);
+                self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
                 match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.smod(lhs, rhs),
                     _ => self.builder.mod_(lhs, rhs),
@@ -323,7 +323,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let (min, _) = signed_bounds(bits, &mut self.builder);
                     let overflow = self.builder.eq(value, min);
-                    self.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
                 let zero = self.builder.imm_u256(U256::ZERO);
                 let result = self.builder.sub(zero, value);
