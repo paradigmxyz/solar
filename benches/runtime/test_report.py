@@ -148,6 +148,37 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
+    def test_codegen_report_includes_full_project_compile_times(self):
+        project = {
+            "test_id": "solady-0.1.26-full",
+            "suite": "projects",
+            "project": "solady-0.1.26",
+            "compilers": {
+                "solc": {"status": "ok", "compile_time_seconds": 12.5},
+                "solar": {"status": "failed", "compile_time_seconds": 18.25},
+            },
+        }
+        self.assertEqual(
+            benchmark.codegen_report([project], []),
+            "## Full-project compile\n"
+            "\n"
+            "| project | solc compile | solar compile |\n"
+            "| ------- | ------------ | ------------- |\n"
+            "| solady-0.1.26 | 12.50s | 18.25s (failed) |",
+        )
+
+    def test_full_project_compile_time_changes_use_baseline(self):
+        project = {
+            "test_id": "solady-0.1.26-full",
+            "suite": "projects",
+            "compilers": {
+                "solc": {"compile_time_seconds": 12.5},
+                "solar": {"compile_time_seconds": 18.25},
+            },
+        }
+        self.assertTrue(benchmark.has_baseline_changes([project], []))
+        self.assertFalse(benchmark.has_baseline_changes([project], [project]))
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, results, timings=None):
@@ -326,6 +357,34 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         self.assertEqual(
             [entry["name"] for entry in document["benchmarks"]],
             ["codegen_runtime_suite/large"],
+        )
+
+    def test_writes_full_project_compile_times(self):
+        results = [
+            {
+                "test_id": "solady-0.1.26-full",
+                "suite": "projects",
+                "compilers": {
+                    "solc": {"status": "ok", "compile_time_seconds": 12.5},
+                    "solar": {"status": "failed", "compile_time_seconds": 18.25},
+                },
+            }
+        ]
+        document = self.write_result(results, {"projects": 20.0})
+        self.assertEqual(
+            document["benchmarks"][0]["compiler"],
+            {
+                "solc_compile_time": {
+                    "value": 12.5,
+                    "unit": "second",
+                    "statistic": "total",
+                },
+                "solar_compile_time": {
+                    "value": 18.25,
+                    "unit": "second",
+                    "statistic": "total",
+                },
+            },
         )
 
 

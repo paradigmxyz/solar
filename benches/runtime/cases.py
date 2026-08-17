@@ -58,6 +58,7 @@ class TestCase:
     min_solc: Optional[str] = None
     max_solc: Optional[str] = None
     suite: str = "micro"
+    full_project: bool = False
 
     @property
     def project_path(self) -> Path:
@@ -662,6 +663,33 @@ TEST_CASES: Sequence[TestCase] = (
         ),
         suite="large",
     ),
+)
+
+
+# Whole-project inputs mirror the default Foundry build profile, including all
+# source files used by the project's test suites. These cases measure compiler
+# time only; focused cases above cover deployment and runtime behavior.
+PROJECT_CASES: Sequence[TestCase] = tuple(
+    TestCase(
+        test_id=f"{project}-full",
+        description=f"Full {project} Foundry project",
+        contract_name="",
+        project=project,
+        project_file=project_file,
+        suite="projects",
+        full_project=True,
+    )
+    for project, project_file in (
+        ("seaport-1.6", "seaport-1.6.json.gz"),
+        ("openzeppelin-5.6.1", "openzeppelin-5.6.1.json.gz"),
+        ("solady-0.1.26", "solady-0.1.26.json.gz"),
+        ("v4-core-4.0.0", "v4-core-4.0.0.json.gz"),
+        ("morpho-blue-1.0.0", "morpho-blue-1.0.0.json.gz"),
+        ("forge-std-1.16.1", "forge-std-1.16.1.json.gz"),
+        ("prb-math-4.1.1", "prb-math-4.1.1.json.gz"),
+        ("solmate-6", "solmate-6.json.gz"),
+        ("solarray-a547630", "solarray-a547630.json.gz"),
+    )
 )
 
 

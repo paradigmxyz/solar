@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import re
 import shutil
@@ -27,6 +28,7 @@ from cases import (
     MAX_UINT128,
     MAX_UINT256,
     MIXED_BYTES32,
+    PROJECT_CASES,
     SIGNED_HASH,
     TEST_CASES,
     TestCase,
@@ -221,6 +223,56 @@ def project_standard_json_input(
     return json.dumps(payload)
 
 
+@lru_cache(maxsize=None)
+def full_project_standard_json_input(project_file: str) -> str:
+    path = PROJECTS_ROOT / project_file
+    with gzip.open(path, mode="rt", encoding="utf-8") as file:
+        return file.read()
+
+
+def parse_full_project_output(stdout: str, test_case: TestCase) -> Tuple[int, int, str]:
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        return 0, 0, f"invalid standard JSON output: {exc}"
+    if not isinstance(payload, dict):
+        return 0, 0, "standard JSON output is not an object"
+
+    errors = [
+        error
+        for error in payload.get("errors") or []
+        if isinstance(error, dict)
+        if error.get("severity") == "error"
+    ]
+    if errors:
+        error = errors[0]
+        return (
+            0,
+            0,
+            error.get("formattedMessage") or error.get("message", "compiler error"),
+        )
+
+    contracts = payload.get("contracts")
+    if not isinstance(contracts, dict):
+        return 0, 0, "standard JSON output has no contracts"
+
+    contract_count = sum(
+        len(source_contracts)
+        for source_contracts in contracts.values()
+        if isinstance(source_contracts, dict)
+    )
+    bytecode_count = sum(
+        bool(contract.get("evm", {}).get("bytecode", {}).get("object", ""))
+        for source_contracts in contracts.values()
+        if isinstance(source_contracts, dict)
+        for contract in source_contracts.values()
+        if isinstance(contract, dict)
+    )
+    if not contract_count:
+        return 0, 0, f"{test_case.project} produced no contract artifacts"
+    return contract_count, bytecode_count, ""
+
+
 def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
@@ -235,18 +287,24 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         "error": "",
     }
     if test_case.project_file is not None:
-        result.update(source=test_case.source, project=test_case.project)
+        result["project"] = test_case.project
+        if not test_case.full_project:
+            result["source"] = test_case.source
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
-        input_text = project_standard_json_input(
-            test_case.project_file,
-            test_case.source,
-            test_case.contract_name,
-            test_case.settings_profile,
-        )
-        timeout = 180
+        if test_case.full_project:
+            input_text = full_project_standard_json_input(test_case.project_file)
+            timeout = 600
+        else:
+            input_text = project_standard_json_input(
+                test_case.project_file,
+                test_case.source,
+                test_case.contract_name,
+                test_case.settings_profile,
+            )
+            timeout = 180
     else:
         input_text = standard_json_input(test_case)
         timeout = 120
@@ -265,6 +323,19 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
     if proc.returncode != 0:
         result["status"] = "failed"
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
+        return result
+
+    if test_case.full_project:
+        contract_count, bytecode_count, error = parse_full_project_output(
+            proc.stdout, test_case
+        )
+        result["contract_count"] = contract_count
+        result["bytecode_count"] = bytecode_count
+        if error:
+            result["status"] = "failed"
+            result["error"] = error
+            return result
+        result["status"] = "ok"
         return result
 
     bytecode, runtime, error = parse_standard_json_output(proc.stdout, test_case)
@@ -981,7 +1052,8 @@ def run_test_case(
     }
     if test_case.project_file is not None:
         entry["project"] = test_case.project
-        entry["source"] = test_case.source
+        if not test_case.full_project:
+            entry["source"] = test_case.source
     reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
 
     for spec in specs:
@@ -991,6 +1063,9 @@ def run_test_case(
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
+
+        if test_case.full_project:
+            continue
 
         checks = runtime_checks(test_case)
         calls = gas_calls(test_case, gas_profile)
@@ -1108,9 +1183,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--suite",
-        choices=("micro", "repository", "large", "all"),
+        choices=("micro", "repository", "large", "projects", "all"),
         default="micro",
-        help="Benchmark suite to run",
+        help="Benchmark suite to run (projects measures full archive compile time)",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
@@ -1139,10 +1214,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    test_catalog = list(TEST_CASES)
+    if args.suite in ("projects", "all"):
+        test_catalog.extend(PROJECT_CASES)
     all_tests = [
-        test
-        for test in TEST_CASES
-        if args.suite == "all" or test.suite == args.suite
+        test for test in test_catalog if args.suite == "all" or test.suite == args.suite
     ]
 
     if args.projects:
@@ -1153,7 +1229,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.list_tests:
         for test in all_tests:
             if test.project_file is not None:
-                print(f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}")
+                source = "full-project" if test.full_project else test.source
+                print(f"{test.test_id}	{test.project}	{source}	{test.contract_name}")
             else:
                 print(f"{test.test_id}	{test.suite}	inline	{test.contract_name}")
         return 0
@@ -1210,6 +1287,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.gas and any(
         test.project_file is not None
+        and not test.full_project
         and not gas_calls(test, args.gas_profile)
         and not runtime_checks(test)
         for test in tests

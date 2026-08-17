@@ -66,6 +66,36 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertEqual(missing, [])
 
+    def test_full_project_cases_preserve_archives(self) -> None:
+        self.assertEqual(len(benchmark.PROJECT_CASES), 9)
+        self.assertTrue(all(case.full_project for case in benchmark.PROJECT_CASES))
+        case = next(
+            case for case in benchmark.PROJECT_CASES if case.project == "solady-0.1.26"
+        )
+        archive = benchmark.load_project(case.project_path)
+        payload = json.loads(
+            benchmark.full_project_standard_json_input(case.project_file)
+        )
+        self.assertEqual(payload, archive)
+        self.assertEqual(len(payload["sources"]), 208)
+
+    def test_parse_full_project_output_counts_contract_artifacts(self) -> None:
+        case = benchmark.PROJECT_CASES[0]
+        stdout = json.dumps(
+            {
+                "contracts": {
+                    "src/A.sol": {
+                        "A": {"evm": {"bytecode": {"object": "6000"}}},
+                        "Interface": {"evm": {"bytecode": {"object": ""}}},
+                    }
+                }
+            }
+        )
+        self.assertEqual(
+            benchmark.parse_full_project_output(stdout, case),
+            (2, 1, ""),
+        )
+
     def test_micro_sources_are_externalized(self) -> None:
         payload = json.loads(benchmark.standard_json_input(benchmark.TEST_CASES[0]))
 

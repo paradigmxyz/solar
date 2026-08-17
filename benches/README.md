@@ -44,6 +44,11 @@ upstream commits are documented in the shared project archive
 [`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
 The runtime harness and its tests are in [`runtime/`](runtime/).
 
+Use `--suite projects` to compare full-project compile times. This suite passes each archived
+Foundry Standard JSON input unchanged to both compilers, so it includes the project's test sources
+and build settings. It records compile time (and peak RSS) only; it does not run Criterion,
+deployments, gas calls, or runtime checks. `--suite large` remains the focused runtime workload.
+
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against
 `main`, and skips the codegen runtime and CodSpeed jobs:
 

@@ -4,22 +4,23 @@ This directory is the single source archive for the project benchmarks. Each arc
 gzip-compressed Solidity Standard JSON input with inline source contents and the upstream build
 settings needed by the benchmark that owns it.
 
-The Criterion bench loads each archive directly, so CodSpeed and the runtime benchmark share the
-same project files. The runtime harness selects an entrypoint's transitive import closure and
-applies its runtime settings profile before compiling it. Large projects can therefore serve both
-whole-project and focused runtime workloads without keeping a second extracted archive. Gungraun
-keeps its existing benchmark set and is not expanded with these projects.
+Criterion and CodSpeed load these archives directly for their existing Solar-only workloads. The
+runtime benchmark's `projects` suite passes each archive unchanged to both solc and Solar for a
+whole-project compile-time comparison. Its other suites select an entrypoint's transitive import
+closure and apply a runtime settings profile before compiling it. Large projects can therefore
+serve both whole-project and focused runtime workloads without keeping a second extracted archive.
+Gungraun keeps its existing benchmark set and is not expanded with these projects.
 
 Several archives include upstream test sources. Criterion sees those files in its whole-project
 parse, lowering, and codegen phases when the project enables that phase. These are the files in
 each pinned project's benchmark profile, not a promise to include every file in the repository.
 For example, Solady's default profile excludes its EIP-7702, transient-storage, Ithaca, and
-ZKsync paths. The runtime benchmark compiles only the selected test or production entrypoint and
-its imports.
+ZKsync paths. The focused runtime suites compile only the selected test or production entrypoint
+and its imports.
 
 The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Seaport, Solady,
 Solarray, Solmate, and v4-core. The runtime suite currently exercises OpenZeppelin and Solady test
-entrypoints; the other test trees remain whole-project Criterion inputs.
+entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
 The runtime workload definitions and upstream revisions are documented in
 [`../codegen-runtime/README.md`](../codegen-runtime/README.md). Runtime fixtures remain under
