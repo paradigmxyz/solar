@@ -1,3 +1,5 @@
+//! Fake LSP server used by the benchmark integration tests.
+
 #![allow(unused_crate_dependencies)]
 
 use serde_json::{Value, json};
