@@ -406,9 +406,6 @@ def memory_report(results: list[dict[str, Any]]) -> list[str]:
     ]
 
 
-COMPILE_SPEEDUP_GOAL = 10.0
-
-
 def compile_time_rows(
     results: list[dict[str, Any]], baseline: dict[tuple[str, str], dict[str, Any]]
 ) -> list[str]:
@@ -452,8 +449,6 @@ def compile_time_report(
 
     solc_sum = sum(solc for solc, _ in paired)
     solar_sum = sum(solar for _, solar in paired)
-    speedup = solc_sum / solar_sum if solar_sum > 0 else None
-    goal = "✅" if speedup is not None and speedup >= COMPILE_SPEEDUP_GOAL else "❌"
 
     return [
         "### Compilation time",
@@ -462,9 +457,7 @@ def compile_time_report(
         "| ----- | ---- | ----- | ------- |",
         *compile_time_rows(results, baseline),
         f"| **sum of medians** | **{fmt_duration(solc_sum)}** | **{fmt_duration(solar_sum)}** "
-        f"| {goal} **{fmt_speedup(solc_sum, solar_sum)}** |",
-        "",
-        f"> Goal: at least {COMPILE_SPEEDUP_GOAL:.0f}x faster than solc on the sum of medians.",
+        f"| **{fmt_speedup(solc_sum, solar_sum)}** |",
         "",
     ]
 

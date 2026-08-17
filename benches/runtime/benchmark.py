@@ -193,6 +193,19 @@ def standard_json_input(test_case: TestCase) -> str:
 
 
 @lru_cache(maxsize=None)
+def project_full_standard_json_input(project_file: str) -> str:
+    path = REPOSITORY_ROOT / project_file
+    project = load_project(path)
+    settings = dict(project["settings"])
+    settings["outputSelection"] = {"*": {"*": ["evm.bytecode.object"]}}
+    payload = {
+        "language": project["language"],
+        "sources": project["sources"],
+        "settings": settings,
+    }
+    return json.dumps(payload)
+
+
 def project_standard_json_input(project_file: str, source: str, contract_name: str) -> str:
     path = REPOSITORY_ROOT / project_file
     project = load_project(path)
@@ -212,6 +225,9 @@ def project_standard_json_input(project_file: str, source: str, contract_name: s
         "settings": settings,
     }
     return json.dumps(payload)
+
+
+LONG_COMPILE_CUTOFF_SECONDS = 10.0
 
 
 def compile_case(
@@ -235,10 +251,14 @@ def compile_case(
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
-        input_text = project_standard_json_input(
-            test_case.project_file, test_case.source, test_case.contract_name
-        )
-        timeout = 180
+        if test_case.whole_project:
+            input_text = project_full_standard_json_input(test_case.project_file)
+            timeout = 900
+        else:
+            input_text = project_standard_json_input(
+                test_case.project_file, test_case.source, test_case.contract_name
+            )
+            timeout = 180
     else:
         input_text = standard_json_input(test_case)
         timeout = 120
@@ -257,6 +277,10 @@ def compile_case(
         samples.append(time.monotonic() - started)
         if proc.returncode != 0:
             break
+        # One sample is representative for long compiles; repeating a
+        # minute-scale solc run per repeat would dominate the whole benchmark.
+        if samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
+            break
     result["compile_time_seconds"] = statistics.median(samples)
     result["compile_time_samples"] = samples
     result["peak_rss_bytes"] = proc.peak_rss_bytes
@@ -264,6 +288,20 @@ def compile_case(
     if proc.returncode != 0:
         result["status"] = "failed"
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
+        return result
+
+    if test_case.whole_project:
+        compiled, error = parse_whole_project_output(proc.stdout)
+        if not compiled:
+            result["status"] = "failed"
+            result["error"] = error
+            return result
+        # Compile-time only: no single contract is selected, so bytecode
+        # sizes and every downstream deploy/gas/runtime stage do not apply.
+        result["status"] = "ok"
+        result["bytecode_size"] = None
+        result["runtime_size"] = None
+        result["contracts_compiled"] = compiled
         return result
 
     bytecode, runtime, error = parse_standard_json_output(proc.stdout, test_case)
@@ -278,6 +316,25 @@ def compile_case(
     result["bytecode_size"] = len(bytecode) // 2
     result["runtime_size"] = len(runtime or "") // 2
     return result
+
+
+def parse_whole_project_output(stdout: str) -> Tuple[int, str]:
+    """Returns the number of compiled contracts and an error description."""
+    try:
+        output = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        return 0, f"invalid compiler output: {error}"
+    errors = [
+        entry.get("formattedMessage") or entry.get("message") or "error"
+        for entry in output.get("errors", [])
+        if entry.get("severity") == "error"
+    ]
+    if errors:
+        return 0, "; ".join(errors)[:1000]
+    compiled = sum(len(contracts) for contracts in output.get("contracts", {}).values())
+    if compiled == 0:
+        return 0, "no contracts were compiled"
+    return compiled, ""
 
 
 def parse_standard_json_output(
@@ -1108,7 +1165,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--suite",
-        choices=("micro", "repository", "large", "all"),
+        choices=("micro", "repository", "large", "heavy", "all"),
         default="micro",
         help="Benchmark suite to run",
     )

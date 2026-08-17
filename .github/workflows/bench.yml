@@ -90,8 +90,6 @@ jobs:
           "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
 
       - name: Build Solar
-        # Release build: the report tracks compile time against a release
-        # solc, and a debug binary would understate the speedup several-fold.
         run: cargo build --release -p solar-compiler --bin solar
 
       - name: Download baseline (${{ env.BASE_BRANCH }} branch)

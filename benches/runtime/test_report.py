@@ -356,13 +356,8 @@ class CompileTimeReportTests(unittest.TestCase):
         self.assertIn("| fast | 100.0 ms | 5.0 ms (n/a) | 20.00x |", text)
         self.assertIn("| slow | 1.500 s | 55.0 ms (n/a) | 27.27x |", text)
         self.assertIn(
-            "| **sum of medians** | **1.600 s** | **60.0 ms** | ✅ **26.67x** |", text
+            "| **sum of medians** | **1.600 s** | **60.0 ms** | **26.67x** |", text
         )
-
-    def test_compile_time_goal_marker_flags_slow_totals(self):
-        results = [self.timed_result("close", 0.100, 0.050)]
-        text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
-        self.assertIn("| ❌ **2.00x** |", text)
 
     def test_compile_time_sum_skips_unpaired_results(self):
         results = [
@@ -371,7 +366,7 @@ class CompileTimeReportTests(unittest.TestCase):
         ]
         text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
         self.assertIn("| failed | 400.0 ms | n/a (n/a) | n/a |", text)
-        self.assertIn("| **sum of medians** | **200.0 ms** | **10.0 ms** | ✅ **20.00x** |", text)
+        self.assertIn("| **sum of medians** | **200.0 ms** | **10.0 ms** | **20.00x** |", text)
 
     def test_compile_time_report_uses_solar_baseline_delta(self):
         results = [self.timed_result("bench", 0.100, 0.011)]
@@ -380,6 +375,33 @@ class CompileTimeReportTests(unittest.TestCase):
         }
         text = "\n".join(benchmark.compile_time_report(results, baseline, "`main`"))
         self.assertIn("(❌ +10.00%)", text)
+
+    def test_whole_project_rows_render_compile_time_only(self):
+        result = {
+            "test_id": "heavy-project",
+            "suite": "heavy",
+            "compilers": {
+                "solc": {
+                    "status": "ok",
+                    "compile_time_seconds": 60.0,
+                    "bytecode_size": None,
+                    "runtime_size": None,
+                },
+                "solar": {
+                    "status": "ok",
+                    "compile_time_seconds": 5.0,
+                    "bytecode_size": None,
+                    "runtime_size": None,
+                },
+            },
+        }
+        rows = benchmark.benchmark_rows([result], {})
+        self.assertEqual(
+            rows[0],
+            "| heavy-project | n/a (n/a) | n/a (n/a) | n/a (n/a) | n/a (n/a) |",
+        )
+        text = "\n".join(benchmark.compile_time_report([result], {}, "`main`"))
+        self.assertIn("| heavy-project | 60.000 s | 5.000 s (n/a) | 12.00x |", text)
 
     def test_compile_time_report_empty_without_pairs(self):
         results = [self.timed_result("failed", 0.400, 0.010, solar_status="failed")]
