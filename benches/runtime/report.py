@@ -145,10 +145,18 @@ def baseline_regression_details(
     return details
 
 
+# Wall-clock compile times jitter between CI runners, so only movement beyond
+# these thresholds counts as a change worth a fresh PR comment.
+COMPILE_TIME_BENCH_CHANGE = 0.20
+COMPILE_TIME_TOTAL_CHANGE = 0.10
+
+
 def has_baseline_changes(
     results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> bool:
     baseline = by_test_id(baseline_results)
+    time_sum = 0.0
+    base_time_sum = 0.0
     for result in results:
         test_id = "/".join(suite_key(result))
         base = baseline.get(suite_key(result))
@@ -165,7 +173,19 @@ def has_baseline_changes(
         if solar_size is not None and base_solar_size is not None and solar_size != base_solar_size:
             return True
 
-    return False
+        solar_time = compile_time(result, "solar")
+        base_solar_time = compile_time(base, "solar")
+        if solar_time is not None and base_solar_time is None:
+            # The baseline artifact predates compile-time tracking: the report
+            # gained a section, which is a change worth posting.
+            return True
+        if solar_time is not None and base_solar_time is not None:
+            if abs(solar_time - base_solar_time) > base_solar_time * COMPILE_TIME_BENCH_CHANGE:
+                return True
+            time_sum += solar_time
+            base_time_sum += base_solar_time
+
+    return abs(time_sum - base_time_sum) > base_time_sum * COMPILE_TIME_TOTAL_CHANGE
 
 
 def warning(message: str) -> None:

@@ -403,6 +403,34 @@ class CompileTimeReportTests(unittest.TestCase):
         text = "\n".join(benchmark.compile_time_report([result], {}, "`main`"))
         self.assertIn("| heavy-project | 60.000 s | 5.000 s (n/a) | 12.00x |", text)
 
+    @staticmethod
+    def paired(current_seconds, baseline_seconds):
+        current = CompileTimeReportTests.timed_result("bench", 1.0, current_seconds)
+        base = CompileTimeReportTests.timed_result("bench", 1.0, baseline_seconds)
+        return [current], [base]
+
+    def test_compile_time_change_detection_uses_thresholds(self):
+        results, baseline = self.paired(0.125, 0.100)
+        self.assertTrue(benchmark.has_baseline_changes(results, baseline))
+        results, baseline = self.paired(0.105, 0.100)
+        self.assertFalse(benchmark.has_baseline_changes(results, baseline))
+
+    def test_compile_time_total_change_detection(self):
+        current = [
+            self.timed_result("a", 1.0, 0.112),
+            self.timed_result("b", 1.0, 0.112),
+        ]
+        base = [
+            self.timed_result("a", 1.0, 0.100),
+            self.timed_result("b", 1.0, 0.100),
+        ]
+        self.assertTrue(benchmark.has_baseline_changes(current, base))
+
+    def test_compile_time_bootstrap_counts_as_change(self):
+        current = [self.timed_result("bench", 1.0, 0.1)]
+        base = [{"test_id": "bench", "suite": "repository", "compilers": {"solar": {"status": "ok"}}}]
+        self.assertTrue(benchmark.has_baseline_changes(current, base))
+
     def test_compile_time_report_empty_without_pairs(self):
         results = [self.timed_result("failed", 0.400, 0.010, solar_status="failed")]
         self.assertEqual(benchmark.compile_time_report(results, {}, "`main`"), [])
