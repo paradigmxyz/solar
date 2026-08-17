@@ -5106,6 +5106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
+                && !self.disabled_stack_only_functions.contains(func_id)
                 && (1..=MAX_STACK_ACCESS).contains(&arity)
                 && has_return
                 && has_consistent_returns
@@ -8364,12 +8365,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
             let target: Vec<_> = values.iter().rev().copied().map(TargetSlot::Value).collect();
-            let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
-                panic!(
-                    "could not construct {}-word stack return for `{}`: stack={:?}",
-                    plan.arity, func.name, self.scheduler.stack
-                )
-            });
+            let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+                // A forwarded multi-result call leaves adopted copies of the
+                // returned values on the stack; re-emitting them for the
+                // return doubles every word and the bounded shuffler cannot
+                // always drop the surplus mid-stack. Regenerate the runtime
+                // with this function on the frame-backed return convention
+                // instead of panicking.
+                let func_id = self
+                    .current_internal_function
+                    .expect("stack-return plans only cover internal functions");
+                self.disabled_stack_only_functions.insert(func_id);
+                self.scheduler.clear_stack();
+                return;
+            };
             for op in shuffle.ops {
                 self.asm.emit_op(op.opcode());
             }
@@ -8875,6 +8884,7 @@ mod tests {
 
             codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.static_frame_functions.insert(function);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.function_spill_sizes.insert(function, 0);
             codegen.runtime_stack_args = false;
             codegen.compute_stack_return_plans(&module);
