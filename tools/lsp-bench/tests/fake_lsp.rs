@@ -7,6 +7,12 @@ fn read_json(path: &Path) -> Value {
     serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
 }
 
+fn read_text(path: &Path) -> String {
+    let mut text = String::new();
+    fs::File::open(path).unwrap().read_to_string(&mut text).unwrap();
+    text
+}
+
 fn assert_hex_digest(value: &Value, digits: usize) {
     let digest = value.as_str().unwrap();
     assert_eq!(digest.len(), digits, "{digest}");
@@ -377,6 +383,32 @@ scenarios:
             .all(|sample| sample["process"]["network_isolated"] == false)
     );
 
+    let summary_markdown = read_text(&output.join("summary.md"));
+    for expected in [
+        "# Cross-server Solidity LSP benchmark",
+        "## Run metadata",
+        "## Servers",
+        "## Results",
+        "| Server | Fixture | Workload |",
+        "p95",
+    ] {
+        assert!(summary_markdown.contains(expected), "missing `{expected}` from summary report");
+    }
+    let sample_count = samples["samples"].as_array().unwrap().len();
+    let jsonl = read_text(&output.join("samples.jsonl"));
+    assert_eq!(jsonl.lines().count(), sample_count);
+
+    let regenerated_markdown = directory.path().join("regenerated.md");
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["report", "--input"])
+        .arg(output.join("summary.json"))
+        .args(["--output"])
+        .arg(&regenerated_markdown)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    assert_eq!(summary_markdown, read_text(&regenerated_markdown));
+
     let comparison_markdown = directory.path().join("comparison.md");
     let comparison_json = directory.path().join("comparison.json");
     let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
@@ -681,6 +713,89 @@ scenarios:
         .find(|event| event["direction"] == "send" && event["method"] == "textDocument/didSave")
         .unwrap();
     assert!(notification.pointer("/message/params/text").is_none());
+}
+
+#[test]
+fn client_sends_open_for_numeric_text_sync_capability() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture = directory.path().join("fixture");
+    fs::create_dir(&fixture).unwrap();
+    fs::write(
+        fixture.join("Main.sol"),
+        "pragma solidity ^0.8.30; contract Main { function call() external {} }\n",
+    )
+    .unwrap();
+    let config = directory.path().join("benchmark.yaml");
+    fs::write(
+        &config,
+        format!(
+            r#"version: 1
+profiles:
+  smoke:
+    warmup: 0
+    samples: 1
+    cold_samples: 1
+    lifecycle_samples: 1
+    timeout_ms: 1000
+servers:
+  - id: numeric
+    command: "{}"
+    version_args: [--version]
+    env:
+      LSP_BENCH_FAKE_BEHAVIOR: numeric-text-sync
+fixtures:
+  - id: synthetic
+    root: "{}"
+    source_roots: [.]
+    anchors:
+      call:
+        path: Main.sol
+        needle: call
+scenarios:
+  - id: hover-contract
+    fixture: synthetic
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: hover
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: call
+          expected_text: add
+"#,
+            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            fixture.display(),
+        ),
+    )
+    .unwrap();
+    let output = directory.path().join("results");
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(&config)
+        .args(["--profile", "smoke", "--repeat", "1", "--output"])
+        .arg(&output)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let samples = read_json(&output.join("samples.json"));
+    let sample = &samples["samples"].as_array().unwrap()[0];
+    assert_eq!(sample["status"], "pass");
+    let events = sample["observations"]["events"].as_array().unwrap();
+    let initialize = events
+        .iter()
+        .find(|event| {
+            event["direction"] == "receive"
+                && event.pointer("/message/result/capabilities/textDocumentSync")
+                    == Some(&Value::from(1))
+        })
+        .expect("numeric text sync capability response");
+    assert_eq!(initialize["message"]["result"]["capabilities"]["textDocumentSync"], 1);
+    assert!(events.iter().any(|event| {
+        event["direction"] == "send" && event["method"] == "textDocument/didOpen"
+    }));
 }
 
 #[test]

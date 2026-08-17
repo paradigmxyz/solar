@@ -492,10 +492,50 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn validate_summary_manifest_contract(
     config: &Config,
     profile_name: &str,
     summary: &SummaryReport,
+) -> Result<()> {
+    validate_summary_manifest_contract_for_servers(config, profile_name, summary, &BTreeSet::new())
+}
+
+fn selected_server_specs<'a>(
+    config: &'a Config,
+    selected_servers: &BTreeSet<String>,
+) -> Result<Vec<&'a crate::config::ServerSpec>> {
+    let servers = config
+        .servers
+        .iter()
+        .filter(|server| {
+            server.enabled && (selected_servers.is_empty() || selected_servers.contains(&server.id))
+        })
+        .collect::<Vec<_>>();
+    if selected_servers.is_empty() {
+        return Ok(servers);
+    }
+
+    let matched = servers.iter().map(|server| server.id.as_str()).collect::<BTreeSet<_>>();
+    let missing = selected_servers
+        .iter()
+        .filter(|server| !matched.contains(server.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        bail!(
+            "selected servers are missing or disabled in the benchmark manifest: {}",
+            missing.join(", ")
+        )
+    }
+    Ok(servers)
+}
+
+fn validate_summary_manifest_contract_for_servers(
+    config: &Config,
+    profile_name: &str,
+    summary: &SummaryReport,
+    selected_servers: &BTreeSet<String>,
 ) -> Result<()> {
     let profile = config
         .profiles
@@ -553,12 +593,9 @@ pub(crate) fn validate_summary_manifest_contract(
         bail!("summary harness dirty state does not match the current checkout")
     }
 
-    let expected_servers = config
-        .servers
-        .iter()
-        .filter(|server| server.enabled)
-        .map(|server| server.id.as_str())
-        .collect::<BTreeSet<_>>();
+    let server_specs = selected_server_specs(config, selected_servers)?;
+    let expected_servers =
+        server_specs.iter().map(|server| server.id.as_str()).collect::<BTreeSet<_>>();
     let actual_servers =
         summary.servers.iter().map(|server| server.id.as_str()).collect::<Vec<_>>();
     if expected_servers.len() != actual_servers.len()
@@ -566,7 +603,7 @@ pub(crate) fn validate_summary_manifest_contract(
     {
         bail!("summary server selection does not match the publication manifest")
     }
-    for spec in config.servers.iter().filter(|server| server.enabled) {
+    for spec in server_specs {
         let metadata = summary
             .servers
             .iter()
@@ -700,16 +737,38 @@ fn validate_server_evidence(
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn validate_results_directory(
     config_path: &Path,
     input: &Path,
     profile_name: &str,
     require_authoritative: bool,
 ) -> Result<()> {
+    validate_results_directory_for_servers(
+        config_path,
+        input,
+        profile_name,
+        require_authoritative,
+        &BTreeSet::new(),
+    )
+}
+
+pub(crate) fn validate_results_directory_for_servers(
+    config_path: &Path,
+    input: &Path,
+    profile_name: &str,
+    require_authoritative: bool,
+    selected_servers: &BTreeSet<String>,
+) -> Result<()> {
     let config = Config::load(config_path)?;
     let summary_path = input.join("summary.json");
     let summary = read_summary(&summary_path, "publication")?.summary;
-    validate_summary_manifest_contract(&config, profile_name, &summary)?;
+    validate_summary_manifest_contract_for_servers(
+        &config,
+        profile_name,
+        &summary,
+        selected_servers,
+    )?;
     if require_authoritative && !summary.environment.authoritative {
         bail!("benchmark summary is not authoritative")
     }
@@ -753,21 +812,41 @@ pub(crate) fn validate_results_directory(
         bail!("samples.jsonl rows do not exactly match samples.json")
     }
 
-    validate_raw_sample_contract(
+    validate_raw_sample_contract_for_servers(
         config_path,
         &config,
         profile_name,
         &summary,
         &samples_report.samples,
+        selected_servers,
     )
 }
 
+#[cfg(test)]
 fn validate_raw_sample_contract(
     config_path: &Path,
     config: &Config,
     profile_name: &str,
     summary: &SummaryReport,
     samples: &[RunSample],
+) -> Result<()> {
+    validate_raw_sample_contract_for_servers(
+        config_path,
+        config,
+        profile_name,
+        summary,
+        samples,
+        &BTreeSet::new(),
+    )
+}
+
+fn validate_raw_sample_contract_for_servers(
+    config_path: &Path,
+    config: &Config,
+    profile_name: &str,
+    summary: &SummaryReport,
+    samples: &[RunSample],
+    selected_servers: &BTreeSet<String>,
 ) -> Result<()> {
     let profile = &config.profiles[profile_name];
     let selected_ids = if profile.scenarios.is_empty() {
@@ -781,7 +860,7 @@ fn validate_raw_sample_contract(
         .filter(|workload| selected_ids.contains(workload.id.as_str()))
         .map(|workload| (workload.id.as_str(), workload))
         .collect::<BTreeMap<_, _>>();
-    let servers = config.servers.iter().filter(|server| server.enabled).collect::<Vec<_>>();
+    let servers = selected_server_specs(config, selected_servers)?;
     let expected_keys = servers
         .iter()
         .flat_map(|server| {
@@ -1152,7 +1231,9 @@ pub(crate) fn write_reports(
 ) -> Result<()> {
     fs::create_dir_all(output)?;
     let temporary = tempfile::tempdir_in(output)?;
-    fs::write(temporary.path().join("summary.json"), serde_json::to_vec_pretty(summary)?)?;
+    let summary_json = serde_json::to_vec_pretty(summary)?;
+    let canonical_summary = serde_json::from_slice::<SummaryReport>(&summary_json)?;
+    fs::write(temporary.path().join("summary.json"), summary_json)?;
     fs::write(
         temporary.path().join("samples.json"),
         serde_json::to_vec_pretty(&SamplesReport {
@@ -1166,7 +1247,7 @@ pub(crate) fn write_reports(
         jsonl.push('\n');
     }
     fs::write(temporary.path().join("samples.jsonl"), jsonl)?;
-    fs::write(temporary.path().join("summary.md"), markdown(summary))?;
+    fs::write(temporary.path().join("summary.md"), markdown(&canonical_summary))?;
     for name in ["summary.json", "samples.json", "samples.jsonl", "summary.md"] {
         let source = temporary.path().join(name);
         let destination = output.join(name);
@@ -2681,15 +2762,28 @@ scenarios:
     }
 
     fn publication_artifacts(directory: &Path) -> (PathBuf, PathBuf) {
+        publication_artifacts_for_servers(directory, &["solar", "peer"])
+    }
+
+    fn publication_artifacts_for_servers(
+        directory: &Path,
+        selected_servers: &[&str],
+    ) -> (PathBuf, PathBuf) {
         let (config_path, config) = publication_config(directory, true);
-        let servers = config.servers.iter().map(publication_server_metadata).collect();
+        let servers = config
+            .servers
+            .iter()
+            .filter(|server| selected_servers.contains(&server.id.as_str()))
+            .map(publication_server_metadata)
+            .collect();
         let fixtures = config
             .fixtures
             .iter()
             .map(|fixture| FixtureSource::open(fixture).unwrap().metadata().clone())
             .collect();
-        let samples = ["solar", "peer"]
-            .into_iter()
+        let samples = selected_servers
+            .iter()
+            .copied()
             .map(|server| {
                 let mut sample = sample(
                     process_metrics(
@@ -3741,6 +3835,35 @@ scenarios:
         let (config_path, output) = publication_artifacts(directory.path());
 
         validate_results_directory(&config_path, &output, "publish", false).unwrap();
+    }
+
+    #[test]
+    fn result_validation_accepts_an_explicit_server_subset() {
+        let directory = tempfile::tempdir().unwrap();
+        let (config_path, output) = publication_artifacts_for_servers(directory.path(), &["solar"]);
+        let servers = BTreeSet::from(["solar".to_owned()]);
+
+        validate_results_directory_for_servers(&config_path, &output, "publish", false, &servers)
+            .unwrap();
+    }
+
+    #[test]
+    fn result_validation_rejects_an_unknown_server_selection() {
+        let directory = tempfile::tempdir().unwrap();
+        let (config_path, output) = publication_artifacts(directory.path());
+        let servers = BTreeSet::from(["missing".to_owned()]);
+
+        let error = validate_results_directory_for_servers(
+            &config_path,
+            &output,
+            "publish",
+            false,
+            &servers,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("missing or disabled"), "{error}");
     }
 
     #[test]

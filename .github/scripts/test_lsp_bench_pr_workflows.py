@@ -220,9 +220,15 @@ class LspBenchPrWorkflowTests(unittest.TestCase):
         self.assertIn("default: core", PUBLISH_WORKFLOW)
         self.assertIn("BENCHMARK_PROFILE: ${{ inputs.profile }}", PUBLISH_WORKFLOW)
         self.assertIn("BENCHMARK_SCOPE: ${{ inputs.scope }}", PUBLISH_WORKFLOW)
-        self.assertIn("core) server_args=(--server solar --server asyncswap)", PUBLISH_WORKFLOW)
+        self.assertGreaterEqual(
+            PUBLISH_WORKFLOW.count("core) server_args=(--server solar --server asyncswap)"),
+            4,
+        )
         self.assertIn('--profile "$BENCHMARK_PROFILE"', PUBLISH_WORKFLOW)
         self.assertIn('"${server_args[@]}"', PUBLISH_WORKFLOW)
+        self.assertIn("solar-lsp-bench validate-results", PUBLISH_WORKFLOW)
+        self.assertIn('echo "benchmark_scope=$BENCHMARK_SCOPE"', PUBLISH_WORKFLOW)
+        self.assertIn('if [[ "$BENCHMARK_SCOPE" == all ]]', PUBLISH_WORKFLOW)
         self.assertNotIn("--profile default", PUBLISH_WORKFLOW)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', PUBLISH_WORKFLOW)
         self.assertIn("cat target/lsp-bench/publish/COMPARISON.md", PUBLISH_WORKFLOW)

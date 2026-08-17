@@ -104,20 +104,69 @@ pub(crate) fn run(options: RunOptions) -> Result<RunOutcome> {
     {
         bail!("authoritative profiles cannot use server, workload, repeat, or timeout overrides");
     }
+    if !options.servers.is_empty() {
+        let known_servers =
+            config.servers.iter().map(|server| server.id.as_str()).collect::<BTreeSet<_>>();
+        let missing = options
+            .servers
+            .iter()
+            .filter(|server| !known_servers.contains(server.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            bail!(
+                "selected servers are not declared in the benchmark manifest: {}",
+                missing.join(", ")
+            )
+        }
+    }
+
+    let disabled = options
+        .servers
+        .iter()
+        .filter(|server| {
+            config.servers.iter().find(|spec| spec.id == **server).is_some_and(|spec| !spec.enabled)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if !disabled.is_empty() {
+        bail!(
+            "selected servers are missing or disabled in the benchmark manifest: {}",
+            disabled.join(", ")
+        )
+    }
+
     let servers = config
         .servers
         .iter()
-        .filter(|server| options.servers.is_empty() || options.servers.contains(&server.id))
+        .filter(|server| {
+            server.enabled && (options.servers.is_empty() || options.servers.contains(&server.id))
+        })
         .map(|server| prepare_server_with_inputs(server, &manifest_dir))
         .collect::<Result<Vec<_>>>()?;
     if servers.is_empty() {
-        bail!("the selected benchmark config contains no servers")
+        bail!("the selected benchmark config contains no enabled servers")
     }
+
+    let workloads = config
+        .workloads
+        .iter()
+        .filter(|workload| {
+            options.workloads.is_empty()
+                && (profile.scenarios.is_empty() || profile.scenarios.contains(&workload.id))
+                || options.workloads.contains(&workload.id)
+        })
+        .collect::<Vec<_>>();
+    if workloads.is_empty() {
+        bail!("the selected benchmark config contains no workloads")
+    }
+    let selected_fixture_ids =
+        workloads.iter().map(|workload| workload.fixture.as_str()).collect::<BTreeSet<_>>();
 
     let mut fixtures = BTreeMap::new();
     let mut fixture_metadata = Vec::new();
     for spec in &config.fixtures {
-        if !spec.enabled {
+        if !spec.enabled || !selected_fixture_ids.contains(spec.id.as_str()) {
             continue;
         }
         match FixtureSource::open(spec) {
@@ -148,19 +197,6 @@ pub(crate) fn run(options: RunOptions) -> Result<RunOutcome> {
                 eprintln!("fixture {} unavailable: {error:#}", spec.id);
             }
         }
-    }
-
-    let workloads = config
-        .workloads
-        .iter()
-        .filter(|workload| {
-            options.workloads.is_empty()
-                && (profile.scenarios.is_empty() || profile.scenarios.contains(&workload.id))
-                || options.workloads.contains(&workload.id)
-        })
-        .collect::<Vec<_>>();
-    if workloads.is_empty() {
-        bail!("the selected benchmark config contains no workloads")
     }
 
     let mut samples = Vec::new();

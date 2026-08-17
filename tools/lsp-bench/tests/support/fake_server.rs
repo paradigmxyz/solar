@@ -82,6 +82,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "completionProvider":true,
                         "documentSymbolProvider":true
                     })
+                } else if behavior == "numeric-text-sync" {
+                    json!({
+                        "positionEncoding":"utf-8",
+                        "textDocumentSync":1,
+                        "completionProvider":{"triggerCharacters":["."]},
+                        "hoverProvider":true,
+                        "documentSymbolProvider":true
+                    })
                 } else if behavior == "multi-edit-apply" {
                     json!({
                         "positionEncoding":"utf-8",

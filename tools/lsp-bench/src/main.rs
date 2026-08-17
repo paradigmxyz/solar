@@ -43,6 +43,9 @@ enum Command {
         /// Versioned benchmark manifest.
         #[arg(long, default_value = "tools/lsp-bench/benchmark.yaml")]
         config: PathBuf,
+        /// Restrict the audit to these server ids (repeatable).
+        #[arg(long = "server", value_name = "ID")]
+        servers: Vec<String>,
         /// Require the authoritative Linux/cgroup environment and a clean tree.
         #[arg(long)]
         publish: bool,
@@ -97,6 +100,9 @@ enum Command {
         /// Sampling profile whose manifest-defined matrix must be complete.
         #[arg(long, default_value = "publish")]
         profile: String,
+        /// Require exactly these server ids in the result matrix (repeatable).
+        #[arg(long = "server", value_name = "ID")]
+        servers: Vec<String>,
         /// Require authoritative process and isolation evidence.
         #[arg(long)]
         require_authoritative: bool,
@@ -139,8 +145,12 @@ fn main() -> Result<()> {
             })?;
             print!("{}", lifecycle::render_doctor(&report));
         }
-        Command::Doctor { config, publish } => {
-            let report = lifecycle::doctor(lifecycle::DoctorOptions { config, publish })?;
+        Command::Doctor { config, servers, publish } => {
+            let report = lifecycle::doctor(lifecycle::DoctorOptions {
+                config,
+                servers: servers.into_iter().collect(),
+                publish,
+            })?;
             print!("{}", lifecycle::render_doctor(&report));
         }
         Command::Run {
@@ -189,8 +199,14 @@ fn main() -> Result<()> {
             report::regenerate_markdown(&input, &output, require_authoritative)?;
             println!("Report: {}", output.display());
         }
-        Command::ValidateResults { config, input, profile, require_authoritative } => {
-            report::validate_results_directory(&config, &input, &profile, require_authoritative)?;
+        Command::ValidateResults { config, input, profile, servers, require_authoritative } => {
+            report::validate_results_directory_for_servers(
+                &config,
+                &input,
+                &profile,
+                require_authoritative,
+                &servers.into_iter().collect(),
+            )?;
             println!("Validated results: {}", input.display());
         }
         Command::Compare {
@@ -236,5 +252,17 @@ mod tests {
             .is_ok()
         );
         assert!(Cli::try_parse_from(["solar-lsp-bench", "prepare", "--fixtures-only"]).is_ok());
+        assert!(Cli::try_parse_from(["solar-lsp-bench", "doctor", "--server", "solar"]).is_ok());
+        assert!(
+            Cli::try_parse_from([
+                "solar-lsp-bench",
+                "validate-results",
+                "--server",
+                "solar",
+                "--server",
+                "asyncswap",
+            ])
+            .is_ok()
+        );
     }
 }

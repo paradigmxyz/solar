@@ -101,7 +101,7 @@ impl FixtureSource {
                     source_root.display()
                 )
             }
-            collect_solidity_files(source_root, &mut paths)?;
+            collect_solidity_files(&root, source_root, &mut paths)?;
         }
         paths.sort();
         paths.dedup();
@@ -191,7 +191,7 @@ impl FixtureSource {
 
     pub(crate) fn materialize(&self) -> Result<Fixture> {
         let destination = tempfile::tempdir()?;
-        copy_tree(&self.root, destination.path())?;
+        copy_tree(&self.root, &self.root, destination.path())?;
         Ok(Fixture { root: destination, source: self.clone() })
     }
 
@@ -249,7 +249,11 @@ impl Fixture {
     pub(crate) fn source_files(&self) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
         for source_root in &self.source.spec.source_roots {
-            collect_solidity_files(&self.root.path().join(source_root), &mut files)?;
+            collect_solidity_files(
+                self.root.path(),
+                &self.root.path().join(source_root),
+                &mut files,
+            )?;
         }
         files.sort();
         files.dedup();
@@ -410,8 +414,8 @@ fn git_output(root: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn collect_solidity_files(root: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(root)? {
+fn collect_solidity_files(root: &Path, directory: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
         let path = entry.path();
@@ -419,9 +423,14 @@ fn collect_solidity_files(root: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
             if entry.file_name().to_str().is_some_and(|name| IGNORED_DIRECTORIES.contains(&name)) {
                 continue;
             }
-            collect_solidity_files(&path, paths)?;
+            collect_solidity_files(root, &path, paths)?;
         } else if file_type.is_file() && path.extension() == Some(OsStr::new("sol")) {
             paths.push(path);
+        } else if file_type.is_symlink() {
+            symlink_file_target(root, &path)?;
+            if path.extension() == Some(OsStr::new("sol")) {
+                paths.push(path);
+            }
         }
     }
     Ok(())
@@ -455,7 +464,8 @@ fn collect_fixture_files(root: &Path, directory: &Path, files: &mut Vec<PathBuf>
         } else if file_type.is_file() {
             files.push(path.strip_prefix(root)?.to_path_buf());
         } else if file_type.is_symlink() {
-            bail!("fixture contains unsupported symlink `{}`", path.display())
+            symlink_file_target(root, &path)?;
+            files.push(path.strip_prefix(root)?.to_path_buf());
         }
     }
     Ok(())
@@ -482,7 +492,7 @@ fn verify_compiler_file_digest(
     Ok(())
 }
 
-fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
+fn copy_tree(root: &Path, source: &Path, destination: &Path) -> Result<()> {
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let name = entry.file_name();
@@ -494,14 +504,27 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
         let file_type = entry.file_type()?;
         if file_type.is_dir() {
             fs::create_dir_all(&destination_path)?;
-            copy_tree(&source_path, &destination_path)?;
+            copy_tree(root, &source_path, &destination_path)?;
         } else if file_type.is_file() {
             fs::copy(&source_path, &destination_path)?;
         } else if file_type.is_symlink() {
-            bail!("fixture contains unsupported symlink `{}`", source_path.display())
+            fs::copy(symlink_file_target(root, &source_path)?, &destination_path)?;
         }
     }
     Ok(())
+}
+
+fn symlink_file_target(root: &Path, path: &Path) -> Result<PathBuf> {
+    let target = path
+        .canonicalize()
+        .with_context(|| format!("failed to resolve fixture symlink `{}`", path.display()))?;
+    if !target.starts_with(root) {
+        bail!("fixture symlink `{}` escapes the fixture root", path.display())
+    }
+    if !target.is_file() {
+        bail!("fixture symlink `{}` does not target a regular file", path.display())
+    }
+    Ok(target)
 }
 
 #[cfg(test)]
@@ -509,6 +532,9 @@ mod tests {
     use super::*;
     use crate::config::{AnchorSpec, FixtureSpec};
     use std::collections::BTreeMap;
+
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
 
     #[test]
     fn older_schema_five_metadata_defaults_observed_compiler_versions() {
@@ -624,6 +650,54 @@ mod tests {
         assert!(error.contains("solc native artifact digest mismatch"), "{error}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn materializes_internal_file_symlinks_as_regular_files() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("Main.sol"), "contract Main {}\n").unwrap();
+        fs::write(root.path().join("AGENTS.md"), "fixture instructions\n").unwrap();
+        symlink("AGENTS.md", root.path().join("CLAUDE.md")).unwrap();
+
+        let source = FixtureSource::open(&fixture_spec(root.path())).unwrap();
+        let fixture = source.materialize().unwrap();
+        let copied = fixture.root().join("CLAUDE.md");
+
+        assert_eq!(fs::read_to_string(&copied).unwrap(), "fixture instructions\n");
+        assert!(fs::symlink_metadata(copied).unwrap().file_type().is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn includes_internal_solidity_file_symlinks_in_source_inventory() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("Real.sol"), "contract Real {}\n").unwrap();
+        symlink("Real.sol", root.path().join("Alias.sol")).unwrap();
+
+        let source = FixtureSource::open(&fixture_spec(root.path())).unwrap();
+        assert_eq!(source.metadata().source_file_count, 2);
+
+        let fixture = source.materialize().unwrap();
+        assert_eq!(
+            fixture.source_files().unwrap(),
+            vec![PathBuf::from("Alias.sol"), PathBuf::from("Real.sol")]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinks_that_escape_the_fixture_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("fixture");
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("Main.sol"), "contract Main {}\n").unwrap();
+        fs::write(directory.path().join("outside"), "runner data\n").unwrap();
+        symlink("../outside", root.join("LEAK")).unwrap();
+
+        let error = FixtureSource::open(&fixture_spec(&root)).unwrap_err().to_string();
+
+        assert!(error.contains("escapes the fixture root"), "{error}");
+    }
+
     #[test]
     fn positions_round_trip_for_all_lsp_encodings() {
         let text = "prefix\na😀éz";
@@ -646,5 +720,22 @@ mod tests {
             offset_at_position("😀", Position { line: 0, character: 1 }, PositionEncoding::Utf16)
                 .unwrap_err();
         assert!(error.to_string().contains("splits a Unicode scalar"));
+    }
+
+    fn fixture_spec(root: &Path) -> FixtureSpec {
+        FixtureSpec {
+            id: "fixture".into(),
+            root: root.into(),
+            revision: None,
+            enabled: true,
+            source_roots: vec![".".into()],
+            anchors: BTreeMap::new(),
+            required: false,
+            corpus: None,
+            solc: None,
+            foundry: None,
+            dependencies: BTreeMap::new(),
+            source: None,
+        }
     }
 }

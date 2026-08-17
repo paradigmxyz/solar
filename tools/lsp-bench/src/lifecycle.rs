@@ -37,6 +37,7 @@ pub(crate) struct PrepareOptions {
 
 pub(crate) struct DoctorOptions {
     pub(crate) config: PathBuf,
+    pub(crate) servers: BTreeSet<String>,
     pub(crate) publish: bool,
 }
 
@@ -72,6 +73,7 @@ impl DoctorReport {
 pub(crate) fn prepare(options: PrepareOptions) -> Result<DoctorReport> {
     let config = Config::load(&options.config)?;
     let manifest_dir = absolute_manifest_dir(&options.config)?;
+    let servers = selected_servers(&config, &options.servers)?;
     for fixture in config
         .fixtures
         .iter()
@@ -86,21 +88,24 @@ pub(crate) fn prepare(options: PrepareOptions) -> Result<DoctorReport> {
         prepare_submodules(&fixture.root)?;
         prepare_fixture_artifacts(fixture)?;
     }
-    for server in config.servers.iter().filter(|server| {
-        options.prepare_servers
-            && (options.servers.is_empty() || options.servers.contains(&server.id))
-    }) {
-        prepare_server(server, &manifest_dir)?;
+    if options.prepare_servers {
+        for server in servers {
+            prepare_server(server, &manifest_dir)?;
+        }
     }
-    doctor(DoctorOptions { config: options.config, publish: false })
+    doctor(DoctorOptions { config: options.config, servers: options.servers, publish: false })
 }
 
 pub(crate) fn doctor(options: DoctorOptions) -> Result<DoctorReport> {
+    if options.publish && !options.servers.is_empty() {
+        bail!("publication audit cannot use server filters")
+    }
     let config = Config::load(&options.config)?;
     let manifest_dir = absolute_manifest_dir(&options.config)?;
+    let servers = selected_servers(&config, &options.servers)?;
     let mut checks = Vec::new();
-    validate_inventory(&config, &mut checks);
-    for server in &config.servers {
+    validate_inventory(&servers, &config, &mut checks);
+    for server in servers {
         if let Some(source) = &server.source {
             checks.push(check_source_checkout(
                 &server.id,
@@ -154,13 +159,37 @@ pub(crate) fn render_doctor(report: &DoctorReport) -> String {
     output
 }
 
-fn validate_inventory(config: &Config, checks: &mut Vec<Check>) {
+fn selected_servers<'a>(
+    config: &'a Config,
+    selected: &BTreeSet<String>,
+) -> Result<Vec<&'a ServerSpec>> {
+    let servers = config
+        .servers
+        .iter()
+        .filter(|server| selected.is_empty() || selected.contains(&server.id))
+        .collect::<Vec<_>>();
+    if selected.is_empty() {
+        return Ok(servers);
+    }
+    let matched = servers.iter().map(|server| server.id.as_str()).collect::<BTreeSet<_>>();
+    let missing = selected
+        .iter()
+        .filter(|server| !matched.contains(server.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        bail!("selected servers are not declared in the benchmark manifest: {}", missing.join(", "))
+    }
+    Ok(servers)
+}
+
+fn validate_inventory(servers: &[&ServerSpec], config: &Config, checks: &mut Vec<Check>) {
     let fixtures =
         config.fixtures.iter().map(|fixture| fixture.id.as_str()).collect::<BTreeSet<_>>();
-    if config.servers.is_empty() {
+    if servers.is_empty() {
         checks.push(inventory_check("server-inventory", "manifest", false));
     } else {
-        for server in &config.servers {
+        for server in servers {
             checks.push(inventory_check("server-inventory", &server.id, true));
         }
     }
@@ -1369,16 +1398,27 @@ mod tests {
             workloads: Vec::new(),
         };
         let mut checks = Vec::new();
-        validate_inventory(&config, &mut checks);
+        let servers = selected_servers(&config, &BTreeSet::new()).unwrap();
+        validate_inventory(&servers, &config, &mut checks);
         let server_checks =
             checks.iter().filter(|check| check.kind == "server-inventory").collect::<Vec<_>>();
         assert_eq!(server_checks.len(), 1);
         assert_eq!(server_checks[0].id, "manifest-server");
         assert!(matches!(server_checks[0].status, CheckStatus::Pass));
 
+        let selected =
+            selected_servers(&config, &BTreeSet::from(["manifest-server".to_owned()])).unwrap();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "manifest-server");
+        let error = selected_servers(&config, &BTreeSet::from(["missing".to_owned()]))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("not declared"), "{error}");
+
         config.servers.clear();
         checks.clear();
-        validate_inventory(&config, &mut checks);
+        let servers = selected_servers(&config, &BTreeSet::new()).unwrap();
+        validate_inventory(&servers, &config, &mut checks);
         let missing = checks.iter().find(|check| check.kind == "server-inventory").unwrap();
         assert!(matches!(missing.status, CheckStatus::Mismatch));
     }

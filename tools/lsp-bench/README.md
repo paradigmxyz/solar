@@ -69,6 +69,18 @@ the environment with `pip check`. Preparation records a digest of each installed
 npm or Python closure under `target/lsp-bench/provenance/installed-closures/`;
 `doctor` and `run` reject later mutations to those installed dependencies.
 It accepts repeatable `--server ID` and `--fixture ID` filters for debugging.
+The same server filter is accepted by `doctor`; result validation accepts it as
+well and requires the raw and summary matrices to contain exactly those enabled
+manifest servers:
+
+```bash
+target/debug/solar-lsp-bench doctor --server solar --server asyncswap
+target/debug/solar-lsp-bench validate-results \
+  --profile default \
+  --server solar \
+  --server asyncswap \
+  --input target/lsp-bench/publish
+```
 
 The ordinary `doctor` command reports `pass`, `unavailable`, `mismatch`, and
 `unpinned` checks but does not fail merely because a check is not `pass`. Use
@@ -229,15 +241,16 @@ run.
 
 ## CI full comparison
 
-`.github/workflows/lsp-bench.yml` is a manual-only full comparison workflow. It
-runs on GitHub-hosted `ubuntu-24.04`, accepts dispatches only for the repository's
+`.github/workflows/lsp-bench.yml` is a manual-only comparison workflow. It runs
+on GitHub-hosted `ubuntu-24.04`, accepts dispatches only for the repository's
 default branch, does not persist checkout credentials, and pins Rust to `1.96`.
-The workflow records the optional isolation/accounting probe, prepares every
-declared input, runs the ordinary environment audit and the full `default`
-profile, regenerates `COMPARISON.md`, and uploads reports, manifests, the probe,
-doctor audit, and host/tool provenance even when a correctness check fails. Its
-results are portable and non-authoritative; the probe record does not promote a
-`default`-profile run to a strict publication.
+Dispatch defaults to the quick `smoke` profile and the Solar/Asyncswap `core`
+server scope; `default` and `all` remain available for an explicitly requested
+fuller comparison. The workflow records the optional isolation/accounting probe,
+prepares and audits the selected inputs, regenerates `COMPARISON.md`, and uploads
+reports, manifests, the probe, doctor audit, and host/tool provenance even when a
+correctness check fails. Its results are portable and non-authoritative; the
+probe record does not promote any hosted run to a strict publication.
 
 The separate strict `publish` profile is an operator-run path for an environment
 that satisfies `doctor --publish`, private-network execution, and complete

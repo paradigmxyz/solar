@@ -73,15 +73,31 @@ jobs:
         run: cargo build --locked -p solar-lsp-bench
 
       - name: Prepare pinned servers and fixtures
-        run: target/debug/solar-lsp-bench prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          server_args=()
+          case "$BENCHMARK_SCOPE" in
+            core) server_args=(--server solar --server asyncswap) ;;
+            all) ;;
+            *) echo "unsupported benchmark scope: $BENCHMARK_SCOPE" >&2; exit 2 ;;
+          esac
+          target/debug/solar-lsp-bench prepare "${server_args[@]}"
 
       - name: Record provenance
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/lsp-bench/provenance
+          case "$BENCHMARK_SCOPE" in
+            core) selected_servers=solar,asyncswap ;;
+            all) selected_servers=manifest-enabled ;;
+            *) echo "unsupported benchmark scope: $BENCHMARK_SCOPE" >&2; exit 2 ;;
+          esac
           {
             echo "repository=$(git rev-parse HEAD)"
+            echo "benchmark_scope=$BENCHMARK_SCOPE"
+            echo "selected_servers=$selected_servers"
             echo "runner_name=$RUNNER_NAME"
             echo "runner_os=$RUNNER_OS"
             echo "runner_arch=$RUNNER_ARCH"
@@ -104,20 +120,29 @@ jobs:
               tools/lsp-bench/servers.lock.yaml \
               tools/lsp-bench/fixtures.lock.yaml
           } > target/lsp-bench/provenance.txt
-          npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
-            > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
-          npm --prefix target/lsp-bench/servers/juan-blanco ls --all --json \
-            > target/lsp-bench/provenance/juan-blanco-npm-tree.json || true
-          npm --prefix target/lsp-bench/servers/qiuxiang ls --all --json \
-            > target/lsp-bench/provenance/qiuxiang-npm-tree.json || true
-          target/lsp-bench/servers/wake/venv/bin/pip freeze --all \
-            > target/lsp-bench/provenance/wake-python-packages.txt
+          if [[ "$BENCHMARK_SCOPE" == all ]]; then
+            npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
+              > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
+            npm --prefix target/lsp-bench/servers/juan-blanco ls --all --json \
+              > target/lsp-bench/provenance/juan-blanco-npm-tree.json || true
+            npm --prefix target/lsp-bench/servers/qiuxiang ls --all --json \
+              > target/lsp-bench/provenance/qiuxiang-npm-tree.json || true
+            target/lsp-bench/servers/wake/venv/bin/pip freeze --all \
+              > target/lsp-bench/provenance/wake-python-packages.txt
+          fi
 
       - name: Audit benchmark environment
         shell: bash
         run: |
           set -euo pipefail
+          server_args=()
+          case "$BENCHMARK_SCOPE" in
+            core) server_args=(--server solar --server asyncswap) ;;
+            all) ;;
+            *) echo "unsupported benchmark scope: $BENCHMARK_SCOPE" >&2; exit 2 ;;
+          esac
           target/debug/solar-lsp-bench doctor \
+            "${server_args[@]}" \
             | tee target/lsp-bench/doctor.txt
 
       - name: Run selected comparison
@@ -133,6 +158,21 @@ jobs:
             --profile "$BENCHMARK_PROFILE" \
             "${server_args[@]}" \
             --output target/lsp-bench/publish
+
+      - name: Validate selected comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          server_args=()
+          case "$BENCHMARK_SCOPE" in
+            core) server_args=(--server solar --server asyncswap) ;;
+            all) ;;
+            *) echo "unsupported benchmark scope: $BENCHMARK_SCOPE" >&2; exit 2 ;;
+          esac
+          target/debug/solar-lsp-bench validate-results \
+            --input target/lsp-bench/publish \
+            --profile "$BENCHMARK_PROFILE" \
+            "${server_args[@]}"
 
       - name: Generate comparison
         if: always() && hashFiles('target/lsp-bench/publish/summary.json') != ''

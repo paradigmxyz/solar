@@ -658,11 +658,7 @@ impl LspProcess {
         self.capabilities = result.get("capabilities").cloned().unwrap_or(Value::Null);
         self.text_sync_kind = text_sync_kind(&self.capabilities);
         let synchronization = self.capabilities.get("textDocumentSync");
-        self.text_open_close = synchronization
-            .and_then(Value::as_object)
-            .and_then(|value| value.get("openClose"))
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+        self.text_open_close = text_sync_open_close(&self.capabilities);
         self.text_save = synchronization
             .and_then(Value::as_object)
             .and_then(|value| value.get("save"))
@@ -1494,6 +1490,12 @@ fn text_sync_kind(capabilities: &Value) -> Option<u8> {
         .or_else(|| value.get("change").and_then(Value::as_u64).map(|value| value as u8))
 }
 
+fn text_sync_open_close(capabilities: &Value) -> bool {
+    let Some(value) = capabilities.get("textDocumentSync") else { return false };
+    value.as_u64().is_some_and(|kind| kind != 0)
+        || value.get("openClose").and_then(Value::as_bool).unwrap_or(false)
+}
+
 fn capture_stderr(reader: &mut impl Read, buffer: &mut Vec<u8>) {
     let mut chunk = [0; 8192];
     let mut truncated = false;
@@ -1965,6 +1967,12 @@ mod tests {
         assert_eq!(text_sync_kind(&json!({"textDocumentSync": 1})), Some(1));
         assert_eq!(text_sync_kind(&json!({"textDocumentSync": {"change": 2}})), Some(2));
         assert_eq!(text_sync_kind(&json!({})), None);
+
+        assert!(text_sync_open_close(&json!({"textDocumentSync": 1})));
+        assert!(text_sync_open_close(&json!({"textDocumentSync": 2})));
+        assert!(!text_sync_open_close(&json!({"textDocumentSync": 0})));
+        assert!(text_sync_open_close(&json!({"textDocumentSync": {"openClose": true}})));
+        assert!(!text_sync_open_close(&json!({"textDocumentSync": {"openClose": false}})));
     }
 
     #[test]
