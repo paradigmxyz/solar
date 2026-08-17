@@ -1,5 +1,5 @@
 name: Solidity LSP benchmark
-run-name: Solidity LSP benchmark (${{ inputs.profile }})
+run-name: Solidity LSP benchmark (${{ inputs.profile }}, ${{ inputs.scope }})
 
 permissions: {}
 
@@ -18,9 +18,18 @@ on:
         options:
           - smoke
           - default
+      scope:
+        description: Server scope
+        required: true
+        default: core
+        type: choice
+        options:
+          - core
+          - all
 
 env:
   BENCHMARK_PROFILE: ${{ inputs.profile }}
+  BENCHMARK_SCOPE: ${{ inputs.scope }}
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -114,8 +123,15 @@ jobs:
       - name: Run selected comparison
         run: |
           set -euo pipefail
+          server_args=()
+          case "$BENCHMARK_SCOPE" in
+            core) server_args=(--server solar --server asyncswap) ;;
+            all) ;;
+            *) echo "unsupported benchmark scope: $BENCHMARK_SCOPE" >&2; exit 2 ;;
+          esac
           target/debug/solar-lsp-bench run \
             --profile "$BENCHMARK_PROFILE" \
+            "${server_args[@]}" \
             --output target/lsp-bench/publish
 
       - name: Generate comparison
@@ -131,6 +147,7 @@ jobs:
         run: |
           {
             printf 'Profile: `%s`\n\n' "$BENCHMARK_PROFILE"
+            printf 'Server scope: `%s`\n\n' "$BENCHMARK_SCOPE"
             cat target/lsp-bench/publish/COMPARISON.md
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -138,7 +155,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: solidity-lsp-benchmark-${{ inputs.profile }}-${{ github.run_id }}
+          name: >-
+            solidity-lsp-benchmark-${{ inputs.profile }}-${{ inputs.scope }}-${{ github.run_id }}
           path: |
             target/lsp-bench/publish/
             target/lsp-bench/probe/

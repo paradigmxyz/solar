@@ -217,13 +217,17 @@ class LspBenchPrWorkflowTests(unittest.TestCase):
             self.assertNotIn("self-hosted", workflow)
         self.assertIn("name: cross-server comparison (GitHub-hosted)", PUBLISH_WORKFLOW)
         self.assertIn("default: smoke", PUBLISH_WORKFLOW)
+        self.assertIn("default: core", PUBLISH_WORKFLOW)
         self.assertIn("BENCHMARK_PROFILE: ${{ inputs.profile }}", PUBLISH_WORKFLOW)
+        self.assertIn("BENCHMARK_SCOPE: ${{ inputs.scope }}", PUBLISH_WORKFLOW)
+        self.assertIn("core) server_args=(--server solar --server asyncswap)", PUBLISH_WORKFLOW)
         self.assertIn('--profile "$BENCHMARK_PROFILE"', PUBLISH_WORKFLOW)
+        self.assertIn('"${server_args[@]}"', PUBLISH_WORKFLOW)
         self.assertNotIn("--profile default", PUBLISH_WORKFLOW)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', PUBLISH_WORKFLOW)
         self.assertIn("cat target/lsp-bench/publish/COMPARISON.md", PUBLISH_WORKFLOW)
         self.assertIn(
-            "name: solidity-lsp-benchmark-${{ inputs.profile }}-${{ github.run_id }}",
+            "solidity-lsp-benchmark-${{ inputs.profile }}-${{ inputs.scope }}-${{ github.run_id }}",
             PUBLISH_WORKFLOW,
         )
         self.assertNotIn("doctor --publish", PUBLISH_WORKFLOW)
