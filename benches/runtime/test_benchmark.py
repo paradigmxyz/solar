@@ -17,16 +17,11 @@ SPEC.loader.exec_module(benchmark)
 
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 19)
+        self.assertEqual(len(benchmark.TEST_CASES), 16)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
         self.assertEqual(len(repository_cases), 9)
-        heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 3)
-        for case in heavy_cases:
-            self.assertTrue(case.whole_project)
-            self.assertTrue(case.project_path.is_file())
         self.assertTrue(benchmark.RUNTIME_FIXTURES.is_file())
         expected_source_counts = {
             "uniswap-v2-pair": 10,

@@ -41,9 +41,6 @@ observations to match. The corpus contains four micro contracts, including the s
 contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its sources and
 upstream commits are documented in
 [`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
-A `heavy` suite additionally compiles three vendored whole-project inputs (Seaport 1.6,
-Uniswap v4-core, and Morpho Blue) end to end; they take tens of seconds on solc, participate
-only in the compilation-time table, and skip size, gas, and runtime comparisons.
 The runtime harness and its tests are in [`runtime/`](runtime/).
 
 For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against

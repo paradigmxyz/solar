@@ -57,10 +57,6 @@ class TestCase:
     min_solc: Optional[str] = None
     max_solc: Optional[str] = None
     suite: str = "micro"
-    # Compile every contract in the project input instead of one selected
-    # contract. Compile-time only: no bytecode is extracted, so size, gas,
-    # and runtime checks do not apply.
-    whole_project: bool = False
 
     @property
     def project_path(self) -> Path:
@@ -655,33 +651,6 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("small-string", "toSmallString(string)(bytes32)", ("short string",)),
         ),
         suite="large",
-    ),
-    TestCase(
-        test_id="seaport-1.6-project",
-        description="Seaport 1.6 full project",
-        contract_name="*",
-        project="seaport-1.6",
-        project_file="testdata/projects/seaport-1.6.json.gz",
-        whole_project=True,
-        suite="heavy",
-    ),
-    TestCase(
-        test_id="v4-core-project",
-        description="Uniswap v4-core full project (viaIR)",
-        contract_name="*",
-        project="v4-core-4.0.0",
-        project_file="testdata/projects/v4-core-4.0.0.json.gz",
-        whole_project=True,
-        suite="heavy",
-    ),
-    TestCase(
-        test_id="morpho-blue-project",
-        description="Morpho Blue full project (viaIR)",
-        contract_name="*",
-        project="morpho-blue-1.0.0",
-        project_file="testdata/projects/morpho-blue-1.0.0.json.gz",
-        whole_project=True,
-        suite="heavy",
     ),
 )
 
