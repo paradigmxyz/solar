@@ -403,18 +403,34 @@ impl FileOperationCoordinator {
             }
         }
         self.watched_events.retain(|transaction| !transaction.paths.is_empty());
+        paths.truncate(WATCHED_EVENT_PATH_LIMIT);
         if let Some(transaction) = self.watched_events.last_mut()
             && transaction.typ == typ
         {
             transaction.paths.extend(paths);
             transaction.paths.sort_unstable();
             transaction.paths.dedup();
-            return;
+        } else {
+            self.watched_events.push(DirectFileEventTransaction { typ, paths, roots: Vec::new() });
+            if self.watched_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
+                self.watched_events.remove(0);
+            }
         }
-        self.watched_events.push(DirectFileEventTransaction { typ, paths, roots: Vec::new() });
-        if self.watched_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
-            self.watched_events.remove(0);
+        let mut excess = self
+            .watched_events
+            .iter()
+            .map(|transaction| transaction.paths.len())
+            .sum::<usize>()
+            .saturating_sub(WATCHED_EVENT_PATH_LIMIT);
+        for transaction in &mut self.watched_events {
+            if excess == 0 {
+                break;
+            }
+            let remove = excess.min(transaction.paths.len());
+            transaction.paths.drain(..remove);
+            excess -= remove;
         }
+        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
     }
 
     pub(crate) fn consume_watched_events(
@@ -445,17 +461,13 @@ impl FileOperationCoordinator {
         typ: FileChangeType,
         roots: &[PathBuf],
     ) -> Vec<PathBuf> {
-        let mut paths = self
-            .watched_events
+        self.watched_events
             .iter()
             .filter(|transaction| transaction.typ == typ)
             .flat_map(|transaction| &transaction.paths)
             .filter(|path| roots.iter().any(|root| path.starts_with(root)))
             .cloned()
-            .collect::<Vec<_>>();
-        paths.sort_unstable();
-        paths.dedup();
-        paths
+            .collect()
     }
 
     fn observe_direct_event(&mut self, path: &Path, typ: FileChangeType) -> bool {
@@ -642,6 +654,7 @@ impl RenameWatcherEvidence {
 
 const RENAME_HISTORY_LIMIT: usize = 16;
 const DIRECT_EVENT_HISTORY_LIMIT: usize = 16;
+const WATCHED_EVENT_PATH_LIMIT: usize = 4096;
 const RENAME_PREPARING: u8 = 0;
 const RENAME_ACTIVE: u8 = 1;
 const RENAME_CANCELLED: u8 = 2;
@@ -1157,6 +1170,38 @@ mod tests {
         coordinator.record_watched_events(FileChangeType::CREATED, [a.clone()]);
         coordinator.record_direct_delete_events([a.clone()], []);
         assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a]));
+    }
+
+    #[test]
+    fn watched_event_history_caps_retained_paths() {
+        let root = path("/workspace");
+        let paths = (0..=WATCHED_EVENT_PATH_LIMIT)
+            .map(|idx| root.join(format!("{idx}.sol")))
+            .collect::<Vec<_>>();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_watched_events(FileChangeType::CREATED, paths);
+
+        assert_eq!(
+            coordinator.watched_event_paths_under(FileChangeType::CREATED, &[root]).len(),
+            WATCHED_EVENT_PATH_LIMIT
+        );
+    }
+
+    #[test]
+    fn watched_event_cap_still_expires_opposite_paths() {
+        let root = path("/workspace");
+        let old = root.join("zzzz.sol");
+        let mut deleted = (0..WATCHED_EVENT_PATH_LIMIT)
+            .map(|idx| root.join(format!("{idx:04}.sol")))
+            .collect::<Vec<_>>();
+        deleted.push(old.clone());
+        let mut coordinator = FileOperationCoordinator::default();
+        coordinator.record_watched_events(FileChangeType::CREATED, [old.clone()]);
+
+        coordinator.record_watched_events(FileChangeType::DELETED, deleted);
+
+        assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[old]));
     }
 
     #[test]
