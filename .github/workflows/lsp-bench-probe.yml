@@ -1,0 +1,36 @@
+name: LSP benchmark environment probe
+
+permissions: {}
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    name: probe GitHub-hosted Ubuntu runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Solar
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Probe optional Linux isolation and accounting
+        continue-on-error: true
+        shell: bash
+        run: .github/scripts/lsp-bench-probe.sh
+
+      - name: Upload probe record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-environment-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/lsp-bench/probe/
+          if-no-files-found: error
+          retention-days: 90

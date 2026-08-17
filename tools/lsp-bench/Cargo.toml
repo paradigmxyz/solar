@@ -1,0 +1,38 @@
+[package]
+name = "solar-lsp-bench"
+description = "End-to-end Solar LSP performance harness"
+publish = false
+default-run = "solar-lsp-bench"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0"
+clap = { workspace = true, features = ["derive"] }
+glob = "0.3"
+lsp-types.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_yaml = "0.9"
+sha2 = "0.10"
+tempfile.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[[bin]]
+name = "solar-lsp-bench-fake"
+path = "tests/support/fake_server.rs"
+test = false
+bench = false

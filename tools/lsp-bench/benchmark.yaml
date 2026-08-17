@@ -1,0 +1,1205 @@
+version: 1
+servers_lock: servers.lock.yaml
+fixtures_lock: fixtures.lock.yaml
+
+profiles:
+  smoke:
+    warmup: 1
+    samples: 2
+    cold_samples: 1
+    lifecycle_samples: 1
+    timeout_ms: 10000
+    scenarios:
+      - synthetic-cold-ready
+      - synthetic-warm-hover
+      - synthetic-warm-definition
+      - synthetic-warm-references
+      - synthetic-warm-completion
+      - synthetic-warm-document-symbol
+      - synthetic-incremental-edit-save
+  pr:
+    # Fast, capability-portable signal for comparing the PR Solar binary with
+    # its base revision on the same hosted runner. The full cross-server and
+    # large-fixture comparison remains a manual workflow.
+    warmup: 5
+    samples: 20
+    cold_samples: 3
+    lifecycle_samples: 2
+    timeout_ms: 30000
+    network_isolation: false
+    require_authoritative: false
+    scenarios:
+      - synthetic-cold-ready
+      - synthetic-warm-hover
+      - synthetic-warm-definition
+      - synthetic-warm-references
+      - synthetic-warm-completion
+      - synthetic-warm-document-symbol
+      - synthetic-incremental-edit-save
+  default:
+    warmup: 10
+    samples: 100
+    cold_samples: 5
+    lifecycle_samples: 10
+    timeout_ms: 30000
+    scenarios:
+      - synthetic-cold-ready
+      - synthetic-warm-hover
+      - synthetic-warm-definition
+      - synthetic-warm-references
+      - synthetic-warm-completion
+      - synthetic-warm-document-symbol
+      - synthetic-incremental-edit-save
+      - synthetic-symbol-rename
+      - synthetic-file-create-rename-delete
+      - synthetic-cache-fresh
+      - synthetic-cache-reuse
+      - synthetic-cache-invalidated
+      - v4-core-cold-ready
+      - v4-core-warm-hover
+      - v4-core-warm-definition
+      - v4-core-warm-references
+      - v4-core-warm-completion
+      - v4-core-warm-document-symbol
+      - v4-core-incremental-edit-save
+      - v4-core-symbol-rename
+      - v4-core-file-create-rename-delete
+      - v4-core-cache-fresh
+      - v4-core-cache-reuse
+      - v4-core-cache-invalidated
+      - aave-v3-origin-cold-ready
+      - aave-v3-origin-warm-hover
+      - aave-v3-origin-warm-definition
+      - aave-v3-origin-warm-references
+      - aave-v3-origin-warm-completion
+      - aave-v3-origin-warm-document-symbol
+      - aave-v3-origin-incremental-edit-save
+      - aave-v3-origin-cache-fresh
+      - aave-v3-origin-cache-reuse
+      - aave-v3-origin-cache-invalidated
+      - optimism-bedrock-cold-ready
+      - optimism-bedrock-warm-hover
+      - optimism-bedrock-warm-definition
+      - optimism-bedrock-warm-references
+      - optimism-bedrock-warm-completion
+      - optimism-bedrock-warm-document-symbol
+      - optimism-bedrock-incremental-edit-save
+      - optimism-bedrock-cache-fresh
+      - optimism-bedrock-cache-reuse
+      - optimism-bedrock-cache-invalidated
+  publish:
+    warmup: 10
+    samples: 100
+    # Seven servers are rotated by repetition; keep both repetition classes
+    # divisible by the inventory size so every server receives each position.
+    cold_samples: 7
+    lifecycle_samples: 14
+    timeout_ms: 60000
+    # Publication remains restricted to the dedicated Linux runner. The
+    # portable PR signal uses the separate `pr` profile above.
+    network_isolation: true
+    require_authoritative: true
+    scenarios:
+      - synthetic-cold-ready
+      - synthetic-warm-hover
+      - synthetic-warm-definition
+      - synthetic-warm-references
+      - synthetic-warm-completion
+      - synthetic-warm-document-symbol
+      - synthetic-incremental-edit-save
+      - synthetic-symbol-rename
+      - synthetic-file-create-rename-delete
+      - synthetic-cache-fresh
+      - synthetic-cache-reuse
+      - synthetic-cache-invalidated
+      - v4-core-cold-ready
+      - v4-core-warm-hover
+      - v4-core-warm-definition
+      - v4-core-warm-references
+      - v4-core-warm-completion
+      - v4-core-warm-document-symbol
+      - v4-core-incremental-edit-save
+      - v4-core-symbol-rename
+      - v4-core-file-create-rename-delete
+      - v4-core-cache-fresh
+      - v4-core-cache-reuse
+      - v4-core-cache-invalidated
+      - aave-v3-origin-cold-ready
+      - aave-v3-origin-warm-hover
+      - aave-v3-origin-warm-definition
+      - aave-v3-origin-warm-references
+      - aave-v3-origin-warm-completion
+      - aave-v3-origin-warm-document-symbol
+      - aave-v3-origin-incremental-edit-save
+      - aave-v3-origin-cache-fresh
+      - aave-v3-origin-cache-reuse
+      - aave-v3-origin-cache-invalidated
+      - optimism-bedrock-cold-ready
+      - optimism-bedrock-warm-hover
+      - optimism-bedrock-warm-definition
+      - optimism-bedrock-warm-references
+      - optimism-bedrock-warm-completion
+      - optimism-bedrock-warm-document-symbol
+      - optimism-bedrock-incremental-edit-save
+      - optimism-bedrock-cache-fresh
+      - optimism-bedrock-cache-reuse
+      - optimism-bedrock-cache-invalidated
+
+scenarios:
+  - id: synthetic-cold-ready
+    fixture: synthetic
+    methods:
+      - initialize
+      - textDocument/definition
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: definition
+          path: Main.sol
+          anchor: call-member-position
+          expected_path: Math.sol
+          expected_anchor: math-double
+
+  - id: synthetic-warm-hover
+    fixture: synthetic
+    methods:
+      - textDocument/hover
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: call-member-position
+          expected_text: double
+      - kind: warm
+        name: hover
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: call-member-position
+          expected_text: double
+
+  - id: synthetic-warm-definition
+    fixture: synthetic
+    methods:
+      - textDocument/definition
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: definition
+          path: Main.sol
+          anchor: call-member-position
+          expected_path: Math.sol
+          expected_anchor: math-double
+      - kind: warm
+        name: definition
+        probe:
+          kind: definition
+          path: Main.sol
+          anchor: call-member-position
+          expected_path: Math.sol
+          expected_anchor: math-double
+
+  - id: synthetic-warm-references
+    fixture: synthetic
+    methods:
+      - textDocument/references
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: references
+          path: Main.sol
+          anchor: call-member-position
+          min_count: 2
+          expected_locations:
+            - path: Main.sol
+              anchor: call-member-position
+            - path: Math.sol
+              anchor: math-double
+      - kind: warm
+        name: references
+        probe:
+          kind: references
+          path: Main.sol
+          anchor: call-member-position
+          min_count: 2
+          expected_locations:
+            - path: Main.sol
+              anchor: call-member-position
+            - path: Math.sol
+              anchor: math-double
+
+  - id: synthetic-warm-completion
+    fixture: synthetic
+    methods:
+      - textDocument/completion
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: completion
+          path: Main.sol
+          anchor: completion-double
+          expected_label: double
+      - kind: warm
+        name: completion
+        probe:
+          kind: completion
+          path: Main.sol
+          anchor: completion-double
+          expected_label: double
+
+  - id: synthetic-warm-document-symbol
+    fixture: synthetic
+    methods:
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: document-symbol
+          path: Main.sol
+          min_count: 3
+          expected_name: Main
+      - kind: warm
+        name: document-symbol
+        probe:
+          kind: document-symbol
+          path: Main.sol
+          min_count: 3
+          expected_name: Main
+
+  - id: synthetic-incremental-edit-save
+    fixture: synthetic
+    methods:
+      - textDocument/didChange
+      - textDocument/didSave
+      - textDocument/definition
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: replace
+        path: Main.sol
+        anchor: call-double
+        text: Math.triple(input)
+        probe:
+          kind: definition
+          path: Main.sol
+          anchor: call-member-position
+          expected_path: Math.sol
+          expected_anchor: math-triple
+      - kind: save
+        path: Main.sol
+        probe:
+          kind: definition
+          path: Main.sol
+          anchor: call-member-position
+          expected_path: Math.sol
+          expected_anchor: math-triple
+
+  - id: synthetic-symbol-rename
+    fixture: synthetic
+    methods:
+      - textDocument/rename
+      - workspace/applyEdit
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: rename
+        path: Main.sol
+        anchor: call-member-position
+        new_name: doubled
+        expected_edits:
+          - path: Main.sol
+            anchor: call-member-position
+          - path: Math.sol
+            anchor: math-double
+
+  - id: synthetic-file-create-rename-delete
+    fixture: synthetic
+    methods:
+      - workspace/willCreateFiles
+      - workspace/didCreateFiles
+      - workspace/willRenameFiles
+      - workspace/didRenameFiles
+      - workspace/willDeleteFiles
+      - workspace/didDeleteFiles
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: create-file
+        path: Scratch.sol
+        text: |
+          // SPDX-License-Identifier: MIT
+          pragma solidity ^0.8.24;
+          contract Scratch {}
+        probe:
+          kind: workspace-symbol
+          query: Scratch
+          expected_name: Scratch
+          expected_path: Scratch.sol
+      - kind: rename-file
+        from: Scratch.sol
+        to: Renamed.sol
+        probe:
+          kind: workspace-symbol
+          query: Scratch
+          expected_name: Scratch
+          expected_path: Renamed.sol
+      - kind: delete-file
+        path: Renamed.sol
+        probe:
+          kind: workspace-symbol
+          query: Scratch
+          expected_name: Scratch
+          expected_path: Renamed.sol
+          present: false
+
+  - id: synthetic-cache-fresh
+    fixture: synthetic
+    methods:
+      - cache/fresh
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: main-contract
+          expected_text: Main
+
+  - id: synthetic-cache-reuse
+    fixture: synthetic
+    methods:
+      - cache/reuse-after-restart
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: main-contract
+          expected_text: Main
+      - kind: restart
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: main-contract
+          expected_text: Main
+
+  - id: synthetic-cache-invalidated
+    fixture: synthetic
+    methods:
+      - cache/source-change-after-restart
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: main-contract
+          expected_text: Main
+      - kind: restart
+        invalidate:
+          path: Main.sol
+          anchor: main-contract
+          text: contract MainBench
+      - kind: open
+        path: Main.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: document-symbol
+          path: Main.sol
+          min_count: 1
+          expected_name: MainBench
+
+  - id: v4-core-cold-ready
+    fixture: v4-core
+    methods:
+      - initialize
+      - textDocument/hover
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+
+  - id: v4-core-warm-hover
+    fixture: v4-core
+    methods:
+      - textDocument/hover
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+      - kind: warm
+        name: hover
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+
+  - id: v4-core-warm-definition
+    fixture: v4-core
+    methods:
+      - textDocument/definition
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: definition
+          path: src/PoolManager.sol
+          anchor: pool-manager-interface-use
+          expected_path: src/interfaces/IPoolManager.sol
+          expected_anchor: pool-manager-interface
+      - kind: warm
+        name: definition
+        probe:
+          kind: definition
+          path: src/PoolManager.sol
+          anchor: pool-manager-interface-use
+          expected_path: src/interfaces/IPoolManager.sol
+          expected_anchor: pool-manager-interface
+
+  - id: v4-core-warm-references
+    fixture: v4-core
+    methods:
+      - textDocument/references
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: references
+          path: src/PoolManager.sol
+          anchor: pool-manager-interface-use
+          min_count: 2
+          expected_locations:
+            - path: src/PoolManager.sol
+              anchor: pool-manager-interface-use
+            - path: src/interfaces/IPoolManager.sol
+              anchor: pool-manager-interface
+      - kind: warm
+        name: references
+        probe:
+          kind: references
+          path: src/PoolManager.sol
+          anchor: pool-manager-interface-use
+          min_count: 2
+          expected_locations:
+            - path: src/PoolManager.sol
+              anchor: pool-manager-interface-use
+            - path: src/interfaces/IPoolManager.sol
+              anchor: pool-manager-interface
+
+  - id: v4-core-warm-completion
+    fixture: v4-core
+    methods:
+      - textDocument/completion
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: completion
+          path: src/PoolManager.sol
+          anchor: pool-manager-completion
+          expected_label: beforeInitialize
+      - kind: warm
+        name: completion
+        probe:
+          kind: completion
+          path: src/PoolManager.sol
+          anchor: pool-manager-completion
+          expected_label: beforeInitialize
+
+  - id: v4-core-warm-document-symbol
+    fixture: v4-core
+    methods:
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 5
+          expected_name: PoolManager
+      - kind: warm
+        name: document-symbol
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 5
+          expected_name: PoolManager
+
+  - id: v4-core-incremental-edit-save
+    fixture: v4-core
+    methods:
+      - textDocument/didChange
+      - textDocument/didSave
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: replace
+        path: src/PoolManager.sol
+        anchor: pool-manager-declaration
+        text: contract PoolManagerBench is IPoolManager
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 1
+          expected_name: PoolManagerBench
+      - kind: save
+        path: src/PoolManager.sol
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 1
+          expected_name: PoolManagerBench
+
+  - id: v4-core-symbol-rename
+    fixture: v4-core
+    methods:
+      - textDocument/rename
+      - workspace/applyEdit
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: rename
+        path: src/PoolManager.sol
+        anchor: pool-manager
+        new_name: PoolManagerBench
+        expected_edits:
+          - path: src/PoolManager.sol
+            anchor: pool-manager
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 1
+          expected_name: PoolManagerBench
+
+  - id: v4-core-file-create-rename-delete
+    fixture: v4-core
+    methods:
+      - workspace/willCreateFiles
+      - workspace/didCreateFiles
+      - workspace/willRenameFiles
+      - workspace/didRenameFiles
+      - workspace/willDeleteFiles
+      - workspace/didDeleteFiles
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: create-file
+        path: src/LspBenchScratch.sol
+        text: |
+          // SPDX-License-Identifier: MIT
+          pragma solidity ^0.8.24;
+          contract LspBenchScratch {}
+        probe:
+          kind: workspace-symbol
+          query: LspBenchScratch
+          expected_name: LspBenchScratch
+          expected_path: src/LspBenchScratch.sol
+      - kind: rename-file
+        from: src/LspBenchScratch.sol
+        to: src/LspBenchRenamed.sol
+        probe:
+          kind: workspace-symbol
+          query: LspBenchScratch
+          expected_name: LspBenchScratch
+          expected_path: src/LspBenchRenamed.sol
+      - kind: delete-file
+        path: src/LspBenchRenamed.sol
+        probe:
+          kind: workspace-symbol
+          query: LspBenchScratch
+          expected_name: LspBenchScratch
+          expected_path: src/LspBenchRenamed.sol
+          present: false
+
+  - id: v4-core-cache-fresh
+    fixture: v4-core
+    methods:
+      - cache/fresh
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+
+  - id: v4-core-cache-reuse
+    fixture: v4-core
+    methods:
+      - cache/reuse-after-restart
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+      - kind: restart
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+
+  - id: v4-core-cache-invalidated
+    fixture: v4-core
+    methods:
+      - cache/source-change-after-restart
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: src/PoolManager.sol
+          anchor: pool-manager
+          expected_text: PoolManager
+      - kind: restart
+        invalidate:
+          path: src/PoolManager.sol
+          anchor: pool-manager-declaration
+          text: contract PoolManagerBench is IPoolManager
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: document-symbol
+          path: src/PoolManager.sol
+          min_count: 1
+          expected_name: PoolManagerBench
+
+  - id: aave-v3-origin-cold-ready
+    fixture: aave-v3-origin
+    methods:
+      - initialize
+      - textDocument/hover
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+
+  - id: aave-v3-origin-warm-hover
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/hover
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+      - kind: warm
+        name: hover
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+
+  - id: aave-v3-origin-warm-definition
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/definition
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: definition
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-supply-import
+          expected_path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
+          expected_anchor: aave-supply-library
+      - kind: warm
+        name: definition
+        probe:
+          kind: definition
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-supply-import
+          expected_path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
+          expected_anchor: aave-supply-library
+
+  - id: aave-v3-origin-warm-references
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/references
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: references
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-supply-import
+          min_count: 2
+          expected_locations:
+            - path: src/contracts/protocol/pool/Pool.sol
+              anchor: aave-supply-import
+            - path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
+              anchor: aave-supply-library
+      - kind: warm
+        name: references
+        probe:
+          kind: references
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-supply-import
+          min_count: 2
+          expected_locations:
+            - path: src/contracts/protocol/pool/Pool.sol
+              anchor: aave-supply-import
+            - path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
+              anchor: aave-supply-library
+
+  - id: aave-v3-origin-warm-completion
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/completion
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: completion
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-completion
+          expected_label: getPoolConfigurator
+      - kind: warm
+        name: completion
+        probe:
+          kind: completion
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-completion
+          expected_label: getPoolConfigurator
+
+  - id: aave-v3-origin-warm-document-symbol
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: document-symbol
+          path: src/contracts/protocol/pool/Pool.sol
+          min_count: 5
+          expected_name: Pool
+      - kind: warm
+        name: document-symbol
+        probe:
+          kind: document-symbol
+          path: src/contracts/protocol/pool/Pool.sol
+          min_count: 5
+          expected_name: Pool
+
+  - id: aave-v3-origin-incremental-edit-save
+    fixture: aave-v3-origin
+    methods:
+      - textDocument/didChange
+      - textDocument/didSave
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: replace
+        path: src/contracts/protocol/pool/Pool.sol
+        anchor: aave-pool-declaration
+        text: abstract contract PoolBench is VersionedInitializable
+        probe:
+          kind: document-symbol
+          path: src/contracts/protocol/pool/Pool.sol
+          min_count: 1
+          expected_name: PoolBench
+      - kind: save
+        path: src/contracts/protocol/pool/Pool.sol
+        probe:
+          kind: document-symbol
+          path: src/contracts/protocol/pool/Pool.sol
+          min_count: 1
+          expected_name: PoolBench
+
+  - id: aave-v3-origin-cache-fresh
+    fixture: aave-v3-origin
+    methods:
+      - cache/fresh
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+
+  - id: aave-v3-origin-cache-reuse
+    fixture: aave-v3-origin
+    methods:
+      - cache/reuse-after-restart
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+      - kind: restart
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+
+  - id: aave-v3-origin-cache-invalidated
+    fixture: aave-v3-origin
+    methods:
+      - cache/source-change-after-restart
+    steps:
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool
+          expected_text: Pool
+      - kind: restart
+        invalidate:
+          path: src/contracts/protocol/pool/Pool.sol
+          anchor: aave-pool-declaration
+          text: abstract contract PoolBench is VersionedInitializable
+      - kind: open
+        path: src/contracts/protocol/pool/Pool.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: document-symbol
+          path: src/contracts/protocol/pool/Pool.sol
+          min_count: 1
+          expected_name: PoolBench
+
+  - id: optimism-bedrock-cold-ready
+    fixture: optimism-bedrock
+    methods:
+      - initialize
+      - textDocument/hover
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+
+  - id: optimism-bedrock-warm-hover
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/hover
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+      - kind: warm
+        name: hover
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+
+  - id: optimism-bedrock-warm-definition
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/definition
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: definition
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-safe-call-import
+          expected_path: packages/contracts-bedrock/src/libraries/SafeCall.sol
+          expected_anchor: optimism-safe-call-library
+      - kind: warm
+        name: definition
+        probe:
+          kind: definition
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-safe-call-import
+          expected_path: packages/contracts-bedrock/src/libraries/SafeCall.sol
+          expected_anchor: optimism-safe-call-library
+
+  - id: optimism-bedrock-warm-references
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/references
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: references
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-safe-call-import
+          min_count: 2
+          expected_locations:
+            - path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+              anchor: optimism-safe-call-import
+            - path: packages/contracts-bedrock/src/libraries/SafeCall.sol
+              anchor: optimism-safe-call-library
+      - kind: warm
+        name: references
+        probe:
+          kind: references
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-safe-call-import
+          min_count: 2
+          expected_locations:
+            - path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+              anchor: optimism-safe-call-import
+            - path: packages/contracts-bedrock/src/libraries/SafeCall.sol
+              anchor: optimism-safe-call-library
+
+  - id: optimism-bedrock-warm-completion
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/completion
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: completion
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-completion
+          expected_label: paused
+      - kind: warm
+        name: completion
+        probe:
+          kind: completion
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-completion
+          expected_label: paused
+
+  - id: optimism-bedrock-warm-document-symbol
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: ready
+        probe:
+          kind: document-symbol
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          min_count: 5
+          expected_name: OptimismPortal2
+      - kind: warm
+        name: document-symbol
+        probe:
+          kind: document-symbol
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          min_count: 5
+          expected_name: OptimismPortal2
+
+  - id: optimism-bedrock-incremental-edit-save
+    fixture: optimism-bedrock
+    methods:
+      - textDocument/didChange
+      - textDocument/didSave
+      - textDocument/documentSymbol
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: replace
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+        anchor: optimism-portal-declaration
+        text: contract OptimismPortalBench is Initializable
+        probe:
+          kind: document-symbol
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          min_count: 1
+          expected_name: OptimismPortalBench
+      - kind: save
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+        probe:
+          kind: document-symbol
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          min_count: 1
+          expected_name: OptimismPortalBench
+
+  - id: optimism-bedrock-cache-fresh
+    fixture: optimism-bedrock
+    methods:
+      - cache/fresh
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+
+  - id: optimism-bedrock-cache-reuse
+    fixture: optimism-bedrock
+    methods:
+      - cache/reuse-after-restart
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+      - kind: restart
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+
+  - id: optimism-bedrock-cache-invalidated
+    fixture: optimism-bedrock
+    methods:
+      - cache/source-change-after-restart
+    steps:
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cache-populated
+        probe:
+          kind: hover
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal
+          expected_text: OptimismPortal2
+      - kind: restart
+        invalidate:
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          anchor: optimism-portal-declaration
+          text: contract OptimismPortalBench is Initializable
+      - kind: open
+        path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+      - kind: probe
+        name: cold-ready
+        probe:
+          kind: document-symbol
+          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+          min_count: 1
+          expected_name: OptimismPortalBench

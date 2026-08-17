@@ -1,0 +1,565 @@
+name: LSP benchmark PR
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: >-
+    ${{ format('{0}-{1}', github.workflow,
+      github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: sccache
+
+jobs:
+  benchmark:
+    name: Solar LSP regression signal
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Verify PR head repository
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: test -n "$HEAD_REPOSITORY"
+
+      - name: Checkout Solar
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: >-
+            ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify benchmark source revision
+        env:
+          BENCHMARK_REVISION: >-
+            ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$BENCHMARK_REVISION"
+
+      - name: Find exact main baseline artifact
+        id: baseline-artifact
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.base.repo.full_name == github.repository &&
+          github.event.pull_request.base.ref == 'main'
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        with:
+          script: |
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo,
+              workflow_id: "lsp-bench-pr.yml",
+              branch: process.env.BASE_BRANCH,
+              event: "push",
+              status: "success",
+              head_sha: process.env.BASE_SHA,
+              per_page: 100,
+            });
+            const workflowPath = ".github/workflows/lsp-bench-pr.yml";
+            const exactRuns = runs.filter((run) =>
+              (run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`)) &&
+              run.repository?.full_name === context.payload.repository.full_name &&
+              run.head_repository?.full_name === context.payload.repository.full_name &&
+              run.head_branch === process.env.BASE_BRANCH &&
+              run.head_sha === process.env.BASE_SHA &&
+              run.event === "push" &&
+              run.status === "completed" &&
+              run.conclusion === "success"
+            );
+            const matches = [];
+            for (const run of exactRuns) {
+              const artifacts = await github.paginate(
+                github.rest.actions.listWorkflowRunArtifacts,
+                {
+                  ...context.repo,
+                  run_id: run.id,
+                  per_page: 100,
+                },
+              );
+              for (const artifact of artifacts) {
+                if (artifact.name === "lsp-bench-pr-baseline" && !artifact.expired) {
+                  matches.push({ artifact, run });
+                }
+              }
+            }
+            if (matches.length !== 1) {
+              core.warning(
+                `Expected one exact main baseline for ${process.env.BASE_SHA}, found ${matches.length}; ` +
+                "the exact base will be measured in this run",
+              );
+              return;
+            }
+            core.setOutput("artifact_id", String(matches[0].artifact.id));
+            core.setOutput("run_id", String(matches[0].run.id));
+
+      - name: Download exact main baseline
+        id: baseline-download
+        if: steps.baseline-artifact.outputs.artifact_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ steps.baseline-artifact.outputs.artifact_id }}
+          path: target/lsp-bench/pr/baseline
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.baseline-artifact.outputs.run_id }}
+
+      - name: Validate exact main baseline
+        id: baseline-validate
+        if: >-
+          steps.baseline-artifact.outputs.artifact_id != '' &&
+          steps.baseline-download.outcome == 'success'
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SOURCE_URL: ${{ github.event.repository.clone_url }}
+        run: |
+          set -euo pipefail
+          summary=target/lsp-bench/pr/baseline/summary.json
+          [[ -f "$summary" && ! -L "$summary" ]]
+          jq -e --arg revision "$BASE_SHA" --arg source_url "$SOURCE_URL" '
+            (.servers | map(select(.id == "solar"))) as $solar
+            | (.workloads | map({key: .id, value: .repetitions}) | from_entries) as $repetitions
+            | (($solar | length) == 1)
+              and (.schema_version == 5)
+              and (.profile == "pr")
+              and (.repeat_override == null)
+              and (.servers | type == "array" and length == 1)
+              and ($solar[0].source.url == $source_url)
+              and ($solar[0].source.revision == $revision)
+              and ($solar[0].status == "available")
+              and ($solar[0].executable_sha256
+                | type == "string" and test("^[0-9a-fA-F]{64}$"))
+              and ($solar[0].artifact_expected_sha256
+                == $solar[0].executable_sha256)
+              and ($solar[0].artifact_sha256
+                == $solar[0].executable_sha256)
+              and (.workloads | type == "array" and length > 0)
+              and ((.workloads | map(.id) | length)
+                == (.workloads | map(.id) | unique | length))
+              and (all(.workloads[]; .fixture == "synthetic" and .repetitions > 0))
+              and (.summaries | type == "array" and length == ($repetitions | length))
+              and ((.summaries | map(.workload) | length)
+                == (.summaries | map(.workload) | unique | length))
+              and (all(.summaries[];
+                .server == "solar"
+                and .fixture == "synthetic"
+                and .status == "pass"
+                and .successful_runs > 0
+                and .successful_runs == $repetitions[.workload]
+                and (.status_counts | keys) == ["pass"]
+                and .status_counts.pass == .successful_runs))
+          ' "$summary"
+
+      - name: Save immutable baseline for commenter
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome == 'success' &&
+          hashFiles('target/lsp-bench/pr/baseline/summary.json') != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-pr-baseline-used
+          path: target/lsp-bench/pr/baseline/summary.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-on-failure: true
+          cache-targets: false
+
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+
+      - name: Test PR benchmark scripts
+        run: >-
+          python3 -m unittest discover
+          -s .github/scripts
+          -p 'test_lsp_bench_pr_*.py'
+
+      - name: Build harness and compiler
+        run: |
+          cargo build --locked -p solar-lsp-bench
+          cargo build --locked -p solar-compiler --bin solar
+
+      - name: Checkout exact PR base
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: target/lsp-bench/base-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact PR base checkout
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success'
+        working-directory: target/lsp-bench/base-source
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: test "$(git rev-parse HEAD)" = "$BASE_SHA"
+
+      - name: Check fallback benchmark contract
+        id: fallback-contract
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success'
+        env:
+          BASE_SOURCE: ${{ github.workspace }}/target/lsp-bench/base-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/pr
+          drift=0
+
+          compare_file() {
+            local relative="$1"
+            local candidate="$GITHUB_WORKSPACE/$relative"
+            local base="$BASE_SOURCE/$relative"
+            if [[ ! -f "$candidate" || -L "$candidate" ||
+                  ! -f "$base" || -L "$base" ]]; then
+              echo "::warning::fallback contract file is missing: $relative"
+              drift=1
+            elif ! cmp -s "$candidate" "$base"; then
+              echo "::warning::fallback contract file differs from base: $relative"
+              drift=1
+            fi
+          }
+
+          compare_file tools/lsp-bench/benchmark.yaml
+          compare_file tools/lsp-bench/servers.lock.yaml
+          compare_file tools/lsp-bench/fixtures.lock.yaml
+          compare_file .github/scripts/lsp-bench-pr-config.py
+          compare_file tools/lsp-bench/Cargo.toml
+          compare_file Cargo.toml
+          compare_file Cargo.lock
+
+          compare_tracked_tree() {
+            local relative="$1"
+            local candidate_index
+            local base_index
+            candidate_index="$(mktemp)"
+            base_index="$(mktemp)"
+            git -C "$GITHUB_WORKSPACE" ls-files --stage -- "$relative" > "$candidate_index"
+            git -C "$BASE_SOURCE" ls-files --stage -- "$relative" > "$base_index"
+            if [[ ! -s "$candidate_index" || ! -s "$base_index" ]]; then
+              echo "::warning::fallback contract tree is missing: $relative"
+              drift=1
+            elif ! cmp -s "$candidate_index" "$base_index"; then
+              echo "::warning::fallback contract tree differs from base: $relative"
+              drift=1
+            fi
+            rm -f "$candidate_index" "$base_index"
+          }
+
+          check_clean_tree() {
+            local root="$1"
+            local label="$2"
+            local relative="$3"
+            local untracked
+            if ! git -C "$root" diff --quiet -- "$relative"; then
+              echo "::warning::$label worktree differs from its checkout: $relative"
+              drift=1
+            fi
+            untracked="$(git -C "$root" ls-files --others -- "$relative")"
+            if [[ -n "$untracked" ]]; then
+              echo "::warning::$label worktree has extra files: $relative"
+              drift=1
+            fi
+          }
+
+          compare_tracked_tree tools/lsp-bench/src
+          check_clean_tree "$GITHUB_WORKSPACE" candidate tools/lsp-bench/src
+          check_clean_tree "$BASE_SOURCE" base tools/lsp-bench/src
+
+          candidate_fixtures="$GITHUB_WORKSPACE/tools/lsp-bench/fixtures"
+          base_fixtures="$BASE_SOURCE/tools/lsp-bench/fixtures"
+          if [[ ! -d "$candidate_fixtures" || -L "$candidate_fixtures" ||
+                ! -d "$base_fixtures" || -L "$base_fixtures" ]]; then
+            echo "::warning::fallback fixture tree is missing or symbolic"
+            drift=1
+          else
+            candidate_index="$(mktemp)"
+            base_index="$(mktemp)"
+            trap 'rm -f "$candidate_index" "$base_index"' EXIT
+            git -C "$GITHUB_WORKSPACE" ls-files --stage -- tools/lsp-bench/fixtures \
+              > "$candidate_index"
+            git -C "$BASE_SOURCE" ls-files --stage -- tools/lsp-bench/fixtures \
+              > "$base_index"
+            if grep -q '^120000 ' "$candidate_index" "$base_index" ||
+              ! cmp -s "$candidate_index" "$base_index"; then
+              echo "::warning::fallback fixture tree differs from base"
+              drift=1
+            fi
+            check_clean_tree "$GITHUB_WORKSPACE" candidate tools/lsp-bench/fixtures
+            check_clean_tree "$BASE_SOURCE" base tools/lsp-bench/fixtures
+          fi
+
+          if (( drift != 0 )); then
+            echo "match=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' \
+              'fallback benchmark contract differs from the exact base; comparison is inconclusive' \
+              > target/lsp-bench/pr/fallback-contract.txt
+          else
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            printf '%s\n' 'fallback benchmark contract matches the exact base' \
+              > target/lsp-bench/pr/fallback-contract.txt
+          fi
+
+      - name: Build exact PR base compiler
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success' &&
+          steps.fallback-contract.outputs.match == 'true'
+        working-directory: target/lsp-bench/base-source
+        run: >-
+          cargo build --locked -p solar-compiler --bin solar
+          --target-dir "$GITHUB_WORKSPACE/target/lsp-bench/base-target"
+
+      - name: Generate PR benchmark manifest
+        env:
+          BENCHMARK_ROLE: ${{ github.event_name == 'push' && 'baseline' || 'candidate' }}
+          BENCHMARK_REVISION: >-
+            ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.sha || github.sha }}
+          BENCHMARK_SOURCE_URL: >-
+            ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.repo.clone_url ||
+              github.event.repository.clone_url }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/lsp-bench-pr-config.py \
+            --config tools/lsp-bench/benchmark.yaml \
+            --servers-lock tools/lsp-bench/servers.lock.yaml \
+            --solar-binary target/debug/solar \
+            --revision "$BENCHMARK_REVISION" \
+            --source-url "$BENCHMARK_SOURCE_URL" \
+            --role "$BENCHMARK_ROLE" \
+            --output-config tools/lsp-bench/benchmark.pr.yaml \
+            --output-servers-lock tools/lsp-bench/servers.pr.yaml
+          manifest_dir="target/lsp-bench/pr/manifests/$BENCHMARK_ROLE"
+          mkdir -p "$manifest_dir"
+          cp tools/lsp-bench/benchmark.pr.yaml "$manifest_dir/benchmark.yaml"
+          cp tools/lsp-bench/servers.pr.yaml "$manifest_dir/servers.lock.yaml"
+          cp tools/lsp-bench/fixtures.lock.yaml "$manifest_dir/fixtures.lock.yaml"
+
+      - name: Prepare synthetic fixture toolchain
+        run: >-
+          target/debug/solar-lsp-bench prepare
+          --config tools/lsp-bench/benchmark.pr.yaml
+          --fixture synthetic
+          --fixtures-only
+
+      - name: Run exact PR base benchmark
+        id: baseline-benchmark
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success' &&
+          steps.fallback-contract.outputs.match == 'true'
+        shell: bash
+        env:
+          BASE_SOURCE_URL: ${{ github.event.pull_request.base.repo.clone_url }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/lsp-bench-pr-config.py \
+            --config tools/lsp-bench/benchmark.yaml \
+            --servers-lock tools/lsp-bench/servers.lock.yaml \
+            --solar-binary target/lsp-bench/base-target/debug/solar \
+            --revision "${{ github.event.pull_request.base.sha }}" \
+            --source-url "$BASE_SOURCE_URL" \
+            --role baseline \
+            --output-config tools/lsp-bench/benchmark.pr.yaml \
+            --output-servers-lock tools/lsp-bench/servers.pr.yaml
+          mkdir -p target/lsp-bench/pr/manifests/baseline
+          cp tools/lsp-bench/benchmark.pr.yaml \
+            target/lsp-bench/pr/manifests/baseline/benchmark.yaml
+          cp tools/lsp-bench/servers.pr.yaml \
+            target/lsp-bench/pr/manifests/baseline/servers.lock.yaml
+          cp tools/lsp-bench/fixtures.lock.yaml \
+            target/lsp-bench/pr/manifests/baseline/fixtures.lock.yaml
+          target/debug/solar-lsp-bench run \
+            --config tools/lsp-bench/benchmark.pr.yaml \
+            --profile pr \
+            --server solar \
+            --output target/lsp-bench/pr/baseline \
+            --allow-failures
+
+      - name: Save immutable baseline for commenter
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.baseline-validate.outcome != 'success' &&
+          steps.baseline-benchmark.outcome == 'success' &&
+          hashFiles('target/lsp-bench/pr/baseline/summary.json') != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-pr-baseline-used
+          path: target/lsp-bench/pr/baseline/summary.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Restore candidate benchmark manifest
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SOURCE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/lsp-bench-pr-config.py \
+            --config tools/lsp-bench/benchmark.yaml \
+            --servers-lock tools/lsp-bench/servers.lock.yaml \
+            --solar-binary target/debug/solar \
+            --revision "$HEAD_SHA" \
+            --source-url "$HEAD_SOURCE_URL" \
+            --role candidate \
+            --output-config tools/lsp-bench/benchmark.pr.yaml \
+            --output-servers-lock tools/lsp-bench/servers.pr.yaml
+
+      - name: Run bounded Solar benchmark
+        id: lsp-benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            run
+            --config tools/lsp-bench/benchmark.pr.yaml
+            --profile pr
+            --server solar
+            --output target/lsp-bench/pr/current
+          )
+          if [[ "$GITHUB_EVENT_NAME" != push ]]; then
+            args+=(--allow-failures)
+          fi
+          target/debug/solar-lsp-bench "${args[@]}"
+
+      - name: Generate PR comparison
+        if: always() && github.event_name == 'pull_request'
+        env:
+          FALLBACK_CONTRACT: ${{ steps.fallback-contract.outputs.match }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/pr
+          if [[ "$FALLBACK_CONTRACT" == false ]]; then
+            cat > target/lsp-bench/pr/report.md <<'EOF'
+          # Solar LSP PR benchmark
+
+          **INCONCLUSIVE**
+
+          The benchmark contract changed in this PR, so the exact base fallback was not compared.
+          EOF
+          elif [[ -x target/debug/solar-lsp-bench && \
+                -f target/lsp-bench/pr/current/summary.json ]] && \
+            target/debug/solar-lsp-bench compare \
+              --baseline target/lsp-bench/pr/baseline/summary.json \
+              --candidate target/lsp-bench/pr/current/summary.json \
+              --threshold-pct 10 \
+              --min-samples 2 \
+              --output target/lsp-bench/pr/report.md \
+              --json-output target/lsp-bench/pr/comparison.json; then
+            :
+          else
+            cat > target/lsp-bench/pr/report.md <<'EOF'
+          # Solar LSP PR benchmark
+
+          **INCONCLUSIVE**
+
+          The candidate summary or comparison command was unavailable. Inspect the workflow logs and retained artifacts.
+          EOF
+          fi
+
+      - name: Require a complete main baseline
+        id: baseline-check
+        if: >-
+          always() &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          steps.lsp-benchmark.outcome == 'success' &&
+          hashFiles('target/lsp-bench/pr/current/summary.json') != ''
+        env:
+          BASE_SHA: ${{ github.sha }}
+          SOURCE_URL: ${{ github.event.repository.clone_url }}
+        run: |
+          set -euo pipefail
+          jq -e --arg revision "$BASE_SHA" --arg source_url "$SOURCE_URL" '
+            (.servers | map(select(.id == "solar"))) as $solar
+            | (.workloads | map({key: .id, value: .repetitions}) | from_entries) as $repetitions
+            | (($solar | length) == 1)
+              and (.schema_version == 5)
+              and (.profile == "pr")
+              and (.repeat_override == null)
+              and (.servers | type == "array" and length == 1)
+              and ($solar[0].source.url == $source_url)
+              and ($solar[0].source.revision == $revision)
+              and ($solar[0].status == "available")
+              and ($solar[0].executable_sha256
+                | type == "string" and test("^[0-9a-fA-F]{64}$"))
+              and ($solar[0].artifact_expected_sha256
+                == $solar[0].executable_sha256)
+              and ($solar[0].artifact_sha256
+                == $solar[0].executable_sha256)
+              and (.workloads | type == "array" and length > 0)
+              and ((.workloads | map(.id) | length)
+                == (.workloads | map(.id) | unique | length))
+              and (all(.workloads[]; .fixture == "synthetic" and .repetitions > 0))
+              and (.summaries | type == "array" and length == ($repetitions | length))
+              and ((.summaries | map(.workload) | length)
+                == (.summaries | map(.workload) | unique | length))
+              and (all(.summaries[];
+                .server == "solar"
+                and .fixture == "synthetic"
+                and .status == "pass"
+                and .successful_runs > 0
+                and .successful_runs == $repetitions[.workload]
+                and (.status_counts | keys) == ["pass"]
+                and .status_counts.pass == .successful_runs))
+          ' target/lsp-bench/pr/current/summary.json
+
+      - name: Save main baseline
+        if: >-
+          always() &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          steps.baseline-check.outcome == 'success' &&
+          hashFiles('target/lsp-bench/pr/current/summary.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-pr-baseline
+          path: target/lsp-bench/pr/current/summary.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload PR benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-pr-results
+          path: target/lsp-bench/pr/
+          retention-days: 30
+          if-no-files-found: warn

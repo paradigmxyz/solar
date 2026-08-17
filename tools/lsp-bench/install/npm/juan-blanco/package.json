@@ -1,0 +1,8 @@
+{
+  "name": "solar-lsp-bench-juan-blanco",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "vscode-solidity-server": "0.0.187"
+  }
+}

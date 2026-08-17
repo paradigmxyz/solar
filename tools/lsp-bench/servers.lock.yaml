@@ -1,0 +1,173 @@
+version: 1
+servers:
+  - id: solar
+    label: Solar 0.2.0 workspace
+    command: ../../target/lsp-bench/servers/solar/build/release/solar
+    args:
+      - lsp
+    version_args:
+      - --version
+    locked_version: "0.2.0"
+    source:
+      url: https://github.com/paradigmxyz/solar.git
+      revision: 46e345edf4504f31e6ce813b23a0b56095e5b21a
+    install:
+      kind: cargo
+      command: cargo
+      args:
+        - build
+        - --release
+        - --manifest-path
+        - "{source}/Cargo.toml"
+        - --target-dir
+        - "{target}/build"
+        - --bin
+        - solar
+    artifact:
+      path: ../../target/lsp-bench/servers/solar/build/release/solar
+      # The publish runner records the platform-specific binary digest after
+      # building this pinned revision with the recorded Rust toolchain.
+      sha256: null
+    required: true
+
+  - id: asyncswap
+    label: Asyncswap 0.1.34
+    command: ../../target/lsp-bench/servers/asyncswap/solidity-language-server
+    version_args:
+      - --version
+    locked_version: "0.1.34"
+    initialization_options:
+      projectIndex:
+        fullProjectScan: true
+    source:
+      url: https://github.com/asyncswap/solidity-language-server.git
+      revision: 3a993eca9804c013866b7bb8e10902e063df1853
+    install:
+      kind: archive
+      command: sh
+      args:
+        - -c
+        - >-
+          curl --fail --location --retry 3
+          https://github.com/asyncswap/solidity-language-server/releases/download/v0.1.34/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz
+          --output "$1/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz" &&
+          tar -xzf "$1/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz" -C "$1"
+        - lsp-bench
+        - "{target}"
+    artifact:
+      path: ../../target/lsp-bench/servers/asyncswap/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz
+      sha256: f339dc59832b7a3d46eeaec9bfbc54917b8caa35b26bd23006edb4580ab57e55
+    required: true
+
+  - id: nomic-foundation
+    label: Nomic Foundation 0.8.25
+    command: ../../target/lsp-bench/servers/nomic-foundation/node_modules/.bin/nomicfoundation-solidity-language-server
+    args:
+      - --stdio
+    version_args: []
+    locked_version: "0.8.25"
+    source:
+      url: https://github.com/NomicFoundation/hardhat-vscode.git
+      revision: fa4e11fb007630217c95efb1b7847d77221c6a6d
+    install:
+      kind: npm
+      manifest: install/npm/nomic-foundation
+      manifest_sha256: 40273490cee97fad82d4908f07cf455c30efb442237b7e125604c1437487aac7
+    artifact:
+      path: ../../target/lsp-bench/servers/nomic-foundation/node_modules/@nomicfoundation/solidity-language-server
+      sha256: ac6618fb7360f633cefa6e646b3f47c98a09d12ce1ec2dd601314c9e9ea8673c
+    required: true
+
+  - id: solc
+    label: Official solc 0.8.36
+    command: ../../target/lsp-bench/servers/solc/solc-static-linux
+    args:
+      - --experimental
+      - --lsp
+    version_args:
+      - --version
+    locked_version: "0.8.36"
+    source:
+      url: https://github.com/ethereum/solidity.git
+      revision: 8a079791d9cca7a6c03fd6a8429b93aa3bddefed
+    install:
+      kind: binary
+      command: sh
+      args:
+        - -c
+        - >-
+          curl --fail --location --retry 3
+          https://github.com/argotorg/solidity/releases/download/v0.8.36/solc-static-linux
+          --output "$1/solc-static-linux" && chmod +x "$1/solc-static-linux"
+        - lsp-bench
+        - "{target}"
+    artifact:
+      path: ../../target/lsp-bench/servers/solc/solc-static-linux
+      sha256: c8d35afdddc3cd2743ee88b8f25e0fecd16e2bdd5f2120f37e52cd9cc45ae0e6
+    required: true
+
+  - id: wake
+    label: Wake 4.9.0
+    command: ../../target/lsp-bench/servers/wake/venv/bin/wake
+    args:
+      - lsp
+      - --port
+      - "65432"
+    transport:
+      kind: tcp
+      address: "127.0.0.1:65432"
+    version_args:
+      - --version
+    locked_version: "4.9.0"
+    source:
+      url: https://github.com/Ackee-Blockchain/wake.git
+      revision: 41c0378db5c8028376abd7c07a76fda7efb19f6d
+    install:
+      kind: pip
+      command: python3
+      manifest: install/pip/wake/requirements-linux-x86_64-py312.txt
+      manifest_sha256: 059cc4872168068b369c37658c5ac8a7231e28de23b5342464691987c3455e86
+      python_version: "3.12"
+      target: x86_64-unknown-linux-gnu
+    artifact:
+      path: ../../target/lsp-bench/servers/wake/wheelhouse/eth_wake-4.9.0-py3-none-any.whl
+      sha256: 7d49c82e9e0bde8f5a3bd94438378753f421d3f7d28bf2123f936ba42fa98b06
+    required: true
+
+  - id: juan-blanco
+    label: Juan Blanco 0.0.187
+    command: ../../target/lsp-bench/servers/juan-blanco/node_modules/.bin/vscode-solidity-server
+    args:
+      - --stdio
+    version_args: []
+    locked_version: "0.0.187"
+    source:
+      url: https://github.com/juanfranblanco/vscode-solidity.git
+      revision: f57c23d18e8c18d4d6dc8c3b55c9d5582d9d0f73
+    install:
+      kind: npm
+      manifest: install/npm/juan-blanco
+      manifest_sha256: 1011dbcdef5240a0100f4afbd6ba12240dacf5e54bd33b651f30027ff310cf86
+    artifact:
+      path: ../../target/lsp-bench/servers/juan-blanco/node_modules/vscode-solidity-server
+      sha256: fe660a385bad7df96cb6f4a0520954d91776bdc0051ac1658152731e9cf570ff
+    required: true
+
+  - id: qiuxiang
+    label: qiuxiang 0.5.4
+    command: ../../target/lsp-bench/servers/qiuxiang/node_modules/.bin/solidity-ls
+    args:
+      - --stdio
+    version_args: []
+    locked_version: "0.5.4"
+    source:
+      url: https://github.com/qiuxiang/solidity-ls.git
+      revision: c560ecfb7f69445ba326e1e5e0adc8ed84ccfc8b
+    install:
+      kind: npm
+      manifest: install/npm/qiuxiang
+      manifest_sha256: 454cf5789df6ff0d03560647b1b2ace863491fab357e809172cf2fe6e0707d90
+    artifact:
+      path: ../../target/lsp-bench/servers/qiuxiang/node_modules/solidity-ls
+      sha256: b6ee86f55bc3b990f1b48e302a29f56da68ec3ddb624c0a7be72f3e15859fb2e
+    required: true

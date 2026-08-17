@@ -5,6 +5,8 @@
 /tmp
 .DS_Store
 __pycache__/
+/tools/lsp-bench/benchmark.pr.yaml
+/tools/lsp-bench/servers.pr.yaml
 solc-test-output*
 solar-test-output*
 tests/foundry/**/cache*/
