@@ -5,10 +5,11 @@ gzip-compressed Solidity Standard JSON input with inline source contents and the
 settings needed by the benchmark that owns it.
 
 Criterion and CodSpeed load these archives directly for their existing Solar-only workloads. The
-runtime benchmark's `projects` suite passes each archive unchanged to both solc and Solar for a
-whole-project compile-time comparison. Its other suites select an entrypoint's transitive import
-closure and apply a runtime settings profile before compiling it. Large projects can therefore
-serve both whole-project and focused runtime workloads without keeping a second extracted archive.
+runtime benchmark's `heavy` suite (also available as `--suite projects`) passes each archive
+unchanged to both solc and Solar for a whole-project compile-time comparison. Its other suites
+select an entrypoint's transitive import closure and apply a runtime settings profile before
+compiling it. Large projects can therefore serve both whole-project and focused runtime workloads
+without keeping a second extracted archive.
 Gungraun keeps its existing benchmark set and is not expanded with these projects.
 
 Several archives include upstream test sources. Criterion sees those files in its whole-project

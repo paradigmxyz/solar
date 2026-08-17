@@ -58,7 +58,10 @@ class TestCase:
     min_solc: Optional[str] = None
     max_solc: Optional[str] = None
     suite: str = "micro"
-    full_project: bool = False
+    # Compile every contract in the project input instead of one selected
+    # contract. Compile-time only: no bytecode is extracted, so size, gas,
+    # and runtime checks do not apply.
+    whole_project: bool = False
 
     @property
     def project_path(self) -> Path:
@@ -663,33 +666,87 @@ TEST_CASES: Sequence[TestCase] = (
         ),
         suite="large",
     ),
-)
-
-
-# Whole-project inputs mirror the default Foundry build profile, including all
-# source files used by the project's test suites. These cases measure compiler
-# time only; focused cases above cover deployment and runtime behavior.
-PROJECT_CASES: Sequence[TestCase] = tuple(
     TestCase(
-        test_id=f"{project}-full",
-        description=f"Full {project} Foundry project",
-        contract_name="",
-        project=project,
-        project_file=project_file,
-        suite="projects",
-        full_project=True,
-    )
-    for project, project_file in (
-        ("seaport-1.6", "seaport-1.6.json.gz"),
-        ("openzeppelin-5.6.1", "openzeppelin-5.6.1.json.gz"),
-        ("solady-0.1.26", "solady-0.1.26.json.gz"),
-        ("v4-core-4.0.0", "v4-core-4.0.0.json.gz"),
-        ("morpho-blue-1.0.0", "morpho-blue-1.0.0.json.gz"),
-        ("forge-std-1.16.1", "forge-std-1.16.1.json.gz"),
-        ("prb-math-4.1.1", "prb-math-4.1.1.json.gz"),
-        ("solmate-6", "solmate-6.json.gz"),
-        ("solarray-a547630", "solarray-a547630.json.gz"),
-    )
+        test_id="seaport-1.6-project",
+        description="Seaport 1.6 full project",
+        contract_name="*",
+        project="seaport-1.6",
+        project_file="seaport-1.6.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="v4-core-project",
+        description="Uniswap v4-core full project (viaIR)",
+        contract_name="*",
+        project="v4-core-4.0.0",
+        project_file="v4-core-4.0.0.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="morpho-blue-project",
+        description="Morpho Blue full project (viaIR)",
+        contract_name="*",
+        project="morpho-blue-1.0.0",
+        project_file="morpho-blue-1.0.0.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="openzeppelin-5.6.1-project",
+        description="OpenZeppelin 5.6.1 full project",
+        contract_name="*",
+        project="openzeppelin-5.6.1",
+        project_file="openzeppelin-5.6.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solady-0.1.26-project",
+        description="Solady 0.1.26 full project",
+        contract_name="*",
+        project="solady-0.1.26",
+        project_file="solady-0.1.26.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="forge-std-1.16.1-project",
+        description="Forge Std 1.16.1 full project",
+        contract_name="*",
+        project="forge-std-1.16.1",
+        project_file="forge-std-1.16.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="prb-math-4.1.1-project",
+        description="PRBMath 4.1.1 full project",
+        contract_name="*",
+        project="prb-math-4.1.1",
+        project_file="prb-math-4.1.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solmate-6-project",
+        description="Solmate 6 full project",
+        contract_name="*",
+        project="solmate-6",
+        project_file="solmate-6.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solarray-a547630-project",
+        description="Solarray full project",
+        contract_name="*",
+        project="solarray-a547630",
+        project_file="solarray-a547630.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
 )
 
 

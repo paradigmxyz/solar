@@ -12,6 +12,7 @@ import json
 import re
 import shutil
 import subprocess
+import statistics
 import sys
 import time
 from dataclasses import dataclass
@@ -28,7 +29,6 @@ from cases import (
     MAX_UINT128,
     MAX_UINT256,
     MIXED_BYTES32,
-    PROJECT_CASES,
     SIGNED_HASH,
     TEST_CASES,
     TestCase,
@@ -57,11 +57,6 @@ CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
-RUNTIME_OUTPUTS = [
-    "abi",
-    "evm.bytecode.object",
-    "evm.deployedBytecode.object",
-]
 
 RESET = "\033[0m"
 YELLOW = "\033[33m"
@@ -187,7 +182,11 @@ def standard_json_input(test_case: TestCase) -> str:
             "viaIR": True,
             "outputSelection": {
                 "*": {
-                    "*": RUNTIME_OUTPUTS,
+                    "*": [
+                        "abi",
+                        "evm.bytecode.object",
+                        "evm.deployedBytecode.object",
+                    ]
                 }
             },
         },
@@ -196,6 +195,16 @@ def standard_json_input(test_case: TestCase) -> str:
 
 
 @lru_cache(maxsize=None)
+def project_full_standard_json_input(project_file: str) -> str:
+    path = PROJECTS_ROOT / project_file
+    with gzip.open(path, mode="rt", encoding="utf-8") as file:
+        return file.read()
+
+
+def full_project_standard_json_input(project_file: str) -> str:
+    return project_full_standard_json_input(project_file)
+
+
 def project_standard_json_input(
     project_file: str, source: str, contract_name: str, settings_profile: str = ""
 ) -> str:
@@ -212,7 +221,11 @@ def project_standard_json_input(
         settings = dict(project["settings"])
     settings["outputSelection"] = {
         source: {
-            contract_name: RUNTIME_OUTPUTS,
+            contract_name: [
+                "abi",
+                "evm.bytecode.object",
+                "evm.deployedBytecode.object",
+            ]
         }
     }
     payload = {
@@ -223,57 +236,12 @@ def project_standard_json_input(
     return json.dumps(payload)
 
 
-@lru_cache(maxsize=None)
-def full_project_standard_json_input(project_file: str) -> str:
-    path = PROJECTS_ROOT / project_file
-    with gzip.open(path, mode="rt", encoding="utf-8") as file:
-        return file.read()
+LONG_COMPILE_CUTOFF_SECONDS = 10.0
 
 
-def parse_full_project_output(stdout: str, test_case: TestCase) -> Tuple[int, int, str]:
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        return 0, 0, f"invalid standard JSON output: {exc}"
-    if not isinstance(payload, dict):
-        return 0, 0, "standard JSON output is not an object"
-
-    errors = [
-        error
-        for error in payload.get("errors") or []
-        if isinstance(error, dict)
-        if error.get("severity") == "error"
-    ]
-    if errors:
-        error = errors[0]
-        return (
-            0,
-            0,
-            error.get("formattedMessage") or error.get("message", "compiler error"),
-        )
-
-    contracts = payload.get("contracts")
-    if not isinstance(contracts, dict):
-        return 0, 0, "standard JSON output has no contracts"
-
-    contract_count = sum(
-        len(source_contracts)
-        for source_contracts in contracts.values()
-        if isinstance(source_contracts, dict)
-    )
-    bytecode_count = sum(
-        bool(contract.get("evm", {}).get("bytecode", {}).get("object", ""))
-        for source_contracts in contracts.values()
-        if isinstance(source_contracts, dict)
-        for contract in source_contracts.values()
-        if isinstance(contract, dict)
-    )
-    if not contract_count:
-        return 0, 0, f"{test_case.project} produced no contract artifacts"
-    return contract_count, bytecode_count, ""
-
-
-def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
+def compile_case(
+    spec: CompilerSpec, test_case: TestCase, compile_repeats: int = 1
+) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -287,16 +255,14 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         "error": "",
     }
     if test_case.project_file is not None:
-        result["project"] = test_case.project
-        if not test_case.full_project:
-            result["source"] = test_case.source
+        result.update(source=test_case.source, project=test_case.project)
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
-        if test_case.full_project:
-            input_text = full_project_standard_json_input(test_case.project_file)
-            timeout = 600
+        if test_case.whole_project:
+            input_text = project_full_standard_json_input(test_case.project_file)
+            timeout = 900
         else:
             input_text = project_standard_json_input(
                 test_case.project_file,
@@ -310,14 +276,25 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         timeout = 120
 
     cmd = [str(spec.path), "--standard-json"]
-    started = time.monotonic()
-    proc = run(
-        cmd,
-        input_text=input_text,
-        timeout=timeout,
-        measure_peak_rss=True,
-    )
-    result["compile_time_seconds"] = time.monotonic() - started
+    samples = []
+    proc = None
+    for _ in range(max(1, compile_repeats)):
+        started = time.monotonic()
+        proc = run(
+            cmd,
+            input_text=input_text,
+            timeout=timeout,
+            measure_peak_rss=True,
+        )
+        samples.append(time.monotonic() - started)
+        if proc.returncode != 0:
+            break
+        # One sample is representative for long compiles; repeating a
+        # minute-scale solc run per repeat would dominate the whole benchmark.
+        if samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
+            break
+    result["compile_time_seconds"] = statistics.median(samples)
+    result["compile_time_samples"] = samples
     result["peak_rss_bytes"] = proc.peak_rss_bytes
     result["command"] = display_command(cmd)
     if proc.returncode != 0:
@@ -325,17 +302,21 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
         return result
 
-    if test_case.full_project:
-        contract_count, bytecode_count, error = parse_full_project_output(
-            proc.stdout, test_case
-        )
-        result["contract_count"] = contract_count
-        result["bytecode_count"] = bytecode_count
+    if test_case.whole_project:
+        compiled, objects, error = parse_whole_project_output(proc.stdout)
         if error:
             result["status"] = "failed"
             result["error"] = error
             return result
+        # Compile-time only: no single contract is selected, so bytecode
+        # sizes and every downstream deploy/gas/runtime stage do not apply.
+        # `bytecode_objects` records how many entries carried real code so a
+        # compiler silently emitting nothing cannot count as a fast compile.
         result["status"] = "ok"
+        result["bytecode_size"] = None
+        result["runtime_size"] = None
+        result["contracts_compiled"] = compiled
+        result["bytecode_objects"] = objects
         return result
 
     bytecode, runtime, error = parse_standard_json_output(proc.stdout, test_case)
@@ -350,6 +331,36 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
     result["bytecode_size"] = len(bytecode) // 2
     result["runtime_size"] = len(runtime or "") // 2
     return result
+
+
+def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
+    """Returns contract entries, entries with nonempty bytecode, and an error."""
+    try:
+        output = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        return 0, 0, f"invalid compiler output: {error}"
+    errors = [
+        entry.get("formattedMessage") or entry.get("message") or "error"
+        for entry in output.get("errors", [])
+        if entry.get("severity") == "error"
+    ]
+    if errors:
+        return 0, 0, "; ".join(errors)[:1000]
+    compiled = 0
+    objects = 0
+    for contracts in output.get("contracts", {}).values():
+        for data in contracts.values():
+            compiled += 1
+            if ((data.get("evm") or {}).get("bytecode") or {}).get("object"):
+                objects += 1
+    if objects == 0:
+        return compiled, 0, "no bytecode objects were emitted"
+    return compiled, objects, ""
+
+
+def parse_full_project_output(stdout: str, test_case: TestCase) -> Tuple[int, int, str]:
+    del test_case
+    return parse_whole_project_output(stdout)
 
 
 def parse_standard_json_output(
@@ -1041,6 +1052,7 @@ def run_test_case(
     rpc_url: str,
     private_key: str,
     verbose: bool = False,
+    compile_repeats: int = 1,
 ) -> Dict[str, object]:
     entry: Dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1052,19 +1064,18 @@ def run_test_case(
     }
     if test_case.project_file is not None:
         entry["project"] = test_case.project
-        if not test_case.full_project:
-            entry["source"] = test_case.source
+        entry["source"] = test_case.source
     reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
 
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case)
+        compiled = compile_case(spec, test_case, compile_repeats)
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
 
-        if test_case.full_project:
+        if test_case.whole_project:
             continue
 
         checks = runtime_checks(test_case)
@@ -1183,9 +1194,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--suite",
-        choices=("micro", "repository", "large", "projects", "all"),
+        choices=("micro", "repository", "large", "heavy", "projects", "all"),
         default="micro",
-        help="Benchmark suite to run (projects measures full archive compile time)",
+        help="Benchmark suite to run (heavy/projects measure full project compile time)",
+    )
+    parser.add_argument(
+        "--compile-repeats",
+        type=int,
+        default=1,
+        help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
@@ -1214,11 +1231,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    test_catalog = list(TEST_CASES)
-    if args.suite in ("projects", "all"):
-        test_catalog.extend(PROJECT_CASES)
+    suite = "heavy" if args.suite == "projects" else args.suite
     all_tests = [
-        test for test in test_catalog if args.suite == "all" or test.suite == args.suite
+        test
+        for test in TEST_CASES
+        if suite == "all" or test.suite == suite
     ]
 
     if args.projects:
@@ -1229,8 +1246,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.list_tests:
         for test in all_tests:
             if test.project_file is not None:
-                source = "full-project" if test.full_project else test.source
-                print(f"{test.test_id}	{test.project}	{source}	{test.contract_name}")
+                print(f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}")
             else:
                 print(f"{test.test_id}	{test.suite}	inline	{test.contract_name}")
         return 0
@@ -1287,7 +1303,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.gas and any(
         test.project_file is not None
-        and not test.full_project
+        and not test.whole_project
         and not gas_calls(test, args.gas_profile)
         and not runtime_checks(test)
         for test in tests
@@ -1341,6 +1357,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.rpc_url,
                     args.private_key,
                     args.verbose,
+                    args.compile_repeats,
                 )
             )
         if current_suite is not None and suite_started is not None:

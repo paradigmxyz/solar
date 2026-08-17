@@ -5,10 +5,10 @@ use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkProject, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_selection_ranges,
+    BenchmarkResponse, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports, benchmark_selection_ranges,
 };
-use std::{hint::black_box, path::PathBuf};
+use std::{fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const HOVER_FUNCTION_COUNT: usize = 256;
@@ -118,6 +118,33 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    group.finish();
+}
+
+fn bounded_workspace_discovery(c: &mut Criterion) {
+    let temp = tempfile::tempdir().expect("benchmark temporary directory");
+    let project = temp.path().join("project");
+    let dependency = project.join("vendor");
+    fs::create_dir_all(&dependency).expect("dependency directory");
+    for index in 0..10_000 {
+        fs::write(dependency.join(format!("Generated{index}.sol")), "contract Generated {} {}")
+            .expect("dependency source");
+    }
+    fs::write(project.join("foundry.toml"), "[profile.default]\nlibs = [\"vendor\"]\n")
+        .expect("Foundry project manifest");
+
+    let baseline = BenchmarkWorkspaceDiscovery::run(temp.path());
+    assert_eq!(baseline.eager(), 0);
+    assert_eq!(baseline.source_file_count(), 0);
+    // Manifest discovery prunes the import-only root without visiting its 10,000 descendants.
+    // The full workspace load still scans it once for remappings; discovery must not repeat it.
+    assert_eq!(baseline.pruned(), 1);
+    assert_eq!(baseline.visited(), 4);
+
+    let mut group = c.benchmark_group("lsp/workspace-discovery");
+    group.bench_function("foundry-10k-import-only", |b| {
+        b.iter(|| black_box(BenchmarkWorkspaceDiscovery::run(black_box(temp.path()))));
+    });
     group.finish();
 }
 
@@ -467,6 +494,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
     selection_range,

@@ -57,10 +57,14 @@ impl FoundryProfile {
         }
     }
 
-    pub(crate) fn remappings(&self, root: &Path) -> Vec<ImportRemapping> {
+    pub(crate) fn remappings_with_include_paths(
+        &self,
+        root: &Path,
+        include_paths: &[PathBuf],
+    ) -> Vec<ImportRemapping> {
         let mut remappings = Vec::new();
         if self.auto_detect_remappings.unwrap_or(true) {
-            remappings.extend(self.discover_lib_remappings(root));
+            remappings.extend(self.discover_lib_remappings(root, include_paths));
         }
         remappings.extend(read_remappings_txt(root));
         remappings.extend(self.remappings.clone());
@@ -71,10 +75,14 @@ impl FoundryProfile {
         self.evm_version
     }
 
-    fn discover_lib_remappings(&self, root: &Path) -> Vec<ImportRemapping> {
+    fn discover_lib_remappings(
+        &self,
+        root: &Path,
+        include_paths: &[PathBuf],
+    ) -> Vec<ImportRemapping> {
         let mut remappings = Vec::<ImportRemapping>::new();
-        for lib in self.include_paths(root) {
-            let Ok(entries) = std::fs::read_dir(&lib) else {
+        for lib in include_paths {
+            let Ok(entries) = std::fs::read_dir(lib) else {
                 continue;
             };
             for entry in entries.filter_map(Result::ok) {
@@ -106,4 +114,27 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
         .filter(|line| !line.is_empty())
         .filter_map(|line| line.parse().ok())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn document_reports_configured_include_paths_directly() {
+        let document = toml_edit::de::from_str::<FoundryDocument>(
+            r#"
+            [profile.default]
+            libs = ["lib", "vendor"]
+            auto_detect_remappings = true
+            remappings = ["@example/=vendor/example/src/"]
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            document.default_profile().include_paths(Path::new("workspace")),
+            [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
+        );
+    }
 }

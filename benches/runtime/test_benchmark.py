@@ -17,11 +17,16 @@ SPEC.loader.exec_module(benchmark)
 
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 16)
+        self.assertEqual(len(benchmark.TEST_CASES), 25)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
         self.assertEqual(len(repository_cases), 9)
+        heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
+        self.assertEqual(len(heavy_cases), 9)
+        for case in heavy_cases:
+            self.assertTrue(case.whole_project)
+            self.assertTrue(case.project_path.is_file())
         self.assertTrue(benchmark.RUNTIME_FIXTURES.is_file())
         expected_source_counts = {
             "uniswap-v2-pair": 10,
@@ -67,10 +72,11 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_full_project_cases_preserve_archives(self) -> None:
-        self.assertEqual(len(benchmark.PROJECT_CASES), 9)
-        self.assertTrue(all(case.full_project for case in benchmark.PROJECT_CASES))
+        heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
+        self.assertEqual(len(heavy_cases), 9)
+        self.assertTrue(all(case.whole_project for case in heavy_cases))
         case = next(
-            case for case in benchmark.PROJECT_CASES if case.project == "solady-0.1.26"
+            case for case in heavy_cases if case.project == "solady-0.1.26"
         )
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
@@ -80,7 +86,7 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(len(payload["sources"]), 208)
 
     def test_parse_full_project_output_counts_contract_artifacts(self) -> None:
-        case = benchmark.PROJECT_CASES[0]
+        case = next(case for case in benchmark.TEST_CASES if case.whole_project)
         stdout = json.dumps(
             {
                 "contracts": {

@@ -98,17 +98,18 @@ fn config_owns_external_source_roots_without_falling_back_to_the_first_workspace
 
         //- /second/foundry.toml
         [profile.default]
-        src = "../shared"
+        src = "../shared/contracts"
         auto_detect_remappings = false
         remappings = ["pkg/=lib/second/"]
 
-        //- /shared/Main.sol
+        //- /shared/contracts/Main.sol
         contract Shared {}
         "#,
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/first", "/second", "/shared"]);
 
-    let context = config.import_resolution_context(&project.path("/shared/Main.sol")).unwrap();
+    let context =
+        config.import_resolution_context(&project.path("/shared/contracts/Main.sol")).unwrap();
 
     assert_eq!(context.workspace_root(), project.path("/second"));
     assert_eq!(context.compile_opts().import_remappings[0].path, "lib/second/");
@@ -156,21 +157,22 @@ fn config_owns_external_import_only_roots_without_cross_project_contamination() 
 
         //- /second/foundry.toml
         [profile.default]
-        libs = ["../dependencies"]
+        libs = ["../dependencies/packages"]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/second/"]
 
         //- /second/src/Main.sol
         contract Second {}
 
-        //- /dependencies/pkg/Dependency.sol
+        //- /dependencies/packages/pkg/Dependency.sol
         contract Dependency {}
         "#,
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/first", "/second", "/dependencies"]);
 
-    let context =
-        config.import_resolution_context(&project.path("/dependencies/pkg/Overlay.sol")).unwrap();
+    let context = config
+        .import_resolution_context(&project.path("/dependencies/packages/pkg/Overlay.sol"))
+        .unwrap();
 
     assert_eq!(context.workspace_root(), project.path("/second"));
     assert_eq!(context.compile_opts().import_remappings[0].path, "lib/second/");
@@ -227,21 +229,25 @@ fn config_rejects_ambiguous_shared_import_contexts() {
         r#"
         //- /first/foundry.toml
         [profile.default]
-        libs = ["../shared"]
+        libs = ["../shared/packages"]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/first/"]
 
         //- /second/foundry.toml
         [profile.default]
-        libs = ["../shared"]
+        libs = ["../shared/packages"]
         auto_detect_remappings = false
         remappings = ["pkg/=lib/second/"]
 
-        //- /shared/Dependency.sol
+        //- /shared/packages/Dependency.sol
         contract Dependency {}
         "#,
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/first", "/second", "/shared"]);
 
-    assert!(config.import_resolution_context(&project.path("/shared/Dependency.sol")).is_none());
+    assert!(
+        config
+            .import_resolution_context(&project.path("/shared/packages/Dependency.sol"))
+            .is_none()
+    );
 }

@@ -11,6 +11,8 @@ import { spawn } from "child_process";
 
 let client: LanguageClient | undefined;
 let clientLifecycle: Promise<void> = Promise.resolve();
+let activeServerKind: "solar" | "forge" | undefined;
+let forgeFileWatcher: vscode.FileSystemWatcher | undefined;
 
 const restartSettings = [
   "solarLsp.enable",
@@ -21,11 +23,8 @@ const restartSettings = [
 ];
 
 export function activate(context: vscode.ExtensionContext) {
-  const fileWatcher = vscode.workspace.createFileSystemWatcher("**/*.sol");
-  context.subscriptions.push(fileWatcher);
-
   // Start the LSP server
-  void restartLanguageServer(fileWatcher);
+  void restartLanguageServer();
 
   // Register format document command
   const formatCommand = vscode.commands.registerCommand(
@@ -72,8 +71,13 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const configListener = vscode.workspace.onDidChangeConfiguration((event) => {
-    if (restartSettings.some((setting) => event.affectsConfiguration(setting))) {
-      void restartLanguageServer(fileWatcher);
+    const restartSolarIndexing =
+      activeServerKind === "solar" && event.affectsConfiguration("solarLsp.indexing");
+    if (
+      restartSettings.some((setting) => event.affectsConfiguration(setting)) ||
+      restartSolarIndexing
+    ) {
+      void restartLanguageServer();
     }
   });
 
@@ -100,16 +104,14 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-function restartLanguageServer(
-  fileWatcher: vscode.FileSystemWatcher,
-): Promise<void> {
+function restartLanguageServer(): Promise<void> {
   clientLifecycle = clientLifecycle
     .then(async () => {
       await stopLanguageServer();
 
       const config = vscode.workspace.getConfiguration("solarLsp");
       if (config.get<boolean>("enable", true)) {
-        await startLanguageServer(fileWatcher);
+        await startLanguageServer();
       }
     })
     .catch((error) => {
@@ -122,16 +124,30 @@ function restartLanguageServer(
 
 async function stopLanguageServer(): Promise<void> {
   const currentClient = client;
+  const currentFileWatcher = forgeFileWatcher;
   if (!currentClient) {
+    activeServerKind = undefined;
+    if (forgeFileWatcher === currentFileWatcher) {
+      forgeFileWatcher = undefined;
+    }
+    currentFileWatcher?.dispose();
     return;
   }
 
-  if (currentClient.state === State.Running) {
-    await currentClient.stop();
+  try {
+    if (currentClient.state === State.Running) {
+      await currentClient.stop();
+    }
+  } finally {
+    if (forgeFileWatcher === currentFileWatcher) {
+      forgeFileWatcher = undefined;
+    }
+    currentFileWatcher?.dispose();
   }
 
   if (client === currentClient) {
     client = undefined;
+    activeServerKind = undefined;
   }
 }
 
@@ -147,7 +163,7 @@ async function checkExecutableExists(command: string): Promise<boolean> {
   });
 }
 
-async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
+async function startLanguageServer() {
   const config = vscode.workspace.getConfiguration("solarLsp");
   const solarPath = config.get<string>("serverPath", "solar");
   const forgePath = config.get<string>("forgePath", "forge");
@@ -190,6 +206,10 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
     args: ["lsp"],
     transport: TransportKind.stdio,
   };
+  // Solar registers bounded watchers dynamically; Forge still needs the legacy watcher.
+  const nextFileWatcher = solarExists
+    ? undefined
+    : vscode.workspace.createFileSystemWatcher("**/*.sol");
 
   // Define client options
   const clientOptions: LanguageClientOptions = {
@@ -198,10 +218,29 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
       forgePath,
       flychecks,
       codeLens,
+      ...(solarExists
+        ? {
+            indexing: {
+              exclude: config.get<string[]>("indexing.exclude", []),
+              useDefaultExcludes: config.get<boolean>(
+                "indexing.useDefaultExcludes",
+                true,
+              ),
+              excludeHiddenDirectories: config.get<boolean>(
+                "indexing.excludeHiddenDirectories",
+                true,
+              ),
+              excludeNestedRepositories: config.get<boolean>(
+                "indexing.excludeNestedRepositories",
+                true,
+              ),
+            },
+          }
+        : {}),
     },
-    synchronize: {
-      fileEvents: fileWatcher,
-    },
+    ...(nextFileWatcher
+      ? { synchronize: { fileEvents: nextFileWatcher } }
+      : {}),
   };
 
   // Create the language client and start it
@@ -212,6 +251,8 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
     clientOptions,
   );
   client = nextClient;
+  activeServerKind = solarExists ? "solar" : "forge";
+  forgeFileWatcher = nextFileWatcher;
 
   // Start the client. This will also launch the server
   try {
@@ -227,8 +268,13 @@ async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
     } catch {
       // Failed starts can also reject shutdown after scheduling process cleanup.
     }
+    nextFileWatcher?.dispose();
     if (client === nextClient) {
       client = undefined;
+      activeServerKind = undefined;
+    }
+    if (forgeFileWatcher === nextFileWatcher) {
+      forgeFileWatcher = undefined;
     }
     const message = error instanceof Error ? error.message : String(error);
     console.error("Failed to start LSP client:", error);
