@@ -2133,7 +2133,7 @@ mod tests {
     }
 
     #[test]
-    fn dedicated_foundry_source_root_keeps_default_named_descendants() {
+    fn dedicated_foundry_source_root_excludes_default_named_descendants() {
         let project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -2170,14 +2170,7 @@ mod tests {
         config.rediscover_workspaces();
         let workspace = &config.workspaces()[0];
 
-        assert_eq!(
-            workspace.source_files(),
-            [
-                project.path("/src/Main.sol"),
-                project.path("/src/lib/Library.sol"),
-                project.path("/src/out/Generated.sol"),
-            ]
-        );
+        assert_eq!(workspace.source_files(), [project.path("/src/Main.sol")]);
     }
 
     #[test]

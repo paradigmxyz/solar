@@ -677,7 +677,8 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
     let include_parent = project.path("/include/pkg");
     let remapping_parent = project.path("/mapped/pkg");
     let outside_parent = project.path("/outside");
-    let missing_parent = project.path("/workspace/missing");
+    let missing_parent = project.path("/include/missing");
+    std::fs::create_dir_all(&missing_parent).unwrap();
     let analysis_paths = AnalysisPathIndex {
         resolved_dependencies: FxHashSet::from_iter([
             workspace_parent.join("Dependency.sol"),
@@ -701,7 +702,10 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
         );
     }
     assert!(!specs.iter().any(|spec| spec.base == outside_parent));
-    assert!(!specs.iter().any(|spec| spec.base == missing_parent));
+    assert_eq!(
+        specs.iter().filter(|spec| spec.base == missing_parent && spec.pattern == "*.sol").count(),
+        1
+    );
 }
 
 #[test]

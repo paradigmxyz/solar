@@ -181,7 +181,7 @@ fn will_delete_refuses_partial_import_edits() {
 }
 
 #[test]
-fn will_delete_edits_closed_default_named_source_importers() {
+fn will_delete_refuses_closed_default_named_source_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -208,15 +208,9 @@ fn will_delete_edits_closed_default_named_source_importers() {
             }],
         },
     ))
-    .unwrap()
     .unwrap();
 
-    let changes = edit.changes.unwrap();
-    assert_eq!(changes.len(), 2);
-    assert!(changes.contains_key(&Url::from_file_path(project.path("/src/Main.sol")).unwrap()));
-    assert!(
-        changes.contains_key(&Url::from_file_path(project.path("/src/lib/Library.sol")).unwrap())
-    );
+    assert!(edit.is_none());
 }
 
 #[test]
@@ -412,7 +406,7 @@ fn will_rename_refuses_partial_import_edits() {
 }
 
 #[test]
-fn will_rename_edits_closed_default_named_source_importers() {
+fn will_rename_refuses_closed_default_named_source_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -440,15 +434,9 @@ fn will_rename_edits_closed_default_named_source_importers() {
             }],
         },
     ))
-    .unwrap()
     .unwrap();
 
-    let changes = edit.changes.unwrap();
-    assert_eq!(changes.len(), 2);
-    assert!(changes.contains_key(&Url::from_file_path(project.path("/src/Main.sol")).unwrap()));
-    assert!(
-        changes.contains_key(&Url::from_file_path(project.path("/src/lib/Library.sol")).unwrap())
-    );
+    assert!(edit.is_none());
 }
 
 #[test]

@@ -1739,6 +1739,12 @@ fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Ve
         .resolved_dependencies
         .iter()
         .chain(analysis_paths.existing_unresolved_candidates.iter())
+        .chain(
+            analysis_paths
+                .missing_candidates
+                .iter()
+                .filter(|path| path.parent().is_some_and(Path::is_dir)),
+        )
         .filter_map(|path| path.parent().map(Path::normalize))
         .filter(|parent| {
             parent.ancestors().any(|ancestor| approved_roots.contains(ancestor))

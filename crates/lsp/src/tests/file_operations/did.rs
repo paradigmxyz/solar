@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     diagnostics::{DiagnosticMap, DiagnosticOwner, PullReport},
+    file_operations::WatchedFileAction,
     test_support::TestProject,
     vfs::VfsPath,
     workspace::WorkspaceKind,
@@ -110,6 +111,50 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
     let tables = tables.read();
     assert!(tables.workspace_symbols("Direct").iter().any(|symbol| symbol.name == "Direct"));
     assert!(tables.workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_create_echo_scan_skips_excluded_descendants() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = state(&project);
+    let folder = project.path("/src/created");
+    let included = project.path("/src/created/Included.sol");
+    let excluded = project.path("/src/created/node_modules/Excluded.sol");
+    project.write_file("/src/created/Included.sol", "contract Included {}");
+    project.write_file("/src/created/node_modules/Excluded.sol", "contract Excluded {}");
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(
+        state.file_operations.observe_watcher_event(&excluded, FileChangeType::CREATED),
+        WatchedFileAction::Process
+    );
+    assert_eq!(
+        state.file_operations.observe_watcher_event(&included, FileChangeType::CREATED),
+        WatchedFileAction::Ignore
+    );
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("create-folder analysis should finish")
+        .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

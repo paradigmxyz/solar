@@ -289,12 +289,7 @@ impl ManifestDiscovery<'_> {
                 // hidden, and nested-repository rules still apply to its siblings below.
                 self.policy.should_prune_directory(workspace_root, &path, &path)
             } else if let Some(source_root) = source_root {
-                self.policy.should_prune_source_directory(
-                    workspace_root,
-                    source_root,
-                    &path,
-                    source_root == workspace_root,
-                )
+                self.policy.should_prune_source_directory(workspace_root, source_root, &path)
             } else {
                 self.policy.excludes_directory(workspace_root, traversal_root, &path)
             };
@@ -560,6 +555,29 @@ mod tests {
             vec![
                 ProjectManifest::Foundry(project.path("/foundry.toml")),
                 ProjectManifest::Foundry(project.path("/lib/contracts/nested/foundry.toml")),
+            ]
+        );
+    }
+
+    #[test]
+    fn source_root_discovery_skips_default_excluded_descendants() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/nested/foundry.toml
+
+            //- /src/node_modules/dependency/foundry.toml
+            "#,
+        );
+
+        assert_eq!(
+            discover_all(&[project.root().to_path_buf()]),
+            vec![
+                ProjectManifest::Foundry(project.path("/foundry.toml")),
+                ProjectManifest::Foundry(project.path("/src/nested/foundry.toml")),
             ]
         );
     }

@@ -305,7 +305,6 @@ impl Workspace {
                 marker_watch_roots: &mut git_marker_watch_roots,
                 ownership,
                 flycheck: false,
-                apply_default_excludes: self.applies_default_excludes(root),
                 source_files_complete: true,
             };
             let state = collector.collect(root, root == workspace_root);
@@ -370,7 +369,6 @@ impl Workspace {
                 marker_watch_roots: &mut marker_watch_roots,
                 ownership,
                 flycheck: true,
-                apply_default_excludes: self.applies_default_excludes(root),
                 source_files_complete: true,
             })
             .collect(root, false);
@@ -421,13 +419,7 @@ impl Workspace {
             && !is_import_only_path(&self.source_roots, self.index_import_only_roots(), path)
             && self.source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
-                path.starts_with(root)
-                    && !policy.excludes_source_file(
-                        workspace_root,
-                        root,
-                        path,
-                        self.applies_default_excludes(root),
-                    )
+                path.starts_with(root) && !policy.excludes_source_file(workspace_root, root, path)
             })
     }
 
@@ -440,13 +432,7 @@ impl Workspace {
             )
             && self.flycheck_source_roots.iter().any(|root| {
                 let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
-                path.starts_with(root)
-                    && !policy.excludes_source_file(
-                        workspace_root,
-                        root,
-                        path,
-                        self.applies_default_excludes(root),
-                    )
+                path.starts_with(root) && !policy.excludes_source_file(workspace_root, root, path)
             })
     }
 
@@ -457,17 +443,7 @@ impl Workspace {
         path: &Path,
     ) -> bool {
         let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(source_root);
-        policy.excludes_source_directory(
-            workspace_root,
-            source_root,
-            path,
-            self.applies_default_excludes(source_root),
-        )
-    }
-
-    fn applies_default_excludes(&self, source_root: &Path) -> bool {
-        self.kind != WorkspaceKind::Foundry
-            || self.compile_opts.base_path.as_deref().is_none_or(|root| root == source_root)
+        policy.excludes_source_directory(workspace_root, source_root, path)
     }
 
     #[cfg(any(test, feature = "bench"))]
@@ -812,7 +788,6 @@ struct SourceFileCollector<'a, 'index, 'workspaces> {
     marker_watch_roots: &'a mut Vec<PathBuf>,
     ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
     flycheck: bool,
-    apply_default_excludes: bool,
     source_files_complete: bool,
 }
 
@@ -856,12 +831,7 @@ impl SourceFileCollector<'_, '_, '_> {
             if !is_solidity_file(path) {
                 return SourceTreeState::Clean;
             }
-            if self.policy.excludes_source_file(
-                self.workspace_root,
-                self.source_root,
-                path,
-                self.apply_default_excludes,
-            ) {
+            if self.policy.excludes_source_file(self.workspace_root, self.source_root, path) {
                 self.metrics.pruned += 1;
                 self.source_files_complete = false;
             } else {
@@ -874,12 +844,7 @@ impl SourceFileCollector<'_, '_, '_> {
             self.source_files_complete = false;
             return SourceTreeState::Partitioned;
         }
-        if self.policy.should_prune_source_directory(
-            self.workspace_root,
-            self.source_root,
-            path,
-            self.apply_default_excludes,
-        ) {
+        if self.policy.should_prune_source_directory(self.workspace_root, self.source_root, path) {
             if let Some(root) = self.policy.nested_repository_marker_root(path) {
                 self.marker_watch_roots.push(root);
             }
@@ -1156,6 +1121,9 @@ mod tests {
 
             //- /script/Deploy.s.sol
             contract Deploy {}
+
+            //- /script/node_modules/Ignored.s.sol
+            contract IgnoredScript {}
 
             //- /lib/Dependency.sol
             contract Dependency {}
@@ -1590,6 +1558,9 @@ mod tests {
 
             //- /node_modules/project/generated/Main.sol
             contract Main {}
+
+            //- /node_modules/project/generated/node_modules/Dependency.sol
+            contract Dependency {}
             "#,
         );
         let mut workspace =
