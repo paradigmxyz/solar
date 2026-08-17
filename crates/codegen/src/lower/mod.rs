@@ -32,15 +32,36 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
-    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId},
+    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
-use std::collections::hash_map::Entry;
+use std::{collections::hash_map::Entry, ops::ControlFlow};
 
 use self::storage::StorageLocation;
 
 /// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
 const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
+
+/// Finds inline assembly, which can write arbitrary memory outside the compiler's memory model.
+struct InlineAssemblyFinder<'hir> {
+    hir: &'hir hir::Hir<'hir>,
+}
+
+impl<'hir> Visit<'hir> for InlineAssemblyFinder<'hir> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'hir hir::Hir<'hir> {
+        self.hir
+    }
+
+    fn visit_stmt(&mut self, stmt: &'hir hir::Stmt<'hir>) -> ControlFlow<Self::BreakValue> {
+        if matches!(stmt.kind, hir::StmtKind::AssemblyBlock(_)) {
+            ControlFlow::Break(())
+        } else {
+            self.walk_stmt(stmt)
+        }
+    }
+}
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -480,6 +501,14 @@ impl<'gcx> Lowerer<'gcx> {
     pub(crate) fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         self.contract_id = Some(contract_id);
+
+        let mut finder = InlineAssemblyFinder { hir: &self.gcx.hir };
+        self.module.memory_operand_planning_safe = !contract
+            .linearized_bases
+            .iter()
+            .copied()
+            .flat_map(|base| self.gcx.hir.contract(base).all_functions())
+            .any(|function| finder.visit_nested_function(function).is_break());
 
         // Track the current contract for using directive resolution.
         self.current_contract_id = Some(contract_id);
