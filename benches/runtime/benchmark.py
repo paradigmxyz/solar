@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+import statistics
 import sys
 import time
 from dataclasses import dataclass
@@ -192,6 +193,19 @@ def standard_json_input(test_case: TestCase) -> str:
 
 
 @lru_cache(maxsize=None)
+def project_full_standard_json_input(project_file: str) -> str:
+    path = REPOSITORY_ROOT / project_file
+    project = load_project(path)
+    settings = dict(project["settings"])
+    settings["outputSelection"] = {"*": {"*": ["evm.bytecode.object"]}}
+    payload = {
+        "language": project["language"],
+        "sources": project["sources"],
+        "settings": settings,
+    }
+    return json.dumps(payload)
+
+
 def project_standard_json_input(project_file: str, source: str, contract_name: str) -> str:
     path = REPOSITORY_ROOT / project_file
     project = load_project(path)
@@ -213,7 +227,12 @@ def project_standard_json_input(project_file: str, source: str, contract_name: s
     return json.dumps(payload)
 
 
-def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
+LONG_COMPILE_CUTOFF_SECONDS = 10.0
+
+
+def compile_case(
+    spec: CompilerSpec, test_case: TestCase, compile_repeats: int = 1
+) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -232,28 +251,60 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
-        input_text = project_standard_json_input(
-            test_case.project_file, test_case.source, test_case.contract_name
-        )
-        timeout = 180
+        if test_case.whole_project:
+            input_text = project_full_standard_json_input(test_case.project_file)
+            timeout = 900
+        else:
+            input_text = project_standard_json_input(
+                test_case.project_file, test_case.source, test_case.contract_name
+            )
+            timeout = 180
     else:
         input_text = standard_json_input(test_case)
         timeout = 120
 
     cmd = [str(spec.path), "--standard-json"]
-    started = time.monotonic()
-    proc = run(
-        cmd,
-        input_text=input_text,
-        timeout=timeout,
-        measure_peak_rss=True,
-    )
-    result["compile_time_seconds"] = time.monotonic() - started
+    samples = []
+    proc = None
+    for _ in range(max(1, compile_repeats)):
+        started = time.monotonic()
+        proc = run(
+            cmd,
+            input_text=input_text,
+            timeout=timeout,
+            measure_peak_rss=True,
+        )
+        samples.append(time.monotonic() - started)
+        if proc.returncode != 0:
+            break
+        # One sample is representative for long compiles; repeating a
+        # minute-scale solc run per repeat would dominate the whole benchmark.
+        if samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
+            break
+    result["compile_time_seconds"] = statistics.median(samples)
+    result["compile_time_samples"] = samples
     result["peak_rss_bytes"] = proc.peak_rss_bytes
     result["command"] = display_command(cmd)
     if proc.returncode != 0:
         result["status"] = "failed"
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
+        return result
+
+    if test_case.whole_project:
+        compiled, objects, error = parse_whole_project_output(proc.stdout)
+        if error:
+            result["status"] = "failed"
+            result["error"] = error
+            return result
+        # Compile-time only: no single contract is selected, so bytecode
+        # sizes and every downstream deploy/gas/runtime stage do not apply.
+        # `bytecode_objects` records how many entries carried real code so a
+        # compiler silently emitting nothing cannot count as a fast compile.
+        result["status"] = "ok"
+        result["bytecode_size"] = None
+        result["runtime_size"] = None
+        result["contracts_compiled"] = compiled
+        result["bytecode_objects"] = objects
         return result
 
     bytecode, runtime, error = parse_standard_json_output(proc.stdout, test_case)
@@ -268,6 +319,31 @@ def compile_case(spec: CompilerSpec, test_case: TestCase) -> Dict[str, object]:
     result["bytecode_size"] = len(bytecode) // 2
     result["runtime_size"] = len(runtime or "") // 2
     return result
+
+
+def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
+    """Returns contract entries, entries with nonempty bytecode, and an error."""
+    try:
+        output = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        return 0, 0, f"invalid compiler output: {error}"
+    errors = [
+        entry.get("formattedMessage") or entry.get("message") or "error"
+        for entry in output.get("errors", [])
+        if entry.get("severity") == "error"
+    ]
+    if errors:
+        return 0, 0, "; ".join(errors)[:1000]
+    compiled = 0
+    objects = 0
+    for contracts in output.get("contracts", {}).values():
+        for data in contracts.values():
+            compiled += 1
+            if ((data.get("evm") or {}).get("bytecode") or {}).get("object"):
+                objects += 1
+    if objects == 0:
+        return compiled, 0, "no bytecode objects were emitted"
+    return compiled, objects, ""
 
 
 def parse_standard_json_output(
@@ -959,6 +1035,7 @@ def run_test_case(
     rpc_url: str,
     private_key: str,
     verbose: bool = False,
+    compile_repeats: int = 1,
 ) -> Dict[str, object]:
     entry: Dict[str, object] = {
         "test_id": test_case.test_id,
@@ -975,7 +1052,7 @@ def run_test_case(
 
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case)
+        compiled = compile_case(spec, test_case, compile_repeats)
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
@@ -1097,9 +1174,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--suite",
-        choices=("micro", "repository", "large", "all"),
+        choices=("micro", "repository", "large", "heavy", "all"),
         default="micro",
         help="Benchmark suite to run",
+    )
+    parser.add_argument(
+        "--compile-repeats",
+        type=int,
+        default=1,
+        help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
@@ -1252,6 +1335,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.rpc_url,
                     args.private_key,
                     args.verbose,
+                    args.compile_repeats,
                 )
             )
         if current_suite is not None and suite_started is not None:
