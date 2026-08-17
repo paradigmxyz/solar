@@ -117,6 +117,21 @@ impl<'a> FunctionBuilder<'a> {
         self.switch_to_block(continue_block);
     }
 
+    /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
+    pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
+        let limit = self.imm_u64(variants);
+        let valid = self.lt(value, limit);
+        let invalid = self.iszero(valid);
+        self.panic_if(invalid, PanicCode::EnumConversion);
+    }
+
+    /// Reverts with `PanicCode::ArrayOutOfBounds` when `index` is not below `length`.
+    pub(crate) fn bounds_check(&mut self, index: ValueId, length: ValueId) {
+        let in_range = self.lt(index, length);
+        let invalid = self.iszero(in_range);
+        self.panic_if(invalid, PanicCode::ArrayOutOfBounds);
+    }
+
     /// Adds two words and reverts when the result overflows.
     pub(crate) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         let result = self.add(lhs, rhs);

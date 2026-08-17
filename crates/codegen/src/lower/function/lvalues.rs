@@ -74,7 +74,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             );
                         };
                         let length = self.builder.memory_object_len(object, layout.kind());
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::FixedArray { len, .. } => {
@@ -86,12 +86,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             );
                         };
                         let length = self.builder.imm_u64(len);
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::Bytes => {
                         let length = self.builder.memory_object_len(object, layout.kind());
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         let ty = self.type_of_expr_or_variable(expr)?;
                         Some(LValuePlace::MemoryByte { object, index, ty })
                     }
@@ -181,7 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.load_storage_bytes(access.slot)?;
         let index = self.lower_expr(index)?;
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
-        self.bounds_check(index, length);
+        self.builder.bounds_check(index, length);
         let ty = self.type_of_expr_or_variable(expr)?;
         Some(LValuePlace::StorageByte { slot: access.slot, object, index, ty })
     }
@@ -215,7 +215,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let value =
                 self.context.storage.load_at_slot(&mut self.builder, access.location, access.slot);
-            self.validate_enum_value(ty, value);
+            if let TyKind::Enum(id) = ty.peel_refs().kind {
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                self.builder.validate_enum_value(variants, value);
+            }
             return Some(value);
         }
         let var = self.context.gcx.hir.variable(id);
@@ -232,7 +235,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.context.gcx, span, "mapping value");
             }
             let value = self.context.storage.load(&mut self.builder, location);
-            self.validate_enum_value(ty, value);
+            if let TyKind::Enum(id) = ty.peel_refs().kind {
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                self.builder.validate_enum_value(variants, value);
+            }
             return Some(value);
         }
         report_unsupported(self.context.gcx, span, "identifier")
@@ -262,7 +268,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some(location) = self.context.storage.get(id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            self.validate_enum_value(ty, value);
+            if let TyKind::Enum(id) = ty.peel_refs().kind {
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                self.builder.validate_enum_value(variants, value);
+            }
             self.context.storage.store(&mut self.builder, location, value);
             return Some(());
         }
@@ -284,7 +293,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = self.builder.imm_u256(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
-            self.validate_enum_value(ty, value);
+            if let TyKind::Enum(id) = ty.peel_refs().kind {
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                self.builder.validate_enum_value(variants, value);
+            }
             self.context.storage.store(&mut self.builder, location, value);
             Some(())
         }
@@ -392,19 +404,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. } => {
                         let length = self.builder.memory_object_len(object, layout.kind());
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         self.builder.memory_object_store_element(object, layout, index, value);
                         Some(())
                     }
                     MemoryObjectLayout::FixedArray { len, .. } => {
                         let length = self.builder.imm_u64(len);
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         self.builder.memory_object_store_element(object, layout, index, value);
                         Some(())
                     }
                     MemoryObjectLayout::Bytes => {
                         let length = self.builder.memory_object_len(object, layout.kind());
-                        self.bounds_check(index, length);
+                        self.builder.bounds_check(index, length);
                         let zero = self.builder.imm_u256(U256::ZERO);
                         let value = self.builder.byte(zero, value);
                         self.builder.memory_object_store_byte(object, index, value);

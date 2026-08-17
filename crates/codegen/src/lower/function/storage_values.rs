@@ -249,7 +249,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
                     _ => return None,
                 };
-                self.bounds_check(index, length);
+                self.builder.bounds_check(index, length);
                 self.storage_array_element_access(base.slot, index, element, dynamic)
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
@@ -329,7 +329,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::DynArray(element) = receiver_ty.kind else { return None };
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
-        let new_length = self.checked_add(length, one);
+        let new_length = self.builder.checked_add(length, one);
         let access = self.storage_array_element_access(base.slot, length, element, true)?;
         Some((access, element, new_length, base.slot))
     }
@@ -384,7 +384,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
-        let new_length = self.checked_add(length, one);
+        let new_length = self.builder.checked_add(length, one);
         let element_access = self.storage_array_element_access(base.slot, length, element, true)?;
         self.store_storage_value(element, element_access, value, expr.span)?;
         self.builder.sstore(base.slot, new_length);
@@ -425,13 +425,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let old = self.load_storage_bytes(access.slot)?;
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
         let one = self.builder.imm_u64(1);
-        let length = self.checked_add(old_length, one);
+        let length = self.builder.checked_add(old_length, one);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let total_words = self.builder.checked_add(words, one);
+        let size = self.builder.checked_mul(total_words, word_size);
         let layout = MemoryObjectLayout::Bytes;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
         self.builder.set_memory_object_len(object, length, layout.kind());
@@ -461,15 +461,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u64(0);
             let empty = self.builder.eq(old_length, zero);
-            self.panic_if(empty, PanicCode::EmptyArrayPop);
+            self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
             let one = self.builder.imm_u64(1);
             let length = self.builder.sub(old_length, one);
             let word_size = self.builder.imm_u64(32);
             let thirty_one = self.builder.imm_u64(31);
-            let rounded = self.checked_add(length, thirty_one);
+            let rounded = self.builder.checked_add(length, thirty_one);
             let words = self.builder.div(rounded, word_size);
-            let total_words = self.checked_add(words, one);
-            let size = self.checked_mul(total_words, word_size);
+            let total_words = self.builder.checked_add(words, one);
+            let size = self.builder.checked_mul(total_words, word_size);
             let layout = MemoryObjectLayout::Bytes;
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
@@ -485,7 +485,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.sload(base.slot);
         let zero = self.builder.imm_u64(0);
         let empty = self.builder.eq(length, zero);
-        self.panic_if(empty, PanicCode::EmptyArrayPop);
+        self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
         let one = self.builder.imm_u64(1);
         let last = self.builder.sub(length, one);
         self.builder.sstore(base.slot, last);
@@ -633,7 +633,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.context.storage.load_at_slot(&mut self.builder, access.location, access.slot)
         };
-        self.validate_enum_value(ty, value);
+        if let TyKind::Enum(id) = ty.peel_refs().kind {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
+        }
         Some(value)
     }
 
@@ -658,7 +661,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
-        self.validate_enum_value(ty, value);
+        if let TyKind::Enum(id) = ty.peel_refs().kind {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
+        }
         if let Some(offset) = access.offset {
             self.context.storage.store_packed_at_slot(
                 &mut self.builder,
@@ -743,11 +749,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.sload(slot);
         let element_words = self.types.element_words(element);
         let stride = self.builder.imm_u64(u64::from(element_words));
-        let words = self.checked_mul(length, stride);
+        let words = self.builder.checked_mul(length, stride);
         let one = self.builder.imm_u64(1);
-        let words = self.checked_add(words, one);
+        let words = self.builder.checked_add(words, one);
         let word_size = self.builder.imm_u64(32);
-        let size = self.checked_mul(words, word_size);
+        let size = self.builder.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::DynamicArray { element_words };
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
         self.builder.set_memory_object_len(object, length, layout.kind());
@@ -915,7 +921,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let thirty_two = self.builder.imm_u64(32);
         let short_length = self.builder.lt(length, thirty_two);
         let invalid_encoding = self.builder.eq(is_long, short_length);
-        self.panic_if(invalid_encoding, PanicCode::StorageEncoding);
+        self.builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
         (header, is_long, length)
     }
 
@@ -926,9 +932,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.builder.make_slice(data_ptr, length, SliceLocation::Memory);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let old_rounded = self.checked_add(old_length, thirty_one);
+        let old_rounded = self.builder.checked_add(old_length, thirty_one);
         let old_words = self.builder.div(old_rounded, word_size);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
         let zero = self.builder.imm_u64(0);
         let short = self.builder.lt(length, word_size);
@@ -1053,7 +1059,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(cleanup_block);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let old_rounded = self.checked_add(old_length, thirty_one);
+        let old_rounded = self.builder.checked_add(old_length, thirty_one);
         let old_words = self.builder.div(old_rounded, word_size);
         let new_words = if bytes.len() < 32 {
             self.builder.imm_u64(0)
@@ -1264,7 +1270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm_u64(0);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
         let cleanup_block = self.builder.create_block();
         let write_block = self.builder.create_block();

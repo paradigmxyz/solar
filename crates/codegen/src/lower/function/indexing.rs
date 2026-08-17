@@ -34,7 +34,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.lower_expr(receiver)?;
         if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
             let length = self.builder.slice_len(object);
-            self.bounds_check(index, length);
+            self.builder.bounds_check(index, length);
             let base = self.builder.slice_ptr(object);
             return match receiver_ty.peel_refs().kind {
                 TyKind::Elementary(
@@ -80,7 +80,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     };
                     let head_size = self.types.abi_type(element)?.head_size();
                     let head_size = self.builder.imm_u64(head_size);
-                    let offset = self.checked_mul(index, head_size);
+                    let offset = self.builder.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
                     // Dynamic-array slices retain their element base for nested offsets;
                     // arbitrary slices still cannot validate offsets relative to the tuple.
@@ -105,7 +105,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return report_unsupported(self.context.gcx, expr.span, "array index");
                 };
                 let length = self.builder.memory_object_len(object, layout.kind());
-                self.bounds_check(index, length);
+                self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return report_unsupported(self.context.gcx, expr.span, "array index");
                 };
                 let length = self.builder.imm_u64(len);
-                self.bounds_check(index, length);
+                self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
@@ -126,7 +126,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             MemoryObjectLayout::Bytes => {
                 let length = self.builder.memory_object_len(object, layout.kind());
-                self.bounds_check(index, length);
+                self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_byte(object, index);
                 Some(self.normalize_byte_value(expr, value))
             }
@@ -190,19 +190,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let end = if let Some(end) = end {
             let end = self.lower_expr(end)?;
             let past_end = self.builder.gt(end, base_len);
-            self.panic_if(past_end, PanicCode::ArrayOutOfBounds);
+            self.builder.panic_if(past_end, PanicCode::ArrayOutOfBounds);
             end
         } else {
             base_len
         };
         let backwards = self.builder.lt(end, start);
-        self.panic_if(backwards, PanicCode::ArrayOutOfBounds);
+        self.builder.panic_if(backwards, PanicCode::ArrayOutOfBounds);
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start
         } else {
             let stride = self.builder.imm_u64(element_stride);
-            self.checked_mul(start, stride)
+            self.builder.checked_mul(start, stride)
         };
         let pointer = self.builder.add(base_ptr, start_offset);
         Some(self.builder.make_slice(pointer, length, location))

@@ -288,12 +288,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             let length = self.builder.extcodesize(address);
             let thirty_one = self.builder.imm_u64(31);
-            let rounded = self.checked_add(length, thirty_one);
+            let rounded = self.builder.checked_add(length, thirty_one);
             let word_size = self.builder.imm_u64(32);
             let words = self.builder.div(rounded, word_size);
             let one = self.builder.imm_u64(1);
-            let words = self.checked_add(words, one);
-            let size = self.checked_mul(words, word_size);
+            let words = self.builder.checked_add(words, one);
+            let size = self.builder.checked_mul(words, word_size);
             let object = self.builder.alloc_object(
                 size,
                 MemoryObjectLayout::Bytes,

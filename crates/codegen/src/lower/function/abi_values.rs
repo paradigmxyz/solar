@@ -2,6 +2,37 @@
 
 use super::*;
 
+enum PackedPiece<'gcx> {
+    Bytes(Vec<u8>),
+    Static {
+        value: ValueId,
+        length: u64,
+        fixed_bytes: bool,
+        signed: bool,
+    },
+    Dynamic {
+        source: ValueId,
+        length: ValueId,
+    },
+    Array {
+        value: ValueId,
+        length: ValueId,
+        element: PackedArrayElement<'gcx>,
+        source: PackedArraySource,
+    },
+}
+
+struct PackedArrayElement<'gcx> {
+    abi: AbiType,
+    ty: Ty<'gcx>,
+}
+
+#[derive(Clone, Copy)]
+enum PackedArraySource {
+    Memory { layout: MemoryObjectLayout },
+    Slice(SliceLocation),
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_abi_encode_builtin(
         &mut self,
@@ -194,7 +225,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        self.validate_enum_value(ty, value);
+        if let TyKind::Enum(id) = ty.peel_refs().kind {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
+        }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
@@ -240,11 +274,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm_u64(32);
         let words = if kind == MemoryObjectKind::DynamicArray {
             let one = self.builder.imm_u64(1);
-            self.checked_add(length, one)
+            self.builder.checked_add(length, one)
         } else {
             length
         };
-        let size = self.checked_mul(words, word);
+        let size = self.builder.checked_mul(words, word);
         let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if kind == MemoryObjectKind::DynamicArray {
             self.builder.set_memory_object_len(output, length, kind);
@@ -317,7 +351,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.canonicalize_abi_value(ty, value)
             }
             _ => {
-                self.validate_enum_value(ty, value);
+                if let TyKind::Enum(id) = ty.peel_refs().kind {
+                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                    self.builder.validate_enum_value(variants, value);
+                }
                 self.normalize_abi_scalar(value, ty)
             }
         }
@@ -467,12 +504,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
         let length = self.builder.slice_len(slice);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let word_size = self.builder.imm_u64(32);
         let words = self.builder.div(rounded, word_size);
         let one = self.builder.imm_u64(1);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let total_words = self.builder.checked_add(words, one);
+        let size = self.builder.checked_mul(total_words, word_size);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -486,12 +523,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
         let length = self.builder.returndata_size();
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let word_size = self.builder.imm_u64(32);
         let words = self.builder.div(rounded, word_size);
         let one = self.builder.imm_u64(1);
-        let total_words = self.checked_add(words, one);
-        let size = self.checked_mul(total_words, word_size);
+        let total_words = self.builder.checked_add(words, one);
+        let size = self.builder.checked_mul(total_words, word_size);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -540,14 +577,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let bytes = bytes.as_byte_str().to_vec();
                 let length = self.builder.imm_u64(bytes.len() as u64);
-                total = self.checked_add(total, length);
+                total = self.builder.checked_add(total, length);
                 pieces.push(PackedPiece::Bytes(bytes));
                 continue;
             }
 
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            self.validate_enum_value(ty, value);
+            if let TyKind::Enum(id) = ty.peel_refs().kind {
+                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                self.builder.validate_enum_value(variants, value);
+            }
             if let Some(abi_type) = self.types.abi_type(ty) {
                 self.validate_calldata_bytes_argument(value, &abi_type);
                 self.validate_calldata_array_head(value, ty, &abi_type);
@@ -574,7 +614,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.builder.memory_object_len(value, MemoryObjectKind::Bytes)
                 };
-                total = self.checked_add(total, length);
+                total = self.builder.checked_add(total, length);
                 let source = if is_slice {
                     value
                 } else {
@@ -589,8 +629,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.packed_array_shape(ty, value)
             {
                 let element_bytes_value = self.builder.imm_u64(element_bytes);
-                let byte_length = self.checked_mul(length, element_bytes_value);
-                total = self.checked_add(total, byte_length);
+                let byte_length = self.builder.checked_mul(length, element_bytes_value);
+                total = self.builder.checked_add(total, byte_length);
                 pieces.push(PackedPiece::Array {
                     value,
                     length,
@@ -610,17 +650,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.normalize_abi_scalar(value, ty);
             let signed = is_signed_packed_scalar(ty);
             let length_value = self.builder.imm_u64(length);
-            total = self.checked_add(total, length_value);
+            total = self.builder.checked_add(total, length_value);
             pieces.push(PackedPiece::Static { value, length, fixed_bytes, signed });
         }
 
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(total, thirty_one);
+        let rounded = self.builder.checked_add(total, thirty_one);
         let word_size = self.builder.imm_u64(32);
         let words = self.builder.div(rounded, word_size);
         let one = self.builder.imm_u64(1);
-        let words = self.checked_add(words, one);
-        let size = self.checked_mul(words, word_size);
+        let words = self.builder.checked_add(words, one);
+        let size = self.builder.checked_mul(words, word_size);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -635,7 +675,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.try_write_packed_word(output, offset, &pieces[index..])
             {
                 let length = self.builder.imm_u64(length);
-                offset = self.checked_add(offset, length);
+                offset = self.builder.checked_add(offset, length);
                 index += consumed;
                 continue;
             }
@@ -648,7 +688,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let value = self.builder.imm_u256(U256::from_be_bytes(padded));
                         self.builder.memory_object_store_word(output, offset, value);
                         let length = self.builder.imm_u64(chunk.len() as u64);
-                        offset = self.checked_add(offset, length);
+                        offset = self.builder.checked_add(offset, length);
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
@@ -658,7 +698,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset,
                         *source,
                     );
-                    offset = self.checked_add(offset, *length);
+                    offset = self.builder.checked_add(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
                     offset =
@@ -673,7 +713,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     };
                     self.builder.memory_object_store_word(output, offset, value);
                     let length = self.builder.imm_u64(*length);
-                    offset = self.checked_add(offset, length);
+                    offset = self.builder.checked_add(offset, length);
                 }
             }
             index += 1;
@@ -748,8 +788,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (length, element, element_bytes, source) = self.packed_array_shape(ty, value)?;
         let word = self.builder.imm_u64(32);
         let element_bytes_value = self.builder.imm_u64(element_bytes);
-        let byte_length = self.checked_mul(length, element_bytes_value);
-        let size = self.checked_add(word, byte_length);
+        let byte_length = self.builder.checked_mul(length, element_bytes_value);
+        let size = self.builder.checked_add(word, byte_length);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -777,8 +817,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let words = self.count_inplace_dynamic_value(ty, value)?;
         let word = self.builder.imm_u64(32);
-        let length = self.checked_mul(words, word);
-        let size = self.checked_add(word, length);
+        let length = self.builder.checked_mul(words, word);
+        let size = self.builder.checked_add(word, length);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -826,7 +866,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let field_value =
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     let field_words = self.count_inplace_dynamic_value(field, field_value)?;
-                    total = self.checked_add(total, field_words);
+                    total = self.builder.checked_add(total, field_words);
                 }
                 Some(total)
             }
@@ -857,7 +897,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let element_value = self.builder.memory_object_load_element(value, layout, index);
         let element_words = self.count_inplace_dynamic_value(element, element_value)?;
-        let next_total = self.checked_add(total, element_words);
+        let next_total = self.builder.checked_add(total, element_words);
         let one = self.builder.imm_u64(1);
         let next_index = self.builder.add(index, one);
         let backedge = self.builder.current_block();
@@ -873,7 +913,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
         let word = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let mask = self.builder.not(thirty_one);
         let padded = self.builder.and(rounded, mask);
         self.builder.div(padded, word)
@@ -913,12 +953,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.builder.shl(shift, value);
                 self.builder.memory_object_store_word(output, offset, value);
                 let word = self.builder.imm_u64(32);
-                Some(self.checked_add(offset, word))
+                Some(self.builder.checked_add(offset, word))
             }
             _ => {
                 self.builder.memory_object_store_word(output, offset, value);
                 let word = self.builder.imm_u64(32);
-                Some(self.checked_add(offset, word))
+                Some(self.builder.checked_add(offset, word))
             }
         }
     }
@@ -986,7 +1026,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
         let word = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(length, thirty_one);
+        let rounded = self.builder.checked_add(length, thirty_one);
         let mask = self.builder.not(thirty_one);
         let padded = self.builder.and(rounded, mask);
         let empty = self.builder.iszero(padded);
@@ -1025,8 +1065,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_bytes =
             Self::packed_array_element_bytes(&element.abi).expect("packed array shape");
         let element_bytes_value = self.builder.imm_u64(element_bytes);
-        let byte_length = self.checked_mul(length, element_bytes_value);
-        let end_offset = self.checked_add(offset, byte_length);
+        let byte_length = self.builder.checked_mul(length, element_bytes_value);
+        let end_offset = self.builder.checked_add(offset, byte_length);
         let base = match source {
             PackedArraySource::Memory { .. } => None,
             PackedArraySource::Slice(_) => Some(self.builder.slice_ptr(value)),
@@ -1053,8 +1093,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let element_offset = self.checked_mul(index, element_bytes_value);
-        let destination = self.checked_add(offset, element_offset);
+        let element_offset = self.builder.checked_mul(index, element_bytes_value);
+        let destination = self.builder.checked_add(offset, element_offset);
         match &element.abi {
             AbiType::Word | AbiType::Function => {
                 let element_value = match source {
@@ -1072,7 +1112,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
-                self.validate_enum_value(element.ty, element_value);
+                if let TyKind::Enum(id) = element.ty.peel_refs().kind {
+                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                    self.builder.validate_enum_value(variants, element_value);
+                }
                 let element_value = self.normalize_abi_scalar(element_value, element.ty);
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })

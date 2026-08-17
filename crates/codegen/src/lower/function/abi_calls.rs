@@ -60,7 +60,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm_u64(element.head_size());
         let length = self.builder.slice_len(value);
         let data = self.builder.slice_ptr(value);
-        let byte_length = self.checked_mul(length, word);
+        let byte_length = self.builder.checked_mul(length, word);
         self.check_calldata_range(data, byte_length);
     }
 
@@ -292,8 +292,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn copy_calldata_word_array(&mut self, data: ValueId, length: ValueId) -> ValueId {
         let word = self.builder.imm_u64(32);
-        let byte_length = self.checked_mul(length, word);
-        let size = self.checked_add(word, byte_length);
+        let byte_length = self.builder.checked_mul(length, word);
+        let size = self.builder.checked_add(word, byte_length);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::WORD_ARRAY,
@@ -317,8 +317,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_abi = self.types.abi_type(element)?;
         let element_is_dynamic = element_abi.is_dynamic();
         let element_head_size = self.builder.imm_u64(element_abi.head_size());
-        let payload_size = self.checked_mul(length, word);
-        let size = self.checked_add(word, payload_size);
+        let payload_size = self.builder.checked_mul(length, word);
+        let size = self.builder.checked_add(word, payload_size);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::WORD_ARRAY,
@@ -339,7 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let offset = self.checked_mul(index, element_head_size);
+        let offset = self.builder.checked_mul(index, element_head_size);
         let head = self.builder.add(data, offset);
         let value = self.materialize_calldata_value_at_inner(
             element,

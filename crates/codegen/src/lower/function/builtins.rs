@@ -162,7 +162,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
                 let condition = self.lower_expr(condition)?;
                 let invalid = self.builder.iszero(condition);
-                self.panic_if(invalid, PanicCode::Assert);
+                self.builder.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
@@ -255,7 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
-                self.panic_if_zero(modulus, PanicCode::DivisionByZero);
+                self.builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
                 Some(if builtin == Builtin::AddMod {
                     self.builder.addmod(a, b, modulus)
                 } else {
@@ -344,14 +344,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    total = self.checked_add(total, length);
+                    total = self.builder.checked_add(total, length);
                     parts.push((value, Some(length), 0));
                 }
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
                     let length_value = self.builder.imm_u64(length);
-                    total = self.checked_add(total, length_value);
+                    total = self.builder.checked_add(total, length_value);
                     parts.push((value, None, length));
                 }
                 _ => return report_unsupported(self.context.gcx, expr.span, "concat argument"),
@@ -359,12 +359,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.checked_add(total, thirty_one);
+        let rounded = self.builder.checked_add(total, thirty_one);
         let word_size = self.builder.imm_u64(32);
         let words = self.builder.div(rounded, word_size);
         let one = self.builder.imm_u64(1);
-        let words = self.checked_add(words, one);
-        let size = self.checked_mul(words, word_size);
+        let words = self.builder.checked_add(words, one);
+        let size = self.builder.checked_mul(words, word_size);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -383,11 +383,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     offset,
                     source,
                 );
-                offset = self.checked_add(offset, length);
+                offset = self.builder.checked_add(offset, length);
             } else {
                 self.builder.memory_object_store_word(output, offset, value);
                 let length = self.builder.imm_u64(static_length);
-                offset = self.checked_add(offset, length);
+                offset = self.builder.checked_add(offset, length);
             }
         }
         Some(output)
