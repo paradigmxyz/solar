@@ -65,7 +65,7 @@ class LspBenchPrWorkflowTests(unittest.TestCase):
             'artifact.name === "lsp-bench-pr-baseline-used" && !artifact.expired',
             'id: baseline-download',
             'BASELINE_DOWNLOAD_OUTCOME',
-            'target/lsp-bench-comment/baseline/summary.json',
+            '$RUNNER_TEMP/lsp-bench-baseline/summary.json',
         ):
             self.assertIn(contract, COMMENT_WORKFLOW)
         self.assertIn('name: lsp-bench-pr-baseline-used', PR_WORKFLOW)
@@ -204,6 +204,23 @@ class LspBenchPrWorkflowTests(unittest.TestCase):
             "python3 target/lsp-bench-comment/trusted-source/.github/scripts/",
             COMMENT_WORKFLOW,
         )
+
+    def test_privileged_commenter_isolates_untrusted_artifacts(self) -> None:
+        download_steps = [
+            block
+            for block in COMMENT_WORKFLOW.split("      - name: ")
+            if "uses: actions/download-artifact@" in block
+        ]
+        self.assertEqual(len(download_steps), 2)
+        for step in download_steps:
+            self.assertIn("path: ${{ runner.temp }}/", step)
+            self.assertNotIn("path: target/", step)
+        for path in (
+            '$RUNNER_TEMP/lsp-bench-results/comparison.json',
+            '$RUNNER_TEMP/lsp-bench-baseline/summary.json',
+            '$RUNNER_TEMP/lsp-bench-results/current/summary.json',
+        ):
+            self.assertIn(path, COMMENT_WORKFLOW)
 
     def test_full_workflows_use_github_hosted_ubuntu_without_registration(self) -> None:
         branch_guard = (
