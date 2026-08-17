@@ -1006,9 +1006,7 @@ fn validate_raw_sample_contract_for_servers(
         timeout_ms: profile.timeout_ms,
         profile: profile_name.into(),
     });
-    if summary.summaries != recomputed.summaries {
-        bail!("summary groups and metrics do not match the raw samples")
-    }
+    validate_recomputed_summaries(&summary.summaries, &recomputed.summaries)?;
     for group in &summary.summaries {
         if group.status != SummaryStatus::Pass {
             continue;
@@ -1043,6 +1041,62 @@ fn validate_raw_sample_contract_for_servers(
         }
     }
     Ok(())
+}
+
+fn validate_recomputed_summaries(
+    published: &[SummaryGroup],
+    recomputed: &[SummaryGroup],
+) -> Result<()> {
+    if published.len() != recomputed.len() {
+        bail!("summary group count does not match the raw samples")
+    }
+    for (published, recomputed) in published.iter().zip(recomputed) {
+        let key = format!("{}/{}/{}", published.server, published.fixture, published.workload);
+        if published.server != recomputed.server
+            || published.fixture != recomputed.fixture
+            || published.workload != recomputed.workload
+        {
+            bail!("summary group identity does not match the raw samples at `{key}`")
+        }
+        if published.successful_runs != recomputed.successful_runs
+            || published.status_counts != recomputed.status_counts
+            || published.status != recomputed.status
+        {
+            bail!("summary group status does not match the raw samples for `{key}`")
+        }
+        if published.metrics.len() != recomputed.metrics.len()
+            || published.metrics.keys().ne(recomputed.metrics.keys())
+        {
+            bail!("summary metric selection does not match the raw samples for `{key}`")
+        }
+        for (name, published) in &published.metrics {
+            let recomputed = &recomputed.metrics[name];
+            if published.count != recomputed.count {
+                bail!("summary metric count does not match the raw samples for `{key}/{name}`")
+            }
+            for (field, published, recomputed) in [
+                ("mean", published.mean, recomputed.mean),
+                ("p50", published.p50, recomputed.p50),
+                ("p95", published.p95, recomputed.p95),
+                ("p99", published.p99, recomputed.p99),
+                ("max", published.max, recomputed.max),
+            ] {
+                if !equivalent_metric_value(published, recomputed) {
+                    bail!(
+                        "summary metric `{key}/{name}` {field} does not match the raw samples: published {published}, recomputed {recomputed}"
+                    )
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Summary and raw samples are serialized independently, so their parsed aggregates can differ by
+// a few rounding bits.
+fn equivalent_metric_value(left: f64, right: f64) -> bool {
+    left == right
+        || (left - right).abs() <= f64::EPSILON * 4.0 * left.abs().max(right.abs()).max(1.0)
 }
 
 fn warm_request_contract<'a>(
@@ -3838,6 +3892,21 @@ scenarios:
     }
 
     #[test]
+    fn result_validation_accepts_serialization_rounding() {
+        let directory = tempfile::tempdir().unwrap();
+        let (config_path, output) = publication_artifacts(directory.path());
+        rewrite_summary(&output, |summary| {
+            let stats = &mut summary["summaries"][0]["metrics"]["textDocument/hover"];
+            for field in ["mean", "p50", "p95", "p99", "max"] {
+                let value = stats[field].as_f64().unwrap();
+                stats[field] = Value::from(f64::from_bits(value.to_bits() - 1));
+            }
+        });
+
+        validate_results_directory(&config_path, &output, "publish", false).unwrap();
+    }
+
+    #[test]
     fn result_validation_accepts_an_explicit_server_subset() {
         let directory = tempfile::tempdir().unwrap();
         let (config_path, output) = publication_artifacts_for_servers(directory.path(), &["solar"]);
@@ -3983,7 +4052,7 @@ scenarios:
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("groups and metrics"), "{error}");
+        assert!(error.contains("group count"), "{error}");
     }
 
     #[test]
@@ -4053,7 +4122,7 @@ scenarios:
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("metrics do not match"), "{error}");
+        assert!(error.contains("metric selection"), "{error}");
     }
 
     #[test]
@@ -4074,7 +4143,7 @@ scenarios:
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("metrics do not match the raw samples"), "{error}");
+        assert!(error.contains("does not match the raw samples"), "{error}");
     }
 
     #[test]
