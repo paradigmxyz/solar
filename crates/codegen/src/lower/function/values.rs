@@ -163,7 +163,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.is_storage_reference_binding(element)
                 || self
                     .type_of_expr_or_variable(element)
-                    .map_or(false, |ty| ty.is_ref_at(DataLocation::Storage))
+                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
         }) && let Some(values) = self.lower_storage_reference_call(rhs)
         {
             if values.len() != elements.len() {

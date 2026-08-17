@@ -58,8 +58,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
-        let else_values = self.values.clone();
-        let else_storage_refs = self.storage_refs.clone();
+        let else_values = std::mem::take(&mut self.values);
+        let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
             self.builder.jump(merge_block);
         }
@@ -419,8 +419,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.lower_block(returns_clause.block)?;
         let success_terminated = self.is_terminated();
         let success_exit = self.builder.current_block();
-        let success_values = self.values.clone();
-        let success_storage_refs = self.storage_refs.clone();
+        let success_values = std::mem::take(&mut self.values);
+        let success_storage_refs = std::mem::take(&mut self.storage_refs);
         if !success_terminated {
             self.builder.jump(merge_block);
         }
@@ -487,8 +487,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.jump(merge_block);
                 catch_states.push(LoopState {
                     block: catch_exit,
-                    values: self.values.clone(),
-                    storage_refs: self.storage_refs.clone(),
+                    values: std::mem::take(&mut self.values),
+                    storage_refs: std::mem::take(&mut self.storage_refs),
                 });
             }
             next_catch = next_block;
@@ -541,16 +541,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_branch: MergeBranch<StorageAccess>,
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let mut merged = FxHashMap::default();
-        let ids = before
+        let mut merged = before;
+        let ids = then_branch
+            .values
             .keys()
-            .chain(then_branch.values.keys())
             .chain(else_branch.values.keys())
             .copied()
             .collect::<solar_data_structures::map::FxHashSet<_>>();
         for id in ids {
-            let then = then_branch.values.get(&id).copied().or_else(|| before.get(&id).copied());
-            let else_ = else_branch.values.get(&id).copied().or_else(|| before.get(&id).copied());
+            let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
+            let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let mut incoming = Vec::with_capacity(2);
             if !then_branch.terminated
                 && let Some(access) = then
@@ -604,8 +604,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let else_value = lower(self, else_expr)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
-        let else_values = self.values.clone();
-        let else_storage_refs = self.storage_refs.clone();
+        let else_values = std::mem::take(&mut self.values);
+        let else_storage_refs = std::mem::take(&mut self.storage_refs);
         if !else_terminated {
             self.builder.jump(merge_block);
         }
@@ -933,7 +933,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         before: FxHashMap<VariableId, StorageAccess>,
         exits: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        self.merge_many_storage_refs(before, exits)
+        let ids = exits
+            .iter()
+            .flat_map(|state| state.storage_refs.keys())
+            .copied()
+            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        for id in ids {
+            let fallback = before.get(&id).copied();
+            let incoming = exits
+                .iter()
+                .filter_map(|state| {
+                    state
+                        .storage_refs
+                        .get(&id)
+                        .copied()
+                        .or(fallback)
+                        .map(|access| (state.block, access))
+                })
+                .collect::<Vec<_>>();
+            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
+                before.insert(id, access);
+            }
+        }
+        before
     }
 
     pub(super) fn merge_storage_accesses(
@@ -987,7 +1009,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
-        let mut ids = values.keys().copied().collect::<Vec<_>>();
+        let mut ids = Vec::new();
         ids.extend(then_branch.values.keys().copied());
         ids.extend(else_branch.values.keys().copied());
         ids.sort_unstable();
@@ -1016,8 +1038,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, ValueId>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, ValueId> {
-        let mut ids = before.keys().copied().collect::<Vec<_>>();
-        ids.extend(states.iter().flat_map(|state| state.values.keys().copied()));
+        let mut ids =
+            states.iter().flat_map(|state| state.values.keys().copied()).collect::<Vec<_>>();
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
@@ -1052,9 +1074,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before
-            .keys()
-            .chain(states.iter().flat_map(|state| state.storage_refs.keys()))
+        let ids = states
+            .iter()
+            .flat_map(|state| state.storage_refs.keys())
             .copied()
             .collect::<solar_data_structures::map::FxHashSet<_>>();
         for id in ids {
