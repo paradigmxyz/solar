@@ -674,10 +674,12 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
         metrics: Default::default(),
     });
     let workspace_parent = project.path("/workspace/deps");
+    let include_root = project.path("/include");
     let include_parent = project.path("/include/pkg");
     let remapping_parent = project.path("/mapped/pkg");
     let outside_parent = project.path("/outside");
     let missing_parent = project.path("/include/missing");
+    let missing_nested_parent = project.path("/include/pkg/src");
     std::fs::create_dir_all(&missing_parent).unwrap();
     let analysis_paths = AnalysisPathIndex {
         resolved_dependencies: FxHashSet::from_iter([
@@ -690,7 +692,10 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
             include_parent.join("Candidate.sol"),
             outside_parent.join("Candidate.sol"),
         ]),
-        missing_candidates: FxHashSet::from_iter([missing_parent.join("Missing.sol")]),
+        missing_candidates: FxHashSet::from_iter([
+            missing_parent.join("Missing.sol"),
+            missing_nested_parent.join("Missing.sol"),
+        ]),
     };
 
     let specs = watched_file_specs(&config, &analysis_paths);
@@ -704,6 +709,14 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
     assert!(!specs.iter().any(|spec| spec.base == outside_parent));
     assert_eq!(
         specs.iter().filter(|spec| spec.base == missing_parent && spec.pattern == "*.sol").count(),
+        1
+    );
+    assert_eq!(
+        specs.iter().filter(|spec| spec.base == include_parent && spec.pattern == "*").count(),
+        1
+    );
+    assert_eq!(
+        specs.iter().filter(|spec| spec.base == include_root && spec.pattern == "*").count(),
         1
     );
 }
@@ -758,6 +771,43 @@ fn watched_file_specs_cap_dynamic_dependency_parents() {
             .filter(|spec| spec.pattern == "*.sol" && spec.base.starts_with(&dependency_root))
             .count(),
         MAX_DYNAMIC_WATCHED_FILE_SPECS
+    );
+}
+
+#[test]
+fn watched_file_specs_prioritize_specific_dependency_parents() {
+    let project = TestProject::new();
+    std::fs::create_dir(project.path("/workspace")).unwrap();
+    let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/workspace"]));
+    let fallback_root = project.path("/workspace/missing");
+    std::fs::create_dir(&fallback_root).unwrap();
+    let mut missing_candidates = FxHashSet::default();
+    for index in 0..MAX_DYNAMIC_WATCHED_FILE_SPECS + 32 {
+        let existing_parent = fallback_root.join(index.to_string());
+        std::fs::create_dir(&existing_parent).unwrap();
+        missing_candidates.insert(existing_parent.join("nested/Missing.sol"));
+    }
+    let resolved_parent = project.path("/workspace/resolved");
+    let analysis_paths = AnalysisPathIndex {
+        resolved_dependencies: FxHashSet::from_iter([resolved_parent.join("Dependency.sol")]),
+        missing_candidates,
+        ..Default::default()
+    };
+
+    let specs = watched_file_specs(&config, &analysis_paths);
+
+    assert!(
+        specs.iter().any(|spec| spec.base == resolved_parent && spec.pattern == "*.sol"),
+        "fallback recovery watchers displaced a specific dependency watcher"
+    );
+    assert!(
+        specs
+            .iter()
+            .filter(|spec| {
+                spec.pattern == "*" || spec.base == resolved_parent && spec.pattern == "*.sol"
+            })
+            .count()
+            <= MAX_DYNAMIC_WATCHED_FILE_SPECS
     );
 }
 
@@ -875,6 +925,7 @@ async fn failed_watched_file_replacement_keeps_the_previous_registration() {
     let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
         let mut router = Router::new(());
         router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
         router
     });
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
@@ -987,6 +1038,7 @@ async fn superseded_replacement_preserves_previous_registration_until_latest_is_
     let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
         let mut router = Router::new(());
         router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
         router
     });
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
@@ -1110,6 +1162,7 @@ async fn failed_unregistration_is_retried_after_the_next_replacement() {
     let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
         let mut router = Router::new(());
         router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
         router
     });
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
@@ -1243,6 +1296,115 @@ async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn reregister_watched_files_preserves_missing_candidates() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /generated/.keep
+        "#,
+    );
+    let mut params = project.initialize_params();
+    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+            dynamic_registration: Some(true),
+            relative_pattern_support: Some(true),
+        }),
+        ..Default::default()
+    });
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    let missing_parent = project.path("/generated");
+    state
+        .analysis_commit
+        .lock()
+        .analysis_paths
+        .missing_candidates
+        .insert(missing_parent.join("Missing.sol"));
+
+    state.reregister_watched_files();
+
+    assert!(
+        state
+            .watched_file_registration
+            .desired_specs
+            .lock()
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|spec| spec.base == missing_parent && spec.pattern == "*.sol")
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completed_watcher_registration_rechecks_missing_candidates() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        import "./generated/Missing.sol";
+        contract Main is Missing {}
+
+        //- /generated/.keep
+        "#,
+    );
+    let mut config = project.config();
+    config.rediscover_workspaces();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    let missing = project.path("/generated/Missing.sol");
+    state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing);
+    project.write_file("/generated/Missing.sol", "contract Missing {}");
+    let previous_version = state.analysis_version.load(Ordering::Acquire);
+
+    assert!(matches!(
+        state.on_watched_file_registration_ready(WatchedFileRegistrationReady),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), previous_version + 1);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn completed_watcher_registration_rechecks_symlinked_missing_candidates() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        import "./generated/Missing.sol";
+        contract Main is Missing {}
+
+        //- /generated/.keep
+        //- /generated/Target.sol
+        contract Missing {}
+        "#,
+    );
+    let mut config = project.config();
+    config.rediscover_workspaces();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    let missing = project.path("/generated/Missing.sol");
+    state.analysis_commit.lock().analysis_paths.missing_candidates.insert(missing.clone());
+    std::os::unix::fs::symlink(project.path("/generated/Target.sol"), missing).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Acquire);
+
+    assert!(matches!(
+        state.on_watched_file_registration_ready(WatchedFileRegistrationReady),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), previous_version + 1);
+    state.analysis_scheduler.tasks.lock().cancel();
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     let project = TestProject::from_fixture(
         r#"
@@ -1266,6 +1428,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| {
         let mut router = Router::new(());
         router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router.event::<WatchedFileRegistrationReady>(|_, _| ControlFlow::Continue(()));
         router
     });
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
@@ -1364,6 +1527,11 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     );
     assert!(!published_specs.iter().any(|spec| spec.base == outside_parent));
     assert!(!published_specs.iter().any(|spec| spec.base == missing_parent));
+    assert!(
+        published_specs
+            .iter()
+            .any(|spec| spec.base == project.path("/repo") && spec.pattern == "*")
+    );
     let WatchedFileClientEvent::Register(published_registration) =
         next_watched_file_client_event(&mut events_rx).await
     else {
@@ -1388,6 +1556,11 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
     ));
     assert!(!watched_file_registration_has_spec(&published_registration, &outside_parent, "*.sol"));
     assert!(!watched_file_registration_has_spec(&published_registration, &missing_parent, "*.sol"));
+    assert!(watched_file_registration_has_spec(
+        &published_registration,
+        &project.path("/repo"),
+        "*"
+    ));
 
     state.clear_analysis_cache();
     let cleared_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();

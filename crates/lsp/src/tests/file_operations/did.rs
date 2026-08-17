@@ -269,7 +269,7 @@ async fn deleting_manifest_directory_with_external_sources_rediscovers_workspace
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn deleting_parent_of_missing_candidate_does_not_schedule_analysis() {
+async fn deleting_parent_of_missing_candidate_schedules_analysis() {
     let project = TestProject::from_fixture(
         r#"
         //- /Main.sol
@@ -296,7 +296,11 @@ async fn deleting_parent_of_missing_candidate_does_not_schedule_analysis() {
     );
 
     assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("missing-candidate parent deletion analysis should finish")
+        .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

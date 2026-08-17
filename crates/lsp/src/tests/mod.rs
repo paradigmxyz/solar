@@ -20,6 +20,8 @@ use lsp_types::{
     WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,
     request,
 };
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 use std::{
     future::Future,
     path::Path,
@@ -2121,6 +2123,36 @@ fn analysis_batches_include_created_naked_workspace_disk_files() {
             (open_path, Arc::new("contract Open { function f() public { number+; } }".into()),),
         ]
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn analysis_batches_ignore_symlinked_disk_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /target/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut config = project.config();
+    let symlink_path = project.path("/src/Link.sol");
+    symlink(project.path("/target/Target.sol"), &symlink_path).unwrap();
+    config.add_source_file(symlink_path.clone());
+
+    let snapshot = snapshot_with_config(config, Vfs::default());
+    let (batches, source_files_complete) = snapshot
+        .analysis_batches_cancellable(vec![symlink_path.clone()], &IndexingCancellation::default())
+        .unwrap();
+
+    assert!(batches.iter().flat_map(|batch| &batch.files).all(|(path, _)| path != &symlink_path));
+    assert!(!source_files_complete);
 }
 
 #[test]

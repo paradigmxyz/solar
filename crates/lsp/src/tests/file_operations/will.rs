@@ -147,6 +147,41 @@ fn will_delete_returns_import_edits_without_mutating_state() {
 }
 
 #[test]
+fn will_delete_returns_import_edits_without_default_foundry_flycheck_roots() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Importer.sol open
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let importer = project.path("/src/Importer.sol");
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap()
+    .expect("absent default flycheck roots should not suppress complete import edits");
+
+    assert!(
+        edit.changes
+            .is_some_and(|changes| changes.contains_key(&Url::from_file_path(importer).unwrap()))
+    );
+}
+
+#[test]
 fn will_delete_refuses_partial_import_edits() {
     let project = TestProject::from_fixture(
         r#"
@@ -208,6 +243,82 @@ fn will_delete_refuses_closed_default_named_source_importers() {
             }],
         },
     ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[test]
+fn will_delete_refuses_closed_flycheck_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "./Target.sol";
+
+        //- /test/Importer.t.sol
+        import "../src/Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn will_delete_refuses_import_edits_after_source_load_failure() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "./Target.sol";
+
+        //- /src/Lost.sol
+        import "./Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let config = project.config();
+    fs::remove_file(project.path("/src/Lost.sol")).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    *state.vfs.write() = project.vfs();
+    state.recompute_for_file_changes(Vec::new(), Vec::new(), false);
+    tokio::time::timeout(super::super::ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("analysis should finish")
+        .unwrap();
+
+    let edit = crate::handlers::will_delete_files(
+        &mut state,
+        DeleteFilesParams {
+            files: vec![FileDelete {
+                uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+            }],
+        },
+    )
+    .await
     .unwrap();
 
     assert!(edit.is_none());
@@ -326,6 +437,25 @@ fn will_file_operations_refuse_closed_importers_omitted_by_source_pruning() {
             "/node_modules/Importer.sol",
             "/Target.sol",
         ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            import "./Target.sol";
+
+            //- /test/node_modules/Importer.t.sol
+            import "../../src/Target.sol";
+
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+            None,
+            "/test/node_modules/Importer.t.sol",
+            "/src/Target.sol",
+        ),
     ];
 
     for (fixture, initialization_options, importer, target) in cases {
@@ -418,6 +548,40 @@ fn will_rename_refuses_closed_default_named_source_importers() {
 
         //- /src/lib/Library.sol
         import "../Target.sol";
+
+        //- /src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let edit = block_on(crate::handlers::will_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Url::from_file_path(project.path("/src/Target.sol")).unwrap().to_string(),
+                new_uri: Url::from_file_path(project.path("/src/Renamed.sol")).unwrap().to_string(),
+            }],
+        },
+    ))
+    .unwrap();
+
+    assert!(edit.is_none());
+}
+
+#[test]
+fn will_rename_refuses_closed_flycheck_source_importers() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "./Target.sol";
+
+        //- /script/Importer.s.sol
+        import "../src/Target.sol";
 
         //- /src/Target.sol
         contract Target {}

@@ -10,7 +10,7 @@ use lsp_types::{
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{ops::ControlFlow, path::PathBuf, sync::Arc};
 use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
@@ -123,6 +123,20 @@ pub(crate) fn did_change_configuration(
     ControlFlow::Continue(())
 }
 
+fn push_watched_event_batch(
+    batches: &mut Vec<(FileChangeType, Vec<PathBuf>)>,
+    typ: FileChangeType,
+    path: PathBuf,
+) {
+    if let Some((last_typ, paths)) = batches.last_mut()
+        && *last_typ == typ
+    {
+        paths.push(path);
+    } else {
+        batches.push((typ, vec![path]));
+    }
+}
+
 pub(crate) fn did_change_watched_files(
     state: &mut GlobalState,
     params: DidChangeWatchedFilesParams,
@@ -132,6 +146,7 @@ pub(crate) fn did_change_watched_files(
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
     let mut removed_paths = Vec::new();
+    let mut watched_event_batches = Vec::new();
 
     for event in changes {
         let Some(vfs_path) = proto::vfs_path(&event.uri) else {
@@ -155,7 +170,7 @@ pub(crate) fn did_change_watched_files(
                 }
                 should_rediscover = true;
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
-                    state.file_operations.record_watched_events(event.typ, [path]);
+                    push_watched_event_batch(&mut watched_event_batches, event.typ, path);
                 }
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
@@ -198,7 +213,7 @@ pub(crate) fn did_change_watched_files(
                     removed_paths.push(path.clone());
                 }
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
-                    state.file_operations.record_watched_events(event.typ, [path.clone()]);
+                    push_watched_event_batch(&mut watched_event_batches, event.typ, path.clone());
                 }
                 disk_paths.push(path);
             }
@@ -217,10 +232,14 @@ pub(crate) fn did_change_watched_files(
                 if event.typ == FileChangeType::DELETED {
                     removed_paths.push(path.clone());
                 }
-                state.file_operations.record_watched_events(event.typ, [path]);
+                push_watched_event_batch(&mut watched_event_batches, event.typ, path);
             }
             _ => {}
         }
+    }
+
+    for (typ, paths) in watched_event_batches {
+        state.file_operations.record_watched_events(typ, paths);
     }
 
     if should_rediscover || !disk_paths.is_empty() {

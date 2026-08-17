@@ -96,6 +96,9 @@ fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
         .event::<global_state::DeferredSourceFileEventsReady>(
             GlobalState::on_deferred_source_file_events_ready,
         )
+        .event::<global_state::WatchedFileRegistrationReady>(
+            GlobalState::on_watched_file_registration_ready,
+        )
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
 

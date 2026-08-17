@@ -172,6 +172,8 @@ pub(crate) struct DeferredSourceFileEventsReady {
     events: Vec<(PathBuf, FileChangeType)>,
 }
 
+pub(crate) struct WatchedFileRegistrationReady;
+
 struct WorkspaceDiscoveryMonitor {
     version: usize,
     disk_paths: Vec<PathBuf>,
@@ -559,12 +561,11 @@ impl GlobalState {
             .iter()
             .chain(commit.analysis_paths.existing_unresolved_candidates.iter())
             .any(|candidate| candidate.starts_with(path));
-        let missing_candidate_under = include_missing
-            && commit
-                .analysis_paths
-                .missing_candidates
-                .iter()
-                .any(|candidate| candidate.starts_with(path));
+        let missing_candidate_under = commit
+            .analysis_paths
+            .missing_candidates
+            .iter()
+            .any(|candidate| candidate.starts_with(path));
         if known_dependency_under || missing_candidate_under {
             return true;
         }
@@ -659,7 +660,7 @@ impl GlobalState {
                     .analysis_paths
                     .existing_unresolved_candidates
                     .clone(),
-                missing_candidates: FxHashSet::default(),
+                missing_candidates: commit.analysis_paths.missing_candidates.clone(),
             }
         };
         let specs = watched_file_specs(&self.config, &analysis_paths);
@@ -1013,6 +1014,21 @@ impl GlobalState {
             disk_paths.push(path);
         }
         self.recompute_for_file_changes(disk_paths, removed_paths, false);
+        ControlFlow::Continue(())
+    }
+
+    pub(crate) fn on_watched_file_registration_ready(
+        &mut self,
+        _: WatchedFileRegistrationReady,
+    ) -> NotifyResult {
+        let current_missing = self.analysis_commit.lock().analysis_paths.missing_candidates.clone();
+        let disk_paths = current_missing
+            .into_iter()
+            .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()))
+            .collect::<Vec<_>>();
+        if !disk_paths.is_empty() {
+            self.recompute_for_file_changes(disk_paths, Vec::new(), true);
+        }
         ControlFlow::Continue(())
     }
 
@@ -1492,9 +1508,14 @@ fn run_analysis(
         return AnalysisTaskOutcome::Superseded;
     }
 
-    let Some(batches) = snapshot.analysis_batches_cancellable(disk_paths, cancellation) else {
+    let Some((batches, source_files_complete)) =
+        snapshot.analysis_batches_cancellable(disk_paths, cancellation)
+    else {
         return AnalysisTaskOutcome::Superseded;
     };
+    if !source_files_complete {
+        Arc::make_mut(&mut snapshot.config).mark_analysis_source_files_incomplete();
+    }
     progress.report("Analyzing workspace");
     if cancellation.is_cancelled() || !snapshot.is_current(version) {
         return AnalysisTaskOutcome::Superseded;
@@ -1697,8 +1718,11 @@ impl WatchedSolidityCoverage {
     }
 
     fn covers(&self, path: &Path) -> bool {
-        self.shallow_roots.contains(path)
-            || path.ancestors().any(|ancestor| self.recursive_roots.contains(ancestor))
+        self.shallow_roots.contains(path) || self.covers_recursively(path)
+    }
+
+    fn covers_recursively(&self, path: &Path) -> bool {
+        path.ancestors().any(|ancestor| self.recursive_roots.contains(ancestor))
     }
 }
 
@@ -1735,30 +1759,49 @@ fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Ve
     let mut specs = config.watched_file_specs();
     let coverage = WatchedSolidityCoverage::new(&specs);
     let approved_roots = dependency_watch_roots(config);
-    let mut dependency_parents = analysis_paths
+    let mut dependency_specs = analysis_paths
         .resolved_dependencies
         .iter()
         .chain(analysis_paths.existing_unresolved_candidates.iter())
-        .chain(
-            analysis_paths
-                .missing_candidates
-                .iter()
-                .filter(|path| path.parent().is_some_and(Path::is_dir)),
-        )
-        .filter_map(|path| path.parent().map(Path::normalize))
-        .filter(|parent| {
-            parent.ancestors().any(|ancestor| approved_roots.contains(ancestor))
-                && !coverage.covers(parent)
+        .filter_map(|path| {
+            path.parent().map(Path::normalize).map(|parent| WatchedFileSpec::new(parent, "*.sol"))
         })
-        .collect::<FxHashSet<_>>()
-        .into_iter()
+        .chain(analysis_paths.missing_candidates.iter().flat_map(|path| {
+            let mut specs = Vec::new();
+            if let Some(parent) = path.parent() {
+                let parent_exists = parent.is_dir();
+                if parent_exists {
+                    specs.push(WatchedFileSpec::new(parent.normalize(), "*.sol"));
+                }
+                specs.extend(
+                    parent
+                        .ancestors()
+                        .skip(usize::from(parent_exists))
+                        .filter(|ancestor| ancestor.is_dir())
+                        .map(|ancestor| WatchedFileSpec::new(ancestor.normalize(), "*")),
+                );
+            }
+            specs
+        }))
+        .filter(|spec| {
+            spec.base.ancestors().any(|ancestor| approved_roots.contains(ancestor))
+                && if spec.pattern == "*.sol" {
+                    !coverage.covers(&spec.base)
+                } else {
+                    !coverage.covers_recursively(&spec.base)
+                }
+        })
         .collect::<Vec<_>>();
-    dependency_parents.sort_unstable_by(|a, b| {
-        a.components().count().cmp(&b.components().count()).then_with(|| a.cmp(b))
+    dependency_specs.sort_unstable_by(|a, b| {
+        let a_fallback = a.pattern == "*";
+        let b_fallback = b.pattern == "*";
+        a_fallback
+            .cmp(&b_fallback)
+            .then_with(|| a.base.components().count().cmp(&b.base.components().count()))
+            .then_with(|| a.cmp(b))
     });
-    for parent in dependency_parents.into_iter().take(MAX_DYNAMIC_WATCHED_FILE_SPECS) {
-        specs.push(WatchedFileSpec::new(parent, "*.sol"));
-    }
+    dependency_specs.dedup();
+    specs.extend(dependency_specs.into_iter().take(MAX_DYNAMIC_WATCHED_FILE_SPECS));
     specs.sort_unstable();
     specs.dedup();
     specs
@@ -1829,6 +1872,7 @@ fn spawn_watched_file_registration_update(
             active_ids.push(registration_id);
             previous_ids
         };
+        let _ = client.emit(WatchedFileRegistrationReady);
         for previous_id in previous_ids {
             if coordinator.generation.load(Ordering::Acquire) != generation {
                 break;
@@ -1995,6 +2039,7 @@ impl GlobalStateSnapshot {
     #[cfg(test)]
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
         self.analysis_batches_cancellable(disk_paths, &IndexingCancellation::default())
+            .map(|(batches, _)| batches)
             .unwrap_or_default()
     }
 
@@ -2002,7 +2047,7 @@ impl GlobalStateSnapshot {
         &self,
         disk_paths: Vec<PathBuf>,
         cancellation: &IndexingCancellation,
-    ) -> Option<Vec<AnalysisBatch>> {
+    ) -> Option<(Vec<AnalysisBatch>, bool)> {
         let vfs_files = {
             let vfs = self.vfs.read();
             let mut files = Vec::new();
@@ -2026,6 +2071,7 @@ impl GlobalStateSnapshot {
             .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))
             .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
+        let mut source_files_complete = true;
 
         for (path, contents, version) in vfs_files {
             if cancellation.is_cancelled() {
@@ -2067,8 +2113,17 @@ impl GlobalStateSnapshot {
                 continue;
             }
 
-            if let Ok(contents) = source_map.file_loader().load_file(&path) {
-                batches[idx].push_file(path, contents);
+            match std::fs::symlink_metadata(&path) {
+                Ok(metadata) if metadata.is_file() => {
+                    if let Ok(contents) = source_map.file_loader().load_file(&path) {
+                        batches[idx].push_file(path, contents);
+                    } else {
+                        source_files_complete = false;
+                    }
+                }
+                Ok(_) => source_files_complete = false,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(_) => source_files_complete = false,
             }
         }
 
@@ -2081,8 +2136,15 @@ impl GlobalStateSnapshot {
                 if batch.seen_paths.contains(path) {
                     continue;
                 }
-                if let Ok(contents) = source_map.file_loader().load_file(path) {
-                    batch.push_file(path.clone(), contents);
+                match std::fs::symlink_metadata(path) {
+                    Ok(metadata) if metadata.is_file() => {
+                        if let Ok(contents) = source_map.file_loader().load_file(path) {
+                            batch.push_file(path.clone(), contents);
+                        } else {
+                            source_files_complete = false;
+                        }
+                    }
+                    Ok(_) | Err(_) => source_files_complete = false,
                 }
             }
         }
@@ -2090,7 +2152,7 @@ impl GlobalStateSnapshot {
         for batch in &mut batches {
             batch.finish();
         }
-        Some(batches)
+        Some((batches, source_files_complete))
     }
 
     #[cfg(test)]
@@ -2201,12 +2263,17 @@ impl GlobalStateSnapshot {
                 specs,
             )
         });
+        let active_registration = watched_file_registration_update.is_none()
+            && !self.watched_file_registration.active_registration_ids.lock().is_empty();
         drop(old_symbol_tables);
         spawn_watched_file_registration_update(
             &self.client,
             &self.watched_file_registration,
             watched_file_registration_update,
         );
+        if active_registration {
+            let _ = self.client.emit(WatchedFileRegistrationReady);
+        }
         request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         if refresh_code_lenses {
             request_code_lens_refresh(&self.client);

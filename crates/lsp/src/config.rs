@@ -51,6 +51,7 @@ pub(crate) struct Config {
     git_marker_watch_roots: Vec<PathBuf>,
     index_policy: WorkspaceIndexPolicy,
     index_metrics: WorkspaceIndexMetrics,
+    analysis_source_files_complete: bool,
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
@@ -131,6 +132,7 @@ impl Default for Config {
             git_marker_watch_roots: Vec::new(),
             index_policy: WorkspaceIndexPolicy::default(),
             index_metrics: WorkspaceIndexMetrics::default(),
+            analysis_source_files_complete: true,
             flycheck_options: FlycheckInitializationOptions::default(),
             flychecks: Vec::new(),
             watched_file_dynamic_registration: false,
@@ -361,8 +363,16 @@ impl Config {
             );
         }
 
-        for SourceWatchRoot { path, recursive } in &self.manifest_watch_roots {
+        for SourceWatchRoot { path, recursive, watch_contents } in &self.manifest_watch_roots {
             if !self.workspace_roots.iter().any(|root| path.starts_with(root)) {
+                continue;
+            }
+            if !watch_contents {
+                specs.insert(WatchedFileSpec::with_kind(
+                    path.clone(),
+                    "*",
+                    WatchKind::Create | WatchKind::Delete,
+                ));
                 continue;
             }
             if *recursive {
@@ -409,10 +419,18 @@ impl Config {
                 ));
             }
 
-            for SourceWatchRoot { path, recursive } in
+            for SourceWatchRoot { path, recursive, watch_contents } in
                 workspace.source_watch_roots().iter().chain(workspace.flycheck_watch_roots())
             {
                 if !is_approved_index_root(path, base_path, &self.workspace_roots) {
+                    continue;
+                }
+                if !watch_contents {
+                    specs.insert(WatchedFileSpec::with_kind(
+                        path.clone(),
+                        "*",
+                        WatchKind::Create | WatchKind::Delete,
+                    ));
                     continue;
                 }
                 if *recursive {
@@ -462,11 +480,17 @@ impl Config {
     }
 
     pub(crate) fn may_omit_source_files(&self) -> bool {
-        self.workspaces.iter().any(|workspace| {
-            !workspace.source_files_complete()
-                || self.index_policy.uses_default_excludes()
-                    && workspace.has_whole_root_foundry_source()
-        })
+        !self.analysis_source_files_complete
+            || self.workspaces.iter().any(|workspace| {
+                !workspace.source_files_complete()
+                    || workspace.has_unindexed_flycheck_source_files()
+                    || self.index_policy.uses_default_excludes()
+                        && workspace.has_whole_root_foundry_source()
+            })
+    }
+
+    pub(crate) fn mark_analysis_source_files_incomplete(&mut self) {
+        self.analysis_source_files_complete = false;
     }
 
     pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
@@ -2394,6 +2418,16 @@ mod tests {
                 "*",
                 WatchKind::Create | WatchKind::Delete,
             ),
+            WatchedFileSpec::with_kind(
+                project.path("/repo"),
+                "*",
+                WatchKind::Create | WatchKind::Delete,
+            ),
+            WatchedFileSpec::with_kind(
+                project.path("/repo/workspace/nested"),
+                "*",
+                WatchKind::Create | WatchKind::Delete,
+            ),
         ];
         for root in [explicit_root.clone(), project.path("/repo/workspace/nested")] {
             expected.push(WatchedFileSpec::with_kind(
@@ -2403,21 +2437,14 @@ mod tests {
             ));
             expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
         }
-        for root in [
-            project.path("/repo/script"),
-            project.path("/repo/test"),
-            project.path("/repo/workspace/nested/script"),
-            project.path("/repo/workspace/nested/src"),
-            project.path("/repo/workspace/nested/test"),
-        ] {
-            expected.push(WatchedFileSpec::new(root.clone(), "**/*.sol"));
-            expected.push(WatchedFileSpec::with_kind(
-                root.clone(),
-                "**/.git",
-                WatchKind::Create | WatchKind::Delete,
-            ));
-            expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
-        }
+        let nested_source_root = project.path("/repo/workspace/nested/src");
+        expected.push(WatchedFileSpec::new(nested_source_root.clone(), "**/*.sol"));
+        expected.push(WatchedFileSpec::with_kind(
+            nested_source_root.clone(),
+            "**/.git",
+            WatchKind::Create | WatchKind::Delete,
+        ));
+        expected.push(WatchedFileSpec::new(nested_source_root, "**/foundry.toml"));
         expected.extend(
             explicit_root
                 .ancestors()

@@ -50,17 +50,22 @@ pub(crate) struct Workspace {
 pub(crate) struct SourceWatchRoot {
     pub(crate) path: PathBuf,
     pub(crate) recursive: bool,
+    pub(crate) watch_contents: bool,
 }
 
 type CollectedSourceFiles = (Vec<PathBuf>, Vec<SourceWatchRoot>, Vec<PathBuf>, bool);
 
 impl SourceWatchRoot {
     fn shallow(path: &Path) -> Self {
-        Self { path: path.to_path_buf(), recursive: false }
+        Self { path: path.to_path_buf(), recursive: false, watch_contents: true }
     }
 
     fn recursive(path: &Path) -> Self {
-        Self { path: path.to_path_buf(), recursive: true }
+        Self { path: path.to_path_buf(), recursive: true, watch_contents: true }
+    }
+
+    fn missing_ancestor(path: &Path) -> Self {
+        Self { path: path.to_path_buf(), recursive: false, watch_contents: false }
     }
 }
 
@@ -166,6 +171,10 @@ impl Workspace {
         &self.flycheck_source_files
     }
 
+    pub(crate) fn has_unindexed_flycheck_source_files(&self) -> bool {
+        self.flycheck_source_files.iter().any(|path| self.source_files.binary_search(path).is_err())
+    }
+
     pub(crate) fn is_import_only_path(&self, path: &Path) -> bool {
         is_import_only_path(&self.source_roots, self.import_only_roots(), path)
     }
@@ -185,8 +194,12 @@ impl Workspace {
         else {
             return false;
         };
-        let Some((flycheck_source_files, flycheck_watch_roots, flycheck_marker_watch_roots)) =
-            self.collect_flycheck_source_files(&source_files, policy, cancellation, None)
+        let Some((
+            flycheck_source_files,
+            flycheck_watch_roots,
+            flycheck_marker_watch_roots,
+            flycheck_source_files_complete,
+        )) = self.collect_flycheck_source_files(&source_files, policy, cancellation, None)
         else {
             return false;
         };
@@ -198,7 +211,7 @@ impl Workspace {
         self.flycheck_watch_roots = flycheck_watch_roots;
         self.git_marker_watch_roots = git_marker_watch_roots;
         self.flycheck_source_files = flycheck_source_files;
-        self.source_files_complete = source_files_complete;
+        self.source_files_complete = source_files_complete && flycheck_source_files_complete;
         true
     }
 
@@ -234,6 +247,7 @@ impl Workspace {
                     flycheck_source_files,
                     flycheck_watch_roots,
                     flycheck_marker_watch_roots,
+                    flycheck_source_files_complete,
                 )) = workspace.collect_flycheck_source_files(
                     &source_files,
                     policy,
@@ -249,7 +263,7 @@ impl Workspace {
                 collected.push((
                     source_files,
                     source_watch_roots,
-                    source_files_complete,
+                    source_files_complete && flycheck_source_files_complete,
                     flycheck_source_files,
                     flycheck_watch_roots,
                     git_marker_watch_roots,
@@ -337,7 +351,7 @@ impl Workspace {
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         ownership: Option<(&'index WorkspacePathIndex<'workspaces>, usize)>,
-    ) -> Option<(Vec<PathBuf>, Vec<SourceWatchRoot>, Vec<PathBuf>)> {
+    ) -> Option<CollectedSourceFiles> {
         let mut files = source_files
             .iter()
             .filter(|path| {
@@ -349,14 +363,24 @@ impl Workspace {
             .collect::<Vec<_>>();
         let mut watch_roots = Vec::new();
         let mut marker_watch_roots = Vec::new();
+        let mut source_files_complete = true;
         for root in &self.flycheck_source_roots {
             if self.source_roots.contains(root) {
+                continue;
+            }
+            if matches!(std::fs::symlink_metadata(root), Err(error) if error.kind() == io::ErrorKind::NotFound)
+            {
+                if let Some(ancestor) = root.ancestors().skip(1).find(|ancestor| {
+                    std::fs::symlink_metadata(ancestor).is_ok_and(|metadata| metadata.is_dir())
+                }) {
+                    watch_roots.push(SourceWatchRoot::missing_ancestor(ancestor));
+                }
                 continue;
             }
             let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
             let mut metrics = WorkspaceIndexMetrics::default();
             let watch_root_start = watch_roots.len();
-            let state = (SourceFileCollector {
+            let mut collector = SourceFileCollector {
                 workspace_root,
                 source_root: root,
                 source_roots: &self.flycheck_source_roots,
@@ -370,8 +394,9 @@ impl Workspace {
                 ownership,
                 flycheck: true,
                 source_files_complete: true,
-            })
-            .collect(root, false);
+            };
+            let state = collector.collect(root, false);
+            source_files_complete &= collector.source_files_complete;
             match state {
                 SourceTreeState::Cancelled => return None,
                 SourceTreeState::Pruned => continue,
@@ -391,11 +416,13 @@ impl Workspace {
         watch_roots.dedup();
         marker_watch_roots.sort_unstable();
         marker_watch_roots.dedup();
-        Some((files, watch_roots, marker_watch_roots))
+        Some((files, watch_roots, marker_watch_roots, source_files_complete))
     }
 
     pub(crate) fn add_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: PathBuf) {
-        if self.tracks_disk_file(policy, &path) {
+        if std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file())
+            && self.tracks_disk_file(policy, &path)
+        {
             insert_sorted(&mut self.source_files, path);
         }
     }
@@ -405,7 +432,9 @@ impl Workspace {
     }
 
     pub(crate) fn add_flycheck_source_file(&mut self, policy: &WorkspaceIndexPolicy, path: &Path) {
-        if self.tracks_flycheck_file(policy, path) {
+        if std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file())
+            && self.tracks_flycheck_file(policy, path)
+        {
             insert_sorted(&mut self.flycheck_source_files, path.to_path_buf());
         }
     }
@@ -860,7 +889,12 @@ impl SourceFileCollector<'_, '_, '_> {
             self.watch_roots.push(SourceWatchRoot::shallow(path));
             return SourceTreeState::Partitioned;
         };
-        for entry in entries.filter_map(Result::ok) {
+        for entry in entries {
+            let Ok(entry) = entry else {
+                self.source_files_complete = false;
+                partitioned = true;
+                continue;
+            };
             match self.collect(&entry.path(), false) {
                 SourceTreeState::Clean => {}
                 SourceTreeState::Partitioned | SourceTreeState::Pruned => partitioned = true,
@@ -1170,6 +1204,31 @@ mod tests {
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/lib/Dependency.sol")));
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/custom/Excluded.sol")));
         assert_eq!(metrics.eager, 1);
+    }
+
+    #[test]
+    fn missing_foundry_flycheck_roots_are_complete_and_watch_their_parent() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Main.sol
+            contract Main {}
+            "#,
+        );
+        let mut workspace = Workspace::load_foundry(project.path("/foundry.toml")).unwrap();
+
+        refresh_source_files(&mut workspace);
+
+        assert!(workspace.source_files_complete());
+        assert_eq!(workspace.source_files(), &[project.path("/src/Main.sol")]);
+        assert!(
+            workspace
+                .flycheck_watch_roots()
+                .contains(&SourceWatchRoot::missing_ancestor(&project.path("/")))
+        );
     }
 
     #[test]
