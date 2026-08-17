@@ -145,10 +145,18 @@ def baseline_regression_details(
     return details
 
 
+# Wall-clock compile times jitter between CI runners, so only movement beyond
+# these thresholds counts as a change worth a fresh PR comment.
+COMPILE_TIME_BENCH_CHANGE = 0.20
+COMPILE_TIME_TOTAL_CHANGE = 0.10
+
+
 def has_baseline_changes(
     results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> bool:
     baseline = by_test_id(baseline_results)
+    time_sum = 0.0
+    base_time_sum = 0.0
     for result in results:
         test_id = "/".join(suite_key(result))
         base = baseline.get(suite_key(result))
@@ -165,7 +173,19 @@ def has_baseline_changes(
         if solar_size is not None and base_solar_size is not None and solar_size != base_solar_size:
             return True
 
-    return False
+        solar_time = compile_time(result, "solar")
+        base_solar_time = compile_time(base, "solar")
+        if solar_time is not None and base_solar_time is None:
+            # The baseline artifact predates compile-time tracking: the report
+            # gained a section, which is a change worth posting.
+            return True
+        if solar_time is not None and base_solar_time is not None:
+            if abs(solar_time - base_solar_time) > base_solar_time * COMPILE_TIME_BENCH_CHANGE:
+                return True
+            time_sum += solar_time
+            base_time_sum += base_solar_time
+
+    return abs(time_sum - base_time_sum) > base_time_sum * COMPILE_TIME_TOTAL_CHANGE
 
 
 def warning(message: str) -> None:
@@ -199,6 +219,30 @@ def peak_rss(result: dict[str, Any], compiler: str) -> int | None:
     if data.get("status") != "ok":
         return None
     return value if isinstance(value, int) else None
+
+
+def compile_time(result: dict[str, Any], compiler: str) -> float | None:
+    data = compiler_data(result, compiler)
+    if data.get("status") != "ok":
+        return None
+    value = data.get("compile_time_seconds")
+    if isinstance(value, (int, float)) and value > 0:
+        return float(value)
+    return None
+
+
+def fmt_duration(seconds: float | None) -> str:
+    if seconds is None:
+        return "n/a"
+    if seconds >= 1.0:
+        return f"{seconds:.3f} s"
+    return f"{seconds * 1000:.1f} ms"
+
+
+def fmt_speedup(solc_seconds: float | None, solar_seconds: float | None) -> str:
+    if solc_seconds is None or solar_seconds is None or solar_seconds <= 0:
+        return "n/a"
+    return f"{solc_seconds / solar_seconds:.2f}x"
 
 
 def fmt_int(value: int | None, suffix: str = "") -> str:
@@ -382,6 +426,62 @@ def memory_report(results: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def compile_time_rows(
+    results: list[dict[str, Any]], baseline: dict[tuple[str, str], dict[str, Any]]
+) -> list[str]:
+    rows = []
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        solc_time = compile_time(result, "solc")
+        solar_time = compile_time(result, "solar")
+        base = baseline.get(suite_key(result), {})
+        base_solar_time = compile_time(base, "solar") if base else None
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(test_id),
+                    fmt_duration(solc_time),
+                    f"{fmt_duration(solar_time)} "
+                    f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})",
+                    fmt_speedup(solc_time, solar_time),
+                ]
+            )
+            + " |"
+        )
+    return rows
+
+
+def compile_time_report(
+    results: list[dict[str, Any]],
+    baseline: dict[tuple[str, str], dict[str, Any]],
+    baseline_label: str,
+) -> list[str]:
+    # Aggregate only tests where both compilers succeeded, so a new failure
+    # cannot make the Solar total look faster.
+    paired = [
+        (compile_time(result, "solc"), compile_time(result, "solar"))
+        for result in results
+    ]
+    paired = [(solc, solar) for solc, solar in paired if solc is not None and solar is not None]
+    if not paired:
+        return []
+
+    solc_sum = sum(solc for solc, _ in paired)
+    solar_sum = sum(solar for _, solar in paired)
+
+    return [
+        "### Compilation time",
+        "",
+        f"| bench | solc | Solar (vs {baseline_label}) | speedup |",
+        "| ----- | ---- | ----- | ------- |",
+        *compile_time_rows(results, baseline),
+        f"| **sum of medians** | **{fmt_duration(solc_sum)}** | **{fmt_duration(solar_sum)}** "
+        f"| **{fmt_speedup(solc_sum, solar_sum)}** |",
+        "",
+    ]
+
+
 def report_section(
     title: str,
     results: list[dict[str, Any]],
@@ -408,6 +508,7 @@ def report_section(
             "",
         ]
     )
+    lines.extend(compile_time_report(results, baseline, baseline_label))
     lines.extend(memory_report(results))
     return "\n".join(lines)
 
