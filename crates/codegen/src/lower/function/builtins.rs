@@ -217,17 +217,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
-                let value_ty = self.gcx.type_of_expr(value.id);
-                let value = self.lower_expr(value)?;
-                if let Some(value_ty) = value_ty
-                    && let Some(abi_type) = self.types.abi_type(value_ty)
-                {
-                    self.validate_calldata_bytes_argument(value, &abi_type);
-                }
-                let value = match self.builder.func().value_ty(value) {
-                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
-                    _ => value,
-                };
+                let value_ty = self.gcx.type_of_expr(value.id)?;
+                let memory_ty = value_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+                let span = value.span;
+                let value = self.lower_typed_expr(value, memory_ty)?;
+                let value = self.materialize_memory_argument(memory_ty, value, span)?;
                 Some(self.builder.keccak256_bytes(value))
             }
             Builtin::Gasleft => {
@@ -298,17 +292,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
         } else {
-            let value = self.lower_expr(argument)?;
-            if let Some(value_ty) = self.gcx.type_of_expr(argument.id)
-                && let Some(abi_type) = self.types.abi_type(value_ty)
-            {
-                self.validate_calldata_bytes_argument(value, &abi_type);
-            }
-            let value = if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
-                self.materialize_memory_slice(value)
-            } else {
-                value
-            };
+            let argument_ty = self.gcx.type_of_expr(argument.id)?;
+            let memory_ty = argument_ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            let span = argument.span;
+            let value = self.lower_typed_expr(argument, memory_ty)?;
+            let value = self.materialize_memory_argument(memory_ty, value, span)?;
             self.builder.keccak256_bytes(value)
         };
         let one = self.builder.imm_u256(U256::from(1));
