@@ -347,6 +347,20 @@ fn generate_contract_bytecode(
         .collect();
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
+    // EIP-170 rejects runtime code above this size at deployment, so an
+    // oversized artifact compiles but can never reach a mainnet-rules chain.
+    const DEPLOYABLE_CODE_SIZE: usize = 24576;
+    if captures.bytecode.contains(contract_id) && artifact.runtime.len() > DEPLOYABLE_CODE_SIZE {
+        let name = gcx.hir.contract(contract_id).name;
+        gcx.dcx()
+            .warn(format!(
+                "runtime code for `{name}` is {} bytes, above the {DEPLOYABLE_CODE_SIZE}-byte deployable limit",
+                artifact.runtime.len(),
+            ))
+            .help("compile with `-O size` or lower optimizer runs to reduce code size")
+            .emit();
+    }
+
     Ok(ContractArtifact {
         deployment: artifact.deployment.into(),
         runtime: artifact.runtime.into(),
