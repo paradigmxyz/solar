@@ -184,13 +184,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         let invalid = self.builder.or(past_end, backwards);
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(invalid, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u64(0);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.revert_if_calldata_invalid(invalid);
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start
