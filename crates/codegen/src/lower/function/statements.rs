@@ -41,7 +41,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::DeclMulti(ids, expr) => {
                 if ids.iter().flatten().any(|&id| {
-                    self.context.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage)
+                    // Memory declarations must also route through the copy
+                    // path: the generic path would bind the callee's raw
+                    // storage slot as if it were a memory pointer.
+                    let ty = self.context.gcx.type_of_item(id.into());
+                    ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
                 }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
@@ -54,17 +58,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     for (id, (value, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
                         if let Some(access) = access {
-                            if !self
-                                .context
-                                .gcx
-                                .type_of_item((*id).into())
-                                .is_ref_at(DataLocation::Storage)
-                            {
-                                return report_unsupported(
-                                    self.context.gcx,
-                                    self.context.gcx.hir.variable(*id).span,
-                                    "mixed storage tuple",
-                                );
+                            let ty = self.context.gcx.type_of_item((*id).into());
+                            if !ty.is_ref_at(DataLocation::Storage) {
+                                // A storage-reference return declared into a
+                                // non-storage local copies the referenced
+                                // value, matching solc; the reference itself
+                                // only binds to a storage variable.
+                                let span = self.context.gcx.hir.variable(*id).span;
+                                let value = self.load_storage_object(ty, value, span)?;
+                                self.values.insert(*id, value);
+                                continue;
                             }
                             self.storage_refs.insert(*id, access);
                         } else {
@@ -550,6 +553,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         Some(())
     }
+
     pub(super) fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
         for stmt in block.stmts {
             if self.is_terminated() {
@@ -559,6 +563,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         Some(())
     }
+
     pub(super) fn lower_word_value(
         &mut self,
         ty: Ty<'gcx>,

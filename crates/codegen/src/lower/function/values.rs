@@ -160,10 +160,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         let rhs = rhs.peel_parens();
         if elements.iter().flatten().any(|element| {
+            // Memory-typed reference elements must also route through the copy
+            // path: the generic path would store the callee's raw storage slot
+            // as if it were a memory pointer.
             self.is_storage_reference_binding(element)
-                || self
-                    .type_of_expr_or_variable(element)
-                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+                || self.type_of_expr_or_variable(element).is_some_and(|ty| {
+                    ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
+                })
         }) && let Some(values) = self.lower_storage_reference_call(rhs)
         {
             if values.len() != elements.len() {
