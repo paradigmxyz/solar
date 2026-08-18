@@ -32,6 +32,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let index = self.lower_expr(index)?;
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let object = self.lower_expr(receiver)?;
+        if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            receiver_ty.peel_refs().kind
+        {
+            let length = self.builder.imm_u64(u64::from(size.bytes()));
+            self.bounds_check(index, length);
+            let byte = self.builder.byte(index, object);
+            return Some(self.normalize_byte_value(expr, byte));
+        }
         if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
             let length = self.builder.slice_len(object);
             self.builder.bounds_check(index, length);
