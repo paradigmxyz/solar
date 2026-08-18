@@ -534,8 +534,8 @@ jobs:
               });
             }
 
-  compute:
-    name: benchmark frozen revisions
+  build_base:
+    name: build main compiler (D)
     needs: [resolve, arbitrate]
     if: >-
       !cancelled() &&
@@ -546,33 +546,15 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      - name: Initialize raw artifact
-        run: mkdir -p "$RUNNER_TEMP/lsp-bench-artifact/raw"
-
-      # Keep the adapter separate from both revisions whose binaries are measured.
-      - name: Checkout trusted benchmark adapter
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ needs.resolve.outputs.trusted_repo }}
-          ref: ${{ needs.resolve.outputs.trusted_sha }}
-          path: lsp-bench/trusted
-          persist-credentials: false
-
       - name: Checkout main revision (D)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.resolve.outputs.repository }}
           ref: ${{ needs.resolve.outputs.main_sha }}
           path: lsp-bench/base
-          persist-credentials: false
-
-      - name: Checkout test merge revision (M)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ needs.resolve.outputs.repository }}
-          ref: ${{ needs.resolve.outputs.merge_candidate_sha }}
-          path: lsp-bench/candidate
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
@@ -590,15 +572,110 @@ jobs:
             "$RUNNER_TEMP/lsp-bench-target/base/release/solar" \
             "$RUNNER_TEMP/lsp-bench-bin/base-solar"
 
+      - name: Upload main compiler
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-base-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lsp-bench-bin/base-solar
+          retention-days: 1
+          if-no-files-found: error
+
+  build_candidate:
+    name: build test merge compiler (M)
+    needs: [resolve, arbitrate]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.arbitrate.result == 'success' &&
+      needs.arbitrate.outputs.superseded == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout test merge revision (M)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.repository }}
+          ref: ${{ needs.resolve.outputs.merge_candidate_sha }}
+          path: lsp-bench/candidate
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
       - name: Build test merge compiler (M)
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/lsp-bench/candidate"
           CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate" \
             cargo build --locked --release -p solar-compiler --bin solar
+          mkdir -p "$RUNNER_TEMP/lsp-bench-bin"
           install -m 0755 \
             "$RUNNER_TEMP/lsp-bench-target/candidate/release/solar" \
             "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"
+
+      - name: Upload test merge compiler
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-candidate-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lsp-bench-bin/candidate-solar
+          retention-days: 1
+          if-no-files-found: error
+
+  compute:
+    name: benchmark frozen revisions
+    needs: [resolve, arbitrate, build_base, build_candidate]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.arbitrate.result == 'success' &&
+      needs.arbitrate.outputs.superseded == 'false' &&
+      needs.build_base.result == 'success' &&
+      needs.build_candidate.result == 'success' &&
+      needs.build_base.outputs.artifact_id != '' &&
+      needs.build_candidate.outputs.artifact_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Initialize raw artifact
+        run: mkdir -p "$RUNNER_TEMP/lsp-bench-artifact/raw"
+
+      # Keep the adapter separate from both revisions whose binaries are measured.
+      - name: Checkout trusted benchmark adapter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.trusted_repo }}
+          ref: ${{ needs.resolve.outputs.trusted_sha }}
+          path: lsp-bench/trusted
+          persist-credentials: false
+
+      - name: Download main compiler
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build_base.outputs.artifact_id }}
+          path: ${{ runner.temp }}/lsp-bench-bin
+
+      - name: Download test merge compiler
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build_candidate.outputs.artifact_id }}
+          path: ${{ runner.temp }}/lsp-bench-bin
+
+      - name: Prepare compiler binaries
+        run: |
+          set -euo pipefail
+          chmod 0755 "$RUNNER_TEMP/lsp-bench-bin/base-solar"
+          chmod 0755 "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"
+          test -x "$RUNNER_TEMP/lsp-bench-bin/base-solar"
+          test -x "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"
 
       - name: Install pinned lsp-bench
         run: |

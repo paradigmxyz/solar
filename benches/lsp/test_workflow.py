@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-command.yml"
 WORKFLOW = WORKFLOW_PATH.read_text(encoding="utf-8")
 BENCH_WORKFLOW = (ROOT / ".github/workflows/bench.yml").read_text(encoding="utf-8")
+UPLOAD_ARTIFACT_ACTION = (
+    "uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+)
+DOWNLOAD_ARTIFACT_ACTION = (
+    "uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+)
 
 
 def job_block(name: str) -> str:
@@ -553,6 +559,8 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             job_permissions("queue-comment"),
             {"issues": "write", "pull-requests": "write"},
         )
+        self.assertEqual(job_permissions("build_base"), {"contents": "read"})
+        self.assertEqual(job_permissions("build_candidate"), {"contents": "read"})
         self.assertEqual(job_permissions("compute"), {"contents": "read"})
         self.assertEqual(
             job_permissions("render"),
@@ -564,13 +572,22 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             },
         )
         self.assertEqual(WORKFLOW.count("issues: write"), 2)
-        compute = job_block("compute")
-        self.assertNotRegex(compute, r"\bsecrets\b")
-        self.assertNotIn("github.token", compute)
-        self.assertNotIn("GITHUB_TOKEN", compute)
-        self.assertNotIn("GH_TOKEN", compute)
+        for name in ("build_base", "build_candidate", "compute"):
+            with self.subTest(name=name):
+                job = job_block(name)
+                self.assertNotRegex(job, r"\bsecrets\b")
+                self.assertNotIn("github.token", job)
+                self.assertNotIn("GITHUB_TOKEN", job)
+                self.assertNotIn("GH_TOKEN", job)
+        workflow_lower = WORKFLOW.lower()
+        self.assertNotIn("actions/cache@", workflow_lower)
+        self.assertNotIn("rust-cache@", workflow_lower)
+        self.assertNotIn("sccache", workflow_lower)
+        self.assertIsNone(re.search(r"^\s+cache:", WORKFLOW, re.MULTILINE))
 
     def test_all_checkouts_are_credentialless_and_use_frozen_revisions(self) -> None:
+        build_base = job_block("build_base")
+        build_candidate = job_block("build_candidate")
         compute = job_block("compute")
         render = job_block("render")
 
@@ -582,13 +599,13 @@ class PermissionAndCheckoutTests(unittest.TestCase):
                 "path: lsp-bench/trusted",
             ),
             "Checkout main revision (D)": (
-                compute,
+                build_base,
                 "repository: ${{ needs.resolve.outputs.repository }}",
                 "ref: ${{ needs.resolve.outputs.main_sha }}",
                 "path: lsp-bench/base",
             ),
             "Checkout test merge revision (M)": (
-                compute,
+                build_candidate,
                 "repository: ${{ needs.resolve.outputs.repository }}",
                 "ref: ${{ needs.resolve.outputs.merge_candidate_sha }}",
                 "path: lsp-bench/candidate",
@@ -616,8 +633,12 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             WORKFLOW.count("ref: ${{ needs.resolve.outputs.trusted_sha }}"), 2
         )
         self.assertNotIn("github.workflow_sha", WORKFLOW)
-        self.assertIn("ref: ${{ needs.resolve.outputs.main_sha }}", compute)
-        self.assertIn("ref: ${{ needs.resolve.outputs.merge_candidate_sha }}", compute)
+        self.assertIn("ref: ${{ needs.resolve.outputs.main_sha }}", build_base)
+        self.assertIn(
+            "ref: ${{ needs.resolve.outputs.merge_candidate_sha }}", build_candidate
+        )
+        self.assertNotIn("Checkout main revision", compute)
+        self.assertNotIn("Checkout test merge revision", compute)
         self.assertIn('--main-sha "$MAIN_SHA"', compute)
         self.assertIn('--merge-candidate-sha "$MERGE_CANDIDATE_SHA"', compute)
         validate = step_block(render, "Validate and render benchmark")
@@ -665,6 +686,10 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             'python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" render',
             render,
         )
+        self.assertNotIn("lsp-bench-base-binary", render)
+        self.assertNotIn("lsp-bench-candidate-binary", render)
+        self.assertNotIn("--base-binary", render)
+        self.assertNotIn("--head-binary", render)
 
     def test_every_action_is_pinned_to_a_full_commit(self) -> None:
         actions = re.findall(r"^\s*uses:\s+([^\s#]+)", WORKFLOW, re.MULTILINE)
@@ -676,6 +701,107 @@ class PermissionAndCheckoutTests(unittest.TestCase):
 
 
 class ArtifactAndStatusTests(unittest.TestCase):
+    def test_build_jobs_upload_role_specific_binaries(self) -> None:
+        contracts = {
+            "build_base": (
+                "Build main compiler (D)",
+                "Upload main compiler",
+                "lsp-bench-base-binary-${{ github.run_id }}-${{ github.run_attempt }}",
+                "${{ runner.temp }}/lsp-bench-bin/base-solar",
+                '"$RUNNER_TEMP/lsp-bench-bin/base-solar"',
+            ),
+            "build_candidate": (
+                "Build test merge compiler (M)",
+                "Upload test merge compiler",
+                "lsp-bench-candidate-binary-${{ github.run_id }}-${{ github.run_attempt }}",
+                "${{ runner.temp }}/lsp-bench-bin/candidate-solar",
+                '"$RUNNER_TEMP/lsp-bench-bin/candidate-solar"',
+            ),
+        }
+
+        for job_name, contract in contracts.items():
+            with self.subTest(job=job_name):
+                build_name, upload_name, artifact_name, path, shell_path = contract
+                job = job_block(job_name)
+                build = step_block(job, build_name)
+                upload = step_block(job, upload_name)
+                self.assertIn(
+                    "artifact_id: ${{ steps.upload.outputs.artifact-id }}", job
+                )
+                self.assertEqual(job.count("uses: actions/upload-artifact@"), 1)
+                self.assertEqual(upload.count(UPLOAD_ARTIFACT_ACTION), 1)
+                self.assertIn(shell_path, build)
+                self.assertIn("id: upload", upload)
+                self.assertIn(f"name: {artifact_name}", upload)
+                self.assertIn(f"path: {path}", upload)
+                self.assertIn("retention-days: 1", upload)
+                self.assertIn("if-no-files-found: error", upload)
+                self.assertNotIn("overwrite:", upload)
+                self.assertNotIn("lsp-bench-target", upload)
+                self.assertEqual(WORKFLOW.count(f"name: {artifact_name}"), 1)
+                self.assertLess(
+                    job.index(f"name: {build_name}"),
+                    job.index(f"name: {upload_name}"),
+                )
+
+    def test_compute_downloads_binaries_outside_the_trusted_checkout(self) -> None:
+        compute = job_block("compute")
+        contracts = {
+            "Download main compiler": (
+                "${{ needs.build_base.outputs.artifact_id }}",
+                "${{ runner.temp }}/lsp-bench-bin",
+            ),
+            "Download test merge compiler": (
+                "${{ needs.build_candidate.outputs.artifact_id }}",
+                "${{ runner.temp }}/lsp-bench-bin",
+            ),
+        }
+
+        for step_name, (artifact_id, path) in contracts.items():
+            with self.subTest(step=step_name):
+                download = step_block(compute, step_name)
+                self.assertEqual(download.count(DOWNLOAD_ARTIFACT_ACTION), 1)
+                self.assertIn(f"artifact-ids: {artifact_id}", download)
+                self.assertIn(f"path: {path}", download)
+                self.assertNotIn("github.workspace", download.lower())
+                self.assertNotIn("github.run_attempt", download)
+                self.assertNotIn("github-token:", download)
+                self.assertNotIn("repository:", download)
+                self.assertNotIn("run-id:", download)
+                self.assertNotIn("pattern:", download)
+                self.assertLess(
+                    compute.index(f"name: {step_name}"),
+                    compute.index("name: Prepare compiler binaries"),
+                )
+        prepare = step_block(compute, "Prepare compiler binaries")
+        self.assertIn('chmod 0755 "$RUNNER_TEMP/lsp-bench-bin/base-solar"', prepare)
+        self.assertIn(
+            'chmod 0755 "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', prepare
+        )
+        self.assertIn('test -x "$RUNNER_TEMP/lsp-bench-bin/base-solar"', prepare)
+        self.assertIn(
+            'test -x "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', prepare
+        )
+        self.assertLess(
+            compute.index("name: Download main compiler"),
+            compute.index("name: Run LSP comparison"),
+        )
+        self.assertLess(
+            compute.index("name: Download test merge compiler"),
+            compute.index("name: Run LSP comparison"),
+        )
+        self.assertLess(
+            compute.index("name: Prepare compiler binaries"),
+            compute.index("name: Run LSP comparison"),
+        )
+        run = step_block(compute, "Run LSP comparison")
+        self.assertIn(
+            '--base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar"', run
+        )
+        self.assertIn(
+            '--head-binary "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', run
+        )
+
     def test_compute_uploads_only_the_manifest_covered_raw_tree(self) -> None:
         upload = step_block(job_block("compute"), "Upload raw benchmark artifact")
         expected_paths = {
@@ -722,6 +848,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
         failure = step_block(render, "Fail incomplete benchmark")
 
         for contract in (
+            "COMPUTE_RESULT: ${{ needs.compute.result }}",
             '"schema_version": 2',
             '"kind": "solar-lsp-benchmark-comparison"',
             '"overall": "inconclusive"',
@@ -816,7 +943,13 @@ class ArtifactAndStatusTests(unittest.TestCase):
             "CURRENT_PR_HEAD_SHA": "2" * 40,
         }
 
-        for failed_stage in ("compute", "download", "current_state", "render"):
+        for failed_stage in (
+            "compute",
+            "compute_skipped",
+            "download",
+            "current_state",
+            "render",
+        ):
             with self.subTest(failed_stage=failed_stage), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 rendered = root / "lsp-bench-render"
@@ -826,15 +959,17 @@ class ArtifactAndStatusTests(unittest.TestCase):
                     json.dumps({"overall": "stable"}) + "\n", encoding="utf-8"
                 )
                 output_path = root / "step-output"
+                compute_result = {
+                    "compute": "failure",
+                    "compute_skipped": "skipped",
+                }.get(failed_stage, "success")
                 environment = os.environ.copy()
                 environment.update(context)
                 environment.update(
                     {
                         "RUNNER_TEMP": directory,
                         "GITHUB_OUTPUT": str(output_path),
-                        "COMPUTE_RESULT": (
-                            "failure" if failed_stage == "compute" else "success"
-                        ),
+                        "COMPUTE_RESULT": compute_result,
                         "DOWNLOAD_OUTCOME": (
                             "failure" if failed_stage == "download" else "success"
                         ),
@@ -868,7 +1003,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
         render = job_block("render")
         publish = step_block(render, "Publish sticky benchmark comment")
 
+        self.assertIn("needs: [resolve, arbitrate, queue-comment, compute]", render)
         self.assertIn("!cancelled() &&\n      needs.resolve.result == 'success'", render)
+        self.assertNotIn("needs.compute.result == 'success'", render)
         self.assertNotIn("if: always()", WORKFLOW)
         self.assertIn(
             "steps.stage.outputs.valid == 'true' &&\n          steps.upload.outcome == 'success'",
@@ -883,20 +1020,58 @@ class ArtifactAndStatusTests(unittest.TestCase):
 
 
 class ExecutionAndRemovalTests(unittest.TestCase):
-    def test_build_and_upstream_runner_are_pinned(self) -> None:
+    def test_parallel_builds_and_upstream_runner_are_pinned(self) -> None:
+        build_base = job_block("build_base")
+        build_candidate = job_block("build_candidate")
         compute = job_block("compute")
 
-        self.assertIn('toolchain: "1.96"', compute)
+        self.assertIn("needs: [resolve, arbitrate]", build_base)
+        self.assertIn("needs: [resolve, arbitrate]", build_candidate)
+        self.assertNotIn("build_candidate", build_base)
+        self.assertNotIn("build_base", build_candidate)
+        for job in (build_base, build_candidate):
+            for gate in (
+                "!cancelled()",
+                "needs.resolve.result == 'success'",
+                "needs.arbitrate.result == 'success'",
+                "needs.arbitrate.outputs.superseded == 'false'",
+            ):
+                self.assertIn(gate, job)
+        self.assertIn(
+            "needs: [resolve, arbitrate, build_base, build_candidate]", compute
+        )
+        self.assertIn("needs.build_base.result == 'success'", compute)
+        self.assertIn("needs.build_candidate.result == 'success'", compute)
+        self.assertIn("needs.build_base.outputs.artifact_id != ''", compute)
+        self.assertIn("needs.build_candidate.outputs.artifact_id != ''", compute)
+
+        for job in (build_base, build_candidate):
+            self.assertIn('toolchain: "1.96"', job)
+            self.assertEqual(
+                job.count(
+                    "cargo build --locked --release -p solar-compiler --bin solar"
+                ),
+                1,
+            )
+            self.assertIn('mkdir -p "$RUNNER_TEMP/lsp-bench-bin"', job)
+            self.assertIn("runs-on: ubuntu-latest", job)
+            self.assertNotIn("depot-ubuntu-latest", job)
         self.assertEqual(
-            compute.count(
+            WORKFLOW.count(
                 "cargo build --locked --release -p solar-compiler --bin solar"
             ),
             2,
         )
-        self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/base"', compute)
         self.assertIn(
-            'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate"', compute
+            'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/base"', build_base
         )
+        self.assertIn(
+            'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate"',
+            build_candidate,
+        )
+        self.assertNotIn("cargo build", compute)
+        self.assertNotIn('toolchain: "1.96"', compute)
+        self.assertEqual(compute.count("name: Run LSP comparison"), 1)
         self.assertIn("releases/download/v0.3.3/", compute)
         self.assertIn(
             "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df",

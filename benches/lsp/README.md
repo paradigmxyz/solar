@@ -7,6 +7,8 @@ not an authoritative benchmark or a merge gate.
 The workflow freezes the command-time `main` commit (D), PR head (F), and
 GitHub test merge commit (M). It accepts M only when its parents are exactly
 `[D, F]`, then compares D with M (`comparison_mode: main-merge-candidate`).
+The D and M compilers build concurrently in separate credentialless jobs, and
+the benchmark job downloads those exact binary artifacts before measuring them.
 The performance verdict is report data only; it does not gate merging or make
 the workflow fail.
 
@@ -20,8 +22,8 @@ The GitHub workflow accepts only an exact `/bench lsp` comment on an ordinary
 pull request from an allowed association. It intentionally has no manual
 dispatch entry: a default-branch manual run that checks out and executes a
 PR revision would give untrusted build code access to the default branch's
-Actions cache authority. The comment-triggered path keeps the untrusted
-compute job separate from the trusted renderer.
+Actions cache authority. The comment-triggered path keeps every job that builds
+or executes PR code separate from the trusted renderer.
 
 The workflow downloads the Linux archive described in `upstream.json` and
 checks its SHA-256 before extracting it. The adapter deliberately supplies
