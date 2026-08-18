@@ -1733,16 +1733,6 @@ def _change_cell(delta_ms: float, delta_percent: float) -> str:
     return f"{delta_ms:+.4f} ms ({_delta_cell(delta_percent)})"
 
 
-def _confidence_cell(stratum: dict[str, Any], percentile_name: str) -> str:
-    absolute = stratum["confidence_interval_95"]["delta_ms"][percentile_name]
-    percent = stratum["confidence_interval_95"]["delta_percent"][percentile_name]
-    return (
-        f"{_change_cell(stratum['delta_ms'][percentile_name], stratum['delta_percent'][percentile_name])}; "
-        f"CI [{absolute['lower']:+.4f}, {absolute['upper']:+.4f}] ms / "
-        f"[{percent['lower']:+.2f}%, {percent['upper']:+.2f}%]"
-    )
-
-
 def render_markdown(comparison: dict[str, Any]) -> str:
     repository = comparison["repository"]
     pr_head_repository = comparison["pr_head_repository"]
@@ -1818,30 +1808,6 @@ def render_markdown(comparison: dict[str, Any]) -> str:
                 "Base and Head values are means of the ten per-session nearest-rank "
                 "percentiles, not percentiles of pooled request samples."
             ),
-            "",
-            "Order-stratified paired bootstrap evidence:",
-            "",
-            "| Metric | Order | Sessions | p50 change and 95% CI | p95 change and 95% CI |",
-            "| --- | --- | ---: | --- | --- |",
-        ]
-    )
-    for method in comparison["methods"]:
-        for stratum in method["strata"]:
-            lines.append(
-                "| "
-                + " | ".join(
-                    [
-                        markdown_escape(method["name"]),
-                        markdown_escape(stratum["order"]),
-                        str(stratum["session_count"]),
-                        _confidence_cell(stratum, "p50"),
-                        _confidence_cell(stratum, "p95"),
-                    ]
-                )
-                + " |"
-            )
-    lines.extend(
-        [
             "",
             (
                 "A metric changes only when the paired 95% confidence intervals for p50 "

@@ -1073,7 +1073,6 @@ class StatisticsTests(unittest.TestCase):
             )
         )
         self.assertIn("+0.9999 ms (+9.99%)", rendered)
-        self.assertIn("CI [+0.9999, +1.0000] ms", rendered)
 
     def test_build_comparison_requires_p50_and_p95_evidence(self) -> None:
         sessions = constant_sessions()
@@ -1168,7 +1167,9 @@ class MarkdownTests(unittest.TestCase):
         self.assertIn(f"/commit/{CONTEXT.pr_head_sha}", rendered)
         self.assertIn(f"/commit/{CONTEXT.main_sha}", rendered)
         self.assertIn("main-merge-candidate", rendered)
-        self.assertIn("| text\\|document | base-first | 5 |", rendered)
+        self.assertNotIn("Order-stratified paired bootstrap evidence", rendered)
+        self.assertNotIn("| Metric | Order | Sessions |", rendered)
+        self.assertNotIn("| text\\|document | base-first | 5 |", rendered)
         self.assertIn("95% confidence intervals", rendered)
         self.assertIn("1.0 ms thresholds", rendered)
         self.assertIn("not counted as independent sessions", rendered)
