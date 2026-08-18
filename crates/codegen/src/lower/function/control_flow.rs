@@ -279,13 +279,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(&binding) = catch_clause.args.first() {
                 let ty = self.context.gcx.type_of_item(binding.into());
                 let expected = if catch_error {
-                    TyKind::Elementary(solar_sema::hir::ElementaryType::String)
+                    TyKind::Elementary(ElementaryType::String)
                 } else if catch_panic {
-                    TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(
-                        solar_ast::TypeSize::new_int_bits(256),
-                    ))
+                    TyKind::Elementary(ElementaryType::UInt(TypeSize::new_int_bits(256)))
                 } else {
-                    TyKind::Elementary(solar_sema::hir::ElementaryType::Bytes)
+                    TyKind::Elementary(ElementaryType::Bytes)
                 };
                 if ty.peel_refs().kind != expected {
                     return report_unsupported(

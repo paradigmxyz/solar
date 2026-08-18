@@ -353,10 +353,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
             match ty.peel_refs().kind {
                 TyKind::StringLiteral(..)
-                | TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::String
-                    | solar_sema::hir::ElementaryType::Bytes,
-                ) => {
+                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                     if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
                         && let LitKind::Str(_, bytes, _) = &lit.kind
                     {
@@ -381,7 +378,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     total = self.builder.add(total, length);
                     parts.push(Part::Dynamic { value, length });
                 }
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
                     if let Some(all_literals) = all_literals.take() {
                         let length = self.builder.imm_u64(all_literals.len() as u64);
                         total = self.builder.add(total, length);

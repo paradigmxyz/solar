@@ -47,7 +47,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
-        name: solar_interface::Ident,
+        name: Ident,
     ) -> Option<ValueId> {
         if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
             if builtin == Builtin::AddressBalance {
@@ -104,10 +104,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some(access) = self.storage_access(receiver) {
                     return match receiver_ty.peel_refs().kind {
                         TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                        TyKind::Elementary(
-                            solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                        ) => {
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                             let object = self.load_storage_bytes(access.slot)?;
                             Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                         }
@@ -213,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
-        name: solar_interface::Ident,
+        name: Ident,
     ) -> Option<ValueId> {
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata) {
@@ -464,10 +461,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some(access) = self.storage_access(receiver) {
                     return match receiver_ty.peel_refs().kind {
                         TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                        TyKind::Elementary(
-                            solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                        ) => {
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                             let object = self.load_storage_bytes(access.slot)?;
                             Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                         }
@@ -564,11 +558,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let max = self.context.gcx.hir.enumm(id).variants.len().saturating_sub(1);
                 Some(U256::from(if maximum { max } else { 0 }))
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size)) => {
+            TyKind::Elementary(ElementaryType::UInt(size)) => {
                 let max = (U256::from(1) << size.bits()) - U256::from(1);
                 Some(if maximum { max } else { U256::ZERO })
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Int(size)) => {
+            TyKind::Elementary(ElementaryType::Int(size)) => {
                 let magnitude = U256::from(1) << (size.bits() - 1);
                 Some(if maximum {
                     magnitude - U256::from(1)
@@ -586,9 +580,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn normalize_byte_type(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            ty.peel_refs().kind
-        else {
+        let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return value;
         };
         let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
@@ -600,10 +592,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let ExprKind::Type(ty) = &callee.kind
             && matches!(
                 ty.kind,
-                hir::TypeKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String
-                )
+                hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             )
             && let hir::CallArgsKind::Unnamed([inner]) = args.kind
         {

@@ -347,10 +347,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn clean_bit_not_result(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
             TyKind::Udvt(inner, _) => self.clean_bit_not_result(value, inner),
-            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size)) => {
-                self.mask_to_bits(value, size.bits())
-            }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+            TyKind::Elementary(ElementaryType::UInt(size)) => self.mask_to_bits(value, size.bits()),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
                 self.clean_fixed_bytes(value, size.bytes())
             }
             _ => value,
@@ -361,7 +359,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 pub(super) fn fixed_bytes_width(ty: Ty<'_>) -> Option<u8> {
     match ty.peel_refs().kind {
         TyKind::Udvt(inner, _) => fixed_bytes_width(inner),
-        TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size.bytes()),
+        TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size.bytes()),
         _ => None,
     }
 }

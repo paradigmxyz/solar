@@ -169,10 +169,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !receiver_ty.is_ref_at(DataLocation::Storage)
             || !matches!(
                 receiver_ty.peel_refs().kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String
-                )
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             )
         {
             return None;
@@ -231,7 +228,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let slot = self.builder.imm_u256(location.slot);
                 return self.load_storage_object(ty, slot, span);
             }
-            if matches!(ty.peel_refs().kind, solar_sema::ty::TyKind::Mapping(..)) {
+            if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
                 return report_unsupported(self.context.gcx, span, "mapping value");
             }
             let value = self.context.storage.load(&mut self.builder, location);
@@ -432,7 +429,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn store_yul_member(
         &mut self,
         receiver: &hir::Expr<'_>,
-        name: solar_interface::Ident,
+        name: Ident,
         value: ValueId,
         span: Span,
     ) -> Option<()> {

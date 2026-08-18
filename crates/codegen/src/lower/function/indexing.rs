@@ -37,10 +37,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.bounds_check(index, length);
             let base = self.builder.slice_ptr(object);
             return match receiver_ty.peel_refs().kind {
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                    | solar_sema::hir::ElementaryType::String,
-                ) => {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                     let word = match location {
                         SliceLocation::Calldata => {
                             self.builder.calldata_slice_load_word(object, index)
@@ -157,10 +154,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let is_bytes = self.is_calldata_dynamic_bytes_type(receiver_ty)
             || matches!(
                 receiver_ty.peel_refs().kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                )
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             );
         let element_stride = if is_bytes {
             1

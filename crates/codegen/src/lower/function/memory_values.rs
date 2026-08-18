@@ -230,20 +230,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         id
     }
 
-    pub(super) fn default_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+    pub(super) fn default_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         self.default_object(ty).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
     }
 
-    pub(super) fn default_binding_value(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> ValueId {
+    pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         if ty.is_ref_at(DataLocation::Calldata)
             && matches!(
                 ty.peel_refs().kind,
                 TyKind::DynArray(_)
                     | TyKind::Slice(_)
-                    | TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
+                    | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             )
         {
             let zero = self.builder.imm_u256(U256::ZERO);
@@ -252,13 +249,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.default_value(ty)
     }
 
-    pub(super) fn default_object(&mut self, ty: solar_sema::ty::Ty<'gcx>) -> Option<ValueId> {
+    pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
         self.default_object_with_semantics(ty, AllocationSemantics::INTERNAL)
     }
 
     fn default_object_with_semantics(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
         let layout = self.types.memory_layout(ty)?;
@@ -266,14 +263,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm_u64(size);
         let object = self.builder.alloc_object(size, layout, semantics);
         match ty.peel_refs().kind {
-            solar_sema::ty::TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            )
-            | solar_sema::ty::TyKind::DynArray(_) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            | TyKind::DynArray(_) => {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
-            solar_sema::ty::TyKind::Struct(id) => {
+            TyKind::Struct(id) => {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 for (index, &field) in self.context.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.context.gcx.type_of_item(field.into());
@@ -282,7 +277,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
             }
-            solar_sema::ty::TyKind::Array(element, len) => {
+            TyKind::Array(element, len) => {
                 if !self.default_object_is_fully_initialized(ty) {
                     self.builder.memory_zero(object, size);
                 }
@@ -303,23 +298,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    fn default_object_is_fully_initialized(&self, ty: solar_sema::ty::Ty<'gcx>) -> bool {
+    fn default_object_is_fully_initialized(&self, ty: Ty<'gcx>) -> bool {
         let Some(layout) = self.types.memory_layout(ty) else { return false };
         if Self::default_object_size(layout).is_none() {
             return false;
         }
         match ty.peel_refs().kind {
-            solar_sema::ty::TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            )
-            | solar_sema::ty::TyKind::DynArray(_) => true,
-            solar_sema::ty::TyKind::Struct(id) => {
-                self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
-                    let field_ty = self.context.gcx.type_of_item(field.into());
-                    self.types.memory_layout(field_ty).and_then(Self::default_object_size).is_some()
-                })
-            }
-            solar_sema::ty::TyKind::Array(element, _) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            | TyKind::DynArray(_) => true,
+            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                let field_ty = self.context.gcx.type_of_item(field.into());
+                self.types.memory_layout(field_ty).and_then(Self::default_object_size).is_some()
+            }),
+            TyKind::Array(element, _) => {
                 self.types.memory_layout(element).and_then(Self::default_object_size).is_some()
             }
             _ => false,
