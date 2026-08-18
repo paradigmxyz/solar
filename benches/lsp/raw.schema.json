@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/paradigmxyz/solar/main/benches/lsp/raw.schema.json",
+  "title": "Solar LSP benchmark raw manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "context",
+    "protocol",
+    "upstream",
+    "fixture",
+    "binaries",
+    "passes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "solar-lsp-benchmark-raw" },
+    "context": { "$ref": "#/$defs/context" },
+    "protocol": {
+      "type": "object",
+      "required": [
+        "warmup_iterations",
+        "measured_iterations_per_pass",
+        "passes",
+        "methods",
+        "threshold_percent"
+      ],
+      "properties": {
+        "warmup_iterations": { "const": 5 },
+        "measured_iterations_per_pass": { "const": 10 },
+        "passes": { "const": ["base-first", "head-first"] },
+        "methods": {
+          "const": [
+            "initialize",
+            "textDocument/diagnostic",
+            "textDocument/hover",
+            "textDocument/definition",
+            "textDocument/references",
+            "textDocument/completion",
+            "textDocument/documentSymbol"
+          ]
+        },
+        "threshold_percent": { "const": 10.0 }
+      },
+      "additionalProperties": false
+    },
+    "upstream": {
+      "const": {
+        "schema_version": 1,
+        "repository": "asyncswap/lsp-bench",
+        "version": "0.3.3",
+        "tag": "v0.3.3",
+        "commit": "ca0651f86f430290dacdbeb62c9c6987a3ad6966",
+        "asset": {
+          "platform": "x86_64-unknown-linux-gnu",
+          "name": "lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz",
+          "url": "https://github.com/asyncswap/lsp-bench/releases/download/v0.3.3/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df"
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "required": ["sha256"],
+      "properties": { "sha256": { "$ref": "#/$defs/sha256" } },
+      "additionalProperties": false
+    },
+    "binaries": {
+      "type": "object",
+      "required": ["base", "head"],
+      "properties": {
+        "base": { "$ref": "#/$defs/binary" },
+        "head": { "$ref": "#/$defs/binary" }
+      },
+      "additionalProperties": false
+    },
+    "passes": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/pass",
+          "properties": {
+            "name": { "const": "base-first" },
+            "server_order": { "const": ["base", "head"] },
+            "config": {
+              "$ref": "#/$defs/artifact_file",
+              "properties": {
+                "path": { "const": "passes/base-first/config.json" }
+              }
+            },
+            "results": {
+              "$ref": "#/$defs/artifact_file",
+              "properties": {
+                "path": { "const": "passes/base-first/results.json" }
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/pass",
+          "properties": {
+            "name": { "const": "head-first" },
+            "server_order": { "const": ["head", "base"] },
+            "config": {
+              "$ref": "#/$defs/artifact_file",
+              "properties": {
+                "path": { "const": "passes/head-first/config.json" }
+              }
+            },
+            "results": {
+              "$ref": "#/$defs/artifact_file",
+              "properties": {
+                "path": { "const": "passes/head-first/results.json" }
+              }
+            }
+          }
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$(?![\\s\\S])"
+    },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$(?![\\s\\S])" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$(?![\\s\\S])" },
+    "context": {
+      "type": "object",
+      "required": [
+        "repository",
+        "head_repository",
+        "workflow_repository",
+        "pr_number",
+        "base_sha",
+        "head_sha",
+        "run_url"
+      ],
+      "properties": {
+        "repository": { "$ref": "#/$defs/repository" },
+        "head_repository": { "$ref": "#/$defs/repository" },
+        "workflow_repository": { "$ref": "#/$defs/repository" },
+        "pr_number": { "type": "integer", "minimum": 1 },
+        "base_sha": { "$ref": "#/$defs/sha" },
+        "head_sha": { "$ref": "#/$defs/sha" },
+        "run_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$(?![\\s\\S])"
+        }
+      },
+      "additionalProperties": false
+    },
+    "binary": {
+      "type": "object",
+      "required": ["sha256"],
+      "properties": { "sha256": { "$ref": "#/$defs/sha256" } },
+      "additionalProperties": false
+    },
+    "artifact_file": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "pass": {
+      "type": "object",
+      "required": ["name", "server_order", "config", "results"],
+      "properties": {
+        "name": { "enum": ["base-first", "head-first"] },
+        "server_order": {
+          "type": "array",
+          "items": { "enum": ["base", "head"] },
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "config": { "$ref": "#/$defs/artifact_file" },
+        "results": { "$ref": "#/$defs/artifact_file" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

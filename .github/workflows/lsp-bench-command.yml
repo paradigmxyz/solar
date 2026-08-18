@@ -1,0 +1,801 @@
+name: LSP benchmark command
+run-name: LSP benchmark for ${{ inputs.repository || github.repository }}#${{ inputs.pr_number || github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Repository containing the pull request
+        required: true
+        default: paradigmxyz/solar
+        type: string
+      pr_number:
+        description: Pull request number
+        required: true
+        type: number
+      post_comment:
+        description: Post the result as a sticky pull request comment
+        required: true
+        default: false
+        type: boolean
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  resolve:
+    name: resolve benchmark request
+    if: >-
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment.body == '/bench lsp') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      repository: ${{ steps.resolve.outputs.repository }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      base_repo: ${{ steps.resolve.outputs.base_repo }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      head_repo: ${{ steps.resolve.outputs.head_repo }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      trusted_repo: ${{ steps.resolve.outputs.trusted_repo }}
+      trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}
+      run_url: ${{ steps.resolve.outputs.run_url }}
+      should_comment: ${{ steps.resolve.outputs.should_comment }}
+      claim_key: ${{ steps.resolve.outputs.claim_key }}
+    steps:
+      - name: Validate request and freeze revisions
+        id: resolve
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISPATCH_POST_COMMENT: ${{ inputs.post_comment }}
+          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
+          DISPATCH_REPOSITORY: ${{ inputs.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          WORKFLOW_REF: ${{ github.ref }}
+        with:
+          script: |
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const path = require("path");
+            const allowedAssociations = new Set([
+              "OWNER",
+              "MEMBER",
+              "COLLABORATOR",
+              "CONTRIBUTOR",
+            ]);
+
+            let requestedRepository;
+            let requestedNumber;
+            let shouldComment;
+            if (context.eventName === "issue_comment") {
+              const comment = context.payload.comment;
+              if (
+                !context.payload.issue?.pull_request ||
+                comment?.body !== "/bench lsp"
+              ) {
+                core.setFailed("Expected an exact `/bench lsp` pull request comment");
+                return;
+              }
+              if (!allowedAssociations.has(comment.author_association)) {
+                core.setFailed(
+                  `Comment author association ${comment.author_association || "NONE"} is not allowed`,
+                );
+                return;
+              }
+              requestedRepository = context.payload.repository.full_name;
+              requestedNumber = context.payload.issue.number;
+              shouldComment = true;
+            } else {
+              requestedRepository = process.env.DISPATCH_REPOSITORY;
+              requestedNumber = Number(process.env.DISPATCH_PR_NUMBER);
+              shouldComment = process.env.DISPATCH_POST_COMMENT === "true";
+            }
+
+            if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(requestedRepository || "")) {
+              core.setFailed("Repository must use the `owner/name` form");
+              return;
+            }
+            if (!Number.isSafeInteger(requestedNumber) || requestedNumber <= 0) {
+              core.setFailed("Pull request number must be a positive integer");
+              return;
+            }
+
+            const [requestedOwner, requestedRepo] = requestedRepository.split("/");
+            const { data: target } = await github.rest.repos.get({
+              owner: requestedOwner,
+              repo: requestedRepo,
+            });
+            if (
+              context.eventName === "workflow_dispatch" &&
+              requestedRepository !== target.full_name
+            ) {
+              core.setFailed("Manual repository input must use the canonical `owner/name` form");
+              return;
+            }
+            const { data: pull } = await github.rest.pulls.get({
+              owner: target.owner.login,
+              repo: target.name,
+              pull_number: requestedNumber,
+            });
+            if (pull.state !== "open") {
+              core.setFailed(`Pull request #${requestedNumber} is not open`);
+              return;
+            }
+            if (pull.base.repo?.full_name !== target.full_name) {
+              core.setFailed("Pull request base repository does not match the requested repository");
+              return;
+            }
+            if (!pull.head.repo?.full_name || !/^[0-9a-f]{40}$/.test(pull.head.sha || "")) {
+              core.setFailed("Pull request head repository or revision is unavailable");
+              return;
+            }
+
+            const { data: main } = await github.rest.repos.getBranch({
+              owner: target.owner.login,
+              repo: target.name,
+              branch: "main",
+            });
+            if (!/^[0-9a-f]{40}$/.test(main.commit.sha || "")) {
+              core.setFailed("The `main` branch did not resolve to a full commit SHA");
+              return;
+            }
+
+            const { data: workflowRepository } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const workflowDefaultRef = `refs/heads/${workflowRepository.default_branch}`;
+            if (
+              context.eventName === "workflow_dispatch" &&
+              shouldComment &&
+              process.env.WORKFLOW_REF !== workflowDefaultRef
+            ) {
+              core.setFailed("Manual comment publication requires the workflow default branch");
+              return;
+            }
+            const { data: workflowDefault } = await github.rest.repos.getBranch({
+              owner: workflowRepository.owner.login,
+              repo: workflowRepository.name,
+              branch: workflowRepository.default_branch,
+            });
+            if (!/^[0-9a-f]{40}$/.test(workflowDefault.commit.sha || "")) {
+              core.setFailed("The workflow default branch did not resolve to a full commit SHA");
+              return;
+            }
+            if (
+              context.eventName === "workflow_dispatch" &&
+              shouldComment &&
+              target.full_name !== workflowRepository.full_name
+            ) {
+              core.setFailed(
+                "Manual comment publication requires the workflow repository",
+              );
+              return;
+            }
+
+            const runId = Number(process.env.RUN_ID);
+            const runNumber = Number(process.env.RUN_NUMBER);
+            const runAttempt = Number(process.env.RUN_ATTEMPT);
+            if (![runId, runNumber, runAttempt].every(Number.isSafeInteger)) {
+              core.setFailed("Workflow run identity is invalid");
+              return;
+            }
+            const claimKey = crypto
+              .createHash("sha256")
+              .update(`${target.full_name.toLowerCase()}\0${pull.number}`)
+              .digest("hex");
+            const claimDirectory = path.join(process.env.RUNNER_TEMP, "lsp-bench-claim");
+            fs.mkdirSync(claimDirectory, { recursive: true });
+            fs.writeFileSync(
+              path.join(claimDirectory, "claim.json"),
+              `${JSON.stringify(
+                {
+                  schema_version: 1,
+                  kind: "solar-lsp-benchmark-request-claim",
+                  claim_key: claimKey,
+                  workflow_repository: workflowRepository.full_name,
+                  repository: target.full_name,
+                  pr_number: pull.number,
+                  run_id: runId,
+                  run_number: runNumber,
+                  run_attempt: runAttempt,
+                },
+                null,
+                2,
+              )}\n`,
+              { encoding: "utf8", mode: 0o600 },
+            );
+
+            core.setOutput("repository", target.full_name);
+            core.setOutput("pr_number", String(pull.number));
+            core.setOutput("base_repo", target.full_name);
+            core.setOutput("base_sha", main.commit.sha);
+            core.setOutput("head_repo", pull.head.repo.full_name);
+            core.setOutput("head_sha", pull.head.sha);
+            core.setOutput("trusted_repo", workflowRepository.full_name);
+            core.setOutput("trusted_sha", workflowDefault.commit.sha);
+            core.setOutput("run_url", process.env.RUN_URL);
+            core.setOutput("should_comment", String(shouldComment));
+            core.setOutput("claim_key", claimKey);
+
+      - name: Upload accepted request claim
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-claim-${{ steps.resolve.outputs.claim_key }}
+          path: ${{ runner.temp }}/lsp-bench-claim/claim.json
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+  arbitrate:
+    name: supersede older accepted requests
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    outputs:
+      superseded: ${{ steps.arbitrate.outputs.superseded }}
+    steps:
+      - name: Keep only the latest accepted request
+        id: arbitrate
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          CLAIM_KEY: ${{ needs.resolve.outputs.claim_key }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
+        with:
+          script: |
+            const currentId = Number(process.env.RUN_ID);
+            const currentOrder = [
+              Number(process.env.RUN_NUMBER),
+              Number(process.env.RUN_ATTEMPT),
+            ];
+            if (
+              !Number.isSafeInteger(currentId) ||
+              !currentOrder.every(Number.isSafeInteger)
+            ) {
+              core.setFailed("Workflow run identity is invalid");
+              return;
+            }
+
+            const claimName = `lsp-bench-claim-${process.env.CLAIM_KEY}`;
+            const { data: currentRun } = await github.rest.actions.getWorkflowRun({
+              ...context.repo,
+              run_id: currentId,
+            });
+            const expectedTitle =
+              `LSP benchmark for ${process.env.TARGET_REPOSITORY}#${process.env.PR_NUMBER}`;
+            const allowedEvents = new Set(["issue_comment", "workflow_dispatch"]);
+            if (
+              currentRun.display_title !== expectedTitle ||
+              !allowedEvents.has(currentRun.event) ||
+              Number(currentRun.run_number) !== currentOrder[0] ||
+              Number(currentRun.run_attempt) !== currentOrder[1]
+            ) {
+              core.setFailed("Current workflow run does not match the accepted request claim");
+              return;
+            }
+            const compareOrder = (left, right) =>
+              left[0] === right[0] ? left[1] - right[1] : left[0] - right[0];
+            const listClaims = () =>
+              github.paginate(github.rest.actions.listArtifactsForRepo, {
+                ...context.repo,
+                name: claimName,
+                per_page: 100,
+              });
+
+            let artifacts = [];
+            for (let attempt = 0; attempt < 10; attempt += 1) {
+              artifacts = (await listClaims()).filter((artifact) => !artifact.expired);
+              if (
+                artifacts.some(
+                  (artifact) => Number(artifact.workflow_run?.id) === currentId,
+                )
+              ) {
+                break;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+            if (
+              !artifacts.some(
+                (artifact) => Number(artifact.workflow_run?.id) === currentId,
+              )
+            ) {
+              core.setFailed("The accepted-request claim is not visible through the Actions API");
+              return;
+            }
+
+            const claimedRuns = new Map();
+            for (const artifact of artifacts) {
+              const runId = Number(artifact.workflow_run?.id);
+              if (!Number.isSafeInteger(runId) || claimedRuns.has(runId)) {
+                continue;
+              }
+              let run;
+              try {
+                ({ data: run } = await github.rest.actions.getWorkflowRun({
+                  ...context.repo,
+                  run_id: runId,
+                }));
+              } catch (error) {
+                if (error.status === 404) {
+                  continue;
+                }
+                throw error;
+              }
+              if (
+                run.workflow_id !== currentRun.workflow_id ||
+                run.display_title !== expectedTitle ||
+                !allowedEvents.has(run.event)
+              ) {
+                continue;
+              }
+              const order = [Number(run.run_number), Number(run.run_attempt)];
+              if (!order.every(Number.isSafeInteger)) {
+                core.setFailed(`Claimed workflow run ${runId} has an invalid order`);
+                return;
+              }
+              claimedRuns.set(runId, { order, run });
+            }
+
+            const newer = [...claimedRuns.values()].filter(
+              ({ order }) => compareOrder(order, currentOrder) > 0,
+            );
+            if (newer.length > 0) {
+              const latest = newer.sort((left, right) =>
+                compareOrder(right.order, left.order),
+              )[0];
+              core.notice(
+                `Request superseded by run ${latest.run.id} (${latest.order.join(".")})`,
+              );
+              core.setOutput("superseded", "true");
+              return;
+            }
+
+            const older = [...claimedRuns.values()]
+              .filter(
+                ({ order, run }) =>
+                  run.id !== currentId &&
+                  run.status !== "completed" &&
+                  compareOrder(order, currentOrder) < 0,
+              )
+              .sort((left, right) => compareOrder(left.order, right.order));
+            const waitForCompletion = async (runId) => {
+              for (let attempt = 0; attempt < 60; attempt += 1) {
+                const { data: refreshed } = await github.rest.actions.getWorkflowRun({
+                  ...context.repo,
+                  run_id: runId,
+                });
+                if (refreshed.status === "completed") {
+                  return;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+              throw new Error(`Workflow run ${runId} did not finish after cancellation`);
+            };
+            for (const { run } of older) {
+              try {
+                await github.rest.actions.cancelWorkflowRun({
+                  ...context.repo,
+                  run_id: run.id,
+                });
+              } catch (error) {
+                const { data: refreshed } = await github.rest.actions.getWorkflowRun({
+                  ...context.repo,
+                  run_id: run.id,
+                });
+                if (refreshed.status !== "completed") {
+                  throw error;
+                }
+              }
+              await waitForCompletion(run.id);
+            }
+            core.setOutput("superseded", "false");
+
+  queue-comment:
+    name: post queued status
+    needs: [resolve, arbitrate]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.arbitrate.result == 'success' &&
+      needs.arbitrate.outputs.superseded == 'false' &&
+      needs.resolve.outputs.should_comment == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Update sticky benchmark comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_REPO: ${{ needs.resolve.outputs.base_repo }}
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          HEAD_REPO: ${{ needs.resolve.outputs.head_repo }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          RUN_URL: ${{ needs.resolve.outputs.run_url }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
+        with:
+          script: |
+            const marker = "<!-- lsp-bench-command -->";
+            const [owner, repo] = process.env.TARGET_REPOSITORY.split("/");
+            const issueNumber = Number(process.env.PR_NUMBER);
+            const baseShort = process.env.BASE_SHA.slice(0, 12);
+            const headShort = process.env.HEAD_SHA.slice(0, 12);
+            const body = [
+              marker,
+              "## LSP benchmark",
+              "",
+              `Queued comparison of [\`${baseShort}\`](https://github.com/${process.env.BASE_REPO}/commit/${process.env.BASE_SHA}) (\`main\`) and [\`${headShort}\`](https://github.com/${process.env.HEAD_REPO}/commit/${process.env.HEAD_SHA}) (PR head).`,
+              "",
+              `[View workflow run](${process.env.RUN_URL})`,
+            ].join("\n");
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.startsWith(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+  compute:
+    name: benchmark frozen revisions
+    needs: [resolve, arbitrate]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.arbitrate.result == 'success' &&
+      needs.arbitrate.outputs.superseded == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Initialize raw artifact
+        run: mkdir -p "$RUNNER_TEMP/lsp-bench-artifact/raw"
+
+      # Keep the adapter separate from both revisions whose binaries are measured.
+      - name: Checkout trusted benchmark adapter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.trusted_repo }}
+          ref: ${{ needs.resolve.outputs.trusted_sha }}
+          path: lsp-bench/trusted
+          persist-credentials: false
+
+      - name: Checkout main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.base_repo }}
+          ref: ${{ needs.resolve.outputs.base_sha }}
+          path: lsp-bench/base
+          persist-credentials: false
+
+      - name: Checkout pull request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.head_repo }}
+          ref: ${{ needs.resolve.outputs.head_sha }}
+          path: lsp-bench/head
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Build main compiler
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/lsp-bench/base"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/base" \
+            cargo build --locked --release -p solar-compiler --bin solar
+          mkdir -p "$RUNNER_TEMP/lsp-bench-bin"
+          install -m 0755 \
+            "$RUNNER_TEMP/lsp-bench-target/base/release/solar" \
+            "$RUNNER_TEMP/lsp-bench-bin/base-solar"
+
+      - name: Build pull request compiler
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/lsp-bench/head"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/head" \
+            cargo build --locked --release -p solar-compiler --bin solar
+          install -m 0755 \
+            "$RUNNER_TEMP/lsp-bench-target/head/release/solar" \
+            "$RUNNER_TEMP/lsp-bench-bin/head-solar"
+
+      - name: Install pinned lsp-bench
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --location --retry 3 --show-error --silent \
+            https://github.com/asyncswap/lsp-bench/releases/download/v0.3.3/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$archive"
+          test "$(uname -m)" = x86_64
+          echo "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df  $archive" \
+            | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/lsp-bench-tool"
+          tar --extract --gzip --file "$archive" \
+            --directory "$RUNNER_TEMP/lsp-bench-tool"
+          test -x "$RUNNER_TEMP/lsp-bench-tool/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu/lsp-bench"
+
+      - name: Run LSP comparison
+        env:
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          RUN_URL: ${{ needs.resolve.outputs.run_url }}
+          WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" run \
+            --lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu/lsp-bench" \
+            --base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar" \
+            --head-binary "$RUNNER_TEMP/lsp-bench-bin/head-solar" \
+            --repository "$REPOSITORY" \
+            --head-repository "$HEAD_REPOSITORY" \
+            --workflow-repository "$WORKFLOW_REPOSITORY" \
+            --pr-number "$PR_NUMBER" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --run-url "$RUN_URL" \
+            --output "$RUNNER_TEMP/lsp-bench-artifact/raw"
+
+      - name: Upload raw benchmark artifact
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-bench-artifact/raw/manifest.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/results.json
+          retention-days: 30
+          if-no-files-found: error
+
+  render:
+    name: validate and publish comparison
+    needs: [resolve, arbitrate, queue-comment, compute]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.arbitrate.result == 'success' &&
+      needs.arbitrate.outputs.superseded == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout trusted renderer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.trusted_repo }}
+          ref: ${{ needs.resolve.outputs.trusted_sha }}
+          path: lsp-bench/trusted
+          clean: true
+          persist-credentials: false
+
+      - name: Download raw benchmark artifact
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-bench-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lsp-bench-download/raw
+
+      # This trusted code parses artifact data but never executes artifact content.
+      - name: Validate and render benchmark
+        id: render
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          RUN_URL: ${{ needs.resolve.outputs.run_url }}
+          WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-bench-render"
+          python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" render \
+            --input "$RUNNER_TEMP/lsp-bench-download/raw" \
+            --repository "$REPOSITORY" \
+            --head-repository "$HEAD_REPOSITORY" \
+            --workflow-repository "$WORKFLOW_REPOSITORY" \
+            --pr-number "$PR_NUMBER" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --run-url "$RUN_URL" \
+            --report "$RUNNER_TEMP/lsp-bench-render/report.md" \
+            --comparison "$RUNNER_TEMP/lsp-bench-render/comparison.json"
+
+      - name: Stage trusted report
+        id: stage
+        if: ${{ !cancelled() }}
+        env:
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          COMPUTE_RESULT: ${{ needs.compute.result }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+          RUN_URL: ${{ needs.resolve.outputs.run_url }}
+          WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/lsp-bench-report"
+          staged_dir="$RUNNER_TEMP/lsp-bench-report.staged"
+          rm -rf "$report_dir" "$staged_dir"
+          valid=false
+          if [[ "$COMPUTE_RESULT" == success &&
+                "$DOWNLOAD_OUTCOME" == success &&
+                "$RENDER_OUTCOME" == success &&
+                -s "$RUNNER_TEMP/lsp-bench-render/report.md" &&
+                -s "$RUNNER_TEMP/lsp-bench-render/comparison.json" ]] &&
+             mkdir -p "$staged_dir" &&
+             cp "$RUNNER_TEMP/lsp-bench-render/report.md" "$staged_dir/report.md" &&
+             cp "$RUNNER_TEMP/lsp-bench-render/comparison.json" "$staged_dir/comparison.json" &&
+             mv "$staged_dir" "$report_dir"; then
+            valid=true
+          else
+            rm -rf "$staged_dir"
+            reason="benchmark did not complete successfully (compute=$COMPUTE_RESULT, download=$DOWNLOAD_OUTCOME, render=$RENDER_OUTCOME)"
+            FALLBACK_REASON="$reason" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["RUNNER_TEMP"]) / "lsp-bench-report"
+          output.mkdir(parents=True, exist_ok=True)
+          reason = os.environ["FALLBACK_REASON"]
+          comparison = {
+              "schema_version": 1,
+              "kind": "solar-lsp-benchmark-comparison",
+              "repository": os.environ["REPOSITORY"],
+              "head_repository": os.environ["HEAD_REPOSITORY"],
+              "workflow_repository": os.environ["WORKFLOW_REPOSITORY"],
+              "pr_number": int(os.environ["PR_NUMBER"]),
+              "base_sha": os.environ["BASE_SHA"],
+              "head_sha": os.environ["HEAD_SHA"],
+              "run_url": os.environ["RUN_URL"],
+              "threshold_percent": 10.0,
+              "overall": "inconclusive",
+              "methods": [],
+              "error": reason,
+          }
+          (output / "comparison.json").write_text(
+              json.dumps(comparison, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          report = "\n".join(
+              [
+                  "<!-- solar-lsp-benchmark -->",
+                  "## LSP benchmark",
+                  "",
+                  "**Overall:** `inconclusive`",
+                  "",
+                  f"Base: `{comparison['base_sha']}`  ",
+                  f"Head: `{comparison['head_sha']}`  ",
+                  f"[Workflow run]({comparison['run_url']})",
+                  "",
+                  "The comparison is inconclusive because the benchmark did not complete successfully.",
+                  "",
+                  f"Reason: {reason}",
+                  "",
+              ]
+          )
+          (output / "report.md").write_text(report, encoding="utf-8")
+          PY
+          fi
+          echo "valid=$valid" >> "$GITHUB_OUTPUT"
+
+      - name: Add comparison to job summary
+        if: ${{ !cancelled() }}
+        run: cat "$RUNNER_TEMP/lsp-bench-report/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validated comparison
+        id: upload
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-bench-comparison-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-bench-report/report.md
+            ${{ runner.temp }}/lsp-bench-report/comparison.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish sticky benchmark comment
+        if: >-
+          !cancelled() &&
+          steps.stage.outputs.valid == 'true' &&
+          steps.upload.outcome == 'success' &&
+          needs.resolve.outputs.should_comment == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          REPORT_PATH: ${{ runner.temp }}/lsp-bench-report/report.md
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- lsp-bench-command -->";
+            const [owner, repo] = process.env.TARGET_REPOSITORY.split("/");
+            const issueNumber = Number(process.env.PR_NUMBER);
+            const report = fs.readFileSync(process.env.REPORT_PATH, "utf8").trim();
+            const body = `${marker}\n${report}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.startsWith(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+      - name: Fail incomplete benchmark
+        if: ${{ !cancelled() && steps.stage.outputs.valid != 'true' }}
+        run: exit 1

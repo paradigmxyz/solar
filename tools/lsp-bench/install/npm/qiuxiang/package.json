@@ -1,8 +1,0 @@
-{
-  "name": "solar-lsp-bench-qiuxiang",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "solidity-ls": "0.5.4"
-  }
-}

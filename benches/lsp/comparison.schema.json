@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/paradigmxyz/solar/main/benches/lsp/comparison.schema.json",
+  "title": "Solar LSP benchmark trusted comparison",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "repository",
+    "head_repository",
+    "workflow_repository",
+    "pr_number",
+    "base_sha",
+    "head_sha",
+    "run_url",
+    "threshold_percent",
+    "overall",
+    "methods"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "solar-lsp-benchmark-comparison" },
+    "repository": { "$ref": "#/$defs/repository" },
+    "head_repository": { "$ref": "#/$defs/repository" },
+    "workflow_repository": { "$ref": "#/$defs/repository" },
+    "pr_number": { "type": "integer", "minimum": 1 },
+    "base_sha": { "$ref": "#/$defs/sha" },
+    "head_sha": { "$ref": "#/$defs/sha" },
+    "run_url": {
+      "type": "string",
+      "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$(?![\\s\\S])"
+    },
+    "threshold_percent": { "const": 10.0 },
+    "overall": {
+      "enum": ["regression", "improvement", "stable", "inconclusive"]
+    },
+    "methods": { "type": "array" },
+    "error": { "type": "string", "minLength": 1, "maxLength": 500 }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": ["error"],
+      "properties": {
+        "overall": { "const": "inconclusive" },
+        "methods": { "const": [] }
+      }
+    },
+    {
+      "not": { "required": ["error"] },
+      "properties": {
+        "overall": { "enum": ["regression", "improvement", "stable"] },
+        "methods": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/initialize" },
+            { "$ref": "#/$defs/diagnostic" },
+            { "$ref": "#/$defs/hover" },
+            { "$ref": "#/$defs/definition" },
+            { "$ref": "#/$defs/references" },
+            { "$ref": "#/$defs/completion" },
+            { "$ref": "#/$defs/document_symbol" }
+          ],
+          "minItems": 7,
+          "maxItems": 7
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$(?![\\s\\S])"
+    },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$(?![\\s\\S])" },
+    "metric": {
+      "type": "object",
+      "required": ["p50_ms", "p95_ms"],
+      "properties": {
+        "p50_ms": { "type": "number", "minimum": 0.0001 },
+        "p95_ms": { "type": "number", "minimum": 0.0001 }
+      },
+      "additionalProperties": false
+    },
+    "delta": {
+      "type": "object",
+      "required": ["p50", "p95"],
+      "properties": {
+        "p50": { "type": "number" },
+        "p95": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "name",
+        "sample_count",
+        "base",
+        "head",
+        "delta_percent",
+        "verdict"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "sample_count": { "const": 20 },
+        "base": { "$ref": "#/$defs/metric" },
+        "head": { "$ref": "#/$defs/metric" },
+        "delta_percent": { "$ref": "#/$defs/delta" },
+        "verdict": { "enum": ["regression", "improvement", "stable"] }
+      },
+      "additionalProperties": false
+    },
+    "initialize": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "initialize" } }
+    },
+    "diagnostic": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/diagnostic" } }
+    },
+    "hover": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/hover" } }
+    },
+    "definition": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/definition" } }
+    },
+    "references": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/references" } }
+    },
+    "completion": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/completion" } }
+    },
+    "document_symbol": {
+      "$ref": "#/$defs/method",
+      "properties": { "name": { "const": "textDocument/documentSymbol" } }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "repository": "asyncswap/lsp-bench",
+  "version": "0.3.3",
+  "tag": "v0.3.3",
+  "commit": "ca0651f86f430290dacdbeb62c9c6987a3ad6966",
+  "asset": {
+    "platform": "x86_64-unknown-linux-gnu",
+    "name": "lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz",
+    "url": "https://github.com/asyncswap/lsp-bench/releases/download/v0.3.3/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz",
+    "sha256": "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df"
+  }
+}
