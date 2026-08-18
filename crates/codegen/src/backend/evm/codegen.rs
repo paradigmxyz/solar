@@ -9466,50 +9466,50 @@ mod tests {
 
             assert!(codegen.direct_stack_args(function).is_none());
         });
+    }
 
-        #[test]
-        fn resident_layout_selection_is_pinned_across_runs() {
-            // `select_resident_layout` weighs runtime gas against deploy bytes
-            // through `optimizer_runs`. No current cost shape flips the choice
-            // (an eligible stack-riding value dominates the frame convention in
-            // both dimensions), so this pins the selection at both extremes:
-            // a cost-model change that silently alters layout choices, or makes
-            // them run-count-unstable, must show up here as an intentional edit.
-            let select = |runs: u64| {
-                let opts = CompileOpts {
-                    optimization: OptimizationMode::Gas,
-                    optimizer_runs: Some(runs),
-                    ..Default::default()
-                };
-                with_codegen(opts, |codegen| {
-                    let mut function = Function::new(Ident::DUMMY);
-                    let argument = function.alloc_param(MirType::uint256());
-                    let mut builder = FunctionBuilder::new(&mut function);
-                    let one = builder.imm_u64(1);
-                    let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
-                    builder.jump(blocks[0]);
-                    for (index, &block) in blocks.iter().enumerate() {
-                        builder.switch_to_block(block);
-                        if let Some(&next) = blocks.get(index + 1) {
-                            builder.jump(next);
-                        }
-                    }
-                    let acc = builder.add(argument, one);
-                    builder.ret([acc]);
-                    let liveness = Liveness::compute(&function);
-                    codegen
-                        .select_resident_layout(&function, &liveness, &[argument], false, false)
-                        .map(|(values, _)| values)
-                })
+    #[test]
+    fn resident_layout_selection_is_pinned_across_runs() {
+        // `select_resident_layout` weighs runtime gas against deploy bytes
+        // through `optimizer_runs`. No current cost shape flips the choice
+        // (an eligible stack-riding value dominates the frame convention in
+        // both dimensions), so this pins the selection at both extremes:
+        // a cost-model change that silently alters layout choices, or makes
+        // them run-count-unstable, must show up here as an intentional edit.
+        let select = |runs: u64| {
+            let opts = CompileOpts {
+                optimization: OptimizationMode::Gas,
+                optimizer_runs: Some(runs),
+                ..Default::default()
             };
+            with_codegen(opts, |codegen| {
+                let mut function = Function::new(Ident::DUMMY);
+                let argument = function.alloc_param(MirType::uint256());
+                let mut builder = FunctionBuilder::new(&mut function);
+                let one = builder.imm_u64(1);
+                let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
+                builder.jump(blocks[0]);
+                for (index, &block) in blocks.iter().enumerate() {
+                    builder.switch_to_block(block);
+                    if let Some(&next) = blocks.get(index + 1) {
+                        builder.jump(next);
+                    }
+                }
+                let acc = builder.add(argument, one);
+                builder.ret([acc]);
+                let liveness = Liveness::compute(&function);
+                codegen
+                    .select_resident_layout(&function, &liveness, &[argument], false, false)
+                    .map(|(values, _)| values)
+            })
+        };
 
-            let deploy_dominated = select(1);
-            let runtime_dominated = select(200_000);
-            assert_eq!(deploy_dominated, select(1));
-            assert_eq!(runtime_dominated, select(200_000));
-            assert_eq!(deploy_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
-            assert_eq!(runtime_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
-        }
+        let deploy_dominated = select(1);
+        let runtime_dominated = select(200_000);
+        assert_eq!(deploy_dominated, select(1));
+        assert_eq!(runtime_dominated, select(200_000));
+        assert_eq!(deploy_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
+        assert_eq!(runtime_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
     }
 
     #[test]
