@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import html
+import itertools
 import json
 import math
 import os
@@ -16,8 +17,9 @@ import stat
 import subprocess
 import sys
 import tempfile
+from functools import lru_cache
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -27,19 +29,24 @@ from urllib.parse import urlsplit
 SCRIPT_DIR = Path(__file__).resolve().parent
 FIXTURE_DIR = SCRIPT_DIR / "fixture"
 UPSTREAM_PATH = SCRIPT_DIR / "upstream.json"
-FILTER_PATH = SCRIPT_DIR / "lsp_filter.py"
 
-RAW_SCHEMA_VERSION = 2
-COMPARISON_SCHEMA_VERSION = 2
+RAW_SCHEMA_VERSION = 3
+COMPARISON_SCHEMA_VERSION = 3
 RAW_KIND = "solar-lsp-benchmark-raw"
 COMPARISON_KIND = "solar-lsp-benchmark-comparison"
 COMPARISON_MODE = "main-merge-candidate"
 
 WARMUP_ITERATIONS = 5
 MEASURED_ITERATIONS = 10
+SESSIONS_PER_ORDER = 5
 PASSES = (
     ("base-first", ("base", "head")),
     ("head-first", ("head", "base")),
+)
+PASS_SESSIONS = tuple(
+    (pass_name, session, server_order)
+    for session in range(1, SESSIONS_PER_ORDER + 1)
+    for pass_name, server_order in (PASSES if session % 2 else PASSES[::-1])
 )
 UPSTREAM_DIAGNOSTICS_BENCHMARK = "textDocument/diagnostic"
 DIAGNOSTICS_METRIC = "didOpen/publishDiagnostics"
@@ -54,6 +61,10 @@ METHODS = (
 )
 COMPARISON_METRIC_NAMES = {UPSTREAM_DIAGNOSTICS_BENCHMARK: DIAGNOSTICS_METRIC}
 THRESHOLD_PERCENT = 10.0
+THRESHOLD_ABSOLUTE_MS = 1.0
+CONFIDENCE_LEVEL = 0.95
+SAMPLE_UNIT = "milliseconds"
+SAMPLE_PRECISION = "unrounded-f64"
 COMPARISON_METRIC_DECIMALS = 4
 REQUEST_TIMEOUT_SECONDS = 10
 INDEX_TIMEOUT_SECONDS = 30
@@ -128,6 +139,13 @@ class Context:
     merge_candidate_sha: str
     run_url: str
     comparison_mode: str = COMPARISON_MODE
+
+
+@dataclass(frozen=True)
+class BenchmarkSession:
+    order: str
+    session: int
+    samples: dict[str, dict[str, list[float]]]
 
 
 def validate_context(
@@ -356,12 +374,8 @@ def generated_config(
         "servers": [
             {
                 "label": role,
-                "cmd": str(Path(sys.executable).resolve()),
-                "args": [
-                    str(FILTER_PATH.resolve()),
-                    str(commands[role].resolve()),
-                    "lsp",
-                ],
+                "cmd": str(commands[role].resolve()),
+                "args": ["lsp"],
             }
             for role in server_order
         ],
@@ -543,16 +557,8 @@ def _validate_generated_config(
         arguments = server.get("args")
         if server.get("label") != role or not isinstance(arguments, list):
             raise ValidationError(f"config.servers[{index}] does not match role {role}")
-        if (
-            len(arguments) != 3
-            or not isinstance(arguments[0], str)
-            or not Path(arguments[0]).is_absolute()
-            or not arguments[0].endswith("/benches/lsp/lsp_filter.py")
-            or not isinstance(arguments[1], str)
-            or not Path(arguments[1]).is_absolute()
-            or arguments[2] != "lsp"
-        ):
-            raise ValidationError(f"config.servers[{index}].args is not the filter contract")
+        if arguments != ["lsp"]:
+            raise ValidationError(f"config.servers[{index}].args is not the Solar contract")
         command = server.get("cmd")
         if not isinstance(command, str) or not command or not Path(command).is_absolute():
             raise ValidationError(f"config.servers[{index}].cmd must be absolute")
@@ -1072,11 +1078,14 @@ def _run_pass(
     commands: dict[str, Path],
     output: Path,
     pass_name: str,
+    session: int,
     server_order: Sequence[str],
 ) -> dict[str, Any]:
-    artifact_directory = output / "passes" / pass_name
+    artifact_directory = output / "passes" / pass_name / str(session)
     artifact_directory.mkdir(parents=True)
-    with tempfile.TemporaryDirectory(prefix=f".{pass_name}-", dir=output) as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix=f".{pass_name}-{session}-", dir=output
+    ) as temporary:
         runtime_root = Path(temporary)
         project = runtime_root / "project"
         shutil.copytree(FIXTURE_DIR, project)
@@ -1115,13 +1124,14 @@ def _run_pass(
 
     return {
         "name": pass_name,
+        "session": session,
         "server_order": list(server_order),
         "config": {
-            "path": f"passes/{pass_name}/config.json",
+            "path": f"passes/{pass_name}/{session}/config.json",
             "sha256": sha256_file(artifact_config),
         },
         "results": {
-            "path": f"passes/{pass_name}/results.json",
+            "path": f"passes/{pass_name}/{session}/results.json",
             "sha256": sha256_file(artifact_results),
         },
     }
@@ -1145,8 +1155,8 @@ def run_benchmark(
     output = _prepare_output_directory(output)
 
     pass_entries = [
-        _run_pass(lsp_bench, commands, output, pass_name, server_order)
-        for pass_name, server_order in PASSES
+        _run_pass(lsp_bench, commands, output, pass_name, session, server_order)
+        for pass_name, session, server_order in PASS_SESSIONS
     ]
     manifest = {
         "schema_version": RAW_SCHEMA_VERSION,
@@ -1166,10 +1176,15 @@ def run_benchmark(
         },
         "protocol": {
             "warmup_iterations": WARMUP_ITERATIONS,
-            "measured_iterations_per_pass": MEASURED_ITERATIONS,
+            "measured_iterations_per_session": MEASURED_ITERATIONS,
+            "sessions_per_order": SESSIONS_PER_ORDER,
             "passes": [name for name, _ in PASSES],
             "methods": list(METHODS),
+            "sample_unit": SAMPLE_UNIT,
+            "sample_precision": SAMPLE_PRECISION,
             "threshold_percent": THRESHOLD_PERCENT,
+            "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
+            "confidence_level": CONFIDENCE_LEVEL,
         },
         "upstream": pinned_upstream(),
         "fixture": {"sha256": fixture_sha256()},
@@ -1220,10 +1235,15 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
     protocol = _mapping(manifest.get("protocol"), "manifest.protocol")
     expected_protocol = {
         "warmup_iterations": WARMUP_ITERATIONS,
-        "measured_iterations_per_pass": MEASURED_ITERATIONS,
+        "measured_iterations_per_session": MEASURED_ITERATIONS,
+        "sessions_per_order": SESSIONS_PER_ORDER,
         "passes": [name for name, _ in PASSES],
         "methods": list(METHODS),
+        "sample_unit": SAMPLE_UNIT,
+        "sample_precision": SAMPLE_PRECISION,
         "threshold_percent": THRESHOLD_PERCENT,
+        "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
+        "confidence_level": CONFIDENCE_LEVEL,
     }
     if protocol != expected_protocol:
         raise ValidationError("manifest protocol does not match the trusted adapter")
@@ -1247,14 +1267,18 @@ def _validate_artifact_layout(root: Path) -> None:
     expected_files = {
         "manifest.json",
         *(
-            f"passes/{pass_name}/{file_name}"
-            for pass_name, _ in PASSES
+            f"passes/{pass_name}/{session}/{file_name}"
+            for pass_name, session, _ in PASS_SESSIONS
             for file_name in ("config.json", "results.json")
         ),
     }
     expected_directories = {
         "passes",
         *(f"passes/{pass_name}" for pass_name, _ in PASSES),
+        *(
+            f"passes/{pass_name}/{session}"
+            for pass_name, session, _ in PASS_SESSIONS
+        ),
     }
     seen_files: set[str] = set()
     seen_directories: set[str] = set()
@@ -1275,7 +1299,9 @@ def _validate_artifact_layout(root: Path) -> None:
         raise ValidationError("raw artifact layout is incomplete")
 
 
-def validate_artifact(input_directory: Path, expected: Context) -> dict[str, dict[str, list[float]]]:
+def validate_artifact(
+    input_directory: Path, expected: Context
+) -> list[BenchmarkSession]:
     root = input_directory.resolve()
     if not root.is_dir():
         raise ValidationError("raw artifact directory is missing")
@@ -1284,25 +1310,29 @@ def validate_artifact(input_directory: Path, expected: Context) -> dict[str, dic
         _read_json(root / "manifest.json", MAX_MANIFEST_BYTES, "manifest"), expected
     )
     pass_entries = _array(manifest.get("passes"), "manifest.passes")
-    if len(pass_entries) != len(PASSES):
+    if len(pass_entries) != len(PASS_SESSIONS):
         raise ValidationError("manifest has the wrong number of passes")
 
-    merged = {
-        role: {method: [] for method in METHODS} for role in ("base", "head")
-    }
+    sessions: list[BenchmarkSession] = []
     commands_by_role: dict[str, str] = {}
     versions_by_role: dict[str, str] = {}
-    for index, ((pass_name, server_order), entry) in enumerate(zip(PASSES, pass_entries)):
+    for index, ((pass_name, session, server_order), entry) in enumerate(
+        zip(PASS_SESSIONS, pass_entries)
+    ):
         entry = _mapping(entry, f"manifest.passes[{index}]")
-        if set(entry) != {"name", "server_order", "config", "results"}:
+        if set(entry) != {"name", "session", "server_order", "config", "results"}:
             raise ValidationError(f"manifest.passes[{index}] has unexpected fields")
-        if entry.get("name") != pass_name or entry.get("server_order") != list(server_order):
+        if (
+            entry.get("name") != pass_name
+            or entry.get("session") != session
+            or entry.get("server_order") != list(server_order)
+        ):
             raise ValidationError(f"manifest.passes[{index}] has the wrong pass order")
 
         config_metadata = _mapping(entry.get("config"), f"manifest.passes[{index}].config")
         results_metadata = _mapping(entry.get("results"), f"manifest.passes[{index}].results")
-        expected_config_path = f"passes/{pass_name}/config.json"
-        expected_results_path = f"passes/{pass_name}/results.json"
+        expected_config_path = f"passes/{pass_name}/{session}/config.json"
+        expected_results_path = f"passes/{pass_name}/{session}/results.json"
         if config_metadata.get("path") != expected_config_path or set(config_metadata) != {
             "path",
             "sha256",
@@ -1334,7 +1364,7 @@ def validate_artifact(input_directory: Path, expected: Context) -> dict[str, dic
         )
         for server in config["servers"]:
             role = server["label"]
-            command = server["args"][1]
+            command = server["cmd"]
             previous_command = commands_by_role.setdefault(role, command)
             if previous_command != command:
                 raise ValidationError(f"{role} command differs between passes")
@@ -1349,15 +1379,9 @@ def validate_artifact(input_directory: Path, expected: Context) -> dict[str, dic
             previous_version = versions_by_role.setdefault(role, version)
             if previous_version != version:
                 raise ValidationError(f"{role} version differs between passes")
-            for method in METHODS:
-                merged[role][method].extend(pass_samples[role][method])
+        sessions.append(BenchmarkSession(pass_name, session, pass_samples))
 
-    expected_samples = MEASURED_ITERATIONS * len(PASSES)
-    for role in ("base", "head"):
-        for method in METHODS:
-            if len(merged[role][method]) != expected_samples:
-                raise ValidationError(f"merged {role} {method} sample count is incorrect")
-    return merged
+    return sessions
 
 
 def percentile(samples: Iterable[float], percent: float) -> float:
@@ -1370,22 +1394,105 @@ def percentile(samples: Iterable[float], percent: float) -> float:
     return ordered[index]
 
 
-def method_verdict(p50_delta: float | Decimal, p95_delta: float | Decimal) -> str:
-    p50_delta = Decimal(str(p50_delta))
-    p95_delta = Decimal(str(p95_delta))
-    threshold = Decimal(str(THRESHOLD_PERCENT))
-    if p50_delta >= threshold and p95_delta >= threshold:
+def _decimal_mean(values: Sequence[Decimal]) -> Decimal:
+    return sum(values, Decimal()) / Decimal(len(values))
+
+
+def _decimal_percentile(samples: Iterable[Decimal], percent: float) -> Decimal:
+    ordered = sorted(samples)
+    if not ordered:
+        raise ValueError("percentile requires at least one sample")
+    if not 0 < percent <= 100:
+        raise ValueError("percentile must be in (0, 100]")
+    index = max(0, math.ceil(percent / 100 * len(ordered)) - 1)
+    return ordered[index]
+
+
+@lru_cache(maxsize=None)
+def _paired_bootstrap_interval(
+    base: tuple[Decimal, ...], head: tuple[Decimal, ...]
+) -> dict[str, tuple[Decimal, Decimal]]:
+    if len(base) != len(head) or not base:
+        raise ValueError("paired bootstrap requires equally sized samples")
+
+    absolute_deltas: list[Decimal] = []
+    percent_deltas: list[Decimal] = []
+    for indices in itertools.product(range(len(base)), repeat=len(base)):
+        base_estimate = _decimal_mean([base[index] for index in indices])
+        head_estimate = _decimal_mean([head[index] for index in indices])
+        absolute_delta = head_estimate - base_estimate
+        absolute_deltas.append(absolute_delta)
+        percent_deltas.append(absolute_delta / base_estimate * Decimal(100))
+
+    tail = (1.0 - CONFIDENCE_LEVEL) * 50
+    return {
+        "delta_ms": (
+            _decimal_percentile(absolute_deltas, tail),
+            _decimal_percentile(absolute_deltas, 100 - tail),
+        ),
+        "delta_percent": (
+            _decimal_percentile(percent_deltas, tail),
+            _decimal_percentile(percent_deltas, 100 - tail),
+        ),
+    }
+
+
+def method_verdict(strata: Sequence[dict[str, Any]]) -> str:
+    if len(strata) != len(PASSES):
+        return "stable"
+    percent_threshold = Decimal(str(THRESHOLD_PERCENT))
+    absolute_threshold = Decimal(str(THRESHOLD_ABSOLUTE_MS))
+
+    regression = all(
+        stratum["confidence_interval_95"][delta_kind][percentile_name][0]
+        >= threshold
+        for stratum in strata
+        for percentile_name in ("p50", "p95")
+        for delta_kind, threshold in (
+            ("delta_ms", absolute_threshold),
+            ("delta_percent", percent_threshold),
+        )
+    )
+    if regression:
         return "regression"
-    if p50_delta <= -threshold and p95_delta <= -threshold:
-        return "improvement"
-    return "stable"
+
+    improvement = all(
+        stratum["confidence_interval_95"][delta_kind][percentile_name][1]
+        <= -threshold
+        for stratum in strata
+        for percentile_name in ("p50", "p95")
+        for delta_kind, threshold in (
+            ("delta_ms", absolute_threshold),
+            ("delta_percent", percent_threshold),
+        )
+    )
+    return "improvement" if improvement else "stable"
 
 
 def _rounded_delta_percent(value: Decimal, path: str) -> float:
+    rounding = ROUND_FLOOR if value >= 0 else ROUND_CEILING
+    return _rounded_delta(value, path, 2, rounding)
+
+
+def _rounded_delta_ms(value: Decimal, path: str) -> float:
+    rounding = ROUND_FLOOR if value >= 0 else ROUND_CEILING
+    return _rounded_delta(value, path, COMPARISON_METRIC_DECIMALS, rounding)
+
+
+def _rounded_interval_bound(
+    value: Decimal, path: str, delta_kind: str, *, lower: bool
+) -> float:
+    decimals = COMPARISON_METRIC_DECIMALS if delta_kind == "delta_ms" else 2
+    rounding = ROUND_FLOOR if lower else ROUND_CEILING
+    return _rounded_delta(value, path, decimals, rounding)
+
+
+def _rounded_delta(value: Decimal, path: str, decimals: int, rounding: str) -> float:
     if not value.is_finite():
         raise ValidationError(f"{path} must be finite")
     try:
-        rounded = float(round(value, 2))
+        quantum = Decimal(1).scaleb(-decimals)
+        rounded = float(value.quantize(quantum, rounding=rounding))
     except (ArithmeticError, OverflowError, ValueError) as error:
         raise ValidationError(f"{path} must remain finite after trusted rounding") from error
     if not math.isfinite(rounded):
@@ -1393,46 +1500,139 @@ def _rounded_delta_percent(value: Decimal, path: str) -> float:
     return rounded
 
 
-def build_comparison(
-    samples: dict[str, dict[str, list[float]]], context: Context
+def _session_metric(
+    session: BenchmarkSession, role: str, method: str, percent: float
+) -> Decimal:
+    return Decimal(str(percentile(session.samples[role][method], percent)))
+
+
+def _statistics_for_sessions(
+    sessions: Sequence[BenchmarkSession], method: str, *, with_interval: bool
 ) -> dict[str, Any]:
+    statistics: dict[str, Any] = {
+        "base": {},
+        "head": {},
+        "delta_ms": {},
+        "delta_percent": {},
+    }
+    if with_interval:
+        statistics["confidence_interval_95"] = {
+            "delta_ms": {},
+            "delta_percent": {},
+        }
+
+    for percentile_name, percent in (("p50", 50), ("p95", 95)):
+        base = [_session_metric(session, "base", method, percent) for session in sessions]
+        head = [_session_metric(session, "head", method, percent) for session in sessions]
+        base_estimate = _decimal_mean(base)
+        head_estimate = _decimal_mean(head)
+        absolute_delta = head_estimate - base_estimate
+        statistics["base"][percentile_name] = base_estimate
+        statistics["head"][percentile_name] = head_estimate
+        statistics["delta_ms"][percentile_name] = absolute_delta
+        statistics["delta_percent"][percentile_name] = (
+            absolute_delta / base_estimate * Decimal(100)
+        )
+        if with_interval:
+            interval = _paired_bootstrap_interval(tuple(base), tuple(head))
+            for delta_kind in ("delta_ms", "delta_percent"):
+                statistics["confidence_interval_95"][delta_kind][percentile_name] = (
+                    interval[delta_kind]
+                )
+    return statistics
+
+
+def _comparison_statistics(statistics: dict[str, Any], path: str) -> dict[str, Any]:
+    result = {
+        "base": {
+            f"{name}_ms": _rounded_metric(float(value), f"{path} base {name}")
+            for name, value in statistics["base"].items()
+        },
+        "head": {
+            f"{name}_ms": _rounded_metric(float(value), f"{path} head {name}")
+            for name, value in statistics["head"].items()
+        },
+        "delta_ms": {
+            name: _rounded_delta_ms(value, f"{path} {name} absolute delta")
+            for name, value in statistics["delta_ms"].items()
+        },
+        "delta_percent": {
+            name: _rounded_delta_percent(value, f"{path} {name} percent delta")
+            for name, value in statistics["delta_percent"].items()
+        },
+    }
+    if "confidence_interval_95" in statistics:
+        result["confidence_interval_95"] = {}
+        for delta_kind, percentiles in statistics["confidence_interval_95"].items():
+            result["confidence_interval_95"][delta_kind] = {
+                name: {
+                    "lower": _rounded_interval_bound(
+                        bounds[0],
+                        f"{path} {name} {delta_kind} CI lower",
+                        delta_kind,
+                        lower=True,
+                    ),
+                    "upper": _rounded_interval_bound(
+                        bounds[1],
+                        f"{path} {name} {delta_kind} CI upper",
+                        delta_kind,
+                        lower=False,
+                    ),
+                }
+                for name, bounds in percentiles.items()
+            }
+    return result
+
+
+def build_comparison(
+    sessions: Sequence[BenchmarkSession], context: Context
+) -> dict[str, Any]:
+    grouped_sessions = {
+        pass_name: sorted(
+            (session for session in sessions if session.order == pass_name),
+            key=lambda session: session.session,
+        )
+        for pass_name, _ in PASSES
+    }
+    for pass_name, pass_sessions in grouped_sessions.items():
+        if [session.session for session in pass_sessions] != list(
+            range(1, SESSIONS_PER_ORDER + 1)
+        ):
+            raise ValidationError(f"{pass_name} sessions are incomplete")
+
     methods: list[dict[str, Any]] = []
     verdicts: list[str] = []
     for method in METHODS:
-        base_samples = samples["base"][method]
-        head_samples = samples["head"][method]
-        base_p50 = percentile(base_samples, 50)
-        base_p95 = percentile(base_samples, 95)
-        head_p50 = percentile(head_samples, 50)
-        head_p95 = percentile(head_samples, 95)
-        base_p50_decimal = Decimal(str(base_p50))
-        base_p95_decimal = Decimal(str(base_p95))
-        p50_delta = (
-            (Decimal(str(head_p50)) - base_p50_decimal) / base_p50_decimal * 100
-        )
-        p95_delta = (
-            (Decimal(str(head_p95)) - base_p95_decimal) / base_p95_decimal * 100
-        )
-        verdict = method_verdict(p50_delta, p95_delta)
+        stratum_statistics = [
+            _statistics_for_sessions(pass_sessions, method, with_interval=True)
+            for pass_sessions in grouped_sessions.values()
+        ]
+        verdict = method_verdict(stratum_statistics)
         verdicts.append(verdict)
+        overall_statistics = _statistics_for_sessions(
+            sessions, method, with_interval=False
+        )
+        method_comparison = {
+            "name": COMPARISON_METRIC_NAMES.get(method, method),
+            "sample_count": len(sessions) * MEASURED_ITERATIONS,
+            "session_count": len(sessions),
+            **_comparison_statistics(overall_statistics, method),
+            "strata": [],
+            "verdict": verdict,
+        }
+        for (pass_name, _), pass_sessions, statistics in zip(
+            PASSES, grouped_sessions.values(), stratum_statistics
+        ):
+            method_comparison["strata"].append(
+                {
+                    "order": pass_name,
+                    "sample_count": len(pass_sessions) * MEASURED_ITERATIONS,
+                    "session_count": len(pass_sessions),
+                    **_comparison_statistics(statistics, f"{method} {pass_name}"),
+                }
+            )
         methods.append(
-            {
-                "name": COMPARISON_METRIC_NAMES.get(method, method),
-                "sample_count": len(base_samples),
-                "base": {
-                    "p50_ms": _rounded_metric(base_p50, f"{method} base p50"),
-                    "p95_ms": _rounded_metric(base_p95, f"{method} base p95"),
-                },
-                "head": {
-                    "p50_ms": _rounded_metric(head_p50, f"{method} head p50"),
-                    "p95_ms": _rounded_metric(head_p95, f"{method} head p95"),
-                },
-                "delta_percent": {
-                    "p50": _rounded_delta_percent(p50_delta, f"{method} p50 delta"),
-                    "p95": _rounded_delta_percent(p95_delta, f"{method} p95 delta"),
-                },
-                "verdict": verdict,
-            }
+            method_comparison
         )
 
     if "regression" in verdicts:
@@ -1456,6 +1656,8 @@ def build_comparison(
         "merge_candidate_sha": context.merge_candidate_sha,
         "run_url": context.run_url,
         "threshold_percent": THRESHOLD_PERCENT,
+        "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
+        "confidence_level": CONFIDENCE_LEVEL,
         "overall": overall,
         "methods": methods,
     }
@@ -1480,6 +1682,8 @@ def inconclusive_comparison(
         "merge_candidate_sha": context.merge_candidate_sha,
         "run_url": context.run_url,
         "threshold_percent": THRESHOLD_PERCENT,
+        "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
+        "confidence_level": CONFIDENCE_LEVEL,
         "overall": "inconclusive",
         "methods": [],
         "error": reason[:500],
@@ -1525,6 +1729,20 @@ def _delta_cell(value: float) -> str:
     return f"{value:+.2f}%"
 
 
+def _change_cell(delta_ms: float, delta_percent: float) -> str:
+    return f"{delta_ms:+.4f} ms ({_delta_cell(delta_percent)})"
+
+
+def _confidence_cell(stratum: dict[str, Any], percentile_name: str) -> str:
+    absolute = stratum["confidence_interval_95"]["delta_ms"][percentile_name]
+    percent = stratum["confidence_interval_95"]["delta_percent"][percentile_name]
+    return (
+        f"{_change_cell(stratum['delta_ms'][percentile_name], stratum['delta_percent'][percentile_name])}; "
+        f"CI [{absolute['lower']:+.4f}, {absolute['upper']:+.4f}] ms / "
+        f"[{percent['lower']:+.2f}%, {percent['upper']:+.2f}%]"
+    )
+
+
 def render_markdown(comparison: dict[str, Any]) -> str:
     repository = comparison["repository"]
     pr_head_repository = comparison["pr_head_repository"]
@@ -1566,8 +1784,8 @@ def render_markdown(comparison: dict[str, Any]) -> str:
     )
     lines.extend(
         [
-            "| Metric | Samples | Base p50 | Head p50 | Delta | Base p95 | Head p95 | Delta | Verdict |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            "| Metric | Sessions | Samples | Base p50 | Head p50 | Change | Base p95 | Head p95 | Change | Verdict |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
     for method in comparison["methods"]:
@@ -1576,13 +1794,18 @@ def render_markdown(comparison: dict[str, Any]) -> str:
             + " | ".join(
                 [
                     markdown_escape(method["name"]),
+                    str(method["session_count"]),
                     str(method["sample_count"]),
                     f"{method['base']['p50_ms']:.2f} ms",
                     f"{method['head']['p50_ms']:.2f} ms",
-                    _delta_cell(method["delta_percent"]["p50"]),
+                    _change_cell(
+                        method["delta_ms"]["p50"], method["delta_percent"]["p50"]
+                    ),
                     f"{method['base']['p95_ms']:.2f} ms",
                     f"{method['head']['p95_ms']:.2f} ms",
-                    _delta_cell(method["delta_percent"]["p95"]),
+                    _change_cell(
+                        method["delta_ms"]["p95"], method["delta_percent"]["p95"]
+                    ),
                     markdown_escape(method["verdict"]),
                 ]
             )
@@ -1592,8 +1815,40 @@ def render_markdown(comparison: dict[str, Any]) -> str:
         [
             "",
             (
-                "A metric changes only when both recomputed percentiles cross the "
-                f"{THRESHOLD_PERCENT:.0f}% threshold. RSS is not part of the verdict."
+                "Base and Head values are means of the ten per-session nearest-rank "
+                "percentiles, not percentiles of pooled request samples."
+            ),
+            "",
+            "Order-stratified paired bootstrap evidence:",
+            "",
+            "| Metric | Order | Sessions | p50 change and 95% CI | p95 change and 95% CI |",
+            "| --- | --- | ---: | --- | --- |",
+        ]
+    )
+    for method in comparison["methods"]:
+        for stratum in method["strata"]:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        markdown_escape(method["name"]),
+                        markdown_escape(stratum["order"]),
+                        str(stratum["session_count"]),
+                        _confidence_cell(stratum, "p50"),
+                        _confidence_cell(stratum, "p95"),
+                    ]
+                )
+                + " |"
+            )
+    lines.extend(
+        [
+            "",
+            (
+                "A metric changes only when the paired 95% confidence intervals for p50 "
+                "and p95 in both server-order strata cross both the "
+                f"{THRESHOLD_PERCENT:.0f}% and {THRESHOLD_ABSOLUTE_MS:.1f} ms thresholds. "
+                "Request iterations within one server process are not counted as "
+                "independent sessions. RSS is not part of the verdict."
             ),
             (
                 f"`{DIAGNOSTICS_METRIC}` is an end-to-end metric that includes the "

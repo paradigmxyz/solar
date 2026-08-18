@@ -23,17 +23,6 @@ benchmark = importlib.util.module_from_spec(MODULE_SPEC)
 sys.modules[MODULE_SPEC.name] = benchmark
 MODULE_SPEC.loader.exec_module(benchmark)
 
-FILTER_MODULE_PATH = Path(__file__).with_name("lsp_filter.py")
-FILTER_MODULE_SPEC = importlib.util.spec_from_file_location(
-    "solar_lsp_filter", FILTER_MODULE_PATH
-)
-if FILTER_MODULE_SPEC is None or FILTER_MODULE_SPEC.loader is None:
-    raise RuntimeError(f"could not load {FILTER_MODULE_PATH}")
-lsp_filter = importlib.util.module_from_spec(FILTER_MODULE_SPEC)
-sys.modules[FILTER_MODULE_SPEC.name] = lsp_filter
-FILTER_MODULE_SPEC.loader.exec_module(lsp_filter)
-
-
 CONTEXT = benchmark.Context(
     repository="paradigmxyz/solar",
     pr_head_repository="0xKarl98/solar",
@@ -133,8 +122,8 @@ def write_json(path: Path, value: Any) -> bytes:
 class RawArtifact:
     def __init__(self, root: Path) -> None:
         self.root = root
-        self.configs: dict[str, dict[str, Any]] = {}
-        self.results: dict[str, dict[str, Any]] = {}
+        self.configs: dict[tuple[str, int], dict[str, Any]] = {}
+        self.results: dict[tuple[str, int], dict[str, Any]] = {}
         self.manifest = {
             "schema_version": benchmark.RAW_SCHEMA_VERSION,
             "kind": benchmark.RAW_KIND,
@@ -153,10 +142,15 @@ class RawArtifact:
             },
             "protocol": {
                 "warmup_iterations": benchmark.WARMUP_ITERATIONS,
-                "measured_iterations_per_pass": benchmark.MEASURED_ITERATIONS,
+                "measured_iterations_per_session": benchmark.MEASURED_ITERATIONS,
+                "sessions_per_order": benchmark.SESSIONS_PER_ORDER,
                 "passes": [name for name, _ in benchmark.PASSES],
                 "methods": list(benchmark.METHODS),
+                "sample_unit": benchmark.SAMPLE_UNIT,
+                "sample_precision": benchmark.SAMPLE_PRECISION,
                 "threshold_percent": benchmark.THRESHOLD_PERCENT,
+                "threshold_absolute_ms": benchmark.THRESHOLD_ABSOLUTE_MS,
+                "confidence_level": benchmark.CONFIDENCE_LEVEL,
             },
             "upstream": benchmark.pinned_upstream(),
             "fixture": {"sha256": benchmark.fixture_sha256()},
@@ -171,32 +165,36 @@ class RawArtifact:
             "base": root / "binaries" / "base-solar",
             "head": root / "binaries" / "head-solar",
         }
-        for pass_index, (pass_name, server_order) in enumerate(benchmark.PASSES):
+        for pass_index, (pass_name, session, server_order) in enumerate(
+            benchmark.PASS_SESSIONS
+        ):
             config = benchmark.generated_config(
-                root / "runtime" / pass_name / "project",
-                root / "runtime" / pass_name / "output",
+                root / "runtime" / pass_name / str(session) / "project",
+                root / "runtime" / pass_name / str(session) / "output",
                 commands,
                 server_order,
             )
             results = self._results(config, server_order, pass_index)
-            self.configs[pass_name] = config
-            self.results[pass_name] = results
+            key = (pass_name, session)
+            self.configs[key] = config
+            self.results[key] = results
             self.manifest["passes"].append(
                 {
                     "name": pass_name,
+                    "session": session,
                     "server_order": list(server_order),
                     "config": {
-                        "path": f"passes/{pass_name}/config.json",
+                        "path": f"passes/{pass_name}/{session}/config.json",
                         "sha256": "",
                     },
                     "results": {
-                        "path": f"passes/{pass_name}/results.json",
+                        "path": f"passes/{pass_name}/{session}/results.json",
                         "sha256": "",
                     },
                 }
             )
-            self.rewrite_config(pass_name, rewrite_manifest=False)
-            self.rewrite_results(pass_name, rewrite_manifest=False)
+            self.rewrite_config(pass_name, session, rewrite_manifest=False)
+            self.rewrite_results(pass_name, session, rewrite_manifest=False)
         self.rewrite_manifest()
 
     @staticmethod
@@ -252,25 +250,60 @@ class RawArtifact:
             "benchmarks": benchmarks,
         }
 
-    def pass_entry(self, pass_name: str) -> dict[str, Any]:
-        return next(entry for entry in self.manifest["passes"] if entry["name"] == pass_name)
+    def pass_entry(self, pass_name: str, session: int = 1) -> dict[str, Any]:
+        return next(
+            entry
+            for entry in self.manifest["passes"]
+            if entry["name"] == pass_name and entry["session"] == session
+        )
 
-    def rewrite_config(self, pass_name: str, *, rewrite_manifest: bool = True) -> None:
-        path = self.root / "passes" / pass_name / "config.json"
-        data = write_json(path, self.configs[pass_name])
-        self.pass_entry(pass_name)["config"]["sha256"] = hashlib.sha256(data).hexdigest()
+    def rewrite_config(
+        self, pass_name: str, session: int = 1, *, rewrite_manifest: bool = True
+    ) -> None:
+        path = self.root / "passes" / pass_name / str(session) / "config.json"
+        data = write_json(path, self.configs[(pass_name, session)])
+        self.pass_entry(pass_name, session)["config"]["sha256"] = hashlib.sha256(
+            data
+        ).hexdigest()
         if rewrite_manifest:
             self.rewrite_manifest()
 
-    def rewrite_results(self, pass_name: str, *, rewrite_manifest: bool = True) -> None:
-        path = self.root / "passes" / pass_name / "results.json"
-        data = write_json(path, self.results[pass_name])
-        self.pass_entry(pass_name)["results"]["sha256"] = hashlib.sha256(data).hexdigest()
+    def rewrite_results(
+        self, pass_name: str, session: int = 1, *, rewrite_manifest: bool = True
+    ) -> None:
+        path = self.root / "passes" / pass_name / str(session) / "results.json"
+        data = write_json(path, self.results[(pass_name, session)])
+        self.pass_entry(pass_name, session)["results"]["sha256"] = hashlib.sha256(
+            data
+        ).hexdigest()
         if rewrite_manifest:
             self.rewrite_manifest()
 
     def rewrite_manifest(self) -> None:
         write_json(self.root / "manifest.json", self.manifest)
+
+
+def constant_sessions(
+    base_ms: float = 10.0,
+    head_ms: float = 10.0,
+    *,
+    by_order: dict[str, tuple[float, float]] | None = None,
+) -> list[benchmark.BenchmarkSession]:
+    sessions = []
+    for order, session, _ in benchmark.PASS_SESSIONS:
+        order_base, order_head = (by_order or {}).get(order, (base_ms, head_ms))
+        samples = {
+            "base": {
+                method: [order_base] * benchmark.MEASURED_ITERATIONS
+                for method in benchmark.METHODS
+            },
+            "head": {
+                method: [order_head] * benchmark.MEASURED_ITERATIONS
+                for method in benchmark.METHODS
+            },
+        }
+        sessions.append(benchmark.BenchmarkSession(order, session, samples))
+    return sessions
 
 
 class ConfigTests(unittest.TestCase):
@@ -290,20 +323,18 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["response"], "full")
         self.assertEqual(config["benchmarks"], list(benchmark.METHODS))
         self.assertEqual(config["methods"], benchmark.METHOD_CONFIG)
-        python = str(Path(sys.executable).resolve())
-        filter_path = str(benchmark.FILTER_PATH.resolve())
         self.assertEqual(
             config["servers"],
             [
                 {
                     "label": "head",
-                    "cmd": python,
-                    "args": [filter_path, str((root / "head").resolve()), "lsp"],
+                    "cmd": str((root / "head").resolve()),
+                    "args": ["lsp"],
                 },
                 {
                     "label": "base",
-                    "cmd": python,
-                    "args": [filter_path, str((root / "base").resolve()), "lsp"],
+                    "cmd": str((root / "base").resolve()),
+                    "args": ["lsp"],
                 },
             ],
         )
@@ -333,8 +364,12 @@ class ConfigTests(unittest.TestCase):
             upstream["commit"], "ca0651f86f430290dacdbeb62c9c6987a3ad6966"
         )
         self.assertEqual(
-            upstream["asset"]["sha256"],
-            "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df",
+            upstream["source"]["sha256"],
+            "145dc03c5606d6b5ec66647d233486bab9f4e65022275763bf445bc26414470e",
+        )
+        self.assertEqual(
+            upstream["adapter"]["sha256"],
+            "8d5242a63ff812056b449dedffd96e3f60bcc475dd8f39142b340acae7dbf7a2",
         )
 
     def test_subprocess_environment_is_fixed_and_isolated(self) -> None:
@@ -499,190 +534,6 @@ class ArgumentParserTests(unittest.TestCase):
                 self.assertEqual(parsed.workflow_repository, CONTEXT.workflow_repository)
 
 
-class NotificationFilterTests(unittest.TestCase):
-    def test_drops_invalid_initialize_responses(self) -> None:
-        invalid = (
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "error": {"code": -1, "message": "initialization failed"},
-            },
-            {"jsonrpc": "2.0", "id": 1, "result": {}},
-        )
-        for response in invalid:
-            with self.subTest(response=response):
-                filter_ = lsp_filter.NotificationFilter()
-                filter_.observe_client(
-                    {"jsonrpc": "2.0", "id": 1, "method": "initialize"}
-                )
-
-                self.assertEqual(filter_.server_messages(response, b"invalid"), [])
-
-        filter_ = lsp_filter.NotificationFilter()
-        filter_.observe_client({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
-        valid = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "result": {"capabilities": {"hoverProvider": True}},
-        }
-        self.assertEqual(filter_.server_messages(valid, b"valid"), [b"valid"])
-
-    def test_waits_for_main_diagnostics_and_replays_progress_end(self) -> None:
-        filter_ = lsp_filter.NotificationFilter()
-        filter_.observe_client({"jsonrpc": "2.0", "method": "initialized"})
-        filter_.observe_client(
-            {
-                "jsonrpc": "2.0",
-                "method": "textDocument/didOpen",
-                "params": {"textDocument": {"uri": "file:///fixture/Main.sol"}},
-            }
-        )
-
-        self.assertEqual(
-            filter_.server_messages(
-                {"jsonrpc": "2.0", "method": "window/logMessage"}, b"log"
-            ),
-            [],
-        )
-        progress = {
-            "jsonrpc": "2.0",
-            "method": "$/progress",
-            "params": {"value": {"kind": "end"}},
-        }
-        self.assertEqual(filter_.server_messages(progress, b"end"), [])
-        math = {
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {"uri": "file:///fixture/Math.sol", "diagnostics": []},
-        }
-        self.assertEqual(filter_.server_messages(math, b"math"), [])
-        main = {
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {"uri": "file:///fixture/Main.sol", "diagnostics": []},
-        }
-        self.assertEqual(filter_.server_messages(main, b"empty"), [])
-        main["params"]["diagnostics"] = valid_response("textDocument/diagnostic")[
-            "diagnostics"
-        ]
-        self.assertEqual(
-            filter_.server_messages(main, b"main"), [b"main", b"end"]
-        )
-        self.assertEqual(
-            filter_.server_messages(
-                {"jsonrpc": "2.0", "method": "window/logMessage"}, b"later"
-            ),
-            [b"later"],
-        )
-
-    def test_synthesizes_index_completion_after_fixture_diagnostics(self) -> None:
-        filter_ = lsp_filter.NotificationFilter()
-        filter_.observe_client({"jsonrpc": "2.0", "method": "initialized"})
-        filter_.observe_client(
-            {
-                "jsonrpc": "2.0",
-                "method": "textDocument/didOpen",
-                "params": {"textDocument": {"uri": "file:///fixture/Main.sol"}},
-            }
-        )
-        notification = {
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": valid_response("textDocument/diagnostic"),
-        }
-
-        forwarded = filter_.server_messages(notification, b"diagnostics")
-
-        self.assertEqual(forwarded[0], b"diagnostics")
-        self.assertEqual(
-            json.loads(forwarded[1]),
-            {
-                "jsonrpc": "2.0",
-                "method": "$/progress",
-                "params": {
-                    "token": "solar-lsp-bench-index",
-                    "value": {"kind": "end"},
-                },
-            },
-        )
-
-    def test_requires_the_exact_did_open_fixture_uri(self) -> None:
-        filter_ = lsp_filter.NotificationFilter()
-        filter_.observe_client({"jsonrpc": "2.0", "method": "initialized"})
-        filter_.observe_client(
-            {
-                "jsonrpc": "2.0",
-                "method": "textDocument/didOpen",
-                "params": {"textDocument": {"uri": "file:///fixture/Main.sol"}},
-            }
-        )
-        notification = {
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {
-                "uri": "file:///other/Main.sol",
-                "diagnostics": valid_response("textDocument/diagnostic")[
-                    "diagnostics"
-                ],
-            },
-        }
-
-        self.assertEqual(filter_.server_messages(notification, b"wrong"), [])
-
-    def test_rejects_malformed_progress_notifications(self) -> None:
-        invalid = (
-            {"jsonrpc": "2.0", "method": "$/progress", "params": []},
-            {
-                "jsonrpc": "2.0",
-                "method": "$/progress",
-                "params": {"value": []},
-            },
-        )
-        for message in invalid:
-            with self.subTest(message=message):
-                with self.assertRaisesRegex(RuntimeError, "progress"):
-                    lsp_filter.NotificationFilter().server_messages(message, b"invalid")
-
-    def test_forwards_server_requests_while_filtering_notifications(self) -> None:
-        filter_ = lsp_filter.NotificationFilter()
-        filter_.observe_client({"jsonrpc": "2.0", "method": "initialized"})
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "window/workDoneProgress/create",
-        }
-
-        self.assertEqual(filter_.server_messages(request, b"request"), [b"request"])
-
-    def test_rejects_malformed_server_envelopes(self) -> None:
-        invalid = (
-            None,
-            {"id": 1, "result": {}},
-            {"jsonrpc": "1.0", "id": 1, "result": {}},
-            {"jsonrpc": "2.0", "id": True, "result": {}},
-            {"jsonrpc": "2.0", "id": 1, "result": {}, "error": {}},
-            {"jsonrpc": "2.0", "id": 1, "error": {"code": -1}},
-            {"jsonrpc": "2.0", "method": "notify", "params": 1},
-        )
-
-        for message in invalid:
-            with self.subTest(message=message):
-                with self.assertRaisesRegex(RuntimeError, "JSON-RPC"):
-                    lsp_filter.NotificationFilter().server_messages(message, b"invalid")
-
-    def test_rejects_non_strict_json_messages(self) -> None:
-        invalid = (
-            b"{",
-            b'{"jsonrpc":"2.0","jsonrpc":"2.0"}',
-            b'{"jsonrpc":"2.0","id":1,"result":NaN}',
-        )
-
-        for message in invalid:
-            with self.subTest(message=message):
-                with self.assertRaisesRegex(RuntimeError, "strict JSON"):
-                    lsp_filter.parse_message(message)
-
-
 class ResponseValidationTests(unittest.TestCase):
     def test_accepts_semantically_correct_responses(self) -> None:
         for method in benchmark.METHODS:
@@ -783,17 +634,31 @@ class ResponseValidationTests(unittest.TestCase):
 
 
 class ArtifactValidationTests(unittest.TestCase):
-    def test_valid_artifact_merges_both_pass_orders(self) -> None:
+    def test_valid_artifact_preserves_order_session_and_sample_precision(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            samples = benchmark.validate_artifact(artifact.root, CONTEXT)
+            precise = 10.1234567890123
+            artifact.results[("base-first", 1)]["benchmarks"][0]["servers"][0][
+                "iterations"
+            ][0]["ms"] = precise
+            artifact.rewrite_results("base-first")
+            sessions = benchmark.validate_artifact(artifact.root, CONTEXT)
 
-        for role in ("base", "head"):
-            self.assertEqual(set(samples[role]), set(benchmark.METHODS))
-            for method in benchmark.METHODS:
-                self.assertEqual(len(samples[role][method]), 20)
-        self.assertEqual(samples["base"]["initialize"][:2], [10.0, 10.01])
-        self.assertEqual(samples["base"]["initialize"][10:12], [13.0, 13.01])
+        self.assertEqual(
+            [(session.order, session.session) for session in sessions],
+            [(name, session) for name, session, _ in benchmark.PASS_SESSIONS],
+        )
+        self.assertEqual(len(sessions), 10)
+        for session in sessions:
+            for role in ("base", "head"):
+                self.assertEqual(set(session.samples[role]), set(benchmark.METHODS))
+                for method in benchmark.METHODS:
+                    self.assertEqual(
+                        len(session.samples[role][method]),
+                        benchmark.MEASURED_ITERATIONS,
+                    )
+        self.assertEqual(sessions[0].samples["base"]["initialize"][0], precise)
+        self.assertEqual(sessions[1].samples["base"]["initialize"][:2], [13.0, 13.01])
 
     def test_rejects_manifest_from_different_trusted_context(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -807,7 +672,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_tampered_result_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            path = artifact.root / "passes" / "base-first" / "results.json"
+            path = artifact.root / "passes" / "base-first" / "1" / "results.json"
             path.write_bytes(path.read_bytes() + b" ")
 
             with self.assertRaisesRegex(benchmark.ValidationError, "digest"):
@@ -816,7 +681,9 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_missing_pass_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            (artifact.root / "passes" / "head-first" / "config.json").unlink()
+            (
+                artifact.root / "passes" / "head-first" / "1" / "config.json"
+            ).unlink()
 
             with self.assertRaisesRegex(benchmark.ValidationError, "layout is incomplete"):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
@@ -832,7 +699,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_unexpected_config_fields_after_digest_verification(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            artifact.configs["base-first"]["unexpected"] = True
+            artifact.configs[("base-first", 1)]["unexpected"] = True
             artifact.rewrite_config("base-first")
 
             with self.assertRaisesRegex(benchmark.ValidationError, "config fields"):
@@ -841,7 +708,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_incomplete_method_set(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            artifact.results["base-first"]["benchmarks"].pop()
+            artifact.results[("base-first", 1)]["benchmarks"].pop()
             artifact.rewrite_results("base-first")
 
             with self.assertRaisesRegex(benchmark.ValidationError, "core method set"):
@@ -865,7 +732,7 @@ class ArtifactValidationTests(unittest.TestCase):
                 artifact = RawArtifact(Path(directory))
                 hover = next(
                     item
-                    for item in artifact.results["base-first"]["benchmarks"]
+                    for item in artifact.results[("base-first", 1)]["benchmarks"]
                     if item["name"] == "textDocument/hover"
                 )
                 mutate(hover)
@@ -887,7 +754,7 @@ class ArtifactValidationTests(unittest.TestCase):
         for name, mutate in mutations.items():
             with self.subTest(case=name), tempfile.TemporaryDirectory() as directory:
                 artifact = RawArtifact(Path(directory))
-                row = artifact.results["base-first"]["benchmarks"][0]["servers"][0]
+                row = artifact.results[("base-first", 1)]["benchmarks"][0]["servers"][0]
                 mutate(row)
                 artifact.rewrite_results("base-first")
 
@@ -897,7 +764,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_nonfinite_json_constant(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            path = artifact.root / "passes" / "base-first" / "results.json"
+            path = artifact.root / "passes" / "base-first" / "1" / "results.json"
             data = path.read_bytes().replace(b'"ms": 10.0', b'"ms": NaN', 1)
             path.write_bytes(data)
             artifact.pass_entry("base-first")["results"]["sha256"] = hashlib.sha256(
@@ -923,7 +790,7 @@ class ArtifactValidationTests(unittest.TestCase):
             artifact = RawArtifact(Path(directory))
             hover = next(
                 item
-                for item in artifact.results["base-first"]["benchmarks"]
+                for item in artifact.results[("base-first", 1)]["benchmarks"]
                 if item["name"] == "textDocument/hover"
             )
             hover["servers"][0]["iterations"][4]["response"] = {
@@ -937,7 +804,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_invalid_rss_even_though_rss_is_not_a_verdict_metric(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            row = artifact.results["base-first"]["benchmarks"][0]["servers"][0]
+            row = artifact.results[("base-first", 1)]["benchmarks"][0]["servers"][0]
             row["rss_kb"] = -1
             artifact.rewrite_results("base-first")
 
@@ -947,7 +814,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_upstream_commit_mode_in_generated_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            artifact.configs["base-first"]["servers"][0]["commit"] = "main"
+            artifact.configs[("base-first", 1)]["servers"][0]["commit"] = "main"
             artifact.rewrite_config("base-first")
 
             with self.assertRaisesRegex(benchmark.ValidationError, "unsupported server fields"):
@@ -957,7 +824,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_symlinked_result_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            result = artifact.root / "passes" / "base-first" / "results.json"
+            result = artifact.root / "passes" / "base-first" / "1" / "results.json"
             target = artifact.root / "outside.json"
             result.rename(target)
             result.symlink_to(target)
@@ -1012,17 +879,17 @@ class ArtifactValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifact = RawArtifact(root / "raw")
-            for pass_name, _ in benchmark.PASSES:
+            for pass_name, session, _ in benchmark.PASS_SESSIONS:
                 initialize = next(
                     item
-                    for item in artifact.results[pass_name]["benchmarks"]
+                    for item in artifact.results[(pass_name, session)]["benchmarks"]
                     if item["name"] == "initialize"
                 )
                 head = next(row for row in initialize["servers"] if row["server"] == "head")
                 head.update(p50_ms=1e308, p95_ms=1e308, mean_ms=1e308)
                 for iteration in head["iterations"]:
                     iteration["ms"] = 1e308
-                artifact.rewrite_results(pass_name)
+                artifact.rewrite_results(pass_name, session)
             report = root / "report.md"
             comparison_path = root / "comparison.json"
 
@@ -1069,11 +936,9 @@ class PublicationStateTests(unittest.TestCase):
             (8.0, "improvement"),
             (10.0, "stable"),
         ):
-            samples = {
-                "base": {method: [10.0] * 20 for method in benchmark.METHODS},
-                "head": {method: [head_ms] * 20 for method in benchmark.METHODS},
-            }
-            frozen = benchmark.build_comparison(samples, CONTEXT)
+            frozen = benchmark.build_comparison(
+                constant_sessions(head_ms=head_ms), CONTEXT
+            )
             for current_main, current_head, freshness in (
                 ("5" * 40, CURRENT_PR_HEAD_SHA, "main-advanced"),
                 (CURRENT_MAIN_SHA, "6" * 40, "superseded"),
@@ -1116,12 +981,7 @@ class PublicationStateTests(unittest.TestCase):
 
 class StatisticsTests(unittest.TestCase):
     def test_comparison_names_the_diagnostics_timing_boundary(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-
-        comparison = benchmark.build_comparison(samples, CONTEXT)
+        comparison = benchmark.build_comparison(constant_sessions(), CONTEXT)
 
         self.assertEqual(benchmark.METHODS[1], "textDocument/diagnostic")
         self.assertEqual(
@@ -1150,65 +1010,131 @@ class StatisticsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "must be in"):
                     benchmark.percentile([1], percent)
 
-    def test_method_verdict_requires_both_percentiles_to_cross_threshold(self) -> None:
+    def test_method_verdict_requires_both_order_strata(self) -> None:
         cases = (
-            ((10.0, 10.0), "regression"),
-            ((-10.0, -10.0), "improvement"),
-            ((20.0, 9.99), "stable"),
-            ((-20.0, -9.99), "stable"),
-            ((20.0, -20.0), "stable"),
+            (
+                constant_sessions(
+                    by_order={
+                        "base-first": (10.0, 12.0),
+                        "head-first": (10.0, 8.0),
+                    }
+                ),
+                "stable",
+            ),
+            (
+                constant_sessions(
+                    by_order={
+                        "base-first": (10.0, 12.0),
+                        "head-first": (10.0, 10.0),
+                    }
+                ),
+                "stable",
+            ),
         )
-        for deltas, expected in cases:
-            with self.subTest(deltas=deltas):
-                self.assertEqual(benchmark.method_verdict(*deltas), expected)
+        for sessions, expected in cases:
+            with self.subTest(expected=expected):
+                comparison = benchmark.build_comparison(sessions, CONTEXT)
+                self.assertEqual(comparison["methods"][0]["verdict"], expected)
 
-    def test_build_comparison_treats_exact_decimal_ten_percent_as_the_boundary(self) -> None:
-        cases = ((0.1, 0.11, "regression"), (0.3, 0.27, "improvement"))
+    def test_method_verdict_without_both_strata_is_stable(self) -> None:
+        self.assertEqual(benchmark.method_verdict([]), "stable")
+
+    def test_build_comparison_requires_percent_and_absolute_thresholds(self) -> None:
+        cases = (
+            (10.0, 11.0, "regression"),
+            (10.0, 9.0, "improvement"),
+            (1.0, 1.2, "stable"),
+        )
         for base_ms, head_ms, expected in cases:
             with self.subTest(expected=expected):
-                samples = {
-                    "base": {method: [base_ms] * 20 for method in benchmark.METHODS},
-                    "head": {method: [head_ms] * 20 for method in benchmark.METHODS},
-                }
-
-                comparison = benchmark.build_comparison(samples, CONTEXT)
+                comparison = benchmark.build_comparison(
+                    constant_sessions(base_ms, head_ms), CONTEXT
+                )
 
                 self.assertEqual(comparison["overall"], expected)
                 self.assertEqual(comparison["methods"][0]["verdict"], expected)
 
-    def test_build_comparison_recomputes_metrics_and_prioritizes_regressions(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        samples["head"][benchmark.METHODS[0]] = [12.0] * 20
-        samples["head"][benchmark.METHODS[1]] = [8.0] * 20
+    def test_near_threshold_output_remains_visibly_below_the_boundary(self) -> None:
+        comparison = benchmark.build_comparison(
+            constant_sessions(10.0, 10.99996), CONTEXT
+        )
+        method = comparison["methods"][0]
 
-        comparison = benchmark.build_comparison(samples, CONTEXT)
+        self.assertEqual(method["verdict"], "stable")
+        self.assertEqual(method["delta_ms"]["p50"], 0.9999)
+        self.assertEqual(method["delta_percent"]["p50"], 9.99)
+        self.assertEqual(
+            method["strata"][0]["confidence_interval_95"]["delta_ms"]["p50"],
+            {"lower": 0.9999, "upper": 1.0},
+        )
+        rendered = benchmark.render_markdown(
+            benchmark.add_publication_state(
+                comparison, CONTEXT, CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
+            )
+        )
+        self.assertIn("+0.9999 ms (+9.99%)", rendered)
+        self.assertIn("CI [+0.9999, +1.0000] ms", rendered)
+
+    def test_build_comparison_requires_p50_and_p95_evidence(self) -> None:
+        sessions = constant_sessions()
+        for session in sessions:
+            session.samples["base"][benchmark.METHODS[0]] = [10.0] * 5 + [20.0] * 5
+            session.samples["head"][benchmark.METHODS[0]] = [12.0] * 5 + [20.0] * 5
+
+        comparison = benchmark.build_comparison(sessions, CONTEXT)
+
+        self.assertEqual(comparison["methods"][0]["delta_ms"], {"p50": 2.0, "p95": 0.0})
+        self.assertEqual(comparison["methods"][0]["verdict"], "stable")
+
+    def test_build_comparison_recomputes_metrics_and_prioritizes_regressions(self) -> None:
+        sessions = constant_sessions()
+        for session in sessions:
+            session.samples["head"][benchmark.METHODS[0]] = [12.0] * 10
+            session.samples["head"][benchmark.METHODS[1]] = [8.0] * 10
+
+        comparison = benchmark.build_comparison(sessions, CONTEXT)
 
         self.assertEqual(comparison["overall"], "regression")
-        self.assertEqual(comparison["methods"][0]["sample_count"], 20)
+        self.assertEqual(comparison["methods"][0]["sample_count"], 100)
+        self.assertEqual(comparison["methods"][0]["session_count"], 10)
         self.assertEqual(comparison["methods"][0]["base"]["p95_ms"], 10.0)
         self.assertEqual(comparison["methods"][0]["head"]["p50_ms"], 12.0)
+        self.assertEqual(comparison["methods"][0]["delta_ms"]["p50"], 2.0)
         self.assertEqual(comparison["methods"][0]["delta_percent"]["p50"], 20.0)
         self.assertEqual(comparison["methods"][0]["verdict"], "regression")
         self.assertEqual(comparison["methods"][1]["verdict"], "improvement")
+        for stratum in comparison["methods"][0]["strata"]:
+            self.assertEqual(stratum["session_count"], 5)
+            self.assertEqual(stratum["sample_count"], 50)
+            self.assertEqual(
+                stratum["confidence_interval_95"]["delta_ms"]["p50"],
+                {"lower": 2.0, "upper": 2.0},
+            )
 
     def test_overall_verdict_covers_stable_and_improvement(self) -> None:
         for head_ms, expected in ((10.0, "stable"), (8.0, "improvement")):
             with self.subTest(expected=expected):
-                samples = {
-                    "base": {method: [10.0] * 20 for method in benchmark.METHODS},
-                    "head": {method: [head_ms] * 20 for method in benchmark.METHODS},
-                }
-
-                comparison = benchmark.build_comparison(samples, CONTEXT)
+                comparison = benchmark.build_comparison(
+                    constant_sessions(head_ms=head_ms), CONTEXT
+                )
 
                 self.assertEqual(comparison["overall"], expected)
                 self.assertEqual(
                     {method["verdict"] for method in comparison["methods"]},
                     {expected},
                 )
+
+    def test_descriptive_metrics_are_means_of_session_percentiles(self) -> None:
+        sessions = constant_sessions()
+        for index, session in enumerate(sessions, start=1):
+            for method in benchmark.METHODS:
+                session.samples["base"][method] = [float(index)] * 10
+                session.samples["head"][method] = [float(index + 1)] * 10
+
+        comparison = benchmark.build_comparison(sessions, CONTEXT)
+
+        self.assertEqual(comparison["methods"][0]["base"]["p50_ms"], 5.5)
+        self.assertEqual(comparison["methods"][0]["head"]["p95_ms"], 6.5)
 
 
 class MarkdownTests(unittest.TestCase):
@@ -1219,37 +1145,21 @@ class MarkdownTests(unittest.TestCase):
         )
 
     def test_render_markdown_formats_a_comparison_table(self) -> None:
-        comparison = {
-            "comparison_mode": CONTEXT.comparison_mode,
-            "repository": CONTEXT.repository,
-            "pr_head_repository": CONTEXT.pr_head_repository,
-            "base_sha": CONTEXT.base_sha,
-            "head_sha": CONTEXT.head_sha,
-            "main_sha": CONTEXT.main_sha,
-            "pr_head_sha": CONTEXT.pr_head_sha,
-            "merge_candidate_sha": CONTEXT.merge_candidate_sha,
-            "run_url": CONTEXT.run_url,
-            "freshness": "current",
-            "current_main_sha": CURRENT_MAIN_SHA,
-            "current_pr_head_sha": CURRENT_PR_HEAD_SHA,
-            "overall": "regression",
-            "methods": [
-                {
-                    "name": "text|document",
-                    "sample_count": 20,
-                    "base": {"p50_ms": 1.234, "p95_ms": 2.345},
-                    "head": {"p50_ms": 1.5, "p95_ms": 3.0},
-                    "delta_percent": {"p50": 21.56, "p95": -10.0},
-                    "verdict": "stable",
-                }
-            ],
-        }
+        comparison = benchmark.add_publication_state(
+            benchmark.build_comparison(constant_sessions(10.0, 12.0), CONTEXT),
+            CONTEXT,
+            CURRENT_MAIN_SHA,
+            CURRENT_PR_HEAD_SHA,
+        )
+        comparison["methods"] = [comparison["methods"][0]]
+        comparison["methods"][0]["name"] = "text|document"
 
         rendered = benchmark.render_markdown(comparison)
 
         expected_row = (
-            "| text\\|document | 20 | 1.23 ms | 1.50 ms | +21.56% | "
-            "2.35 ms | 3.00 ms | -10.00% | stable |"
+            "| text\\|document | 10 | 100 | 10.00 ms | 12.00 ms | "
+            "+2.0000 ms (+20.00%) | 10.00 ms | 12.00 ms | "
+            "+2.0000 ms (+20.00%) | regression |"
         )
         self.assertTrue(rendered.startswith("<!-- solar-lsp-benchmark -->\n## LSP benchmark\n"))
         self.assertIn("**Overall:** `regression`", rendered)
@@ -1258,17 +1168,16 @@ class MarkdownTests(unittest.TestCase):
         self.assertIn(f"/commit/{CONTEXT.pr_head_sha}", rendered)
         self.assertIn(f"/commit/{CONTEXT.main_sha}", rendered)
         self.assertIn("main-merge-candidate", rendered)
-        self.assertIn("both recomputed percentiles", rendered)
+        self.assertIn("| text\\|document | base-first | 5 |", rendered)
+        self.assertIn("95% confidence intervals", rendered)
+        self.assertIn("1.0 ms thresholds", rendered)
+        self.assertIn("not counted as independent sessions", rendered)
         self.assertIn("includes the production source-change debounce", rendered)
         self.assertIn("not numerically paired with this metric", rendered)
         self.assertIn("no debounce constant is subtracted", rendered)
 
     def test_stale_markdown_keeps_the_full_table_and_recommends_rerunning(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        frozen = benchmark.build_comparison(samples, CONTEXT)
+        frozen = benchmark.build_comparison(constant_sessions(), CONTEXT)
         cases = (
             (
                 "5" * 40,
@@ -1293,7 +1202,7 @@ class MarkdownTests(unittest.TestCase):
                 rendered = benchmark.render_markdown(comparison)
 
                 self.assertIn(f"Freshness: `{freshness}`", rendered)
-                self.assertIn("| Metric | Samples |", rendered)
+                self.assertIn("| Metric | Sessions | Samples |", rendered)
                 self.assertIn(message, rendered)
                 self.assertIn(guidance, rendered)
 
@@ -1308,7 +1217,7 @@ class MarkdownTests(unittest.TestCase):
             "Reason: bad \\| \\`artifact\\` &lt;value&gt;<br>second line",
             rendered,
         )
-        self.assertNotIn("| Metric | Samples |", rendered)
+        self.assertNotIn("| Metric | Sessions | Samples |", rendered)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -365,7 +366,7 @@ class TriggerAndResolutionTests(unittest.TestCase):
         self.assertNotIn("DISPATCH_", WORKFLOW)
         self.assertNotIn('context.eventName === "workflow_dispatch"', resolver)
         self.assertNotIn("shouldComment", resolver)
-        self.assertIn('core.setOutput("should_comment", "true")', resolver)
+        self.assertNotIn("should_comment", WORKFLOW)
         self.assertIn('const allowedEvents = new Set(["issue_comment"]);', WORKFLOW)
         self.assertNotIn('"issue_comment", "workflow_dispatch"', WORKFLOW)
 
@@ -392,13 +393,14 @@ class TriggerAndResolutionTests(unittest.TestCase):
         self.assertIn("github.rest.actions.cancelWorkflowRun", script)
         self.assertIn("const waitForCompletion = async", script)
         self.assertIn("await waitForCompletion(run.id)", script)
+        self.assertNotIn("downloadArtifact", script)
         self.assertLess(
             script.index("compareOrder(order, currentOrder) > 0"),
             script.index("github.rest.actions.cancelWorkflowRun"),
         )
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
-    def test_resolver_polls_mergeability_and_claims_exact_d_f_m(self) -> None:
+    def test_resolver_freezes_exact_d_f_m_and_writes_minimal_claim(self) -> None:
         main_sha = "1" * 40
         pr_head_sha = "2" * 40
         merge_candidate_sha = "3" * 40
@@ -427,21 +429,14 @@ class TriggerAndResolutionTests(unittest.TestCase):
         self.assertEqual(result["outputs"]["main_sha"], main_sha)
         self.assertEqual(result["outputs"]["pr_head_sha"], pr_head_sha)
         self.assertEqual(result["outputs"]["merge_candidate_sha"], merge_candidate_sha)
-        claim = result["claim"]
-        self.assertEqual(claim["comparison_mode"], "main-merge-candidate")
         self.assertEqual(
-            {key for key in claim if key in {
-                "main_sha",
-                "pr_head_repository",
-                "pr_head_sha",
-                "merge_candidate_sha",
-                "merge_base_sha",
-                "head_sha",
-            }},
-            {"main_sha", "pr_head_repository", "pr_head_sha", "merge_candidate_sha"},
+            result["claim"],
+            {
+                "schema_version": 1,
+                "kind": "solar-lsp-benchmark-request-claim",
+                "claim_key": result["outputs"]["claim_key"],
+            },
         )
-        self.assertNotIn("merge_base_sha", claim)
-        self.assertNotIn("head_sha", claim)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
     def test_resolver_retries_the_entire_group_when_main_moves(self) -> None:
@@ -804,13 +799,13 @@ class ArtifactAndStatusTests(unittest.TestCase):
 
     def test_compute_uploads_only_the_manifest_covered_raw_tree(self) -> None:
         upload = step_block(job_block("compute"), "Upload raw benchmark artifact")
-        expected_paths = {
-            "${{ runner.temp }}/lsp-bench-artifact/raw/manifest.json",
-            "${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/config.json",
-            "${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/results.json",
-            "${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/config.json",
-            "${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/results.json",
-        }
+        expected_paths = {"${{ runner.temp }}/lsp-bench-artifact/raw/manifest.json"}
+        expected_paths.update(
+            f"${{{{ runner.temp }}}}/lsp-bench-artifact/raw/passes/{order}/{session}/{name}.json"
+            for order in ("base-first", "head-first")
+            for session in range(1, 6)
+            for name in ("config", "results")
+        )
         paths = {
             line.strip()
             for line in upload.splitlines()
@@ -849,17 +844,20 @@ class ArtifactAndStatusTests(unittest.TestCase):
 
         for contract in (
             "COMPUTE_RESULT: ${{ needs.compute.result }}",
-            '"schema_version": 2',
+            '"schema_version": 3',
             '"kind": "solar-lsp-benchmark-comparison"',
             '"overall": "inconclusive"',
             '"methods": []',
+            '"threshold_absolute_ms": 1.0',
+            '"confidence_level": 0.95',
             '(output / "comparison.json").write_text',
             '(output / "report.md").write_text',
             '"$COMPUTE_RESULT" == success',
             '"$DOWNLOAD_OUTCOME" == success',
             '"$current_state_outcome" == success',
             '"$RENDER_OUTCOME" == success',
-            "valid=true",
+            "conclusive=true",
+            "publishable=true",
         ):
             self.assertIn(contract, stage)
         success_gate = stage.index('if [[ "$COMPUTE_RESULT" == success')
@@ -870,7 +868,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
         self.assertIn("staged_dir=\"$RUNNER_TEMP/lsp-bench-report.staged\"", stage)
         self.assertIn('mv "$staged_dir" "$report_dir"', stage)
         self.assertIn(
-            "if: ${{ !cancelled() && steps.stage.outputs.valid != 'true' }}",
+            "if: ${{ !cancelled() && steps.stage.outputs.conclusive != 'true' }}",
             failure,
         )
         self.assertNotIn("regression", failure)
@@ -879,8 +877,18 @@ class ArtifactAndStatusTests(unittest.TestCase):
         upload = step_block(render, "Upload validated comparison")
         publish = step_block(render, "Publish sticky benchmark comment")
         self.assertIn("id: upload", upload)
-        self.assertIn("steps.stage.outputs.valid == 'true'", publish)
+        self.assertIn("steps.stage.outputs.publishable == 'true'", upload)
+        self.assertIn("steps.stage.outputs.publishable == 'true'", publish)
+        self.assertNotIn("steps.stage.outputs.conclusive", publish)
         self.assertIn("steps.upload.outcome == 'success'", publish)
+        self.assertLess(
+            render.index("name: Upload validated comparison"),
+            render.index("name: Publish sticky benchmark comment"),
+        )
+        self.assertLess(
+            render.index("name: Publish sticky benchmark comment"),
+            render.index("name: Fail incomplete benchmark"),
+        )
 
     def test_fallback_script_writes_both_versioned_outputs(self) -> None:
         stage = step_block(job_block("render"), "Stage trusted report")
@@ -889,7 +897,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
         environment = os.environ.copy()
         environment.update(
             {
-                "REPOSITORY": "paradigmxyz/solar",
+                "TARGET_REPOSITORY": "paradigmxyz/solar",
                 "PR_HEAD_REPOSITORY": "contributor/solar",
                 "WORKFLOW_REPOSITORY": "workflow/solar",
                 "PR_NUMBER": "1195",
@@ -905,6 +913,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
             environment["RUNNER_TEMP"] = directory
             output = Path(directory) / "lsp-bench-report"
             output.mkdir()
+            environment["REPORT_DIR"] = str(output)
             subprocess.run(
                 [sys.executable, "-"],
                 input=script,
@@ -915,7 +924,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
             )
             comparison = json.loads((output / "comparison.json").read_text())
 
-            self.assertEqual(comparison["schema_version"], 2)
+            self.assertEqual(comparison["schema_version"], 3)
             self.assertEqual(comparison["kind"], "solar-lsp-benchmark-comparison")
             self.assertEqual(comparison["comparison_mode"], "main-merge-candidate")
             self.assertEqual(comparison["main_sha"], "1" * 40)
@@ -924,13 +933,16 @@ class ArtifactAndStatusTests(unittest.TestCase):
             self.assertNotIn("merge_base_sha", comparison)
             self.assertEqual(comparison["overall"], "inconclusive")
             self.assertEqual(comparison["methods"], [])
+            self.assertEqual(comparison["threshold_percent"], 10.0)
+            self.assertEqual(comparison["threshold_absolute_ms"], 1.0)
+            self.assertEqual(comparison["confidence_level"], 0.95)
             self.assertIn("**Overall:** `inconclusive`", (output / "report.md").read_text())
 
     def test_any_failed_stage_discards_partial_conclusive_outputs(self) -> None:
         stage = step_block(job_block("render"), "Stage trusted report")
         shell = run_script(stage)
         context = {
-            "REPOSITORY": "paradigmxyz/solar",
+            "TARGET_REPOSITORY": "paradigmxyz/solar",
             "PR_HEAD_REPOSITORY": "contributor/solar",
             "WORKFLOW_REPOSITORY": "workflow/solar",
             "PR_NUMBER": "1195",
@@ -994,10 +1006,73 @@ class ArtifactAndStatusTests(unittest.TestCase):
                 )
                 self.assertEqual(comparison["overall"], "inconclusive")
                 self.assertEqual(comparison["methods"], [])
-                self.assertEqual(output_path.read_text(), "valid=false\n")
+                self.assertEqual(
+                    output_path.read_text(),
+                    "conclusive=false\npublishable=true\n",
+                )
                 self.assertNotEqual(
                     (root / "lsp-bench-report/report.md").read_text(), "conclusive\n"
                 )
+
+    def test_complete_stale_report_is_still_conclusive_and_publishable(self) -> None:
+        stage = step_block(job_block("render"), "Stage trusted report")
+        shell = run_script(stage)
+        context = {
+            "TARGET_REPOSITORY": "paradigmxyz/solar",
+            "PR_HEAD_REPOSITORY": "contributor/solar",
+            "WORKFLOW_REPOSITORY": "workflow/solar",
+            "PR_NUMBER": "1195",
+            "MAIN_SHA": "1" * 40,
+            "PR_HEAD_SHA": "2" * 40,
+            "MERGE_CANDIDATE_SHA": "3" * 40,
+            "RUN_URL": "https://github.com/workflow/solar/actions/runs/123",
+            "CURRENT_STATE_OUTCOME": "success",
+            "CURRENT_MAIN_SHA": "1" * 40,
+            "CURRENT_PR_HEAD_SHA": "2" * 40,
+            "COMPUTE_RESULT": "success",
+            "DOWNLOAD_OUTCOME": "success",
+            "RENDER_OUTCOME": "success",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rendered = root / "lsp-bench-render"
+            rendered.mkdir()
+            (rendered / "report.md").write_text(
+                "stale but valid\n", encoding="utf-8"
+            )
+            (rendered / "comparison.json").write_text(
+                json.dumps(
+                    {"overall": "stable", "freshness": "main-advanced"}
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            output_path = root / "step-output"
+            environment = os.environ.copy()
+            environment.update(context)
+            environment.update(
+                {
+                    "RUNNER_TEMP": directory,
+                    "GITHUB_OUTPUT": str(output_path),
+                }
+            )
+
+            subprocess.run(
+                ["bash", "-c", shell],
+                check=True,
+                timeout=5,
+                env=environment,
+            )
+
+            self.assertEqual(
+                output_path.read_text(),
+                "conclusive=true\npublishable=true\n",
+            )
+            self.assertEqual(
+                (root / "lsp-bench-report/report.md").read_text(),
+                "stale but valid\n",
+            )
 
     def test_cancelled_runs_never_reach_renderer_or_comment_publication(self) -> None:
         render = job_block("render")
@@ -1008,22 +1083,51 @@ class ArtifactAndStatusTests(unittest.TestCase):
         self.assertNotIn("needs.compute.result == 'success'", render)
         self.assertNotIn("if: always()", WORKFLOW)
         self.assertIn(
-            "steps.stage.outputs.valid == 'true' &&\n          steps.upload.outcome == 'success'",
+            "steps.stage.outputs.publishable == 'true' &&\n          steps.upload.outcome == 'success'",
             publish,
         )
-        for name in (
-            "Stage trusted report",
-            "Add comparison to job summary",
-            "Upload validated comparison",
-        ):
-            self.assertIn("if: ${{ !cancelled() }}", step_block(render, name))
+        self.assertIn(
+            "if: ${{ !cancelled() }}", step_block(render, "Stage trusted report")
+        )
+        for name in ("Add comparison to job summary", "Upload validated comparison"):
+            step = step_block(render, name)
+            self.assertIn("!cancelled()", step)
+            self.assertIn("steps.stage.outputs.publishable == 'true'", step)
 
 
 class ExecutionAndRemovalTests(unittest.TestCase):
-    def test_parallel_builds_and_upstream_runner_are_pinned(self) -> None:
+    def test_redundant_workflow_state_is_removed(self) -> None:
+        compute = job_block("compute")
+        run = step_block(compute, "Run LSP comparison")
+        render = job_block("render")
+        validate = step_block(render, "Validate and render benchmark")
+        stage = step_block(render, "Stage trusted report")
+
+        self.assertNotIn("Initialize raw artifact", compute)
+        self.assertNotIn("should_comment", WORKFLOW)
+        self.assertNotIn("\n          REPOSITORY:", WORKFLOW)
+        for step in (run, validate, stage):
+            self.assertIn(
+                "TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}", step
+            )
+        for step in (run, validate):
+            self.assertIn('--repository "$TARGET_REPOSITORY"', step)
+            self.assertIn('--pr-head-repository "$PR_HEAD_REPOSITORY"', step)
+            self.assertIn('--workflow-repository "$WORKFLOW_REPOSITORY"', step)
+
+    def test_parallel_builds_and_direct_runner_are_pinned(self) -> None:
         build_base = job_block("build_base")
         build_candidate = job_block("build_candidate")
         compute = job_block("compute")
+        upstream = json.loads((ROOT / "benches/lsp/upstream.json").read_text())
+        adapter_path = ROOT / upstream["adapter"]["path"]
+        source_url = upstream["source"]["url"].replace(
+            upstream["commit"], "$commit"
+        )
+        version = (
+            f'lsp-bench {upstream["version"]}+commit.'
+            f'{upstream["commit"][:7]}.linux.x86_64'
+        )
 
         self.assertIn("needs: [resolve, arbitrate]", build_base)
         self.assertIn("needs: [resolve, arbitrate]", build_candidate)
@@ -1069,14 +1173,33 @@ class ExecutionAndRemovalTests(unittest.TestCase):
             'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate"',
             build_candidate,
         )
-        self.assertNotIn("cargo build", compute)
-        self.assertNotIn('toolchain: "1.96"', compute)
-        self.assertEqual(compute.count("name: Run LSP comparison"), 1)
-        self.assertIn("releases/download/v0.3.3/", compute)
-        self.assertIn(
-            "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df",
-            compute,
+        self.assertEqual(
+            compute.count(
+                "cargo build --locked --release \\\n"
+                '              --manifest-path "$source_dir/Cargo.toml" --bin lsp-bench'
+            ),
+            1,
         )
+        self.assertIn('toolchain: "1.96"', compute)
+        self.assertEqual(compute.count("name: Run LSP comparison"), 1)
+        self.assertNotIn("releases/download/v0.3.3/", compute)
+        self.assertIn(source_url, compute)
+        self.assertIn(upstream["commit"], compute)
+        self.assertIn(upstream["source"]["sha256"], compute)
+        self.assertIn(upstream["adapter"]["sha256"], compute)
+        self.assertEqual(
+            hashlib.sha256(adapter_path.read_bytes()).hexdigest(),
+            upstream["adapter"]["sha256"],
+        )
+        self.assertIn(upstream["adapter"]["path"], compute)
+        self.assertIn(version, compute)
+        self.assertIn('CARGO_HOME="$RUNNER_TEMP/lsp-bench-cargo"', compute)
+        self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/adapter"', compute)
+        self.assertIn('patch --batch --forward --directory="$source_dir"', compute)
+        self.assertIn(
+            '--lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"', compute
+        )
+        self.assertNotIn("lsp_filter.py", WORKFLOW)
         self.assertIn("runs-on: ubuntu-latest", compute)
         self.assertNotIn("depot-ubuntu-latest", compute)
 

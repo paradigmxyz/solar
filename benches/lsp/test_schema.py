@@ -10,7 +10,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, ValidationError
 
-from test_benchmark import CONTEXT, RawArtifact, benchmark
+from test_benchmark import CONTEXT, RawArtifact, benchmark, constant_sessions
 from test_benchmark import CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
 
 
@@ -21,9 +21,9 @@ COMPARISON_SCHEMA = json.loads(
 )
 
 
-def conclusive_comparison(samples: dict[str, dict[str, list[float]]]) -> dict:
+def conclusive_comparison(sessions: list[benchmark.BenchmarkSession]) -> dict:
     return benchmark.add_publication_state(
-        benchmark.build_comparison(samples, CONTEXT),
+        benchmark.build_comparison(sessions, CONTEXT),
         CONTEXT,
         CURRENT_MAIN_SHA,
         CURRENT_PR_HEAD_SHA,
@@ -45,12 +45,8 @@ class SchemaTests(unittest.TestCase):
             self.raw_validator.validate(artifact.manifest)
 
     def test_conclusive_and_inconclusive_comparisons_match_the_schema(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
         comparisons = (
-            conclusive_comparison(samples),
+            conclusive_comparison(constant_sessions()),
             benchmark.inconclusive_comparison(CONTEXT, "invalid raw artifact"),
         )
 
@@ -59,11 +55,7 @@ class SchemaTests(unittest.TestCase):
                 self.comparison_validator.validate(comparison)
 
     def test_schemas_reject_unversioned_or_extended_outputs(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        comparison = conclusive_comparison(samples)
+        comparison = conclusive_comparison(constant_sessions())
         invalid = copy.deepcopy(comparison)
         invalid["unexpected"] = True
 
@@ -71,11 +63,7 @@ class SchemaTests(unittest.TestCase):
             self.comparison_validator.validate(invalid)
 
     def test_schemas_require_dfm_and_publication_provenance(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        comparison = conclusive_comparison(samples)
+        comparison = conclusive_comparison(constant_sessions())
         missing = copy.deepcopy(comparison)
         del missing["merge_candidate_sha"]
         with self.assertRaises(ValidationError):
@@ -113,26 +101,51 @@ class SchemaTests(unittest.TestCase):
                 self.raw_validator.validate(artifact.manifest)
 
     def test_comparison_schema_rejects_metrics_below_output_precision(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        comparison = conclusive_comparison(samples)
+        comparison = conclusive_comparison(constant_sessions())
         comparison["methods"][0]["base"]["p50_ms"] = 0.00001
 
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(comparison)
 
     def test_comparison_schema_rejects_upstream_diagnostics_selector(self) -> None:
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        comparison = conclusive_comparison(samples)
+        comparison = conclusive_comparison(constant_sessions())
         comparison["methods"][1]["name"] = "textDocument/diagnostic"
 
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(comparison)
+
+    def test_schemas_require_session_and_confidence_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            raw = RawArtifact(Path(directory)).manifest
+        missing_session = copy.deepcopy(raw)
+        missing_session["passes"][0].pop("session")
+        with self.assertRaises(ValidationError):
+            self.raw_validator.validate(missing_session)
+
+        duplicate_session = copy.deepcopy(raw)
+        duplicate_session["passes"][1] = copy.deepcopy(duplicate_session["passes"][0])
+        with self.assertRaises(ValidationError):
+            self.raw_validator.validate(duplicate_session)
+
+        mismatched_path = copy.deepcopy(raw)
+        mismatched_path["passes"][0]["session"] = 2
+        with self.assertRaises(ValidationError):
+            self.raw_validator.validate(mismatched_path)
+
+        comparison = conclusive_comparison(constant_sessions())
+        comparison["methods"][0].pop("session_count")
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(comparison)
+
+        comparison = conclusive_comparison(constant_sessions())
+        comparison["methods"][0]["strata"][0].pop("confidence_interval_95")
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(comparison)
+
+        inconclusive = benchmark.inconclusive_comparison(CONTEXT, "failure")
+        inconclusive.pop("threshold_absolute_ms")
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(inconclusive)
 
     def test_schemas_reject_trailing_control_characters(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -142,11 +155,7 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.raw_validator.validate(invalid_raw)
 
-        samples = {
-            role: {method: [10.0] * 20 for method in benchmark.METHODS}
-            for role in ("base", "head")
-        }
-        invalid_comparison = conclusive_comparison(samples)
+        invalid_comparison = conclusive_comparison(constant_sessions())
         invalid_comparison["run_url"] += "\t"
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(invalid_comparison)

@@ -32,7 +32,6 @@ jobs:
       trusted_repo: ${{ steps.resolve.outputs.trusted_repo }}
       trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}
       run_url: ${{ steps.resolve.outputs.run_url }}
-      should_comment: ${{ steps.resolve.outputs.should_comment }}
       claim_key: ${{ steps.resolve.outputs.claim_key }}
     steps:
       - name: Validate request and freeze revisions
@@ -40,9 +39,6 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_NUMBER: ${{ github.run_number }}
         with:
           script: |
             const crypto = require("crypto");
@@ -237,13 +233,6 @@ jobs:
               core.setFailed("The workflow default branch did not resolve to a full commit SHA");
               return;
             }
-            const runId = Number(process.env.RUN_ID);
-            const runNumber = Number(process.env.RUN_NUMBER);
-            const runAttempt = Number(process.env.RUN_ATTEMPT);
-            if (![runId, runNumber, runAttempt].every(Number.isSafeInteger)) {
-              core.setFailed("Workflow run identity is invalid");
-              return;
-            }
             const claimKey = crypto
               .createHash("sha256")
               .update(`${target.full_name.toLowerCase()}\0${requestedNumber}`)
@@ -257,17 +246,6 @@ jobs:
                   schema_version: 1,
                   kind: "solar-lsp-benchmark-request-claim",
                   claim_key: claimKey,
-                  workflow_repository: workflowRepository.full_name,
-                  repository: target.full_name,
-                  pr_number: requestedNumber,
-                  comparison_mode: "main-merge-candidate",
-                  main_sha: frozen.mainSha,
-                  pr_head_repository: frozen.prHeadRepository,
-                  pr_head_sha: frozen.prHeadSha,
-                  merge_candidate_sha: frozen.mergeCandidateSha,
-                  run_id: runId,
-                  run_number: runNumber,
-                  run_attempt: runAttempt,
                 },
                 null,
                 2,
@@ -284,7 +262,6 @@ jobs:
             core.setOutput("trusted_repo", workflowRepository.full_name);
             core.setOutput("trusted_sha", workflowDefault.commit.sha);
             core.setOutput("run_url", process.env.RUN_URL);
-            core.setOutput("should_comment", "true");
             core.setOutput("claim_key", claimKey);
 
       - name: Upload accepted request claim
@@ -472,8 +449,7 @@ jobs:
       !cancelled() &&
       needs.resolve.result == 'success' &&
       needs.arbitrate.result == 'success' &&
-      needs.arbitrate.outputs.superseded == 'false' &&
-      needs.resolve.outputs.should_comment == 'true'
+      needs.arbitrate.outputs.superseded == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -645,9 +621,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Initialize raw artifact
-        run: mkdir -p "$RUNNER_TEMP/lsp-bench-artifact/raw"
-
       # Keep the adapter separate from both revisions whose binaries are measured.
       - name: Checkout trusted benchmark adapter
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -656,6 +629,10 @@ jobs:
           ref: ${{ needs.resolve.outputs.trusted_sha }}
           path: lsp-bench/trusted
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
 
       - name: Download main compiler
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -677,20 +654,35 @@ jobs:
           test -x "$RUNNER_TEMP/lsp-bench-bin/base-solar"
           test -x "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"
 
-      - name: Install pinned lsp-bench
+      - name: Build pinned direct lsp-bench
         run: |
           set -euo pipefail
-          archive="$RUNNER_TEMP/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz"
-          curl --fail --location --retry 3 --show-error --silent \
-            https://github.com/asyncswap/lsp-bench/releases/download/v0.3.3/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu.tar.gz \
+          commit=ca0651f86f430290dacdbeb62c9c6987a3ad6966
+          archive="$RUNNER_TEMP/lsp-bench-$commit.tar.gz"
+          source_dir="$RUNNER_TEMP/lsp-bench-source"
+          adapter="$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/lsp-bench-direct.patch"
+          curl --proto '=https' --tlsv1.2 --fail --location --retry 3 --show-error --silent \
+            "https://codeload.github.com/asyncswap/lsp-bench/tar.gz/$commit" \
             --output "$archive"
           test "$(uname -m)" = x86_64
-          echo "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df  $archive" \
+          echo "145dc03c5606d6b5ec66647d233486bab9f4e65022275763bf445bc26414470e  $archive" \
             | sha256sum --check --strict
+          echo "8d5242a63ff812056b449dedffd96e3f60bcc475dd8f39142b340acae7dbf7a2  $adapter" \
+            | sha256sum --check --strict
+          mkdir -p "$source_dir"
+          tar --extract --gzip --file "$archive" --directory "$source_dir" \
+            --strip-components=1 --no-same-owner
+          patch --batch --forward --directory="$source_dir" --strip=1 < "$adapter"
+          CARGO_HOME="$RUNNER_TEMP/lsp-bench-cargo" \
+            CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/adapter" \
+            cargo build --locked --release \
+              --manifest-path "$source_dir/Cargo.toml" --bin lsp-bench
           mkdir -p "$RUNNER_TEMP/lsp-bench-tool"
-          tar --extract --gzip --file "$archive" \
-            --directory "$RUNNER_TEMP/lsp-bench-tool"
-          test -x "$RUNNER_TEMP/lsp-bench-tool/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu/lsp-bench"
+          install -m 0755 \
+            "$RUNNER_TEMP/lsp-bench-target/adapter/release/lsp-bench" \
+            "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"
+          test "$("$RUNNER_TEMP/lsp-bench-tool/lsp-bench" --version)" = \
+            "lsp-bench 0.3.3+commit.ca0651f.linux.x86_64"
 
       - name: Run LSP comparison
         env:
@@ -699,16 +691,16 @@ jobs:
           PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
           MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
-          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
           WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
         run: |
           set -euo pipefail
           python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" run \
-            --lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu/lsp-bench" \
+            --lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench" \
             --base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar" \
             --head-binary "$RUNNER_TEMP/lsp-bench-bin/candidate-solar" \
-            --repository "$REPOSITORY" \
+            --repository "$TARGET_REPOSITORY" \
             --pr-head-repository "$PR_HEAD_REPOSITORY" \
             --workflow-repository "$WORKFLOW_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
@@ -727,10 +719,26 @@ jobs:
           name: lsp-bench-raw-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/lsp-bench-artifact/raw/manifest.json
-            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/config.json
-            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/results.json
-            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/config.json
-            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/1/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/1/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/2/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/2/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/3/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/3/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/4/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/4/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/5/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/base-first/5/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/1/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/1/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/2/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/2/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/3/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/3/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/4/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/4/results.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/5/config.json
+            ${{ runner.temp }}/lsp-bench-artifact/raw/passes/head-first/5/results.json
           retention-days: 30
           if-no-files-found: error
 
@@ -820,7 +828,7 @@ jobs:
           CURRENT_MAIN_SHA: ${{ steps.current_state.outputs.main_sha }}
           CURRENT_PR_HEAD_SHA: ${{ steps.current_state.outputs.pr_head_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
-          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
           WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
         run: |
@@ -828,7 +836,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lsp-bench-render"
           python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" render \
             --input "$RUNNER_TEMP/lsp-bench-download/raw" \
-            --repository "$REPOSITORY" \
+            --repository "$TARGET_REPOSITORY" \
             --pr-head-repository "$PR_HEAD_REPOSITORY" \
             --workflow-repository "$WORKFLOW_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
@@ -855,7 +863,7 @@ jobs:
           CURRENT_MAIN_SHA: ${{ steps.current_state.outputs.main_sha }}
           CURRENT_PR_HEAD_SHA: ${{ steps.current_state.outputs.pr_head_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
-          REPOSITORY: ${{ needs.resolve.outputs.repository }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RENDER_OUTCOME: ${{ steps.render.outcome }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
           WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
@@ -867,7 +875,8 @@ jobs:
           report_dir="$RUNNER_TEMP/lsp-bench-report"
           staged_dir="$RUNNER_TEMP/lsp-bench-report.staged"
           rm -rf "$report_dir" "$staged_dir"
-          valid=false
+          conclusive=false
+          publishable=false
           if [[ "$COMPUTE_RESULT" == success &&
                 "$DOWNLOAD_OUTCOME" == success &&
                 "$current_state_outcome" == success &&
@@ -880,23 +889,23 @@ jobs:
              cp "$RUNNER_TEMP/lsp-bench-render/report.md" "$staged_dir/report.md" &&
              cp "$RUNNER_TEMP/lsp-bench-render/comparison.json" "$staged_dir/comparison.json" &&
              mv "$staged_dir" "$report_dir"; then
-            valid=true
+            conclusive=true
           else
             rm -rf "$staged_dir"
+            mkdir -p "$staged_dir"
             reason="benchmark or current revision lookup did not complete successfully (compute=$COMPUTE_RESULT, download=$DOWNLOAD_OUTCOME, current_state=$current_state_outcome, render=$RENDER_OUTCOME)"
-            FALLBACK_REASON="$reason" python3 - <<'PY'
+            FALLBACK_REASON="$reason" REPORT_DIR="$staged_dir" python3 - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          output = Path(os.environ["RUNNER_TEMP"]) / "lsp-bench-report"
-          output.mkdir(parents=True, exist_ok=True)
+          output = Path(os.environ["REPORT_DIR"])
           reason = os.environ["FALLBACK_REASON"]
           comparison = {
-              "schema_version": 2,
+              "schema_version": 3,
               "kind": "solar-lsp-benchmark-comparison",
               "comparison_mode": "main-merge-candidate",
-              "repository": os.environ["REPOSITORY"],
+              "repository": os.environ["TARGET_REPOSITORY"],
               "pr_head_repository": os.environ["PR_HEAD_REPOSITORY"],
               "workflow_repository": os.environ["WORKFLOW_REPOSITORY"],
               "pr_number": int(os.environ["PR_NUMBER"]),
@@ -907,6 +916,8 @@ jobs:
               "merge_candidate_sha": os.environ["MERGE_CANDIDATE_SHA"],
               "run_url": os.environ["RUN_URL"],
               "threshold_percent": 10.0,
+              "threshold_absolute_ms": 1.0,
+              "confidence_level": 0.95,
               "overall": "inconclusive",
               "methods": [],
               "error": reason,
@@ -936,16 +947,24 @@ jobs:
           )
           (output / "report.md").write_text(report, encoding="utf-8")
           PY
+            mv "$staged_dir" "$report_dir"
           fi
-          echo "valid=$valid" >> "$GITHUB_OUTPUT"
+          if [[ -s "$report_dir/report.md" && -s "$report_dir/comparison.json" ]]; then
+            publishable=true
+          else
+            echo "Trusted report staging did not produce both required outputs" >&2
+            exit 1
+          fi
+          echo "conclusive=$conclusive" >> "$GITHUB_OUTPUT"
+          echo "publishable=$publishable" >> "$GITHUB_OUTPUT"
 
       - name: Add comparison to job summary
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stage.outputs.publishable == 'true' }}
         run: cat "$RUNNER_TEMP/lsp-bench-report/report.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload validated comparison
         id: upload
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.stage.outputs.publishable == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lsp-bench-comparison-${{ github.run_id }}-${{ github.run_attempt }}
@@ -958,9 +977,8 @@ jobs:
       - name: Publish sticky benchmark comment
         if: >-
           !cancelled() &&
-          steps.stage.outputs.valid == 'true' &&
-          steps.upload.outcome == 'success' &&
-          needs.resolve.outputs.should_comment == 'true'
+          steps.stage.outputs.publishable == 'true' &&
+          steps.upload.outcome == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
@@ -1002,5 +1020,5 @@ jobs:
             }
 
       - name: Fail incomplete benchmark
-        if: ${{ !cancelled() && steps.stage.outputs.valid != 'true' }}
+        if: ${{ !cancelled() && steps.stage.outputs.conclusive != 'true' }}
         run: exit 1

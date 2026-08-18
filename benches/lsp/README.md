@@ -1,8 +1,9 @@
 # LSP pull-request benchmark
 
-This adapter runs the pinned `asyncswap/lsp-bench` v0.3.3 release against two
-Solar binaries. It is an on-demand, portable signal for pull-request discussion,
-not an authoritative benchmark or a merge gate.
+This adapter runs pinned `asyncswap/lsp-bench` v0.3.3 source with the small,
+checksum-pinned `lsp-bench-direct.patch` adapter against two compiler binaries.
+It is an on-demand, portable signal for pull-request discussion, not an
+authoritative benchmark or a merge gate.
 
 The workflow freezes the command-time `main` commit (D), PR head (F), and
 GitHub test merge commit (M). It accepts M only when its parents are exactly
@@ -25,29 +26,46 @@ PR revision would give untrusted build code access to the default branch's
 Actions cache authority. The comment-triggered path keeps every job that builds
 or executes PR code separate from the trusted renderer.
 
-The workflow downloads the Linux archive described in `upstream.json` and
-checks its SHA-256 before extracting it. The adapter deliberately supplies
-absolute server commands in generated JSON (which is valid YAML); it never uses
-the upstream `commit` or `repo` server modes.
+The workflow downloads the source archive described in `upstream.json`, checks
+its SHA-256, checks the in-repository adapter SHA-256, applies that adapter, and
+builds the runner. Generated JSON (which is valid YAML) invokes each absolute
+compiler binary directly with `lsp`; it never uses the upstream `commit` or
+`repo` server modes and does not put a proxy in the measured process path.
 
 The pinned upstream runner calls its diagnostics workload
 `textDocument/diagnostic`, but it does not send that pull-diagnostic request. It
 measures from `didOpen` until a diagnostics notification arrives. Generated
 upstream configs and raw results retain that selector for provenance, while the
 trusted comparison reports the metric as `didOpen/publishDiagnostics`.
-`lsp_filter.py` discards unrelated notifications until the fixture's exact
-`Main.sol` warning arrives. It also validates initialization and provides the
-unmeasured project-ready signal that v0.3.3 expects. The same proxy is used for
-both roles and both pass orders, so its fixed overhead is symmetric.
+The pinned adapter makes the runner wait for the fixture's exact `Main.sol`
+warning 2018, requires `initialize` to succeed with a `capabilities` object, and
+treats that completed-analysis diagnostic as the readiness boundary instead of
+waiting again for an earlier progress event. It also records the compiler's own
+version and RSS and serializes measured millisecond samples without the upstream
+two-decimal rounding.
 
 Each comparison runs `initialize`, `didOpen/publishDiagnostics`, `hover`,
 `definition`, `references`, `completion`, and `documentSymbol` with five warmups
-and ten measured iterations in two passes: base-first and head-first. Every pass
-gets a fresh fixture copy, home directory, temporary directory, and XDG
-directories. Only a small fixed environment is inherited by child processes.
-The trusted renderer requires both roles, both pass orders, every benchmark,
-exactly 20 valid samples per role and benchmark, finite positive timings, the
-expected JSON-RPC request input, and a correct response for every sample.
+and ten measured iterations per session. It runs five independent sessions in
+each server-order stratum, base-first and head-first, for ten sessions and 100
+measured samples per role and metric. Which stratum runs first alternates by
+round. Every session gets a fresh fixture copy, home directory, temporary
+directory, and XDG directories. Only a small fixed environment is inherited by
+child processes.
+
+The raw v3 manifest identifies every session and order stratum, and the patched
+runner retains each sample as an unrounded floating-point millisecond value.
+The trusted renderer requires all ten sessions, both roles, every benchmark,
+ten finite positive samples per role and metric in every session, the expected
+JSON-RPC request input, and a correct response for every sample. Request repeats
+inside one runner invocation are not treated as independent statistical
+sessions.
+
+Schema v3 is an explicit break from v2: it adds session identity and precision
+to raw provenance and adds session counts, absolute deltas, order-stratified
+confidence intervals, and the absolute threshold to trusted comparisons. The
+renderer rejects older artifacts instead of guessing how their pooled samples
+map to independent sessions.
 
 The fixture deliberately produces warning 2018 as that indexing-ready marker.
 Receiving it ends the `didOpen/publishDiagnostics` measurement and establishes
@@ -60,12 +78,21 @@ benchmarks](https://codspeed.io/paradigmxyz/solar), which bypass the LSP schedul
 and debounce. Those benchmarks use separate workloads; neither result is derived
 by subtracting a fixed delay from the other.
 
-The renderer recomputes nearest-rank p50 and p95 values. A metric is a regression
-only when both head percentiles are at least 10 percent slower, and an improvement
-only when both are at least 10 percent faster. RSS remains in the raw upstream
-results for inspection but does not affect the verdict. Any malformed,
-incomplete, failed, or semantically incorrect result makes the whole comparison
-inconclusive.
+The renderer first computes nearest-rank p50 and p95 values inside each session.
+The displayed base and head values are means of those per-session percentiles;
+they are descriptive values, not percentiles from 100 pooled request samples.
+Within each order stratum, the renderer pairs base and head session summaries
+and computes an exact, deterministic paired-bootstrap 95% confidence interval.
+A metric is a regression only when the lower bounds for both absolute and
+percentage changes, for both p50 and p95, in both order strata, reach at least
+1.0 ms and 10 percent. An improvement requires the corresponding upper bounds
+to reach -1.0 ms and -10 percent. This absolute threshold prevents a tiny
+sub-millisecond change from being classified merely because its percentage is
+large. Published point deltas round toward zero and confidence bounds round
+outward, so presentation rounding cannot make a below-threshold result appear
+to pass the rule. RSS remains in the raw results for inspection but does not
+affect the verdict. Any malformed, incomplete, failed, or semantically incorrect
+result makes the whole comparison inconclusive.
 
 Run from the repository root:
 
@@ -104,9 +131,10 @@ CURRENT_PR_HEAD_SHA=CURRENT_PR_HEAD_SHA \
   --comparison target/lsp-bench/comparison.json
 ```
 
-`run` writes a versioned `manifest.json`, both generated configs, and both raw
-`results.json` files. `render` treats all of those files as untrusted input and
-produces a versioned comparison plus the Markdown used for the sticky PR comment.
+`run` writes a versioned `manifest.json` plus one generated config and raw
+`results.json` for each of the ten sessions. `render` treats all of those files
+as untrusted input and produces a versioned comparison plus the Markdown used
+for the sticky PR comment.
 The raw provenance contains only frozen D/F/M values: `base_sha` and `main_sha`
 are D, `pr_head_sha` is F, and `head_sha` and `merge_candidate_sha` are M. The
 renderer adds `freshness`, `current_main_sha`, and `current_pr_head_sha` only to

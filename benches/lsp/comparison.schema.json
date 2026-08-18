@@ -18,11 +18,13 @@
     "merge_candidate_sha",
     "run_url",
     "threshold_percent",
+    "threshold_absolute_ms",
+    "confidence_level",
     "overall",
     "methods"
   ],
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "kind": { "const": "solar-lsp-benchmark-comparison" },
     "comparison_mode": { "const": "main-merge-candidate" },
     "repository": { "$ref": "#/$defs/repository" },
@@ -39,6 +41,8 @@
       "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$(?![\\s\\S])"
     },
     "threshold_percent": { "const": 10.0 },
+    "threshold_absolute_ms": { "const": 1.0 },
+    "confidence_level": { "const": 0.95 },
     "freshness": {
       "enum": ["current", "main-advanced", "superseded"]
     },
@@ -105,22 +109,122 @@
       },
       "additionalProperties": false
     },
+    "interval": {
+      "type": "object",
+      "required": ["lower", "upper"],
+      "properties": {
+        "lower": { "type": "number" },
+        "upper": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "delta_interval": {
+      "type": "object",
+      "required": ["p50", "p95"],
+      "properties": {
+        "p50": { "$ref": "#/$defs/interval" },
+        "p95": { "$ref": "#/$defs/interval" }
+      },
+      "additionalProperties": false
+    },
+    "confidence_interval": {
+      "type": "object",
+      "required": ["delta_ms", "delta_percent"],
+      "properties": {
+        "delta_ms": { "$ref": "#/$defs/delta_interval" },
+        "delta_percent": { "$ref": "#/$defs/delta_interval" }
+      },
+      "additionalProperties": false
+    },
+    "stratum": {
+      "type": "object",
+      "required": [
+        "order",
+        "sample_count",
+        "session_count",
+        "base",
+        "head",
+        "delta_ms",
+        "delta_percent",
+        "confidence_interval_95"
+      ],
+      "properties": {
+        "order": { "enum": ["base-first", "head-first"] },
+        "sample_count": {
+          "description": "Measured request samples per role; these are not independent sessions",
+          "const": 50
+        },
+        "session_count": {
+          "description": "Independent paired sessions in this server-order stratum",
+          "const": 5
+        },
+        "base": {
+          "description": "Means of the five base per-session nearest-rank percentiles",
+          "$ref": "#/$defs/metric"
+        },
+        "head": {
+          "description": "Means of the five head per-session nearest-rank percentiles",
+          "$ref": "#/$defs/metric"
+        },
+        "delta_ms": { "$ref": "#/$defs/delta" },
+        "delta_percent": { "$ref": "#/$defs/delta" },
+        "confidence_interval_95": {
+          "description": "Exact paired-bootstrap intervals over the five session pairs",
+          "$ref": "#/$defs/confidence_interval"
+        }
+      },
+      "additionalProperties": false
+    },
+    "base_first_stratum": {
+      "$ref": "#/$defs/stratum",
+      "properties": { "order": { "const": "base-first" } }
+    },
+    "head_first_stratum": {
+      "$ref": "#/$defs/stratum",
+      "properties": { "order": { "const": "head-first" } }
+    },
     "method": {
       "type": "object",
       "required": [
         "name",
         "sample_count",
+        "session_count",
         "base",
         "head",
+        "delta_ms",
         "delta_percent",
+        "strata",
         "verdict"
       ],
       "properties": {
         "name": { "type": "string" },
-        "sample_count": { "const": 20 },
-        "base": { "$ref": "#/$defs/metric" },
-        "head": { "$ref": "#/$defs/metric" },
+        "sample_count": {
+          "description": "Measured request samples per role; these are not independent sessions",
+          "const": 100
+        },
+        "session_count": {
+          "description": "Independent paired sessions across both balanced order strata",
+          "const": 10
+        },
+        "base": {
+          "description": "Means of the ten base per-session nearest-rank percentiles",
+          "$ref": "#/$defs/metric"
+        },
+        "head": {
+          "description": "Means of the ten head per-session nearest-rank percentiles",
+          "$ref": "#/$defs/metric"
+        },
+        "delta_ms": { "$ref": "#/$defs/delta" },
         "delta_percent": { "$ref": "#/$defs/delta" },
+        "strata": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/base_first_stratum" },
+            { "$ref": "#/$defs/head_first_stratum" }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
         "verdict": { "enum": ["regression", "improvement", "stable"] }
       },
       "additionalProperties": false
