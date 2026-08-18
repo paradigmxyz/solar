@@ -854,7 +854,12 @@ pub(crate) enum InstKind {
     },
     /// Read the size of the returndata produced by the preceding call.
     ///
-    /// The ABI phase materializes the volatile EVM query.
+    /// Semantic form: the size of the returndata the surrounding call
+    /// boundary is about to consume, not a general volatile query. The ABI
+    /// phase materializes it at the boundary: where the EVM version supports
+    /// returndata it is rewritten to the physical [`Self::ReturnDataSize`];
+    /// otherwise it is folded away. Do not confuse with
+    /// [`Self::ReturnDataSize`], the raw `returndatasize()` query.
     ReturndataSize,
     /// Project the data pointer from a slice.
     SlicePtr(ValueId),
@@ -913,7 +918,12 @@ pub(crate) enum InstKind {
     LoadImmutable(ImmutableId),
 
     // Return data operations
-    /// Get return data size: `returndatasize()`
+    /// Get return data size: `returndatasize()`.
+    ///
+    /// Physical form: the raw volatile EVM query, emitted by the ABI phase
+    /// and by `yul returndatasize()`. Do not confuse with
+    /// [`Self::ReturndataSize`], the semantic size of the preceding call's
+    /// returndata that the ABI phase rewrites into this instruction.
     ReturnDataSize,
     /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
     ReturnDataCopy(ValueId, ValueId, ValueId),

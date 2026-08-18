@@ -804,6 +804,9 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reads the preceding call's returndata size.
+    ///
+    /// Semantic form, materialized by the ABI phase; the counterpart of the
+    /// physical [`Self::returndatasize`] query.
     pub(crate) fn returndata_size(&mut self) -> ValueId {
         self.emit_inst(InstKind::ReturndataSize, Some(MirType::uint256()))
     }
@@ -870,6 +873,10 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a returndatasize instruction.
+    ///
+    /// Physical form: the raw volatile `returndatasize()` query, emitted by
+    /// the ABI phase and the yul builtin; the counterpart of the semantic
+    /// [`Self::returndata_size`].
     pub(crate) fn returndatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::ReturnDataSize, Some(MirType::uint256()))
     }
