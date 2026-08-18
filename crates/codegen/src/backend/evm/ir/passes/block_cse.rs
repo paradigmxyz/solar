@@ -55,6 +55,8 @@ struct StackValue {
     expr: usize,
     /// A closed instruction interval that produces only this value.
     span: Option<(usize, usize)>,
+    /// The rebuilt instruction that physically pushed this entry.
+    origin: Option<usize>,
 }
 
 #[derive(Clone, Copy)]
@@ -64,7 +66,7 @@ struct FingerprintValue {
 }
 
 fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
-    if !may_regenerate(instructions) {
+    if !may_regenerate(instructions) && !has_repeated_const_memory_addr(instructions) {
         return false;
     }
 
@@ -77,6 +79,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
     let mut memory_epoch = 0u64;
     let mut storage_epoch = 0u64;
     let mut changed = false;
+    // Constant-address memory words with a known symbolic content, maintained
+    // through the same walk: a store whose value is already present is a
+    // no-op, and a load of a known word yields the stored expression.
+    let mut known_stores = FxHashMap::<u64, usize>::default();
+    let mut const_exprs = FxHashMap::<usize, u64>::default();
 
     for inst in original {
         let canonical_stack_effect = has_canonical_stack_effect(&inst);
@@ -90,6 +97,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 &mut expressions,
                 &mut next_expr,
             );
+            if let Some(immediate) = inst.concrete_immediate()
+                && let Ok(address) = u64::try_from(immediate)
+            {
+                const_exprs.insert(expr, address);
+            }
             if inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
@@ -98,14 +110,15 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
                 duplicate.metadata.stack = None;
+                let origin = instructions.len();
                 instructions.push(duplicate);
-                stack.push(StackValue { expr, span: None });
+                stack.push(StackValue { expr, span: None, origin: Some(origin) });
                 changed = true;
                 continue;
             }
             let start = instructions.len();
             instructions.push(inst);
-            stack.push(StackValue { expr, span: Some((start, start + 1)) });
+            stack.push(StackValue { expr, span: Some((start, start + 1)), origin: Some(start) });
             continue;
         }
 
@@ -114,8 +127,9 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             let depth = usize::from(opcode - op::DUP1 + 1);
             ensure_depth(&mut stack, depth, &mut next_expr);
             let value = stack[stack.len() - depth];
+            let origin = instructions.len();
             instructions.push(inst);
-            stack.push(StackValue { expr: value.expr, span: None });
+            stack.push(StackValue { expr: value.expr, span: None, origin: Some(origin) });
             continue;
         }
         if canonical_stack_effect && (op::SWAP1..=op::SWAP16).contains(&opcode) {
@@ -139,6 +153,80 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             instructions.push(inst);
             stack.clear();
             continue;
+        }
+
+        if canonical_stack_effect && (opcode == op::MSTORE || opcode == op::MSTORE8) {
+            ensure_depth(&mut stack, 2, &mut next_expr);
+            let addr = stack[stack.len() - 1];
+            let value = stack[stack.len() - 2];
+            let const_addr = const_exprs.get(&addr.expr).copied();
+            // Re-storing the word already known at this address is a no-op.
+            // Remove it only when the two operands were pushed by the two
+            // immediately preceding copies, so truncation drops exactly the
+            // operand materialization and nothing else.
+            if opcode == op::MSTORE
+                && let Some(address) = const_addr
+                && known_stores.get(&address) == Some(&value.expr)
+                && instructions.len() >= 2
+                && addr.origin == Some(instructions.len() - 1)
+                && value.origin == Some(instructions.len() - 2)
+                && is_removable_copy(&instructions[instructions.len() - 1])
+                && is_removable_copy(&instructions[instructions.len() - 2])
+            {
+                instructions.truncate(instructions.len() - 2);
+                stack.pop();
+                stack.pop();
+                changed = true;
+                continue;
+            }
+            match const_addr {
+                Some(address) if opcode == op::MSTORE => {
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                    known_stores.insert(address, value.expr);
+                }
+                Some(address) => {
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                }
+                None => known_stores.clear(),
+            }
+            stack.pop();
+            stack.pop();
+            memory_epoch = memory_epoch.wrapping_add(1);
+            instructions.push(inst);
+            continue;
+        }
+
+        if canonical_stack_effect && opcode == op::MLOAD {
+            ensure_depth(&mut stack, 1, &mut next_expr);
+            let addr = stack[stack.len() - 1];
+            if let Some(address) = const_exprs.get(&addr.expr).copied()
+                && let Some(&known) = known_stores.get(&address)
+            {
+                stack.pop();
+                // Forward the stored word: reuse a live stack copy when the
+                // address was just pushed, otherwise keep the load but give
+                // its result the stored expression for downstream reuse.
+                if !instructions.is_empty()
+                    && addr.origin == Some(instructions.len() - 1)
+                    && is_removable_copy(&instructions[instructions.len() - 1])
+                    && let Some(depth) = stack.iter().rev().position(|entry| entry.expr == known)
+                    && depth < 16
+                {
+                    instructions.truncate(instructions.len() - 1);
+                    let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
+                    duplicate.metadata = inst.metadata;
+                    duplicate.metadata.stack = None;
+                    let origin = instructions.len();
+                    instructions.push(duplicate);
+                    stack.push(StackValue { expr: known, span: None, origin: Some(origin) });
+                    changed = true;
+                    continue;
+                }
+                let origin = instructions.len();
+                instructions.push(inst);
+                stack.push(StackValue { expr: known, span: None, origin: Some(origin) });
+                continue;
+            }
         }
 
         if canonical_stack_effect
@@ -176,15 +264,18 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
                 duplicate.metadata.stack = None;
+                let origin = instructions.len();
                 instructions.push(duplicate);
-                stack.push(StackValue { expr, span: None });
+                stack.push(StackValue { expr, span: None, origin: Some(origin) });
                 changed = true;
             } else {
                 let start = closed_span.map(|span| span.0);
+                let origin = instructions.len();
                 instructions.push(inst);
                 stack.push(StackValue {
                     expr,
                     span: start.map(|start| (start, instructions.len())),
+                    origin: Some(origin),
                 });
             }
             continue;
@@ -192,9 +283,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
 
         let stack_effect =
             canonical_stack_effect.then(|| default_instruction_stack_effect(&inst)).flatten();
+        let origin = instructions.len();
         instructions.push(inst);
         if op::writes_memory(opcode) {
             memory_epoch = memory_epoch.wrapping_add(1);
+            known_stores.clear();
         }
         if op::writes_storage(opcode) {
             storage_epoch = storage_epoch.wrapping_add(1);
@@ -208,13 +301,18 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             ensure_depth(&mut stack, inputs, &mut next_expr);
             stack.truncate(stack.len() - inputs);
             for _ in 0..effect.outputs {
-                stack.push(StackValue { expr: fresh(&mut next_expr), span: None });
+                stack.push(StackValue {
+                    expr: fresh(&mut next_expr),
+                    span: None,
+                    origin: Some(origin),
+                });
             }
         } else {
             // An unknown stack effect is a hard analysis boundary. Values
             // below it may still exist physically, but cannot safely satisfy
             // a later expression lookup.
             stack.clear();
+            known_stores.clear();
         }
     }
 
@@ -397,8 +495,47 @@ fn append_unknown(
     stack: &mut Vec<StackValue>,
     next_expr: &mut usize,
 ) {
+    let origin = instructions.len();
     instructions.push(inst);
-    stack.push(StackValue { expr: fresh(next_expr), span: None });
+    stack.push(StackValue { expr: fresh(next_expr), span: None, origin: Some(origin) });
+}
+
+/// Returns whether an instruction is a pure single-word push or copy whose
+/// removal cannot change anything except the word it pushed.
+fn is_removable_copy(inst: &Instruction) -> bool {
+    inst.is_encoded_push() || (op::DUP1..=op::DUP16).contains(&inst.opcode)
+}
+
+/// Returns whether a block addresses the same constant memory word from more
+/// than one store or from a store and a load, the shapes the known-store
+/// model can simplify.
+fn has_repeated_const_memory_addr(instructions: &[Instruction]) -> bool {
+    let mut stores = SmallVec::<[u64; 8]>::new();
+    let mut loads = SmallVec::<[u64; 8]>::new();
+    for pair in instructions.windows(2) {
+        let [producer, consumer] = pair else { continue };
+        let Some(address) =
+            producer.concrete_immediate().and_then(|value| u64::try_from(value).ok())
+        else {
+            continue;
+        };
+        match consumer.opcode {
+            op::MSTORE => {
+                if stores.contains(&address) || loads.contains(&address) {
+                    return true;
+                }
+                stores.push(address);
+            }
+            op::MLOAD => {
+                if stores.contains(&address) {
+                    return true;
+                }
+                loads.push(address);
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn closed_span(
@@ -421,7 +558,10 @@ fn closed_span(
 fn ensure_depth(stack: &mut Vec<StackValue>, depth: usize, next_expr: &mut usize) {
     let missing = depth.saturating_sub(stack.len());
     if missing != 0 {
-        stack.splice(0..0, (0..missing).map(|_| StackValue { expr: fresh(next_expr), span: None }));
+        stack.splice(
+            0..0,
+            (0..missing).map(|_| StackValue { expr: fresh(next_expr), span: None, origin: None }),
+        );
     }
 }
 

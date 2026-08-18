@@ -37,9 +37,6 @@ bb0:
   lt
   push bb8
   jumpi
-  dup1
-  push 160
-  mstore
   push 4
   calldataload
   sstore
@@ -198,7 +195,7 @@ bb0:
   push 160
   mstore
   push 0x5e0b1cef
-  push 224
+  dup2
   shl
   dup2
   mstore

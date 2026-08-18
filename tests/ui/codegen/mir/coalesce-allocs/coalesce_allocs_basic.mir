@@ -1,0 +1,108 @@
+//@compile-flags: -Zmir-pipeline=coalesce-allocs
+//@filecheck:
+@module CoalesceAllocsBasic
+
+// Three consecutive constant-size allocations fuse into one bump of the
+// summed size; later members become constant offsets from the fused base.
+// Interleaved stores through heap pointers do not break the group.
+// CHECK-LABEL: fn @fuse_consecutive
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 160
+// CHECK: + v1 = add v0, 64
+// CHECK: + v2 = add v0, 96
+fn @fuse_consecutive() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64
+    mstore v0, 1
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc raw, exact, uninitialized, infallible, 64
+    mstore v1, 2
+    mstore v2, 3
+    v3 = mload v1
+    ret v3
+}
+
+// A fused zeroed group reserves the complete range once, but preserves each member's zeroing at
+// its original program point. The fused bump keeps the overflow panic when any member carried one.
+// CHECK-LABEL: fn @fuse_zeroed
+// CHECK: + v0 = alloc raw, exact, uninitialized, panic, 96
+// CHECK-NEXT: + memory_zero v0, 64
+// CHECK: + v1 = add v0, 64
+// CHECK-NEXT: + memory_zero v1, 32
+fn @fuse_zeroed() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, zeroed, panic, 64
+    v1 = alloc raw, exact, zeroed, infallible, 32
+    v2 = mload v1
+    ret v2
+}
+
+// A write into a later member's future range must be erased by the zero initialization at that
+// member's original allocation point, not survive an early whole-group zero.
+// CHECK-LABEL: fn @preserve_zero_timing
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 64
+// CHECK-NEXT: + memory_zero v0, 32
+// CHECK: mstore 160, 7
+// CHECK: + v1 = add v0, 32
+// CHECK-NEXT: + memory_zero v1, 32
+fn @preserve_zero_timing() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, zeroed, infallible, 32
+    mstore 160, 7
+    v1 = alloc raw, exact, zeroed, infallible, 32
+    v2 = mload v1
+    ret v2
+}
+
+// An arbitrary integer add containing a heap pointer can wrap to the FMP slot. It is not a proven
+// heap address, so the write ends the allocation group and the second allocation observes it.
+// CHECK-LABEL: fn @keep_across_wrapped_fmp
+// CHECK-NOT: +
+fn @keep_across_wrapped_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = sub 64, v0
+    v2 = add v0, v1
+    mstore v2, 65536
+    v3 = alloc raw, exact, uninitialized, infallible, 32
+    ret v3
+}
+
+// Reading the free-memory pointer between two allocations observes the
+// intermediate frontier, so the allocations on either side stay separate.
+// A call may allocate in the callee, which is the same barrier.
+// CHECK-LABEL: fn @keep_across_fmp
+// CHECK-NOT: +
+fn @keep_across_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = fmp
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 1
+    mstore v2, 2
+    ret v1
+}
+
+// A store through the constant free-memory-pointer slot moves the frontier,
+// so the second allocation must observe it and the group ends.
+// CHECK-LABEL: fn @keep_across_constant_fmp_store
+// CHECK-NOT: +
+fn @keep_across_constant_fmp_store() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore 64, 65536
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v1, 4
+    ret v1
+}
+
+// An explicit frontier update between two allocations is the same barrier.
+// CHECK-LABEL: fn @keep_across_set_fmp
+// CHECK-NOT: +
+fn @keep_across_set_fmp() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    set_fmp 65536
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v1, 5
+    ret v1
+}

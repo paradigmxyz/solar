@@ -4,8 +4,10 @@
 //@[run] compile-flags: -Ogas
 //@[run] run-call: pair 2 => 209, 364
 //@[run] run-call: triple 2 => 209, 364, 901
+//@[run] run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
 //@[run] run-call: sumPair 2 => 573
 //@[run] run-call: sumTriple 2 => 1474
+//@[run] run-call: sumSix 2 => 10599
 
 contract InternalCallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
@@ -74,6 +76,70 @@ contract InternalCallMultiStackReturn {
             c ^= 11;
             c += 13;
             c *= 17;
+        }
+    }
+
+    // Six results exercise a return whose values are already live on the physical stack. The
+    // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
+    // requested layout.
+    // CHECK: swap4
+    // CHECK-NEXT: swap5
+    // CHECK-NEXT: swap6
+    // CHECK-NEXT: jump
+    function six(uint256 x)
+        external
+        pure
+        returns (uint256, uint256, uint256, uint256, uint256, uint256)
+    {
+        return sixHelper(x);
+    }
+
+    function sumSix(uint256 x) external pure returns (uint256) {
+        (uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) = sixHelper(x);
+        return a + b + c + d + e + f;
+    }
+
+    function sixHelper(uint256 x)
+        internal
+        pure
+        returns (uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f)
+    {
+        unchecked {
+            a = x + 1;
+            a *= 3;
+            a ^= 5;
+            a += 7;
+            a *= 11;
+
+            b = x + 2;
+            b *= 5;
+            b ^= 7;
+            b += 9;
+            b *= 13;
+
+            c = x + 3;
+            c *= 7;
+            c ^= 11;
+            c += 13;
+            c *= 17;
+
+            d = x + 4;
+            d *= 11;
+            d ^= 13;
+            d += 17;
+            d *= 19;
+
+            e = x + 5;
+            e *= 13;
+            e ^= 17;
+            e += 19;
+            e *= 23;
+
+            f = x + 6;
+            f *= 17;
+            f ^= 19;
+            f += 23;
+            f *= 29;
         }
     }
 }

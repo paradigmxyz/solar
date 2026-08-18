@@ -63,6 +63,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
+    &coalesce_allocs::CoalesceAllocs,
     &static_alloc::StaticAlloc,
     &sroa::Sroa,
     &copy_elision::CopyElision,
@@ -221,6 +222,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_immutables::LowerImmutables,
+    // Fuse straight-line constant-size allocations before their free-memory
+    // pointer traffic is materialized; pointer values are preserved exactly.
+    &coalesce_allocs::CoalesceAllocs,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
