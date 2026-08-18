@@ -218,6 +218,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
+    /// Whether the current function is a compiler-generated public getter.
+    lowering_getter: bool,
     /// Shared base value for constructor ABI argument accesses.
     constructor_args_base: Option<ValueId>,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -311,6 +313,7 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
+            lowering_getter: false,
             constructor_args_base: None,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -660,12 +663,14 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_inline_returns = self.inline_returns.take();
             let saved_pending_inline_returns = self.pending_inline_returns.take();
             let saved_lowering_constructor = self.lowering_constructor;
+            let saved_lowering_getter = self.lowering_getter;
             let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
+            self.lowering_getter = false;
             self.constructor_args_base = None;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
@@ -682,6 +687,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.inline_returns = saved_inline_returns;
             self.pending_inline_returns = saved_pending_inline_returns;
             self.lowering_constructor = saved_lowering_constructor;
+            self.lowering_getter = saved_lowering_getter;
             self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
@@ -838,6 +844,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_lowering_getter = self.lowering_getter;
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
@@ -858,6 +865,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.lowering_getter = saved_lowering_getter;
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
@@ -945,6 +953,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
+        let saved_lowering_getter = self.lowering_getter;
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
@@ -963,6 +972,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
+        self.lowering_getter = saved_lowering_getter;
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
@@ -1057,6 +1067,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
+        self.lowering_getter = hir_func.is_getter();
         self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
@@ -1510,6 +1521,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         self.lowering_constructor = false;
+        self.lowering_getter = false;
         self.lowering_internal_function = false;
         mir_func.internal_frame_size =
             self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);

@@ -903,11 +903,19 @@ impl<'gcx> Lowerer<'gcx> {
                 return;
             }
             let always = builder.imm_bool(true);
-            self.emit_panic_if(builder, always, PanicCode::ArrayOutOfBounds);
+            if self.lowering_getter {
+                Self::emit_revert_if(builder, always);
+            } else {
+                self.emit_panic_if(builder, always, PanicCode::ArrayOutOfBounds);
+            }
             return;
         }
         let in_range = builder.lt(index, len);
-        self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
+        if self.lowering_getter {
+            Self::emit_revert_unless(builder, in_range);
+        } else {
+            self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
+        }
     }
 
     /// Emits the runtime range check required by an explicit integer-to-enum
