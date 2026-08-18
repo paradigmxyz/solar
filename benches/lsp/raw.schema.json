@@ -31,6 +31,7 @@
         "measured_iterations_per_pass": { "const": 10 },
         "passes": { "const": ["base-first", "head-first"] },
         "methods": {
+          "description": "Pinned upstream benchmark selectors; textDocument/diagnostic measures didOpen to publishDiagnostics",
           "const": [
             "initialize",
             "textDocument/diagnostic",

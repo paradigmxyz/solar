@@ -123,6 +123,17 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(comparison)
 
+    def test_comparison_schema_rejects_upstream_diagnostics_selector(self) -> None:
+        samples = {
+            role: {method: [10.0] * 20 for method in benchmark.METHODS}
+            for role in ("base", "head")
+        }
+        comparison = conclusive_comparison(samples)
+        comparison["methods"][1]["name"] = "textDocument/diagnostic"
+
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(comparison)
+
     def test_schemas_reject_trailing_control_characters(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             raw = RawArtifact(Path(directory)).manifest

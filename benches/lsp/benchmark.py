@@ -41,15 +41,18 @@ PASSES = (
     ("base-first", ("base", "head")),
     ("head-first", ("head", "base")),
 )
+UPSTREAM_DIAGNOSTICS_BENCHMARK = "textDocument/diagnostic"
+DIAGNOSTICS_METRIC = "didOpen/publishDiagnostics"
 METHODS = (
     "initialize",
-    "textDocument/diagnostic",
+    UPSTREAM_DIAGNOSTICS_BENCHMARK,
     "textDocument/hover",
     "textDocument/definition",
     "textDocument/references",
     "textDocument/completion",
     "textDocument/documentSymbol",
 )
+COMPARISON_METRIC_NAMES = {UPSTREAM_DIAGNOSTICS_BENCHMARK: DIAGNOSTICS_METRIC}
 THRESHOLD_PERCENT = 10.0
 COMPARISON_METRIC_DECIMALS = 4
 REQUEST_TIMEOUT_SECONDS = 10
@@ -678,7 +681,7 @@ def _validate_response(
             raise ValidationError(f"{path} is not a successful initialization")
         return
 
-    if method == "textDocument/diagnostic":
+    if method == UPSTREAM_DIAGNOSTICS_BENCHMARK:
         params = _mapping(response, path)
         if not {"uri", "diagnostics"} <= set(params) <= {
             "uri",
@@ -909,7 +912,7 @@ def _validate_response(
 
 
 def _expected_benchmark_input(method: str, config: dict[str, Any]) -> dict[str, Any] | None:
-    if method in {"initialize", "textDocument/diagnostic"}:
+    if method in {"initialize", UPSTREAM_DIAGNOSTICS_BENCHMARK}:
         return None
 
     uri = (Path(config["project"]) / "Main.sol").as_uri()
@@ -1414,7 +1417,7 @@ def build_comparison(
         verdicts.append(verdict)
         methods.append(
             {
-                "name": method,
+                "name": COMPARISON_METRIC_NAMES.get(method, method),
                 "sample_count": len(base_samples),
                 "base": {
                     "p50_ms": _rounded_metric(base_p50, f"{method} base p50"),
@@ -1563,7 +1566,7 @@ def render_markdown(comparison: dict[str, Any]) -> str:
     )
     lines.extend(
         [
-            "| Method | Samples | Base p50 | Head p50 | Delta | Base p95 | Head p95 | Delta | Verdict |",
+            "| Metric | Samples | Base p50 | Head p50 | Delta | Base p95 | Head p95 | Delta | Verdict |",
             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
@@ -1589,8 +1592,16 @@ def render_markdown(comparison: dict[str, Any]) -> str:
         [
             "",
             (
-                "A method changes only when both recomputed percentiles cross the "
+                "A metric changes only when both recomputed percentiles cross the "
                 f"{THRESHOLD_PERCENT:.0f}% threshold. RSS is not part of the verdict."
+            ),
+            (
+                f"`{DIAGNOSTICS_METRIC}` is an end-to-end metric that includes the "
+                "production source-change debounce. The [`solar-lsp` Criterion/CodSpeed "
+                "suite](https://codspeed.io/paradigmxyz/solar) independently tracks "
+                "analysis-only compiler and symbol-table rebuild latency with separate "
+                "workloads. Those results are not numerically paired with this metric, and no "
+                "debounce constant is subtracted."
             ),
             "",
         ]

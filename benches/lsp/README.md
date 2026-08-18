@@ -30,27 +30,37 @@ checks its SHA-256 before extracting it. The adapter deliberately supplies
 absolute server commands in generated JSON (which is valid YAML); it never uses
 the upstream `commit` or `repo` server modes.
 
-The pinned upstream runner accepts the first notification after `didOpen` as a
-diagnostic response. `lsp_filter.py` compensates by discarding unrelated
-notifications until the fixture's exact `Main.sol` warning arrives. It also
-validates initialization and provides the unmeasured project-ready signal that
-v0.3.3 expects. The same proxy is used for both roles and both pass orders, so
-its fixed overhead is symmetric.
+The pinned upstream runner calls its diagnostics workload
+`textDocument/diagnostic`, but it does not send that pull-diagnostic request. It
+measures from `didOpen` until a diagnostics notification arrives. Generated
+upstream configs and raw results retain that selector for provenance, while the
+trusted comparison reports the metric as `didOpen/publishDiagnostics`.
+`lsp_filter.py` discards unrelated notifications until the fixture's exact
+`Main.sol` warning arrives. It also validates initialization and provides the
+unmeasured project-ready signal that v0.3.3 expects. The same proxy is used for
+both roles and both pass orders, so its fixed overhead is symmetric.
 
-Each comparison runs `initialize`, `textDocument/diagnostic`, `hover`,
+Each comparison runs `initialize`, `didOpen/publishDiagnostics`, `hover`,
 `definition`, `references`, `completion`, and `documentSymbol` with five warmups
 and ten measured iterations in two passes: base-first and head-first. Every pass
 gets a fresh fixture copy, home directory, temporary directory, and XDG
 directories. Only a small fixed environment is inherited by child processes.
-The trusted renderer requires both roles, both pass orders, every method,
-exactly 20 valid samples per role and method, finite positive timings, the
+The trusted renderer requires both roles, both pass orders, every benchmark,
+exactly 20 valid samples per role and benchmark, finite positive timings, the
 expected JSON-RPC request input, and a correct response for every sample.
 
 The fixture deliberately produces warning 2018 as that indexing-ready marker.
-The compatibility work happens before method timing and does not add work to
-measured requests.
+Receiving it ends the `didOpen/publishDiagnostics` measurement and establishes
+the precondition for the later request metrics.
 
-The renderer recomputes nearest-rank p50 and p95 values. A method is a regression
+`didOpen/publishDiagnostics` is an end-to-end user metric and includes the
+production source-change debounce. Analysis-only compiler and symbol-table
+rebuild latency is measured independently by the [`solar-lsp` Criterion/CodSpeed
+benchmarks](https://codspeed.io/paradigmxyz/solar), which bypass the LSP scheduler
+and debounce. Those benchmarks use separate workloads; neither result is derived
+by subtracting a fixed delay from the other.
+
+The renderer recomputes nearest-rank p50 and p95 values. A metric is a regression
 only when both head percentiles are at least 10 percent slower, and an improvement
 only when both are at least 10 percent faster. RSS remains in the raw upstream
 results for inspection but does not affect the verdict. Any malformed,

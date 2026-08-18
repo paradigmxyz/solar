@@ -1115,6 +1115,26 @@ class PublicationStateTests(unittest.TestCase):
 
 
 class StatisticsTests(unittest.TestCase):
+    def test_comparison_names_the_diagnostics_timing_boundary(self) -> None:
+        samples = {
+            role: {method: [10.0] * 20 for method in benchmark.METHODS}
+            for role in ("base", "head")
+        }
+
+        comparison = benchmark.build_comparison(samples, CONTEXT)
+
+        self.assertEqual(benchmark.METHODS[1], "textDocument/diagnostic")
+        self.assertEqual(
+            comparison["methods"][1]["name"], "didOpen/publishDiagnostics"
+        )
+        rendered = benchmark.render_markdown(
+            benchmark.add_publication_state(
+                comparison, CONTEXT, CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
+            )
+        )
+        self.assertIn("| didOpen/publishDiagnostics |", rendered)
+        self.assertNotIn("| textDocument/diagnostic |", rendered)
+
     def test_percentile_uses_nearest_rank(self) -> None:
         samples = list(range(20, 0, -1))
 
@@ -1239,6 +1259,9 @@ class MarkdownTests(unittest.TestCase):
         self.assertIn(f"/commit/{CONTEXT.main_sha}", rendered)
         self.assertIn("main-merge-candidate", rendered)
         self.assertIn("both recomputed percentiles", rendered)
+        self.assertIn("includes the production source-change debounce", rendered)
+        self.assertIn("not numerically paired with this metric", rendered)
+        self.assertIn("no debounce constant is subtracted", rendered)
 
     def test_stale_markdown_keeps_the_full_table_and_recommends_rerunning(self) -> None:
         samples = {
@@ -1270,7 +1293,7 @@ class MarkdownTests(unittest.TestCase):
                 rendered = benchmark.render_markdown(comparison)
 
                 self.assertIn(f"Freshness: `{freshness}`", rendered)
-                self.assertIn("| Method | Samples |", rendered)
+                self.assertIn("| Metric | Samples |", rendered)
                 self.assertIn(message, rendered)
                 self.assertIn(guidance, rendered)
 
@@ -1285,7 +1308,7 @@ class MarkdownTests(unittest.TestCase):
             "Reason: bad \\| \\`artifact\\` &lt;value&gt;<br>second line",
             rendered,
         )
-        self.assertNotIn("| Method | Samples |", rendered)
+        self.assertNotIn("| Metric | Samples |", rendered)
 
 
 if __name__ == "__main__":

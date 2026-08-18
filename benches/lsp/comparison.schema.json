@@ -131,7 +131,7 @@
     },
     "diagnostic": {
       "$ref": "#/$defs/method",
-      "properties": { "name": { "const": "textDocument/diagnostic" } }
+      "properties": { "name": { "const": "didOpen/publishDiagnostics" } }
     },
     "hover": {
       "$ref": "#/$defs/method",
