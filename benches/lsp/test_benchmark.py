@@ -1170,12 +1170,16 @@ class MarkdownTests(unittest.TestCase):
         self.assertNotIn("Order-stratified paired bootstrap evidence", rendered)
         self.assertNotIn("| Metric | Order | Sessions |", rendered)
         self.assertNotIn("| text\\|document | base-first | 5 |", rendered)
-        self.assertIn("95% confidence intervals", rendered)
-        self.assertIn("1.0 ms thresholds", rendered)
-        self.assertIn("not counted as independent sessions", rendered)
-        self.assertIn("includes the production source-change debounce", rendered)
-        self.assertIn("not numerically paired with this metric", rendered)
-        self.assertIn("no debounce constant is subtracted", rendered)
+        methodology = (
+            "Verdicts change only when, in both run orders, the paired 95% confidence "
+            "intervals for p50 and p95 lie entirely beyond both the 10% and 1.0 ms "
+            "thresholds in the same direction. "
+            f"[Methodology](https://github.com/{CONTEXT.workflow_repository}"
+            "/blob/HEAD/benches/lsp/README.md#lsp-pull-request-benchmark)"
+        )
+        self.assertIn(methodology, rendered)
+        self.assertNotIn("Base and Head values are means", rendered)
+        self.assertNotIn("Criterion/CodSpeed", rendered)
 
     def test_stale_markdown_keeps_the_full_table_and_recommends_rerunning(self) -> None:
         frozen = benchmark.build_comparison(constant_sessions(), CONTEXT)

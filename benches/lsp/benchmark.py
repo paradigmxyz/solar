@@ -1805,24 +1805,12 @@ def render_markdown(comparison: dict[str, Any]) -> str:
         [
             "",
             (
-                "Base and Head values are means of the ten per-session nearest-rank "
-                "percentiles, not percentiles of pooled request samples."
-            ),
-            "",
-            (
-                "A metric changes only when the paired 95% confidence intervals for p50 "
-                "and p95 in both server-order strata cross both the "
-                f"{THRESHOLD_PERCENT:.0f}% and {THRESHOLD_ABSOLUTE_MS:.1f} ms thresholds. "
-                "Request iterations within one server process are not counted as "
-                "independent sessions. RSS is not part of the verdict."
-            ),
-            (
-                f"`{DIAGNOSTICS_METRIC}` is an end-to-end metric that includes the "
-                "production source-change debounce. The [`solar-lsp` Criterion/CodSpeed "
-                "suite](https://codspeed.io/paradigmxyz/solar) independently tracks "
-                "analysis-only compiler and symbol-table rebuild latency with separate "
-                "workloads. Those results are not numerically paired with this metric, and no "
-                "debounce constant is subtracted."
+                "Verdicts change only when, in both run orders, the paired 95% confidence "
+                "intervals for p50 and p95 lie entirely beyond both the "
+                f"{THRESHOLD_PERCENT:.0f}% and {THRESHOLD_ABSOLUTE_MS:.1f} ms thresholds "
+                "in the same direction. "
+                f"[Methodology](https://github.com/{comparison['workflow_repository']}"
+                "/blob/HEAD/benches/lsp/README.md#lsp-pull-request-benchmark)"
             ),
             "",
         ]
