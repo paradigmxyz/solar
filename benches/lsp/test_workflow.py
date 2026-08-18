@@ -291,11 +291,19 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             {"contents": "read", "pull-requests": "read"},
         )
         self.assertEqual(job_permissions("arbitrate"), {"actions": "write"})
-        self.assertEqual(job_permissions("queue-comment"), {"issues": "write"})
+        self.assertEqual(
+            job_permissions("queue-comment"),
+            {"issues": "write", "pull-requests": "write"},
+        )
         self.assertEqual(job_permissions("compute"), {"contents": "read"})
         self.assertEqual(
             job_permissions("render"),
-            {"actions": "read", "contents": "read", "issues": "write"},
+            {
+                "actions": "read",
+                "contents": "read",
+                "issues": "write",
+                "pull-requests": "write",
+            },
         )
         self.assertEqual(WORKFLOW.count("issues: write"), 2)
         compute = job_block("compute")
