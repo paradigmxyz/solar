@@ -9017,7 +9017,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
             let target: Vec<_> = values.iter().rev().copied().map(TargetSlot::Value).collect();
-            let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+            let shuffle = self.scheduler.shuffle_to_layout(&target).or_else(|| {
+                for value in Self::missing_stack_phi_sources(&self.scheduler.stack, values) {
+                    self.emit_value(func, value);
+                }
+                self.scheduler.shuffle_to_layout(&target)
+            });
+            let Some(shuffle) = shuffle else {
                 // A forwarded multi-result call leaves adopted copies of the
                 // returned values on the stack; re-emitting them for the
                 // return doubles every word and the bounded shuffler cannot

@@ -105,15 +105,9 @@ bb0:
   shr
   dup1
   push 0x3dd41ca6
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  dup1
-  revert
-bb4:
   push 288
   push 64
   mstore
@@ -217,9 +211,6 @@ bb4:
   push 64
   mstore
   dup2
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   push 32
@@ -234,9 +225,6 @@ bb4:
   mstore
   push 0
   dup3
-  dup1
-  push 160
-  mstore
   returndatacopy
   swap2
   pop
@@ -262,6 +250,10 @@ bb4:
   push 32
   push 128
   return
+bb3 [cold]:
+  push 0
+  dup1
+  revert
 bb10 [cold]:
   returndatasize
   dup1

@@ -359,31 +359,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             all_literals.extend_from_slice(&bytes);
                         } else {
                             let length = self.builder.imm_u64(bytes.len() as u64);
-                            total = self.checked_add(total, length);
+                            total = self.builder.add(total, length);
                         }
                         parts.push(Part::Literal(bytes));
                         continue;
                     }
                     if let Some(all_literals) = all_literals.take() {
                         let length = self.builder.imm_u64(all_literals.len() as u64);
-                        total = self.checked_add(total, length);
+                        total = self.builder.add(total, length);
                     }
                     let memory_ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    total = self.checked_add(total, length);
+                    total = self.builder.add(total, length);
                     parts.push(Part::Dynamic { value, length });
                 }
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
                     if let Some(all_literals) = all_literals.take() {
                         let length = self.builder.imm_u64(all_literals.len() as u64);
-                        total = self.checked_add(total, length);
+                        total = self.builder.add(total, length);
                     }
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
                     let length_value = self.builder.imm_u64(length);
-                    total = self.checked_add(total, length_value);
+                    total = self.builder.add(total, length_value);
                     parts.push(Part::Fixed { value, length });
                 }
                 _ => return report_unsupported(self.gcx, expr.span, "concat argument"),
@@ -398,11 +398,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        let size = self.checked_padded_size(total);
+        let size = self.padded_size(total);
         let output = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
+            AllocationSemantics::SOLIDITY_UNINITIALIZED,
         );
         self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
 
@@ -414,7 +414,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let value = self.lower_string_literal_word(chunk);
                         self.builder.memory_object_store_word(output, offset, value);
                         let length = self.builder.imm_u64(chunk.len() as u64);
-                        offset = self.checked_add(offset, length);
+                        offset = self.builder.add(offset, length);
                     }
                 }
                 Part::Dynamic { value, length } => {
@@ -427,12 +427,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset,
                         source,
                     );
-                    offset = self.checked_add(offset, length);
+                    offset = self.builder.add(offset, length);
                 }
                 Part::Fixed { value, length } => {
                     self.builder.memory_object_store_word(output, offset, value);
                     let length = self.builder.imm_u64(length);
-                    offset = self.checked_add(offset, length);
+                    offset = self.builder.add(offset, length);
                 }
             }
         }

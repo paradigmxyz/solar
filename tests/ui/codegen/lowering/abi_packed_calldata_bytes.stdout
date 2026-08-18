@@ -98,13 +98,7 @@ bb7:
   mstore
   dup2
   dup4
-  dup1
-  push 160
-  mstore
   dup3
-  dup1
-  push 192
-  mstore
   calldatacopy
   swap2
   pop

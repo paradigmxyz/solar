@@ -623,9 +623,6 @@ bb52:
   push 288
   mload
   dup3
-  dup1
-  push 224
-  mstore
   calldatacopy
   push 0
   push 160

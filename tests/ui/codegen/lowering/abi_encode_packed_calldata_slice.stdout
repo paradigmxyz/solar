@@ -168,9 +168,6 @@ bb7:
   push 160
   mload
   dup3
-  dup1
-  push 224
-  mstore
   calldatacopy
   push 192
   mload

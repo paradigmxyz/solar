@@ -319,6 +319,9 @@ fn shared_string_literals(
     let mut shared = FxHashSet::default();
     let mut shared_word = FxHashSet::default();
     for (bytes, count) in counter.counts {
+        if bytes.is_empty() {
+            continue;
+        }
         if count >= 4 {
             shared.insert(bytes.clone());
         }

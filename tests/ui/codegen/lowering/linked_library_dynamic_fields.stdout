@@ -1095,9 +1095,6 @@ bb22:
   mload
   push 0
   dup3
-  dup1
-  push 192
-  mstore
   returndatacopy
   swap1
   mload

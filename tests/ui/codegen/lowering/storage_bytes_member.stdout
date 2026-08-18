@@ -260,9 +260,6 @@ bb22:
   or
   push bb166
   jumpi
-  dup1
-  push 384
-  mstore
   push 64
   mstore
   calldatasize
@@ -270,9 +267,6 @@ bb22:
   mload
   dup2
   dup4
-  dup1
-  push 256
-  mstore
   calldatacopy
   pop
   push 160
@@ -353,21 +347,12 @@ bb34:
   or
   push bb166
   jumpi
-  dup1
-  push 352
-  mstore
   push 64
   mstore
   calldatasize
   dup3
-  dup1
-  push 160
-  mstore
   dup2
   dup4
-  dup1
-  push 192
-  mstore
   calldatacopy
   pop
   swap1
@@ -390,9 +375,6 @@ bb34:
   mload
   dup2
   dup4
-  dup1
-  push 384
-  mstore
   mcopy
   pop
   push 224
@@ -1738,9 +1720,6 @@ bb145:
   or
   push bb166
   jumpi
-  dup1
-  push 352
-  mstore
   push 64
   mstore
   calldatasize
@@ -1748,9 +1727,6 @@ bb145:
   mload
   dup2
   dup4
-  dup1
-  push 128
-  mstore
   calldatacopy
   pop
   push 224
@@ -1979,9 +1955,6 @@ bb177:
   or
   push bb166
   jumpi
-  dup1
-  push 480
-  mstore
   push 64
   mstore
   calldatasize
@@ -1989,9 +1962,6 @@ bb177:
   mload
   dup2
   dup4
-  dup1
-  push 160
-  mstore
   calldatacopy
   pop
   push 352
@@ -2071,21 +2041,12 @@ bb63:
   or
   push bb166
   jumpi
-  dup1
-  push 288
-  mstore
   push 64
   mstore
   calldatasize
   dup3
-  dup1
-  push 128
-  mstore
   dup2
   dup4
-  dup1
-  push 448
-  mstore
   calldatacopy
   pop
   swap1
@@ -2108,9 +2069,6 @@ bb63:
   mload
   dup2
   dup4
-  dup1
-  push 288
-  mstore
   mcopy
   pop
   pop
@@ -2207,9 +2165,6 @@ bb178:
   or
   push bb166
   jumpi
-  dup1
-  push 384
-  mstore
   push 64
   mstore
   calldatasize
@@ -2217,9 +2172,6 @@ bb178:
   mload
   dup2
   dup4
-  dup1
-  push 160
-  mstore
   calldatacopy
   pop
   push 320
@@ -2279,9 +2231,6 @@ bb179:
   or
   push bb166
   jumpi
-  dup1
-  push 384
-  mstore
   push 64
   mstore
   calldatasize
@@ -2289,9 +2238,6 @@ bb179:
   mload
   dup2
   dup4
-  dup1
-  push 160
-  mstore
   calldatacopy
   pop
   push 320
@@ -2367,9 +2313,6 @@ bb180:
   or
   push bb166
   jumpi
-  dup1
-  push 416
-  mstore
   push 64
   mstore
   calldatasize
@@ -2377,9 +2320,6 @@ bb180:
   mload
   dup2
   dup4
-  dup1
-  push 160
-  mstore
   calldatacopy
   pop
   push 320

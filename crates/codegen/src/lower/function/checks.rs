@@ -32,6 +32,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
         let padding = self.builder.imm_u64(63);
         let rounded = self.builder.checked_add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    /// Returns the solc-compatible padded size for `bytes.concat`.
+    pub(super) fn padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.builder.imm_u64(63);
+        let rounded = self.builder.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.builder.imm_u64(31);
         let mask = self.builder.not(mask);
         self.builder.and(rounded, mask)

@@ -83,7 +83,6 @@ bb6:
   push 96
   add
   mload
-  dup1
   push 256
   mstore
   push 160
@@ -96,8 +95,6 @@ bb6:
   add
   mload
   push 160
-  mstore
-  push 256
   mstore
   push 1
   push 4
@@ -153,9 +150,6 @@ bb8:
   add
   mload
   push 160
-  mstore
-  dup1
-  push 288
   mstore
   push 256
   mload
