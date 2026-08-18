@@ -9,8 +9,9 @@
     bb2:
       frame_store internal_frame, word, 0, arg0
       v0 = frame_load internal_frame, word, 0
+      v1 = mul v0, v0
       jump bb1
     bb3:
-      ret v0
+      ret v1
   }
   
