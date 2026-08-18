@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 863
+  push 972
   dup1
   push 10
   push 0
@@ -13,9 +13,6 @@ bb0:
 // === runtime ===
 @module runtime
 bb0:
-  push 0x600
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi
@@ -25,27 +22,9 @@ bb0:
   shr
   dup1
   push 0x2b096926
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  dup1
-  revert
-bb49 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb4:
   calldatasize
   push 4
   swap1
@@ -282,270 +261,78 @@ bb4:
   gt
   push bb49
   jumpi
-  push 4
-  calldataload
-  push 800
-  mstore
-  push 608
-  push 160
-  push 832
+  push 384
+  dup1
+  push 0x420
   mcopy
   push bb25
-  push 832
+  push 4
+  calldataload
+  push 160
   mload
-  push 800
+  push 192
   mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  swap6
+  dup8
   add
   dup1
-  push 0x5c0
-  mstore
-  push 800
-  mload
-  gt
-  push bb49
-  jumpi
-  push 864
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 896
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 928
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 960
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 992
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x400
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x420
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x440
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x460
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x480
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x4a0
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x4c0
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x4e0
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x500
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x520
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x540
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x560
-  mload
-  push 0x5c0
-  mload
-  add
-  dup1
-  push 0x5e0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x580
-  mload
-  push 0x5e0
-  mload
-  add
-  dup1
-  push 0x5c0
-  mstore
-  push 0x5e0
-  mload
-  gt
-  push bb49
-  jumpi
-  push 0x5c0
-  mload
   push 0x5a0
   mstore
-  jump
+  swap7
+  dup8
+  lt
+  swap7
+  pop
+  swap6
+  swap1
+  swap5
+  swap1
+  swap2
+  swap6
+  swap2
+  swap3
+  swap5
+  swap3
+  swap4
+  swap6
+  swap4
+  iszero
+  push bb29
+  jumpi
+  pop
+  jump bb51
+bb51:
+  pop
+  jump bb50
+bb50:
+  pop
+  pop
+  pop
+  pop
+  jump bb49
+bb49 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb25:
-  push 0x5a0
-  mload
   dup1
   push 768
   mstore
@@ -554,3 +341,288 @@ bb25:
   push 32
   push 128
   return
+bb29:
+  swap5
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  swap1
+  swap5
+  swap1
+  swap2
+  swap5
+  swap2
+  swap3
+  swap5
+  swap3
+  swap4
+  swap5
+  swap4
+  iszero
+  push bb30
+  jumpi
+  jump bb51
+bb30:
+  swap4
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  swap1
+  swap4
+  swap1
+  swap2
+  swap4
+  swap2
+  swap3
+  swap4
+  swap3
+  iszero
+  push bb31
+  jumpi
+  jump bb50
+bb31:
+  swap3
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  swap1
+  swap2
+  swap3
+  swap1
+  iszero
+  push bb32
+  jumpi
+  pop
+  pop
+  pop
+  jump bb49
+bb32:
+  swap2
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  swap1
+  swap2
+  swap1
+  iszero
+  push bb33
+  jumpi
+  pop
+  pop
+  jump bb49
+bb33:
+  swap1
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  iszero
+  push bb34
+  jumpi
+  pop
+  jump bb49
+bb34:
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x420
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x440
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x460
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x480
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x4a0
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x4c0
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x4e0
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x500
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x520
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x540
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x560
+  mload
+  push 0x5a0
+  mload
+  add
+  dup1
+  push 0x5c0
+  mstore
+  push 0x5a0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x580
+  mload
+  push 0x5c0
+  mload
+  add
+  dup1
+  push 0x5a0
+  mstore
+  push 0x5c0
+  mload
+  gt
+  push bb49
+  jumpi
+  push 0x5a0
+  mload
+  swap1
+  jump
+bb3 [cold]:
+  push 0
+  dup1
+  revert

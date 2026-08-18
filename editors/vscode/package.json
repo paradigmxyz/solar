@@ -112,6 +112,29 @@
           "default": true,
           "description": "Show contract inheritance CodeLens annotations"
         },
+        "solarLsp.indexing.exclude": {
+          "type": "array",
+          "default": [],
+          "description": "Additional glob patterns to exclude from workspace indexing, relative to each workspace root and using `/` separators. Excluded files can still be loaded when imported.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "solarLsp.indexing.useDefaultExcludes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude directories named node_modules, lib, cache, out, target, artifacts, build, dist, and broadcast from workspace indexing"
+        },
+        "solarLsp.indexing.excludeHiddenDirectories": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude hidden directories from workspace indexing"
+        },
+        "solarLsp.indexing.excludeNestedRepositories": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude nested repositories containing a .git entry from workspace indexing"
+        },
         "solarLsp.flychecks": {
           "type": [
             "array",

@@ -1,11 +1,16 @@
-use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
+use crate::{
+    NotifyResult,
+    global_state::{GlobalState, SourceFileEventDisposition},
+    proto,
+    utils::apply_document_changes,
+};
 use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
-use std::{ops::ControlFlow, sync::Arc};
+use std::{ops::ControlFlow, path::PathBuf, sync::Arc};
 use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
@@ -27,7 +32,7 @@ pub(crate) fn did_open_text_document(
         );
         vfs.mark_clean();
         drop(vfs);
-        state.recompute_after_source_changes(disk_path.into_iter().collect());
+        state.recompute_after_opening_source(disk_path.into_iter().collect());
     }
 
     ControlFlow::Continue(())
@@ -118,6 +123,20 @@ pub(crate) fn did_change_configuration(
     ControlFlow::Continue(())
 }
 
+fn push_watched_event_batch(
+    batches: &mut Vec<(FileChangeType, Vec<PathBuf>)>,
+    typ: FileChangeType,
+    path: PathBuf,
+) {
+    if let Some((last_typ, paths)) = batches.last_mut()
+        && *last_typ == typ
+    {
+        paths.push(path);
+    } else {
+        batches.push((typ, vec![path]));
+    }
+}
+
 pub(crate) fn did_change_watched_files(
     state: &mut GlobalState,
     params: DidChangeWatchedFilesParams,
@@ -127,6 +146,7 @@ pub(crate) fn did_change_watched_files(
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
     let mut removed_paths = Vec::new();
+    let mut watched_event_batches = Vec::new();
 
     for event in changes {
         let Some(vfs_path) = proto::vfs_path(&event.uri) else {
@@ -137,10 +157,20 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
+            Some(".git")
+                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) =>
+            {
+                if state.config.nested_repository_marker_event_is_relevant(&path) {
+                    should_rediscover = true;
+                }
+            }
             Some("foundry.toml" | "remappings.txt") => {
+                if !state.config.workspace_config_event_is_relevant(&path) {
+                    continue;
+                }
                 should_rediscover = true;
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
-                    state.file_operations.record_watched_events(event.typ, [path]);
+                    push_watched_event_batch(&mut watched_event_batches, event.typ, path);
                 }
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
@@ -155,9 +185,25 @@ pub(crate) fn did_change_watched_files(
                     }
                     continue;
                 }
-                if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
-                    && state.config.is_import_only_path(&path)
-                {
+                let import_only_topology_changed =
+                    matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED)
+                        && state.config.is_index_import_only_path(&path);
+                if !import_only_topology_changed {
+                    match state.classify_source_file_event(&path, event.typ) {
+                        SourceFileEventDisposition::Relevant => {}
+                        SourceFileEventDisposition::Deferred
+                        | SourceFileEventDisposition::Irrelevant => continue,
+                        SourceFileEventDisposition::Recover => {
+                            should_rediscover = true;
+                            if event.typ == FileChangeType::DELETED {
+                                removed_paths.push(path.clone());
+                            }
+                            disk_paths.push(path);
+                            continue;
+                        }
+                    }
+                }
+                if import_only_topology_changed {
                     should_rediscover = true;
                 }
                 if event.typ == FileChangeType::CREATED {
@@ -167,12 +213,33 @@ pub(crate) fn did_change_watched_files(
                     removed_paths.push(path.clone());
                 }
                 if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) {
-                    state.file_operations.record_watched_events(event.typ, [path.clone()]);
+                    push_watched_event_batch(&mut watched_event_batches, event.typ, path.clone());
                 }
                 disk_paths.push(path);
             }
+            _ if matches!(event.typ, FileChangeType::CREATED | FileChangeType::DELETED) => {
+                let shallow_watch = state.config.shallow_watch_event_is_relevant(&path);
+                let relevant = if event.typ == FileChangeType::CREATED {
+                    std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir())
+                        && (shallow_watch || state.created_file_operation_path_is_relevant(&path))
+                } else {
+                    shallow_watch || state.deleted_file_operation_path_is_relevant(&path)
+                };
+                if !relevant {
+                    continue;
+                }
+                should_rediscover = true;
+                if event.typ == FileChangeType::DELETED {
+                    removed_paths.push(path.clone());
+                }
+                push_watched_event_batch(&mut watched_event_batches, event.typ, path);
+            }
             _ => {}
         }
+    }
+
+    for (typ, paths) in watched_event_batches {
+        state.file_operations.record_watched_events(typ, paths);
     }
 
     if should_rediscover || !disk_paths.is_empty() {
@@ -202,6 +269,7 @@ pub(crate) fn did_change_workspace_folders(
     config.add_workspaces(added_paths);
 
     state.reindex_after_removing_paths(removed_paths);
+    state.reregister_watched_files();
 
     ControlFlow::Continue(())
 }

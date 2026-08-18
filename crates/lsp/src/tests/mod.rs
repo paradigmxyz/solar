@@ -20,6 +20,8 @@ use lsp_types::{
     WorkspaceFoldersChangeEvent, WorkspaceSymbol, notification, notification::Notification,
     request,
 };
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 use std::{
     future::Future,
     path::Path,
@@ -45,6 +47,7 @@ mod hover;
 mod implementation;
 mod import_completion;
 mod import_definition;
+mod indexing;
 mod inlay_hint;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
@@ -53,9 +56,11 @@ mod refresh;
 mod rename;
 mod selection_range;
 mod signature_help;
+mod source_events;
 mod support;
 mod type_definition;
 mod type_hierarchy;
+mod watched_files;
 mod workspace_diagnostic;
 
 const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -159,6 +164,16 @@ fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
     snapshot_with_config(project.config(), project.vfs())
 }
 
+fn config_with_indexing_excludes(project: &TestProject, excludes: &[&str]) -> Config {
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({
+        "indexing": { "exclude": excludes }
+    }));
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    config
+}
+
 fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
     let (published_analysis_version, _) = watch::channel(1);
     GlobalStateSnapshot {
@@ -168,6 +183,7 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         analysis_version: Arc::new(AtomicUsize::new(1)),
         published_analysis_version,
         analysis_commit: Arc::new(Default::default()),
+        watched_file_registration: Arc::new(Default::default()),
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
@@ -1377,7 +1393,9 @@ fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
 
 #[test]
 fn watched_file_registration_watches_solidity_and_foundry_configuration() {
-    let [registration] = watched_file_registration_params().registrations.try_into().unwrap();
+    let project = TestProject::new();
+    let [registration] =
+        watched_file_registration_params(&project.config()).registrations.try_into().unwrap();
     assert_eq!(registration.id, "solar-watched-files");
     assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
 
@@ -1388,6 +1406,7 @@ fn watched_file_registration_watches_solidity_and_foundry_configuration() {
                 { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 { "globPattern": "**/remappings.txt", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                { "globPattern": "**/.git", "kind": WatchKind::Create | WatchKind::Delete },
             ],
         }))
     );
@@ -1631,6 +1650,38 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
     });
 }
 
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn did_open_schedules_analysis_without_source_change_debounce() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol
+        contract Request {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
+    let contents = project.read_file("/Request.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let start = tokio::time::Instant::now();
+    let scheduler_tick = Duration::from_millis(1);
+
+    let result = crate::handlers::did_open_text_document(
+        &mut state,
+        DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(uri, "solidity".into(), 1, contents),
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let coordinator = state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    state.analysis_scheduler.gate.close();
+
+    tokio::time::sleep(scheduler_tick).await;
+
+    assert_eq!(tokio::time::Instant::now(), start + scheduler_tick);
+    assert!(coordinator.is_finished(), "open analysis should reach the scheduler immediately");
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn source_change_debounce_does_not_count_toward_progress_delay() {
     let project = TestProject::from_fixture(
@@ -1667,6 +1718,54 @@ async fn source_change_debounce_does_not_count_toward_progress_delay() {
 
     state.clear_analysis_cache();
     harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn rapid_did_changes_restart_the_full_source_change_debounce() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Before {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
+    let change = |version, text: &str| DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: text.into(),
+        }],
+    };
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let debounce = state.config.source_change_debounce();
+    let final_tick = Duration::from_millis(1);
+    let almost_debounce = debounce - final_tick;
+
+    assert!(
+        crate::handlers::did_change_text_document(&mut state, change(1, "contract First {}"))
+            .is_continue()
+    );
+    let first_coordinator =
+        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    tokio::time::sleep(almost_debounce).await;
+
+    assert!(
+        crate::handlers::did_change_text_document(&mut state, change(2, "contract Latest {}"))
+            .is_continue()
+    );
+    let latest_coordinator =
+        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    state.analysis_scheduler.gate.close();
+
+    tokio::time::sleep(almost_debounce).await;
+    assert!(first_coordinator.is_finished());
+    assert!(!latest_coordinator.is_finished(), "latest change should wait for the full debounce");
+
+    tokio::time::sleep(final_tick * 2).await;
+    assert!(latest_coordinator.is_finished());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2106,6 +2205,36 @@ fn analysis_batches_include_created_naked_workspace_disk_files() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn analysis_batches_ignore_symlinked_disk_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        contract Main {}
+
+        //- /target/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut config = project.config();
+    let symlink_path = project.path("/src/Link.sol");
+    symlink(project.path("/target/Target.sol"), &symlink_path).unwrap();
+    config.add_source_file(symlink_path.clone());
+
+    let snapshot = snapshot_with_config(config, Vfs::default());
+    let (batches, source_files_complete) = snapshot
+        .analysis_batches_cancellable(vec![symlink_path.clone()], &IndexingCancellation::default())
+        .unwrap();
+
+    assert!(batches.iter().flat_map(|batch| &batch.files).all(|(path, _)| path != &symlink_path));
+    assert!(!source_files_complete);
+}
+
 #[test]
 fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
     let mut project = TestProject::from_fixture(
@@ -2258,7 +2387,7 @@ fn analysis_batches_use_import_ownership_for_external_files() {
         contract SecondTarget {}
         "#,
     );
-    let mut config = project.config_with_roots(&["/first", "/second"]);
+    let mut config = project.config_with_roots(&["/"]);
     let main_path = project.path("/external/src/Main.sol");
     let overlay_path = project.path("/external/include/Overlay.sol");
     let cached_path = project.path("/external/src/Cached.sol");
@@ -2331,7 +2460,7 @@ fn analysis_batches_share_external_open_files_across_matching_contexts() {
         crate::vfs::VfsPath::from(project.path("/shared/Overlay.sol")),
         Some(crop::Rope::from(overlay_contents)),
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/"]);
     let overlay = project.path("/shared/Overlay.sol");
     let snapshot = snapshot_with_config(config, vfs);
 
@@ -2396,7 +2525,7 @@ fn analysis_batches_share_external_open_files_across_overlapping_contexts() {
         crate::vfs::VfsPath::from(overlay.clone()),
         Some(crop::Rope::from(overlay_contents)),
     );
-    let config = project.config_with_roots(&["/first", "/second"]);
+    let config = project.config_with_roots(&["/"]);
     let snapshot = snapshot_with_config(config, vfs);
 
     let batches = snapshot.analysis_batches(Vec::new());

@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 433
+  push 428
   codesize
   sub
   dup1
-  push 433
+  push 428
   push 192
   codecopy
   push 192
@@ -36,7 +36,7 @@ bb0:
   sstore
   jump bb17
 bb17:
-  push 239
+  push 234
   dup1
   push 194
   push 0
@@ -119,9 +119,6 @@ bb8:
 // === runtime ===
 @module runtime
 bb0:
-  push 160
-  push 64
-  mstore
   callvalue
   push bb3
   jumpi

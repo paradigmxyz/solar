@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 256
-  push 64
-  mstore
   callvalue
   push bb4
   jumpi
@@ -27,6 +24,9 @@ bb4 [cold]:
   dup1
   revert
 bb5:
+  push 256
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -50,24 +50,25 @@ bb23:
   push 128
   return
 bb9 [cold]:
-  jump bb24
-bb24 [cold]:
   push 4
   calldataload
+  jump bb15
+bb15 [cold]:
   dup1
   push 160
   mstore
   push bb17
   jumpi
-  push 4
-  push 192
-  mstore
   push 0x7a65726f
   push 224
-  jump bb25
-bb25 [cold]:
   shl
+  push 4
+  swap1
+  jump bb22
+bb22 [cold]:
   push 224
+  mstore
+  push 192
   mstore
   push 0x8c379a0
   push 224
@@ -85,6 +86,9 @@ bb25 [cold]:
   push 0
   revert
 bb10:
+  push 256
+  push 64
+  mstore
   calldatasize
   push 4
   swap1
@@ -100,7 +104,9 @@ bb10:
   push bb14
   jump bb23
 bb14 [cold]:
-  jump bb24
+  push 4
+  calldataload
+  jump bb15
 bb17 [cold]:
   push 1
   push 160
@@ -108,12 +114,14 @@ bb17 [cold]:
   sub
   push bb19
   jumpi
-  push 3
-  push 192
-  mstore
   push 0x6f6e65
+  jump bb24
+bb24 [cold]:
   push 232
-  jump bb25
+  shl
+  push 3
+  swap1
+  jump bb22
 bb19 [cold]:
   push 2
   push 160
@@ -121,16 +129,12 @@ bb19 [cold]:
   sub
   push bb21
   jumpi
-  push 3
-  push 192
-  mstore
   push 0x74776f
-  push 232
-  jump bb25
+  jump bb24
 bb21 [cold]:
-  push 5
-  push 192
-  mstore
   push 0x6f74686572
   push 216
-  jump bb25
+  shl
+  push 5
+  swap1
+  jump bb22

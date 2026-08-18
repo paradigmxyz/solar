@@ -975,7 +975,16 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::InternalCall { function, .. } => {
+            InstKind::InternalCall { function, returns, .. } => {
+                // MIR names only result 0; a multi-result call publishes its tail
+                // results through a caller-side buffer written by backend lowering.
+                // That write has no MIR representation, so even a memory-clean
+                // callee must count as a memory writer or later loads of the
+                // buffer could be reused across a second call.
+                if returns > 1 {
+                    effects.read_any(AddressSpace::Memory);
+                    effects.write_any(AddressSpace::Memory);
+                }
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {

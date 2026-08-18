@@ -56,6 +56,7 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.on_initialize(params).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
     let [flycheck] = state.config.flychecks_for_path(&path).try_into().unwrap();
     let (_cancel, cancelled) = oneshot::channel();
     let diagnostics =
