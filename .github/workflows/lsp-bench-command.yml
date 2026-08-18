@@ -1,25 +1,9 @@
 name: LSP benchmark command
-run-name: LSP benchmark for ${{ inputs.repository || github.repository }}#${{ inputs.pr_number || github.event.issue.number }}
+run-name: LSP benchmark for ${{ github.event.repository.full_name }}#${{ github.event.issue.number }}
 
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      repository:
-        description: Repository containing the pull request
-        required: true
-        default: paradigmxyz/solar
-        type: string
-      pr_number:
-        description: Pull request number
-        required: true
-        type: number
-      post_comment:
-        description: Post the result as a sticky pull request comment
-        required: true
-        default: false
-        type: boolean
 
 permissions: {}
 
@@ -32,8 +16,7 @@ jobs:
     if: >-
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
-       github.event.comment.body == '/bench lsp') ||
-      github.event_name == 'workflow_dispatch'
+       github.event.comment.body == '/bench lsp')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -56,14 +39,10 @@ jobs:
         id: resolve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          DISPATCH_POST_COMMENT: ${{ inputs.post_comment }}
-          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
-          DISPATCH_REPOSITORY: ${{ inputs.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_ID: ${{ github.run_id }}
           RUN_NUMBER: ${{ github.run_number }}
-          WORKFLOW_REF: ${{ github.ref }}
         with:
           script: |
             const crypto = require("crypto");
@@ -78,30 +57,22 @@ jobs:
 
             let requestedRepository;
             let requestedNumber;
-            let shouldComment;
-            if (context.eventName === "issue_comment") {
-              const comment = context.payload.comment;
-              if (
-                !context.payload.issue?.pull_request ||
-                comment?.body !== "/bench lsp"
-              ) {
-                core.setFailed("Expected an exact `/bench lsp` pull request comment");
-                return;
-              }
-              if (!allowedAssociations.has(comment.author_association)) {
-                core.setFailed(
-                  `Comment author association ${comment.author_association || "NONE"} is not allowed`,
-                );
-                return;
-              }
-              requestedRepository = context.payload.repository.full_name;
-              requestedNumber = context.payload.issue.number;
-              shouldComment = true;
-            } else {
-              requestedRepository = process.env.DISPATCH_REPOSITORY;
-              requestedNumber = Number(process.env.DISPATCH_PR_NUMBER);
-              shouldComment = process.env.DISPATCH_POST_COMMENT === "true";
+            const comment = context.payload.comment;
+            if (
+              !context.payload.issue?.pull_request ||
+              comment?.body !== "/bench lsp"
+            ) {
+              core.setFailed("Expected an exact `/bench lsp` pull request comment");
+              return;
             }
+            if (!allowedAssociations.has(comment.author_association)) {
+              core.setFailed(
+                `Comment author association ${comment.author_association || "NONE"} is not allowed`,
+              );
+              return;
+            }
+            requestedRepository = context.payload.repository.full_name;
+            requestedNumber = context.payload.issue.number;
 
             if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(requestedRepository || "")) {
               core.setFailed("Repository must use the `owner/name` form");
@@ -117,13 +88,6 @@ jobs:
               owner: requestedOwner,
               repo: requestedRepo,
             });
-            if (
-              context.eventName === "workflow_dispatch" &&
-              requestedRepository !== target.full_name
-            ) {
-              core.setFailed("Manual repository input must use the canonical `owner/name` form");
-              return;
-            }
             const { data: pull } = await github.rest.pulls.get({
               owner: target.owner.login,
               repo: target.name,
@@ -156,15 +120,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
-            const workflowDefaultRef = `refs/heads/${workflowRepository.default_branch}`;
-            if (
-              context.eventName === "workflow_dispatch" &&
-              shouldComment &&
-              process.env.WORKFLOW_REF !== workflowDefaultRef
-            ) {
-              core.setFailed("Manual comment publication requires the workflow default branch");
-              return;
-            }
             const { data: workflowDefault } = await github.rest.repos.getBranch({
               owner: workflowRepository.owner.login,
               repo: workflowRepository.name,
@@ -174,17 +129,6 @@ jobs:
               core.setFailed("The workflow default branch did not resolve to a full commit SHA");
               return;
             }
-            if (
-              context.eventName === "workflow_dispatch" &&
-              shouldComment &&
-              target.full_name !== workflowRepository.full_name
-            ) {
-              core.setFailed(
-                "Manual comment publication requires the workflow repository",
-              );
-              return;
-            }
-
             const runId = Number(process.env.RUN_ID);
             const runNumber = Number(process.env.RUN_NUMBER);
             const runAttempt = Number(process.env.RUN_ATTEMPT);
@@ -227,7 +171,7 @@ jobs:
             core.setOutput("trusted_repo", workflowRepository.full_name);
             core.setOutput("trusted_sha", workflowDefault.commit.sha);
             core.setOutput("run_url", process.env.RUN_URL);
-            core.setOutput("should_comment", String(shouldComment));
+            core.setOutput("should_comment", "true");
             core.setOutput("claim_key", claimKey);
 
       - name: Upload accepted request claim
@@ -281,7 +225,7 @@ jobs:
             });
             const expectedTitle =
               `LSP benchmark for ${process.env.TARGET_REPOSITORY}#${process.env.PR_NUMBER}`;
-            const allowedEvents = new Set(["issue_comment", "workflow_dispatch"]);
+            const allowedEvents = new Set(["issue_comment"]);
             if (
               currentRun.display_title !== expectedTitle ||
               !allowedEvents.has(currentRun.event) ||

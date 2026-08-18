@@ -4,6 +4,13 @@ This adapter runs the pinned `asyncswap/lsp-bench` v0.3.3 release against two
 Solar binaries. It is an on-demand, portable signal for pull-request discussion,
 not an authoritative benchmark or a merge gate.
 
+The GitHub workflow accepts only an exact `/bench lsp` comment on an ordinary
+pull request from an allowed association. It intentionally has no manual
+dispatch entry: a default-branch manual run that checks out and executes a
+PR revision would give untrusted build code access to the default branch's
+Actions cache authority. The comment-triggered path keeps the untrusted
+compute job separate from the trusted renderer.
+
 The workflow downloads the Linux archive described in `upstream.json` and
 checks its SHA-256 before extracting it. The adapter deliberately supplies
 absolute server commands in generated JSON (which is valid YAML); it never uses

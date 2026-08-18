@@ -42,18 +42,6 @@ def step_block(job: str, name: str) -> str:
     return marker + remainder
 
 
-def input_block(name: str) -> str:
-    header = WORKFLOW.split("\npermissions:", 1)[0]
-    match = re.search(
-        rf"^      {re.escape(name)}:\n(?P<body>.*?)(?=^      [a-z_]+:\n|\Z)",
-        header,
-        re.MULTILINE | re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError(f"workflow input {name!r} is missing")
-    return match.group(0)
-
-
 def job_permissions(name: str) -> dict[str, str]:
     job = job_block(name)
     match = re.search(
@@ -242,41 +230,18 @@ class TriggerAndResolutionTests(unittest.TestCase):
             "trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}", resolve_job
         )
 
-    def test_manual_dispatch_contract_and_commenting_require_default_ref(self) -> None:
-        repository = input_block("repository")
-        pr_number = input_block("pr_number")
-        post_comment = input_block("post_comment")
+    def test_manual_dispatch_cannot_execute_untrusted_code(self) -> None:
+        header = WORKFLOW.split("\npermissions:", 1)[0]
         resolver = step_block(job_block("resolve"), "Validate request and freeze revisions")
 
-        self.assertIn("required: true", repository)
-        self.assertIn("default: paradigmxyz/solar", repository)
-        self.assertIn("type: string", repository)
-        self.assertIn("required: true", pr_number)
-        self.assertIn("type: number", pr_number)
-        self.assertIn("required: true", post_comment)
-        self.assertIn("default: false", post_comment)
-        self.assertIn("type: boolean", post_comment)
-        self.assertIn("WORKFLOW_REF: ${{ github.ref }}", resolver)
-        self.assertIn(
-            "const workflowDefaultRef = `refs/heads/${workflowRepository.default_branch}`;",
-            resolver,
-        )
-        default_ref_gate = (
-            'context.eventName === "workflow_dispatch" &&\n'
-            "              shouldComment &&\n"
-            "              process.env.WORKFLOW_REF !== workflowDefaultRef"
-        )
-        self.assertIn(default_ref_gate, resolver)
-        self.assertLess(
-            resolver.index(default_ref_gate),
-            resolver.index('core.setOutput("should_comment", String(shouldComment))'),
-        )
-        self.assertIn(
-            'core.setFailed("Manual comment publication requires the workflow default branch")',
-            resolver,
-        )
-        self.assertNotIn("WORKFLOW_SHA", resolver)
-        self.assertIn("target.full_name !== workflowRepository.full_name", resolver)
+        self.assertNotIn("\n  workflow_dispatch:", header)
+        self.assertNotIn("inputs.", WORKFLOW)
+        self.assertNotIn("DISPATCH_", WORKFLOW)
+        self.assertNotIn('context.eventName === "workflow_dispatch"', resolver)
+        self.assertNotIn("shouldComment", resolver)
+        self.assertIn('core.setOutput("should_comment", "true")', resolver)
+        self.assertIn('const allowedEvents = new Set(["issue_comment"]);', WORKFLOW)
+        self.assertNotIn('"issue_comment", "workflow_dispatch"', WORKFLOW)
 
     def test_canonical_accepted_claims_make_later_requests_win(self) -> None:
         resolve = job_block("resolve")
