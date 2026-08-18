@@ -139,8 +139,8 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.locate_field(struct_id, field)
     }
 
-    pub(super) fn element_slots(&self, ty: Ty<'gcx>) -> u64 {
-        self.builder.storage_slots(ty, Span::DUMMY)
+    pub(super) fn element_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        self.builder.storage_slots(ty, span)
     }
 
     fn load_at(
@@ -475,8 +475,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         Some(slots.max(1))
     }
 
-    fn unsupported_size(&self, span: Span, kind: &str) -> u64 {
+    fn unsupported_size(&self, span: Span, kind: &str) {
         self.gcx.dcx().err(format!("{kind} is too large for codegen")).span(span).emit();
-        1
     }
 }
