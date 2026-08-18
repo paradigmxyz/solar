@@ -4,36 +4,36 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
-    v2 = lt v1, arg1
-    jumpi v2, bb1, bb2
+    v2 = gt v1, v1
+    v3 = lt v1, arg1
+    v4 = or v2, v3
+    jumpi v4, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb2:
-    v3 = sub v1, arg1
-    v4 = add v0, arg1
-    v5 = make_calldata_slice v4, v3
-    v6 = gas
-    v7 = slice_ptr v5
-    v8 = slice_len v5
-    v9 = gt v8, 0xffffffffffffffff
-    jumpi v9, bb3, bb4
+    v5 = sub v1, arg1
+    v6 = add v0, arg1
+    v7 = make_calldata_slice v6, v5
+    v8 = gas
+    v9 = slice_ptr v7
+    v10 = slice_len v7
+    v11 = gt v10, 0xffffffffffffffff
+    jumpi v11, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v10 = calldatasize
-    v11 = sub v10, v8
-    v12 = sgt v7, v11
-    jumpi v12, bb5, bb6
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    jumpi v14, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v13 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v5
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = call v6, arg2, 0, v14, v15, 0, 0
-    jumpi v16, bb8, bb7
+    v15 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v7
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = call v8, arg2, 0, v16, v17, 0, 0
+    jumpi v18, bb8, bb7
   bb7:
     revert_returndata
   bb8:
