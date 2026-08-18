@@ -119,8 +119,8 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
     v31 = or v3, v30
     jumpi v31, bb1, bb8
   bb7:
-    v64 = phi [bb5: 0], [bb10: v63]
-    ret v64
+    v65 = phi [bb5: 0], [bb10: v64]
+    ret v65
   bb8:
     v34 = calldatasize
     v35 = sub v34, arg0
@@ -133,14 +133,14 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
     v45 = sgt v17, v44
     jumpi v45, bb1, bb10
   bb10:
-    v55 = calldataload v17
-    v57 = lt 20, 20
-    v58 = sub 20, 20
-    v59 = shl 3, v58
-    v60 = shl v59, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v61 = select v57, v60, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v62 = and v55, v61
-    v63 = shr 96, v62
+    v56 = calldataload v17
+    v58 = lt 20, 20
+    v59 = sub 20, 20
+    v60 = shl 3, v59
+    v61 = shl v60, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v62 = select v58, v61, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v63 = and v56, v62
+    v64 = shr 96, v63
     jump bb7
 }
 
@@ -182,8 +182,8 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     v32 = or v3, v31
     jumpi v32, bb1, bb8
   bb7:
-    v75 = phi [bb5: 0], [bb15: v74]
-    ret v75
+    v77 = phi [bb5: 0], [bb15: v76]
+    ret v77
   bb8:
     v35 = calldatasize
     v36 = sub v35, arg0
@@ -196,39 +196,39 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     v46 = sgt v17, v45
     jumpi v46, bb1, bb10
   bb10:
-    v52 = sub v14, 20
-    v53 = add v17, 20
-    v57 = gt v52, 0xffffffffffffffff
-    jumpi v57, bb1, bb11
+    v54 = sub v14, 20
+    v55 = add v17, 20
+    v59 = gt v54, 0xffffffffffffffff
+    jumpi v59, bb1, bb11
   bb11:
-    v58 = calldatasize
-    v59 = sub v58, v52
-    v60 = sgt v53, v59
-    jumpi v60, bb1, bb12
+    v60 = calldatasize
+    v61 = sub v60, v54
+    v62 = sgt v55, v61
+    jumpi v62, bb1, bb12
   bb12:
-    v62 = add v52, 31
-    v64 = shr 5, v62
-    v65 = add v64, 1
-    v66 = lt v65, v64
-    jumpi v66, bb13, bb14
+    v64 = add v54, 31
+    v66 = shr 5, v64
+    v67 = add v66, 1
+    v68 = lt v67, v66
+    jumpi v68, bb13, bb14
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v67 = shl 5, v65
-    v69 = shr 5, v67
-    v70 = eq v69, v65
-    jumpi v70, bb15, bb13
+    v69 = shl 5, v67
+    v71 = shr 5, v69
+    v72 = eq v71, v67
+    jumpi v72, bb15, bb13
   bb15:
-    v73 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v81 = add v73, v67
-    mstore 64, v81 !metadata(memory=scratch)
-    mstore v73, v52
-    v76 = add v73, 32
-    calldatacopy v76, v53, v52
-    v79 = mload v73
-    v74 = keccak256 v76, v79
+    v75 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v83 = add v75, v69
+    mstore 64, v83 !metadata(memory=scratch)
+    mstore v75, v54
+    v78 = add v75, 32
+    calldatacopy v78, v55, v54
+    v81 = mload v75
+    v76 = keccak256 v78, v81
     jump bb7
 }
 
@@ -263,20 +263,16 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     jumpi v20, bb1, bb5
   bb5:
     v25 = gt 32, v14
-    jumpi v25, bb6, bb7
+    jumpi v25, bb1, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    v30 = calldataload v17
-    v32 = lt 32, 32
-    v33 = sub 32, 32
-    v34 = shl 3, v33
-    v35 = shl v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = select v32, v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v37 = and v30, v36
-    ret v37
+    v31 = calldataload v17
+    v33 = lt 32, 32
+    v34 = sub 32, 32
+    v35 = shl 3, v34
+    v36 = shl v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v37 = select v33, v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v38 = and v31, v37
+    ret v38
 }
 
 fn @entry() [entry] {

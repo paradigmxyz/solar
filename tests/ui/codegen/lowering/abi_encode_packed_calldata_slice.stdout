@@ -19,35 +19,25 @@ bb0:
   dup1
   push 0x2a5dea89
   eq
-  push bb19
+  push bb17
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   dup1
   revert
-bb35 [cold]:
+bb31 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 65
-  jump bb36
-bb36 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
-bb34 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 50
-  jump bb36
 bb5:
   calldatasize
   push 100
@@ -59,9 +49,9 @@ bb5:
   swap2
   push bb4
   jumpi
-  push bb39
-  jump bb38
-bb38:
+  push bb34
+  jump bb33
+bb33:
   push 4
   calldataload
   dup1
@@ -82,15 +72,15 @@ bb38:
   pop
   swap1
   jump
-bb19:
+bb17:
   calldatasize
   push 68
   gt
   push bb4
   jumpi
-  push bb40
-  jump bb38
-bb39:
+  push bb35
+  jump bb33
+bb34:
   push bb4
   jumpi
   calldatasize
@@ -130,12 +120,11 @@ bb39:
   mload
   dup3
   gt
-  push bb34
-  jumpi
-  dup1
-  dup3
+  dup2
+  dup4
   lt
-  push bb34
+  or
+  push bb4
   jumpi
   dup1
   swap2
@@ -182,7 +171,7 @@ bb39:
   push 224
   mstore
   lt
-  push bb35
+  push bb31
   jumpi
   push 224
   mload
@@ -197,7 +186,7 @@ bb39:
   mload
   eq
   iszero
-  push bb35
+  push bb31
   jumpi
   push 64
   mload
@@ -223,8 +212,8 @@ bb39:
   mload
   dup3
   calldatacopy
-  jump bb37
-bb37:
+  jump bb32
+bb32:
   swap1
   mload
   swap1
@@ -234,7 +223,7 @@ bb37:
   push 32
   push 128
   return
-bb40:
+bb35:
   push bb4
   jumpi
   calldatasize
@@ -275,7 +264,7 @@ bb40:
   push 160
   mload
   lt
-  push bb34
+  push bb4
   jumpi
   push 36
   calldataload
@@ -327,7 +316,7 @@ bb40:
   push 288
   mstore
   lt
-  push bb35
+  push bb31
   jumpi
   push 64
   push 192
@@ -339,7 +328,7 @@ bb40:
   push 288
   mload
   gt
-  push bb35
+  push bb31
   jumpi
   push 224
   mload
@@ -352,7 +341,7 @@ bb40:
   push 224
   mstore
   lt
-  push bb35
+  push bb31
   jumpi
   push 224
   mload
@@ -367,7 +356,7 @@ bb40:
   mload
   eq
   iszero
-  push bb35
+  push bb31
   jumpi
   push 64
   mload
@@ -409,4 +398,4 @@ bb40:
   push 1
   swap1
   mstore
-  jump bb37
+  jump bb32

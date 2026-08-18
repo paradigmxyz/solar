@@ -35,44 +35,40 @@ fn @lastWord() [selector=0x3955f902, pure] {
 
 fn @lastWord2() [selector=0x97f495a8, pure] {
   bb0:
-    v9 = calldatasize
-    v10 = lt v9, 36
-    jumpi v10, bb3, bb4
+    v11 = calldatasize
+    v12 = lt v11, 36
+    jumpi v12, bb1, bb3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb2:
-    v4 = sub v19, 1
-    v5 = add v20, 1
-    v7 = internal_call @_last, 1, v5, v4
-    v8 = xor v0, v7
-    mstore 128, v8
+    v6 = sub v21, 1
+    v7 = add v22, 1
+    v9 = internal_call @_last, 1, v7, v6
+    v10 = xor v0, v9
+    mstore 128, v10
     returndata 128, 32
   bb3:
-    revert 0, 0
+    v13 = calldataload 4
+    v14 = add v13, 4
+    v15 = calldatasize
+    v16 = sub v15, 4
+    v17 = gt v13, v16
+    jumpi v17, bb1, bb4
   bb4:
-    v11 = calldataload 4
-    v12 = add v11, 4
-    v13 = calldatasize
-    v14 = sub v13, 4
-    v15 = gt v11, v14
-    jumpi v15, bb3, bb5
+    v18 = calldatasize
+    v19 = sub v18, v14
+    v20 = gt 32, v19
+    jumpi v20, bb1, bb5
   bb5:
-    v16 = calldatasize
-    v17 = sub v16, v12
-    v18 = gt 32, v17
-    jumpi v18, bb3, bb6
+    v21 = calldataload v14
+    v22 = add v13, 36
+    v23 = calldatasize
+    v24 = sub v23, v22
+    v25 = gt v21, v24
+    jumpi v25, bb1, bb6
   bb6:
-    v19 = calldataload v12
-    v20 = add v11, 36
-    v21 = calldatasize
-    v22 = sub v21, v20
-    v23 = gt v19, v22
-    jumpi v23, bb3, bb7
-  bb7:
-    v0 = internal_call @_last, 1, v20, v19
-    jumpi v19, bb2, bb1
+    v0 = internal_call @_last, 1, v22, v21
+    jumpi v21, bb2, bb1
 }
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure] {
