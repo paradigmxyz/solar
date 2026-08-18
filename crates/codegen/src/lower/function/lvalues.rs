@@ -503,7 +503,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if ty.is_ref_at(DataLocation::Storage)
             && let Some(access) = self.storage_access(expr)
         {
-            return self.clear_storage_access(ty, access);
+            return self.clear_storage_access(ty, access, expr.span);
         }
         let Some(layout) = self.types.memory_layout(ty) else {
             let zero = self.builder.imm_u256(U256::ZERO);

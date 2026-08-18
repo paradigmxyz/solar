@@ -246,7 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => return None,
                 };
                 self.builder.bounds_check(index, length);
-                self.storage_array_element_access(base.slot, index, element, dynamic)
+                self.storage_array_element_access(base.slot, index, element, dynamic, expr.span)
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 self.storage_access_ternary(condition, then_expr, else_expr)
@@ -326,7 +326,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
         let new_length = self.builder.checked_add(length, one);
-        let access = self.storage_array_element_access(base.slot, length, element, true)?;
+        let access =
+            self.storage_array_element_access(base.slot, length, element, true, receiver.span)?;
         Some((access, element, new_length, base.slot))
     }
 
@@ -379,7 +380,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
         let new_length = self.builder.checked_add(length, one);
-        let element_access = self.storage_array_element_access(base.slot, length, element, true)?;
+        let element_access =
+            self.storage_array_element_access(base.slot, length, element, true, expr.span)?;
         self.store_storage_value(element, element_access, value, expr.span)?;
         self.builder.sstore(base.slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
@@ -481,7 +483,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let one = self.builder.imm_u64(1);
         let last = self.builder.sub(length, one);
         self.builder.sstore(base.slot, last);
-        let access = self.storage_array_element_access(base.slot, last, element, true)?;
+        let access =
+            self.storage_array_element_access(base.slot, last, element, true, expr.span)?;
         let value = self.default_value(element);
         self.store_storage_value(element, access, value, expr.span)?;
         Some(zero)
@@ -523,6 +526,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: ValueId,
         element: Ty<'gcx>,
         dynamic: bool,
+        span: Span,
     ) -> Option<StorageAccess> {
         if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
@@ -539,7 +543,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let location = StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
-        let element_slots = self.context.storage.element_slots(element);
+        let element_slots = self.context.storage.element_slots(element, span);
         let slot = if dynamic {
             self.builder.storage_array_element_slot(base_slot, index, element_slots)
         } else {
@@ -718,7 +722,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 for index in 0..len {
                     let index_value = self.builder.imm_u64(index);
                     let access =
-                        self.storage_array_element_access(slot, index_value, element, false)?;
+                        self.storage_array_element_access(slot, index_value, element, false, span)?;
                     let value = self.load_storage_value(element, access, span)?;
                     self.builder.memory_object_store_element(object, layout, index_value, value);
                 }
@@ -759,7 +763,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(condition, body, exit);
 
         self.builder.switch_to_block(body);
-        let access = self.storage_array_element_access(slot, index, element, true)?;
+        let access = self.storage_array_element_access(slot, index, element, true, span)?;
         let value = self.load_storage_value(element, access, span)?;
         self.builder.memory_object_store_element(object, layout, index, value);
         let one = self.builder.imm_u64(1);
@@ -840,7 +844,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 for index in 0..len {
                     let index_value = self.builder.imm_u64(index);
                     let access =
-                        self.storage_array_element_access(slot, index_value, element, false)?;
+                        self.storage_array_element_access(slot, index_value, element, false, span)?;
                     if index < source_len {
                         let value =
                             self.builder.memory_object_load_element(object, layout, index_value);
@@ -1119,8 +1123,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(condition, body, exit);
 
         self.builder.switch_to_block(body);
-        let access = self.storage_array_element_access(slot, index, element, true)?;
-        self.clear_storage_access(element, access)?;
+        let access = self.storage_array_element_access(slot, index, element, true, span)?;
+        self.clear_storage_access(element, access, span)?;
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();
@@ -1150,7 +1154,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
-        let access = self.storage_array_element_access(slot, index, element, true)?;
+        let access = self.storage_array_element_access(slot, index, element, true, span)?;
         if self.types.memory_layout(element).is_some() {
             self.store_storage_object_with_source(
                 element,
@@ -1175,6 +1179,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         ty: Ty<'gcx>,
         access: StorageAccess,
+        span: Span,
     ) -> Option<()> {
         let zero = self.builder.imm_u256(U256::ZERO);
         match ty.peel_refs().kind {
@@ -1197,8 +1202,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
                 self.builder.switch_to_block(body);
                 let element_access =
-                    self.storage_array_element_access(access.slot, index, element, true)?;
-                self.clear_storage_access(element, element_access)?;
+                    self.storage_array_element_access(access.slot, index, element, true, span)?;
+                self.clear_storage_access(element, element_access, span)?;
                 let one = self.builder.imm_u64(1);
                 let next = self.builder.add(index, one);
                 let backedge = self.builder.current_block();
@@ -1216,6 +1221,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.clear_storage_access(
                         field_ty,
                         StorageAccess { slot: field_slot, location, offset: None },
+                        span,
                     )?;
                 }
             }
@@ -1223,9 +1229,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let len = u64::try_from(len).ok()?;
                 for index in 0..len {
                     let index = self.builder.imm_u64(index);
-                    let element_access =
-                        self.storage_array_element_access(access.slot, index, element, false)?;
-                    self.clear_storage_access(element, element_access)?;
+                    let element_access = self.storage_array_element_access(
+                        access.slot,
+                        index,
+                        element,
+                        false,
+                        span,
+                    )?;
+                    self.clear_storage_access(element, element_access, span)?;
                 }
             }
             _ => {
