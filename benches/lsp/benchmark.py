@@ -18,6 +18,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 from urllib.parse import urlsplit
@@ -28,10 +29,11 @@ FIXTURE_DIR = SCRIPT_DIR / "fixture"
 UPSTREAM_PATH = SCRIPT_DIR / "upstream.json"
 FILTER_PATH = SCRIPT_DIR / "lsp_filter.py"
 
-RAW_SCHEMA_VERSION = 1
-COMPARISON_SCHEMA_VERSION = 1
+RAW_SCHEMA_VERSION = 2
+COMPARISON_SCHEMA_VERSION = 2
 RAW_KIND = "solar-lsp-benchmark-raw"
 COMPARISON_KIND = "solar-lsp-benchmark-comparison"
+COMPARISON_MODE = "main-merge-candidate"
 
 WARMUP_ITERATIONS = 5
 MEASURED_ITERATIONS = 10
@@ -104,29 +106,42 @@ class ExecutionError(BenchmarkError):
     """Raised when the benchmark cannot be executed."""
 
 
+class PublicationState(str, Enum):
+    CURRENT = "current"
+    MAIN_ADVANCED = "main-advanced"
+    SUPERSEDED = "superseded"
+
+
 @dataclass(frozen=True)
 class Context:
     repository: str
-    head_repository: str
+    pr_head_repository: str
     workflow_repository: str
     pr_number: int
     base_sha: str
     head_sha: str
+    main_sha: str
+    pr_head_sha: str
+    merge_candidate_sha: str
     run_url: str
+    comparison_mode: str = COMPARISON_MODE
 
 
 def validate_context(
     repository: str,
-    head_repository: str,
+    pr_head_repository: str,
     workflow_repository: str,
     pr_number: int,
     base_sha: str,
     head_sha: str,
+    main_sha: str,
+    pr_head_sha: str,
+    merge_candidate_sha: str,
     run_url: str,
 ) -> Context:
     repositories = {
         "repository": repository,
-        "head repository": head_repository,
+        "PR head repository": pr_head_repository,
         "workflow repository": workflow_repository,
     }
     for label, value in repositories.items():
@@ -134,10 +149,21 @@ def validate_context(
             raise ValidationError(f"{label} is not an owner/name pair")
     if isinstance(pr_number, bool) or not isinstance(pr_number, int) or pr_number <= 0:
         raise ValidationError("PR number must be a positive integer")
-    if not isinstance(base_sha, str) or SHA_RE.fullmatch(base_sha) is None:
-        raise ValidationError("base SHA must be 40 lowercase hexadecimal characters")
-    if not isinstance(head_sha, str) or SHA_RE.fullmatch(head_sha) is None:
-        raise ValidationError("head SHA must be 40 lowercase hexadecimal characters")
+    for label, value in (
+        ("base SHA", base_sha),
+        ("head SHA", head_sha),
+        ("main SHA", main_sha),
+        ("PR head SHA", pr_head_sha),
+        ("merge candidate SHA", merge_candidate_sha),
+    ):
+        if not isinstance(value, str) or SHA_RE.fullmatch(value) is None:
+            raise ValidationError(
+                f"{label} must be 40 lowercase hexadecimal characters"
+            )
+    if base_sha != main_sha:
+        raise ValidationError("base SHA must equal main SHA")
+    if head_sha != merge_candidate_sha:
+        raise ValidationError("head SHA must equal merge candidate SHA")
     if not isinstance(run_url, str):
         raise ValidationError("run URL must be a string")
     if any(
@@ -163,14 +189,35 @@ def validate_context(
     ):
         raise ValidationError("run URL is not the expected GitHub Actions run URL")
     return Context(
-        repository,
-        head_repository,
-        workflow_repository,
-        pr_number,
-        base_sha,
-        head_sha,
-        run_url,
+        repository=repository,
+        pr_head_repository=pr_head_repository,
+        workflow_repository=workflow_repository,
+        pr_number=pr_number,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        main_sha=main_sha,
+        pr_head_sha=pr_head_sha,
+        merge_candidate_sha=merge_candidate_sha,
+        run_url=run_url,
     )
+
+
+def validate_publication_state(
+    context: Context, current_main_sha: str, current_pr_head_sha: str
+) -> PublicationState:
+    for label, value in (
+        ("current main SHA", current_main_sha),
+        ("current PR head SHA", current_pr_head_sha),
+    ):
+        if not isinstance(value, str) or SHA_RE.fullmatch(value) is None:
+            raise ValidationError(
+                f"{label} must be 40 lowercase hexadecimal characters"
+            )
+    if current_pr_head_sha != context.pr_head_sha:
+        return PublicationState.SUPERSEDED
+    if current_main_sha != context.main_sha:
+        return PublicationState.MAIN_ADVANCED
+    return PublicationState.CURRENT
 
 
 def _reject_json_constant(value: str) -> None:
@@ -1102,12 +1149,16 @@ def run_benchmark(
         "schema_version": RAW_SCHEMA_VERSION,
         "kind": RAW_KIND,
         "context": {
+            "comparison_mode": context.comparison_mode,
             "repository": context.repository,
-            "head_repository": context.head_repository,
+            "pr_head_repository": context.pr_head_repository,
             "workflow_repository": context.workflow_repository,
             "pr_number": context.pr_number,
             "base_sha": context.base_sha,
             "head_sha": context.head_sha,
+            "main_sha": context.main_sha,
+            "pr_head_sha": context.pr_head_sha,
+            "merge_candidate_sha": context.merge_candidate_sha,
             "run_url": context.run_url,
         },
         "protocol": {
@@ -1148,12 +1199,16 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
 
     context = _mapping(manifest.get("context"), "manifest.context")
     expected_context = {
+        "comparison_mode": expected.comparison_mode,
         "repository": expected.repository,
-        "head_repository": expected.head_repository,
+        "pr_head_repository": expected.pr_head_repository,
         "workflow_repository": expected.workflow_repository,
         "pr_number": expected.pr_number,
         "base_sha": expected.base_sha,
         "head_sha": expected.head_sha,
+        "main_sha": expected.main_sha,
+        "pr_head_sha": expected.pr_head_sha,
+        "merge_candidate_sha": expected.merge_candidate_sha,
         "run_url": expected.run_url,
     }
     if context != expected_context:
@@ -1387,11 +1442,15 @@ def build_comparison(
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "kind": COMPARISON_KIND,
         "repository": context.repository,
-        "head_repository": context.head_repository,
+        "pr_head_repository": context.pr_head_repository,
         "workflow_repository": context.workflow_repository,
         "pr_number": context.pr_number,
+        "comparison_mode": context.comparison_mode,
         "base_sha": context.base_sha,
         "head_sha": context.head_sha,
+        "main_sha": context.main_sha,
+        "pr_head_sha": context.pr_head_sha,
+        "merge_candidate_sha": context.merge_candidate_sha,
         "run_url": context.run_url,
         "threshold_percent": THRESHOLD_PERCENT,
         "overall": overall,
@@ -1399,22 +1458,45 @@ def build_comparison(
     }
 
 
-def inconclusive_comparison(context: Context, reason: str) -> dict[str, Any]:
+def inconclusive_comparison(
+    context: Context,
+    reason: str,
+) -> dict[str, Any]:
     return {
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "kind": COMPARISON_KIND,
         "repository": context.repository,
-        "head_repository": context.head_repository,
+        "pr_head_repository": context.pr_head_repository,
         "workflow_repository": context.workflow_repository,
         "pr_number": context.pr_number,
+        "comparison_mode": context.comparison_mode,
         "base_sha": context.base_sha,
         "head_sha": context.head_sha,
+        "main_sha": context.main_sha,
+        "pr_head_sha": context.pr_head_sha,
+        "merge_candidate_sha": context.merge_candidate_sha,
         "run_url": context.run_url,
         "threshold_percent": THRESHOLD_PERCENT,
         "overall": "inconclusive",
         "methods": [],
         "error": reason[:500],
     }
+
+
+def add_publication_state(
+    comparison: dict[str, Any],
+    context: Context,
+    current_main_sha: str,
+    current_pr_head_sha: str,
+) -> dict[str, Any]:
+    state = validate_publication_state(
+        context, current_main_sha, current_pr_head_sha
+    )
+    result = dict(comparison)
+    result["freshness"] = state.value
+    result["current_main_sha"] = current_main_sha
+    result["current_pr_head_sha"] = current_pr_head_sha
+    return result
 
 
 def markdown_escape(value: Any) -> str:
@@ -1442,26 +1524,27 @@ def _delta_cell(value: float) -> str:
 
 def render_markdown(comparison: dict[str, Any]) -> str:
     repository = comparison["repository"]
-    head_repository = comparison["head_repository"]
-    base_sha = comparison["base_sha"]
-    head_sha = comparison["head_sha"]
+    pr_head_repository = comparison["pr_head_repository"]
+    main_sha = comparison["main_sha"]
+    merge_candidate_sha = comparison["merge_candidate_sha"]
+    pr_head_sha = comparison["pr_head_sha"]
     lines = [
         "<!-- solar-lsp-benchmark -->",
         "## LSP benchmark",
         "",
         f"**Overall:** `{markdown_escape(comparison['overall'])}`",
         "",
-        (
-            f"Base: [`{base_sha}`](https://github.com/{repository}/commit/{base_sha})  "
-        ),
-        f"Head: [`{head_sha}`](https://github.com/{head_repository}/commit/{head_sha})  ",
+        f"Comparison: `{markdown_escape(comparison['comparison_mode'])}`  ",
+        f"Main at resolution (D): [`{main_sha}`](https://github.com/{repository}/commit/{main_sha})  ",
+        f"Merge candidate (M): [`{merge_candidate_sha}`](https://github.com/{repository}/commit/{merge_candidate_sha})  ",
+        f"PR head at resolution (F): [`{pr_head_sha}`](https://github.com/{pr_head_repository}/commit/{pr_head_sha})  ",
         f"[Workflow run]({comparison['run_url']})",
         "",
     ]
     if comparison["overall"] == "inconclusive":
         lines.extend(
             [
-                "The comparison is inconclusive because the raw benchmark artifact did not pass validation.",
+                "The comparison is inconclusive because the benchmark artifact or current publication state could not be validated.",
                 "",
                 f"Reason: {markdown_escape(comparison.get('error', 'unknown validation error'))}",
                 "",
@@ -1469,6 +1552,15 @@ def render_markdown(comparison: dict[str, Any]) -> str:
         )
         return "\n".join(lines)
 
+    freshness = comparison["freshness"]
+    lines.extend(
+        [
+            f"Freshness: `{freshness}`  ",
+            f"Current main: `{comparison['current_main_sha']}`  ",
+            f"Current PR head: `{comparison['current_pr_head_sha']}`  ",
+            "",
+        ]
+    )
     lines.extend(
         [
             "| Method | Samples | Base p50 | Head p50 | Delta | Base p95 | Head p95 | Delta | Verdict |",
@@ -1503,6 +1595,20 @@ def render_markdown(comparison: dict[str, Any]) -> str:
             "",
         ]
     )
+    if freshness == PublicationState.MAIN_ADVANCED.value:
+        lines.extend(
+            [
+                "This is a frozen measurement for reference only because the main tip has changed. Rerun the benchmark before merging.",
+                "",
+            ]
+        )
+    elif freshness == PublicationState.SUPERSEDED.value:
+        lines.extend(
+            [
+                "This is a historical measurement: the PR head used for the merge candidate has been replaced. Rerun the benchmark.",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -1511,10 +1617,19 @@ def render_artifact(
     context: Context,
     report_path: Path,
     comparison_path: Path,
+    current_main_sha: str | None = None,
+    current_pr_head_sha: str | None = None,
 ) -> bool:
     try:
+        if current_main_sha is None or current_pr_head_sha is None:
+            raise ValidationError(
+                "current publication state query did not provide both current SHAs"
+            )
         samples = validate_artifact(input_directory, context)
         comparison = build_comparison(samples, context)
+        comparison = add_publication_state(
+            comparison, context, current_main_sha, current_pr_head_sha
+        )
         valid = True
     except (BenchmarkError, OSError, ArithmeticError, KeyError, TypeError, ValueError) as error:
         comparison = inconclusive_comparison(context, str(error) or "artifact validation failed")
@@ -1526,11 +1641,14 @@ def render_artifact(
 
 def _add_context_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--repository", required=True)
-    parser.add_argument("--head-repository", required=True)
+    parser.add_argument("--pr-head-repository", required=True)
     parser.add_argument("--workflow-repository", required=True)
     parser.add_argument("--pr-number", required=True, type=int)
     parser.add_argument("--base-sha", required=True)
     parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--main-sha", required=True)
+    parser.add_argument("--pr-head-sha", required=True)
+    parser.add_argument("--merge-candidate-sha", required=True)
     parser.add_argument("--run-url", required=True)
 
 
@@ -1560,11 +1678,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         context = validate_context(
             args.repository,
-            args.head_repository,
+            args.pr_head_repository,
             args.workflow_repository,
             args.pr_number,
             args.base_sha,
             args.head_sha,
+            args.main_sha,
+            args.pr_head_sha,
+            args.merge_candidate_sha,
             args.run_url,
         )
         if args.command == "run":
@@ -1578,7 +1699,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(manifest)
             return 0
         valid = render_artifact(
-            args.input, context, args.report, args.comparison
+            args.input,
+            context,
+            args.report,
+            args.comparison,
+            os.environ.get("CURRENT_MAIN_SHA"),
+            os.environ.get("CURRENT_PR_HEAD_SHA"),
         )
         print(args.report)
         return 0 if valid else 1

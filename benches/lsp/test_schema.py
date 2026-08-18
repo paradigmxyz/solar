@@ -11,6 +11,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, ValidationError
 
 from test_benchmark import CONTEXT, RawArtifact, benchmark
+from test_benchmark import CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
 
 
 DIRECTORY = Path(__file__).resolve().parent
@@ -18,6 +19,15 @@ RAW_SCHEMA = json.loads((DIRECTORY / "raw.schema.json").read_text(encoding="utf-
 COMPARISON_SCHEMA = json.loads(
     (DIRECTORY / "comparison.schema.json").read_text(encoding="utf-8")
 )
+
+
+def conclusive_comparison(samples: dict[str, dict[str, list[float]]]) -> dict:
+    return benchmark.add_publication_state(
+        benchmark.build_comparison(samples, CONTEXT),
+        CONTEXT,
+        CURRENT_MAIN_SHA,
+        CURRENT_PR_HEAD_SHA,
+    )
 
 
 class SchemaTests(unittest.TestCase):
@@ -40,7 +50,7 @@ class SchemaTests(unittest.TestCase):
             for role in ("base", "head")
         }
         comparisons = (
-            benchmark.build_comparison(samples, CONTEXT),
+            conclusive_comparison(samples),
             benchmark.inconclusive_comparison(CONTEXT, "invalid raw artifact"),
         )
 
@@ -53,19 +63,61 @@ class SchemaTests(unittest.TestCase):
             role: {method: [10.0] * 20 for method in benchmark.METHODS}
             for role in ("base", "head")
         }
-        comparison = benchmark.build_comparison(samples, CONTEXT)
+        comparison = conclusive_comparison(samples)
         invalid = copy.deepcopy(comparison)
         invalid["unexpected"] = True
 
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(invalid)
 
+    def test_schemas_require_dfm_and_publication_provenance(self) -> None:
+        samples = {
+            role: {method: [10.0] * 20 for method in benchmark.METHODS}
+            for role in ("base", "head")
+        }
+        comparison = conclusive_comparison(samples)
+        missing = copy.deepcopy(comparison)
+        del missing["merge_candidate_sha"]
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(missing)
+
+        invalid_mode = copy.deepcopy(comparison)
+        invalid_mode["comparison_mode"] = "main-head"
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(invalid_mode)
+
+        missing_freshness = copy.deepcopy(comparison)
+        del missing_freshness["freshness"]
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(missing_freshness)
+
+        invalid_freshness = copy.deepcopy(comparison)
+        invalid_freshness["freshness"] = "stale"
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(invalid_freshness)
+
+        invalid_current_sha = copy.deepcopy(comparison)
+        invalid_current_sha["current_main_sha"] = "A" * 40
+        with self.assertRaises(ValidationError):
+            self.comparison_validator.validate(invalid_current_sha)
+
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = RawArtifact(Path(directory))
+            del artifact.manifest["context"]["main_sha"]
+            with self.assertRaises(ValidationError):
+                self.raw_validator.validate(artifact.manifest)
+
+            artifact = RawArtifact(Path(directory) / "freshness")
+            artifact.manifest["context"]["freshness"] = "current"
+            with self.assertRaises(ValidationError):
+                self.raw_validator.validate(artifact.manifest)
+
     def test_comparison_schema_rejects_metrics_below_output_precision(self) -> None:
         samples = {
             role: {method: [10.0] * 20 for method in benchmark.METHODS}
             for role in ("base", "head")
         }
-        comparison = benchmark.build_comparison(samples, CONTEXT)
+        comparison = conclusive_comparison(samples)
         comparison["methods"][0]["base"]["p50_ms"] = 0.00001
 
         with self.assertRaises(ValidationError):
@@ -83,7 +135,7 @@ class SchemaTests(unittest.TestCase):
             role: {method: [10.0] * 20 for method in benchmark.METHODS}
             for role in ("base", "head")
         }
-        invalid_comparison = benchmark.build_comparison(samples, CONTEXT)
+        invalid_comparison = conclusive_comparison(samples)
         invalid_comparison["run_url"] += "\t"
         with self.assertRaises(ValidationError):
             self.comparison_validator.validate(invalid_comparison)

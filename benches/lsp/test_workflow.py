@@ -70,6 +70,94 @@ def github_script(step: str) -> str:
     return "\n".join(line[12:] for line in script.splitlines())
 
 
+def run_resolution_script(
+    *,
+    main_shas: list[str],
+    pull_requests: list[dict[str, object]],
+    merge_commits: dict[str, dict[str, object]],
+    expect_success: bool = True,
+) -> dict[str, object]:
+    script = github_script(
+        step_block(job_block("resolve"), "Validate request and freeze revisions")
+    )
+    harness = f"""
+const AsyncFunction = Object.getPrototypeOf(async function () {{}}).constructor;
+const workflowScript = {json.dumps(script)};
+const mainShas = {json.dumps(main_shas)};
+const pullRequests = {json.dumps(pull_requests)};
+const mergeCommits = {json.dumps(merge_commits)};
+let mainIndex = 0;
+let pullIndex = 0;
+const outputs = {{}};
+const target = {{ full_name: "target/solar", owner: {{ login: "target" }}, name: "solar" }};
+const workflow = {{ full_name: "workflow/solar", owner: {{ login: "workflow" }}, name: "solar", default_branch: "main" }};
+const github = {{
+  rest: {{
+    repos: {{
+      get: async ({{ owner }}) => ({{ data: owner === "target" ? target : workflow }}),
+      getBranch: async ({{ owner }}) => ({{ data: {{ commit: {{ sha: owner === "target" ? mainShas[Math.min(mainIndex++, mainShas.length - 1)] : "4".repeat(40) }} }} }}),
+      getCommit: async ({{ ref }}) => ({{ data: mergeCommits[ref] }}),
+    }},
+    pulls: {{
+      get: async () => ({{ data: pullRequests[Math.min(pullIndex++, pullRequests.length - 1)] }}),
+    }},
+  }},
+}};
+const core = {{
+  warning: () => {{}},
+  setFailed: (message) => {{ throw new Error(`setFailed: ${{message}}`); }},
+  setOutput: (name, value) => {{ outputs[name] = value; }},
+}};
+const context = {{
+  payload: {{
+    issue: {{ pull_request: {{}}, number: 12 }},
+    comment: {{ body: "/bench lsp", author_association: "OWNER" }},
+    repository: {{ full_name: "target/solar" }},
+  }},
+  repo: {{ owner: "workflow", repo: "solar" }},
+}};
+globalThis.setTimeout = (callback) => {{ callback(); return 0; }};
+(async () => {{
+  const execute = new AsyncFunction("github", "core", "context", workflowScript);
+  await execute(github, core, context);
+  process.stdout.write(JSON.stringify({{ outputs }}));
+}})().catch((error) => {{
+  console.error(error.stack || String(error));
+  process.exitCode = 1;
+}});
+"""
+    with tempfile.TemporaryDirectory(prefix="lsp-resolve-") as directory:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "RUNNER_TEMP": directory,
+                "RUN_URL": "https://github.com/workflow/solar/actions/runs/100",
+                "RUN_ID": "100",
+                "RUN_NUMBER": "1",
+                "RUN_ATTEMPT": "1",
+            }
+        )
+        completed = subprocess.run(
+            ["node"],
+            input=harness,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+            env=environment,
+        )
+        if not expect_success:
+            if completed.returncode == 0:
+                raise AssertionError("resolver unexpectedly accepted the request")
+            return {"error": completed.stderr}
+        completed.check_returncode()
+        result = json.loads(completed.stdout)
+        result["claim"] = json.loads(
+            (Path(directory) / "lsp-bench-claim/claim.json").read_text()
+        )
+        return result
+
+
 def run_arbitration_script(current_number: int, other_number: int) -> dict[str, object]:
     script = github_script(
         step_block(job_block("arbitrate"), "Keep only the latest accepted request")
@@ -207,19 +295,34 @@ class TriggerAndResolutionTests(unittest.TestCase):
             claim_write,
         )
 
-    def test_resolver_freezes_main_pr_head_and_trusted_default_branch(self) -> None:
+    def test_resolver_freezes_main_pr_head_and_test_merge(self) -> None:
         resolve_job = job_block("resolve")
         resolver = step_block(resolve_job, "Validate request and freeze revisions")
 
         self.assertIn("github.rest.pulls.get", resolver)
         self.assertIn('branch: "main"', resolver)
         self.assertIn("pull.state !== \"open\"", resolver)
-        self.assertEqual(resolver.count("/^[0-9a-f]{40}$/"), 3)
+        self.assertIn('pull.base?.ref !== "main"', resolver)
+        self.assertIn("const MERGEABLE_POLLS", resolver)
+        self.assertIn("pull.mergeable === null", resolver)
+        self.assertIn("pull.mergeable !== true", resolver)
+        self.assertIn("github.rest.repos.getCommit", resolver)
+        self.assertIn("parents.length !== 2", resolver)
+        self.assertIn("parents[0] !== mainSha", resolver)
+        self.assertIn("parents[1] !== prHeadSha", resolver)
+        self.assertIn("MAX_RESOLUTION_ATTEMPTS", resolver)
+        self.assertIn("resolution-race", resolver)
+        self.assertNotIn("compareCommitsWithBasehead", resolver)
+        self.assertIn('core.setOutput("main_sha", frozen.mainSha)', resolver)
+        self.assertIn('core.setOutput("pr_head_sha", frozen.prHeadSha)', resolver)
+        self.assertIn(
+            'core.setOutput("merge_candidate_sha", frozen.mergeCandidateSha)', resolver
+        )
+        self.assertNotIn("merge_base_sha", resolver)
+        self.assertNotIn("merge-base-head", resolver)
         self.assertIn("owner: context.repo.owner", resolver)
         self.assertIn("repo: context.repo.repo", resolver)
         self.assertIn("branch: workflowRepository.default_branch", resolver)
-        self.assertIn('core.setOutput("base_sha", main.commit.sha)', resolver)
-        self.assertIn('core.setOutput("head_sha", pull.head.sha)', resolver)
         self.assertIn(
             'core.setOutput("trusted_sha", workflowDefault.commit.sha)', resolver
         )
@@ -229,6 +332,23 @@ class TriggerAndResolutionTests(unittest.TestCase):
         self.assertIn(
             "trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}", resolve_job
         )
+
+    def test_queue_comment_identifies_frozen_d_f_m_attribution(self) -> None:
+        queue = job_block("queue-comment")
+
+        self.assertIn("MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}", queue)
+        self.assertIn(
+            "PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}", queue
+        )
+        self.assertIn(
+            "MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}",
+            queue,
+        )
+        self.assertIn("Queued frozen comparison of main", queue)
+        self.assertIn("(D)", queue)
+        self.assertIn("(F)", queue)
+        self.assertIn("(M)", queue)
+        self.assertNotIn("merge-base", queue)
 
     def test_manual_dispatch_cannot_execute_untrusted_code(self) -> None:
         header = WORKFLOW.split("\npermissions:", 1)[0]
@@ -251,7 +371,7 @@ class TriggerAndResolutionTests(unittest.TestCase):
         script = step_block(arbitrate, "Keep only the latest accepted request")
 
         self.assertIn(
-            '.update(`${target.full_name.toLowerCase()}\\0${pull.number}`)', resolver
+            '.update(`${target.full_name.toLowerCase()}\\0${requestedNumber}`)', resolver
         )
         self.assertIn('core.setOutput("claim_key", claimKey)', resolver)
         self.assertIn("name: lsp-bench-claim-${{ steps.resolve.outputs.claim_key }}", upload)
@@ -270,6 +390,144 @@ class TriggerAndResolutionTests(unittest.TestCase):
             script.index("compareOrder(order, currentOrder) > 0"),
             script.index("github.rest.actions.cancelWorkflowRun"),
         )
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    def test_resolver_polls_mergeability_and_claims_exact_d_f_m(self) -> None:
+        main_sha = "1" * 40
+        pr_head_sha = "2" * 40
+        merge_candidate_sha = "3" * 40
+        pull = {
+            "state": "open",
+            "base": {"repo": {"full_name": "target/solar"}, "ref": "main"},
+            "head": {
+                "repo": {"full_name": "contributor/solar"},
+                "sha": pr_head_sha,
+            },
+            "mergeable": True,
+            "merge_commit_sha": merge_candidate_sha,
+        }
+        waiting = {**pull, "mergeable": None, "merge_commit_sha": None}
+        result = run_resolution_script(
+            main_shas=[main_sha, main_sha],
+            pull_requests=[waiting, pull, pull],
+            merge_commits={
+                merge_candidate_sha: {
+                    "sha": merge_candidate_sha,
+                    "parents": [{"sha": main_sha}, {"sha": pr_head_sha}],
+                }
+            },
+        )
+
+        self.assertEqual(result["outputs"]["main_sha"], main_sha)
+        self.assertEqual(result["outputs"]["pr_head_sha"], pr_head_sha)
+        self.assertEqual(result["outputs"]["merge_candidate_sha"], merge_candidate_sha)
+        claim = result["claim"]
+        self.assertEqual(claim["comparison_mode"], "main-merge-candidate")
+        self.assertEqual(
+            {key for key in claim if key in {
+                "main_sha",
+                "pr_head_repository",
+                "pr_head_sha",
+                "merge_candidate_sha",
+                "merge_base_sha",
+                "head_sha",
+            }},
+            {"main_sha", "pr_head_repository", "pr_head_sha", "merge_candidate_sha"},
+        )
+        self.assertNotIn("merge_base_sha", claim)
+        self.assertNotIn("head_sha", claim)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    def test_resolver_retries_the_entire_group_when_main_moves(self) -> None:
+        first_main = "1" * 40
+        second_main = "2" * 40
+        pr_head_sha = "3" * 40
+        first_merge = "4" * 40
+        second_merge = "5" * 40
+
+        def pull(merge_candidate_sha: str) -> dict[str, object]:
+            return {
+                "state": "open",
+                "base": {"repo": {"full_name": "target/solar"}, "ref": "main"},
+                "head": {
+                    "repo": {"full_name": "contributor/solar"},
+                    "sha": pr_head_sha,
+                },
+                "mergeable": True,
+                "merge_commit_sha": merge_candidate_sha,
+            }
+
+        result = run_resolution_script(
+            main_shas=[first_main, second_main, second_main, second_main],
+            pull_requests=[pull(first_merge), pull(first_merge), pull(second_merge), pull(second_merge)],
+            merge_commits={
+                first_merge: {
+                    "sha": first_merge,
+                    "parents": [{"sha": first_main}, {"sha": pr_head_sha}],
+                },
+                second_merge: {
+                    "sha": second_merge,
+                    "parents": [{"sha": second_main}, {"sha": pr_head_sha}],
+                },
+            },
+        )
+
+        self.assertEqual(result["outputs"]["main_sha"], second_main)
+        self.assertEqual(result["outputs"]["merge_candidate_sha"], second_merge)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    def test_resolver_rejects_invalid_test_merge_contracts(self) -> None:
+        main_sha = "1" * 40
+        pr_head_sha = "2" * 40
+        merge_candidate_sha = "3" * 40
+        valid_pull = {
+            "state": "open",
+            "base": {"repo": {"full_name": "target/solar"}, "ref": "main"},
+            "head": {
+                "repo": {"full_name": "contributor/solar"},
+                "sha": pr_head_sha,
+            },
+            "mergeable": True,
+            "merge_commit_sha": merge_candidate_sha,
+        }
+        cases = {
+            "wrong parents": (
+                valid_pull,
+                {
+                    merge_candidate_sha: {
+                        "sha": merge_candidate_sha,
+                        "parents": [{"sha": pr_head_sha}, {"sha": main_sha}],
+                    }
+                },
+                "parents are not exactly",
+            ),
+            "missing merge commit": (
+                {**valid_pull, "merge_commit_sha": None},
+                {},
+                "no complete test merge commit SHA",
+            ),
+            "non-main target": (
+                {
+                    **valid_pull,
+                    "base": {
+                        "repo": {"full_name": "target/solar"},
+                        "ref": "develop",
+                    },
+                },
+                {},
+                "must target the requested repository's `main`",
+            ),
+        }
+
+        for name, (pull, commits, message) in cases.items():
+            with self.subTest(name=name):
+                result = run_resolution_script(
+                    main_shas=[main_sha],
+                    pull_requests=[pull],
+                    merge_commits=commits,
+                    expect_success=False,
+                )
+                self.assertIn(message, result["error"])
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
     def test_arbitration_is_independent_of_resolver_completion_order(self) -> None:
@@ -323,17 +581,17 @@ class PermissionAndCheckoutTests(unittest.TestCase):
                 "ref: ${{ needs.resolve.outputs.trusted_sha }}",
                 "path: lsp-bench/trusted",
             ),
-            "Checkout main revision": (
+            "Checkout main revision (D)": (
                 compute,
-                "repository: ${{ needs.resolve.outputs.base_repo }}",
-                "ref: ${{ needs.resolve.outputs.base_sha }}",
+                "repository: ${{ needs.resolve.outputs.repository }}",
+                "ref: ${{ needs.resolve.outputs.main_sha }}",
                 "path: lsp-bench/base",
             ),
-            "Checkout pull request revision": (
+            "Checkout test merge revision (M)": (
                 compute,
-                "repository: ${{ needs.resolve.outputs.head_repo }}",
-                "ref: ${{ needs.resolve.outputs.head_sha }}",
-                "path: lsp-bench/head",
+                "repository: ${{ needs.resolve.outputs.repository }}",
+                "ref: ${{ needs.resolve.outputs.merge_candidate_sha }}",
+                "path: lsp-bench/candidate",
             ),
             "Checkout trusted renderer": (
                 render,
@@ -358,8 +616,15 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             WORKFLOW.count("ref: ${{ needs.resolve.outputs.trusted_sha }}"), 2
         )
         self.assertNotIn("github.workflow_sha", WORKFLOW)
-        self.assertIn("ref: ${{ needs.resolve.outputs.base_sha }}", compute)
-        self.assertIn("ref: ${{ needs.resolve.outputs.head_sha }}", compute)
+        self.assertIn("ref: ${{ needs.resolve.outputs.main_sha }}", compute)
+        self.assertIn("ref: ${{ needs.resolve.outputs.merge_candidate_sha }}", compute)
+        self.assertIn('--main-sha "$MAIN_SHA"', compute)
+        self.assertIn('--merge-candidate-sha "$MERGE_CANDIDATE_SHA"', compute)
+        validate = step_block(render, "Validate and render benchmark")
+        self.assertIn('--main-sha "$MAIN_SHA"', validate)
+        self.assertIn('--merge-candidate-sha "$MERGE_CANDIDATE_SHA"', validate)
+        self.assertNotIn("--current-main-sha", validate)
+        self.assertNotIn("--current-pr-head-sha", validate)
         self.assertNotIn("lsp-bench/base", render)
         self.assertNotIn("lsp-bench/head", render)
         self.assertIn("clean: true", render)
@@ -367,14 +632,35 @@ class PermissionAndCheckoutTests(unittest.TestCase):
     def test_renderer_is_fresh_trusted_code_and_never_runs_pr_code(self) -> None:
         queue = job_block("queue-comment")
         render = job_block("render")
+        current = step_block(render, "Query current PR revisions")
+        validate = step_block(render, "Validate and render benchmark")
 
         self.assertNotIn("actions/checkout@", queue)
         self.assertLess(
             render.index("name: Checkout trusted renderer"),
             render.index("name: Download raw benchmark artifact"),
         )
+        self.assertLess(
+            render.index("name: Download raw benchmark artifact"),
+            render.index("name: Query current PR revisions"),
+        )
+        self.assertLess(
+            render.index("name: Query current PR revisions"),
+            render.index("name: Validate and render benchmark"),
+        )
         self.assertNotIn("cargo build", render)
-        self.assertNotIn("needs.resolve.outputs.head_repo }}\n          ref:", render)
+        self.assertNotIn("needs.resolve.outputs.pr_head_repository }}\n          ref:", render)
+        self.assertIn("github.rest.repos.getBranch", current)
+        self.assertIn("github.rest.pulls.get", current)
+        self.assertIn("continue-on-error: true", current)
+        self.assertIn(
+            "CURRENT_MAIN_SHA: ${{ steps.current_state.outputs.main_sha }}", validate
+        )
+        self.assertIn(
+            "CURRENT_PR_HEAD_SHA: ${{ steps.current_state.outputs.pr_head_sha }}",
+            validate,
+        )
+        self.assertNotIn("steps.current_state.outputs", run_script(validate))
         self.assertIn(
             'python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" render',
             render,
@@ -436,7 +722,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
         failure = step_block(render, "Fail incomplete benchmark")
 
         for contract in (
-            '"schema_version": 1',
+            '"schema_version": 2',
             '"kind": "solar-lsp-benchmark-comparison"',
             '"overall": "inconclusive"',
             '"methods": []',
@@ -444,6 +730,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
             '(output / "report.md").write_text',
             '"$COMPUTE_RESULT" == success',
             '"$DOWNLOAD_OUTCOME" == success',
+            '"$current_state_outcome" == success',
             '"$RENDER_OUTCOME" == success',
             "valid=true",
         ):
@@ -460,6 +747,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
             failure,
         )
         self.assertNotIn("regression", failure)
+        self.assertNotIn("freshness", failure)
 
         upload = step_block(render, "Upload validated comparison")
         publish = step_block(render, "Publish sticky benchmark comment")
@@ -475,11 +763,12 @@ class ArtifactAndStatusTests(unittest.TestCase):
         environment.update(
             {
                 "REPOSITORY": "paradigmxyz/solar",
-                "HEAD_REPOSITORY": "contributor/solar",
+                "PR_HEAD_REPOSITORY": "contributor/solar",
                 "WORKFLOW_REPOSITORY": "workflow/solar",
                 "PR_NUMBER": "1195",
-                "BASE_SHA": "1" * 40,
-                "HEAD_SHA": "2" * 40,
+                "MAIN_SHA": "1" * 40,
+                "PR_HEAD_SHA": "2" * 40,
+                "MERGE_CANDIDATE_SHA": "3" * 40,
                 "RUN_URL": "https://github.com/workflow/solar/actions/runs/123",
                 "FALLBACK_REASON": "benchmark did not complete successfully",
             }
@@ -499,8 +788,13 @@ class ArtifactAndStatusTests(unittest.TestCase):
             )
             comparison = json.loads((output / "comparison.json").read_text())
 
-            self.assertEqual(comparison["schema_version"], 1)
+            self.assertEqual(comparison["schema_version"], 2)
             self.assertEqual(comparison["kind"], "solar-lsp-benchmark-comparison")
+            self.assertEqual(comparison["comparison_mode"], "main-merge-candidate")
+            self.assertEqual(comparison["main_sha"], "1" * 40)
+            self.assertEqual(comparison["pr_head_sha"], "2" * 40)
+            self.assertEqual(comparison["merge_candidate_sha"], "3" * 40)
+            self.assertNotIn("merge_base_sha", comparison)
             self.assertEqual(comparison["overall"], "inconclusive")
             self.assertEqual(comparison["methods"], [])
             self.assertIn("**Overall:** `inconclusive`", (output / "report.md").read_text())
@@ -510,15 +804,19 @@ class ArtifactAndStatusTests(unittest.TestCase):
         shell = run_script(stage)
         context = {
             "REPOSITORY": "paradigmxyz/solar",
-            "HEAD_REPOSITORY": "contributor/solar",
+            "PR_HEAD_REPOSITORY": "contributor/solar",
             "WORKFLOW_REPOSITORY": "workflow/solar",
             "PR_NUMBER": "1195",
-            "BASE_SHA": "1" * 40,
-            "HEAD_SHA": "2" * 40,
+            "MAIN_SHA": "1" * 40,
+            "PR_HEAD_SHA": "2" * 40,
+            "MERGE_CANDIDATE_SHA": "3" * 40,
             "RUN_URL": "https://github.com/workflow/solar/actions/runs/123",
+            "CURRENT_STATE_OUTCOME": "success",
+            "CURRENT_MAIN_SHA": "1" * 40,
+            "CURRENT_PR_HEAD_SHA": "2" * 40,
         }
 
-        for failed_stage in ("compute", "download", "render"):
+        for failed_stage in ("compute", "download", "current_state", "render"):
             with self.subTest(failed_stage=failed_stage), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 rendered = root / "lsp-bench-render"
@@ -539,6 +837,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
                         ),
                         "DOWNLOAD_OUTCOME": (
                             "failure" if failed_stage == "download" else "success"
+                        ),
+                        "CURRENT_STATE_OUTCOME": (
+                            "failure" if failed_stage == "current_state" else "success"
                         ),
                         "RENDER_OUTCOME": (
                             "failure" if failed_stage == "render" else "success"
@@ -593,7 +894,9 @@ class ExecutionAndRemovalTests(unittest.TestCase):
             2,
         )
         self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/base"', compute)
-        self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/head"', compute)
+        self.assertIn(
+            'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate"', compute
+        )
         self.assertIn("releases/download/v0.3.3/", compute)
         self.assertIn(
             "cf66d5237951046b0dd83726b86e0c8b23fc20fe3315f184fea48543337a23df",

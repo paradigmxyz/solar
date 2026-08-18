@@ -25,10 +25,10 @@ jobs:
     outputs:
       repository: ${{ steps.resolve.outputs.repository }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
-      base_repo: ${{ steps.resolve.outputs.base_repo }}
-      base_sha: ${{ steps.resolve.outputs.base_sha }}
-      head_repo: ${{ steps.resolve.outputs.head_repo }}
-      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      main_sha: ${{ steps.resolve.outputs.main_sha }}
+      pr_head_repository: ${{ steps.resolve.outputs.pr_head_repository }}
+      pr_head_sha: ${{ steps.resolve.outputs.pr_head_sha }}
+      merge_candidate_sha: ${{ steps.resolve.outputs.merge_candidate_sha }}
       trusted_repo: ${{ steps.resolve.outputs.trusted_repo }}
       trusted_sha: ${{ steps.resolve.outputs.trusted_sha }}
       run_url: ${{ steps.resolve.outputs.run_url }}
@@ -55,8 +55,18 @@ jobs:
               "CONTRIBUTOR",
             ]);
 
-            let requestedRepository;
-            let requestedNumber;
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const MAX_RESOLUTION_ATTEMPTS = 3;
+            const MERGEABLE_POLLS = 6;
+            const MERGEABLE_POLL_MS = 1000;
+            const sleep = (milliseconds) =>
+              new Promise((resolve) => setTimeout(resolve, milliseconds));
+            const resolutionRace = (message) => {
+              const error = new Error(message);
+              error.code = "resolution-race";
+              return error;
+            };
+
             const comment = context.payload.comment;
             if (
               !context.payload.issue?.pull_request ||
@@ -71,8 +81,8 @@ jobs:
               );
               return;
             }
-            requestedRepository = context.payload.repository.full_name;
-            requestedNumber = context.payload.issue.number;
+            const requestedRepository = context.payload.repository.full_name;
+            const requestedNumber = context.payload.issue.number;
 
             if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(requestedRepository || "")) {
               core.setFailed("Repository must use the `owner/name` form");
@@ -88,31 +98,129 @@ jobs:
               owner: requestedOwner,
               repo: requestedRepo,
             });
-            const { data: pull } = await github.rest.pulls.get({
-              owner: target.owner.login,
-              repo: target.name,
-              pull_number: requestedNumber,
-            });
-            if (pull.state !== "open") {
-              core.setFailed(`Pull request #${requestedNumber} is not open`);
-              return;
-            }
-            if (pull.base.repo?.full_name !== target.full_name) {
-              core.setFailed("Pull request base repository does not match the requested repository");
-              return;
-            }
-            if (!pull.head.repo?.full_name || !/^[0-9a-f]{40}$/.test(pull.head.sha || "")) {
-              core.setFailed("Pull request head repository or revision is unavailable");
-              return;
-            }
 
-            const { data: main } = await github.rest.repos.getBranch({
-              owner: target.owner.login,
-              repo: target.name,
-              branch: "main",
-            });
-            if (!/^[0-9a-f]{40}$/.test(main.commit.sha || "")) {
-              core.setFailed("The `main` branch did not resolve to a full commit SHA");
+            const pullRequest = () =>
+              github.rest.pulls.get({
+                owner: target.owner.login,
+                repo: target.name,
+                pull_number: requestedNumber,
+              });
+            const mainBranch = () =>
+              github.rest.repos.getBranch({
+                owner: target.owner.login,
+                repo: target.name,
+                branch: "main",
+              });
+            const validatePull = (pull, mainSha, expectedHeadSha, expectedHeadRepository) => {
+              if (pull.state !== "open") {
+                throw new Error(`Pull request #${requestedNumber} is not open`);
+              }
+              if (
+                pull.base?.repo?.full_name !== target.full_name ||
+                pull.base?.ref !== "main"
+              ) {
+                throw new Error("Pull request must target the requested repository's `main`");
+              }
+              if (
+                !pull.head?.repo?.full_name ||
+                !SHA_RE.test(pull.head.sha || "")
+              ) {
+                throw new Error("Pull request head repository or revision is unavailable");
+              }
+              if (
+                expectedHeadSha !== undefined &&
+                (pull.head.sha !== expectedHeadSha ||
+                  pull.head.repo.full_name !== expectedHeadRepository)
+              ) {
+                throw resolutionRace("Pull request head changed during resolution");
+              }
+              if (mainSha !== undefined && !SHA_RE.test(mainSha)) {
+                throw new Error("The `main` branch did not resolve to a full commit SHA");
+              }
+            };
+
+            const resolveAttempt = async () => {
+              const { data: main } = await mainBranch();
+              const mainSha = main.commit?.sha;
+              if (!SHA_RE.test(mainSha || "")) {
+                throw new Error("The `main` branch did not resolve to a full commit SHA");
+              }
+              const { data: initialPull } = await pullRequest();
+              validatePull(initialPull, mainSha);
+              const prHeadSha = initialPull.head.sha;
+              const prHeadRepository = initialPull.head.repo.full_name;
+              let pull = initialPull;
+              for (let poll = 0; pull.mergeable === null && poll < MERGEABLE_POLLS; poll += 1) {
+                await sleep(MERGEABLE_POLL_MS);
+                ({ data: pull } = await pullRequest());
+                validatePull(pull, mainSha, prHeadSha, prHeadRepository);
+              }
+              if (pull.mergeable === null) {
+                throw new Error("GitHub did not resolve pull request mergeability in time");
+              }
+              if (pull.mergeable !== true) {
+                throw new Error("Pull request is not mergeable");
+              }
+              const mergeCandidateSha = pull.merge_commit_sha;
+              if (!SHA_RE.test(mergeCandidateSha || "")) {
+                throw new Error("A mergeable pull request has no complete test merge commit SHA");
+              }
+              const { data: mergeCommit } = await github.rest.repos.getCommit({
+                owner: target.owner.login,
+                repo: target.name,
+                ref: mergeCandidateSha,
+              });
+              const parents = Array.isArray(mergeCommit.parents)
+                ? mergeCommit.parents.map((parent) => parent.sha)
+                : [];
+              if (
+                mergeCommit.sha !== mergeCandidateSha ||
+                parents.length !== 2 ||
+                parents[0] !== mainSha ||
+                parents[1] !== prHeadSha
+              ) {
+                throw resolutionRace("Test merge commit parents are not exactly `[D, F]`");
+              }
+
+              const [{ data: currentMain }, { data: currentPull }] = await Promise.all([
+                mainBranch(),
+                pullRequest(),
+              ]);
+              validatePull(currentPull, mainSha, prHeadSha, prHeadRepository);
+              if (
+                currentMain.commit?.sha !== mainSha ||
+                currentPull.head.sha !== prHeadSha ||
+                currentPull.head.repo.full_name !== prHeadRepository ||
+                currentPull.mergeable !== true ||
+                currentPull.merge_commit_sha !== mergeCandidateSha
+              ) {
+                throw resolutionRace("main, PR head, or test merge changed during resolution");
+              }
+              return {
+                mainSha,
+                prHeadRepository,
+                prHeadSha,
+                mergeCandidateSha,
+              };
+            };
+
+            let frozen;
+            for (let attempt = 1; attempt <= MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
+              try {
+                frozen = await resolveAttempt();
+                break;
+              } catch (error) {
+                if (error.code === "resolution-race" && attempt < MAX_RESOLUTION_ATTEMPTS) {
+                  core.warning(`${error.message}; retrying resolution (${attempt + 1}/${MAX_RESOLUTION_ATTEMPTS})`);
+                  await sleep(MERGEABLE_POLL_MS);
+                  continue;
+                }
+                core.setFailed(error.message || String(error));
+                return;
+              }
+            }
+            if (!frozen) {
+              core.setFailed("Could not freeze a consistent main, PR head, and test merge");
               return;
             }
 
@@ -138,7 +246,7 @@ jobs:
             }
             const claimKey = crypto
               .createHash("sha256")
-              .update(`${target.full_name.toLowerCase()}\0${pull.number}`)
+              .update(`${target.full_name.toLowerCase()}\0${requestedNumber}`)
               .digest("hex");
             const claimDirectory = path.join(process.env.RUNNER_TEMP, "lsp-bench-claim");
             fs.mkdirSync(claimDirectory, { recursive: true });
@@ -151,7 +259,12 @@ jobs:
                   claim_key: claimKey,
                   workflow_repository: workflowRepository.full_name,
                   repository: target.full_name,
-                  pr_number: pull.number,
+                  pr_number: requestedNumber,
+                  comparison_mode: "main-merge-candidate",
+                  main_sha: frozen.mainSha,
+                  pr_head_repository: frozen.prHeadRepository,
+                  pr_head_sha: frozen.prHeadSha,
+                  merge_candidate_sha: frozen.mergeCandidateSha,
                   run_id: runId,
                   run_number: runNumber,
                   run_attempt: runAttempt,
@@ -163,11 +276,11 @@ jobs:
             );
 
             core.setOutput("repository", target.full_name);
-            core.setOutput("pr_number", String(pull.number));
-            core.setOutput("base_repo", target.full_name);
-            core.setOutput("base_sha", main.commit.sha);
-            core.setOutput("head_repo", pull.head.repo.full_name);
-            core.setOutput("head_sha", pull.head.sha);
+            core.setOutput("pr_number", String(requestedNumber));
+            core.setOutput("main_sha", frozen.mainSha);
+            core.setOutput("pr_head_repository", frozen.prHeadRepository);
+            core.setOutput("pr_head_sha", frozen.prHeadSha);
+            core.setOutput("merge_candidate_sha", frozen.mergeCandidateSha);
             core.setOutput("trusted_repo", workflowRepository.full_name);
             core.setOutput("trusted_sha", workflowDefault.commit.sha);
             core.setOutput("run_url", process.env.RUN_URL);
@@ -370,10 +483,10 @@ jobs:
       - name: Update sticky benchmark comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          BASE_REPO: ${{ needs.resolve.outputs.base_repo }}
-          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
-          HEAD_REPO: ${{ needs.resolve.outputs.head_repo }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
+          PR_HEAD_REPOSITORY: ${{ needs.resolve.outputs.pr_head_repository }}
+          PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
+          MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
           TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
@@ -382,13 +495,15 @@ jobs:
             const marker = "<!-- lsp-bench-command -->";
             const [owner, repo] = process.env.TARGET_REPOSITORY.split("/");
             const issueNumber = Number(process.env.PR_NUMBER);
-            const baseShort = process.env.BASE_SHA.slice(0, 12);
-            const headShort = process.env.HEAD_SHA.slice(0, 12);
+            const mergeCandidateSha = process.env.MERGE_CANDIDATE_SHA;
+            const mergeCandidateShort = mergeCandidateSha.slice(0, 12);
+            const prHeadShort = process.env.PR_HEAD_SHA.slice(0, 12);
+            const mainShort = process.env.MAIN_SHA.slice(0, 12);
             const body = [
               marker,
               "## LSP benchmark",
               "",
-              `Queued comparison of [\`${baseShort}\`](https://github.com/${process.env.BASE_REPO}/commit/${process.env.BASE_SHA}) (\`main\`) and [\`${headShort}\`](https://github.com/${process.env.HEAD_REPO}/commit/${process.env.HEAD_SHA}) (PR head).`,
+              `Queued frozen comparison of main [\`${mainShort}\`](https://github.com/${process.env.TARGET_REPOSITORY}/commit/${process.env.MAIN_SHA}) (D) and test merge [\`${mergeCandidateShort}\`](https://github.com/${process.env.TARGET_REPOSITORY}/commit/${mergeCandidateSha}) (M), built from PR head [\`${prHeadShort}\`](https://github.com/${process.env.PR_HEAD_REPOSITORY}/commit/${process.env.PR_HEAD_SHA}) (F).`,
               "",
               `[View workflow run](${process.env.RUN_URL})`,
             ].join("\n");
@@ -444,27 +559,27 @@ jobs:
           path: lsp-bench/trusted
           persist-credentials: false
 
-      - name: Checkout main revision
+      - name: Checkout main revision (D)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.resolve.outputs.base_repo }}
-          ref: ${{ needs.resolve.outputs.base_sha }}
+          repository: ${{ needs.resolve.outputs.repository }}
+          ref: ${{ needs.resolve.outputs.main_sha }}
           path: lsp-bench/base
           persist-credentials: false
 
-      - name: Checkout pull request revision
+      - name: Checkout test merge revision (M)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.resolve.outputs.head_repo }}
-          ref: ${{ needs.resolve.outputs.head_sha }}
-          path: lsp-bench/head
+          repository: ${{ needs.resolve.outputs.repository }}
+          ref: ${{ needs.resolve.outputs.merge_candidate_sha }}
+          path: lsp-bench/candidate
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
           toolchain: "1.96"
 
-      - name: Build main compiler
+      - name: Build main compiler (D)
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/lsp-bench/base"
@@ -475,15 +590,15 @@ jobs:
             "$RUNNER_TEMP/lsp-bench-target/base/release/solar" \
             "$RUNNER_TEMP/lsp-bench-bin/base-solar"
 
-      - name: Build pull request compiler
+      - name: Build test merge compiler (M)
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE/lsp-bench/head"
-          CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/head" \
+          cd "$GITHUB_WORKSPACE/lsp-bench/candidate"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate" \
             cargo build --locked --release -p solar-compiler --bin solar
           install -m 0755 \
-            "$RUNNER_TEMP/lsp-bench-target/head/release/solar" \
-            "$RUNNER_TEMP/lsp-bench-bin/head-solar"
+            "$RUNNER_TEMP/lsp-bench-target/candidate/release/solar" \
+            "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"
 
       - name: Install pinned lsp-bench
         run: |
@@ -502,9 +617,10 @@ jobs:
 
       - name: Run LSP comparison
         env:
-          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
-          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
+          PR_HEAD_REPOSITORY: ${{ needs.resolve.outputs.pr_head_repository }}
+          PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
+          MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
@@ -514,13 +630,16 @@ jobs:
           python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" run \
             --lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench-v0.3.3-x86_64-unknown-linux-gnu/lsp-bench" \
             --base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar" \
-            --head-binary "$RUNNER_TEMP/lsp-bench-bin/head-solar" \
+            --head-binary "$RUNNER_TEMP/lsp-bench-bin/candidate-solar" \
             --repository "$REPOSITORY" \
-            --head-repository "$HEAD_REPOSITORY" \
+            --pr-head-repository "$PR_HEAD_REPOSITORY" \
             --workflow-repository "$WORKFLOW_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
-            --base-sha "$BASE_SHA" \
-            --head-sha "$HEAD_SHA" \
+            --base-sha "$MAIN_SHA" \
+            --main-sha "$MAIN_SHA" \
+            --head-sha "$MERGE_CANDIDATE_SHA" \
+            --pr-head-sha "$PR_HEAD_SHA" \
+            --merge-candidate-sha "$MERGE_CANDIDATE_SHA" \
             --run-url "$RUN_URL" \
             --output "$RUNNER_TEMP/lsp-bench-artifact/raw"
 
@@ -571,14 +690,58 @@ jobs:
           name: lsp-bench-raw-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/lsp-bench-download/raw
 
+      - name: Query current PR revisions
+        id: current_state
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          TARGET_REPOSITORY: ${{ needs.resolve.outputs.repository }}
+        with:
+          script: |
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const [owner, repo] = process.env.TARGET_REPOSITORY.split("/");
+            const issueNumber = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
+              throw new Error("Pull request number is invalid");
+            }
+            const { data: main } = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: "main",
+            });
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issueNumber,
+            });
+            if (
+              pull.state !== "open" ||
+              pull.base?.repo?.full_name !== process.env.TARGET_REPOSITORY ||
+              pull.base?.ref !== "main"
+            ) {
+              throw new Error("Current pull request no longer targets the requested `main`");
+            }
+            if (!SHA_RE.test(main.commit?.sha || "")) {
+              throw new Error("Current `main` branch did not resolve to a full commit SHA");
+            }
+            if (!SHA_RE.test(pull.head?.sha || "")) {
+              throw new Error("Current pull request head did not resolve to a full commit SHA");
+            }
+            core.setOutput("main_sha", main.commit.sha);
+            core.setOutput("pr_head_sha", pull.head.sha);
+
       # This trusted code parses artifact data but never executes artifact content.
       - name: Validate and render benchmark
         id: render
         continue-on-error: true
         env:
-          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
-          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
+          PR_HEAD_REPOSITORY: ${{ needs.resolve.outputs.pr_head_repository }}
+          PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
+          MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}
+          CURRENT_MAIN_SHA: ${{ steps.current_state.outputs.main_sha }}
+          CURRENT_PR_HEAD_SHA: ${{ steps.current_state.outputs.pr_head_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RUN_URL: ${{ needs.resolve.outputs.run_url }}
@@ -589,11 +752,14 @@ jobs:
           python3 "$GITHUB_WORKSPACE/lsp-bench/trusted/benches/lsp/benchmark.py" render \
             --input "$RUNNER_TEMP/lsp-bench-download/raw" \
             --repository "$REPOSITORY" \
-            --head-repository "$HEAD_REPOSITORY" \
+            --pr-head-repository "$PR_HEAD_REPOSITORY" \
             --workflow-repository "$WORKFLOW_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
-            --base-sha "$BASE_SHA" \
-            --head-sha "$HEAD_SHA" \
+            --base-sha "$MAIN_SHA" \
+            --main-sha "$MAIN_SHA" \
+            --head-sha "$MERGE_CANDIDATE_SHA" \
+            --pr-head-sha "$PR_HEAD_SHA" \
+            --merge-candidate-sha "$MERGE_CANDIDATE_SHA" \
             --run-url "$RUN_URL" \
             --report "$RUNNER_TEMP/lsp-bench-render/report.md" \
             --comparison "$RUNNER_TEMP/lsp-bench-render/comparison.json"
@@ -602,11 +768,15 @@ jobs:
         id: stage
         if: ${{ !cancelled() }}
         env:
-          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
           COMPUTE_RESULT: ${{ needs.compute.result }}
           DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
-          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repo }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
+          PR_HEAD_REPOSITORY: ${{ needs.resolve.outputs.pr_head_repository }}
+          PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
+          MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}
+          CURRENT_STATE_OUTCOME: ${{ steps.current_state.outcome }}
+          CURRENT_MAIN_SHA: ${{ steps.current_state.outputs.main_sha }}
+          CURRENT_PR_HEAD_SHA: ${{ steps.current_state.outputs.pr_head_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           REPOSITORY: ${{ needs.resolve.outputs.repository }}
           RENDER_OUTCOME: ${{ steps.render.outcome }}
@@ -614,13 +784,19 @@ jobs:
           WORKFLOW_REPOSITORY: ${{ needs.resolve.outputs.trusted_repo }}
         run: |
           set -euo pipefail
+          current_state_outcome="${CURRENT_STATE_OUTCOME:-failure}"
+          current_main_sha="${CURRENT_MAIN_SHA:-}"
+          current_pr_head_sha="${CURRENT_PR_HEAD_SHA:-}"
           report_dir="$RUNNER_TEMP/lsp-bench-report"
           staged_dir="$RUNNER_TEMP/lsp-bench-report.staged"
           rm -rf "$report_dir" "$staged_dir"
           valid=false
           if [[ "$COMPUTE_RESULT" == success &&
                 "$DOWNLOAD_OUTCOME" == success &&
+                "$current_state_outcome" == success &&
                 "$RENDER_OUTCOME" == success &&
+                -n "$current_main_sha" &&
+                -n "$current_pr_head_sha" &&
                 -s "$RUNNER_TEMP/lsp-bench-render/report.md" &&
                 -s "$RUNNER_TEMP/lsp-bench-render/comparison.json" ]] &&
              mkdir -p "$staged_dir" &&
@@ -630,7 +806,7 @@ jobs:
             valid=true
           else
             rm -rf "$staged_dir"
-            reason="benchmark did not complete successfully (compute=$COMPUTE_RESULT, download=$DOWNLOAD_OUTCOME, render=$RENDER_OUTCOME)"
+            reason="benchmark or current revision lookup did not complete successfully (compute=$COMPUTE_RESULT, download=$DOWNLOAD_OUTCOME, current_state=$current_state_outcome, render=$RENDER_OUTCOME)"
             FALLBACK_REASON="$reason" python3 - <<'PY'
           import json
           import os
@@ -640,14 +816,18 @@ jobs:
           output.mkdir(parents=True, exist_ok=True)
           reason = os.environ["FALLBACK_REASON"]
           comparison = {
-              "schema_version": 1,
+              "schema_version": 2,
               "kind": "solar-lsp-benchmark-comparison",
+              "comparison_mode": "main-merge-candidate",
               "repository": os.environ["REPOSITORY"],
-              "head_repository": os.environ["HEAD_REPOSITORY"],
+              "pr_head_repository": os.environ["PR_HEAD_REPOSITORY"],
               "workflow_repository": os.environ["WORKFLOW_REPOSITORY"],
               "pr_number": int(os.environ["PR_NUMBER"]),
-              "base_sha": os.environ["BASE_SHA"],
-              "head_sha": os.environ["HEAD_SHA"],
+              "base_sha": os.environ["MAIN_SHA"],
+              "main_sha": os.environ["MAIN_SHA"],
+              "pr_head_sha": os.environ["PR_HEAD_SHA"],
+              "head_sha": os.environ["MERGE_CANDIDATE_SHA"],
+              "merge_candidate_sha": os.environ["MERGE_CANDIDATE_SHA"],
               "run_url": os.environ["RUN_URL"],
               "threshold_percent": 10.0,
               "overall": "inconclusive",
@@ -665,11 +845,13 @@ jobs:
                   "",
                   "**Overall:** `inconclusive`",
                   "",
-                  f"Base: `{comparison['base_sha']}`  ",
-                  f"Head: `{comparison['head_sha']}`  ",
+                  f"Comparison: `{comparison['comparison_mode']}`  ",
+                  f"Main at resolution (D): `{comparison['main_sha']}`  ",
+                  f"PR head at resolution (F): `{comparison['pr_head_sha']}`  ",
+                  f"Test merge at resolution (M): `{comparison['merge_candidate_sha']}`  ",
                   f"[Workflow run]({comparison['run_url']})",
                   "",
-                  "The comparison is inconclusive because the benchmark did not complete successfully.",
+                  "The comparison is inconclusive because the benchmark or current revision lookup did not complete successfully.",
                   "",
                   f"Reason: {reason}",
                   "",

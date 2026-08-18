@@ -6,31 +6,44 @@
   "required": [
     "schema_version",
     "kind",
+    "comparison_mode",
     "repository",
-    "head_repository",
+    "pr_head_repository",
     "workflow_repository",
     "pr_number",
     "base_sha",
     "head_sha",
+    "main_sha",
+    "pr_head_sha",
+    "merge_candidate_sha",
     "run_url",
     "threshold_percent",
     "overall",
     "methods"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "kind": { "const": "solar-lsp-benchmark-comparison" },
+    "comparison_mode": { "const": "main-merge-candidate" },
     "repository": { "$ref": "#/$defs/repository" },
-    "head_repository": { "$ref": "#/$defs/repository" },
+    "pr_head_repository": { "$ref": "#/$defs/repository" },
     "workflow_repository": { "$ref": "#/$defs/repository" },
     "pr_number": { "type": "integer", "minimum": 1 },
     "base_sha": { "$ref": "#/$defs/sha" },
     "head_sha": { "$ref": "#/$defs/sha" },
+    "main_sha": { "$ref": "#/$defs/sha" },
+    "pr_head_sha": { "$ref": "#/$defs/sha" },
+    "merge_candidate_sha": { "$ref": "#/$defs/sha" },
     "run_url": {
       "type": "string",
       "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$(?![\\s\\S])"
     },
     "threshold_percent": { "const": 10.0 },
+    "freshness": {
+      "enum": ["current", "main-advanced", "superseded"]
+    },
+    "current_main_sha": { "$ref": "#/$defs/sha" },
+    "current_pr_head_sha": { "$ref": "#/$defs/sha" },
     "overall": {
       "enum": ["regression", "improvement", "stable", "inconclusive"]
     },
@@ -48,6 +61,7 @@
     },
     {
       "not": { "required": ["error"] },
+      "required": ["freshness", "current_main_sha", "current_pr_head_sha"],
       "properties": {
         "overall": { "enum": ["regression", "improvement", "stable"] },
         "methods": {

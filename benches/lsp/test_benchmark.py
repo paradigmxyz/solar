@@ -36,13 +36,18 @@ FILTER_MODULE_SPEC.loader.exec_module(lsp_filter)
 
 CONTEXT = benchmark.Context(
     repository="paradigmxyz/solar",
-    head_repository="0xKarl98/solar",
+    pr_head_repository="0xKarl98/solar",
     workflow_repository="0xKarl98/solar",
     pr_number=1195,
     base_sha="1" * 40,
     head_sha="2" * 40,
+    main_sha="1" * 40,
+    pr_head_sha="4" * 40,
+    merge_candidate_sha="2" * 40,
     run_url="https://github.com/0xKarl98/solar/actions/runs/12345",
 )
+CURRENT_MAIN_SHA = "1" * 40
+CURRENT_PR_HEAD_SHA = "4" * 40
 RESPONSE_CONFIG = {"project": str(Path("/fixture").resolve())}
 
 
@@ -134,12 +139,16 @@ class RawArtifact:
             "schema_version": benchmark.RAW_SCHEMA_VERSION,
             "kind": benchmark.RAW_KIND,
             "context": {
+                "comparison_mode": CONTEXT.comparison_mode,
                 "repository": CONTEXT.repository,
-                "head_repository": CONTEXT.head_repository,
+                "pr_head_repository": CONTEXT.pr_head_repository,
                 "workflow_repository": CONTEXT.workflow_repository,
                 "pr_number": CONTEXT.pr_number,
                 "base_sha": CONTEXT.base_sha,
                 "head_sha": CONTEXT.head_sha,
+                "main_sha": CONTEXT.main_sha,
+                "pr_head_sha": CONTEXT.pr_head_sha,
+                "merge_candidate_sha": CONTEXT.merge_candidate_sha,
                 "run_url": CONTEXT.run_url,
             },
             "protocol": {
@@ -370,76 +379,61 @@ class ConfigTests(unittest.TestCase):
 
 
 class ContextTests(unittest.TestCase):
+    def test_context_requires_base_to_be_main_and_head_to_be_merge_candidate(self) -> None:
+        with self.assertRaisesRegex(benchmark.ValidationError, "equal main"):
+            benchmark.validate_context(
+                CONTEXT.repository,
+                CONTEXT.pr_head_repository,
+                CONTEXT.workflow_repository,
+                CONTEXT.pr_number,
+                CONTEXT.base_sha,
+                CONTEXT.head_sha,
+                "3" * 40,
+                CONTEXT.pr_head_sha,
+                CONTEXT.merge_candidate_sha,
+                CONTEXT.run_url,
+            )
+
+        with self.assertRaisesRegex(
+            benchmark.ValidationError, "equal merge candidate"
+        ):
+            benchmark.validate_context(
+                CONTEXT.repository,
+                CONTEXT.pr_head_repository,
+                CONTEXT.workflow_repository,
+                CONTEXT.pr_number,
+                CONTEXT.base_sha,
+                CONTEXT.head_sha,
+                CONTEXT.main_sha,
+                CONTEXT.pr_head_sha,
+                "3" * 40,
+                CONTEXT.run_url,
+            )
+
     def test_context_rejects_markdown_and_url_injection(self) -> None:
         invalid = (
-            (
-                "owner/repo|bad",
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "1" * 40,
-                "2" * 40,
-                CONTEXT.run_url,
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                0,
-                "1" * 40,
-                "2" * 40,
-                CONTEXT.run_url,
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "A" * 40,
-                "2" * 40,
-                CONTEXT.run_url,
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "1" * 40,
-                "2" * 40,
-                "https://[invalid",
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "1" * 40,
-                "2" * 40,
-                f"{CONTEXT.run_url}?injected=1",
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "1" * 40,
-                "2" * 40,
-                f"{CONTEXT.run_url}\n",
-            ),
-            (
-                CONTEXT.repository,
-                CONTEXT.head_repository,
-                CONTEXT.workflow_repository,
-                1,
-                "1" * 40,
-                "2" * 40,
-                f"{CONTEXT.run_url}\t",
-            ),
+            {"repository": "owner/repo|bad"},
+            {"pr_head_repository": "owner/repo|bad"},
+            {"pr_number": 0},
+            {"base_sha": "A" * 40},
+            {"head_sha": "A" * 40},
+            {"main_sha": "A" * 40},
+            {"pr_head_sha": "A" * 40},
+            {"merge_candidate_sha": "A" * 40},
+            {"run_url": "https://[invalid"},
+            {"run_url": f"{CONTEXT.run_url}?injected=1"},
+            {"run_url": f"{CONTEXT.run_url}\n"},
+            {"run_url": f"{CONTEXT.run_url}\t"},
         )
         for values in invalid:
             with self.subTest(values=values):
                 with self.assertRaises(benchmark.ValidationError):
-                    benchmark.validate_context(*values)
+                    context = {
+                        key: value
+                        for key, value in CONTEXT.__dict__.items()
+                        if key != "comparison_mode"
+                    } | values
+                    benchmark.validate_context(**context)
 
 
 class ArgumentParserTests(unittest.TestCase):
@@ -447,8 +441,8 @@ class ArgumentParserTests(unittest.TestCase):
         context_arguments = [
             "--repository",
             CONTEXT.repository,
-            "--head-repository",
-            CONTEXT.head_repository,
+            "--pr-head-repository",
+            CONTEXT.pr_head_repository,
             "--workflow-repository",
             CONTEXT.workflow_repository,
             "--pr-number",
@@ -457,6 +451,12 @@ class ArgumentParserTests(unittest.TestCase):
             CONTEXT.base_sha,
             "--head-sha",
             CONTEXT.head_sha,
+            "--main-sha",
+            CONTEXT.main_sha,
+            "--pr-head-sha",
+            CONTEXT.pr_head_sha,
+            "--merge-candidate-sha",
+            CONTEXT.merge_candidate_sha,
             "--run-url",
             CONTEXT.run_url,
         ]
@@ -975,14 +975,38 @@ class ArtifactValidationTests(unittest.TestCase):
             comparison_path = root / "comparison.json"
 
             valid = benchmark.render_artifact(
-                artifact.root, CONTEXT, report, comparison_path
+                artifact.root,
+                CONTEXT,
+                report,
+                comparison_path,
+                CURRENT_MAIN_SHA,
+                CURRENT_PR_HEAD_SHA,
             )
             comparison = json.loads(comparison_path.read_text())
 
             self.assertFalse(valid)
             self.assertEqual(comparison["overall"], "inconclusive")
             self.assertIn("wrong number of passes", comparison["error"])
-            self.assertIn("raw benchmark artifact did not pass validation", report.read_text())
+            self.assertIn("could not be validated", report.read_text())
+
+    def test_render_artifact_fails_closed_without_current_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = RawArtifact(root / "raw")
+            report = root / "report.md"
+            comparison_path = root / "comparison.json"
+
+            valid = benchmark.render_artifact(
+                artifact.root, CONTEXT, report, comparison_path
+            )
+            comparison = json.loads(comparison_path.read_text())
+
+        self.assertFalse(valid)
+        self.assertEqual(comparison["overall"], "inconclusive")
+        self.assertIn("current publication state query", comparison["error"])
+        self.assertNotIn("freshness", comparison)
+        self.assertNotIn("current_main_sha", comparison)
+        self.assertNotIn("current_pr_head_sha", comparison)
 
     def test_render_artifact_rejects_delta_that_overflows_after_rounding(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1003,18 +1027,91 @@ class ArtifactValidationTests(unittest.TestCase):
             comparison_path = root / "comparison.json"
 
             valid = benchmark.render_artifact(
-                artifact.root, CONTEXT, report, comparison_path
+                artifact.root,
+                CONTEXT,
+                report,
+                comparison_path,
+                CURRENT_MAIN_SHA,
+                CURRENT_PR_HEAD_SHA,
             )
             comparison_text = comparison_path.read_text()
             comparison = json.loads(comparison_text)
 
             self.assertFalse(valid)
-            self.assertEqual(comparison["schema_version"], 1)
+            self.assertEqual(
+                comparison["schema_version"], benchmark.COMPARISON_SCHEMA_VERSION
+            )
             self.assertEqual(comparison["overall"], "inconclusive")
             self.assertEqual(comparison["methods"], [])
             self.assertIn("delta must remain finite", comparison["error"])
             self.assertNotIn("Infinity", comparison_text)
             self.assertIn("**Overall:** `inconclusive`", report.read_text())
+
+
+class PublicationStateTests(unittest.TestCase):
+    def test_freshness_matrix_prioritizes_pr_head_changes(self) -> None:
+        states = (
+            (CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA, "current"),
+            ("5" * 40, CURRENT_PR_HEAD_SHA, "main-advanced"),
+            (CURRENT_MAIN_SHA, "6" * 40, "superseded"),
+            ("5" * 40, "6" * 40, "superseded"),
+        )
+        for current_main, current_head, expected in states:
+            with self.subTest(expected=expected):
+                state = benchmark.validate_publication_state(
+                    CONTEXT, current_main, current_head
+                )
+                self.assertEqual(state.value, expected)
+
+    def test_freshness_never_rewrites_performance_verdicts(self) -> None:
+        for head_ms, expected in (
+            (12.0, "regression"),
+            (8.0, "improvement"),
+            (10.0, "stable"),
+        ):
+            samples = {
+                "base": {method: [10.0] * 20 for method in benchmark.METHODS},
+                "head": {method: [head_ms] * 20 for method in benchmark.METHODS},
+            }
+            frozen = benchmark.build_comparison(samples, CONTEXT)
+            for current_main, current_head, freshness in (
+                ("5" * 40, CURRENT_PR_HEAD_SHA, "main-advanced"),
+                (CURRENT_MAIN_SHA, "6" * 40, "superseded"),
+            ):
+                with self.subTest(expected=expected, freshness=freshness):
+                    comparison = benchmark.add_publication_state(
+                        frozen, CONTEXT, current_main, current_head
+                    )
+                    self.assertEqual(comparison["freshness"], freshness)
+                    self.assertEqual(comparison["overall"], expected)
+                    self.assertEqual(
+                        {method["verdict"] for method in comparison["methods"]},
+                        {expected},
+                    )
+
+    def test_stale_conclusive_artifact_preserves_performance_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = RawArtifact(root / "raw")
+            report = root / "report.md"
+            comparison_path = root / "comparison.json"
+
+            valid = benchmark.render_artifact(
+                artifact.root,
+                CONTEXT,
+                report,
+                comparison_path,
+                "5" * 40,
+                CURRENT_PR_HEAD_SHA,
+            )
+            comparison = json.loads(comparison_path.read_text())
+            report_text = report.read_text()
+
+        self.assertTrue(valid)
+        self.assertEqual(comparison["freshness"], "main-advanced")
+        self.assertEqual(comparison["overall"], "stable")
+        self.assertIn("reference only", report_text)
+        self.assertIn("Rerun the benchmark before merging", report_text)
 
 
 class StatisticsTests(unittest.TestCase):
@@ -1103,11 +1200,18 @@ class MarkdownTests(unittest.TestCase):
 
     def test_render_markdown_formats_a_comparison_table(self) -> None:
         comparison = {
+            "comparison_mode": CONTEXT.comparison_mode,
             "repository": CONTEXT.repository,
-            "head_repository": CONTEXT.head_repository,
+            "pr_head_repository": CONTEXT.pr_head_repository,
             "base_sha": CONTEXT.base_sha,
             "head_sha": CONTEXT.head_sha,
+            "main_sha": CONTEXT.main_sha,
+            "pr_head_sha": CONTEXT.pr_head_sha,
+            "merge_candidate_sha": CONTEXT.merge_candidate_sha,
             "run_url": CONTEXT.run_url,
+            "freshness": "current",
+            "current_main_sha": CURRENT_MAIN_SHA,
+            "current_pr_head_sha": CURRENT_PR_HEAD_SHA,
             "overall": "regression",
             "methods": [
                 {
@@ -1130,8 +1234,45 @@ class MarkdownTests(unittest.TestCase):
         self.assertTrue(rendered.startswith("<!-- solar-lsp-benchmark -->\n## LSP benchmark\n"))
         self.assertIn("**Overall:** `regression`", rendered)
         self.assertIn(expected_row, rendered)
-        self.assertIn(f"/commit/{CONTEXT.base_sha}", rendered)
+        self.assertIn(f"/commit/{CONTEXT.merge_candidate_sha}", rendered)
+        self.assertIn(f"/commit/{CONTEXT.pr_head_sha}", rendered)
+        self.assertIn(f"/commit/{CONTEXT.main_sha}", rendered)
+        self.assertIn("main-merge-candidate", rendered)
         self.assertIn("both recomputed percentiles", rendered)
+
+    def test_stale_markdown_keeps_the_full_table_and_recommends_rerunning(self) -> None:
+        samples = {
+            role: {method: [10.0] * 20 for method in benchmark.METHODS}
+            for role in ("base", "head")
+        }
+        frozen = benchmark.build_comparison(samples, CONTEXT)
+        cases = (
+            (
+                "5" * 40,
+                CURRENT_PR_HEAD_SHA,
+                "main-advanced",
+                "frozen measurement for reference only",
+                "Rerun the benchmark before merging",
+            ),
+            (
+                CURRENT_MAIN_SHA,
+                "6" * 40,
+                "superseded",
+                "historical measurement",
+                "PR head used for the merge candidate has been replaced",
+            ),
+        )
+        for current_main, current_head, freshness, message, guidance in cases:
+            with self.subTest(freshness=freshness):
+                comparison = benchmark.add_publication_state(
+                    frozen, CONTEXT, current_main, current_head
+                )
+                rendered = benchmark.render_markdown(comparison)
+
+                self.assertIn(f"Freshness: `{freshness}`", rendered)
+                self.assertIn("| Method | Samples |", rendered)
+                self.assertIn(message, rendered)
+                self.assertIn(guidance, rendered)
 
     def test_render_markdown_escapes_inconclusive_reason(self) -> None:
         comparison = benchmark.inconclusive_comparison(

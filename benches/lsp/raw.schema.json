@@ -14,7 +14,7 @@
     "passes"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "kind": { "const": "solar-lsp-benchmark-raw" },
     "context": { "$ref": "#/$defs/context" },
     "protocol": {
@@ -132,21 +132,29 @@
     "context": {
       "type": "object",
       "required": [
+        "comparison_mode",
         "repository",
-        "head_repository",
+        "pr_head_repository",
         "workflow_repository",
         "pr_number",
         "base_sha",
         "head_sha",
+        "main_sha",
+        "pr_head_sha",
+        "merge_candidate_sha",
         "run_url"
       ],
       "properties": {
+        "comparison_mode": { "const": "main-merge-candidate" },
         "repository": { "$ref": "#/$defs/repository" },
-        "head_repository": { "$ref": "#/$defs/repository" },
+        "pr_head_repository": { "$ref": "#/$defs/repository" },
         "workflow_repository": { "$ref": "#/$defs/repository" },
         "pr_number": { "type": "integer", "minimum": 1 },
         "base_sha": { "$ref": "#/$defs/sha" },
         "head_sha": { "$ref": "#/$defs/sha" },
+        "main_sha": { "$ref": "#/$defs/sha" },
+        "pr_head_sha": { "$ref": "#/$defs/sha" },
+        "merge_candidate_sha": { "$ref": "#/$defs/sha" },
         "run_url": {
           "type": "string",
           "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$(?![\\s\\S])"
