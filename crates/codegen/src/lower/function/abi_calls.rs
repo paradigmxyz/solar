@@ -709,7 +709,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_if_calldata_invalid(out_of_bounds);
     }
 
-    fn revert_if_calldata_invalid(&mut self, condition: ValueId) {
+    pub(super) fn revert_if_calldata_invalid(&mut self, condition: ValueId) {
         let revert = self.builder.create_block();
         let continue_block = self.builder.create_block();
         self.builder.branch(condition, revert, continue_block);
