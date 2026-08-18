@@ -15,15 +15,15 @@ use crate::{
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
-use solar_ast::{BinOpKind, DataLocation, LitKind, StrKind, UnOpKind};
+use solar_ast::{BinOpKind, DataLocation, LitKind, StrKind, TypeSize, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
 use solar_interface::{Ident, Span, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
     eval::ConstValue,
-    hir::{self, ExprKind, LoopSource, StmtKind, VariableId},
-    ty::{CallableParamNames, CallableParamSource, Ty, TyKind},
+    hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
+    ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
 use std::sync::Arc;
 

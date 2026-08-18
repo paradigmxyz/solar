@@ -1,6 +1,7 @@
 //! ABI value and packed encoding helpers for one lowered function.
 
 use super::*;
+use crate::transform::lower_abi::decode_memory_tuple;
 
 enum PackedPiece<'gcx> {
     Bytes(Vec<u8>),
@@ -87,10 +88,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let value = self.lower_expr(expr)?;
         let fixed_bytes = self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| {
-            matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-            )
+            matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
         });
         if !fixed_bytes
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if matches!(
@@ -369,17 +367,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.abi_value_needs_normalization(self.context.gcx.type_of_item(field.into()))
             }),
             TyKind::Udvt(inner, _) => self.abi_value_needs_normalization(inner),
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::UInt(size)
-                | solar_sema::hir::ElementaryType::Int(size),
-            ) => size.bits() < 256,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_))
+            TyKind::Elementary(ElementaryType::UInt(size) | ElementaryType::Int(size)) => {
+                size.bits() < 256
+            }
+            TyKind::Elementary(ElementaryType::Address(_))
             | TyKind::Contract(_)
             | TyKind::Enum(_)
-            | TyKind::Elementary(solar_sema::hir::ElementaryType::Bool) => true,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
-                size.bytes() < 32
-            }
+            | TyKind::Elementary(ElementaryType::Bool) => true,
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => size.bytes() < 32,
             _ => false,
         }
     }
@@ -470,25 +465,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        crate::transform::lower_abi::decode_memory_tuple(
-            &mut self.builder,
-            base,
-            length,
-            &layout,
-            true,
-        )
+        decode_memory_tuple(&mut self.builder, base, length, &layout, true)
     }
 
-    fn needs_eager_abi_decode(ty: &crate::mir::AbiParamType) -> bool {
+    fn needs_eager_abi_decode(ty: &AbiParamType) -> bool {
         match ty {
-            crate::mir::AbiParamType::FixedArray { element, .. }
-            | crate::mir::AbiParamType::DynamicArray(element) => element.is_dynamic(),
-            crate::mir::AbiParamType::Tuple(fields) => {
-                fields.iter().any(crate::mir::AbiParamType::is_dynamic)
+            AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
+                element.is_dynamic()
             }
-            crate::mir::AbiParamType::Scalar(_)
-            | crate::mir::AbiParamType::Enum { .. }
-            | crate::mir::AbiParamType::Bytes => false,
+            AbiParamType::Tuple(fields) => fields.iter().any(AbiParamType::is_dynamic),
+            AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => false,
         }
     }
 
@@ -598,10 +584,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.is_calldata_dynamic_bytes_type(ty)
                 || matches!(
                     ty.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
                 )
             {
                 let value_ty = self.builder.func().value_ty(value);
@@ -839,9 +822,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.inplace_dynamic_shape(self.context.gcx.type_of_item(field.into()))
             }),
             TyKind::Fn(function) => function.is_external(),
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => true,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
             TyKind::Udvt(inner, _) => self.inplace_dynamic_shape(inner),
             TyKind::Tuple(_) => false,
             TyKind::Slice(_) => false,
@@ -870,9 +851,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(total)
             }
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.count_inplace_bytes(value)),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.count_inplace_bytes(value))
+            }
             TyKind::Udvt(inner, _) => self.count_inplace_dynamic_value(inner, value),
             TyKind::Tuple(_) | TyKind::Slice(_) => None,
             _ => Some(self.builder.imm_u64(1)),
@@ -943,9 +924,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(offset)
             }
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.copy_inplace_bytes(value, output, offset)),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.copy_inplace_bytes(value, output, offset))
+            }
             TyKind::Udvt(inner, _) => self.copy_inplace_dynamic_value(inner, value, output, offset),
             TyKind::Tuple(_) | TyKind::Slice(_) => None,
             TyKind::Fn(function) if function.is_external() => {
@@ -1176,19 +1157,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.kind {
             TyKind::Ref(inner, DataLocation::Calldata) => matches!(
                 inner.kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                )
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             ),
             TyKind::Slice(inner) => {
                 inner.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         inner.peel_refs().kind,
-                        TyKind::Elementary(
-                            solar_sema::hir::ElementaryType::Bytes
-                                | solar_sema::hir::ElementaryType::String,
-                        )
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
                     )
             }
             _ => false,
@@ -1263,17 +1238,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn packed_static_shape(&self, ty: Ty<'gcx>) -> Option<(u64, bool)> {
         match ty.peel_refs().kind {
             TyKind::Elementary(elementary) => Some(match elementary {
-                solar_sema::hir::ElementaryType::Bool => (1, false),
-                solar_sema::hir::ElementaryType::Address(_) => (20, false),
-                solar_sema::hir::ElementaryType::Int(size)
-                | solar_sema::hir::ElementaryType::UInt(size)
-                | solar_sema::hir::ElementaryType::Fixed(size, _)
-                | solar_sema::hir::ElementaryType::UFixed(size, _) => {
-                    (u64::from(size.bytes()), false)
-                }
-                solar_sema::hir::ElementaryType::FixedBytes(size) => {
-                    (u64::from(size.bytes()), true)
-                }
+                ElementaryType::Bool => (1, false),
+                ElementaryType::Address(_) => (20, false),
+                ElementaryType::Int(size)
+                | ElementaryType::UInt(size)
+                | ElementaryType::Fixed(size, _)
+                | ElementaryType::UFixed(size, _) => (u64::from(size.bytes()), false),
+                ElementaryType::FixedBytes(size) => (u64::from(size.bytes()), true),
                 _ => return None,
             }),
             TyKind::Contract(_) => Some((20, false)),

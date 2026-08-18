@@ -71,9 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 matches!(rhs.peel_parens().kind, ExprKind::Call(..))
                     && self.is_constant_storage_value(rhs, target_ty)
             }
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 matches!(rhs.peel_parens().kind, ExprKind::Lit(..))
                     && self.is_constant_storage_value(rhs, target_ty)
             }
@@ -83,9 +81,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => matches!(self.context.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_))),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                matches!(self.context.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_)))
+            }
             TyKind::Struct(struct_id) => {
                 let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
                     return false;
@@ -138,9 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 let Ok(ConstValue::String(value)) = self.context.gcx.try_eval_const_value(expr)
                 else {
                     return None;
@@ -347,9 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
             receiver_ty.kind,
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String
-            )
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
             return self.lower_storage_bytes_push(expr, receiver, builtin, arguments);
         }
@@ -452,9 +446,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
             receiver_ty.kind,
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String
-            )
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
             let access = self.storage_access(receiver)?;
             let old = self.load_storage_bytes(access.slot)?;
@@ -510,9 +502,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             || matches!(key_ty.kind, TyKind::Slice(inner) if inner.data_stored_in(DataLocation::Calldata));
         let is_dynamic = matches!(
             key_ty.peel_refs().kind,
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::String | solar_sema::hir::ElementaryType::Bytes
-            ) | TyKind::Slice(_)
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+                | TyKind::Slice(_)
                 | TyKind::StringLiteral(..)
         );
         if is_dynamic {
@@ -530,7 +521,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         base_slot: ValueId,
         index: ValueId,
-        element: solar_sema::ty::Ty<'gcx>,
+        element: Ty<'gcx>,
         dynamic: bool,
     ) -> Option<StorageAccess> {
         if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
@@ -616,7 +607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_storage_value(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         access: StorageAccess,
         span: Span,
     ) -> Option<ValueId> {
@@ -642,7 +633,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn store_storage_value(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         access: StorageAccess,
         value: ValueId,
         span: Span,
@@ -652,8 +643,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn store_storage_value_with_source(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
-        source_ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
+        source_ty: Ty<'gcx>,
         access: StorageAccess,
         value: ValueId,
         span: Span,
@@ -686,15 +677,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_storage_object(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         slot: ValueId,
         span: Span,
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
-            solar_sema::ty::TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => self.load_storage_bytes(slot),
-            solar_sema::ty::TyKind::Struct(struct_id) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.load_storage_bytes(slot)
+            }
+            TyKind::Struct(struct_id) => {
                 let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let layout = MemoryObjectLayout::Struct { fields };
                 let size = self.builder.imm_u64(fields.saturating_mul(32));
@@ -715,7 +706,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(object)
             }
-            solar_sema::ty::TyKind::Array(element, len) => {
+            TyKind::Array(element, len) => {
                 let len = u64::try_from(len).ok()?;
                 let element_words = self.types.element_words(element);
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
@@ -733,16 +724,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(object)
             }
-            solar_sema::ty::TyKind::DynArray(element) => {
-                self.load_dynamic_storage_object(element, slot, span)
-            }
+            TyKind::DynArray(element) => self.load_dynamic_storage_object(element, slot, span),
             _ => report_unsupported(self.context.gcx, span, "storage object copy"),
         }
     }
 
     fn load_dynamic_storage_object(
         &mut self,
-        element: solar_sema::ty::Ty<'gcx>,
+        element: Ty<'gcx>,
         slot: ValueId,
         span: Span,
     ) -> Option<ValueId> {
@@ -784,7 +773,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn store_storage_object(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         slot: ValueId,
         object: ValueId,
         span: Span,
@@ -794,8 +783,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn store_storage_object_with_source(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
-        source_ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
+        source_ty: Ty<'gcx>,
         slot: ValueId,
         object: ValueId,
         span: Span,
@@ -803,12 +792,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // MIR object values retain only their coarse kind; HIR types preserve
         // the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
-            solar_sema::ty::TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => self.store_storage_bytes(slot, object),
-            solar_sema::ty::TyKind::Struct(struct_id) => {
-                let solar_sema::ty::TyKind::Struct(source_struct_id) = source_ty.peel_refs().kind
-                else {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.store_storage_bytes(slot, object)
+            }
+            TyKind::Struct(struct_id) => {
+                let TyKind::Struct(source_struct_id) = source_ty.peel_refs().kind else {
                     return report_unsupported(self.context.gcx, span, "storage struct conversion");
                 };
                 let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
@@ -842,10 +830,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             }
-            solar_sema::ty::TyKind::Array(element, len) => {
-                let solar_sema::ty::TyKind::Array(source_element, source_len) =
-                    source_ty.peel_refs().kind
-                else {
+            TyKind::Array(element, len) => {
+                let TyKind::Array(source_element, source_len) = source_ty.peel_refs().kind else {
                     return report_unsupported(self.context.gcx, span, "storage array conversion");
                 };
                 let len = u64::try_from(len).ok()?;
@@ -880,7 +866,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             }
-            solar_sema::ty::TyKind::DynArray(element) => {
+            TyKind::DynArray(element) => {
                 self.store_dynamic_storage_object(element, source_ty, slot, object, span)
             }
             _ => report_unsupported(self.context.gcx, span, "storage object copy"),
@@ -1096,8 +1082,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn store_dynamic_storage_object(
         &mut self,
-        element: solar_sema::ty::Ty<'gcx>,
-        source_ty: solar_sema::ty::Ty<'gcx>,
+        element: Ty<'gcx>,
+        source_ty: Ty<'gcx>,
         slot: ValueId,
         object: ValueId,
         span: Span,
@@ -1105,11 +1091,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_ty = source_ty.peel_refs();
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length) = match source_ty.kind {
-            solar_sema::ty::TyKind::DynArray(source_element)
-            | solar_sema::ty::TyKind::Slice(source_element) => {
+            TyKind::DynArray(source_element) | TyKind::Slice(source_element) => {
                 (source_element, self.builder.memory_object_len(object, source_layout.kind()))
             }
-            solar_sema::ty::TyKind::Array(source_element, source_len) => {
+            TyKind::Array(source_element, source_len) => {
                 let source_len = self.builder.imm_u64(u64::try_from(source_len).ok()?);
                 (source_element, source_len)
             }
@@ -1188,14 +1173,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn clear_storage_access(
         &mut self,
-        ty: solar_sema::ty::Ty<'gcx>,
+        ty: Ty<'gcx>,
         access: StorageAccess,
     ) -> Option<()> {
         let zero = self.builder.imm_u256(U256::ZERO);
         match ty.peel_refs().kind {
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => self.clear_storage_bytes(access.slot),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.clear_storage_bytes(access.slot)
+            }
             TyKind::DynArray(element) => {
                 let length = self.builder.sload(access.slot);
                 self.builder.sstore(access.slot, zero);

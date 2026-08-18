@@ -58,17 +58,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String
-                    )
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 )
                 && matches!(
                     target_ty.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String
-                    )
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
                 let access = self.storage_access(arg)?;
                 self.load_storage_bytes(access.slot)?
@@ -309,7 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_external_function_pointer_call(
         &mut self,
         callee: &hir::Expr<'_>,
-        function: &solar_sema::ty::TyFn<'gcx>,
+        function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
@@ -321,7 +315,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_external_function_pointer_call_values(
         &mut self,
         callee: &hir::Expr<'_>,
-        function: &solar_sema::ty::TyFn<'gcx>,
+        function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<Vec<ValueId>> {
@@ -447,7 +441,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
-        function: &solar_sema::ty::TyFn<'gcx>,
+        function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if args.len() != function.parameters.len() {
@@ -507,7 +501,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn ensure_internal_function_pointer_dispatcher(
         &mut self,
-        function: &solar_sema::ty::TyFn<'gcx>,
+        function: &TyFn<'gcx>,
     ) -> FunctionId {
         let shape = InternalFunctionPointerShape {
             params: function
@@ -535,21 +529,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
         let source_size = match from.peel_refs().kind {
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
         let destination_size = match to.peel_refs().kind {
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => Some(size),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
         if let TyKind::Slice(underlying) = from.peel_refs().kind
             && let Some(size) = destination_size
             && matches!(
                 underlying.peel_refs().kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                )
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             )
             && let Some(location) = self.builder.func().value_ty(value).and_then(|ty| match ty {
                 MirType::Slice(location) => Some(location),
@@ -591,20 +582,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
             (
-                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(from_size)),
-                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(to_size)),
+                TyKind::Elementary(ElementaryType::UInt(from_size)),
+                TyKind::Elementary(ElementaryType::UInt(to_size)),
             )
             | (
-                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(from_size)),
-                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(to_size)),
+                TyKind::Elementary(ElementaryType::Int(from_size)),
+                TyKind::Elementary(ElementaryType::Int(to_size)),
             ) => to_size.bits() < from_size.bits(),
             (
-                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(from_size)),
-                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(to_size)),
+                TyKind::Elementary(ElementaryType::UInt(from_size)),
+                TyKind::Elementary(ElementaryType::Int(to_size)),
             )
             | (
-                TyKind::Elementary(solar_sema::hir::ElementaryType::Int(from_size)),
-                TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(to_size)),
+                TyKind::Elementary(ElementaryType::Int(from_size)),
+                TyKind::Elementary(ElementaryType::UInt(to_size)),
             ) => to_size.bits() <= from_size.bits(),
             _ => false,
         };
@@ -630,9 +621,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if matches!(
             from.peel_refs().kind,
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            )
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
         ) {
             let value = match self.builder.func().value_ty(value) {
                 Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => value,
@@ -657,18 +646,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
             TyKind::Udvt(inner, _) => self.normalize_abi_scalar(value, inner),
-            TyKind::Elementary(solar_sema::hir::ElementaryType::UInt(size))
-                if size.bits() < 256 =>
-            {
+            TyKind::Elementary(ElementaryType::UInt(size)) if size.bits() < 256 => {
                 let mask = U256::MAX >> (256 - usize::from(size.bits()));
                 let mask = self.builder.imm_u256(mask);
                 self.builder.and(value, mask)
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Int(size)) if size.bits() < 256 => {
+            TyKind::Elementary(ElementaryType::Int(size)) if size.bits() < 256 => {
                 let byte = self.builder.imm_u64(u64::from(size.bits() / 8 - 1));
                 self.builder.signextend(byte, value)
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_)) => {
+            TyKind::Elementary(ElementaryType::Address(_)) => {
                 let mask = U256::MAX >> 96;
                 let mask = self.builder.imm_u256(mask);
                 self.builder.and(value, mask)
@@ -678,9 +665,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mask = self.builder.imm_u256(mask);
                 self.builder.and(value, mask)
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size))
-                if size.bytes() < 32 =>
-            {
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) if size.bytes() < 32 => {
                 let mask = U256::MAX << (256 - usize::from(size.bytes()) * 8);
                 let mask = self.builder.imm_u256(mask);
                 self.builder.and(value, mask)
@@ -692,7 +677,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let mask = self.builder.imm_u256(mask);
                 self.builder.and(value, mask)
             }
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Bool) => {
+            TyKind::Elementary(ElementaryType::Bool) => {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 let is_zero = self.builder.eq(value, zero);
                 self.builder.iszero(is_zero)

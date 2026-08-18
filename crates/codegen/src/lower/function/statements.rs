@@ -465,10 +465,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             if variable.indexed {
                 match parameter_ty.peel_refs().kind {
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                    ) => {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
                             value = self.materialize_memory_slice(value);
                         }
@@ -575,10 +572,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm_u64(64);
             return self.builder.shl(shift, value);
         }
-        if !matches!(
-            ty.peel_refs().kind,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-        ) {
+        if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
             return value;
         }
         if let ExprKind::Lit(lit) = &expr.kind

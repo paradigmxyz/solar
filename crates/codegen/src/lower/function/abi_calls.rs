@@ -85,10 +85,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Slice(underlying) => {
                 if matches!(
                     underlying.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
                 ) {
                     false
                 } else {
@@ -105,9 +102,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 fields.iter().any(|&field| self.calldata_aggregate_requires_validation(field))
             }
             TyKind::Udvt(inner, _) => self.calldata_aggregate_requires_validation(inner),
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => false,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => false,
             _ => !Self::calldata_word_is_full_width(ty),
         }
     }
@@ -132,10 +127,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match location {
             SliceLocation::Calldata => self.materialize_calldata_argument(ty, value, span),
             SliceLocation::Memory => match ty.peel_refs().kind {
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                    | solar_sema::hir::ElementaryType::String,
-                ) => Some(self.materialize_memory_slice(value)),
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    Some(self.materialize_memory_slice(value))
+                }
                 _ => report_unsupported(self.context.gcx, span, "memory slice materialization"),
             },
             SliceLocation::Returndata => {
@@ -243,18 +237,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Slice(element)
                 if matches!(
                     element.peel_refs().kind,
-                    TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
                 ) =>
             {
                 self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }
@@ -392,10 +381,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 base_ty.kind,
                 TyKind::Array(..)
                     | TyKind::Struct(_)
-                    | TyKind::Elementary(
-                        solar_sema::hir::ElementaryType::Bytes
-                            | solar_sema::hir::ElementaryType::String,
-                    )
+                    | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             ) {
             ty
         } else {
@@ -426,9 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm_u64(32);
         let value_pos = self.calldata_value_position(ty, head, tuple_base, validate_bounds)?;
         match ty.kind {
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) if is_calldata => {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 let length = self.calldata_load_word(value_pos);
                 if validate_bounds {
                     let byte_stride = self.builder.imm_u64(1);
@@ -437,9 +421,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let data = self.builder.add(value_pos, word);
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds)),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds))
+            }
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
                     let length = self.calldata_load_word(value_pos);

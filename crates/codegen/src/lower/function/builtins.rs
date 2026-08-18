@@ -336,10 +336,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
             match ty.peel_refs().kind {
                 TyKind::StringLiteral(..)
-                | TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::String
-                    | solar_sema::hir::ElementaryType::Bytes,
-                ) => {
+                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                     let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
@@ -347,7 +344,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     total = self.builder.checked_add(total, length);
                     parts.push((value, Some(length), 0));
                 }
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
+                TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
                     let length_value = self.builder.imm_u64(length);
