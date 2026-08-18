@@ -1,6 +1,5 @@
 //@ run-call: test_g() => 1, 7
 //@ run-call: test_h() => 43
-// ported-from: test/libsolidity/semanticTests/types/storage_reference_mixed_tuple.sol
 
 contract C {
     struct S {
@@ -29,3 +28,4 @@ contract C {
         return y + arr[0].v;
     }
 }
+

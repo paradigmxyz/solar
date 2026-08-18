@@ -1,5 +1,4 @@
 //@ run-call: word [1, 2, 3, 4] => [2, 3, 4]
-// ported-from: test/libsolidity/semanticTests/array/slices/array_slice_calldata_to_memory.sol
 
 contract CalldataArraySubsliceRuntime {
     // Range access on a word-element calldata array keeps the slice lazy: the

@@ -2,14 +2,17 @@
 //@filecheck: --enable-var-scope
 @module FrameLoadNotHoisted
 
-// A `frame_load` stays in the loop body even though it is loop-invariant:
-// LICM must not hoist it past the loop's `frame_store` (it lowers to `mload`
-// only after LICM, when the frame slot is a physical address).
+// A `frame_load` on its own never clears the hoist-profit threshold, so the
+// guard is exercised through the hoist closure: `mul` is profitable, and
+// hoisting it would drag the load above the loop's `frame_store`, reading
+// the slot before any iteration writes it. Both must stay in the body (the
+// load lowers to `mload` only after LICM, when the slot is physical).
 // CHECK-LABEL: fn @frame_load_stays_in_body
 // CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: {{^ +}}frame_store internal_frame, word, 0, arg0
 // CHECK: {{^ +}}v0 = frame_load internal_frame, word, 0
+// CHECK: {{^ +}}v1 = mul v0, v0
 fn @frame_load_stays_in_body(arg0: u256) -> u256 {
   bb0:
     jump bb1
@@ -18,7 +21,8 @@ fn @frame_load_stays_in_body(arg0: u256) -> u256 {
   bb2:
     frame_store internal_frame, word, 0, arg0
     v0 = frame_load internal_frame, word, 0
+    v1 = mul v0, v0
     jump bb1
   bb3:
-    ret v0
+    ret v1
 }
