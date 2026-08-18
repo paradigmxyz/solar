@@ -356,8 +356,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(*bytes);
                 }
                 ExprKind::Ident(_) | ExprKind::Member(..) => {
-                    let variable_id = self.gcx.resolved_variable(expr)?;
-                    let variable = self.gcx.hir.variable(variable_id);
+                    let variable_id = self.context.gcx.resolved_variable(expr)?;
+                    let variable = self.context.gcx.hir.variable(variable_id);
                     if !variable.is_constant() {
                         return None;
                     }

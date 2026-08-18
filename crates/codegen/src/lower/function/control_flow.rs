@@ -928,7 +928,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn merge_loop_storage_refs(
         &mut self,
-        before: FxHashMap<VariableId, StorageAccess>,
+        mut before: FxHashMap<VariableId, StorageAccess>,
         exits: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
         let ids = exits

@@ -33,11 +33,16 @@ fn @plain() [selector=0xc2dcee6a, pure] {
     jumpi v22, bb5, bb7
   bb7:
     v23 = calldataload v18
-    v25 = sub v15, v19
-    v26 = shr 7, v25
-    v27 = gt v23, v26
-    jumpi v27, bb5, bb8
+    v24 = shl 7, v23
+    v26 = shr 7, v24
+    v27 = eq v26, v23
+    jumpi v27, bb8, bb5
   bb8:
+    v31 = sub v15, v19
+    v32 = shr 7, v31
+    v33 = gt v23, v32
+    jumpi v33, bb5, bb9
+  bb9:
     v1 = lt arg1, v23
     jumpi v1, bb2, bb1
 }

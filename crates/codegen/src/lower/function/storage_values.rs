@@ -699,7 +699,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let source_ty = self.context.gcx.type_of_expr(argument.id)?;
-            let value = self.lower_typed_expr(argument, self.gcx.types.fixed_bytes(1))?;
+            let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
             let value = self.coerce_value(value, source_ty, self.context.gcx.types.fixed_bytes(1));
             let shift = self.builder.imm_u64(248);
             self.builder.shr(shift, value)
@@ -1032,19 +1032,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             )
         ) {
-            let bytes_helper = match *self.storage_bytes_helper {
+            let bytes_helper = match *self.context.storage_bytes_helper {
                 Some(helper) => helper,
                 None => {
-                    let helper = synthesize_storage_bytes_helper(self.module);
-                    *self.storage_bytes_helper = Some(helper);
+                    let helper = synthesize_storage_bytes_helper(self.context.module);
+                    *self.context.storage_bytes_helper = Some(helper);
                     helper
                 }
             };
-            let helper = match *self.storage_bytes_array_helper {
+            let helper = match *self.context.storage_bytes_array_helper {
                 Some(helper) => helper,
                 None => {
-                    let helper = synthesize_storage_bytes_array_helper(self.module, bytes_helper);
-                    *self.storage_bytes_array_helper = Some(helper);
+                    let helper =
+                        synthesize_storage_bytes_array_helper(self.context.module, bytes_helper);
+                    *self.context.storage_bytes_array_helper = Some(helper);
                     helper
                 }
             };
@@ -1053,7 +1054,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
             return self.ensure_storage_struct_array_helper(element, struct_id);
         }
-        if let Some((size, encoding)) = self.storage.packed_encoding(element)
+        if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
             && self.types.memory_layout(element).is_none()
         {
@@ -1063,11 +1064,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 StorageEncoding::FixedBytes => 2,
             };
             let key = (size.bytes(), encoding);
-            let helper = match self.packed_array_helpers.get(&key).copied() {
+            let helper = match self.context.packed_array_helpers.get(&key).copied() {
                 Some(helper) => helper,
                 None => {
-                    let helper = synthesize_storage_packed_array_helper(self.module, key.0, key.1);
-                    self.packed_array_helpers.insert(key, helper);
+                    let helper =
+                        synthesize_storage_packed_array_helper(self.context.module, key.0, key.1);
+                    self.context.packed_array_helpers.insert(key, helper);
                     helper
                 }
             };
@@ -1075,13 +1077,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.types.element_words(element) == 1
             && self.types.memory_layout(element).is_none()
-            && self.storage.packed_encoding(element).is_none_or(|(size, _)| size.bits() == 256)
+            && self
+                .context
+                .storage
+                .packed_encoding(element)
+                .is_none_or(|(size, _)| size.bits() == 256)
         {
-            let helper = match *self.storage_word_array_helper {
+            let helper = match *self.context.storage_word_array_helper {
                 Some(helper) => helper,
                 None => {
-                    let helper = synthesize_storage_word_array_helper(self.module);
-                    *self.storage_word_array_helper = Some(helper);
+                    let helper = synthesize_storage_word_array_helper(self.context.module);
+                    *self.context.storage_word_array_helper = Some(helper);
                     helper
                 }
             };
@@ -1095,7 +1101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: solar_sema::ty::Ty<'gcx>,
         struct_id: solar_sema::hir::StructId,
     ) -> Option<FunctionId> {
-        if let Some(&helper) = self.storage_struct_array_helpers.get(&struct_id) {
+        if let Some(&helper) = self.context.storage_struct_array_helpers.get(&struct_id) {
             return Some(helper);
         }
 
@@ -1104,27 +1110,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
 
-        let name = format!("__load_storage_struct_array_{}", self.module.functions.len());
+        let name = format!("__load_storage_struct_array_{}", self.context.module.functions.len());
         let mut function = Function::new(Ident::from_str(&name));
         function.attributes.no_inline = true;
-        let helper = self.module.add_function(function);
-        self.storage_struct_array_helpers.insert(struct_id, helper);
+        let helper = self.context.module.add_function(function);
+        self.context.storage_struct_array_helpers.insert(struct_id, helper);
 
-        let field_ids = self.gcx.hir.strukt(struct_id).fields.to_vec();
+        let field_ids = self.context.gcx.hir.strukt(struct_id).fields.to_vec();
         let mut fields = Vec::with_capacity(field_ids.len());
         for (index, field_id) in field_ids.into_iter().enumerate() {
-            let field_ty = self.gcx.type_of_item(field_id.into());
-            let location = self.storage.field_location(struct_id, index)?;
+            let field_ty = self.context.gcx.type_of_item(field_id.into());
+            let location = self.context.storage.field_location(struct_id, index)?;
             let field = match field_ty.peel_refs().kind {
                 solar_sema::ty::TyKind::Elementary(
                     solar_sema::hir::ElementaryType::Bytes
                     | solar_sema::hir::ElementaryType::String,
-                ) if self.share_storage_bytes => {
-                    let helper = match *self.storage_bytes_helper {
+                ) if self.context.share_storage_bytes => {
+                    let helper = match *self.context.storage_bytes_helper {
                         Some(helper) => helper,
                         None => {
-                            let helper = synthesize_storage_bytes_helper(self.module);
-                            *self.storage_bytes_helper = Some(helper);
+                            let helper = synthesize_storage_bytes_helper(self.context.module);
+                            *self.context.storage_bytes_helper = Some(helper);
                             helper
                         }
                     };
@@ -1136,9 +1142,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 solar_sema::ty::TyKind::Enum(id) => StorageStructField::Enum {
                     location,
-                    variants: self.gcx.hir.enumm(id).variants.len() as u64,
+                    variants: self.context.gcx.hir.enumm(id).variants.len() as u64,
                 },
-                _ if self.storage.packed_encoding(field_ty).is_some() => {
+                _ if self.context.storage.packed_encoding(field_ty).is_some() => {
                     StorageStructField::Scalar { location }
                 }
                 _ => return None,
@@ -1147,12 +1153,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         synthesize_storage_struct_array_helper(
-            self.module,
+            self.context.module,
             helper,
-            self.storage,
+            self.context.storage,
             &fields,
-            self.storage.element_slots(element),
-            self.gcx.hir.strukt(struct_id).fields.len() as u64,
+            self.context.storage.element_slots(element, Span::DUMMY),
+            self.context.gcx.hir.strukt(struct_id).fields.len() as u64,
         );
         Some(helper)
     }
@@ -1165,24 +1171,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !visiting.insert(struct_id) {
             return true;
         }
-        let supported =
-            self.gcx.hir.strukt(struct_id).fields.iter().enumerate().all(|(index, &field_id)| {
-                if self.storage.field_location(struct_id, index).is_none() {
+        let supported = self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate().all(
+            |(index, &field_id)| {
+                if self.context.storage.field_location(struct_id, index).is_none() {
                     return false;
                 }
-                let field_ty = self.gcx.type_of_item(field_id.into());
+                let field_ty = self.context.gcx.type_of_item(field_id.into());
                 match field_ty.peel_refs().kind {
                     solar_sema::ty::TyKind::Elementary(
                         solar_sema::hir::ElementaryType::Bytes
                         | solar_sema::hir::ElementaryType::String,
-                    ) => self.share_storage_bytes,
+                    ) => self.context.share_storage_bytes,
                     solar_sema::ty::TyKind::DynArray(element) => {
                         self.can_lower_storage_array_element(element, visiting)
                     }
                     solar_sema::ty::TyKind::Enum(_) => true,
-                    _ => self.storage.packed_encoding(field_ty).is_some(),
+                    _ => self.context.storage.packed_encoding(field_ty).is_some(),
                 }
-            });
+            },
+        );
         visiting.remove(&struct_id);
         supported
     }
@@ -1203,7 +1210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
             return self.can_lower_storage_struct_array(struct_id, visiting);
         }
-        if let Some((size, _)) = self.storage.packed_encoding(element)
+        if let Some((size, _)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
             && self.types.memory_layout(element).is_none()
         {
@@ -1211,7 +1218,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         self.types.element_words(element) == 1
             && self.types.memory_layout(element).is_none()
-            && self.storage.packed_encoding(element).is_none_or(|(size, _)| size.bits() == 256)
+            && self
+                .context
+                .storage
+                .packed_encoding(element)
+                .is_none_or(|(size, _)| size.bits() == 256)
     }
 
     fn load_dynamic_storage_object(

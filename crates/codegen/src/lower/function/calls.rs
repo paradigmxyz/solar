@@ -816,7 +816,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
-        let return_ty = self.gcx.type_of_item(function.returns[0].into());
+        let return_ty = self.context.gcx.type_of_item(function.returns[0].into());
         if !return_ty.is_ref_at(DataLocation::Memory) {
             return None;
         }
@@ -827,7 +827,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ExprKind::Call(constructor, args, None) = return_expr.peel_parens().kind else {
             return None;
         };
-        let Some(hir::Res::Item(item)) = self.gcx.resolved_expr(constructor) else {
+        let Some(hir::Res::Item(item)) = self.context.gcx.resolved_expr(constructor) else {
             return None;
         };
         let struct_id = item.as_struct()?;
@@ -996,12 +996,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             return values.into_iter().next().or(Some(zero));
         }
-        if self.gcx.sess.opts.evm_version.supports_returndata() {
+        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
             let size = self.builder.imm_u64((returns as u64).saturating_mul(32));
             self.revert_if_short_returndata(size);
             for (index, &ret) in function.returns.iter().enumerate() {
                 let value = self.load_multi_return_value(ret_offset, index, returns);
-                self.validate_external_return_value(self.gcx.type_of_item(ret.into()), value);
+                self.validate_external_return_value(
+                    self.context.gcx.type_of_item(ret.into()),
+                    value,
+                );
             }
         }
         if returns > 1 {
@@ -1166,7 +1169,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let valid = match ty.kind {
             TyKind::Enum(id) => {
-                let variants = self.builder.imm_u64(self.gcx.hir.enumm(id).variants.len() as u64);
+                let variants =
+                    self.builder.imm_u64(self.context.gcx.hir.enumm(id).variants.len() as u64);
                 self.builder.lt(value, variants)
             }
             TyKind::Elementary(elementary) => match elementary {

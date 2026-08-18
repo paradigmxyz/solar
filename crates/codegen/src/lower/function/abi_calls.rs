@@ -100,8 +100,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Struct(id) => {
                 let mut offset = 0;
-                for &field in self.gcx.hir.strukt(id).fields {
-                    let field_ty = self.gcx.type_of_item(field.into());
+                for &field in self.context.gcx.hir.strukt(id).fields {
+                    let field_ty = self.context.gcx.type_of_item(field.into());
                     let position = if offset == 0 {
                         base
                     } else {
@@ -735,11 +735,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.calldata_load_word(position);
         let valid = AbiWordValidator::from_mir_type(MirType::Function)
             .expect("function words always validate")
-            .condition(
-                &mut self.builder,
-                value,
-                self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-            );
+            .condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
         self.revert_if_calldata_invalid(invalid);
         let shift = self.builder.imm_u64(64);
@@ -773,11 +769,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 None => return value,
             },
         };
-        let valid = validator.condition(
-            &mut self.builder,
-            value,
-            self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-        );
+        let valid = validator.condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
         self.revert_if_calldata_invalid(invalid);
         value

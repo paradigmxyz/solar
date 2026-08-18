@@ -164,6 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(function_id) = self.context.gcx.resolved_function(function) {
                 let selector = self.context.gcx.function_selector(function_id).0;
                 let parameter_types = self
+                    .context
                     .gcx
                     .hir
                     .function(function_id)
@@ -176,10 +177,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(TyKind::Fn(function_ty)) =
                     self.context.gcx.type_of_expr(function.id).map(|ty| ty.kind)
                 else {
-                    return report_unsupported(self.context.gcx, function.span, "abi.encodeCall function");
+                    return report_unsupported(
+                        self.context.gcx,
+                        function.span,
+                        "abi.encodeCall function",
+                    );
                 };
                 if !function_ty.is_external() {
-                    return report_unsupported(self.context.gcx, function.span, "abi.encodeCall function");
+                    return report_unsupported(
+                        self.context.gcx,
+                        function.span,
+                        "abi.encodeCall function",
+                    );
                 }
                 let function_value = self.lower_expr(function)?;
                 let mask = self.builder.imm_u256(U256::from(u32::MAX));
@@ -192,7 +201,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => vec![tuple],
         };
         if exprs.len() != parameter_types.len() {
-            return report_unsupported(self.context.gcx, tuple.span, "abi.encodeCall argument list");
+            return report_unsupported(
+                self.context.gcx,
+                tuple.span,
+                "abi.encodeCall argument list",
+            );
         }
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
@@ -224,11 +237,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        if !self.is_external_abi_argument(value) {
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+        if !self.is_external_abi_argument(value)
+            && let TyKind::Enum(id) = ty.peel_refs().kind
+        {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
         }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
@@ -481,15 +494,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let args = self.builtin_args::<2>(Builtin::AbiDecode, &args)?;
         let types = match args[1].kind {
             ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
-            _ => return report_unsupported(self.context.gcx, args[1].span, "abi.decode target type"),
+            _ => {
+                return report_unsupported(
+                    self.context.gcx,
+                    args[1].span,
+                    "abi.decode target type",
+                );
+            }
         };
         if types.is_empty() {
             return report_unsupported(self.context.gcx, args[1].span, "abi.decode target type");
         }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
-            let Some(TyKind::Type(ty)) = self.context.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind) else {
-                return report_unsupported(self.context.gcx, ty_expr.span, "abi.decode target type");
+            let Some(TyKind::Type(ty)) =
+                self.context.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
+            else {
+                return report_unsupported(
+                    self.context.gcx,
+                    ty_expr.span,
+                    "abi.decode target type",
+                );
             };
             decoded_types.push(ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory));
         }
@@ -988,7 +1013,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                return report_unsupported(self.context.gcx, expr.span, "abi.encodePacked argument");
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "abi.encodePacked argument",
+                );
             };
             let value = self.normalize_abi_scalar(value, ty);
             let signed = is_signed_packed_scalar(ty);
@@ -1123,13 +1152,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.inplace_dynamic_shape(element)
             }
-            TyKind::Struct(id) => self
-                .gcx
-                .hir
-                .strukt(id)
-                .fields
-                .iter()
-                .all(|&field| self.inplace_dynamic_shape(self.context.gcx.type_of_item(field.into()))),
+            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                self.inplace_dynamic_shape(self.context.gcx.type_of_item(field.into()))
+            }),
             TyKind::Fn(function) => function.is_external(),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,

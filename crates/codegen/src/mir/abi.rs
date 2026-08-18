@@ -405,9 +405,14 @@ impl AbiWordValidator {
                 builder.eq(word, canonical)
             }
             Self::Bool => {
-                let zero = builder.iszero(word);
-                let canonical = builder.iszero(zero);
-                builder.eq(word, canonical)
+                if has_bitwise_shifting {
+                    let two = builder.imm_u64(2);
+                    builder.lt(word, two)
+                } else {
+                    let zero = builder.iszero(word);
+                    let canonical = builder.iszero(zero);
+                    builder.eq(word, canonical)
+                }
             }
             Self::EnumRange(variants) => {
                 let variants = builder.imm_u64(variants);

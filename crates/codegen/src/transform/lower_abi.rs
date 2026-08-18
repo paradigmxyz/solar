@@ -45,6 +45,7 @@ use crate::{
     },
     pass::MirPass,
 };
+use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -410,8 +411,8 @@ impl LowerAbiCx {
         let mut static_alias_decode_helpers = FxHashMap::default();
         let mut static_alias_ptr_decode_helpers = FxHashMap::default();
         let mut aggregate_decode_helpers = FxHashMap::default();
-        let mut static_decode_counts = FxHashMap::<AbiParamLayout, usize>::default();
-        let mut static_alias_decode_counts = FxHashMap::<AbiParamLayout, usize>::default();
+        let mut static_decode_counts = FxHashMap::<AbiParamLayoutRef, usize>::default();
+        let mut static_alias_decode_counts = FxHashMap::<AbiParamLayoutRef, usize>::default();
         let mut static_alias_ptr_layouts = FxHashSet::default();
         for (layout, count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
@@ -432,12 +433,11 @@ impl LowerAbiCx {
                 }
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
                 if Self::can_alias_static_decode(func, result, &layout.types[0]) {
-                    if static_decode_counts.contains_key(layout.as_ref()) {
-                        *static_alias_decode_counts.entry(layout.as_ref().clone()).or_default() +=
-                            1;
+                    if static_decode_counts.contains_key(layout) {
+                        *static_alias_decode_counts.entry(layout.clone()).or_default() += 1;
                     }
                     if matches!(func.value_ty(*data), Some(MirType::MemPtr)) {
-                        static_alias_ptr_layouts.insert(layout.as_ref().clone());
+                        static_alias_ptr_layouts.insert(layout.clone());
                     }
                 }
             }
@@ -447,7 +447,7 @@ impl LowerAbiCx {
             let alias_count = static_alias_decode_counts.get(&layout).copied().unwrap_or_default();
             if alias_count >= 2 {
                 let helper =
-                    self.synthesize_static_alias_decode_helper(module, layout.clone(), false);
+                    self.synthesize_static_alias_decode_helper(module, (*layout).clone(), false);
                 static_alias_decode_helpers.insert(layout.clone(), helper);
             }
             if count != alias_count {
@@ -456,7 +456,8 @@ impl LowerAbiCx {
             }
         }
         for layout in static_alias_ptr_layouts {
-            let helper = self.synthesize_static_alias_decode_helper(module, layout.clone(), true);
+            let helper =
+                self.synthesize_static_alias_decode_helper(module, (*layout).clone(), true);
             static_alias_ptr_decode_helpers.insert(layout, helper);
         }
 
@@ -605,58 +606,6 @@ impl LowerAbiCx {
         }
     }
 
-    fn can_share_aggregate_helper(func: &Function, layout: &AbiParamLayout) -> bool {
-        Self::can_share_aggregate_args(layout, &func.params.iter().copied().collect::<Vec<_>>())
-    }
-
-    fn can_share_aggregate_args(layout: &AbiParamLayout, arg_types: &[MirType]) -> bool {
-        layout.types.iter().enumerate().all(|(index, ty)| {
-            !Self::is_supported_aggregate(ty)
-                || matches!(arg_types.get(index), Some(MirType::MemoryObject(_)))
-        }) && layout.types.iter().any(Self::is_supported_aggregate)
-    }
-
-    fn synthesize_calldata_aggregate_helper(
-        &self,
-        module: &mut Module,
-        layout: AbiParamLayout,
-    ) -> FunctionId {
-        let name = format!("__decode_calldata_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let input = builder.add_param(MirType::Slice(SliceLocation::Calldata));
-            let base = builder.slice_ptr(input);
-            let input_end = builder.calldatasize();
-            let mut current = builder.current_block();
-            let mut values = Vec::new();
-            let mut head_offset = 0_u64;
-            for ty in &layout.types {
-                if Self::is_supported_aggregate(ty) {
-                    let offset = builder.imm_u64(head_offset);
-                    let head = builder.add(base, offset);
-                    let value = Self::decode_aggregate_argument(
-                        &mut builder,
-                        ty,
-                        ty.mir_type(),
-                        head,
-                        base,
-                        input_end,
-                        false,
-                        &mut current,
-                        true,
-                        false,
-                    );
-                    builder.add_return(ty.mir_type());
-                    values.push(value);
-                }
-                head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
-            }
-            builder.ret(values);
-        }
-        module.add_function(function)
-    }
-
     fn synthesize_calldata_aggregate_type_helper(
         &self,
         module: &mut Module,
@@ -759,15 +708,15 @@ impl LowerAbiCx {
             builder.add_return(result_ty);
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values =
-                Self::decode_memory_tuple(
-                    &mut builder,
-                    base,
-                    length, layout.as_ref(),
-                    false,
-                    self.has_bitwise_shifting,
-                )
-                .expect("checked static ABI layout");
+            let values = Self::decode_memory_tuple(
+                &mut builder,
+                base,
+                length,
+                layout.as_ref(),
+                false,
+                self.has_bitwise_shifting,
+            )
+            .expect("checked static ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -869,9 +818,8 @@ impl LowerAbiCx {
                 &mut valid,
                 has_bitwise_shifting,
             );
-            offset = offset.saturating_add(
-                ty.checked_head_size().expect("ABI head size exceeds u64 range"),
-            );
+            offset = offset
+                .saturating_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"));
         }
 
         let invalid = builder.iszero(valid);
@@ -982,9 +930,7 @@ impl LowerAbiCx {
         let Some(_) = fields.get(field_index) else { return false };
         let Some(offset) = fields[..field_index]
             .iter()
-            .try_fold(0_u64, |offset, field| {
-                offset.checked_add(field.checked_head_size()?)
-            })
+            .try_fold(0_u64, |offset, field| offset.checked_add(field.checked_head_size()?))
         else {
             return false;
         };
@@ -1006,15 +952,15 @@ impl LowerAbiCx {
             }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values =
-                Self::decode_memory_tuple(
-                    &mut builder,
-                    base,
-                    length, layout.as_ref(),
-                    false,
-                    self.has_bitwise_shifting,
-                )
-                .expect("checked aggregate ABI layout");
+            let values = Self::decode_memory_tuple(
+                &mut builder,
+                base,
+                length,
+                layout.as_ref(),
+                false,
+                self.has_bitwise_shifting,
+            )
+            .expect("checked aggregate ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -1818,7 +1764,7 @@ impl LowerAbiCx {
                 let word = builder.imm_u64(32);
                 let element_head_size = builder
                     .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
+                let _ = Self::checked_mul(builder, len, element_head_size, current);
                 let data = builder.add(base, word);
                 Self::checked_dynamic_array_bytes(
                     builder,
@@ -2129,7 +2075,7 @@ impl LowerAbiCx {
                 let word = builder.imm_u64(32);
                 let element_head_size = builder
                     .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let bytes = Self::checked_mul(builder, len, element_head_size, current);
+                let _ = Self::checked_mul(builder, len, element_head_size, current);
                 let data = builder.add(base, word);
                 Self::checked_dynamic_array_bytes(
                     builder,
@@ -2289,7 +2235,7 @@ impl LowerAbiCx {
                 let word = builder.imm_u64(32);
                 let element_head_size = builder
                     .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let head_bytes = Self::checked_mul(builder, len, element_head_size, current);
+                let _ = Self::checked_mul(builder, len, element_head_size, current);
                 let head = builder.add(base, word);
                 let _ = Self::checked_dynamic_array_bytes(
                     builder,

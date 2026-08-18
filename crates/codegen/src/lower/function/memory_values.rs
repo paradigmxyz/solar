@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
         let value = if !bytes.is_empty()
             && bytes.len() <= 32
-            && self.shared_word_literals.contains(bytes)
+            && self.context.shared_word_literals.contains(bytes)
         {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
@@ -147,7 +147,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
                 1,
             )
-        } else if self.shared_literals.contains(bytes) {
+        } else if self.context.shared_literals.contains(bytes) {
             let helper = self.ensure_bytes_literal_helper(bytes);
             self.builder.internal_call(
                 helper,
@@ -163,7 +163,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        if let Some(id) = *self.literal_word_helper {
+        if let Some(id) = *self.context.literal_word_helper {
             return id;
         }
         let mut function = Function::new(Ident::from_str("__literal_bytes_word"));
@@ -184,8 +184,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.memory_object_store_word(object, zero, word);
             builder.ret([object]);
         }
-        let id = self.module.add_function(function);
-        *self.literal_word_helper = Some(id);
+        let id = self.context.module.add_function(function);
+        *self.context.literal_word_helper = Some(id);
         id
     }
 
@@ -211,10 +211,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_literal_helper(&mut self, bytes: &[u8]) -> FunctionId {
-        if let Some(&id) = self.literal_helpers.get(bytes) {
+        if let Some(&id) = self.context.literal_helpers.get(bytes) {
             return id;
         }
-        let index = self.literal_helpers.len();
+        let index = self.context.literal_helpers.len();
         let mut function = Function::new(Ident::from_str(&format!("__literal_bytes_{index}")));
         function.attributes.no_inline = true;
         {
@@ -225,8 +225,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .expect("literal length fits in a memory object");
             builder.ret([object]);
         }
-        let id = self.module.add_function(function);
-        self.literal_helpers.insert(bytes.to_vec(), id);
+        let id = self.context.module.add_function(function);
+        self.context.literal_helpers.insert(bytes.to_vec(), id);
         id
     }
 

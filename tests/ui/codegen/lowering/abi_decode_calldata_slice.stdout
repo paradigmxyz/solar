@@ -29,7 +29,7 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_args=laz
     revert 0, 0
   bb6:
     v14 = slice_len v7
-    v15 = add v14, 31
+    v15 = add v14, 63
     v16 = lt v15, v14
     jumpi v16, bb7, bb8
   bb7:
@@ -37,31 +37,12 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_args=laz
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v17 = div v15, 32
-    v18 = add v17, 1
-    v19 = lt v18, v17
-    jumpi v19, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v20 = mul v18, 32
-    v21 = iszero 32
-    v22 = div v20, 32
-    v23 = eq v22, v18
-    v24 = or v21, v23
-    v25 = iszero v24
-    jumpi v25, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v26 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v26, v14
-    memory_object_copy_from_slice memorybytes, v26, v7
-    v27 = abi_decode [u256], v26
-    ret v27
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
+    set_memory_object_len memorybytes, v19, v14
+    memory_object_copy_from_slice memorybytes, v19, v7
+    v20 = abi_decode [u256], v19
+    ret v20
 }
 
