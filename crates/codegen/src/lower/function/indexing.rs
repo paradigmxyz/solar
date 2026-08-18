@@ -36,7 +36,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.peel_refs().kind
         {
             let length = self.builder.imm_u64(u64::from(size.bytes()));
-            self.bounds_check(index, length);
+            self.builder.bounds_check(index, length);
             let byte = self.builder.byte(index, object);
             return Some(self.normalize_byte_value(expr, byte));
         }
@@ -183,16 +183,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let base_len = self.builder.slice_len(source);
         let start =
             if let Some(start) = start { self.lower_expr(start)? } else { self.builder.imm_u64(0) };
-        let end = if let Some(end) = end {
-            let end = self.lower_expr(end)?;
-            let past_end = self.builder.gt(end, base_len);
-            self.builder.panic_if(past_end, PanicCode::ArrayOutOfBounds);
-            end
-        } else {
-            base_len
-        };
+        let end = if let Some(end) = end { self.lower_expr(end)? } else { base_len };
+        let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
-        self.builder.panic_if(backwards, PanicCode::ArrayOutOfBounds);
+        let invalid = self.builder.or(past_end, backwards);
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(invalid, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u64(0);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start

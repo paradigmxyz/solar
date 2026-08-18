@@ -6,8 +6,10 @@
 //@ run-call: endSliceLength [1, 2, 3, 4, 5], 3 => 3
 //@ run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
 //@ run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
-//@ run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
 //@ run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: bytesSlice 0x010203, 0, 4
+//@ run-call-fail: bytesSlice 0x010203, 2, 1
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_slicing_v2.sol
 
 contract CalldataArraySlicing {
@@ -72,5 +74,13 @@ contract CalldataArraySlicing {
         returns (uint256)
     {
         return values[:end][index];
+    }
+
+    function bytesSlice(bytes calldata values, uint256 start, uint256 end)
+        external
+        pure
+        returns (bytes memory)
+    {
+        return values[start:end];
     }
 }
