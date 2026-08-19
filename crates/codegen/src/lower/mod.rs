@@ -1937,9 +1937,15 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             StmtKind::AssemblyBlock(block) => self.collect_assigned_vars_block(block),
-            StmtKind::DeclSingle(_)
-            | StmtKind::DeclMulti(_, _)
-            | StmtKind::Return(None)
+            // The declared variables are initialized, not reassigned, but the
+            // initializer can mutate other locals (`uint256 x = xs[i++];`).
+            StmtKind::DeclSingle(var_id) => {
+                if let Some(init) = self.gcx.hir.variable(*var_id).initializer {
+                    self.collect_assigned_vars_expr(init);
+                }
+            }
+            StmtKind::DeclMulti(_, expr) => self.collect_assigned_vars_expr(expr),
+            StmtKind::Return(None)
             | StmtKind::Continue
             | StmtKind::Break
             | StmtKind::Placeholder
