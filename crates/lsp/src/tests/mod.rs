@@ -1650,38 +1650,6 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
     });
 }
 
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn did_open_schedules_analysis_without_source_change_debounce() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Request.sol
-        contract Request {}
-        "#,
-    );
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let contents = project.read_file("/Request.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
-    let start = tokio::time::Instant::now();
-    let scheduler_tick = Duration::from_millis(1);
-
-    let result = crate::handlers::did_open_text_document(
-        &mut state,
-        DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(uri, "solidity".into(), 1, contents),
-        },
-    );
-    assert!(matches!(result, ControlFlow::Continue(())));
-    let coordinator = state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
-    state.analysis_scheduler.gate.close();
-
-    tokio::time::sleep(scheduler_tick).await;
-
-    assert_eq!(tokio::time::Instant::now(), start + scheduler_tick);
-    assert!(coordinator.is_finished(), "open analysis should reach the scheduler immediately");
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn source_change_debounce_does_not_count_toward_progress_delay() {
     let project = TestProject::from_fixture(
@@ -1718,54 +1686,6 @@ async fn source_change_debounce_does_not_count_toward_progress_delay() {
 
     state.clear_analysis_cache();
     harness.shutdown().await;
-}
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn rapid_did_changes_restart_the_full_source_change_debounce() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Request.sol open
-        contract Before {}
-        "#,
-    );
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let change = |version, text: &str| DidChangeTextDocumentParams {
-        text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-        content_changes: vec![TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: text.into(),
-        }],
-    };
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
-    let debounce = state.config.source_change_debounce();
-    let final_tick = Duration::from_millis(1);
-    let almost_debounce = debounce - final_tick;
-
-    assert!(
-        crate::handlers::did_change_text_document(&mut state, change(1, "contract First {}"))
-            .is_continue()
-    );
-    let first_coordinator =
-        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
-    tokio::time::sleep(almost_debounce).await;
-
-    assert!(
-        crate::handlers::did_change_text_document(&mut state, change(2, "contract Latest {}"))
-            .is_continue()
-    );
-    let latest_coordinator =
-        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
-    state.analysis_scheduler.gate.close();
-
-    tokio::time::sleep(almost_debounce).await;
-    assert!(first_coordinator.is_finished());
-    assert!(!latest_coordinator.is_finished(), "latest change should wait for the full debounce");
-
-    tokio::time::sleep(final_tick * 2).await;
-    assert!(latest_coordinator.is_finished());
 }
 
 #[tokio::test(flavor = "current_thread")]

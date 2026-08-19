@@ -707,15 +707,6 @@ impl GlobalState {
         );
     }
 
-    pub(crate) fn recompute_after_opening_source(&mut self, changed_paths: Vec<PathBuf>) {
-        self.request_analysis(
-            AnalysisMode::Recompute,
-            AnalysisRequest { changed_paths, ..Default::default() },
-            AnalysisTrigger::Document,
-            Duration::ZERO,
-        );
-    }
-
     pub(crate) fn recompute_after_source_changes(&mut self, changed_paths: Vec<PathBuf>) {
         let delay = self.config.source_change_debounce();
         self.request_analysis(

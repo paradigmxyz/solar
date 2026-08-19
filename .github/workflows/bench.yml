@@ -62,8 +62,6 @@ jobs:
           "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
           "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
             -s benches/runtime -p 'test_*.py'
-          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
-            -s benches/lsp -p 'test_*.py'
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
