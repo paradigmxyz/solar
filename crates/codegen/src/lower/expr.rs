@@ -548,7 +548,11 @@ impl<'gcx> Lowerer<'gcx> {
                 } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
                     self.lower_expr_as_memory_dyn_array(builder, rhs)
                 } else {
-                    self.lower_value_expr(builder, rhs)
+                    let value = self.lower_value_expr(builder, rhs);
+                    match self.get_expr_type(lhs) {
+                        Some(lhs_ty) => self.coerce_literal_for_ty(builder, rhs, lhs_ty, value),
+                        None => value,
+                    }
                 };
                 // Handle compound assignment (+=, -=, etc.)
                 let final_val = if let Some(bin_op) = op {
@@ -1741,6 +1745,29 @@ impl<'gcx> Lowerer<'gcx> {
             values
         };
         self.stage_multi_return_values(builder, &values);
+    }
+
+    /// Left-aligns a bare numeric literal lowered where `bytesN` is expected.
+    /// Sema keeps such a literal's numeric type, so plain lowering yields the
+    /// right-aligned integer word, while every `bytesN` consumer — call
+    /// parameters, return slots, locals, mapping keys — expects the content
+    /// bytes at the top.
+    pub(super) fn coerce_literal_for_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
+        if let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind
+            && usize::from(size.bytes()) < 32
+            && let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Number(n) = &lit.kind
+            && self.fixed_bytes_width_of_expr(expr).is_none()
+        {
+            return builder.imm_u256(*n << ((32 - usize::from(size.bytes())) * 8));
+        }
+        value
     }
 
     /// Lowers a binary-operator operand, left-aligning a bare numeric literal
@@ -3432,11 +3459,16 @@ impl<'gcx> Lowerer<'gcx> {
             // path.
             MappingBaseSlot::Value(self.lower_lvalue_slot(builder, base)?)
         };
+        let key_ty = self.get_expr_type(base).and_then(|ty| match ty.peel_refs().kind {
+            TyKind::Mapping(key, _) => Some(key),
+            _ => None,
+        });
         Some(self.finish_mapping_element_slot(
             builder,
             base.span,
             base_slot,
             index,
+            key_ty,
             key_is_dynamic,
             value_is_mapping,
         ))
@@ -3450,10 +3482,19 @@ impl<'gcx> Lowerer<'gcx> {
         base_span: Span,
         base_slot: MappingBaseSlot,
         index: Option<&hir::Expr<'_>>,
+        key_ty: Option<Ty<'gcx>>,
         key_is_dynamic: bool,
         value_is_mapping: bool,
     ) -> MappingElementSlot {
         let index_val = self.lower_index_value(builder, base_span, index);
+        // A bare numeric literal key for a `bytesN` mapping must hash its
+        // left-aligned word, like every other representation of that key.
+        let index_val = match (index, key_ty) {
+            (Some(expr), Some(key_ty)) => {
+                self.coerce_literal_for_ty(builder, expr, key_ty, index_val)
+            }
+            _ => index_val,
+        };
         // Materialize the base slot after the index so a constant state-variable
         // slot keeps its original emission order (the index is lowered first).
         let slot_val = match base_slot {

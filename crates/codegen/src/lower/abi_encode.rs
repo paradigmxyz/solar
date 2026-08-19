@@ -306,9 +306,10 @@ impl<'gcx> Lowerer<'gcx> {
             };
             tys.push(ty);
         }
+        let param_tys = self.abi_encode_param_tys.take();
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
-        for (arg, ty) in arg_exprs.zip(tys) {
+        for (i, (arg, ty)) in arg_exprs.zip(tys).enumerate() {
             let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
@@ -325,7 +326,11 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 value
             } else {
-                self.lower_return_value_for_ty(builder, arg, ty)
+                let value = self.lower_return_value_for_ty(builder, arg, ty);
+                match param_tys.as_ref().and_then(|tys| tys.get(i)) {
+                    Some(&param_ty) => self.coerce_literal_for_ty(builder, arg, param_ty, value),
+                    None => value,
+                }
             };
             items.push((value, ty));
         }
@@ -487,6 +492,17 @@ impl<'gcx> Lowerer<'gcx> {
             hir::ExprKind::Tuple(elems) => elems.iter().filter_map(|e| *e).collect(),
             _ => vec![args_tuple],
         };
+        if let Some(func_id) = self.resolved_function_callee(func_ref) {
+            self.abi_encode_param_tys = Some(
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect(),
+            );
+        }
         self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs.iter().copied())
     }
 
@@ -568,6 +584,7 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         let value = self.lower_value_expr(builder, expr);
+        let value = self.coerce_literal_for_ty(builder, expr, ty, value);
         // A `constant` string reference (or a `bytes()`/`string()` cast of
         // one) can lower to its truncated content word; the encoder needs a
         // real `[length][data...]` object, so materialize the constant bytes.
