@@ -164,6 +164,7 @@ jobs:
             --results target/codegen-bench/results.json
             --common-output target/codegen-bench/common.json
             --report-output target/codegen-bench/report.md
+            --ignore-compile-time-changes
           )
           if [[ -f target/codegen-bench/baseline/results.json ]]; then
             args+=(--baseline target/codegen-bench/baseline/results.json)

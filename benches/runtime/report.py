@@ -145,20 +145,19 @@ def baseline_regression_details(
     return details
 
 
-# Wall-clock compile times jitter between CI runners, so only movement beyond
-# these thresholds counts as a change worth a fresh PR comment.
+# Wall-clock compile times jitter between CI runners. Require both a relative
+# and absolute change before posting a fresh PR comment.
 COMPILE_TIME_BENCH_CHANGE = 0.20
+COMPILE_TIME_BENCH_ABSOLUTE_CHANGE = 0.010
 COMPILE_TIME_TOTAL_CHANGE = 0.10
+COMPILE_TIME_TOTAL_ABSOLUTE_CHANGE = 1.0
 
 
-def has_baseline_changes(
+def has_codegen_changes(
     results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> bool:
     baseline = by_test_id(baseline_results)
-    time_sum = 0.0
-    base_time_sum = 0.0
     for result in results:
-        test_id = "/".join(suite_key(result))
         base = baseline.get(suite_key(result))
         if base is None:
             continue
@@ -173,19 +172,46 @@ def has_baseline_changes(
         if solar_size is not None and base_solar_size is not None and solar_size != base_solar_size:
             return True
 
+    return False
+
+
+def has_compile_time_changes(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> bool:
+    baseline = by_test_id(baseline_results)
+    time_sum = 0.0
+    base_time_sum = 0.0
+    for result in results:
+        base = baseline.get(suite_key(result))
+        if base is None:
+            continue
+
         solar_time = compile_time(result, "solar")
         base_solar_time = compile_time(base, "solar")
         if solar_time is not None and base_solar_time is None:
-            # The baseline artifact predates compile-time tracking: the report
-            # gained a section, which is a change worth posting.
             return True
         if solar_time is not None and base_solar_time is not None:
-            if abs(solar_time - base_solar_time) > base_solar_time * COMPILE_TIME_BENCH_CHANGE:
+            time_delta = abs(solar_time - base_solar_time)
+            if (
+                time_delta > COMPILE_TIME_BENCH_ABSOLUTE_CHANGE
+                and time_delta > base_solar_time * COMPILE_TIME_BENCH_CHANGE
+            ):
                 return True
             time_sum += solar_time
             base_time_sum += base_solar_time
 
-    return abs(time_sum - base_time_sum) > base_time_sum * COMPILE_TIME_TOTAL_CHANGE
+    return (
+        abs(time_sum - base_time_sum) > COMPILE_TIME_TOTAL_ABSOLUTE_CHANGE
+        and abs(time_sum - base_time_sum) > base_time_sum * COMPILE_TIME_TOTAL_CHANGE
+    )
+
+
+def has_baseline_changes(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> bool:
+    return has_codegen_changes(results, baseline_results) or has_compile_time_changes(
+        results, baseline_results
+    )
 
 
 def warning(message: str) -> None:
@@ -237,12 +263,6 @@ def fmt_duration(seconds: float | None) -> str:
     if seconds >= 1.0:
         return f"{seconds:.3f} s"
     return f"{seconds * 1000:.1f} ms"
-
-
-def fmt_speedup(solc_seconds: float | None, solar_seconds: float | None) -> str:
-    if solc_seconds is None or solar_seconds is None or solar_seconds <= 0:
-        return "n/a"
-    return f"{solc_seconds / solar_seconds:.2f}x"
 
 
 def fmt_int(value: int | None, suffix: str = "") -> str:
@@ -330,6 +350,9 @@ def benchmark_rows(
         solar_size = runtime_size(result, "solar")
         solc_size = runtime_size(result, "solc")
         base_solar_size = runtime_size(base, "solar") if base else None
+
+        if all(value is None for value in (solar_gas, solc_gas, solar_size, solc_size)):
+            continue
 
         rows.append(
             "| "
@@ -441,10 +464,9 @@ def compile_time_rows(
             + " | ".join(
                 [
                     markdown_cell(test_id),
-                    fmt_duration(solc_time),
                     f"{fmt_duration(solar_time)} "
                     f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})",
-                    fmt_speedup(solc_time, solar_time),
+                    f"{fmt_duration(solc_time)} ({fmt_pct_vs_current(solar_time, solc_time)})",
                 ]
             )
             + " |"
@@ -473,11 +495,11 @@ def compile_time_report(
     return [
         "### Compilation time",
         "",
-        f"| bench | solc | Solar (vs {baseline_label}) | speedup |",
-        "| ----- | ---- | ----- | ------- |",
+        f"| bench | time (vs {baseline_label}) | solc |",
+        "| ----- | --------------------- | ---- |",
         *compile_time_rows(results, baseline),
-        f"| **sum of medians** | **{fmt_duration(solc_sum)}** | **{fmt_duration(solar_sum)}** "
-        f"| **{fmt_speedup(solc_sum, solar_sum)}** |",
+        f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
+        f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |",
         "",
     ]
 
@@ -500,14 +522,16 @@ def report_section(
             [f"No `{baseline_ref}` baseline artifact was available for comparison.", ""]
         )
 
-    lines.extend(
-        [
-            f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
-            "| ----- | ------------- | ---- | -------------- | ---- |",
-            *benchmark_rows(results, baseline),
-            "",
-        ]
-    )
+    rows = benchmark_rows(results, baseline)
+    if rows:
+        lines.extend(
+            [
+                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
+                "| ----- | ------------- | ---- | -------------- | ---- |",
+                *rows,
+                "",
+            ]
+        )
     lines.extend(compile_time_report(results, baseline, baseline_label))
     lines.extend(memory_report(results))
     return "\n".join(lines)
@@ -717,6 +741,7 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--common-output", type=Path)
     parser.add_argument("--report-output", type=Path)
+    parser.add_argument("--ignore-compile-time-changes", action="store_true")
     args = parser.parse_args()
 
     document = load_document(args.results, "benchmark")
@@ -732,7 +757,9 @@ def main() -> int:
     else:
         report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
-    should_comment = has_baseline_changes(results, baseline_results)
+    should_comment = has_codegen_changes(results, baseline_results)
+    if not args.ignore_compile_time_changes:
+        should_comment |= has_compile_time_changes(results, baseline_results)
     markdown = format_report(report, should_comment, branch_is_behind(base_ref), base_ref)
     print(markdown)
     append_step_summary(markdown)
