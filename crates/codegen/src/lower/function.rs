@@ -206,6 +206,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
+    dirty_values: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -216,6 +217,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     modifiers: Vec<ModifierContext<'gcx>>,
     return_targets: Vec<ReturnTarget>,
     unchecked: bool,
+    in_inline_assembly: bool,
 }
 
 struct LoopTargets {
@@ -328,6 +330,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
+            dirty_values: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
@@ -338,6 +341,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             modifiers: Vec::new(),
             return_targets: Vec::new(),
             unchecked: false,
+            in_inline_assembly: false,
         }
     }
 
@@ -401,6 +405,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         (self.coerce_value(lhs, lhs_ty, rhs_ty), rhs)
                     }
                     _ => (lhs, rhs),
+                };
+                let (lhs, rhs) = if op.kind == BinOpKind::Pow {
+                    let lhs = if self.dirty_values.contains(&lhs) {
+                        lhs_ty.map_or(lhs, |ty| self.normalize_abi_scalar(lhs, ty))
+                    } else {
+                        lhs
+                    };
+                    let rhs = if self.dirty_values.contains(&rhs) {
+                        rhs_ty.map_or(rhs, |ty| self.normalize_abi_scalar(rhs, ty))
+                    } else {
+                        rhs
+                    };
+                    (lhs, rhs)
+                } else {
+                    (lhs, rhs)
                 };
                 let ty = match op.kind {
                     BinOpKind::Lt
