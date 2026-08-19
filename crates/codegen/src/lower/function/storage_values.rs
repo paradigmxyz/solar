@@ -523,8 +523,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let TyKind::Mapping(_, value) = ty.kind {
                     let slot = self.mapping_slot(index, index_ty, base.slot);
                     if let Some((size, encoding)) = self.context.storage.packed_encoding(value) {
-                        let location =
-                            StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
+                        let location = StorageLocation::packed_word(size, encoding);
                         return Some(StorageAccess { slot, location, offset: None });
                     }
                     return Some(StorageAccess {
@@ -825,7 +824,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let index_in_slot = self.builder.mod_(index, per_slot_value);
             let byte_size = self.builder.imm_u64(bytes);
             let offset = self.builder.mul(index_in_slot, byte_size);
-            let location = StorageLocation { slot: U256::ZERO, offset: 0, size, encoding };
+            let location = StorageLocation::packed_word(size, encoding);
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
         let element_slots = self.context.storage.element_slots(element, span);

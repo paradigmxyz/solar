@@ -391,7 +391,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if matches!(
                             lhs_ty.peel_refs().kind,
                             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        ) && matches!(rhs_ty.peel_refs().kind, TyKind::StringLiteral(..)) =>
+                        ) && matches!(
+                            rhs_ty.peel_refs().kind,
+                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
+                        ) && !matches!(
+                            op.kind,
+                            BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar
+                        ) =>
                     {
                         (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
                     }
@@ -421,15 +427,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     (lhs, rhs)
                 };
-                let ty = match op.kind {
-                    BinOpKind::Lt
-                    | BinOpKind::Gt
-                    | BinOpKind::Le
-                    | BinOpKind::Ge
-                    | BinOpKind::Shl
-                    | BinOpKind::Shr
-                    | BinOpKind::Sar => lhs_ty,
-                    _ => self.context.gcx.type_of_expr(expr.id),
+                let expr_ty = self.context.gcx.type_of_expr(expr.id);
+                let lhs_is_literal =
+                    lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
+                let rhs_is_literal =
+                    rhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
+                let signed_literal_arithmetic = lhs_is_literal
+                    && rhs_is_literal
+                    && lhs_ty
+                        .zip(rhs_ty)
+                        .is_some_and(|(lhs, rhs)| lhs.is_signed() || rhs.is_signed());
+                let ty = if signed_literal_arithmetic {
+                    Some(self.context.gcx.types.int(256))
+                } else {
+                    match op.kind {
+                        BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Le | BinOpKind::Ge
+                            if lhs_is_literal =>
+                        {
+                            rhs_ty
+                        }
+                        BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Le | BinOpKind::Ge => lhs_ty,
+                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar if lhs_is_literal => {
+                            expr_ty
+                        }
+                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar => lhs_ty,
+                        _ => expr_ty,
+                    }
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
                 Some(
