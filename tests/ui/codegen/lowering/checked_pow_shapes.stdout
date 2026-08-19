@@ -308,58 +308,57 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_args=lazy, abi_p
 
 fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = sub 0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 1], [bb7: v21]
-    v2 = phi [bb0: v0], [bb7: v23]
-    v3 = phi [bb0: arg0], [bb7: v22]
-    v4 = gt v3, 0
-    jumpi v4, bb2, bb3
+    v0 = phi [bb0: 1], [bb7: v20]
+    v1 = phi [bb0: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe], [bb7: v22]
+    v2 = phi [bb0: arg0], [bb7: v21]
+    v3 = gt v2, 0
+    jumpi v3, bb2, bb3
   bb2:
-    v5 = and v3, 1
-    v6 = mul v1, v2
-    v7 = iszero v2
-    v8 = sdiv v6, v2
-    v9 = eq v8, v1
-    v10 = or v7, v9
-    v11 = iszero v10
-    v12 = slt v6, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v13 = sgt v6, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = or v12, v13
-    v15 = or v11, v14
-    v16 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v17 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v18 = and v16, v17
-    v19 = or v15, v18
-    v20 = and v5, v19
-    jumpi v20, bb4, bb5
+    v4 = and v2, 1
+    v5 = mul v0, v1
+    v6 = iszero v1
+    v7 = sdiv v5, v1
+    v8 = eq v7, v0
+    v9 = or v6, v8
+    v10 = iszero v9
+    v11 = slt v5, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v12 = sgt v5, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v11, v12
+    v14 = or v10, v13
+    v15 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v16 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = and v15, v16
+    v18 = or v14, v17
+    v19 = and v4, v18
+    jumpi v19, bb4, bb5
   bb3:
-    ret v1
+    ret v0
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v21 = select v5, v6, v1
-    v22 = shr 1, v3
-    v23 = mul v2, v2
-    v24 = iszero v2
-    v25 = sdiv v23, v2
-    v26 = eq v25, v2
-    v27 = or v24, v26
-    v28 = iszero v27
-    v29 = slt v23, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v30 = sgt v23, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v31 = or v29, v30
-    v32 = or v28, v31
-    v33 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v34 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v35 = and v33, v34
-    v36 = or v32, v35
-    v37 = gt v22, 0
-    v38 = and v37, v36
-    jumpi v38, bb6, bb7
+    v20 = select v4, v5, v0
+    v21 = shr 1, v2
+    v22 = mul v1, v1
+    v23 = iszero v1
+    v24 = sdiv v22, v1
+    v25 = eq v24, v1
+    v26 = or v23, v25
+    v27 = iszero v26
+    v28 = slt v22, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v29 = sgt v22, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v30 = or v28, v29
+    v31 = or v27, v30
+    v32 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v33 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v34 = and v32, v33
+    v35 = or v31, v34
+    v36 = gt v21, 0
+    v37 = and v36, v35
+    jumpi v37, bb6, bb7
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

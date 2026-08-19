@@ -2,37 +2,34 @@
 @module SignedConstantOps
 fn @lt() -> bool [selector=0xa22ca2a6, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = slt v0, 1
-    ret v1
+    v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret v0
 }
 
 fn @div() -> i256 [selector=0xf9fa48c3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = sub 0, 7
     jumpi 2, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v1 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v2 = eq 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    jumpi v3, bb3, bb4
+    v0 = eq 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v1 = eq 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = and v0, v1
+    jumpi v2, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = sdiv v0, 2
-    ret v4
+    v3 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+    ret v3
 }
 
 fn @shr() -> i256 [selector=0xb87f777a, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = sub 0, 8
-    v1 = sar 1, v0
-    ret v1
+    v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
+    ret v0
 }
 
