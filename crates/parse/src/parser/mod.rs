@@ -790,6 +790,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.prev_token = std::mem::replace(&mut self.token, next);
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
+                // Only the last documentation unit binds to the item, like
+                // solc: a `/** */` block, or a contiguous run of `///` lines.
+                // A new unit silently supersedes everything collected so far,
+                // no matter how many blank lines follow it.
+                if let Some(prev) = self.docs.last()
+                    && !self.continues_doc_unit(prev, kind, self.token.span)
+                {
+                    self.docs.clear();
+                }
                 let natspec = if let Some(items) =
                     parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
                 {
@@ -804,6 +813,24 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         self.expected_tokens.clear();
+    }
+
+    /// Whether a doc comment at `span` continues the documentation unit ended
+    /// by `prev`: both are `///` line comments on adjacent lines. Block
+    /// comments always form their own unit.
+    fn continues_doc_unit(
+        &self,
+        prev: &DocComment<'_>,
+        kind: ast::CommentKind,
+        span: Span,
+    ) -> bool {
+        prev.kind == ast::CommentKind::Line
+            && kind == ast::CommentKind::Line
+            && self
+                .sess
+                .source_map()
+                .span_to_snippet(Span::new(prev.span.hi(), span.lo()))
+                .is_ok_and(|gap| gap.bytes().filter(|&b| b == b'\n').count() <= 1)
     }
 
     /// Advances the internal `tokens` iterator, without updating the parser state.

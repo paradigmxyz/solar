@@ -1,0 +1,8 @@
+error: tag `@author` not valid for functions
+   ╭▸ ROOT/tests/ui/natspec/doc_comment_units.sol:LL:CC
+   │
+LL │     /// @author Someone
+   ╰╴         ━━━━━━
+
+error: aborting due to 1 previous error
+
