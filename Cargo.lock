@@ -4676,8 +4676,10 @@ dependencies = [
  "cfg-if",
  "evm2",
  "regex",
+ "serde",
  "serde_json",
  "tempfile",
+ "toml_edit",
  "ui_test",
 ]
 

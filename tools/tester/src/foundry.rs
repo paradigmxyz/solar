@@ -6,6 +6,7 @@
 //! Run them with `cargo tq foundry`.
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
+use regex::Regex;
 use std::{
     collections::HashMap,
     fs,
@@ -16,9 +17,30 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod external;
+
 // ============================================================================
 // Configuration
 // ============================================================================
+
+/// How a project's results are judged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AssertionPolicy {
+    /// In-repo projects: every test must pass under this compiler.
+    InRepoStrict,
+    /// External projects: solc's passing tests are the oracle; only
+    /// solc-pass/solar-fail divergences and artifact audit violations fail.
+    ExternalDifferential,
+}
+
+/// A skipped test or contract pattern with a mandatory reason.
+#[derive(Debug, Clone)]
+struct SkipEntry {
+    /// Regex pattern, in the syntax forge accepts for `--no-match-*`.
+    pattern: String,
+    /// Why the entry is skipped.
+    reason: String,
+}
 
 /// Configuration for running a test project.
 #[derive(Debug, Clone)]
@@ -35,9 +57,49 @@ struct TestConfig {
     solar_only: bool,
     /// If true, defer this project until its compiler failures are fixed.
     ignored: bool,
+    /// Skipped test name patterns, passed to `--no-match-test` and re-applied
+    /// post-hoc so both legs judge the same set.
+    skip_tests: Vec<SkipEntry>,
+    /// Skipped contract name patterns, passed to `--no-match-contract` and
+    /// re-applied post-hoc; also silences artifact audits for those names.
+    skip_contracts: Vec<SkipEntry>,
+    /// How results are judged.
+    policy: AssertionPolicy,
+    /// Compile with `forge build` instead of running tests; artifacts are
+    /// still extracted and audited.
+    build_only: bool,
+    /// Fixed fuzz seed so both legs run identical fuzz and invariant inputs.
+    fuzz_seed: Option<u64>,
+    /// Solc version to emulate on the Solar leg (`SOLC_WRAPPER_VERSION`), for
+    /// projects whose sources pin an exact solc version.
+    solc_wrapper_version: Option<String>,
+    /// Pass `-vvvvv --decode-internal` to `forge test`.
+    traces: bool,
+    /// Command shown in runtime reports for reproducing this run.
+    rerun_command: String,
 }
 
 impl TestConfig {
+    /// Creates a config for an in-repo project under `tests/foundry`.
+    fn in_repo(name: String, path: PathBuf, solar_only: bool, ignored: bool) -> Self {
+        Self {
+            name,
+            path,
+            test_filter: None,
+            contract_filter: None,
+            solar_only,
+            ignored,
+            skip_tests: Vec::new(),
+            skip_contracts: Vec::new(),
+            policy: AssertionPolicy::InRepoStrict,
+            build_only: false,
+            fuzz_seed: None,
+            solc_wrapper_version: None,
+            traces: true,
+            rerun_command: "cargo tq foundry".to_string(),
+        }
+    }
+
     /// Runs the test with this configuration.
     fn run(&self) {
         run_test_with_config(self);
@@ -132,19 +194,18 @@ fn foundry_root() -> PathBuf {
     workspace_root().join("tests/foundry")
 }
 
-fn discover_projects() -> Vec<TestConfig> {
-    let root = foundry_root();
+fn discover_projects(root: &Path) -> Vec<TestConfig> {
     assert!(root.is_dir(), "Foundry test root does not exist: {}", root.display());
     let selected = std::env::var_os("SOLAR_FOUNDRY_PROJECT");
 
     let mut paths = Vec::new();
-    discover_project_paths(&root, &mut paths);
+    discover_project_paths(root, &mut paths);
     paths.sort();
 
     paths
         .into_iter()
         .filter_map(|path| {
-            let relative = path.strip_prefix(&root).expect("Foundry project outside root");
+            let relative = path.strip_prefix(root).expect("Foundry project outside root");
             let name = relative.to_string_lossy().replace('\\', "/");
             if selected.as_deref().is_some_and(|selected| selected != name.as_str()) {
                 return None;
@@ -152,14 +213,7 @@ fn discover_projects() -> Vec<TestConfig> {
             let solar_only = relative == Path::new("stack-deep");
             let ignored = TEMPORARILY_IGNORED_PROJECTS.contains(&name.as_str());
 
-            Some(TestConfig {
-                name,
-                path,
-                test_filter: None,
-                contract_filter: None,
-                solar_only,
-                ignored,
-            })
+            Some(TestConfig::in_repo(name, path, solar_only, ignored))
         })
         .collect()
 }
@@ -222,7 +276,13 @@ fn forge_available() -> bool {
 }
 
 /// Filters tests based on config.
+///
+/// Skip patterns are also passed to forge as `--no-match-*`, but are re-applied
+/// here so both compiler legs judge the same set even if forge's flag
+/// semantics drift.
 fn filter_tests(tests: Vec<TestResult>, config: &TestConfig) -> Vec<TestResult> {
+    let skip_tests = compile_skips(&config.skip_tests);
+    let skip_contracts = compile_skips(&config.skip_contracts);
     tests
         .into_iter()
         .filter(|t| {
@@ -230,9 +290,32 @@ fn filter_tests(tests: Vec<TestResult>, config: &TestConfig) -> Vec<TestResult> 
                 config.test_filter.as_ref().map(|f| t.name.contains(f)).unwrap_or(true);
             let contract_match =
                 config.contract_filter.as_ref().map(|f| t.contract.contains(f)).unwrap_or(true);
-            test_match && contract_match
+            test_match
+                && contract_match
+                && !skip_tests.iter().any(|re| re.is_match(&t.name))
+                && !skip_contracts.iter().any(|re| re.is_match(&t.contract))
         })
         .collect()
+}
+
+/// Compiles skip patterns, panicking on invalid ones: they come from the
+/// curated manifest, so an invalid pattern is a bug in the manifest.
+fn compile_skips(skips: &[SkipEntry]) -> Vec<Regex> {
+    skips
+        .iter()
+        .map(|skip| {
+            Regex::new(&skip.pattern)
+                .unwrap_or_else(|error| panic!("invalid skip pattern `{}`: {error}", skip.pattern))
+        })
+        .collect()
+}
+
+/// Combines skip patterns into one alternation regex for forge `--no-match-*`.
+fn combine_skips(skips: &[SkipEntry]) -> Option<String> {
+    if skips.is_empty() {
+        return None;
+    }
+    Some(skips.iter().map(|skip| format!("(?:{})", skip.pattern)).collect::<Vec<_>>().join("|"))
 }
 
 // ============================================================================
@@ -240,9 +323,14 @@ fn filter_tests(tests: Vec<TestResult>, config: &TestConfig) -> Vec<TestResult> 
 // ============================================================================
 
 /// Parses test results from forge JSON output.
+///
+/// Diagnostics can precede the JSON on stdout (e.g. cheatcode `ffi` error
+/// logs), so parsing starts at the first line that looks like JSON.
 fn parse_test_results(stdout: &str) -> Vec<TestResult> {
     let mut tests = Vec::new();
 
+    let json_start = stdout.find("\n{").map(|i| i + 1).unwrap_or(0);
+    let stdout = &stdout[json_start..];
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(stdout) {
         if let Some(obj) = json.as_object() {
             for (contract_path, contract_data) in obj {
@@ -394,7 +482,7 @@ fn write_runtime_report(
             "solar_only": config.solar_only,
         },
         "rerun": {
-            "command": "cargo tq foundry",
+            "command": config.rerun_command.as_str(),
             "env": {
                 "SOLAR_FOUNDRY_REPORT_DIR": report_dir.display().to_string(),
             },
@@ -433,28 +521,42 @@ fn run_forge_test(
     };
 
     let mut cmd = Command::new("forge");
-    cmd.current_dir(project_dir)
-        .arg("test")
-        .arg("--force")
-        .arg("--json")
-        .arg("-vvvvv")
-        .arg("--decode-internal")
-        .arg("--out")
-        .arg(out_dir.path())
-        .arg("--cache-path")
-        .arg(cache_dir.path());
+    cmd.current_dir(project_dir);
+    if config.build_only {
+        cmd.arg("build").arg("--force");
+    } else {
+        cmd.arg("test").arg("--force").arg("--json");
+        if config.traces {
+            cmd.arg("-vvvvv").arg("--decode-internal");
+        }
+    }
+    cmd.arg("--out").arg(out_dir.path()).arg("--cache-path").arg(cache_dir.path());
 
     if let Some(foundry_solc) = &foundry_solc {
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
+        if let Some(version) = &config.solc_wrapper_version {
+            cmd.env("SOLC_WRAPPER_VERSION", version);
+        }
     }
 
     // Add forge match filters if specified
-    if let Some(ref test_filter) = config.test_filter {
-        cmd.arg("--match-test").arg(test_filter);
-    }
-    if let Some(ref contract_filter) = config.contract_filter {
-        cmd.arg("--match-contract").arg(contract_filter);
+    if !config.build_only {
+        if let Some(ref test_filter) = config.test_filter {
+            cmd.arg("--match-test").arg(test_filter);
+        }
+        if let Some(ref contract_filter) = config.contract_filter {
+            cmd.arg("--match-contract").arg(contract_filter);
+        }
+        if let Some(pattern) = combine_skips(&config.skip_tests) {
+            cmd.arg("--no-match-test").arg(pattern);
+        }
+        if let Some(pattern) = combine_skips(&config.skip_contracts) {
+            cmd.arg("--no-match-contract").arg(pattern);
+        }
+        if let Some(seed) = config.fuzz_seed {
+            cmd.arg("--fuzz-seed").arg(seed.to_string());
+        }
     }
 
     let start = Instant::now();
@@ -464,14 +566,21 @@ fn run_forge_test(
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    if !output.status.success() || stdout.contains("\"status\":\"Failure\"") {
-        eprintln!("\n[{}] forge test reported failures", label);
+    let failed = if config.build_only {
+        !output.status.success()
+    } else {
+        !output.status.success() || stdout.contains("\"status\":\"Failure\"")
+    };
+    if failed {
+        let what =
+            if config.build_only { "forge build failed" } else { "forge test reported failures" };
+        eprintln!("\n[{}] {what}", label);
         if !output.stderr.is_empty() {
             eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
     }
 
-    let tests = parse_test_results(&stdout);
+    let tests = if config.build_only { Vec::new() } else { parse_test_results(&stdout) };
     let sizes = extract_bytecode_sizes(out_dir.path());
 
     (test_time, tests, sizes)
@@ -697,6 +806,19 @@ fn run_test_with_config(config: &TestConfig) {
         panic!("Project directory not found: {:?}", project_dir);
     }
 
+    for entry in &config.skip_tests {
+        eprintln!(
+            "[{}] skipping tests matching `{}`: {}",
+            config.name, entry.pattern, entry.reason
+        );
+    }
+    for entry in &config.skip_contracts {
+        eprintln!(
+            "[{}] skipping contracts matching `{}`: {}",
+            config.name, entry.pattern, entry.reason
+        );
+    }
+
     if config.solar_only {
         run_test_solar_only(config);
     } else {
@@ -726,38 +848,166 @@ fn run_test_solar_only(config: &TestConfig) {
 
     println!("\n✅ [{}] Solar-only: {} passed, {} failed", config.name, total_passed, total_failed);
 
-    assert_eq!(total_failed, 0, "[{}] {} Solar tests failed", config.name, total_failed);
-    assert!(total_passed > 0, "[{}] No Solar tests ran", config.name);
+    enforce_policy(config, &solar_run, None);
 }
 
 /// Runs test with Solar vs solc comparison.
 fn run_test_with_comparison(config: &TestConfig) {
     let (solar_run, solc_run) = run_project_comparison(config);
     write_runtime_report(config, &solar_run, Some(&solc_run));
+    enforce_policy(config, &solar_run, Some(&solc_run));
+}
 
-    // Assert Solar tests pass
-    assert_eq!(
-        solar_run.total_failed, 0,
-        "[{}] {} Solar tests failed",
-        config.name, solar_run.total_failed
-    );
-    assert!(solar_run.total_passed > 0, "[{}] No Solar tests ran", config.name);
+/// Applies the config's assertion policy to the run results.
+fn enforce_policy(config: &TestConfig, solar_run: &CompilerRun, solc_run: Option<&CompilerRun>) {
+    match config.policy {
+        AssertionPolicy::InRepoStrict => {
+            assert_eq!(
+                solar_run.total_failed, 0,
+                "[{}] {} Solar tests failed",
+                config.name, solar_run.total_failed
+            );
+            assert!(solar_run.total_passed > 0, "[{}] No Solar tests ran", config.name);
 
-    if solc_run.total_passed > solar_run.total_passed {
-        eprintln!(
-            "⚠️  [{}] solc passed {} more tests than Solar",
+            let Some(solc_run) = solc_run else { return };
+            if solc_run.total_passed > solar_run.total_passed {
+                eprintln!(
+                    "⚠️  [{}] solc passed {} more tests than Solar",
+                    config.name,
+                    solc_run.total_passed - solar_run.total_passed
+                );
+            }
+
+            println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
+        }
+        AssertionPolicy::ExternalDifferential => {
+            let Some(solc_run) = solc_run else {
+                panic!("[{}] external projects always run the solc leg", config.name)
+            };
+            enforce_external(config, solar_run, solc_run);
+        }
+    }
+}
+
+/// Judges an external project differentially: solc's passing tests are the
+/// oracle and Solar must uphold every one of them. An empty solc leg means the
+/// baseline itself is broken (offline, incompatible forge), so the project is
+/// skipped instead of failed.
+fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &CompilerRun) {
+    let audit_violations = audit_artifacts(config, solar_run, solc_run);
+
+    if config.build_only {
+        if solc_run.bytecode_sizes.is_empty() {
+            eprintln!("[{}] SKIPPED (cannot judge): solc leg produced no artifacts", config.name);
+            return;
+        }
+        assert!(
+            audit_violations.is_empty(),
+            "[{}] artifact audit failed:\n  {}",
             config.name,
-            solc_run.total_passed - solar_run.total_passed
+            audit_violations.join("\n  ")
+        );
+        println!(
+            "\n✓ [{}] build-only: {} artifacts audited against solc",
+            config.name,
+            solc_run.bytecode_sizes.len()
+        );
+        return;
+    }
+
+    if solc_run.tests.is_empty() {
+        eprintln!("[{}] SKIPPED (cannot judge): solc leg ran no tests", config.name);
+        return;
+    }
+
+    let solar_by_key: HashMap<(&str, &str), &TestResult> = solar_run
+        .tests
+        .iter()
+        .map(|test| ((test.contract.as_str(), test.name.as_str()), test))
+        .collect();
+    let mut regressions = Vec::new();
+    for solc_test in &solc_run.tests {
+        if !solc_test.passed {
+            continue;
+        }
+        let key = (solc_test.contract.as_str(), solc_test.name.as_str());
+        if solar_by_key.get(&key).is_some_and(|test| test.passed) {
+            continue;
+        }
+        let state = if solar_by_key.contains_key(&key) { "fails" } else { "is missing" };
+        regressions.push(format!(
+            "{}::{} passes under solc but {state} under Solar",
+            solc_test.contract, solc_test.name
+        ));
+    }
+
+    assert!(
+        regressions.is_empty(),
+        "[{}] {} differential regressions:\n  {}",
+        config.name,
+        regressions.len(),
+        regressions.join("\n  ")
+    );
+    assert!(
+        audit_violations.is_empty(),
+        "[{}] artifact audit failed:\n  {}",
+        config.name,
+        audit_violations.join("\n  ")
+    );
+
+    // Remaining Solar failures correspond to tests that also fail under solc
+    // (or only exist under Solar); they are upstream issues, not compiler bugs.
+    if solar_run.total_failed > 0 {
+        eprintln!(
+            "ℹ️  [{}] {} tests fail under both compilers",
+            config.name, solar_run.total_failed
         );
     }
 
-    println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
+    let oracle = solc_run.tests.iter().filter(|test| test.passed).count();
+    println!("\n✓ [{}] differential: {} solc-passing tests upheld with Solar", config.name, oracle);
+}
+
+/// EIP-170 deployed bytecode size limit.
+const EIP170_LIMIT: usize = 24576;
+
+/// Audits Solar's artifacts against solc's: every contract solc deploys must
+/// have nonempty deployed bytecode under Solar, and must fit EIP-170 whenever
+/// the solc artifact does. Contracts matching `skip_contracts` are exempt.
+fn audit_artifacts(
+    config: &TestConfig,
+    solar_run: &CompilerRun,
+    solc_run: &CompilerRun,
+) -> Vec<String> {
+    let skip_contracts = compile_skips(&config.skip_contracts);
+    let mut names: Vec<_> = solc_run.bytecode_sizes.keys().collect();
+    names.sort();
+
+    let mut violations = Vec::new();
+    for name in names {
+        if skip_contracts.iter().any(|re| re.is_match(name)) {
+            continue;
+        }
+        let solc_size = solc_run.bytecode_sizes[name];
+        match solar_run.bytecode_sizes.get(name) {
+            None => violations.push(format!(
+                "`{name}`: {solc_size}B deployed bytecode under solc, none under Solar"
+            )),
+            Some(&solar_size) if solar_size > EIP170_LIMIT && solc_size <= EIP170_LIMIT => {
+                violations.push(format!(
+                    "`{name}`: {solar_size}B deployed bytecode under Solar exceeds EIP-170 (solc: {solc_size}B)"
+                ))
+            }
+            Some(_) => {}
+        }
+    }
+    violations
 }
 
 /// Runs the default Foundry suite.
 pub(super) fn run_default_suite(solar: &Path) {
     let _ = SOLAR_BINARY.set(solar.to_path_buf());
-    let projects = discover_projects();
+    let projects = discover_projects(&foundry_root());
     assert!(!projects.is_empty(), "No Foundry projects found");
 
     let mut failures = Vec::new();
@@ -781,5 +1031,11 @@ mod tests {
     #[test]
     fn foundry() {
         run_default_suite(&get_solar_binary());
+    }
+
+    #[test]
+    #[ignore = "external Foundry suite; run via `cargo tq foundry-external`"]
+    fn external() {
+        external::run_external_suite(&get_solar_binary());
     }
 }
