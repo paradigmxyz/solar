@@ -90,7 +90,7 @@ jobs:
           "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
 
       - name: Build Solar
-        run: cargo build -p solar-compiler --bin solar
+        run: cargo build --release -p solar-compiler --bin solar
 
       - name: Download baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
@@ -139,8 +139,9 @@ jobs:
           mkdir -p target/codegen-bench
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/debug/solar \
+            --solar target/release/solar \
             --suite all \
+            --compile-repeats 5 \
             --gas \
             --gas-profile hot \
             --start-anvil \
