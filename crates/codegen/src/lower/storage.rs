@@ -4,6 +4,7 @@ use std::{cell::RefCell, sync::OnceLock};
 
 use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
+use solar_ast::DataLocation;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::Span;
 use solar_sema::{
@@ -27,13 +28,24 @@ pub(super) struct StorageLocation {
     pub(super) offset: u8,
     pub(super) size: TypeSize,
     pub(super) encoding: StorageEncoding,
+    transient: bool,
 }
 
 impl StorageLocation {
     const WORD: TypeSize = TypeSize::new_int_bits(256);
 
     pub(super) const fn word(slot: U256) -> Self {
-        Self { slot, offset: 0, size: Self::WORD, encoding: StorageEncoding::Unsigned }
+        Self {
+            slot,
+            offset: 0,
+            size: Self::WORD,
+            encoding: StorageEncoding::Unsigned,
+            transient: false,
+        }
+    }
+
+    pub(super) const fn packed_word(size: TypeSize, encoding: StorageEncoding) -> Self {
+        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false }
     }
 
     const fn packed(self) -> bool {
@@ -49,6 +61,18 @@ impl StorageLocation {
             U256::MAX
         } else {
             (U256::from(1) << self.size.bits()) - U256::from(1)
+        }
+    }
+
+    fn load(self, builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+        if self.transient { builder.tload(slot) } else { builder.sload(slot) }
+    }
+
+    fn store(self, builder: &mut FunctionBuilder<'_>, slot: ValueId, value: ValueId) {
+        if self.transient {
+            builder.tstore(slot, value);
+        } else {
+            builder.sstore(slot, value);
         }
     }
 }
@@ -149,7 +173,7 @@ impl<'gcx> StorageLayout<'gcx> {
         location: StorageLocation,
         slot: ValueId,
     ) -> ValueId {
-        let word = builder.sload(slot);
+        let word = location.load(builder, slot);
         let shift = (location.offset != 0).then(|| builder.imm_u64(u64::from(location.offset) * 8));
         self.load_word(builder, location, word, shift)
     }
@@ -161,7 +185,7 @@ impl<'gcx> StorageLayout<'gcx> {
         slot: ValueId,
         offset: ValueId,
     ) -> ValueId {
-        let word = builder.sload(slot);
+        let word = location.load(builder, slot);
         if !location.packed() {
             return word;
         }
@@ -205,7 +229,7 @@ impl<'gcx> StorageLayout<'gcx> {
         value: ValueId,
     ) {
         if !location.packed() {
-            builder.sstore(slot, value);
+            location.store(builder, slot, value);
             return;
         }
         let shift = (location.offset != 0).then(|| builder.imm_u64(u64::from(location.offset) * 8));
@@ -221,7 +245,7 @@ impl<'gcx> StorageLayout<'gcx> {
         value: ValueId,
     ) {
         if !location.packed() {
-            builder.sstore(slot, value);
+            location.store(builder, slot, value);
             return;
         }
 
@@ -242,7 +266,7 @@ impl<'gcx> StorageLayout<'gcx> {
         let field_mask_value = builder.imm_u256(field_mask);
         let shifted_mask =
             shift.map_or(field_mask_value, |shift| builder.shl(shift, field_mask_value));
-        let old = builder.sload(slot);
+        let old = location.load(builder, slot);
         let keep_mask = builder.not(shifted_mask);
         let cleared = builder.and(old, keep_mask);
         let value = match location.encoding {
@@ -256,7 +280,7 @@ impl<'gcx> StorageLayout<'gcx> {
         let value = builder.and(value, field_mask_value);
         let value = shift.map_or(value, |shift| builder.shl(shift, value));
         let updated = builder.or(cleared, value);
-        builder.sstore(slot, updated);
+        location.store(builder, slot, updated);
     }
 }
 
@@ -266,7 +290,8 @@ struct StorageBuilder<'gcx> {
     locations: FxHashMap<VariableId, StorageLocation>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
-    cursor: StorageCursor,
+    storage_cursor: StorageCursor,
+    transient_cursor: StorageCursor,
 }
 
 /// Walks Solidity's sequential storage layout, including fields packed into a word.
@@ -274,11 +299,12 @@ struct StorageBuilder<'gcx> {
 struct StorageCursor {
     slot: U256,
     offset: u8,
+    transient: bool,
 }
 
 impl StorageCursor {
-    fn new() -> Self {
-        Self { slot: U256::ZERO, offset: 0 }
+    fn new(transient: bool) -> Self {
+        Self { slot: U256::ZERO, offset: 0, transient }
     }
 
     fn take(
@@ -293,7 +319,13 @@ impl StorageCursor {
             if self.offset.checked_add(bytes)? > StorageLocation::word_bytes() {
                 self.finish_word()?;
             }
-            let location = StorageLocation { slot: self.slot, offset: self.offset, size, encoding };
+            let location = StorageLocation {
+                slot: self.slot,
+                offset: self.offset,
+                size,
+                encoding,
+                transient: self.transient,
+            };
             self.offset += bytes;
             if self.offset == StorageLocation::word_bytes() {
                 self.finish_word()?;
@@ -302,7 +334,13 @@ impl StorageCursor {
         }
 
         self.finish_word()?;
-        let location = StorageLocation::word(self.slot);
+        let location = StorageLocation {
+            slot: self.slot,
+            offset: 0,
+            size: StorageLocation::WORD,
+            encoding: StorageEncoding::Unsigned,
+            transient: self.transient,
+        };
         self.slot = self.slot.checked_add(U256::from(slots))?;
         Some(location)
     }
@@ -328,7 +366,8 @@ impl<'gcx> StorageBuilder<'gcx> {
             locations: FxHashMap::default(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
-            cursor: StorageCursor::new(),
+            storage_cursor: StorageCursor::new(false),
+            transient_cursor: StorageCursor::new(true),
         }
     }
 
@@ -341,7 +380,8 @@ impl<'gcx> StorageBuilder<'gcx> {
                     continue;
                 }
                 let ty = self.gcx.type_of_item(id.into());
-                if let Some(location) = self.allocate(ty, var.span) {
+                let transient = var.data_location == Some(DataLocation::Transient);
+                if let Some(location) = self.allocate(ty, var.span, transient) {
                     self.locations.insert(id, location);
                 }
             }
@@ -349,10 +389,11 @@ impl<'gcx> StorageBuilder<'gcx> {
         StorageLayout { builder: self }
     }
 
-    fn allocate(&mut self, ty: Ty<'gcx>, span: Span) -> Option<StorageLocation> {
+    fn allocate(&mut self, ty: Ty<'gcx>, span: Span, transient: bool) -> Option<StorageLocation> {
         let encoding = self.packed_encoding(ty);
         let slots = self.storage_slots(ty, span);
-        self.cursor.take(encoding, slots).or_else(|| {
+        let cursor = if transient { &mut self.transient_cursor } else { &mut self.storage_cursor };
+        cursor.take(encoding, slots).or_else(|| {
             self.gcx
                 .dcx()
                 .err("contract storage layout exceeds the addressable storage space")
@@ -367,7 +408,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             return locations.as_ref()?.get(field).copied();
         }
 
-        let mut cursor = StorageCursor::new();
+        let mut cursor = StorageCursor::new(false);
         let locations = self
             .struct_field_types(struct_id)
             .iter()
@@ -459,7 +500,7 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<u64> {
-        let mut cursor = StorageCursor::new();
+        let mut cursor = StorageCursor::new(false);
         for ty in tys {
             let encoding = self.packed_encoding(ty);
             let slots = self.storage_slots_inner(ty, span)?;
