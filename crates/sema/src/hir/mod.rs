@@ -1681,6 +1681,26 @@ impl Expr<'_> {
         expr
     }
 
+    /// Returns whether this expression consists only of integer literals and operators.
+    pub fn is_integer_literal_expression(&self) -> bool {
+        match &self.kind {
+            ExprKind::Lit(lit) => matches!(lit.kind, ast::LitKind::Number(_)),
+            ExprKind::Unary(op, inner)
+                if matches!(op.kind, ast::UnOpKind::Neg | ast::UnOpKind::BitNot) =>
+            {
+                inner.is_integer_literal_expression()
+            }
+            ExprKind::Binary(lhs, op, rhs)
+                if !op.kind.is_cmp()
+                    && !matches!(op.kind, ast::BinOpKind::Or | ast::BinOpKind::And) =>
+            {
+                lhs.is_integer_literal_expression() && rhs.is_integer_literal_expression()
+            }
+            ExprKind::Tuple([Some(inner)]) => inner.is_integer_literal_expression(),
+            _ => false,
+        }
+    }
+
     /// Returns the resolution if this is an unambiguous identifier expression.
     ///
     /// Prefer using [`Gcx::resolved_expr`] instead, since this method does not account for

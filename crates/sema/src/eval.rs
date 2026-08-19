@@ -7,7 +7,9 @@ use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
-const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
+// Keep constant-expression intermediates within the same bound as parsed numeric literals. Their
+// final value is still checked against the destination Solidity type.
+const MAX_BITS: u64 = 4096;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -25,9 +27,12 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     let int = gcx.eval_const(size)?;
-    let Some(int) = int.as_u256() else {
+    if int.is_negative() {
         let msg = "array length cannot be negative";
         return Err(gcx.dcx().emit_err(size.span, msg));
+    }
+    let Some(int) = int.as_u256() else {
+        return Err(gcx.emit_const_eval_error(size, EE::ArithmeticOverflow.spanned(size.span)));
     };
     if int.is_zero() {
         let msg = "array length must be greater than zero";

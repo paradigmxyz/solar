@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
@@ -689,7 +689,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 // For integer literal negation, don't propagate the expected type to the inner
                 // expression because we'll modify its type by flipping the sign.
                 let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || (!is_int_literal_expr(inner)
+                    || (!inner.is_integer_literal_expression()
                         && !matches!(expected, Some(ty) if ty.is_signed()));
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
@@ -2835,25 +2835,6 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
         }
         (TyKind::Ref(_, DataLocation::Storage), TyKind::Ref(_, DataLocation::Storage)) => false,
         (_, TyKind::Ref(_, DataLocation::Storage)) => true,
-        _ => false,
-    }
-}
-
-fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
-    match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
-        hir::ExprKind::Unary(op, inner)
-            if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
-        {
-            is_int_literal_expr(inner)
-        }
-        hir::ExprKind::Binary(lhs, op, rhs)
-            if !op.kind.is_cmp()
-                && !matches!(op.kind, hir::BinOpKind::Or | hir::BinOpKind::And) =>
-        {
-            is_int_literal_expr(lhs) && is_int_literal_expr(rhs)
-        }
-        hir::ExprKind::Tuple([Some(inner)]) => is_int_literal_expr(inner),
         _ => false,
     }
 }

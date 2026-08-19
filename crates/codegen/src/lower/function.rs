@@ -399,6 +399,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if expr.is_integer_literal_expression()
+            && let Ok(ConstValue::Integer(value)) = self.gcx.try_eval_const_value(expr)
+            && value.bit_len() <= u64::from(solar_ast::TypeSize::MAX)
+        {
+            return Some(self.builder.imm_u256(value.as_evm_word()));
+        }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
