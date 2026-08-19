@@ -264,7 +264,8 @@ impl<'gcx> Lowerer<'gcx> {
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
-                self.lower_value_expr(builder, init)
+                let value = self.lower_value_expr(builder, init);
+                self.coerce_literal_for_ty(builder, init, var_ty, value)
             }
         } else {
             self.lower_default_variable_value(builder, var_id).unwrap_or_else(|| {

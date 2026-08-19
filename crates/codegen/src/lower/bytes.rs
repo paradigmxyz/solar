@@ -246,6 +246,10 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return value;
         }
+        // A bare numeric literal for a `bytesN` parameter needs the
+        // left-aligned word representation.
+        let value =
+            self.coerce_literal_for_ty(builder, arg, self.gcx.type_of_item(param_id.into()), value);
         // A string/bytes literal (or a `constant` string reference) lowers to
         // its left-aligned content word; a memory parameter dereferences its
         // argument, so materialize the constant as a real

@@ -186,6 +186,11 @@ pub(crate) struct Lowerer<'gcx> {
     /// inside a modifier body leaves only that modifier, so control continues
     /// after the placeholder in the enclosing level.
     modifier_return_exit: Option<BlockId>,
+    /// Declared parameter types of the callee whose arguments the ABI encoder
+    /// lowers next, consumed by [`Self::lower_abi_encode_items`]. Sema keeps a
+    /// bare numeric literal's own type, so the target type is what decides a
+    /// `bytesN` argument's word alignment.
+    abi_encode_param_tys: Option<Vec<Ty<'gcx>>>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
@@ -308,6 +313,7 @@ impl<'gcx> Lowerer<'gcx> {
             modifier_function: None,
             modifier_depth: 0,
             modifier_return_exit: None,
+            abi_encode_param_tys: None,
             pending_inline_returns: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),

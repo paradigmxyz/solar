@@ -1646,6 +1646,17 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(exprs) => exprs,
             Err(guar) => return self.call_error_result(builder, callee, guar),
         };
+        if let Some(func_id) = resolved_func {
+            self.abi_encode_param_tys = Some(
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect(),
+            );
+        }
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
         let (calldata_start, calldata_size) =
             match self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs.into_iter())
