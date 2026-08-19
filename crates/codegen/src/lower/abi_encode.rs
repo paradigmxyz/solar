@@ -568,6 +568,17 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         let value = self.lower_value_expr(builder, expr);
+        // A `constant` string reference (or a `bytes()`/`string()` cast of
+        // one) can lower to its truncated content word; the encoder needs a
+        // real `[length][data...]` object, so materialize the constant bytes.
+        if matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) && !Self::value_is_bytes_like_object(builder, value)
+            && let Some(bytes) = self.constant_string_bytes(expr)
+        {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
+        }
         self.coerce_memory_slice_value(builder, value)
     }
 

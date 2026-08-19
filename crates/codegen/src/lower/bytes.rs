@@ -141,6 +141,17 @@ impl<'gcx> Lowerer<'gcx> {
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Memory)))
     }
 
+    /// Whether a lowered value already carries a bytes-like pointer or slice
+    /// type, meaning bytes/string consumers can use it (possibly after slice
+    /// coercion) without rematerializing it from constant data.
+    pub(super) fn value_is_bytes_like_object(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> bool {
+        use crate::mir::MirType;
+        matches!(builder.func().value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
+    }
+
     /// Whether a lowered value is a logical calldata slice. A calldata-typed
     /// expression does not guarantee one: a member of a calldata struct that
     /// was decoded to memory in the prologue lowers to a memory bytes
@@ -234,6 +245,16 @@ impl<'gcx> Lowerer<'gcx> {
                 return slice;
             }
             return value;
+        }
+        // A string/bytes literal (or a `constant` string reference) lowers to
+        // its left-aligned content word; a memory parameter dereferences its
+        // argument, so materialize the constant as a real
+        // `[length][data...]` object.
+        if self.var_expects_memory_bytes_value(param)
+            && !Self::value_is_bytes_like_object(builder, value)
+            && let Some(bytes) = self.constant_string_bytes(arg)
+        {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
         }
         if Self::value_is_calldata_slice(builder, value) {
             let ty = self.gcx.type_of_item(param_id.into());

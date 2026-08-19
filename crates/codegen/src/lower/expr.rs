@@ -1179,14 +1179,29 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the bytes of a compile-time-constant string expression: a
     /// string literal, or an identifier/member reference to a `constant`
     /// string variable whose initializer (transitively) is a literal — e.g.
-    /// aave's `Errors.X` library constants.
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
+    /// aave's `Errors.X` library constants. `bytes(...)`/`string(...)` casts
+    /// are peeled: they do not change the underlying bytes.
+    pub(super) fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
         let mut expr = expr;
         for _ in 0..4 {
             match &expr.kind {
                 ExprKind::Lit(lit) => {
                     let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
                     return Some(bytes.as_byte_str().to_vec());
+                }
+                ExprKind::Call(callee, args, _) => {
+                    let ExprKind::Type(ty) = &callee.kind else { return None };
+                    if !matches!(
+                        ty.kind,
+                        hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    ) {
+                        return None;
+                    }
+                    let mut exprs = args.exprs();
+                    if exprs.len() != 1 {
+                        return None;
+                    }
+                    expr = exprs.next()?;
                 }
                 ExprKind::Ident(_) => {
                     let var = self.gcx.hir.variable(self.gcx.resolved_variable(expr)?);
