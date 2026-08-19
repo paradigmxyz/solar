@@ -5,27 +5,36 @@
 //@[paris] filecheck: --check-prefix=PARIS
 @module PreCancunMCopy
 
+// `mcopy` lowers to an ascending word-copy loop, not the identity precompile:
+// a precompile call is observable by tooling that keys behavior on "the next
+// call" (Foundry's `vm.prank`/`vm.expectRevert`), and it is what solc emits.
+
 // HOMESTEAD-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // HOMESTEAD: - mcopy arg0, arg1, arg2
-// HOMESTEAD: + [[AVAILABLE:v[0-9]+]] = gas
-// HOMESTEAD: + [[GAS:v[0-9]+]] = sub [[AVAILABLE]], 0x620c
-// HOMESTEAD: + [[OK:v[0-9]+]] = call [[GAS]], 4, 0, arg1, arg2, arg0, arg2
-// HOMESTEAD: + [[FAILED:v[0-9]+]] = iszero [[OK]]
-// HOMESTEAD: + jumpi [[FAILED]], [[FAILURE:bb[0-9]+]], [[CONTINUE:bb[0-9]+]]
-// HOMESTEAD: + [[CONTINUE]]:
+// HOMESTEAD: + jump [[HEAD:bb[0-9]+]]
 // HOMESTEAD: {{^[ +].*}}ret arg0
-// HOMESTEAD: + [[FAILURE]]:
-// HOMESTEAD: + revert 0, 0
+// HOMESTEAD: + [[HEAD]]:
+// HOMESTEAD: + [[OFF:v[0-9]+]] = phi [bb0: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// HOMESTEAD: + [[REM:v[0-9]+]] = lt [[OFF]], arg2
+// HOMESTEAD: + jumpi [[REM]], [[BODY]], [[CONT:bb[0-9]+]]
+// HOMESTEAD: + [[SRC:v[0-9]+]] = add arg1, [[OFF]]
+// HOMESTEAD: + [[WORD:v[0-9]+]] = mload [[SRC]]
+// HOMESTEAD: + [[DST:v[0-9]+]] = add arg0, [[OFF]]
+// HOMESTEAD: + mstore [[DST]], [[WORD]]
+// HOMESTEAD: + [[NEXT]] = add [[OFF]], 32
 // PARIS-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // PARIS: - mcopy arg0, arg1, arg2
-// PARIS: + [[GAS:v[0-9]+]] = gas
-// PARIS: + [[OK:v[0-9]+]] = staticcall [[GAS]], 4, arg1, arg2, arg0, arg2
-// PARIS: + [[FAILED:v[0-9]+]] = iszero [[OK]]
-// PARIS: + jumpi [[FAILED]], [[FAILURE:bb[0-9]+]], [[CONTINUE:bb[0-9]+]]
-// PARIS: + [[CONTINUE]]:
+// PARIS: + jump [[HEAD:bb[0-9]+]]
 // PARIS: {{^[ +].*}}ret arg0
-// PARIS: + [[FAILURE]]:
-// PARIS: + revert 0, 0
+// PARIS: + [[HEAD]]:
+// PARIS: + [[OFF:v[0-9]+]] = phi [bb0: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// PARIS: + [[REM:v[0-9]+]] = lt [[OFF]], arg2
+// PARIS: + jumpi [[REM]], [[BODY]], [[CONT:bb[0-9]+]]
+// PARIS: + [[SRC:v[0-9]+]] = add arg1, [[OFF]]
+// PARIS: + [[WORD:v[0-9]+]] = mload [[SRC]]
+// PARIS: + [[DST:v[0-9]+]] = add arg0, [[OFF]]
+// PARIS: + mstore [[DST]], [[WORD]]
+// PARIS: + [[NEXT]] = add [[OFF]], 32
 fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
   bb0:
     mcopy arg0, arg1, arg2
