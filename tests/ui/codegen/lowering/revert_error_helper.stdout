@@ -18,12 +18,38 @@ bb0:
   sub
   push bb4
   jumpi
-  push 288
+  push 320
   dup1
   push 64
   mstore
   dup1
-  push 224
+  push 288
+  mstore
+  push 64
+  dup2
+  add
+  push 64
+  mstore
+  push 2
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  push 0x3339
+  push 240
+  shl
+  dup2
+  jump bb9
+bb9:
+  mstore
+  push 64
+  mload
+  dup1
+  push 256
   mstore
   push 32
   dup2
@@ -33,15 +59,15 @@ bb0:
   sub
   dup3
   mstore
-  push 0x3339
-  push 240
-  shl
+  swap3
   mload
   dup1
   push 128
   mstore
-  swap1
+  dup4
   mstore
+  swap2
+  pop
   push 31
   push 128
   mload
@@ -50,20 +76,21 @@ bb0:
   not
   and
   dup1
-  push 192
+  push 224
   mstore
   push 64
-  dup3
+  dup4
   add
   push 160
   mstore
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb7
   jumpi
   push 32
-  push 192
+  push 224
   mload
   sub
   push 160
@@ -74,26 +101,19 @@ bb0:
   mstore
   jump bb7
 bb7:
+  push 224
+  mload
+  push 160
+  mload
+  add
+  push 128
+  mload
   push 192
   mload
   push 160
   mload
-  add
-  push 32
-  push 0x3339
-  push 240
-  shl
-  jump bb11
-bb11:
-  add
-  push 128
-  mload
-  dup2
-  push 160
-  mload
   mcopy
-  pop
-  push 224
+  push 256
   mload
   swap1
   sub
@@ -106,7 +126,7 @@ bb11:
   push 64
   mload
   dup1
-  push 256
+  push 288
   mstore
   swap1
   dup2
@@ -121,76 +141,38 @@ bb4 [cold]:
   dup1
   revert
 bb8:
+  push 320
+  dup1
+  push 64
+  mstore
+  dup1
   push 288
-  dup1
+  mstore
+  push 96
+  dup2
+  add
   push 64
   mstore
-  dup1
-  push 224
+  push 33
+  dup2
   mstore
   push 32
   dup2
   add
-  dup2
-  dup2
-  sub
-  dup3
+  dup1
+  push 192
   mstore
-  push bb13
-  jump bb12
-bb12:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-  swap1
-  jump
-bb13:
-  mload
-  dup1
-  push 128
+  dup2
   mstore
-  swap1
-  mstore
-  push 31
-  push 128
-  mload
-  add
-  push 31
-  not
-  and
-  dup1
-  push 192
-  mstore
-  push 64
-  dup3
-  add
-  push 160
-  mstore
-  swap1
-  pop
-  iszero
-  push bb10
-  jumpi
   push 32
-  push 192
-  mload
-  sub
-  push 160
-  mload
+  dup2
   add
-  push 0
+  push 33
+  push 248
+  shl
   swap1
-  mstore
-  jump bb10
-bb10:
-  push 192
-  mload
-  push 160
-  mload
-  add
-  push 32
-  push bb14
-  jump bb12
-bb14:
-  jump bb11
+  jump bb9
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:
