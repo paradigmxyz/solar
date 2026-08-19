@@ -1,0 +1,75 @@
+//@ run-call: falseCondition() => 42
+//@ run-call: countToThree() => 3
+//@ run-call: conditionSideEffect() => 2, 2
+//@ run-call: skipRemainder() => 20
+//@ run-call: nested() => 6
+//@ run-call: whileControl() => 3
+//@ run-call: whileConditionalContinue() => 22
+// ported-from: test/libsolidity/semanticTests/statements/do_while_loop_continue.sol
+
+contract DoWhileContinue {
+    function falseCondition() external pure returns (uint256) {
+        uint256 i;
+        do {
+            if (i > 0) return 0;
+            ++i;
+            continue;
+        } while (false);
+        return 42;
+    }
+
+    function countToThree() external pure returns (uint256 i) {
+        do {
+            ++i;
+            continue;
+        } while (i < 3);
+    }
+
+    function conditionSideEffect() external pure returns (uint256 i, uint256 checks) {
+        do {
+            ++i;
+            continue;
+        } while (++checks < 2);
+    }
+
+    function skipRemainder() external pure returns (uint256 sum) {
+        uint256 i;
+        do {
+            ++i;
+            if (i < 3) continue;
+            sum += 10;
+        } while (i < 4);
+    }
+
+    function nested() external pure returns (uint256 total) {
+        uint256 outer;
+        do {
+            ++outer;
+            uint256 inner;
+            do {
+                ++inner;
+                ++total;
+                continue;
+            } while (inner < 3);
+        } while (outer < 2);
+    }
+
+    function whileControl() external pure returns (uint256 i) {
+        while (i < 3) {
+            ++i;
+            continue;
+        }
+    }
+
+    function whileConditionalContinue() external pure returns (uint256 sum) {
+        uint256 i;
+        while (i < 4) {
+            ++i;
+            if (i < 3) {
+                ++sum;
+                continue;
+            }
+            sum += 10;
+        }
+    }
+}

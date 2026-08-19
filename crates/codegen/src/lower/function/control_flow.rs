@@ -757,13 +757,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_loop(
         &mut self,
-        block: hir::Block<'_>,
+        mut block: hir::Block<'_>,
         source: LoopSource<'_>,
     ) -> Option<()> {
         self.materialize_default_bindings();
         let update_stmt = match source {
             LoopSource::For { update } => update,
-            LoopSource::While | LoopSource::DoWhile => None,
+            LoopSource::While => None,
+            LoopSource::DoWhile => {
+                let (condition, body) =
+                    block.stmts.split_last().expect("do while loop has a condition");
+                block.stmts = body;
+                Some(condition)
+            }
         };
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -812,17 +818,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(state) = normal_state {
                 update_states.push(state);
             }
-            update_states.extend(
-                self.loops.last().expect("loop target exists").continue_states.iter().cloned(),
-            );
+            update_states.extend(std::mem::take(
+                &mut self.loops.last_mut().expect("loop target exists").continue_states,
+            ));
 
             if update_states.is_empty() {
-                let update = update.expect("for loop update block");
+                let update = update.expect("loop update block exists");
                 self.builder.switch_to_block(update);
                 self.builder.invalid();
                 None
             } else {
-                self.builder.switch_to_block(update.expect("for loop update block"));
+                self.builder.switch_to_block(update.expect("loop update block exists"));
                 self.values = self.merge_loop_values(
                     header_values.clone(),
                     &update_states,
@@ -830,6 +836,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
                 self.storage_refs =
                     self.merge_loop_storage_refs(header_storage_refs.clone(), &update_states);
+                if matches!(source, LoopSource::DoWhile) {
+                    self.loops.last_mut().expect("loop target exists").continue_block = header;
+                }
                 self.lower_stmt(update_stmt)?;
                 let update_state = (!self.is_terminated()).then(|| LoopState {
                     block: self.builder.current_block(),
@@ -857,7 +866,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(state) = &update_state {
             self.add_loop_phi_incoming(&header_phis, state);
             self.add_loop_storage_phi_incoming(&header_storage_refs, state);
-        } else if update_stmt.is_none() {
+        }
+        if update_stmt.is_none() || matches!(source, LoopSource::DoWhile) {
             for state in &loop_targets.continue_states {
                 self.add_loop_phi_incoming(&header_phis, state);
                 self.add_loop_storage_phi_incoming(&header_storage_refs, state);
