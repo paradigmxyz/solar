@@ -391,7 +391,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if matches!(
                             lhs_ty.peel_refs().kind,
                             TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        ) && matches!(rhs_ty.peel_refs().kind, TyKind::StringLiteral(..)) =>
+                        ) && matches!(
+                            rhs_ty.peel_refs().kind,
+                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
+                        ) && !matches!(
+                            op.kind,
+                            BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar
+                        ) =>
                     {
                         (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
                     }
