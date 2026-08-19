@@ -823,12 +823,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ));
 
             if update_states.is_empty() {
-                let update = update.expect("for loop update block");
+                let update = update.expect("loop update block exists");
                 self.builder.switch_to_block(update);
                 self.builder.invalid();
                 None
             } else {
-                self.builder.switch_to_block(update.expect("for loop update block"));
+                self.builder.switch_to_block(update.expect("loop update block exists"));
                 self.values = self.merge_loop_values(
                     header_values.clone(),
                     &update_states,
