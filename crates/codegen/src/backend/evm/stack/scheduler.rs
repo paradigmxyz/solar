@@ -212,11 +212,73 @@ impl ScheduleCost {
         self.key(optimization).cmp(&other.key(optimization))
     }
 
+    /// Compares lifetime cost using the EVM code-deposit price and the configured expected
+    /// executions per deployment. This matches the economic model used by the MIR inliner for
+    /// choices that trade emitted bytes against runtime gas.
+    pub(crate) fn cmp_lifetime_for(
+        self,
+        other: Self,
+        optimization: OptimizationMode,
+        expected_executions: u64,
+    ) -> Ordering {
+        if !optimization.is_gas() {
+            return self.cmp_for(other, optimization);
+        }
+
+        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
+        let score = |cost: Self| {
+            u128::from(cost.static_gas) * u128::from(expected_executions)
+                + u128::from(cost.encoded_bytes) * CODE_DEPOSIT_GAS_PER_BYTE
+        };
+        score(self)
+            .cmp(&score(other))
+            .then_with(|| self.static_gas.cmp(&other.static_gas))
+            .then_with(|| self.encoded_bytes.cmp(&other.encoded_bytes))
+            .then_with(|| self.actions.cmp(&other.actions))
+    }
+
     /// Cost of draining `words` without accounting for any required stores or
     /// later reloads. This is a strict lower bound for the ordinary call path.
     pub(crate) fn stack_drain_lower_bound(words: usize) -> Self {
         let words = u32::try_from(words).unwrap_or(u32::MAX);
         Self { static_gas: words.saturating_mul(2), encoded_bytes: words, actions: words }
+    }
+
+    /// Cost of one stack-only operation.
+    pub(crate) fn stack_op(op: StackOp) -> Self {
+        let (static_gas, actions) = match op {
+            StackOp::Pop => (2, 1),
+            StackOp::Dup(_) | StackOp::Swap(_) => (3, 1),
+        };
+        Self { static_gas, encoded_bytes: 1, actions }
+    }
+
+    /// Cost of loading a word through the active frame-address convention.
+    pub(crate) fn memory_load(cost_model: OperandCostModel) -> Self {
+        Self {
+            static_gas: cost_model.load_static_gas,
+            encoded_bytes: cost_model.load_encoded_bytes,
+            actions: 2,
+        }
+    }
+
+    /// Cost of storing a word through the active frame-address convention.
+    pub(crate) fn memory_store(cost_model: OperandCostModel) -> Self {
+        Self {
+            static_gas: cost_model.load_static_gas.saturating_add(3),
+            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
+            actions: 2,
+        }
+    }
+
+    /// Conservative cost of a deferred target push followed by `JUMP`.
+    pub(crate) fn control_flow_jump() -> Self {
+        Self { static_gas: 11, encoded_bytes: 5, actions: 2 }
+    }
+
+    /// Cost of the local `JUMPDEST` introduced by a cleanup trampoline.
+    pub(crate) fn jumpdest() -> Self {
+        Self { static_gas: 1, encoded_bytes: 1, actions: 1 }
     }
 
     /// Estimated cost of duplicating a resident value and storing it through
@@ -263,6 +325,16 @@ impl ScheduleCost {
             static_gas: self.static_gas.saturating_add(other.static_gas),
             encoded_bytes: self.encoded_bytes.saturating_add(other.encoded_bytes),
             actions: self.actions.saturating_add(other.actions),
+        }
+    }
+
+    /// Repeats this cost `count` times.
+    pub(crate) fn times(self, count: usize) -> Self {
+        let count = u32::try_from(count).unwrap_or(u32::MAX);
+        Self {
+            static_gas: self.static_gas.saturating_mul(count),
+            encoded_bytes: self.encoded_bytes.saturating_mul(count),
+            actions: self.actions.saturating_mul(count),
         }
     }
 }
@@ -1919,7 +1991,9 @@ impl StackScheduler {
 
         assert!(
             !self.is_stack_only_value(value),
-            "stack-only value {value:?} was lost before its final use"
+            "stack-only value {value:?} was lost before its final use in `{}`: stack={:?}",
+            func.name,
+            self.stack
         );
 
         match func.value(value) {
@@ -3688,5 +3762,18 @@ mod tests {
 
         assert!(gas_plan.cmp_for(size_plan, OptimizationMode::Gas).is_lt());
         assert!(size_plan.cmp_for(gas_plan, OptimizationMode::Size).is_lt());
+        assert!(size_plan.cmp_lifetime_for(gas_plan, OptimizationMode::Gas, 1).is_lt());
+        assert!(gas_plan.cmp_lifetime_for(size_plan, OptimizationMode::Gas, 200).is_lt());
+    }
+
+    #[test]
+    fn frame_store_cost_includes_value_copy() {
+        for cost_model in [OperandCostModel::DIRECT, OperandCostModel::DYNAMIC_FRAME] {
+            let load = ScheduleCost::memory_load(cost_model);
+            let store = ScheduleCost::memory_store(cost_model);
+
+            assert_eq!(store.static_gas, load.static_gas + 3);
+            assert_eq!(store.encoded_bytes, load.encoded_bytes + 1);
+        }
     }
 }

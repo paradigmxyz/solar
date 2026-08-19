@@ -3,6 +3,7 @@
 pub(crate) mod adce;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
+pub(crate) mod coalesce_allocs;
 pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;

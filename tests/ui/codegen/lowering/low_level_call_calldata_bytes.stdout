@@ -81,21 +81,9 @@ bb19:
   swap2
   jump
 bb8:
-  push 64
-  mload
-  dup1
-  push 32
-  mstore
-  push 32
-  add
-  mstore
+  dup2
   push 192
   mstore
-  push 32
-  mload
-  push 32
-  add
-  mload
   dup1
   push 160
   mstore
@@ -108,7 +96,8 @@ bb8:
   shr
   dup2
   gt
-  swap1
+  swap2
+  pop
   pop
   push bb4
   jumpi
@@ -167,21 +156,9 @@ bb12:
   push 36
   jump bb19
 bb15:
-  push 64
-  mload
-  dup1
-  push 32
-  mstore
-  push 32
-  add
-  mstore
+  dup2
   push 192
   mstore
-  push 32
-  mload
-  push 32
-  add
-  mload
   dup1
   push 160
   mstore
@@ -194,7 +171,8 @@ bb15:
   shr
   dup2
   gt
-  swap1
+  swap2
+  pop
   pop
   push bb4
   jumpi

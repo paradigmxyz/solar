@@ -2,7 +2,7 @@
 
 use super::{
     EvmPass,
-    peephole::{Peephole, is_removable_copy, push_value},
+    peephole::{Peephole, is_removable_copy},
 };
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
@@ -69,7 +69,7 @@ struct FingerprintValue {
 }
 
 fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
-    if !may_regenerate(instructions) {
+    if !may_regenerate(instructions) && !has_repeated_const_memory_addr(instructions) {
         return false;
     }
 
@@ -83,8 +83,8 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
     let mut storage_epoch = 0u64;
     let mut changed = false;
     // Constant-address memory words with a known symbolic content, maintained
-    // through the same walk: a store whose value is already present is a no-op,
-    // and a load of a known word yields the stored expression.
+    // through the same walk: a store whose value is already present is a
+    // no-op, and a load of a known word yields the stored expression.
     let mut known_stores = FxHashMap::<u64, usize>::default();
     let mut const_exprs = FxHashMap::<usize, u64>::default();
 
@@ -100,7 +100,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 &mut expressions,
                 &mut next_expr,
             );
-            if let PushValue::Immediate(immediate) = value
+            if let Some(immediate) = inst.concrete_immediate()
                 && let Ok(address) = u64::try_from(immediate)
             {
                 const_exprs.insert(expr, address);
@@ -182,13 +182,15 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 changed = true;
                 continue;
             }
-            if let Some(address) = const_addr {
-                known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
-                if opcode == op::MSTORE {
+            match const_addr {
+                Some(address) if opcode == op::MSTORE => {
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
                     known_stores.insert(address, value.expr);
                 }
-            } else {
-                known_stores.clear();
+                Some(address) => {
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                }
+                None => known_stores.clear(),
             }
             stack.pop();
             stack.pop();
@@ -210,8 +212,8 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                 if !instructions.is_empty()
                     && addr.origin == Some(instructions.len() - 1)
                     && is_removable_copy(&instructions[instructions.len() - 1])
-                    && let Some(depth) =
-                        stack.iter().rev().take(16).position(|entry| entry.expr == known)
+                    && let Some(depth) = stack.iter().rev().position(|entry| entry.expr == known)
+                    && depth < 16
                 {
                     instructions.truncate(instructions.len() - 1);
                     let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
@@ -324,11 +326,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
 /// `DUP16` reach. This lightweight symbolic execution avoids rebuilding blocks that merely repeat
 /// opcodes with different operands, which is common in already-optimized EVM IR.
 fn may_regenerate(instructions: &[Instruction]) -> bool {
-    let (has_candidate_opcode, has_repeated_memory_addr) = preflight(instructions);
-    if has_repeated_memory_addr {
-        return true;
-    }
-    if !has_candidate_opcode {
+    if !has_repeated_candidate_opcode(instructions) {
         return false;
     }
 
@@ -430,18 +428,13 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
     false
 }
 
-/// Returns whether a block contains a possible regeneration candidate or a repeated constant
-/// memory address. Equal expressions necessarily have the same opcode, so this allocation-free
-/// screen rejects most already-optimized blocks before symbolic execution.
-fn preflight(instructions: &[Instruction]) -> (bool, bool) {
+/// Returns whether two instructions could possibly intern to the same expression. Equal
+/// expressions necessarily have the same opcode, so this allocation-free screen rejects most
+/// already-optimized blocks before symbolic execution.
+fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
     let mut seen = [0u64; 4];
-    let mut stores: SmallVec<[u64; 8]> = SmallVec::new();
-    let mut loads: SmallVec<[u64; 8]> = SmallVec::new();
-    let mut has_candidate_opcode = false;
-    let mut has_repeated_memory_addr = false;
-
-    for (index, inst) in instructions.iter().enumerate() {
+    for inst in instructions {
         let canonical_stack_effect = has_canonical_stack_effect(inst);
         let candidate = if !canonical_stack_effect {
             false
@@ -455,36 +448,12 @@ fn preflight(instructions: &[Instruction]) -> (bool, bool) {
             let opcode = usize::from(inst.opcode);
             let bit = 1u64 << (opcode % 64);
             if seen[opcode / 64] & bit != 0 {
-                has_candidate_opcode = true;
+                return true;
             }
             seen[opcode / 64] |= bit;
         }
-
-        if let Some(producer) = index.checked_sub(1).and_then(|index| instructions.get(index))
-            && let Some(address) = push_value(producer).and_then(|value| u64::try_from(value).ok())
-        {
-            match inst.opcode {
-                op::MSTORE => {
-                    if stores.contains(&address) || loads.contains(&address) {
-                        has_repeated_memory_addr = true;
-                    }
-                    stores.push(address);
-                }
-                op::MLOAD => {
-                    if stores.contains(&address) {
-                        has_repeated_memory_addr = true;
-                    }
-                    loads.push(address);
-                }
-                _ => {}
-            }
-        }
-
-        if has_candidate_opcode && has_repeated_memory_addr {
-            break;
-        }
     }
-    (has_candidate_opcode, has_repeated_memory_addr)
+    false
 }
 
 fn has_canonical_stack_effect(inst: &Instruction) -> bool {
@@ -532,6 +501,38 @@ fn append_unknown(
     let origin = instructions.len();
     instructions.push(inst);
     stack.push(StackValue { expr: fresh(next_expr), span: None, origin: Some(origin) });
+}
+
+/// Returns whether a block addresses the same constant memory word from more
+/// than one store or from a store and a load, the shapes the known-store
+/// model can simplify.
+fn has_repeated_const_memory_addr(instructions: &[Instruction]) -> bool {
+    let mut stores = SmallVec::<[u64; 8]>::new();
+    let mut loads = SmallVec::<[u64; 8]>::new();
+    for pair in instructions.windows(2) {
+        let [producer, consumer] = pair else { continue };
+        let Some(address) =
+            producer.concrete_immediate().and_then(|value| u64::try_from(value).ok())
+        else {
+            continue;
+        };
+        match consumer.opcode {
+            op::MSTORE => {
+                if stores.contains(&address) || loads.contains(&address) {
+                    return true;
+                }
+                stores.push(address);
+            }
+            op::MLOAD => {
+                if stores.contains(&address) {
+                    return true;
+                }
+                loads.push(address);
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn closed_span(

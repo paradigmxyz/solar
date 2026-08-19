@@ -246,6 +246,18 @@ impl Instruction {
         }
     }
 
+    /// Returns a literal runtime word carried by an ordinary immediate push.
+    ///
+    /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
+    /// runtime values are supplied later and must not participate in constant-value reasoning.
+    #[must_use]
+    pub(in crate::backend::evm) const fn concrete_immediate(&self) -> Option<U256> {
+        if self.encoding != Self::ENCODED_PUSH {
+            return None;
+        }
+        self.pushed_value()
+    }
+
     /// Returns the block carried by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) const fn pushed_block(&self) -> Option<BlockId> {

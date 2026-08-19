@@ -243,6 +243,8 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                    // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
+                    // Solidity bounds-checks the index before forming the address.
                     let base_offset = P::object_data_offset(layout.kind());
                     let kind = if let Some(index) = builder.func().value_u64(index)
                         && let Some(offset) = index.checked_mul(stride)
