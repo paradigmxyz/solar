@@ -175,6 +175,17 @@ pub(crate) struct Lowerer<'gcx> {
     /// return-variable slots and jumps here, instead of terminating the
     /// enclosing MIR function.
     inline_returns: Option<InlineReturnCtx>,
+    /// The resolved modifier chain of the function currently being lowered,
+    /// outermost first. Empty for functions without modifiers.
+    modifier_frames: Vec<(HirFunctionId, &'gcx hir::Modifier<'gcx>)>,
+    /// The function whose body the innermost chain level lowers.
+    modifier_function: Option<HirFunctionId>,
+    /// The chain level a placeholder statement enters next.
+    modifier_depth: usize,
+    /// Exit block of the modifier level currently being lowered: a `return`
+    /// inside a modifier body leaves only that modifier, so control continues
+    /// after the placeholder in the enclosing level.
+    modifier_return_exit: Option<BlockId>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
@@ -293,6 +304,10 @@ impl<'gcx> Lowerer<'gcx> {
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
             inline_returns: None,
+            modifier_frames: Vec::new(),
+            modifier_function: None,
+            modifier_depth: 0,
+            modifier_return_exit: None,
             pending_inline_returns: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
@@ -533,9 +548,12 @@ impl<'gcx> Lowerer<'gcx> {
                     {
                         interface.contains(function_id)
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    hir::FunctionKind::Function => {
                         base_id == contract_id || function.visibility != hir::Visibility::Private
                     }
+                    // Modifiers are inline templates spliced into their host
+                    // functions, never standalone code.
+                    hir::FunctionKind::Modifier => false,
                 };
                 if selected {
                     self.ensure_function_lowered(function_id);
@@ -586,7 +604,10 @@ impl<'gcx> Lowerer<'gcx> {
                             functions.push(func_id);
                         }
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    // Modifiers are inline templates spliced into their host
+                    // functions, never standalone code.
+                    hir::FunctionKind::Modifier => continue,
+                    hir::FunctionKind::Function => {
                         // Skip private functions from base contracts - they're not inherited
                         if base_id != contract_id && func.visibility == hir::Visibility::Private {
                             continue;
@@ -842,6 +863,10 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
+        let saved_modifier_function = self.modifier_function.take();
+        let saved_modifier_depth = self.modifier_depth;
+        let saved_modifier_return_exit = self.modifier_return_exit.take();
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
@@ -862,6 +887,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
+        self.modifier_frames = saved_modifier_frames;
+        self.modifier_function = saved_modifier_function;
+        self.modifier_depth = saved_modifier_depth;
+        self.modifier_return_exit = saved_modifier_return_exit;
         mir_id
     }
 
@@ -949,6 +978,10 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
+        let saved_modifier_function = self.modifier_function.take();
+        let saved_modifier_depth = self.modifier_depth;
+        let saved_modifier_return_exit = self.modifier_return_exit.take();
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
@@ -967,7 +1000,118 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
+        self.modifier_frames = saved_modifier_frames;
+        self.modifier_function = saved_modifier_function;
+        self.modifier_depth = saved_modifier_depth;
+        self.modifier_return_exit = saved_modifier_return_exit;
         mir_id
+    }
+
+    /// Inlines level `depth` of the current modifier chain, solc-style.
+    ///
+    /// A level evaluates its modifier's arguments on entry — so an outer
+    /// modifier that reverts before its placeholder skips them, and an outer
+    /// placeholder that runs twice re-evaluates them — binds the modifier's
+    /// parameters, and lowers its body with `_` splicing in the next level.
+    /// A `return` inside the modifier jumps to this level's exit block, so
+    /// the enclosing level's post-placeholder code still runs. The innermost
+    /// level is the function body itself: its `return`s store into the
+    /// declared return slots through the inline-return machinery and control
+    /// falls through the whole chain to the shared epilogue, which reads the
+    /// slots back. Locals share one frame across levels, matching solc's
+    /// legacy pipeline (via-IR re-threads parameter copies per placeholder,
+    /// observable only when a body mutates a parameter under a modifier with
+    /// multiple placeholders).
+    pub(super) fn lower_modifier_level(&mut self, builder: &mut FunctionBuilder<'_>, depth: usize) {
+        let saved_depth = std::mem::replace(&mut self.modifier_depth, depth + 1);
+        self.lower_modifier_level_inner(builder, depth);
+        self.modifier_depth = saved_depth;
+    }
+
+    fn lower_modifier_level_inner(&mut self, builder: &mut FunctionBuilder<'_>, depth: usize) {
+        if depth >= self.modifier_frames.len() {
+            let Some(func_id) = self.modifier_function else { return };
+            let hir_func = self.gcx.hir.function(func_id);
+            let Some(body) = &hir_func.body else { return };
+            let exit_block = builder.create_block();
+            let saved_inline = self
+                .inline_returns
+                .replace(InlineReturnCtx { exit_block, return_vars: hir_func.returns.to_vec() });
+            let saved_exit = self.modifier_return_exit.take();
+            self.lower_block(builder, body);
+            self.inline_returns = saved_inline;
+            self.modifier_return_exit = saved_exit;
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            builder.switch_to_block(exit_block);
+            return;
+        }
+
+        let (mod_id, modifier) = self.modifier_frames[depth];
+        let mod_fn = self.gcx.hir.function(mod_id);
+        let Some(mod_body) = &mod_fn.body else {
+            self.recovery_error(
+                Some(modifier.span),
+                "codegen cannot inline a modifier without a body",
+            );
+            return;
+        };
+
+        // Bind the modifier's parameters to its argument values. Reassigned
+        // parameters live in (or reuse, when an outer placeholder re-enters
+        // this level) a frame slot; the rest stay SSA values whose previous
+        // bindings are restored on exit.
+        let arg_exprs = match self.ordered_function_args(mod_id, &modifier.args, false) {
+            Ok(exprs) => exprs,
+            Err(_) => return,
+        };
+        let params = mod_fn.parameters;
+        let mut saved_bindings: Vec<(VariableId, Option<ValueId>)> = Vec::new();
+        for (i, arg) in arg_exprs.into_iter().enumerate() {
+            let Some(&param_id) = params.get(i) else { break };
+            let value = if self.param_is_storage_ref(param_id) {
+                let slot = self.lower_lvalue_slot(builder, arg);
+                self.storage_ref_locals.insert(param_id);
+                match slot {
+                    Some(slot) => slot,
+                    None => self.lower_value_expr(builder, arg),
+                }
+            } else {
+                let value = self.lower_value_expr(builder, arg);
+                self.coerce_arg_for_param(builder, param_id, arg, value)
+            };
+            if self.is_var_assigned(&param_id) {
+                let offset = self
+                    .get_local_memory_offset(&param_id)
+                    .unwrap_or_else(|| self.alloc_local_memory(param_id));
+                let addr = self.local_memory_addr(builder, offset);
+                builder.mstore(addr, value);
+            } else {
+                saved_bindings.push((param_id, self.locals.insert(param_id, value)));
+            }
+        }
+
+        let exit_block = builder.create_block();
+        let saved_inline = self.inline_returns.take();
+        let saved_exit = self.modifier_return_exit.replace(exit_block);
+        self.lower_block(builder, mod_body);
+        self.inline_returns = saved_inline;
+        self.modifier_return_exit = saved_exit;
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(exit_block);
+        }
+        builder.switch_to_block(exit_block);
+        for (param_id, old) in saved_bindings {
+            match old {
+                Some(value) => {
+                    self.locals.insert(param_id, value);
+                }
+                None => {
+                    self.locals.remove(&param_id);
+                }
+            }
+        }
     }
 
     /// Lowers a function to MIR. When `force_internal` is set, the function is
@@ -1066,10 +1210,34 @@ impl<'gcx> Lowerer<'gcx> {
                 Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
         }
 
+        // Resolve the modifier chain up front, outermost first. Entries that
+        // name a contract are base-constructor invocations, evaluated by the
+        // constructor prelude instead. Each modifier resolves to its
+        // most-derived override, like a virtual call.
+        self.modifier_frames = hir_func
+            .modifiers
+            .iter()
+            .filter_map(|modifier| match modifier.id {
+                hir::ItemId::Function(mod_id) => {
+                    Some((self.virtual_function_target(mod_id), modifier))
+                }
+                _ => None,
+            })
+            .collect();
+        self.modifier_function = Some(func_id);
+        self.modifier_depth = 0;
+        self.modifier_return_exit = None;
+
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
         if let Some(body) = &hir_func.body {
             self.collect_assigned_vars_block(body);
+        }
+        for i in 0..self.modifier_frames.len() {
+            let (mod_id, _) = self.modifier_frames[i];
+            if let Some(mod_body) = &self.gcx.hir.function(mod_id).body {
+                self.collect_assigned_vars_block(mod_body);
+            }
         }
 
         {
@@ -1439,8 +1607,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 // An unnamed return cannot be assigned or read by the body.
                 // Keep it absent and materialize its default only if control
-                // actually reaches the implicit-return epilogue.
-                if ret_var.name.is_none() {
+                // actually reaches the implicit-return epilogue. With a
+                // modifier chain even unnamed returns need slots: the body's
+                // `return` values must survive the post-placeholder modifier
+                // code that still runs before the epilogue reads them.
+                if ret_var.name.is_none() && self.modifier_frames.is_empty() {
                     continue;
                 }
                 // Allocate memory for return variables so they can be assigned to
@@ -1468,7 +1639,11 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
-                self.lower_block(&mut builder, body);
+                if self.modifier_frames.is_empty() {
+                    self.lower_block(&mut builder, body);
+                } else {
+                    self.lower_modifier_level(&mut builder, 0);
+                }
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
