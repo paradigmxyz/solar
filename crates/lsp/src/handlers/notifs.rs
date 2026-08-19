@@ -32,7 +32,7 @@ pub(crate) fn did_open_text_document(
         );
         vfs.mark_clean();
         drop(vfs);
-        state.recompute_after_source_changes(disk_path.into_iter().collect());
+        state.recompute_after_opening_source(disk_path.into_iter().collect());
     }
 
     ControlFlow::Continue(())

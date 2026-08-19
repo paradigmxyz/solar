@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "repository": "asyncswap/lsp-bench",
+  "version": "0.3.3",
+  "tag": "v0.3.3",
+  "commit": "ca0651f86f430290dacdbeb62c9c6987a3ad6966",
+  "source": {
+    "name": "lsp-bench-ca0651f86f430290dacdbeb62c9c6987a3ad6966.tar.gz",
+    "url": "https://codeload.github.com/asyncswap/lsp-bench/tar.gz/ca0651f86f430290dacdbeb62c9c6987a3ad6966",
+    "sha256": "145dc03c5606d6b5ec66647d233486bab9f4e65022275763bf445bc26414470e"
+  },
+  "adapter": {
+    "path": "benches/lsp/lsp-bench-direct.patch",
+    "sha256": "8d5242a63ff812056b449dedffd96e3f60bcc475dd8f39142b340acae7dbf7a2"
+  }
+}
