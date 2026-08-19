@@ -614,7 +614,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
             _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.builder.phi(vec![
+            _ => Some(self.merge_value_phi(vec![
                 (then_branch.block, then_branch.value),
                 (else_branch.block, else_branch.value),
             ])),
@@ -711,8 +711,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if then == else_ {
                         then
                     } else {
-                        self.builder
-                            .phi(vec![(then_branch.block, then), (else_branch.block, else_)])
+                        self.merge_value_phi(vec![
+                            (then_branch.block, then),
+                            (else_branch.block, else_),
+                        ])
                     }
                 })
                 .collect(),
@@ -741,7 +743,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
         for (&id, &value) in &before_values {
-            let phi = self.builder.phi(vec![(preheader, value)]);
+            let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
@@ -844,6 +846,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
+            if !self.dirty_values.is_empty() && self.dirty_values.contains(&value) {
+                self.dirty_values.insert(phi);
+            }
         }
     }
 
@@ -876,7 +881,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 [value] => Some(*value),
                 [first, rest @ ..] if rest.iter().all(|value| value == first) => Some(*first),
                 _ => Some(
-                    self.builder.phi(
+                    self.merge_value_phi(
                         exits
                             .iter()
                             .filter_map(|state| {
@@ -986,9 +991,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
                     (true, false, _, value) | (false, true, value, _) => value,
                     (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                    (false, false, Some(lhs), Some(rhs)) => Some(
-                        self.builder.phi(vec![(then_branch.block, lhs), (else_branch.block, rhs)]),
-                    ),
+                    (false, false, Some(lhs), Some(rhs)) => {
+                        Some(self.merge_value_phi(vec![
+                            (then_branch.block, lhs),
+                            (else_branch.block, rhs),
+                        ]))
+                    }
                     _ => then_value.or(else_value),
                 };
             if let Some(value) = value {
@@ -1025,13 +1033,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
                     Some(*first)
                 }
-                _ => Some(self.builder.phi(incoming)),
+                _ => Some(self.merge_value_phi(incoming)),
             };
             if let Some(value) = value {
                 before.insert(id, value);
             }
         }
         before
+    }
+
+    fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        let dirty = !self.dirty_values.is_empty()
+            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
+        let value = self.builder.phi(incoming);
+        if dirty {
+            self.dirty_values.insert(value);
+        }
+        value
     }
 
     pub(super) fn merge_many_storage_refs(

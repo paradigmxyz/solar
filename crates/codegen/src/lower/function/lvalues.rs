@@ -229,6 +229,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if self.in_inline_assembly {
+            self.dirty_values.insert(value);
+        }
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
             return Some(());

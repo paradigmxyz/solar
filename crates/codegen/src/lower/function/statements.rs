@@ -230,7 +230,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
-            StmtKind::AssemblyBlock(block) => self.lower_block(*block)?,
+            StmtKind::AssemblyBlock(block) => {
+                let previous = std::mem::replace(&mut self.in_inline_assembly, true);
+                let result = self.lower_block(*block);
+                self.in_inline_assembly = previous;
+                result?;
+            }
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;
             }
