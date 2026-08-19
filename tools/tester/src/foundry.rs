@@ -184,7 +184,6 @@ const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
     "multicall",
     "stress-arrays",
     "stress-inheritance",
-    "stress-modifiers",
     "unifap-v2",
     "unifap-v2-create",
     "vault-minimal",

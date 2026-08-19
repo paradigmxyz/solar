@@ -160,7 +160,16 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => {
+                // `_` splices in the next modifier chain level (ending with
+                // the function body). Multiple placeholders re-inline it. A
+                // zero depth means no chain level is active, so there is
+                // nothing to splice.
+                if self.modifier_function.is_some() && self.modifier_depth > 0 {
+                    let depth = self.modifier_depth;
+                    self.lower_modifier_level(builder, depth);
+                }
+            }
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
@@ -832,6 +841,8 @@ impl<'gcx> Lowerer<'gcx> {
             if !builder.func().block(builder.current_block()).is_terminated() {
                 if let Some(ctx) = &self.inline_returns {
                     builder.jump(ctx.exit_block);
+                } else if let Some(exit) = self.modifier_return_exit {
+                    builder.jump(exit);
                 } else if builder.func().is_public() && !self.lowering_internal_function {
                     builder.stop();
                 } else {
@@ -847,6 +858,14 @@ impl<'gcx> Lowerer<'gcx> {
         // the inlined body may live inside a public function's lowering.
         if let Some(ctx) = self.inline_returns.clone() {
             self.lower_inline_return(builder, &ctx, value);
+            return;
+        }
+
+        // A `return` inside an inlined modifier body leaves only that
+        // modifier: control continues after the placeholder in the enclosing
+        // level, and the declared return variables keep their current values.
+        if let Some(exit) = self.modifier_return_exit {
+            builder.jump(exit);
             return;
         }
         let external = builder.func().is_public() && !self.lowering_internal_function;

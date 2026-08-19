@@ -379,7 +379,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.ordered_args_for(args, self.gcx.call_param_source(callee))
     }
 
-    fn ordered_function_args<'hir>(
+    pub(super) fn ordered_function_args<'hir>(
         &self,
         func_id: hir::FunctionId,
         args: &CallArgs<'hir>,
