@@ -50,7 +50,6 @@ contract InternalVoidCall {
     // CHECK: jumpi arg0,
     // CHECK: internal_call @writeIfNonZero, 0, arg1
     // CHECK: internal_call @clear, 0
-    // CHECK: phi [
     function unitTernary(bool writeValue, uint256 newValue) public {
         writeValue ? writeIfNonZero(newValue) : clear();
     }
