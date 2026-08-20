@@ -1223,10 +1223,16 @@ bb72:
   push 640
   mload
   keccak256
+  dup1
+  push 576
+  mstore
   push 608
   mload
   push 5
   shr
+  dup1
+  push 608
+  mstore
   push 704
   mload
   swap 2

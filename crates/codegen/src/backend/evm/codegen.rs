@@ -1420,6 +1420,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let allocated = self.immutable_encodings.push(encoding);
             debug_assert_eq!(allocated, id);
         }
+        // Phi elimination places a predecessor's parallel copies before its
+        // terminator, which executes them on every outgoing edge. Late CFG
+        // passes can leave critical edges whose copies would clobber values
+        // still live on a sibling edge, so give each such edge its own block.
+        for func in &mut module.functions {
+            Self::split_phi_critical_edges(func);
+        }
         if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
                 func.canonicalize_argument_uses();
@@ -2211,6 +2218,101 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
+    /// Splits phi-carrying edges out of multi-successor predecessors when a
+    /// phi destination is still read on a sibling path.
+    ///
+    /// A phi's parallel copies are emitted in the predecessor before its
+    /// terminator, so a conditional predecessor runs them on the edge that
+    /// does not reach the phi as well. That is harmless for ordinary join
+    /// phis, whose destinations are dead on the sibling path, but a loop
+    /// header exiting through a shared latch keeps its phi results live in
+    /// the loop body: writing the exit edge's copies early clobbers them.
+    /// Rerouting such edges through a fresh jump-only block gives the copies
+    /// an unconditional home.
+    fn split_phi_critical_edges(func: &mut Function) {
+        let has_phis = func.blocks.iter().any(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+        });
+        if !has_phis {
+            return;
+        }
+        let liveness = Liveness::compute(func);
+
+        let mut splits: Vec<(BlockId, BlockId)> = Vec::new();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+                let Some(dst) = func.inst_result_value(inst_id) else { continue };
+                for &(pred, src) in incoming {
+                    if src == dst || splits.contains(&(pred, block_id)) {
+                        continue;
+                    }
+                    let successors = func.blocks[pred]
+                        .terminator
+                        .as_ref()
+                        .map(|term| term.successors())
+                        .unwrap_or_default();
+                    if successors
+                        .iter()
+                        .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
+                    {
+                        splits.push((pred, block_id));
+                    }
+                }
+            }
+        }
+
+        for (pred, succ) in splits {
+            let edge = func.alloc_block();
+            func.blocks[edge].terminator = Some(Terminator::Jump(succ));
+            func.blocks[edge].predecessors.push(pred);
+            match func.blocks[pred].terminator.as_mut() {
+                Some(Terminator::Branch { then_block, else_block, .. }) => {
+                    if *then_block == succ {
+                        *then_block = edge;
+                    }
+                    if *else_block == succ {
+                        *else_block = edge;
+                    }
+                }
+                Some(Terminator::Switch { default, cases, .. }) => {
+                    if *default == succ {
+                        *default = edge;
+                    }
+                    for (_, target) in cases {
+                        if *target == succ {
+                            *target = edge;
+                        }
+                    }
+                }
+                _ => continue,
+            }
+            for pred_entry in &mut func.blocks[succ].predecessors {
+                if *pred_entry == pred {
+                    *pred_entry = edge;
+                }
+            }
+            let phi_insts: Vec<InstId> = func.blocks[succ]
+                .instructions
+                .iter()
+                .copied()
+                .filter(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .collect();
+            for inst_id in phi_insts {
+                if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
+                    for (incoming_pred, _) in incoming {
+                        if *incoming_pred == pred {
+                            *incoming_pred = edge;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let liveness = self
@@ -2270,6 +2372,43 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             }
+        }
+        // A planned edge consumes its stack sources, so the emitter skips
+        // their spill stores. A source with uses beyond the edge's phis —
+        // live past the successor or read by one of its own instructions —
+        // loses its only stack copy to the edge, and a later block reloads
+        // its reserved slot: the store must stay unless a planned successor
+        // layout keeps the value stack-resident. A materialization loop's
+        // base pointer feeding a second copy loop reloaded uninitialized
+        // memory this way. Phi operands count as uses in the merge block, so
+        // `live_in` alone cannot separate edge-only sources from these.
+        for (block_id, sources) in &mut stack_phi_sources {
+            let Some(term) = func.blocks[*block_id].terminator.as_ref() else { continue };
+            let successors = term.successors();
+            sources.retain(|&value| {
+                successors.iter().all(|&succ| {
+                    if stack_phi_plan.entries.get(&succ).is_some_and(|entry| entry.contains(&value))
+                        || global_stack_plan
+                            .entries
+                            .get(&succ)
+                            .is_some_and(|entry| entry.contains(&value))
+                    {
+                        return true;
+                    }
+                    let block = &func.blocks[succ];
+                    let used_past_phis = liveness.live_out(succ).contains(value)
+                        || block.instructions.iter().any(|&inst_id| {
+                            let inst = func.inst(inst_id);
+                            !matches!(inst.kind, InstKind::Phi(_))
+                                && inst.kind.operands().contains(&value)
+                        })
+                        || block
+                            .terminator
+                            .as_ref()
+                            .is_some_and(|term| term.operands().contains(&value));
+                    !used_past_phis
+                })
+            });
         }
         self.stack_phi_sources = stack_phi_sources;
         self.global_stack_active = !global_stack_plan.is_empty();
@@ -3308,7 +3447,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let colorable = Self::cross_block_live_values(func, liveness);
             let ranges = Self::spill_live_ranges(func, liveness, &colorable);
             let interferences =
-                Self::parallel_phi_interferences(func, &colorable, &self.block_copies);
+                Self::parallel_phi_interferences(func, liveness, &colorable, &self.block_copies);
 
             let mut colors = Vec::<SpillColor>::new();
             for value in &colorable {
@@ -3444,13 +3583,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// schedule loads later. Sources already loaded before a store may safely share its slot.
     fn parallel_phi_interferences(
         func: &Function,
+        liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
         block_copies: &FxHashMap<BlockId, Vec<ParallelCopy>>,
     ) -> SpillInterferences {
         let mut interferences = FxHashMap::default();
         for (block_id, copies) in block_copies {
+            // Copies of a multi-successor predecessor execute before the
+            // branch, on every outgoing edge. Splitting keeps phi results
+            // read on sibling paths out of this position, but a destination
+            // could still reuse the spill slot of an unrelated value that is
+            // live only on a sibling edge; keep those apart.
+            let sibling_live = func.blocks[*block_id].terminator.as_ref().and_then(|term| {
+                let successors = term.successors();
+                (successors.len() > 1).then_some(successors)
+            });
             for (index, copy) in copies.iter().enumerate() {
                 let CopyDest::Value(destination) = &copy.dst else { continue };
+                if let Some(successors) = &sibling_live {
+                    for &successor in successors {
+                        for value in liveness.live_in(successor).iter() {
+                            Self::add_spill_interference(
+                                &mut interferences,
+                                colorable,
+                                *destination,
+                                value,
+                            );
+                        }
+                    }
+                }
                 for other in copies {
                     let CopyDest::Value(other_destination) = &other.dst else { continue };
                     Self::add_spill_interference(
@@ -9792,8 +9953,9 @@ mod tests {
         )]);
 
         let function = Function::new(Ident::DUMMY);
+        let liveness = Liveness::compute(&function);
         let interferences =
-            EvmCodegen::parallel_phi_interferences(&function, &colorable, &block_copies);
+            EvmCodegen::parallel_phi_interferences(&function, &liveness, &colorable, &block_copies);
         assert!(interferences[&destination0].contains(&destination1));
         assert!(interferences[&destination0].contains(&source1));
         assert!(!interferences[&destination0].contains(&source0));
