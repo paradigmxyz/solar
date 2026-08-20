@@ -955,14 +955,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     negotiate_capabilities_with_default_forge_path(params, false, None)
 }
 
-#[cfg(test)]
-pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
-    params: InitializeParams,
-    pull_diagnostics_data: bool,
-) -> (ServerCapabilities, Config) {
-    negotiate_capabilities_with_default_forge_path(params, pull_diagnostics_data, None)
-}
-
 pub(crate) fn negotiate_capabilities_with_default_forge_path(
     params: InitializeParams,
     pull_diagnostics_data: bool,
@@ -1749,7 +1741,8 @@ mod tests {
                     ..Default::default()
                 });
 
-                let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(params, pull);
+                let (_, config) =
+                    negotiate_capabilities_with_default_forge_path(params, pull, None);
 
                 let expected_publish = delivery == DiagnosticDelivery::Push && publish;
                 let expected_pull = delivery == DiagnosticDelivery::Pull && pull;

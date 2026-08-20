@@ -1,5 +1,5 @@
 use crate::{
-    new_server_service,
+    LaunchConfig, new_server_service_with_launch_config,
     test_support::{TestProject, read_lsp_frame, write_lsp_frame},
 };
 use async_lsp::ClientSocket;
@@ -173,7 +173,9 @@ struct RawSession {
 
 impl RawSession {
     fn start() -> Self {
-        let (main_loop, client) = async_lsp::MainLoop::new_server(new_server_service);
+        let (main_loop, client) = async_lsp::MainLoop::new_server(|client| {
+            new_server_service_with_launch_config(client, LaunchConfig::default())
+        });
         let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
         let (server_reader, server_writer) = tokio::io::split(server_stream);
         let server_task = tokio::spawn(

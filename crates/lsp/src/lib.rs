@@ -200,7 +200,7 @@ where
     S: LspService<Response = serde_json::Value, Error = ResponseError> + Send + 'static,
     S::Future: Send + 'static,
 {
-    let state = GlobalState::with_launch_config(client.clone(), launch_config);
+    let state = GlobalState::new(client.clone()).with_launch_config(launch_config);
     let protocol_trace = state.protocol_trace();
     ServiceBuilder::new()
         .layer(TracingLayer::default())
@@ -217,14 +217,6 @@ fn new_server_service_with_launch_config(
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 {
     new_server_service_with_router(client, launch_config, new_router_with_state)
-}
-
-#[cfg(test)]
-fn new_server_service(
-    client: ClientSocket,
-) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
-{
-    new_server_service_with_launch_config(client, LaunchConfig::default())
 }
 
 /// Runs the language server over process stdin/stdout.
@@ -261,3 +253,7 @@ mod tests;
 #[cfg(test)]
 #[path = "tests/flycheck.rs"]
 mod flycheck_tests;
+
+#[cfg(test)]
+#[path = "tests/launch.rs"]
+mod launch_tests;

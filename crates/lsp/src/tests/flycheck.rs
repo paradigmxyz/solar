@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use crate::LaunchConfig;
 use crate::{flycheck, global_state::GlobalState, test_support::TestProject};
 use async_lsp::ClientSocket;
 use lsp_types::{
@@ -5,16 +7,75 @@ use lsp_types::{
     CodeActionLiteralSupport, CodeActionOrCommand, CodeActionParams,
     PublishDiagnosticsClientCapabilities, TextDocumentIdentifier, WorkDoneProgressParams,
 };
+#[cfg(unix)]
+use solar_interface::source_map::{FileLoader, RealFileLoader};
 use solar_interface::{
     BytePos, ColorChoice, Span,
     diagnostics::{Applicability, Diag, DiagCtxt, JsonEmitter, Level},
     source_map::{FileName, SourceMap},
 };
+#[cfg(unix)]
+use std::{fs, os::unix::fs::PermissionsExt};
 use std::{io, path::Path, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
 const SOURCE: &str = "contract Test { function run() public view {} }";
 const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn launch_default_drives_forge_lint_discovery_and_execution() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Test.sol
+        contract Test {}
+        "#,
+    );
+    project.write_file(
+        "/embedded-forge",
+        r#"#!/bin/sh
+set -eu
+printf '%s\n' "$@" >> "$0.args"
+printf '%s\n' -- >> "$0.args"
+printf '%s\n' "$PWD" >> "$0.cwd"
+"#,
+    );
+    let forge = project.path("/embedded-forge");
+    let mut permissions = fs::metadata(&forge).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&forge, permissions).unwrap();
+
+    let mut state = GlobalState::new(ClientSocket::new_closed())
+        .with_launch_config(LaunchConfig::default().with_default_forge_path(&forge));
+    state.on_initialize(project.initialize_params()).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let [config] =
+        state.config.flychecks_for_path(&project.path("/src/Test.sol")).try_into().unwrap();
+    let expected_cwd = RealFileLoader.canonicalize_path(&config.cwd).unwrap();
+
+    assert_eq!(config.command, forge);
+    assert_eq!(config.args, ["lint", "--json"]);
+    let (_cancel, cancelled) = oneshot::channel();
+    let diagnostics = flycheck::run(
+        config,
+        Duration::from_secs(5),
+        cancelled,
+        vec![project.path("/src/Test.sol")],
+    )
+    .await
+    .unwrap();
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(project.read_file("/embedded-forge.args"), "lint\n--help\n--\nlint\n--json\n--\n");
+    assert_eq!(
+        project.read_file("/embedded-forge.cwd"),
+        format!("{0}\n{0}\n", expected_cwd.display())
+    );
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {

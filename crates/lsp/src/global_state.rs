@@ -405,15 +405,7 @@ impl AnalysisRevision {
 }
 
 impl GlobalState {
-    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn new(client: ClientSocket) -> Self {
-        Self::with_launch_config(client, crate::LaunchConfig::default())
-    }
-
-    pub(crate) fn with_launch_config(
-        client: ClientSocket,
-        launch_config: crate::LaunchConfig,
-    ) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
         let config = Arc::new(Config::default());
         let protocol_trace = ProtocolTrace::new(client.clone());
@@ -441,8 +433,13 @@ impl GlobalState {
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             config,
-            launch_config,
+            launch_config: crate::LaunchConfig::default(),
         }
+    }
+
+    pub(crate) fn with_launch_config(mut self, launch_config: crate::LaunchConfig) -> Self {
+        self.launch_config = launch_config;
+        self
     }
 
     pub(crate) fn enable_background_discovery(&mut self) {
