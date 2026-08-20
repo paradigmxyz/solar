@@ -442,15 +442,66 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let layout = self.storage_layout_for_struct(struct_id);
         let memory = if mem_offset == 0 {
             mem_ptr
         } else {
             let offset = builder.imm_u64(mem_offset);
             builder.add(mem_ptr, offset)
         };
+        // Dynamic fields (bytes/string/dynamic arrays) do not fit the flat
+        // slot-for-word layout instruction; materialize them field by field so
+        // their memory objects are rebuilt, not their raw length slots.
+        if self.struct_needs_deep_storage_copy(struct_id) {
+            self.deep_copy_storage_struct_to_memory(builder, struct_id, base_slot, memory);
+            return mem_offset + self.calculate_memory_words_for_ty_struct(struct_id) * 32;
+        }
+        let layout = self.storage_layout_for_struct(struct_id);
         builder.storage_to_memory(Arc::clone(&layout), base_slot, memory);
         mem_offset + layout.memory_words() * 32
+    }
+
+    /// Materializes each field of a storage struct into a memory struct,
+    /// rebuilding dynamic fields as fresh memory objects.
+    fn deep_copy_storage_struct_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: ValueId,
+        mem_base: ValueId,
+    ) {
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        for (i, &field_ty) in field_tys.iter().enumerate() {
+            let placement = self.struct_field_placement(struct_id, i);
+            let field_slot = self.offset_storage_slot(builder, base_slot, placement.slot);
+            let value = match field_ty.peel_refs().kind {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    self.materialize_storage_bytes(builder, field_slot)
+                }
+                TyKind::DynArray(_) | TyKind::Array(..) => self
+                    .materialize_storage_array_value(builder, field_ty, field_slot, Span::DUMMY)
+                    .unwrap_or_else(|| builder.sload(field_slot)),
+                TyKind::Struct(inner) => {
+                    let words = self.calculate_memory_words_for_ty_struct(inner);
+                    let ptr =
+                        self.allocate_memory_object(builder, words * 32, MemoryObjectKind::Struct);
+                    self.copy_storage_to_memory_at(builder, inner, field_slot, ptr, 0);
+                    ptr
+                }
+                _ => match placement.shape {
+                    StorageField::Packed(packed) => {
+                        builder.load_packed(field_slot, placement.offset, packed)
+                    }
+                    _ => builder.sload(field_slot),
+                },
+            };
+            let dest = if i == 0 {
+                mem_base
+            } else {
+                let off = builder.imm_u64((i as u64) * 32);
+                builder.add(mem_base, off)
+            };
+            builder.mstore(dest, value);
+        }
     }
 
     /// Clears every storage slot occupied by a struct at a runtime-computed base slot.

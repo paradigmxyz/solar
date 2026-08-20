@@ -2349,10 +2349,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => return None,
         };
-        // One-slot elements only, consistent with storage-array indexing:
-        // words copy directly, `bytes`/`string` and nested arrays materialize
-        // per element. Multi-slot elements (structs) keep the legacy scalar
-        // path for now.
+        // Words copy directly; `bytes`/`string`, nested arrays, and structs
+        // materialize per element, striding by the element's slot count.
         let elem_peeled = elem.peel_refs();
         let elem_is_word = self.abi_is_word_element(elem);
         let elem_is_bytes = matches!(
@@ -2360,20 +2358,33 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         );
         let elem_is_array = matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..));
-        if self.calculate_storage_slots_for_ty(elem, span) != 1
-            || !(elem_is_word || elem_is_bytes || elem_is_array)
-        {
+        let elem_is_struct = matches!(elem_peeled.kind, TyKind::Struct(_));
+        if !(elem_is_word || elem_is_bytes || elem_is_array || elem_is_struct) {
             return None;
         }
+        let elem_slots = self.calculate_storage_slots_for_ty(elem, span);
+        if !elem_is_struct && elem_slots != 1 {
+            return None;
+        }
+
+        let packed_elem = self.packed_value_of_ty(elem);
 
         if let Some(len) = fixed_len {
             // Fixed-size array: elements live in consecutive slots from the
             // base; unroll the copy like storage structs.
             let ptr = self.allocate_memory_object(builder, len * 32, MemoryObjectKind::FixedArray);
             for i in 0..len {
-                let offset = builder.imm_u64(i);
-                let elem_slot = builder.add(slot_val, offset);
-                let value = self.storage_array_element_value(builder, elem, elem_slot, span);
+                let value = if let Some(packed) = packed_elem {
+                    let per_slot = u64::from(packed.per_slot());
+                    let offset = builder.imm_u64(i / per_slot);
+                    let elem_slot = builder.add(slot_val, offset);
+                    let byte_offset = ((i % per_slot) * u64::from(packed.size)) as u8;
+                    builder.load_packed(elem_slot, byte_offset, packed)
+                } else {
+                    let offset = builder.imm_u64(i * elem_slots);
+                    let elem_slot = builder.add(slot_val, offset);
+                    self.storage_array_element_value(builder, elem, elem_slot, span)
+                };
                 let elem_index = builder.imm_u64(i);
                 let addr = builder.memory_object_element_addr(
                     ptr,
@@ -2420,8 +2431,13 @@ impl<'gcx> Lowerer<'gcx> {
         builder.branch(more, body, exit);
 
         builder.switch_to_block(body);
-        let elem_slot = builder.add(elems_base, i);
-        let value = self.storage_array_element_value(builder, elem, elem_slot, span);
+        let value = if let Some(packed) = packed_elem {
+            self.load_packed_array_element(builder, elems_base, i, packed)
+        } else {
+            let elem_offset = Self::scale_index_by_slots(builder, i, elem_slots);
+            let elem_slot = builder.add(elems_base, elem_offset);
+            self.storage_array_element_value(builder, elem, elem_slot, span)
+        };
         let data_offset = builder.shl(five, i);
         let dst = builder.add(data, data_offset);
         builder.mstore(dst, value);
@@ -2496,6 +2512,13 @@ impl<'gcx> Lowerer<'gcx> {
             {
                 return value;
             }
+        }
+        if let TyKind::Struct(struct_id) = elem_peeled.kind {
+            let struct_size = self.calculate_memory_words_for_ty(elem_peeled) * 32;
+            let struct_ptr =
+                self.allocate_memory_object(builder, struct_size, MemoryObjectKind::Struct);
+            self.copy_storage_to_memory_at(builder, struct_id, elem_slot, struct_ptr, 0);
+            return struct_ptr;
         }
         builder.sload(elem_slot)
     }
