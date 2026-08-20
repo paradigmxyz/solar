@@ -383,9 +383,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 let lhs_ty = self.context.gcx.type_of_expr(lhs.id);
-                let lhs = self.lower_expr(lhs)?;
+                let mut lhs = self.lower_expr(lhs)?;
+                if let Some(ty) = lhs_ty {
+                    lhs = self.normalize_dirty_scalar(lhs, ty);
+                }
                 let rhs_ty = self.context.gcx.type_of_expr(rhs.id);
-                let rhs = self.lower_expr(rhs)?;
+                let mut rhs = self.lower_expr(rhs)?;
+                if let Some(ty) = rhs_ty {
+                    rhs = self.normalize_dirty_scalar(rhs, ty);
+                }
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
                         if matches!(
@@ -466,14 +472,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
                     let place = self.resolve_lvalue_place(value)?;
+                    let ty = self.context.gcx.type_of_expr(value.id);
                     let old = self.load_lvalue_place(&place)?;
+                    let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
                     let one = self.builder.imm_u256(U256::from(1));
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
                     } else {
                         BinOpKind::Sub
                     };
-                    let new = self.binary(kind, old, one, self.context.gcx.type_of_expr(value.id));
+                    let new = self.binary(kind, old, one, ty);
                     self.store_lvalue_place(&place, new)?;
                     return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
                         new
@@ -488,7 +496,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.context.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
+                let ty = self.context.gcx.type_of_expr(value.id);
                 let value = self.lower_expr(value)?;
+                let value = ty.map_or(value, |ty| self.normalize_dirty_scalar(value, ty));
                 self.unary(op.kind, value, expr.span, self.context.gcx.type_of_expr(expr.id))
             }
             ExprKind::Assign(lhs, op, rhs) => {
@@ -528,6 +538,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some(kind) = op.map(|op| op.kind) {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
+                    let lhs_value = self.normalize_dirty_scalar(lhs_value, lhs_ty);
+                    let rhs_value = self.normalize_dirty_scalar(rhs_value, rhs_ty);
                     let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
                     let value = self.coerce_value(value, rhs_ty, lhs_ty);
                     self.store_lvalue_place(&place, value)?;

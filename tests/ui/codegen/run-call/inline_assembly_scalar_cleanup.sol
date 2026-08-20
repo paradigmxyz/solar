@@ -11,9 +11,20 @@
 //@ run-call: implicitReturn() => 0x78
 //@ run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call: assemblyRead() => 0x0101
+//@ run-call: internalArguments() => 0x42, 0x42
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
+// ported-from: test/libsolidity/semanticTests/operators/userDefined/operator_parameter_cleanup.sol
+
+type DirtyU8 is uint8;
+using {dirtyNot as ~} for DirtyU8 global;
+
+function dirtyNot(DirtyU8 value) pure returns (DirtyU8 result) {
+    assembly {
+        result := div(value, 256)
+    }
+}
 
 contract InlineAssemblyScalarCleanup {
     enum Choice {
@@ -87,6 +98,14 @@ contract InlineAssemblyScalarCleanup {
             value := 0x0101
             raw := value
         }
+    }
+
+    function internalArguments() external pure returns (DirtyU8, DirtyU8) {
+        DirtyU8 value;
+        assembly {
+            value := 0x4200
+        }
+        return (~value, dirtyNot(value));
     }
 
     function widen(uint256 value) internal pure returns (uint256) {

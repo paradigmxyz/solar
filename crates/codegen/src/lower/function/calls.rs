@@ -520,6 +520,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        let value = if from.peel_refs() != to.peel_refs() {
+            self.normalize_dirty_scalar(value, from)
+        } else {
+            value
+        };
         let source_size = match from.peel_refs().kind {
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
@@ -684,6 +689,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => value,
         }
+    }
+
+    pub(super) fn normalize_dirty_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        if self.in_inline_assembly || !self.dirty_values.contains(&value) {
+            return value;
+        }
+        if let TyKind::Enum(id) = ty.peel_refs().kind {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
+        }
+        self.normalize_abi_scalar(value, ty)
     }
 
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {

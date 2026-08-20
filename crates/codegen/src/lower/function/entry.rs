@@ -211,13 +211,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut values = Vec::with_capacity(returns.len());
             for &id in returns {
                 let ty = self.context.gcx.type_of_item(id.into());
-                let span = self.context.gcx.hir.variable(id).span;
                 let value = if ty.is_ref_at(DataLocation::Storage) {
                     self.storage_refs.get(&id).copied()?.slot
                 } else {
-                    self.load_variable(id, span)?
+                    self.values
+                        .get(&id)
+                        .copied()
+                        .or_else(|| Some(self.default_binding_value(ty)))?
                 };
-                values.push(self.materialize_memory_argument(ty, value, span)?);
+                values.push(self.materialize_memory_argument(
+                    ty,
+                    value,
+                    self.context.gcx.hir.variable(id).span,
+                )?);
             }
             self.builder.ret(values);
         }

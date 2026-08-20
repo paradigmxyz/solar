@@ -185,14 +185,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_variable(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
         if let Some(value) = self.values.get(&id).copied() {
-            if !self.in_inline_assembly && self.dirty_values.contains(&value) {
-                let ty = self.context.gcx.type_of_item(id.into());
-                if let TyKind::Enum(id) = ty.peel_refs().kind {
-                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                    self.builder.validate_enum_value(variants, value);
-                }
-                return Some(self.normalize_abi_scalar(value, ty));
-            }
             return Some(value);
         }
         if self.default_bindings.contains(&id) {
