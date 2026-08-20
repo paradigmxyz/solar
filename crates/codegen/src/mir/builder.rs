@@ -2,7 +2,8 @@
 
 use super::{
     AllocationSemantics, BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    Instruction, MemoryRegion, MirType, PackedKind, PackedValue, SliceLocation, StorageAlias,
+    Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -497,6 +498,90 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an sstore instruction.
     pub(crate) fn sstore(&mut self, slot: ValueId, value: ValueId) {
         self.emit_void_inst(InstKind::SStore(slot, value))
+    }
+
+    /// Extracts a packed value at a static byte `offset` from its loaded slot
+    /// `word` into canonical form.
+    pub(crate) fn extract_packed(
+        &mut self,
+        word: ValueId,
+        value: PackedValue,
+        offset: u8,
+    ) -> ValueId {
+        let shifted = if offset == 0 {
+            word
+        } else {
+            let shift = self.imm_u64(u64::from(offset) * 8);
+            self.shr(shift, word)
+        };
+        if value.kind == PackedKind::Unsigned && u16::from(offset) + u16::from(value.size) == 32 {
+            // The topmost value has nothing above it to mask away.
+            return shifted;
+        }
+        self.canonicalize_packed(shifted, value)
+    }
+
+    /// Canonicalizes a packed value already shifted to the word's low bytes:
+    /// masks unsigned values, sign-extends signed ones, and left-aligns
+    /// `bytesN`.
+    pub(crate) fn canonicalize_packed(&mut self, shifted: ValueId, value: PackedValue) -> ValueId {
+        match value.kind {
+            PackedKind::Unsigned => {
+                let mask = self.imm_u256(value.mask());
+                self.and(shifted, mask)
+            }
+            PackedKind::Signed => {
+                let size = self.imm_u64(u64::from(value.size) - 1);
+                self.signextend(size, shifted)
+            }
+            PackedKind::HighAligned => {
+                let shift = self.imm_u64((32 - u64::from(value.size)) * 8);
+                self.shl(shift, shifted)
+            }
+        }
+    }
+
+    /// Converts a canonical value into its low-aligned masked packed form.
+    pub(crate) fn prepare_packed(&mut self, value_id: ValueId, value: PackedValue) -> ValueId {
+        match value.kind {
+            PackedKind::Unsigned | PackedKind::Signed => {
+                let mask = self.imm_u256(value.mask());
+                self.and(value_id, mask)
+            }
+            PackedKind::HighAligned => {
+                let shift = self.imm_u64((32 - u64::from(value.size)) * 8);
+                self.shr(shift, value_id)
+            }
+        }
+    }
+
+    /// Loads and canonicalizes a packed value at a static byte offset.
+    pub(crate) fn load_packed(&mut self, slot: ValueId, offset: u8, value: PackedValue) -> ValueId {
+        let word = self.sload(slot);
+        self.extract_packed(word, value, offset)
+    }
+
+    /// Read-modify-writes a packed value at a static byte offset, preserving
+    /// the slot's other bytes.
+    pub(crate) fn store_packed(
+        &mut self,
+        slot: ValueId,
+        offset: u8,
+        value: PackedValue,
+        value_id: ValueId,
+    ) {
+        let word = self.sload(slot);
+        let keep = self.imm_u256(!(value.mask() << (usize::from(offset) * 8)));
+        let cleared = self.and(word, keep);
+        let prepared = self.prepare_packed(value_id, value);
+        let shifted = if offset == 0 {
+            prepared
+        } else {
+            let shift = self.imm_u64(u64::from(offset) * 8);
+            self.shl(shift, prepared)
+        };
+        let combined = self.or(cleared, shifted);
+        self.sstore(slot, combined);
     }
 
     /// Emits a tload instruction.

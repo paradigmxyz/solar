@@ -7,6 +7,8 @@ fn @pushStr() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = add arg0, 4
     v4 = calldataload v3
@@ -24,8 +26,11 @@ fn @pushStr() {
     v13 = add v12, 1
     v14 = lt v13, v12
     jumpi v14, bb3, bb4
+  bb3:
+    tail_call @__revert_stub0
   bb4:
     mstore 0, 0 !metadata(memory=scratch)
+    sstore 0, v13 !metadata(storage=slot(0))
     v16 = add v12, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     v17 = mload v9
     v19 = sload v16 !metadata(storage=symbolic(v16))
@@ -68,23 +73,6 @@ fn @pushStr() {
     v60 = phi [bb6: 0], [bb8: v54]
     v48 = lt v60, v35
     jumpi v48, bb8, bb9
-  bb9:
-    mstore v36, v35
-    jump bb10
-  bb10:
-    v61 = phi [bb9: v35], [bb11: v59]
-    v56 = lt v61, v30
-    jumpi v56, bb11, bb12
-  bb12:
-    sstore 0, v13 !metadata(storage=slot(0))
-    stop
-  bb11:
-    v57 = mload v36
-    v58 = add v37, v57
-    sstore v58, 0 !metadata(storage=symbolic(v58))
-    v59 = add v57, 1
-    mstore v36, v59
-    jump bb10
   bb8:
     v49 = mload v36
     v51 = shl 5, v49
@@ -95,10 +83,22 @@ fn @pushStr() {
     v54 = add v49, 1
     mstore v36, v54
     jump bb7
-  bb3:
-    tail_call @__revert_stub0
-  bb1:
-    revert 0, 0
+  bb9:
+    mstore v36, v35
+    jump bb10
+  bb10:
+    v61 = phi [bb9: v35], [bb11: v59]
+    v56 = lt v61, v30
+    jumpi v56, bb11, bb12
+  bb11:
+    v57 = mload v36
+    v58 = add v37, v57
+    sstore v58, 0 !metadata(storage=symbolic(v58))
+    v59 = add v57, 1
+    mstore v36, v59
+    jump bb10
+  bb12:
+    stop
 }
 
 fn @popStr() {
@@ -138,9 +138,6 @@ fn @popStr() {
     v49 = phi [bb2: 0], [bb4: v47]
     v44 = lt v49, v18
     jumpi v44, bb4, bb5
-  bb5:
-    sstore 0, v1 !metadata(storage=slot(0))
-    stop
   bb4:
     v45 = mload v24
     v46 = add v25, v45
@@ -148,6 +145,9 @@ fn @popStr() {
     v47 = add v45, 1
     mstore v24, v47
     jump bb3
+  bb5:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
 }
 
 fn @blobAt() {
@@ -156,6 +156,8 @@ fn @blobAt() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = sload 2 !metadata(storage=slot(2))
     v4 = lt arg0, v3
@@ -194,8 +196,6 @@ fn @blobAt() {
     v31 = add v29, v28
     mstore 64, v31 !metadata(memory=scratch)
     returndata v29, v24
-  bb1:
-    revert 0, 0
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {
@@ -230,13 +230,13 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v17 = keccak256 v13, 32
     v18 = shr 5, v9
     jump bb4
+  bb3:
+    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     jumpi v19, bb5, bb3
-  bb3:
-    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -252,8 +252,11 @@ fn @pushEmpty() {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub0
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
+    sstore 2, v1 !metadata(storage=slot(2))
     v4 = add v0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v51 = add v5, 32
@@ -280,9 +283,6 @@ fn @pushEmpty() {
     v50 = phi [bb2: 0], [bb4: v48]
     v45 = lt v50, v19
     jumpi v45, bb4, bb5
-  bb5:
-    sstore 2, v1 !metadata(storage=slot(2))
-    stop
   bb4:
     v46 = mload v25
     v47 = add v26, v46
@@ -290,8 +290,8 @@ fn @pushEmpty() {
     v48 = add v46, 1
     mstore v25, v48
     jump bb3
-  bb1:
-    tail_call @__revert_stub0
+  bb5:
+    stop
 }
 
 fn @__revert_stub0() {
@@ -309,14 +309,14 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
-  bb5:
-    tail_call @pushStr
-  bb4:
-    tail_call @blobAt
-  bb3:
-    tail_call @popStr
   bb2:
     tail_call @pushEmpty
+  bb3:
+    tail_call @popStr
+  bb4:
+    tail_call @blobAt
+  bb5:
+    tail_call @pushStr
   bb6:
     revert 0, 0
 }

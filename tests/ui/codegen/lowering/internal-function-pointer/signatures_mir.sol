@@ -1,8 +1,12 @@
 //@ compile-flags: -O none -Zdump=mir
 //@ filecheck:
 
+// The 8-byte function pointer packs after the bool at slot 0 byte offset 1:
+// the constructor read-modify-writes it and readers shift-and-mask it out.
 // CHECK-LABEL: fn @constructor(
-// CHECK: sstore 1, [[SET_FLAG:[0-9]+]]
+// CHECK: and [[SET_FLAG:[0-9]+]], 0xffffffffffffffff
+// CHECK: shl 8,
+// CHECK: sstore 0, {{v[0-9]+}}
 contract FunctionPointerSignatures {
     bool flag;
     function() internal stateFn = setFlag;
@@ -24,7 +28,9 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callState(
-    // CHECK: [[STORED:v[0-9]+]] = sload 1
+    // CHECK: [[WORD:v[0-9]+]] = sload 0
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[WORD]]
+    // CHECK: [[STORED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
     // CHECK: internal_call @__internal_dispatch_0, 0, [[STORED]]
     function callState() public returns (bool) {
         stateFn();

@@ -24,7 +24,7 @@ fn @abi(arg0: u256) -> memoryslice {
 }
 fn @aggregate(arg0: u256, arg1: memorystruct) {
   bb0:
-    storage_to_memory struct<word>, arg0, arg1
+    storage_to_memory struct<0:word>, arg0, arg1
     stop
 }
 fn @allocation() {

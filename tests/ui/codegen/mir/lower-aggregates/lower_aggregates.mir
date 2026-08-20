@@ -9,7 +9,7 @@
 // CHECK: + mstore [[FIELD]], [[VALUE]]
 fn @storage_to_memory(arg0: u256, arg1: memptr) {
   bb0:
-    storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    storage_to_memory struct<0:word, 1:struct<0:word, 1:word>, 3:array<2, word>>, arg0, arg1
     stop
 }
 
@@ -20,7 +20,7 @@ fn @storage_to_memory(arg0: u256, arg1: memptr) {
 // CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: memptr, arg1: u256) {
   bb0:
-    memory_to_storage struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    memory_to_storage struct<0:word, 1:struct<0:word, 1:word>, 3:array<2, word>>, arg0, arg1
     stop
 }
 
@@ -29,6 +29,6 @@ fn @memory_to_storage(arg0: memptr, arg1: u256) {
 // CHECK: + sstore arg0, 0
 fn @clear_storage(arg0: u256) {
   bb0:
-    clear_storage struct<word, struct<word, word>, array<2, word>>, arg0
+    clear_storage struct<0:word, 1:struct<0:word, 1:word>, 3:array<2, word>>, arg0
     stop
 }

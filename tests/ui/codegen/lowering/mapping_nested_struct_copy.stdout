@@ -20,7 +20,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     v9 = memory_object_field_addr memorystruct<3>, v3, 2
     mstore v9, arg4
     v10 = mapping_slot arg0, 0
-    memory_to_storage struct<word, struct<word, word>, word>, v3, v10
+    memory_to_storage struct<0:word, 1:struct<0:word, 1:word>, 3:word>, v3, v10
     stop
   bb1:
     revert 0, 0
@@ -39,7 +39,7 @@ fn @get(arg0: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, 
     mstore 224, 0
     v3 = mapping_slot arg0, 0
     v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    storage_to_memory struct<word, struct<word, word>, word>, v3, v4
+    storage_to_memory struct<0:word, 1:struct<0:word, 1:word>, 3:word>, v3, v4
     v5 = memory_object_field_addr memorystruct<3>, v4, 0
     v6 = mload v5
     v7 = memory_object_field_addr memorystruct<3>, v4, 1
@@ -65,7 +65,7 @@ fn @clear(arg0: u256) {
     jumpi v2, bb1, bb2
   bb2:
     v3 = mapping_slot arg0, 0
-    clear_storage struct<word, struct<word, word>, word>, v3
+    clear_storage struct<0:word, 1:struct<0:word, 1:word>, 3:word>, v3
     stop
   bb1:
     revert 0, 0
