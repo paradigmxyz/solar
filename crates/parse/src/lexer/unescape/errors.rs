@@ -10,6 +10,7 @@ pub enum EscapeError {
     InvalidEscape,
     /// Raw '\r' encountered.
     BareCarriageReturn,
+
     /// Numeric character escape is too short (e.g. '\x1').
     HexEscapeTooShort,
     /// Invalid character in numeric escape (e.g. '\xz1').
