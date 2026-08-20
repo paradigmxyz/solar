@@ -14,6 +14,7 @@ use async_lsp::{
 use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
+use solar_config::LspArgs;
 use std::{
     ops::ControlFlow,
     path::{Path, PathBuf},
@@ -24,6 +25,12 @@ use tower::ServiceBuilder;
 #[derive(Clone, Debug, Default)]
 pub struct LaunchConfig {
     default_forge_path: Option<PathBuf>,
+}
+
+impl From<LspArgs> for LaunchConfig {
+    fn from(_: LspArgs) -> Self {
+        Self::default()
+    }
 }
 
 impl LaunchConfig {

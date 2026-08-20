@@ -16,6 +16,9 @@ solar_lsp::launch(config).await?;
 # }
 ```
 
+An embedding executable that also provides Forge commands can use its own path as the default, as
+shown above. Other hosts should supply the path to their Forge executable instead.
+
 The caller owns the Tokio runtime and process-global setup. `launch` owns process stdin and stdout
 until the LSP session exits, reserves stdout for JSON-RPC frames, and returns transport or protocol
 errors to the caller. A client-provided `initializationOptions.forgePath` overrides the launch

@@ -31,32 +31,23 @@ impl FlycheckConfig {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FlycheckInitializationOptions {
-    forge_path: Option<PathBuf>,
     flychecks: Option<Vec<FlycheckTemplate>>,
 }
 
 impl FlycheckInitializationOptions {
-    pub(crate) fn from_json(
-        value: Option<serde_json::Value>,
-        default_forge_path: Option<&Path>,
-    ) -> Self {
-        let mut options =
-            value.and_then(|value| serde_json::from_value::<Self>(value).ok()).unwrap_or_default();
-        if options.forge_path.is_none() {
-            options.forge_path = default_forge_path.map(Path::to_path_buf);
-        }
-        options
+    pub(crate) fn from_json(value: Option<serde_json::Value>) -> Self {
+        value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default()
     }
 
-    pub(crate) fn configs(&self, workspaces: &[Workspace]) -> Vec<FlycheckConfig> {
+    pub(crate) fn configs(
+        &self,
+        workspaces: &[Workspace],
+        forge_path: &Path,
+    ) -> Vec<FlycheckConfig> {
         match &self.flychecks {
             Some(templates) => expand_templates(templates, workspaces),
-            None => default_flychecks(workspaces, self.forge_path()),
+            None => default_flychecks(workspaces, forge_path.to_path_buf()),
         }
-    }
-
-    pub(crate) fn forge_path(&self) -> PathBuf {
-        self.forge_path.clone().unwrap_or_else(|| PathBuf::from("forge"))
     }
 }
 
@@ -157,7 +148,6 @@ mod tests {
             "#,
         );
         let options = FlycheckInitializationOptions {
-            forge_path: None,
             flychecks: Some(vec![FlycheckTemplate {
                 id: "custom".into(),
                 command: "custom-lint".into(),
@@ -167,7 +157,7 @@ mod tests {
             }]),
         };
 
-        let configs = options.configs(project.config().workspaces());
+        let configs = options.configs(project.config().workspaces(), Path::new("forge"));
 
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
@@ -186,9 +176,8 @@ mod tests {
             src = "src"
             "#,
         );
-        let options =
-            FlycheckInitializationOptions { forge_path: None, flychecks: Some(Vec::new()) };
+        let options = FlycheckInitializationOptions { flychecks: Some(Vec::new()) };
 
-        assert!(options.configs(project.config().workspaces()).is_empty());
+        assert!(options.configs(project.config().workspaces(), Path::new("forge")).is_empty());
     }
 }
