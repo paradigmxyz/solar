@@ -989,6 +989,13 @@ fn audit_artifacts(
         }
         let solc_size = solc_run.bytecode_sizes[name];
         match solar_run.bytecode_sizes.get(name) {
+            // Internal-only libraries get a tiny call-protection stub from
+            // solc and no artifact from Solar; nothing can call either.
+            None if solc_size <= 32 => {
+                eprintln!(
+                    "[audit] `{name}`: {solc_size}B solc stub with no Solar artifact (internal-only library)"
+                );
+            }
             None => violations.push(format!(
                 "`{name}`: {solc_size}B deployed bytecode under solc, none under Solar"
             )),
