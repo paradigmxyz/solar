@@ -371,6 +371,7 @@ pub(crate) struct GlobalState {
     pub(crate) sess: Session,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
+    launch_config: crate::LaunchConfig,
     pub(crate) file_operations: FileOperationCoordinator,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
@@ -432,7 +433,13 @@ impl GlobalState {
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             config,
+            launch_config: crate::LaunchConfig::default(),
         }
+    }
+
+    pub(crate) fn with_launch_config(mut self, launch_config: crate::LaunchConfig) -> Self {
+        self.launch_config = launch_config;
+        self
     }
 
     pub(crate) fn enable_background_discovery(&mut self) {
@@ -615,8 +622,11 @@ impl GlobalState {
         pull_diagnostic_data_support: bool,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
         self.protocol_trace.set_level(params.trace.unwrap_or_default());
-        let (capabilities, config) =
-            negotiate_capabilities_with_pull_diagnostic_data(params, pull_diagnostic_data_support);
+        let (capabilities, config) = negotiate_capabilities_with_pull_diagnostic_data(
+            params,
+            pull_diagnostic_data_support,
+            self.launch_config.default_forge_path(),
+        );
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
