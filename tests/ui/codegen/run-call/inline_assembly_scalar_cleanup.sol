@@ -12,10 +12,12 @@
 //@ run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call: assemblyRead() => 0x0101
 //@ run-call: internalArguments() => 0x42, 0x42
+//@ run-call: storageAssignment() => 1
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
 // ported-from: test/libsolidity/semanticTests/operators/userDefined/operator_parameter_cleanup.sol
+// ported-from: test/libsolidity/semanticTests/variables/storing_invalid_boolean.sol
 
 type DirtyU8 is uint8;
 using {dirtyNot as ~} for DirtyU8 global;
@@ -31,6 +33,8 @@ contract InlineAssemblyScalarCleanup {
         Zero,
         One
     }
+
+    bool private stored;
 
     function arithmetic() external pure returns (uint8, uint8, uint8, uint8, uint8, uint8) {
         uint8 value;
@@ -106,6 +110,17 @@ contract InlineAssemblyScalarCleanup {
             value := 0x4200
         }
         return (~value, dirtyNot(value));
+    }
+
+    function storageAssignment() external returns (uint256 raw) {
+        bool value;
+        assembly {
+            value := 5
+        }
+        stored = value;
+        assembly {
+            raw := sload(stored.slot)
+        }
     }
 
     function widen(uint256 value) internal pure returns (uint256) {

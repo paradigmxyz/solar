@@ -938,6 +938,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
+        let value = self.normalize_dirty_scalar(value, ty);
         if let TyKind::Enum(id) = ty.peel_refs().kind {
             let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
             self.builder.validate_enum_value(variants, value);
