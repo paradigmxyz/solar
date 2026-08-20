@@ -144,7 +144,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                self.lower_expr(expr)?;
+                if self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                    self.lower_values(expr)?;
+                } else {
+                    self.lower_expr(expr)?;
+                }
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {
