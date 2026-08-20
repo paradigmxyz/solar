@@ -412,21 +412,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => (lhs, rhs),
                 };
-                let (lhs, rhs) = if op.kind == BinOpKind::Pow {
-                    let lhs = if self.dirty_values.contains(&lhs) {
-                        lhs_ty.map_or(lhs, |ty| self.normalize_abi_scalar(lhs, ty))
-                    } else {
-                        lhs
-                    };
-                    let rhs = if self.dirty_values.contains(&rhs) {
-                        rhs_ty.map_or(rhs, |ty| self.normalize_abi_scalar(rhs, ty))
-                    } else {
-                        rhs
-                    };
-                    (lhs, rhs)
-                } else {
-                    (lhs, rhs)
-                };
                 let expr_ty = self.context.gcx.type_of_expr(expr.id);
                 let lhs_is_literal =
                     lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
