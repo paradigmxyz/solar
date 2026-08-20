@@ -6,7 +6,7 @@ pub(super) fn run(args: LspArgs) -> ExitCode {
         .enable_all()
         .build()
         .unwrap()
-        .block_on(solar_lsp::run_server_stdio(args))
+        .block_on(solar_lsp::launch(solar_lsp::LaunchConfig::from(args)))
     {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,

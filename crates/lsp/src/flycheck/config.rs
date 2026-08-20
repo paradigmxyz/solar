@@ -36,8 +36,16 @@ pub(crate) struct FlycheckInitializationOptions {
 }
 
 impl FlycheckInitializationOptions {
-    pub(crate) fn from_json(value: Option<serde_json::Value>) -> Self {
-        value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default()
+    pub(crate) fn from_json(
+        value: Option<serde_json::Value>,
+        default_forge_path: Option<&Path>,
+    ) -> Self {
+        let mut options: Self =
+            value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default();
+        if options.forge_path.is_none() {
+            options.forge_path = default_forge_path.map(Path::to_path_buf);
+        }
+        options
     }
 
     pub(crate) fn configs(&self, workspaces: &[Workspace]) -> Vec<FlycheckConfig> {

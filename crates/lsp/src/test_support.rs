@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, negotiate_capabilities},
+    config::{SessionConfig, negotiate_capabilities},
     project_fixture::{FixtureMarker, ProjectFixture},
     vfs::{Vfs, VfsPath},
 };
@@ -155,13 +155,13 @@ impl TestProject {
         }
     }
 
-    pub(crate) fn config(&self) -> Config {
+    pub(crate) fn config(&self) -> SessionConfig {
         let (_, mut config) = negotiate_capabilities(self.initialize_params());
         config.rediscover_workspaces();
         config
     }
 
-    pub(crate) fn config_with_roots(&self, roots: &[&str]) -> Config {
+    pub(crate) fn config_with_roots(&self, roots: &[&str]) -> SessionConfig {
         let (_, mut config) = negotiate_capabilities(self.initialize_params_with_roots(roots));
         config.rediscover_workspaces();
         config

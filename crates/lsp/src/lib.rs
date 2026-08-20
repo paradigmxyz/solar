@@ -6,17 +6,46 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use crate::global_state::GlobalState;
+#[cfg(test)]
+use async_lsp::ClientSocket;
 use async_lsp::{
-    ClientSocket, client_monitor::ClientProcessMonitorLayer, router::Router,
-    server::LifecycleLayer, tracing::TracingLayer,
+    client_monitor::ClientProcessMonitorLayer, router::Router, server::LifecycleLayer,
+    tracing::TracingLayer,
 };
 #[cfg(test)]
 use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
 use solar_config::LspArgs;
-use std::ops::ControlFlow;
+use std::{
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+};
 use tower::ServiceBuilder;
+
+/// Configuration used to launch the language server before the client initializes it.
+#[derive(Clone, Debug, Default)]
+pub struct LaunchConfig {
+    default_forge_path: Option<PathBuf>,
+}
+
+impl From<LspArgs> for LaunchConfig {
+    fn from(_: LspArgs) -> Self {
+        Self::default()
+    }
+}
+
+impl LaunchConfig {
+    /// Sets the Forge executable to use when the client does not provide one.
+    pub fn with_default_forge_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.default_forge_path = Some(path.into());
+        self
+    }
+
+    pub(crate) fn default_forge_path(&self) -> Option<&Path> {
+        self.default_forge_path.as_deref()
+    }
+}
 
 mod call_hierarchy;
 mod commands;
@@ -71,6 +100,7 @@ mod test_support;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
+#[cfg(test)]
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
     new_router_with_state(GlobalState::new(client))
 }
@@ -139,7 +169,7 @@ fn request_layer() -> request_cancellation::RequestCancellationLayer {
 /// Start the LSP server over stdin/stdout.
 ///
 /// This future is long running and will not stop until the server exits.
-pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
+pub async fn launch(config: LaunchConfig) -> async_lsp::Result<()> {
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
     let (stdin, stdout) =
@@ -158,10 +188,17 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
             .layer(LifecycleLayer::default())
             .layer(request_layer())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(new_router(client))
+            .service(new_router_with_state(GlobalState::with_launch_config(client, config.clone())))
     });
 
     eloop.run_buffered(stdin, stdout).await
+}
+
+/// Start the LSP server over stdin/stdout with command-line options.
+///
+/// This is retained for callers that previously launched the server with [`LspArgs`].
+pub async fn run_server_stdio(args: LspArgs) -> async_lsp::Result<()> {
+    launch(args.into()).await
 }
 
 #[cfg(test)]
@@ -236,6 +273,14 @@ mod tests {
             panic!("expected request cancellation, got {error:?}");
         };
         assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_CANCELLED);
+    }
+
+    #[test]
+    fn launch_config_converts_lsp_args_and_accepts_a_default_forge_path() {
+        let config =
+            LaunchConfig::from(LspArgs::default()).with_default_forge_path("/embedded/forge");
+
+        assert_eq!(config.default_forge_path(), Some(Path::new("/embedded/forge")));
     }
 
     fn start_request<F: Future>(future: F) -> Pin<Box<F>> {

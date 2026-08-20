@@ -2,7 +2,7 @@ use super::*;
 #[cfg(unix)]
 use crate::test_support::process_exists;
 use crate::{
-    config::negotiate_capabilities,
+    config::{SessionConfig, negotiate_capabilities},
     test_support::{MarkedProject, TestProject},
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
@@ -139,7 +139,7 @@ fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
     snapshot_with_config(project.config(), project.vfs())
 }
 
-fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
+fn snapshot_with_config(config: SessionConfig, vfs: Vfs) -> GlobalStateSnapshot {
     let (published_analysis_version, _) = watch::channel(1);
     GlobalStateSnapshot {
         client: ClientSocket::new_closed(),

@@ -20,13 +20,13 @@ use std::{
 };
 use tracing::{info, warn};
 
-/// The LSP config.
+/// The post-initialize LSP session config.
 ///
 /// This struct is internal only and should not be serialized or deserialized. Instead, values in
 /// this struct are the full view of all merged config sources, such as `initialization_opts`,
 /// on-disk config files (e.g. `foundry.toml`).
 #[derive(Default, Clone, Debug)]
-pub(crate) struct Config {
+pub(crate) struct SessionConfig {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
     flycheck_options: FlycheckInitializationOptions,
@@ -51,7 +51,7 @@ pub(crate) struct SignatureHelpClientOptions {
     pub(crate) signature_active_parameter: bool,
 }
 
-impl Config {
+impl SessionConfig {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
     }
@@ -195,13 +195,24 @@ fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
     workspaces.push(workspace);
 }
 
-pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
+#[cfg(test)]
+pub(crate) fn negotiate_capabilities(
+    params: InitializeParams,
+) -> (ServerCapabilities, SessionConfig) {
+    negotiate_capabilities_with_default_forge_path(params, None)
+}
+
+pub(crate) fn negotiate_capabilities_with_default_forge_path(
+    params: InitializeParams,
+    default_forge_path: Option<&Path>,
+) -> (ServerCapabilities, SessionConfig) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
     #[allow(deprecated)]
     let root_uri = params.root_uri;
     let workspace_folders = params.workspace_folders;
-    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options);
+    let flycheck_options =
+        FlycheckInitializationOptions::from_json(initialization_options, default_forge_path);
 
     // todo: make this absolute guaranteed
     let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
@@ -332,7 +343,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
-        Config {
+        SessionConfig {
             workspace_roots,
             flycheck_options,
             watched_file_dynamic_registration,
@@ -636,19 +647,25 @@ mod tests {
 
     #[test]
     fn negotiate_capabilities_records_configured_forge_path() {
-        let (_, default_config) = negotiate_capabilities(InitializeParams::default());
-        assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
+        let (_, default_config) = negotiate_capabilities_with_default_forge_path(
+            InitializeParams::default(),
+            Some(Path::new("/embedded/forge")),
+        );
+        assert_eq!(default_config.forge_path(), PathBuf::from("/embedded/forge"));
 
-        let params = InitializeParams {
-            initialization_options: Some(serde_json::json!({
-                "forgePath": "/tools/forge"
-            })),
-            ..Default::default()
-        };
+        let (_, bare_config) = negotiate_capabilities(InitializeParams::default());
+        assert_eq!(bare_config.forge_path(), PathBuf::from("forge"));
 
-        let (_, config) = negotiate_capabilities(params);
-
-        assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
+        let (_, client_config) = negotiate_capabilities_with_default_forge_path(
+            InitializeParams {
+                initialization_options: Some(serde_json::json!({
+                    "forgePath": "/client/forge"
+                })),
+                ..Default::default()
+            },
+            Some(Path::new("/embedded/forge")),
+        );
+        assert_eq!(client_config.forge_path(), PathBuf::from("/client/forge"));
     }
 
     #[test]

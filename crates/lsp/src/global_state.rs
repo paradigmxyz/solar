@@ -1,6 +1,6 @@
 use crate::{
     NotifyResult,
-    config::{Config, negotiate_capabilities},
+    config::{SessionConfig, negotiate_capabilities_with_default_forge_path},
     diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport},
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
@@ -68,7 +68,8 @@ pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) sess: Session,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
-    pub(crate) config: Arc<Config>,
+    pub(crate) config: Arc<SessionConfig>,
+    launch_config: crate::LaunchConfig,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
@@ -80,7 +81,15 @@ pub(crate) struct GlobalState {
 }
 
 impl GlobalState {
+    #[cfg(test)]
     pub(crate) fn new(client: ClientSocket) -> Self {
+        Self::with_launch_config(client, crate::LaunchConfig::default())
+    }
+
+    pub(crate) fn with_launch_config(
+        client: ClientSocket,
+        launch_config: crate::LaunchConfig,
+    ) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
         let analysis_progress = ProgressCoordinator::new(client.clone(), false);
         Self {
@@ -96,6 +105,7 @@ impl GlobalState {
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
+            launch_config,
         }
     }
 
@@ -103,7 +113,10 @@ impl GlobalState {
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
-        let (capabilities, mut config) = negotiate_capabilities(params);
+        let (capabilities, mut config) = negotiate_capabilities_with_default_forge_path(
+            params,
+            self.launch_config.default_forge_path(),
+        );
 
         config.rediscover_workspaces();
 
@@ -676,7 +689,7 @@ fn publish_diagnostic_batches(
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
-    config: Arc<Config>,
+    config: Arc<SessionConfig>,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
