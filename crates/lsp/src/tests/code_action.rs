@@ -1,5 +1,5 @@
 use crate::{
-    code_actions::source_fingerprint, config::negotiate_capabilities_with_default_forge_path,
+    code_actions::source_fingerprint, config::negotiate_capabilities_with_pull_diagnostic_data,
     global_state::GlobalState, test_support::TestProject,
 };
 use async_lsp::ClientSocket;
@@ -1263,7 +1263,7 @@ fn state_with_diagnostic_capabilities(
             });
     }
     let config =
-        negotiate_capabilities_with_default_forge_path(initialize, pull_diagnostic_data, None).1;
+        negotiate_capabilities_with_pull_diagnostic_data(initialize, pull_diagnostic_data, None).1;
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
     state

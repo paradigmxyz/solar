@@ -190,7 +190,7 @@ fn new_server_service_with_router<S>(
     new_router: impl FnOnce(GlobalState) -> S,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 where
-    S: LspService<Response = serde_json::Value, Error = ResponseError> + Send + 'static,
+    S: LspService<Response = serde_json::Value, Error = ResponseError> + Send,
     S::Future: Send + 'static,
 {
     let state = GlobalState::new(client.clone()).with_launch_config(launch_config);
@@ -204,7 +204,7 @@ where
         .service(new_router(state))
 }
 
-fn new_server_service_with_launch_config(
+fn new_server_service(
     client: ClientSocket,
     launch_config: LaunchConfig,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
@@ -212,7 +212,7 @@ fn new_server_service_with_launch_config(
     new_server_service_with_router(client, launch_config, new_router_with_state)
 }
 
-/// Runs the language server over process stdin/stdout.
+/// Start the LSP server over stdin/stdout.
 ///
 /// The caller must poll this future inside a Tokio runtime and owns all process-global setup. Once
 /// polled, the server owns stdin and stdout until the LSP session exits; stdout is reserved for
@@ -232,9 +232,8 @@ pub async fn launch(config: LaunchConfig) -> async_lsp::Result<()> {
         tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(tokio::io::stdout()),
     );
 
-    let (eloop, _) = async_lsp::MainLoop::new_server(move |client| {
-        new_server_service_with_launch_config(client, config)
-    });
+    let (eloop, _) =
+        async_lsp::MainLoop::new_server(move |client| new_server_service(client, config));
 
     eloop.run_buffered(stdin, stdout).await
 }
