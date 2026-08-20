@@ -531,7 +531,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
-                let rhs_value = if self.types.memory_layout(memory_rhs_ty).is_some()
+                let rhs_value = if self.in_inline_assembly {
+                    self.lower_yul_word_expr(rhs)?
+                } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
                     self.lower_typed_expr(rhs, memory_rhs_ty)?

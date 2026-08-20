@@ -25,7 +25,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    let value = self.lower_typed_expr(expr, ty)?;
+                    let value = if self.in_inline_assembly {
+                        self.lower_yul_word_expr(expr)?
+                    } else {
+                        self.lower_typed_expr(expr, ty)?
+                    };
                     self.coerce_value(value, self.context.gcx.type_of_expr(expr.id)?, ty)
                 } else if let Some(value) = self.default_object(ty) {
                     value
@@ -140,7 +144,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                self.lower_expr(expr)?;
+                if self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                    self.lower_values(expr)?;
+                } else {
+                    self.lower_expr(expr)?;
+                }
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {
