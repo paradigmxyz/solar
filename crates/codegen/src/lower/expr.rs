@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, TypeSize, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, PackedValue, StructField, TypeSize, ValueId},
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -24,6 +24,20 @@ const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 pub(super) struct MappingElementSlot {
     pub(super) slot: ValueId,
     pub(super) value_is_mapping: bool,
+}
+
+/// A storage array resolved to its base slot and element layout.
+pub(super) struct StorageArrayBase {
+    /// Runtime base slot (length slot for dynamic arrays).
+    pub(super) slot: ValueId,
+    /// Constant length, `None` for dynamic arrays.
+    pub(super) fixed_len: Option<u64>,
+    /// Storage slots occupied by one element; the element stride for
+    /// non-packed elements only.
+    pub(super) elem_slots: u64,
+    /// Packed shape when elements share slots; overrides `elem_slots`
+    /// striding.
+    pub(super) packed: Option<PackedValue>,
 }
 
 /// The base storage slot of a mapping: a compile-time constant for a state
@@ -452,36 +466,38 @@ impl<'gcx> Lowerer<'gcx> {
 
                 // Check if this is a storage struct member access (e.g., storedPoint.x)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, placement)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
                         field_index,
                     )
                 {
-                    return builder.sload(slot);
+                    return self.load_struct_field_at(builder, &placement, slot);
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + U256::from(field_offset);
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    let slot = base_slot + U256::from(placement.slot);
                     let slot_val = builder.imm_u256(slot);
-                    return builder.sload(slot_val);
+                    return self.load_struct_field_at(builder, &placement, slot_val);
                 }
 
                 // Check if this is a nested storage struct access (e.g., storedNested.point.x)
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, placement)) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u256(slot);
-                    return builder.sload(slot_val);
+                    return self.load_struct_field_at(builder, &placement, slot_val);
                 }
 
                 // Storage struct field access where the base is itself a storage
                 // location: a storage reference (`Item storage r = items[k]; r.a`)
                 // or an indexed element (`items[k].a`, `arr[i].a`).
-                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
-                    return builder.sload(slot);
+                if let Some((slot, placement)) =
+                    self.lower_storage_struct_field_slot(builder, base, *member)
+                {
+                    return self.load_struct_field_at(builder, &placement, slot);
                 }
 
                 // Regular memory struct member access
@@ -1330,10 +1346,10 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         // Storage array (state variable or storage-reference local): dynamic
         // length at the base slot, fixed length is a compile-time constant.
-        if let Some((slot_val, fixed_len, _)) = self.storage_array_slot_of_base(builder, base) {
-            return Some(match fixed_len {
+        if let Some(array) = self.storage_array_slot_of_base(builder, base) {
+            return Some(match array.fixed_len {
                 Some(len) => builder.imm_u64(len),
-                None => builder.sload(slot_val),
+                None => builder.sload(array.slot),
             });
         }
 
@@ -1862,40 +1878,42 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Member(base, member) => {
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, placement)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
                         field_index,
                     )
                 {
-                    builder.sstore(slot, rhs);
+                    self.store_struct_field_at(builder, &placement, slot, rhs);
                     return;
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + U256::from(field_offset);
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    let slot = base_slot + U256::from(placement.slot);
                     let slot_val = builder.imm_u256(slot);
-                    builder.sstore(slot_val, rhs);
+                    self.store_struct_field_at(builder, &placement, slot_val, rhs);
                     return;
                 }
 
                 // Check if this is a nested storage struct assignment (e.g., storedNested.point.x =
                 // value)
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, placement)) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u256(slot);
-                    builder.sstore(slot_val, rhs);
+                    self.store_struct_field_at(builder, &placement, slot_val, rhs);
                     return;
                 }
 
                 // Storage struct field assignment where the base is itself a
                 // storage location: a storage reference (`Item storage r =
                 // items[k]; r.a = v`) or an indexed element (`items[k].a = v`).
-                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
-                    builder.sstore(slot, rhs);
+                if let Some((slot, placement)) =
+                    self.lower_storage_struct_field_slot(builder, base, *member)
+                {
+                    self.store_struct_field_at(builder, &placement, slot, rhs);
                     return;
                 }
 
@@ -1933,7 +1951,25 @@ impl<'gcx> Lowerer<'gcx> {
                 let base_val = self.lower_value_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
-            ExprKind::Call(..) => {
+            ExprKind::Call(callee, args, _) => {
+                // `arr.push() = v` with packed elements: the pushed element
+                // shares its slot, so store it packed at the old length rather
+                // than through a whole-slot lvalue. Decide from the types alone
+                // before lowering anything: resolving the array's slot lowers
+                // the base lvalue, which must happen exactly once.
+                if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
+                    && self.builtin_args::<0>(Builtin::ArrayPush0, args).is_ok()
+                    && let ExprKind::Member(array_base, _) = &callee.kind
+                    && let Some((element_ty, None)) = self.storage_array_type_of_expr(array_base)
+                    && let Some(packed) = self.packed_value_of_ty(element_ty)
+                {
+                    if let Some((slot, _, _)) = self.storage_dynamic_array_info(builder, array_base)
+                    {
+                        let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+                        self.store_packed_array_element(builder, data_slot, length, packed, rhs);
+                    }
+                    return;
+                }
                 if let Some(slot) = self.lower_lvalue_slot(builder, lhs)
                     && let Some(ty) = self.get_expr_type(lhs)
                 {
@@ -2194,18 +2230,17 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Resolves an array living in storage: a state variable, storage-reference
-    /// local, mapping value, struct field, or nested array element. Returns its
-    /// runtime base slot, constant length (`None` for dynamic arrays), and the
-    /// number of storage slots occupied by one element.
+    /// local, mapping value, struct field, or nested array element.
     pub(super) fn storage_array_slot_of_base(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
-    ) -> Option<(ValueId, Option<u64>, u64)> {
+    ) -> Option<StorageArrayBase> {
         let (element, fixed_len) = self.storage_array_type_of_expr(expr)?;
         let elem_slots = self.calculate_storage_slots_for_ty(element, expr.span);
+        let packed = self.packed_value_of_ty(element);
         let slot = self.lower_lvalue_slot(builder, expr)?;
-        Some((slot, fixed_len, elem_slots))
+        Some(StorageArrayBase { slot, fixed_len, elem_slots, packed })
     }
 
     /// Resolves a dynamic array living in storage.
@@ -2223,6 +2258,33 @@ impl<'gcx> Lowerer<'gcx> {
         Some((slot, element, element_slots))
     }
 
+    /// Emits the bounds check for a storage array access and returns the base
+    /// slot of the element data: the array slot itself for fixed-size arrays,
+    /// `keccak256(slot)` for dynamic arrays.
+    pub(super) fn storage_array_data_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot_val: ValueId,
+        fixed_len: Option<u64>,
+        index_val: ValueId,
+    ) -> ValueId {
+        match fixed_len {
+            Some(len) => {
+                let len_val = builder.imm_u64(len);
+                self.emit_index_bounds_check(builder, index_val, len_val);
+                slot_val
+            }
+            None => {
+                let len = builder.sload(slot_val);
+                self.emit_index_bounds_check(builder, index_val, len);
+                let mem_0 = builder.imm_u64(0);
+                builder.mstore(mem_0, slot_val);
+                let size_32 = builder.imm_u64(32);
+                builder.keccak256(mem_0, size_32)
+            }
+        }
+    }
+
     /// Emits the bounds check for a storage array access and returns the element slot.
     /// Dynamic arrays: length at `slot`, elements at `keccak256(slot) + index * elem_slots`.
     /// Fixed-size arrays: constant length, elements at `slot + index * elem_slots`.
@@ -2234,24 +2296,9 @@ impl<'gcx> Lowerer<'gcx> {
         index_val: ValueId,
         elem_slots: u64,
     ) -> ValueId {
-        match fixed_len {
-            Some(len) => {
-                let len_val = builder.imm_u64(len);
-                self.emit_index_bounds_check(builder, index_val, len_val);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(slot_val, offset)
-            }
-            None => {
-                let len = builder.sload(slot_val);
-                self.emit_index_bounds_check(builder, index_val, len);
-                let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val);
-                let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(data_slot, offset)
-            }
-        }
+        let data_slot = self.storage_array_data_slot(builder, slot_val, fixed_len, index_val);
+        let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
+        builder.add(data_slot, offset)
     }
 
     /// Scales an array index by its element's slot count; single-slot elements
@@ -3022,31 +3069,33 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         struct_id: hir::StructId,
         field_index: usize,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, StructField)> {
         if self.struct_id_of_expr(base)? != struct_id {
             return None;
         }
         let base_slot = self.lower_lvalue_slot(builder, base)?;
-        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-        Some(if field_offset == 0 {
+        let placement = self.struct_field_placement(struct_id, field_index);
+        let slot = if placement.slot == 0 {
             base_slot
         } else {
-            let off = builder.imm_u64(field_offset);
+            let off = builder.imm_u64(placement.slot);
             builder.add(base_slot, off)
-        })
+        };
+        Some((slot, placement))
     }
 
     /// If `base` is a storage location of struct type and `member` is one of its
     /// fields, returns the field's storage slot (`base_slot + field_offset`) as a
-    /// runtime value. Handles storage references (`r.a`) and storage struct
-    /// fields reached through indexing (`items[k].a`, `arr[i].a`). Returns `None`
-    /// for memory/calldata bases (whose `lower_lvalue_slot` yields `None`).
+    /// runtime value with the field's placement. Handles storage references
+    /// (`r.a`) and storage struct fields reached through indexing (`items[k].a`,
+    /// `arr[i].a`). Returns `None` for memory/calldata bases (whose
+    /// `lower_lvalue_slot` yields `None`).
     fn lower_storage_struct_field_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
         member: Ident,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, StructField)> {
         let struct_id = self.struct_id_of_expr(base)?;
         let field_index = self.struct_field_index(struct_id, member)?;
         self.lower_storage_struct_field_slot_by_index(builder, base, struct_id, field_index)
@@ -3082,8 +3131,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_lvalue_slot(builder, base, index.as_deref())
             }
             ExprKind::Member(base, member) => {
+                // Lvalue slots address whole slots: a storage reference can
+                // only bind reference-type fields, which are never packed.
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, _)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
@@ -3097,24 +3148,24 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    return Some(builder.imm_u256(base_slot + U256::from(field_offset)));
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    return Some(builder.imm_u256(base_slot + U256::from(placement.slot)));
                 }
                 // Storage-reference local struct field.
                 if let Some((var_id, struct_id, field_index)) =
                     self.get_storage_ref_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    let placement = self.struct_field_placement(struct_id, field_index);
                     let base_slot = self.load_storage_ref_slot(builder, var_id)?;
-                    return Some(if field_offset == 0 {
+                    return Some(if placement.slot == 0 {
                         base_slot
                     } else {
-                        let off = builder.imm_u64(field_offset);
+                        let off = builder.imm_u64(placement.slot);
                         builder.add(base_slot, off)
                     });
                 }
                 // Nested state-variable storage struct field.
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, _)) = self.compute_nested_storage_slot(base, *member) {
                     return Some(builder.imm_u256(slot));
                 }
                 None
@@ -3241,8 +3292,8 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some((base_slot, struct_id, field_index)) =
                 self.get_storage_struct_field_info(base, *member)
             {
-                let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                let slot = base_slot + U256::from(field_offset);
+                let placement = self.struct_field_placement(struct_id, field_index);
+                let slot = base_slot + U256::from(placement.slot);
 
                 // Check if the field itself is a struct
                 let strukt = self.gcx.hir.strukt(struct_id);
@@ -3266,8 +3317,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(field_name) = field.name
                         && field_name.name == member.name
                     {
-                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        let slot = parent_slot + U256::from(field_offset);
+                        let placement = self.struct_field_placement(parent_struct_id, i);
+                        let slot = parent_slot + U256::from(placement.slot);
 
                         // Check if this field is also a struct
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
@@ -3283,8 +3334,13 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Computes the storage slot for a nested struct member access (scalar fields only).
-    fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<U256> {
+    /// Computes the storage slot and placement for a nested struct member
+    /// access (scalar fields only).
+    fn compute_nested_storage_slot(
+        &mut self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(U256, StructField)> {
         // Check if base is a Member expression (needed for 2+ level nesting)
         if let ExprKind::Member(inner_base, inner_member) = &base.kind {
             // Get the slot and type info for the base member expression
@@ -3298,8 +3354,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(field_name) = field.name
                         && field_name.name == member.name
                     {
-                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        return Some(parent_slot + U256::from(field_offset));
+                        let placement = self.struct_field_placement(parent_struct_id, i);
+                        return Some((parent_slot + U256::from(placement.slot), placement));
                     }
                 }
             }
@@ -3314,9 +3370,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
                         &field_var.ty.kind
                     {
-                        let inner_field_offset =
-                            self.get_struct_field_slot_offset(struct_id, field_index);
-                        let nested_base_slot = base_slot + U256::from(inner_field_offset);
+                        let inner_placement = self.struct_field_placement(struct_id, field_index);
+                        let nested_base_slot = base_slot + U256::from(inner_placement.slot);
 
                         let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
                         for (i, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
@@ -3324,9 +3379,11 @@ impl<'gcx> Lowerer<'gcx> {
                             if let Some(field_name) = inner_field.name
                                 && field_name.name == member.name
                             {
-                                let inner_offset =
-                                    self.get_struct_field_slot_offset(*inner_struct_id, i);
-                                return Some(nested_base_slot + U256::from(inner_offset));
+                                let placement = self.struct_field_placement(*inner_struct_id, i);
+                                return Some((
+                                    nested_base_slot + U256::from(placement.slot),
+                                    placement,
+                                ));
                             }
                         }
                     }
@@ -3336,14 +3393,13 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Appends a zero-initialized element and returns its storage slot.
-    fn lower_storage_array_push_slot(
+    /// Bumps a dynamic array's length by one with an overflow check and
+    /// returns `(old_length, data_slot)`.
+    fn lower_storage_array_grow(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
-        element_ty: Ty<'gcx>,
-        element_slots: u64,
-    ) -> ValueId {
+    ) -> (ValueId, ValueId) {
         let length = builder.sload(slot);
         let one = builder.imm_u64(1);
         let new_length = builder.add(length, one);
@@ -3354,11 +3410,29 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(scratch, slot);
         let word = builder.imm_u64(32);
         let data_slot = builder.keccak256(scratch, word);
+        builder.sstore(slot, new_length);
+        (length, data_slot)
+    }
+
+    /// Appends a zero-initialized element and returns its storage slot.
+    fn lower_storage_array_push_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+        element_slots: u64,
+    ) -> ValueId {
+        let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+        if let Some(value) = self.packed_value_of_ty(element_ty) {
+            let zero = builder.imm_u64(0);
+            self.store_packed_array_element(builder, data_slot, length, value, zero);
+            // The shared slot stands in for the packed element; the caller
+            // must not store through it as a whole word.
+            return data_slot;
+        }
         let offset = Self::scale_index_by_slots(builder, length, element_slots);
         let element_slot = builder.add(data_slot, offset);
-
         self.clear_storage_value_at(builder, element_ty, element_slot);
-        builder.sstore(slot, new_length);
         element_slot
     }
 
@@ -3398,20 +3472,14 @@ impl<'gcx> Lowerer<'gcx> {
                     _ => self.lower_value_expr(builder, arg),
                 };
 
-                let length = builder.sload(slot);
-                let one = builder.imm_u64(1);
-                let new_length = builder.add(length, one);
-                let overflow = builder.lt(new_length, length);
-                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
-
-                let scratch = builder.imm_u64(0);
-                builder.mstore(scratch, slot);
-                let word = builder.imm_u64(32);
-                let data_slot = builder.keccak256(scratch, word);
+                let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+                if let Some(packed) = self.packed_value_of_ty(element_ty) {
+                    self.store_packed_array_element(builder, data_slot, length, packed, value);
+                    return None;
+                }
                 let offset = Self::scale_index_by_slots(builder, length, element_slots);
                 let element_slot = builder.add(data_slot, offset);
                 self.store_storage_value_at(builder, element_ty, element_slot, value);
-                builder.sstore(slot, new_length);
                 None
             }
             StorageArrayMethod::Pop => {
@@ -3424,9 +3492,14 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(scratch, slot);
                 let word = builder.imm_u64(32);
                 let data_slot = builder.keccak256(scratch, word);
-                let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
-                self.clear_storage_value_at(builder, element_ty, element_slot);
+                if let Some(packed) = self.packed_value_of_ty(element_ty) {
+                    let zero = builder.imm_u64(0);
+                    self.store_packed_array_element(builder, data_slot, new_length, packed, zero);
+                } else {
+                    let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
+                    let element_slot = builder.add(data_slot, offset);
+                    self.clear_storage_value_at(builder, element_ty, element_slot);
+                }
                 builder.sstore(slot, new_length);
 
                 None

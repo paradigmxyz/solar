@@ -254,8 +254,6 @@ pub(crate) struct Lowerer<'gcx> {
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
-    /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
-    pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Interned semantic memory/storage layout for each lowered struct type.
     struct_storage_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }
@@ -340,7 +338,6 @@ impl<'gcx> Lowerer<'gcx> {
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
-            struct_field_offsets: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
         }
     }

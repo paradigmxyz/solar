@@ -40,7 +40,7 @@ bb4:
   sgt
   push bb3
   jumpi
-  push 2
+  push 1
   push 4
   calldataload
   add
@@ -69,31 +69,44 @@ bb4:
   push 4
   calldataload
   sload
-  dup2
-  add
   dup1
   push 160
   mstore
-  lt
-  push bb10
-  jumpi
-  push 1
-  push 4
-  calldataload
-  add
-  sload
-  push 160
-  mload
+  push 0
+  not
+  push 128
+  shr
+  dup2
+  and
+  dup3
   add
   dup1
   push 192
   mstore
+  swap2
+  dup3
+  lt
+  swap2
+  pop
+  pop
+  push bb10
+  jumpi
   push 160
+  mload
+  push 128
+  shr
+  push 192
+  mload
+  add
+  dup1
+  push 160
+  mstore
+  push 192
   mload
   gt
   push bb10
   jumpi
-  push 192
+  push 160
   mload
   push 128
   mstore
