@@ -283,6 +283,16 @@ mod tests {
         assert_eq!(config.default_forge_path(), Some(Path::new("/embedded/forge")));
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialize_applies_launch_config_default_forge_path() {
+        let config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
+        let mut state = GlobalState::with_launch_config(ClientSocket::new_closed(), config);
+
+        state.on_initialize(InitializeParams::default()).await.unwrap();
+
+        assert_eq!(state.config.forge_path(), Path::new("/embedded/forge"));
+    }
+
     fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
         let mut future = Box::pin(future);
         let mut cx = Context::from_waker(Waker::noop());
