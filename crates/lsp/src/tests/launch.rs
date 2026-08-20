@@ -10,7 +10,6 @@ use lsp_types::{
     DocumentFormattingParams, FormattingOptions, InitializedParams, TextDocumentIdentifier,
     WorkDoneProgressParams, notification as notif,
 };
-use solar_config::LspArgs;
 use std::path::Path;
 #[cfg(unix)]
 use std::{ops::ControlFlow, os::unix::fs::PermissionsExt};
@@ -18,13 +17,10 @@ use std::{ops::ControlFlow, os::unix::fs::PermissionsExt};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 #[test]
-fn launch_config_converts_lsp_args_and_accepts_a_default_forge_path() {
+fn launch_config_accepts_a_default_forge_path() {
     assert_eq!(LaunchConfig::default().default_forge_path(), None);
 
-    let config = LaunchConfig::from(LspArgs::default());
-    assert_eq!(config.default_forge_path(), None);
-
-    let config = config.with_default_forge_path("/embedded/forge");
+    let config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
 
     assert_eq!(config.default_forge_path(), Some(Path::new("/embedded/forge")));
 }
