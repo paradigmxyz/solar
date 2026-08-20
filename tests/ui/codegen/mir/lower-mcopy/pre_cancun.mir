@@ -5,36 +5,46 @@
 //@[paris] filecheck: --check-prefix=PARIS
 @module PreCancunMCopy
 
-// `mcopy` lowers to an ascending word-copy loop, not the identity precompile:
-// a precompile call is observable by tooling that keys behavior on "the next
-// call" (Foundry's `vm.prank`/`vm.expectRevert`), and it is what solc emits.
+// `mcopy` lowers to an ascending word-copy loop over the full words plus a
+// byte-masked tail merge, so exactly `len` bytes change. The identity
+// precompile would be smaller, but a precompile call is observable by tooling
+// that keys behavior on "the next call" (Foundry's `vm.prank` and
+// `vm.expectRevert`), and a whole-word tail would clobber bytes past the copy.
 
 // HOMESTEAD-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // HOMESTEAD: - mcopy arg0, arg1, arg2
+// HOMESTEAD: + [[FULL:v[0-9]+]] = and arg2, [[NOT31:v[0-9]+]]
 // HOMESTEAD: + jump [[HEAD:bb[0-9]+]]
 // HOMESTEAD: {{^[ +].*}}ret arg0
 // HOMESTEAD: + [[HEAD]]:
 // HOMESTEAD: + [[OFF:v[0-9]+]] = phi [bb0: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
-// HOMESTEAD: + [[REM:v[0-9]+]] = lt [[OFF]], arg2
-// HOMESTEAD: + jumpi [[REM]], [[BODY]], [[CONT:bb[0-9]+]]
+// HOMESTEAD: + [[REM:v[0-9]+]] = lt [[OFF]], [[FULL]]
+// HOMESTEAD: + jumpi [[REM]], [[BODY]], [[TAIL:bb[0-9]+]]
 // HOMESTEAD: + [[SRC:v[0-9]+]] = add arg1, [[OFF]]
 // HOMESTEAD: + [[WORD:v[0-9]+]] = mload [[SRC]]
 // HOMESTEAD: + [[DST:v[0-9]+]] = add arg0, [[OFF]]
 // HOMESTEAD: + mstore [[DST]], [[WORD]]
 // HOMESTEAD: + [[NEXT]] = add [[OFF]], 32
+// HOMESTEAD: + [[TAIL]]:
+// HOMESTEAD: + [[MERGED:v[0-9]+]] = or [[TOP:v[0-9]+]], [[LOW:v[0-9]+]]
+// HOMESTEAD: + mstore [[DSTT:v[0-9]+]], [[MERGED]]
 // PARIS-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // PARIS: - mcopy arg0, arg1, arg2
+// PARIS: + [[FULL:v[0-9]+]] = and arg2, [[NOT31:v[0-9]+]]
 // PARIS: + jump [[HEAD:bb[0-9]+]]
 // PARIS: {{^[ +].*}}ret arg0
 // PARIS: + [[HEAD]]:
 // PARIS: + [[OFF:v[0-9]+]] = phi [bb0: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
-// PARIS: + [[REM:v[0-9]+]] = lt [[OFF]], arg2
-// PARIS: + jumpi [[REM]], [[BODY]], [[CONT:bb[0-9]+]]
+// PARIS: + [[REM:v[0-9]+]] = lt [[OFF]], [[FULL]]
+// PARIS: + jumpi [[REM]], [[BODY]], [[TAIL:bb[0-9]+]]
 // PARIS: + [[SRC:v[0-9]+]] = add arg1, [[OFF]]
 // PARIS: + [[WORD:v[0-9]+]] = mload [[SRC]]
 // PARIS: + [[DST:v[0-9]+]] = add arg0, [[OFF]]
 // PARIS: + mstore [[DST]], [[WORD]]
 // PARIS: + [[NEXT]] = add [[OFF]], 32
+// PARIS: + [[TAIL]]:
+// PARIS: + [[MERGED:v[0-9]+]] = or [[TOP:v[0-9]+]], [[LOW:v[0-9]+]]
+// PARIS: + mstore [[DSTT:v[0-9]+]], [[MERGED]]
 fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
   bb0:
     mcopy arg0, arg1, arg2
