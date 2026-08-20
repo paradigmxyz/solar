@@ -45,6 +45,8 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_args
     v12 = gt v11, 0
     v13 = and v2, v12
     mstore 64, v0 !metadata(memory=scratch)
-    ret v13
+    v14 = eq v13, 0
+    v15 = iszero v14
+    ret v15
 }
 
