@@ -100,7 +100,8 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         repo: "https://github.com/ProjectOpenSea/seaport",
         rev: "080133906585660f6a76b82984f3fb690ff4b2a9",
         mode: ExternalMode::Build,
-        solc_version: None,
+        // `contracts/Seaport.sol` pins `pragma solidity =0.8.24`.
+        solc_version: Some("0.8.24"),
         skip_tests: &[],
         skip_contracts: &[],
         notes: "build-only: whole-project codegen, artifact parity and EIP-170 tracker",
