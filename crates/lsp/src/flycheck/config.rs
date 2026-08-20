@@ -156,22 +156,19 @@ mod tests {
             src = "src"
             "#,
         );
-        let options = FlycheckInitializationOptions::from_json(
-            Some(serde_json::json!({
-                "flychecks": [{
-                    "id": "custom",
-                    "command": "custom-lint",
-                    "args": ["--json"],
-                    "cwd": "tools",
-                    "output": "solc-json"
-                }]
-            })),
-            Some(Path::new("/embedded/forge")),
-        );
+        let options = FlycheckInitializationOptions {
+            forge_path: None,
+            flychecks: Some(vec![FlycheckTemplate {
+                id: "custom".into(),
+                command: "custom-lint".into(),
+                args: vec!["--json".into()],
+                cwd: Some("tools".into()),
+                output: FlycheckOutput::SolcJson,
+            }]),
+        };
 
         let configs = options.configs(project.config().workspaces());
 
-        assert_eq!(options.forge_path(), PathBuf::from("/embedded/forge"));
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
         assert_eq!(configs[0].command, PathBuf::from("custom-lint"));
