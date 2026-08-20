@@ -963,6 +963,30 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
+        // Constructor arguments are a full ABI tuple appended after the
+        // creation code, not one word per argument: dynamic values carry
+        // offset heads and tails. Encode them first so the payload's own
+        // allocation cannot land inside the creation image below.
+        let encoded_args = if arg_exprs.is_empty() {
+            None
+        } else {
+            if let Some(ctor) = self.gcx.hir.contract(contract_id).ctor {
+                self.abi_encode_param_tys = Some(
+                    self.gcx
+                        .hir
+                        .function(ctor)
+                        .parameters
+                        .iter()
+                        .map(|&id| self.gcx.type_of_item(id.into()))
+                        .collect(),
+                );
+            }
+            match self.abi_encode_call_payload(builder, None, arg_exprs.iter().copied()) {
+                Ok(payload) => Some(payload),
+                Err(guar) => return builder.error_value(guar),
+            }
+        };
+
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
@@ -978,18 +1002,16 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val_id);
         }
 
-        // Append constructor arguments after bytecode
-        let mut args_offset = bytecode_len as u64;
-        for arg in arg_exprs {
-            let arg_val = self.lower_value_expr(builder, arg);
-            let arg_offset_imm = builder.imm_u64(args_offset);
-            let arg_dest = builder.add(mem_offset, arg_offset_imm);
-            builder.mstore(arg_dest, arg_val);
-            args_offset += 32; // Each arg is 32 bytes ABI encoded
-        }
-
-        // Total size = bytecode + args
-        let total_size = builder.imm_u64(args_offset);
+        // Append the encoded constructor arguments after the creation code.
+        let bytecode_len_val = builder.imm_u64(bytecode_len as u64);
+        let total_size = match &encoded_args {
+            Some((args_ptr, args_size)) => {
+                let args_dest = builder.add(mem_offset, bytecode_len_val);
+                builder.mcopy(args_dest, *args_ptr, *args_size);
+                builder.add(bytecode_len_val, *args_size)
+            }
+            None => bytecode_len_val,
+        };
 
         // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
         let thirty_one = builder.imm_u64(31);
