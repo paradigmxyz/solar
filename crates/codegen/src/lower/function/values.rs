@@ -153,10 +153,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.lower_values(expr)
     }
 
-    pub(super) fn lower_tuple_assignment(
+    pub(super) fn lower_tuple_assignment<'hir>(
         &mut self,
-        elements: &[Option<&hir::Expr<'_>>],
-        rhs: &hir::Expr<'_>,
+        elements: &[Option<&'hir hir::Expr<'hir>>],
+        rhs: &'hir hir::Expr<'hir>,
     ) -> Option<()> {
         let rhs = rhs.peel_parens();
         if elements.iter().flatten().any(|element| {
@@ -274,25 +274,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
             }
-            if rhs_elements.len() < elements.len() {
-                return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
-            }
             let mut values = Vec::with_capacity(rhs_elements.len());
-            for (index, value) in rhs_elements.iter().enumerate() {
-                let Some(value) = value else {
-                    if elements.get(index).is_some_and(Option::is_some) {
-                        return report_unsupported(
-                            self.context.gcx,
-                            rhs.span,
-                            "tuple assignment value",
-                        );
-                    }
-                    continue;
-                };
-                values.push((index, value, self.lower_expr(value)?));
-            }
-            for (index, rhs, value) in values {
-                let Some(Some(element)) = elements.get(index) else { continue };
+            self.lower_tuple_assignment_values(elements, rhs_elements, rhs.span, &mut values)?;
+            for (element, rhs, value) in values {
                 let lhs_ty = self.type_of_expr_or_variable(element)?;
                 let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let value = if lhs_ty.is_ref_at(DataLocation::Storage) {
@@ -313,6 +297,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(element) = element {
                 self.store_lvalue(element, value)?;
             }
+        }
+        Some(())
+    }
+
+    fn lower_tuple_assignment_values<'hir>(
+        &mut self,
+        elements: &[Option<&'hir hir::Expr<'hir>>],
+        rhs_elements: &[Option<&'hir hir::Expr<'hir>>],
+        span: Span,
+        values: &mut Vec<(&'hir hir::Expr<'hir>, &'hir hir::Expr<'hir>, ValueId)>,
+    ) -> Option<()> {
+        if rhs_elements.len() < elements.len() {
+            return report_unsupported(self.context.gcx, span, "tuple assignment arity");
+        }
+        for (index, rhs) in rhs_elements.iter().enumerate() {
+            let lhs = elements.get(index).copied().flatten();
+            let Some(rhs) = rhs else {
+                if lhs.is_some() {
+                    return report_unsupported(self.context.gcx, span, "tuple assignment value");
+                }
+                continue;
+            };
+            let ExprKind::Tuple(nested_rhs) = &rhs.peel_parens().kind else {
+                let value = self.lower_expr(rhs)?;
+                if let Some(lhs) = lhs {
+                    values.push((lhs, rhs, value));
+                }
+                continue;
+            };
+            let Some(lhs) = lhs else {
+                self.lower_tuple_assignment_values(&[], nested_rhs, rhs.span, values)?;
+                continue;
+            };
+            let ExprKind::Tuple(nested_lhs) = &lhs.peel_parens().kind else {
+                return report_unsupported(self.context.gcx, lhs.span, "tuple assignment target");
+            };
+            self.lower_tuple_assignment_values(nested_lhs, nested_rhs, rhs.span, values)?;
         }
         Some(())
     }
