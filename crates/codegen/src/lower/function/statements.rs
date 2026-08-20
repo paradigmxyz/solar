@@ -25,7 +25,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    let value = self.lower_typed_expr(expr, ty)?;
+                    let value = if self.in_inline_assembly {
+                        self.lower_yul_word_expr(expr)?
+                    } else {
+                        self.lower_typed_expr(expr, ty)?
+                    };
                     self.coerce_value(value, self.context.gcx.type_of_expr(expr.id)?, ty)
                 } else if let Some(value) = self.default_object(ty) {
                     value
