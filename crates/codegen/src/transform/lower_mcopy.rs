@@ -86,24 +86,53 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
 
     let loop_head = func.alloc_block();
     let loop_body = func.alloc_block();
+    let tail_block = func.alloc_block();
     let mut builder = FunctionBuilder::new(func);
 
+    // Copy the full words in a loop, then merge the partial tail word with a
+    // byte mask so exactly `len` bytes change, like the identity precompile.
     builder.switch_to_block(block);
     let zero = builder.imm_u64(0);
+    let word_size = builder.imm_u64(32);
+    let thirty_one = builder.imm_u64(31);
+    let not_thirty_one = builder.not(thirty_one);
+    let full = builder.and(len, not_thirty_one);
+    let entry = builder.current_block();
     builder.jump(loop_head);
 
     builder.switch_to_block(loop_head);
-    let offset = builder.phi(vec![(block, zero)]);
-    let remaining = builder.lt(offset, len);
-    builder.branch(remaining, loop_body, continuation);
+    let offset = builder.phi(vec![(entry, zero)]);
+    let remaining = builder.lt(offset, full);
+    builder.branch(remaining, loop_body, tail_block);
 
     builder.switch_to_block(loop_body);
     let src_ptr = builder.add(src, offset);
     let word = builder.mload(src_ptr);
     let dest_ptr = builder.add(dest, offset);
     builder.mstore(dest_ptr, word);
-    let word_size = builder.imm_u64(32);
     let next = builder.add(offset, word_size);
     builder.add_phi_incoming(offset, loop_body, next);
     builder.jump(loop_head);
+
+    // Unconditional tail merge: for a word-multiple length the shift is 256,
+    // every EVM shift by >= 256 yields zero, and the store writes the
+    // destination word back unchanged.
+    builder.switch_to_block(tail_block);
+    let partial = builder.and(len, thirty_one);
+    let gap = builder.sub(word_size, partial);
+    let three = builder.imm_u64(3);
+    let shift = builder.shl(three, gap);
+    let src_tail_ptr = builder.add(src, full);
+    let src_word = builder.mload(src_tail_ptr);
+    let src_shifted = builder.shr(shift, src_word);
+    let src_top = builder.shl(shift, src_shifted);
+    let dest_tail_ptr = builder.add(dest, full);
+    let dest_word = builder.mload(dest_tail_ptr);
+    let one = builder.imm_u64(1);
+    let low_bound = builder.shl(shift, one);
+    let low_mask = builder.sub(low_bound, one);
+    let dest_low = builder.and(dest_word, low_mask);
+    let merged = builder.or(src_top, dest_low);
+    builder.mstore(dest_tail_ptr, merged);
+    builder.jump(continuation);
 }
