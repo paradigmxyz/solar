@@ -1742,7 +1742,6 @@ impl<'gcx> Lowerer<'gcx> {
                 calldata_start,
                 calldata_size,
                 &return_tys,
-                callee.span,
             );
         }
 
@@ -1821,7 +1820,6 @@ impl<'gcx> Lowerer<'gcx> {
         calldata_start: ValueId,
         calldata_size: ValueId,
         return_tys: &[Ty<'gcx>],
-        span: Span,
     ) -> Option<ValueId> {
         let zero = builder.imm_u64(0);
         let success = self.emit_external_call(
@@ -1836,17 +1834,6 @@ impl<'gcx> Lowerer<'gcx> {
             zero,
         );
         self.emit_forwarding_revert_unless(builder, success);
-
-        if return_tys.len() > 1 {
-            // The one-word-per-value multi-return buffer cannot carry these
-            // yet; report it instead of decoding garbage.
-            let guar = self.recovery_error(
-                Some(span),
-                "codegen cannot decode multiple external-call return values containing dynamic types yet",
-            );
-            return Some(builder.error_value(guar));
-        }
-        let ty = return_tys[0];
 
         let head_size = match self.abi_head_size_sum(return_tys.iter().copied()) {
             Ok(size) => size,
@@ -1864,16 +1851,59 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.returndatacopy(base, zero, payload_size);
 
-        let value = if self.abi_is_dynamic(ty.peel_refs()) {
-            let offset = builder.mload(base);
-            let out_of_range = builder.gt(offset, payload_size);
-            self.emit_abi_decode_revert_if(builder, out_of_range);
-            let pos = builder.add(base, offset);
-            self.materialize_calldata_value_at(builder, super::bytes::AbiSource::Memory, ty, pos)
-        } else {
-            self.materialize_calldata_value_at(builder, super::bytes::AbiSource::Memory, ty, base)
-        };
-        Some(value)
+        let mut values = Vec::with_capacity(return_tys.len());
+        let mut head_offset = 0u64;
+        for &ty in return_tys {
+            let item_pos = self.offset_ptr(builder, base, head_offset);
+            let value = if self.abi_is_dynamic(ty.peel_refs()) {
+                let offset = builder.mload(item_pos);
+                let out_of_range = builder.gt(offset, payload_size);
+                self.emit_abi_decode_revert_if(builder, out_of_range);
+                let pos = builder.add(base, offset);
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Memory,
+                    ty,
+                    pos,
+                )
+            } else {
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Memory,
+                    ty,
+                    item_pos,
+                )
+            };
+            values.push(value);
+            head_offset += match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => return Some(builder.error_value(guar)),
+            };
+        }
+
+        if values.len() > 1 {
+            // Publish the decoded values through the one-word-per-value
+            // multi-return buffer the tuple consumers snapshot: reference
+            // types travel as their fresh memory pointers.
+            let count = values.len() as u64;
+            let size = builder.imm_u64(count * 32);
+            let buffer = builder.alloc_object(
+                size,
+                crate::mir::MemoryObjectLayout::structure(count),
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            for (index, &value) in values.iter().enumerate() {
+                let addr = builder.memory_object_field_addr(
+                    buffer,
+                    crate::mir::MemoryObjectLayout::structure(count),
+                    index as u64,
+                );
+                builder.mstore(addr, value);
+            }
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            builder.mstore(ptr_slot, buffer);
+        }
+        Some(values[0])
     }
 
     pub(super) fn resolved_function_callee(
