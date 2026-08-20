@@ -445,7 +445,7 @@ impl<'gcx> Lowerer<'gcx> {
         (data, size)
     }
 
-    /// ABI-encodes static event data in scratch memory.
+    /// ABI-encodes event data, using scratch memory for payloads that fit it.
     pub(super) fn abi_encode_event_data(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -456,6 +456,19 @@ impl<'gcx> Lowerer<'gcx> {
             return (zero, zero);
         }
         if items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty)) {
+            return self.abi_encode_items_to_memory(builder, items);
+        }
+        // Scratch memory is the two words below the free-memory pointer; a
+        // larger static payload written at address zero would run over the
+        // pointer and the zero slot, poisoning every later allocation.
+        let mut static_size = Some(0u64);
+        for &(_, ty) in items {
+            static_size = match (static_size, self.abi_head_size(ty)) {
+                (Some(total), Ok(size)) => total.checked_add(size),
+                _ => None,
+            };
+        }
+        if static_size.is_none_or(|size| size > 64) {
             return self.abi_encode_items_to_memory(builder, items);
         }
 
