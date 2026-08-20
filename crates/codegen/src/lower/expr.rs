@@ -965,6 +965,17 @@ impl<'gcx> Lowerer<'gcx> {
                             return self.materialize_storage_bytes(builder, slot_val);
                         }
 
+                        // A storage array used as a value materializes a fresh
+                        // memory copy, like storage structs and bytes above.
+                        // `.length`, indexing, and `push`/`pop` use dedicated
+                        // storage-slot paths and do not come through here.
+                        let sema_ty = self.gcx.type_of_item((*var_id).into());
+                        if let Some(value) =
+                            self.materialize_storage_array_value(builder, sema_ty, slot_val, span)
+                        {
+                            return value;
+                        }
+
                         // For scalar storage variables, just load the value
                         return self.load_storage_location_at_slot(builder, location, slot_val);
                     }
@@ -2313,6 +2324,180 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let elem_slots = builder.imm_u64(elem_slots);
         builder.mul(index_val, elem_slots)
+    }
+
+    /// Materializes a storage array used as a memory value into a fresh
+    /// `[length][elements...]` copy, or `None` for non-array types. Only
+    /// one-slot elements are supported, consistent with storage-array
+    /// indexing; unsupported element layouts report an error instead of
+    /// miscompiling the raw slot value into a pointer.
+    pub(super) fn materialize_storage_array_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        sema_ty: Ty<'gcx>,
+        slot_val: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = sema_ty.peel_refs();
+        let (elem, fixed_len) = match ty.kind {
+            TyKind::DynArray(elem) => (elem, None),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return Some(builder.error_value(self.abi_head_size_overflow()));
+                };
+                (elem, Some(len))
+            }
+            _ => return None,
+        };
+        // One-slot elements only, consistent with storage-array indexing:
+        // words copy directly, `bytes`/`string` and nested arrays materialize
+        // per element. Multi-slot elements (structs) keep the legacy scalar
+        // path for now.
+        let elem_peeled = elem.peel_refs();
+        let elem_is_word = self.abi_is_word_element(elem);
+        let elem_is_bytes = matches!(
+            elem_peeled.kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        );
+        let elem_is_array = matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..));
+        if self.calculate_storage_slots_for_ty(elem, span) != 1
+            || !(elem_is_word || elem_is_bytes || elem_is_array)
+        {
+            return None;
+        }
+
+        if let Some(len) = fixed_len {
+            // Fixed-size array: elements live in consecutive slots from the
+            // base; unroll the copy like storage structs.
+            let ptr = self.allocate_memory_object(builder, len * 32, MemoryObjectKind::FixedArray);
+            for i in 0..len {
+                let offset = builder.imm_u64(i);
+                let elem_slot = builder.add(slot_val, offset);
+                let value = self.storage_array_element_value(builder, elem, elem_slot, span);
+                let elem_index = builder.imm_u64(i);
+                let addr = builder.memory_object_element_addr(
+                    ptr,
+                    crate::mir::MemoryObjectLayout::FixedArray { element_words: 1, len },
+                    elem_index,
+                );
+                builder.mstore(addr, value);
+            }
+            return Some(ptr);
+        }
+
+        // Dynamic array: the base slot holds the length and the elements
+        // start at `keccak256(slot)`.
+        let len = builder.sload(slot_val);
+        let five = builder.imm_u64(5);
+        let byte_len = builder.shl(five, len);
+        let back = builder.shr(five, byte_len);
+        let roundtrips = builder.eq(back, len);
+        let overflowed = builder.iszero(roundtrips);
+        self.emit_panic_if(builder, overflowed, PanicCode::MemoryAllocationOverflow);
+        let word = builder.imm_u64(32);
+        let total = builder.add(word, byte_len);
+        let total_overflow = builder.lt(total, byte_len);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr =
+            self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::DynamicArray);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+
+        let zero = builder.imm_u64(0);
+        builder.mstore(zero, slot_val);
+        let elems_base = builder.keccak256(zero, word);
+
+        let entry = builder.current_block();
+        let head = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(head);
+
+        builder.switch_to_block(head);
+        let i = builder.phi(vec![(entry, zero)]);
+        let more = builder.lt(i, len);
+        builder.branch(more, body, exit);
+
+        builder.switch_to_block(body);
+        let elem_slot = builder.add(elems_base, i);
+        let value = self.storage_array_element_value(builder, elem, elem_slot, span);
+        let data_offset = builder.shl(five, i);
+        let dst = builder.add(data, data_offset);
+        builder.mstore(dst, value);
+        let one = builder.imm_u64(1);
+        let next = builder.add(i, one);
+        // Materializing a `bytes` or nested-array element branches, so the
+        // back edge runs from the block the body ends in, not `body` itself.
+        let latch = builder.current_block();
+        builder.add_phi_incoming(i, latch, next);
+        builder.jump(head);
+
+        builder.switch_to_block(exit);
+        Some(ptr)
+    }
+
+    /// Materializes a storage-referenced value that lowered to its slot into
+    /// the fresh memory copy its by-value use expects. A value that already
+    /// carries a memory-object type — a plain state-variable ident, whose
+    /// lowering copies eagerly — passes through.
+    pub(super) fn materialize_storage_ref_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> ValueId {
+        if Self::value_is_bytes_like_object(builder, value) {
+            return value;
+        }
+        let peeled = ty.peel_refs();
+        match peeled.kind {
+            TyKind::Struct(struct_id) => {
+                let total_words = self.calculate_memory_words_for_ty(peeled);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    total_words * 32,
+                    crate::mir::MemoryObjectKind::Struct,
+                );
+                self.copy_storage_to_memory_at(builder, struct_id, value, ptr, 0);
+                ptr
+            }
+            TyKind::DynArray(_) | TyKind::Array(..) => {
+                self.materialize_storage_array_value(builder, peeled, value, span).unwrap_or(value)
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_storage_bytes(builder, value)
+            }
+            _ => value,
+        }
+    }
+
+    /// Loads or materializes one storage-array element from its slot: a word
+    /// element loads directly, `bytes`/`string` decode their packed form, and
+    /// a nested array recurses.
+    fn storage_array_element_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        elem_slot: ValueId,
+        span: Span,
+    ) -> ValueId {
+        let elem_peeled = elem.peel_refs();
+        if matches!(
+            elem_peeled.kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            return self.materialize_storage_bytes(builder, elem_slot);
+        }
+        if matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..)) {
+            if let Some(value) =
+                self.materialize_storage_array_value(builder, elem, elem_slot, span)
+            {
+                return value;
+            }
+        }
+        builder.sload(elem_slot)
     }
 
     /// Whether an expression is `msg.data`.

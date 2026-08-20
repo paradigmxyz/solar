@@ -290,6 +290,7 @@ impl<'gcx> Lowerer<'gcx> {
         arg_exprs: impl ExactSizeIterator<Item = &'hir hir::Expr<'hir>> + Clone,
     ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
+        let mut storage_ref_args = FxHashSet::default();
         for arg in arg_exprs.clone() {
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
@@ -302,6 +303,20 @@ impl<'gcx> Lowerer<'gcx> {
             // String literals encode as `string memory` values.
             let ty = match ty.peel_refs().kind {
                 TyKind::StringLiteral(..) => self.gcx.types.string_ref.memory,
+                _ => ty,
+            };
+            // A storage-referenced struct/array/bytes argument is passed by
+            // value: its lowering already materialized a fresh memory copy,
+            // so encode the pointed-to type rather than the library-convention
+            // slot word. Mappings stay slot-typed; only library calls accept
+            // them, through their own encoding path.
+            let ty = match ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Storage)
+                    if !matches!(inner.kind, TyKind::Mapping(..)) =>
+                {
+                    storage_ref_args.insert(tys.len());
+                    inner
+                }
                 _ => ty,
             };
             tys.push(ty);
@@ -327,6 +342,15 @@ impl<'gcx> Lowerer<'gcx> {
                 value
             } else {
                 let value = self.lower_return_value_for_ty(builder, arg, ty);
+                // A storage-referenced expression that lowered to its slot —
+                // a mapping element, unlike a plain state-variable ident —
+                // still needs the by-value memory copy the peeled type
+                // promises.
+                let value = if storage_ref_args.contains(&i) {
+                    self.materialize_storage_ref_value(builder, ty, value, arg.span)
+                } else {
+                    value
+                };
                 match param_tys.as_ref().and_then(|tys| tys.get(i)) {
                     Some(&param_ty) => self.coerce_literal_for_ty(builder, arg, param_ty, value),
                     None => value,

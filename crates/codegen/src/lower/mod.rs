@@ -1869,7 +1869,16 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(&id) = self.immutable_ids.get(&var_id) {
                         builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
-                        self.store_storage_location(builder, location, init_val);
+                        let var_ty = self.gcx.type_of_item(var_id.into());
+                        if var_ty.peel_refs().is_value_type() {
+                            self.store_storage_location(builder, location, init_val);
+                        } else {
+                            // An aggregate initializer lowers to a memory
+                            // object; copy its contents rather than storing
+                            // the pointer word.
+                            let slot = builder.imm_u256(location.slot);
+                            self.store_storage_value_at(builder, var_ty, slot, init_val);
+                        }
                     }
                 }
             }

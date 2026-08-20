@@ -1708,6 +1708,44 @@ impl<'gcx> Lowerer<'gcx> {
 
         let addr = self.lower_value_expr(builder, base);
 
+        // Returns containing dynamic types need real ABI decoding: their raw
+        // head words are payload-relative offsets, not memory pointers. Fixed
+        // arrays are static but span several head words, so they need the
+        // decode too; the legacy word buffer would truncate them. Only a
+        // resolved callee carries the return types.
+        let dynamic_return_tys = resolved_func
+            .map(|func_id| {
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .returns
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect::<Vec<_>>()
+            })
+            .filter(|tys| {
+                tys.iter().any(|&ty| {
+                    let ty = ty.peel_refs();
+                    self.abi_is_dynamic(ty) || matches!(ty.kind, TyKind::Array(..))
+                })
+            });
+        if let Some(return_tys) = dynamic_return_tys {
+            let kind = self.external_function_call_kind(resolved_func);
+            let (gas, value) =
+                self.lower_external_call_options(builder, call_opts, kind.accepts_value());
+            return self.lower_external_call_dynamic_returns(
+                builder,
+                kind,
+                gas,
+                addr,
+                value,
+                calldata_start,
+                calldata_size,
+                &return_tys,
+                callee.span,
+            );
+        }
+
         // Determine where to store return data and whether it's a struct
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
@@ -1766,6 +1804,76 @@ impl<'gcx> Lowerer<'gcx> {
         // Multi-return consumers snapshot additional words from the ephemeral
         // buffer at `ret_offset` before lowering any lvalues.
         Some(builder.mload(ret_offset))
+    }
+
+    /// Performs an external call whose declared returns contain dynamic types
+    /// and ABI-decodes them from the return data. The payload is copied into
+    /// fresh memory and decoded like any other ABI blob, with the head-size
+    /// and offset checks solc performs.
+    #[allow(clippy::too_many_arguments)]
+    fn lower_external_call_dynamic_returns(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        kind: ExternalCallKind,
+        gas: ValueId,
+        addr: ValueId,
+        value: Option<ValueId>,
+        calldata_start: ValueId,
+        calldata_size: ValueId,
+        return_tys: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<ValueId> {
+        let zero = builder.imm_u64(0);
+        let success = self.emit_external_call(
+            builder,
+            kind,
+            gas,
+            addr,
+            value,
+            calldata_start,
+            calldata_size,
+            zero,
+            zero,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
+
+        if return_tys.len() > 1 {
+            // The one-word-per-value multi-return buffer cannot carry these
+            // yet; report it instead of decoding garbage.
+            let guar = self.recovery_error(
+                Some(span),
+                "codegen cannot decode multiple external-call return values containing dynamic types yet",
+            );
+            return Some(builder.error_value(guar));
+        }
+        let ty = return_tys[0];
+
+        let head_size = match self.abi_head_size_sum(return_tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => return Some(builder.error_value(guar)),
+        };
+        let payload_size = builder.returndatasize();
+        let head_size_val = builder.imm_u64(head_size);
+        let too_short = builder.lt(payload_size, head_size_val);
+        self.emit_abi_decode_revert_if(builder, too_short);
+
+        let base = self.allocate_memory_object_dynamic(
+            builder,
+            payload_size,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
+        builder.returndatacopy(base, zero, payload_size);
+
+        let value = if self.abi_is_dynamic(ty.peel_refs()) {
+            let offset = builder.mload(base);
+            let out_of_range = builder.gt(offset, payload_size);
+            self.emit_abi_decode_revert_if(builder, out_of_range);
+            let pos = builder.add(base, offset);
+            self.materialize_calldata_value_at(builder, super::bytes::AbiSource::Memory, ty, pos)
+        } else {
+            self.materialize_calldata_value_at(builder, super::bytes::AbiSource::Memory, ty, base)
+        };
+        Some(value)
     }
 
     pub(super) fn resolved_function_callee(
