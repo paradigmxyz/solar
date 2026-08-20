@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    new_server_service_with_router,
+    LaunchConfig, new_server_service_with_router,
     test_support::{read_lsp_frame, start_request, write_lsp_frame},
 };
 use async_lsp::router::Router;
@@ -190,7 +190,7 @@ async fn cancelled_initialize_allows_retry_over_the_wire() {
     const TIMEOUT: Duration = Duration::from_secs(1);
 
     let (main_loop, _client) = async_lsp::MainLoop::new_server(|client| {
-        new_server_service_with_router(client, |_| {
+        new_server_service_with_router(client, LaunchConfig::default(), |_| {
             let mut router = Router::new(0);
             router
                 .request::<Initialize, _>(|attempts, _| {

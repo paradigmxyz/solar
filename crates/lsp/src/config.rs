@@ -952,19 +952,31 @@ fn workspace_roots_from_initialize(
 
 #[cfg(any(test, feature = "bench"))]
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
-    negotiate_capabilities_with_pull_diagnostic_data(params, false)
+    negotiate_capabilities_with_default_forge_path(params, false, None)
 }
 
+#[cfg(test)]
 pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     params: InitializeParams,
     pull_diagnostics_data: bool,
+) -> (ServerCapabilities, Config) {
+    negotiate_capabilities_with_default_forge_path(params, pull_diagnostics_data, None)
+}
+
+pub(crate) fn negotiate_capabilities_with_default_forge_path(
+    params: InitializeParams,
+    pull_diagnostics_data: bool,
+    default_forge_path: Option<&Path>,
 ) -> (ServerCapabilities, Config) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
     #[allow(deprecated)]
     let root_uri = params.root_uri;
     let workspace_folders = params.workspace_folders;
-    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
+    let flycheck_options = FlycheckInitializationOptions::from_json(
+        initialization_options.clone(),
+        default_forge_path,
+    );
     let indexing_options = IndexingOptions::from_json(initialization_options.clone());
     let index_policy = WorkspaceIndexPolicy::new(indexing_options);
     let code_lens = CodeLensConfig::from_json(initialization_options);
@@ -2072,20 +2084,31 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_capabilities_records_configured_forge_path() {
-        let (_, default_config) = negotiate_capabilities(InitializeParams::default());
-        assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
+    fn negotiate_capabilities_applies_forge_path_precedence() {
+        let (_, launch_config) = negotiate_capabilities_with_default_forge_path(
+            InitializeParams::default(),
+            false,
+            Some(Path::new("/embedded/forge")),
+        );
+        assert_eq!(launch_config.forge_path(), PathBuf::from("/embedded/forge"));
+
+        let (_, path_config) = negotiate_capabilities(InitializeParams::default());
+        assert_eq!(path_config.forge_path(), PathBuf::from("forge"));
 
         let params = InitializeParams {
             initialization_options: Some(serde_json::json!({
-                "forgePath": "/tools/forge"
+                "forgePath": "/client/forge"
             })),
             ..Default::default()
         };
 
-        let (_, config) = negotiate_capabilities(params);
+        let (_, client_config) = negotiate_capabilities_with_default_forge_path(
+            params,
+            false,
+            Some(Path::new("/embedded/forge")),
+        );
 
-        assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
+        assert_eq!(client_config.forge_path(), PathBuf::from("/client/forge"));
     }
 
     #[test]

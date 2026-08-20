@@ -36,8 +36,16 @@ pub(crate) struct FlycheckInitializationOptions {
 }
 
 impl FlycheckInitializationOptions {
-    pub(crate) fn from_json(value: Option<serde_json::Value>) -> Self {
-        value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default()
+    pub(crate) fn from_json(
+        value: Option<serde_json::Value>,
+        default_forge_path: Option<&Path>,
+    ) -> Self {
+        let mut options =
+            value.and_then(|value| serde_json::from_value::<Self>(value).ok()).unwrap_or_default();
+        if options.forge_path.is_none() {
+            options.forge_path = default_forge_path.map(Path::to_path_buf);
+        }
+        options
     }
 
     pub(crate) fn configs(&self, workspaces: &[Workspace]) -> Vec<FlycheckConfig> {
@@ -137,7 +145,13 @@ fn forge_lint_available(command: &Path, cwd: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TestProject;
+    use crate::{LaunchConfig, global_state::GlobalState, test_support::TestProject};
+    #[cfg(unix)]
+    use solar_interface::source_map::{FileLoader, RealFileLoader};
+    #[cfg(unix)]
+    use std::{fs, os::unix::fs::PermissionsExt, sync::Arc, time::Duration};
+    #[cfg(unix)]
+    use tokio::sync::oneshot;
 
     #[test]
     fn configured_flychecks_expand_per_workspace() {
@@ -148,19 +162,22 @@ mod tests {
             src = "src"
             "#,
         );
-        let options = FlycheckInitializationOptions {
-            forge_path: None,
-            flychecks: Some(vec![FlycheckTemplate {
-                id: "custom".into(),
-                command: "custom-lint".into(),
-                args: vec!["--json".into()],
-                cwd: Some("tools".into()),
-                output: FlycheckOutput::SolcJson,
-            }]),
-        };
+        let options = FlycheckInitializationOptions::from_json(
+            Some(serde_json::json!({
+                "flychecks": [{
+                    "id": "custom",
+                    "command": "custom-lint",
+                    "args": ["--json"],
+                    "cwd": "tools",
+                    "output": "solc-json"
+                }]
+            })),
+            Some(Path::new("/embedded/forge")),
+        );
 
         let configs = options.configs(project.config().workspaces());
 
+        assert_eq!(options.forge_path(), PathBuf::from("/embedded/forge"));
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
         assert_eq!(configs[0].command, PathBuf::from("custom-lint"));
@@ -182,5 +199,65 @@ mod tests {
             FlycheckInitializationOptions { forge_path: None, flychecks: Some(Vec::new()) };
 
         assert!(options.configs(project.config().workspaces()).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn launch_default_drives_forge_lint_discovery_and_execution() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        project.write_file(
+            "/embedded-forge",
+            r#"#!/bin/sh
+set -eu
+printf '%s\n' "$@" >> "$0.args"
+printf '%s\n' -- >> "$0.args"
+printf '%s\n' "$PWD" >> "$0.cwd"
+"#,
+        );
+        let forge = project.path("/embedded-forge");
+        let mut permissions = fs::metadata(&forge).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&forge, permissions).unwrap();
+
+        let mut state = GlobalState::with_launch_config(
+            async_lsp::ClientSocket::new_closed(),
+            LaunchConfig::default().with_default_forge_path(&forge),
+        );
+        state.on_initialize(project.initialize_params()).await.unwrap();
+        let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+        let [config] =
+            state.config.flychecks_for_path(&project.path("/src/Test.sol")).try_into().unwrap();
+        let expected_cwd = RealFileLoader.canonicalize_path(&config.cwd).unwrap();
+
+        assert_eq!(config.command, forge);
+        assert_eq!(config.args, ["lint", "--json"]);
+        let (_cancel, cancelled) = oneshot::channel();
+        let diagnostics = crate::flycheck::run(
+            config,
+            Duration::from_secs(5),
+            cancelled,
+            vec![project.path("/src/Test.sol")],
+        )
+        .await
+        .unwrap();
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(
+            project.read_file("/embedded-forge.args"),
+            "lint\n--help\n--\nlint\n--json\n--\n"
+        );
+        assert_eq!(
+            project.read_file("/embedded-forge.cwd"),
+            format!("{0}\n{0}\n", expected_cwd.display())
+        );
     }
 }
