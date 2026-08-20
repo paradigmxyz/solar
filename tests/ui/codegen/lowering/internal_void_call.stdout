@@ -60,7 +60,6 @@ fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_args=lazy, abi
     internal_call @clear, 0
     jump bb3
   bb3:
-    v0 = phi [bb1: 0], [bb2: 0]
     stop
 }
 
