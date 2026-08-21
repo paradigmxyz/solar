@@ -6,7 +6,6 @@
 //@ run-call: AssemblyConstantAccess::assemblyReferences() => 0xabcd, 0x616263
 //@ run-call: AssemblyConstantAccess::solidityValues() => 0xabcd, 0x616263
 
-// Adapted from Solidity's inlineAssembly/constant_access_referencing test.
 contract AssemblyConstantAccess {
     uint256 constant integer = 2;
     bytes2 constant numeric = 0xabcd;
