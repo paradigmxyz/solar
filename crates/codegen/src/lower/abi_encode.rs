@@ -356,9 +356,45 @@ impl<'gcx> Lowerer<'gcx> {
                     None => value,
                 }
             };
+            // Encoded value words must be canonical like solc's: a consumer's
+            // strict decode rejects dirty upper bits, and callers like
+            // solady's tests hand over deliberately dirtied values.
+            let value = self.abi_clean_value(builder, value, ty);
             items.push((value, ty));
         }
         Ok(LoweredAbiItems { items, calldata_slices })
+    }
+
+    /// Cleans a value-typed word into its canonical ABI form; reference types
+    /// pass through untouched.
+    pub(super) fn abi_clean_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bool)) {
+            let zero = builder.iszero(value);
+            return builder.iszero(zero);
+        }
+        match self.packed_value_of_ty(ty) {
+            Some(packed) => match packed.kind {
+                crate::mir::PackedKind::Unsigned => {
+                    let mask = builder.imm_u256(packed.mask());
+                    builder.and(value, mask)
+                }
+                crate::mir::PackedKind::Signed => {
+                    let size = builder.imm_u64(u64::from(packed.size) - 1);
+                    builder.signextend(size, value)
+                }
+                crate::mir::PackedKind::HighAligned => {
+                    let mask =
+                        builder.imm_u256(packed.mask() << ((32 - usize::from(packed.size)) * 8));
+                    builder.and(value, mask)
+                }
+            },
+            None => value,
+        }
     }
 
     /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
