@@ -1617,6 +1617,17 @@ impl<'gcx> Lowerer<'gcx> {
                 if ret_var.name.is_none() && self.modifier_frames.is_empty() {
                     continue;
                 }
+                // A storage-located named return is a storage reference:
+                // assignments bind its slot, and analysis guarantees it is
+                // assigned before use, so it takes no default value.
+                let ret_ty = self.gcx.type_of_item(ret_id.into());
+                if ret_var.data_location == Some(solar_ast::DataLocation::Storage)
+                    || matches!(ret_ty.peel_refs().kind, TyKind::Mapping(..))
+                {
+                    self.storage_ref_locals.insert(ret_id);
+                    let _ = self.alloc_local_memory(ret_id);
+                    continue;
+                }
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 if Self::calldata_dynamic_var_kind(ret_var).is_some() {
