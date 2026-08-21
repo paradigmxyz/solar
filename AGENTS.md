@@ -8,6 +8,10 @@ Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to 
 
 For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
 
+When comparing compiler semantics with solc, use `fuzz/bin/solsymdiff` to obtain
+a replay-confirmed differential; see the
+[symbolic differential guide](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+
 ## Commands
 
 ```bash
