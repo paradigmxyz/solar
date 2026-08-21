@@ -528,23 +528,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
-        if let TyKind::Slice(underlying) = from.peel_refs().kind
-            && let Some(size) = destination_size
+        if let Some(size) = destination_size
+            && self.is_calldata_dynamic_bytes_type(from)
             && matches!(
-                underlying.peel_refs().kind,
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
+                self.builder.func().value_ty(value),
+                Some(MirType::Slice(SliceLocation::Calldata))
             )
-            && let Some(location) = self.builder.func().value_ty(value).and_then(|ty| match ty {
-                MirType::Slice(location) => Some(location),
-                _ => None,
-            })
         {
             let zero = self.builder.imm_u64(0);
-            let word = match location {
-                SliceLocation::Calldata => self.builder.calldata_slice_load_word(value, zero),
-                SliceLocation::Memory => self.builder.memory_slice_load_word(value, zero),
-                SliceLocation::Returndata => return value,
-            };
+            let word = self.builder.calldata_slice_load_word(value, zero);
             let width = u64::from(size.bytes());
             let fixed_mask =
                 self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
