@@ -507,7 +507,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.unary(op.kind, value, expr.span, self.context.gcx.type_of_expr(expr.id))
             }
             ExprKind::Assign(lhs, op, rhs) => {
-                if op.is_some() && self.context.gcx.unsupported_udvt_operator(expr.id) {
+                let compound_op = op.map(|op| op.kind);
+                if compound_op.is_some() && self.context.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none()
@@ -529,6 +530,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                 let rhs_value = if self.in_inline_assembly {
@@ -537,14 +539,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
                     self.lower_typed_expr(rhs, memory_rhs_ty)?
+                } else if fixed_bytes.is_some()
+                    && compound_op.is_some_and(|op| {
+                        !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
+                    })
+                {
+                    self.lower_typed_expr(rhs, lhs_ty)?
                 } else {
                     self.lower_expr(rhs)?
                 };
-                if let Some(kind) = op.map(|op| op.kind) {
+                if let Some(kind) = compound_op {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
                     let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
-                    let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                    let value = if let Some(bytes) = fixed_bytes {
+                        self.clean_fixed_bytes(value, bytes)
+                    } else {
+                        self.coerce_value(value, rhs_ty, lhs_ty)
+                    };
                     self.store_lvalue_place(&place, value)?;
                     return Some(value);
                 }
