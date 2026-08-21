@@ -11,14 +11,14 @@ fn @use() {
     v19 = add arg0, 36
     v20 = add arg0, 4
     v21 = calldataload v20
-    v7 = sub v21, 32
-    v8 = add v19, v7
+    v6 = sub v21, 32
+    v8 = add v19, v6
     v9 = calldataload v8
     jumpi v9, bb3, bb4
   bb3:
     jump bb4
   bb4:
-    v18 = phi [bb2: v21], [bb3: v7]
+    v18 = phi [bb2: v21], [bb3: v6]
     mstore 128, v18
     returndata 128, 32
   bb1:
