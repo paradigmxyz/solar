@@ -64,6 +64,24 @@ class BenchmarkData:
                 available_parsers.append(parser)
         return available_parsers
 
+    def get_complete_benchmarks(
+        self, benchmarks: List[str], parsers: List[str], kind: str
+    ) -> List[str]:
+        """Get benchmarks with data from every parser."""
+        return [
+            bench_name
+            for bench_name in benchmarks
+            if all(
+                any(
+                    entry.bench_name == bench_name
+                    and entry.parser == parser
+                    and entry.kind == kind
+                    for entry in self.entries
+                )
+                for parser in parsers
+            )
+        ]
+
     def get_slowest_time(self, bench_name: str, kind: str) -> int:
         """Get the slowest time for a specific benchmark and kind."""
         entries = self.get_entries(bench_name=bench_name, kind=kind)
@@ -352,12 +370,15 @@ def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
         available_parsers = data.get_available_parsers(kind)
         if not available_parsers:
             continue
+        benchmarks = data.get_complete_benchmarks(
+            sorted_bench_names[kind], available_parsers, kind
+        )
 
         # Generate absolute time plots
         plot_paths[kind] = create_plot(
             data,
             kind,
-            sorted_bench_names[kind],
+            benchmarks,
             available_parsers,
             output_dir,
             color_map,
@@ -368,7 +389,7 @@ def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
             plot_paths[f"{kind}_relative"] = create_relative_plot(
                 data,
                 kind,
-                sorted_bench_names[kind],
+                benchmarks,
                 available_parsers,
                 output_dir,
                 color_map,
