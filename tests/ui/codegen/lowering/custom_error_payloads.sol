@@ -37,9 +37,9 @@ contract CustomErrorPayloads {
     }
 
     // CHECK-LABEL: fn @require_named{{[( ]}}
+    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
     // CHECK: [[FAIL:v[0-9]+]] = iszero arg0
     // CHECK: jumpi [[FAIL]],
-    // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
     // CHECK: [[PAYLOAD:v[0-9]+]] = abi_encode [word, memory_bytes], selector 0x{{[0-9a-f]+}}, args 7, [[MESSAGE]]
     // CHECK: [[PTR:v[0-9]+]] = slice_ptr [[PAYLOAD]]
     // CHECK: [[LEN:v[0-9]+]] = slice_len [[PAYLOAD]]

@@ -272,6 +272,13 @@ struct ReturnTarget {
     states: Vec<LoopState>,
 }
 
+enum PreparedRevertPayload {
+    ShortString { length: ValueId, data: ValueId },
+    EmptyString,
+    ErrorString(ValueId),
+    CustomError { selector: ValueId, layout: Arc<AbiLayout>, values: Box<[ValueId]> },
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct StorageAccess {
     slot: ValueId,
