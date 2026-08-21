@@ -254,90 +254,15 @@ fn @blobAt() [selector=0x8f236983, view] {
 
 fn @pushEmpty() [selector=0x19d30117] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v53 = add v0, 32
-    mstore 64, v53 !metadata(memory=scratch)
-    mstore v0, 0
-    v1 = sload 2 !metadata(storage=slot(2))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
   bb1:
     tail_call @__revert_stub0
   bb2:
-    mstore 0, 2 !metadata(memory=scratch)
-    v48 = keccak256 0, 32 !metadata(memory=scratch)
-    v5 = add v48, v1
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = and v6, 1
-    v8 = eq v7, 1
-    v9 = and v6, 254
-    v10 = shr 1, v9
-    v11 = shr 1, v6
-    v12 = select v8, v11, v10
-    v13 = lt v12, 32
-    v14 = eq v8, v13
-    jumpi v14, bb3, bb4
-  bb3:
-    tail_call @__revert_stub1
-  bb4:
-    v15 = mload v0
-    v16 = add v0, 32
-    v18 = add v12, 31
-    v19 = lt v18, v12
-    jumpi v19, bb1, bb5
-  bb5:
-    v20 = shr 5, v18
-    v21 = add v15, 31
-    v22 = lt v21, v15
-    jumpi v22, bb1, bb6
-  bb6:
-    v23 = shr 5, v21
-    v24 = lt v15, 32
-    v25 = select v24, 0, v23
-    v26 = gt v12, v15
-    v27 = and v8, v26
-    jumpi v27, bb7, bb8
-  bb7:
-    internal_call @__clear_storage_words, 0, v5, v25, v20
-    jump bb8
-  bb8:
-    jumpi v24, bb9, bb10
-  bb9:
-    v28 = mload v16
-    v29 = sub 32, v15
-    v30 = shl 3, v29
-    v31 = shl v30, 1
-    v32 = sub v31, 1
-    v33 = not v32
-    v34 = and v28, v33
-    v35 = shl 1, v15
-    v36 = or v34, v35
-    sstore v5, v36 !metadata(storage=symbolic(v5))
-    jump bb11
-  bb10:
-    v37 = shl 1, v15
-    v38 = or v37, 1
-    sstore v5, v38 !metadata(storage=symbolic(v5))
-    mstore 0, v5 !metadata(memory=scratch)
-    v49 = keccak256 0, 32 !metadata(memory=scratch)
-    jump bb12
-  bb11:
-    sstore 2, v2 !metadata(storage=slot(2))
+    sstore 2, v1 !metadata(storage=slot(2))
     stop
-  bb12:
-    v40 = phi [bb10: 0], [bb13: v45]
-    v46 = phi [bb10: v49], [bb13: v47]
-    v41 = lt v40, v23
-    jumpi v41, bb13, bb11
-  bb13:
-    v42 = shl 5, v40
-    v52 = add v16, v42
-    v43 = mload v52
-    sstore v46, v43 !metadata(storage=symbolic(v46))
-    v45 = add v40, 1
-    v47 = add v46, 1
-    jump bb12
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
