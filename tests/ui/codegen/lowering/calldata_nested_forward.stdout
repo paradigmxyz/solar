@@ -31,133 +31,152 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = add 32, v3
-    v10 = lt v9, 32
-    jumpi v10, bb3, bb4
+    v9 = add v2, v3
+    v10 = calldatasize
+    v11 = gt v9, v10
+    jumpi v11, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v11 = alloc memoryarray<1>, exact, uninitialized, infallible, v9
-    set_memory_object_len memoryarray, v11, v1
-    jump bb5
+    v12 = mul v1, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v1
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb5, bb6
   bb5:
-    v12 = phi [bb4: 0], [bb25: v69]
-    v13 = lt v12, v1
-    jumpi v13, bb6, bb7
-  bb6:
-    v14 = mul v12, 32
-    v15 = iszero 32
-    v16 = div v14, 32
-    v17 = eq v16, v12
-    v18 = or v15, v17
-    v19 = iszero v18
-    jumpi v19, bb8, bb9
-  bb7:
-    v70 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v11
-    v71 = slice_ptr v70
-    v72 = slice_len v70
-    v73 = call v0, arg1, 0, v71, v72, 0, 0
-    jumpi v73, bb27, bb26
-  bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb6:
+    v18 = add 32, v12
+    v19 = lt v18, 32
+    jumpi v19, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
+    set_memory_object_len memoryarray, v20, v1
+    jump bb9
   bb9:
-    v20 = add v2, v14
-    v21 = add v20, 32
-    v22 = lt v21, v20
-    v23 = calldatasize
-    v24 = gt v21, v23
-    v25 = or v22, v24
-    jumpi v25, bb10, bb11
+    v21 = phi [bb8: 0], [bb29: v78]
+    v22 = lt v21, v1
+    jumpi v22, bb10, bb11
   bb10:
-    revert 0, 0
+    v23 = mul v21, 32
+    v24 = iszero 32
+    v25 = div v23, 32
+    v26 = eq v25, v21
+    v27 = or v24, v26
+    v28 = iszero v27
+    jumpi v28, bb12, bb13
   bb11:
-    v26 = calldataload v20
-    v27 = add v2, v26
-    v28 = calldatasize
-    v29 = sub v28, v2
-    v30 = sub v29, 31
-    v31 = slt v26, v30
-    v32 = iszero v31
-    jumpi v32, bb12, bb13
+    v79 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v20
+    v80 = slice_ptr v79
+    v81 = slice_len v79
+    v82 = call v0, arg1, 0, v80, v81, 0, 0
+    jumpi v82, bb31, bb30
   bb12:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb13:
-    v33 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v34 = add v27, 0
-    v35 = add v34, 32
-    v36 = lt v35, v34
-    v37 = calldatasize
-    v38 = gt v35, v37
-    v39 = or v36, v38
-    jumpi v39, bb14, bb15
+    v29 = add v2, v23
+    v30 = add v29, 32
+    v31 = lt v30, v29
+    v32 = calldatasize
+    v33 = gt v30, v32
+    v34 = or v31, v33
+    jumpi v34, bb14, bb15
   bb14:
     revert 0, 0
   bb15:
-    v40 = calldataload v34
-    memory_object_store_field memorystruct<2>, v33, 0, v40
-    v41 = add v27, 32
-    v42 = add v41, 32
-    v43 = lt v42, v41
-    v44 = calldatasize
-    v45 = gt v42, v44
-    v46 = or v43, v45
-    jumpi v46, bb16, bb17
+    v35 = calldataload v29
+    v36 = add v2, v35
+    v37 = calldatasize
+    v38 = sub v37, v2
+    v39 = sub v38, 31
+    v40 = slt v35, v39
+    v41 = iszero v40
+    jumpi v41, bb16, bb17
   bb16:
     revert 0, 0
   bb17:
-    v47 = calldataload v41
-    v48 = add v27, v47
-    v49 = calldatasize
-    v50 = sub v49, v27
-    v51 = sub v50, 31
-    v52 = slt v47, v51
-    v53 = iszero v52
-    jumpi v53, bb18, bb19
+    v42 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v43 = add v36, 0
+    v44 = add v43, 32
+    v45 = lt v44, v43
+    v46 = calldatasize
+    v47 = gt v44, v46
+    v48 = or v45, v47
+    jumpi v48, bb18, bb19
   bb18:
     revert 0, 0
   bb19:
-    v54 = calldataload v48
-    v55 = gt v54, 0xffffffffffffffff
+    v49 = calldataload v43
+    memory_object_store_field memorystruct<2>, v42, 0, v49
+    v50 = add v36, 32
+    v51 = add v50, 32
+    v52 = lt v51, v50
+    v53 = calldatasize
+    v54 = gt v51, v53
+    v55 = or v52, v54
     jumpi v55, bb20, bb21
   bb20:
     revert 0, 0
   bb21:
-    v56 = mul v54, 1
-    v57 = add v48, 32
+    v56 = calldataload v50
+    v57 = add v36, v56
     v58 = calldatasize
-    v59 = sub v58, v56
-    v60 = sgt v57, v59
-    jumpi v60, bb22, bb23
+    v59 = sub v58, v36
+    v60 = sub v59, 31
+    v61 = slt v56, v60
+    v62 = iszero v61
+    jumpi v62, bb22, bb23
   bb22:
     revert 0, 0
   bb23:
-    v61 = add v48, 32
-    v62 = make_calldata_slice v61, v54
-    v63 = slice_len v62
-    v64 = add v63, 63
-    v65 = lt v64, v63
-    jumpi v65, bb24, bb25
+    v63 = calldataload v57
+    v64 = gt v63, 0xffffffffffffffff
+    jumpi v64, bb24, bb25
   bb24:
+    revert 0, 0
+  bb25:
+    v65 = mul v63, 1
+    v66 = add v57, 32
+    v67 = calldatasize
+    v68 = sub v67, v65
+    v69 = sgt v66, v68
+    jumpi v69, bb26, bb27
+  bb26:
+    revert 0, 0
+  bb27:
+    v70 = add v57, 32
+    v71 = make_calldata_slice v70, v63
+    v72 = slice_len v71
+    v73 = add v72, 63
+    v74 = lt v73, v72
+    jumpi v74, bb28, bb29
+  bb28:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb25:
-    v66 = not 31
-    v67 = and v64, v66
-    v68 = alloc memorybytes, exact, uninitialized, infallible, v67
-    set_memory_object_len memorybytes, v68, v63
-    memory_object_copy_from_slice memorybytes, v68, v62
-    memory_object_store_field memorystruct<2>, v33, 1, v68
-    memory_object_store_element memoryarray<1>, v11, v12, v33
-    v69 = add v12, 1
-    jump bb5
-  bb26:
+  bb29:
+    v75 = not 31
+    v76 = and v73, v75
+    v77 = alloc memorybytes, exact, uninitialized, infallible, v76
+    set_memory_object_len memorybytes, v77, v72
+    memory_object_copy_from_slice memorybytes, v77, v71
+    memory_object_store_field memorystruct<2>, v42, 1, v77
+    memory_object_store_element memoryarray<1>, v20, v21, v42
+    v78 = add v21, 1
+    jump bb9
+  bb30:
     revert_returndata
-  bb27:
+  bb31:
     stop
 }
 
