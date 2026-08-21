@@ -90,6 +90,8 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
     mstore 128, v24
     mstore 64, v9 !metadata(memory=scratch)
     v25 = mload 128
-    ret v25
+    v26 = iszero v25
+    v27 = iszero v26
+    ret v27
 }
 
