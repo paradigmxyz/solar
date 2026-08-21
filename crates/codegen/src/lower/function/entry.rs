@@ -57,7 +57,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_item(id.into());
             let source_ty = self.context.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
-            let value = self.coerce_value(value, source_ty, ty);
             if let Some(&immutable_id) = self.context.immutable_ids.get(&id) {
                 self.builder.store_immutable(immutable_id, value);
             } else {
@@ -119,7 +118,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let parameter_ty = self.context.gcx.type_of_item(parameter.into());
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
-                let value = self.coerce_call_argument(argument, parameter_ty, value);
                 values.push(value);
             }
             for (&parameter, &value) in constructor.parameters.iter().zip(&values) {
