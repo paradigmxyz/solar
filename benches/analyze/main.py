@@ -139,7 +139,7 @@ class BenchmarkData:
         # Apply correction to all solc entries
         for entry in self.entries:
             if entry.parser == "solc":
-                entry.time_ns -= base_solc_ns
+                entry.time_ns = max(entry.time_ns - base_solc_ns, 1_000)
                 entry.time_str = format_ns(entry.time_ns)
 
 
@@ -210,7 +210,7 @@ def read_input() -> List[str]:
 
 def extract_benchmarks(lines: List[str]) -> List[Tuple[str, int, int]]:
     """Extract benchmark information from input lines."""
-    benchmark_re = re.compile(r"(\w+): (\d+) LoC, (\d+) bytes")
+    benchmark_re = re.compile(r"(\w+): (?:\d+ files, )?(\d+) LoC, (\d+) bytes")
     benchmarks = []
 
     for line in lines:
@@ -230,7 +230,7 @@ def extract_timing_data(
     """Extract timing data from input lines."""
     time = r"(\s*[\d\.]+ \w+)"
     data_re = re.compile(
-        rf"parser/(.+?)/(.+?)/(.+?)\s*time:\s*\n?\s*\[{time}{time}{time}\]",
+        rf"(?:parser|compiler)/(.+?)/(.+?)/(.+?)\s*time:\s*\n?\s*\[{time}{time}{time}\]",
         flags=re.MULTILINE,
     )
 
@@ -272,6 +272,7 @@ def generate_markdown_tables(
                     "Bytes/s",
                 ]
             )
+            rows = []
 
             # Find the slowest parser for this benchmark and kind
             slowest_time = data.get_slowest_time(bench_name, kind)
@@ -297,21 +298,24 @@ def generate_markdown_tables(
                 time_s = entry.time_str
                 loc_s = get_per_second(loc, time_ns)
                 bytes_s = get_per_second(bytes, time_ns)
-                table.append(
-                    [
+                rows.append(
+                    (
+                        slowest_time / time_ns,
+                        [
                         parser,
                         relative,
                         time_s,
                         loc_s,
                         bytes_s,
-                    ]
+                        ],
+                    )
                 )
 
-            if len(table) <= 1:
+            if not rows:
                 continue
 
-            # Sort by relative speed (fastest first)
-            table[1:] = sorted(table[1:], key=lambda x: float(x[1][:-1]), reverse=True)
+            # Sort by relative speed (fastest first).
+            table.extend(row for _, row in sorted(rows, key=lambda row: row[0], reverse=True))
 
             out_s += f"#### {kind.capitalize()}\n"
             out_s += tabulate(table, headers="firstrow", tablefmt="pipe")
@@ -346,6 +350,8 @@ def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
     for kind in KINDS:
         # Filter parsers that have data for this kind
         available_parsers = data.get_available_parsers(kind)
+        if not available_parsers:
+            continue
 
         # Generate absolute time plots
         plot_paths[kind] = create_plot(
