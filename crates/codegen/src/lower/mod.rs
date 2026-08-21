@@ -261,6 +261,9 @@ pub(crate) struct Lowerer<'gcx> {
     /// Sema return types of the function currently being lowered (one per declared
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
+    /// Declared return variables of the function currently being lowered, so
+    /// a bare `return;` (and Yul `leave`) can deliver their current values.
+    current_return_vars: Vec<VariableId>,
     /// Mapping from struct state variable ID to base storage slot.
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
     /// Interned semantic memory/storage layout for each lowered struct type.
@@ -348,6 +351,7 @@ impl<'gcx> Lowerer<'gcx> {
             in_unchecked_block: false,
             in_assembly_block: false,
             current_return_tys: Vec::new(),
+            current_return_vars: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
         }
@@ -701,6 +705,7 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_in_assembly_block = self.in_assembly_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+            let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
             self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
             self.constructor_args_base = None;
@@ -726,6 +731,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.in_unchecked_block = saved_in_unchecked_block;
             self.in_assembly_block = saved_in_assembly_block;
             self.current_return_tys = saved_current_return_tys;
+            self.current_return_vars = saved_current_return_vars;
         }
 
         self.module.add_function(mir_func);
@@ -884,6 +890,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
         let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
         let saved_modifier_function = self.modifier_function.take();
         let saved_modifier_depth = self.modifier_depth;
@@ -911,6 +918,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = saved_in_unchecked_block;
         self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
+        self.current_return_vars = saved_current_return_vars;
         self.modifier_frames = saved_modifier_frames;
         self.modifier_function = saved_modifier_function;
         self.modifier_depth = saved_modifier_depth;
@@ -1004,6 +1012,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
         let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
         let saved_modifier_function = self.modifier_function.take();
         let saved_modifier_depth = self.modifier_depth;
@@ -1029,6 +1038,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = saved_in_unchecked_block;
         self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
+        self.current_return_vars = saved_current_return_vars;
         self.modifier_frames = saved_modifier_frames;
         self.modifier_function = saved_modifier_function;
         self.modifier_depth = saved_modifier_depth;
@@ -1236,6 +1246,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = false;
         self.in_assembly_block = false;
         self.current_return_tys = current_return_tys;
+        self.current_return_vars = hir_func.returns.to_vec();
         if !abi_return_types.is_empty() {
             mir_func.abi_returns =
                 Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
