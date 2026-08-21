@@ -207,10 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut salt = None;
         if let Some(options) = call_opts {
             for option in options.args {
-                let value = self.lower_expr(&option.value)?;
                 match option.name.name {
-                    sym::value => call_value = value,
-                    sym::salt => salt = Some(value),
+                    sym::value => {
+                        call_value =
+                            self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
+                    }
+                    sym::salt => {
+                        salt = Some(self.lower_typed_expr(
+                            &option.value,
+                            self.context.gcx.types.fixed_bytes(32),
+                        )?);
+                    }
                     _ => {
                         return report_unsupported(
                             self.context.gcx,
