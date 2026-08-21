@@ -213,21 +213,17 @@ where
     F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
 {
     let mut chars = src.chars();
-    // The `start` and `end` computation here is complicated because
-    // `skip_ascii_whitespace` makes us to skip over chars without counting
-    // them in the range computation.
     while let Some(c) = chars.next() {
         let start = src.len() - chars.as_str().len() - c.len_utf8();
         let res = match c {
             '\\' => match chars.clone().next() {
                 Some('\r') if chars.clone().nth(1) == Some('\n') => {
-                    // +2 for the '\\' and '\r' characters.
-                    skip_ascii_whitespace(&mut chars, start + 2, &mut callback);
+                    chars.next();
+                    chars.next();
                     continue;
                 }
                 Some('\n') => {
-                    // +1 for the '\\' character.
-                    skip_ascii_whitespace(&mut chars, start + 1, &mut callback);
+                    chars.next();
                     continue;
                 }
                 _ => scan_escape(&mut chars),
@@ -245,39 +241,6 @@ where
         let end = src.len() - chars.as_str().len();
         callback(start..end, res);
     }
-}
-
-/// Skips over whitespace after a "\\\n" escape sequence.
-///
-/// Reports errors if multiple newlines are encountered.
-fn skip_ascii_whitespace<F>(chars: &mut Chars<'_>, mut start: usize, callback: &mut F)
-where
-    F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
-{
-    // Skip the first newline.
-    let mut nl = chars.next();
-    if let Some('\r') = nl {
-        nl = chars.next();
-    }
-    debug_assert_eq!(nl, Some('\n'));
-    let mut tail = chars.as_str();
-    start += 1;
-
-    loop {
-        let first_non_space =
-            tail.bytes().position(|b| !matches!(b, b' ' | b'\t')).unwrap_or(tail.len());
-        tail = &tail[first_non_space..];
-        start += first_non_space;
-
-        let Some(tail2) = tail.strip_prefix('\n').or_else(|| tail.strip_prefix("\r\n")) else {
-            break;
-        };
-        let skipped = tail.len() - tail2.len();
-        tail = tail2;
-        callback(start..start + skipped, Err(EscapeError::CannotSkipMultipleLines));
-        start += skipped;
-    }
-    *chars = tail.chars();
 }
 
 /// Unescape characters in a hex string literal.
@@ -417,31 +380,23 @@ mod tests {
             ("\n", "", &[(0..1, StrNewline)]),
             ("\\\n", "", &[]),
             ("\\\na", "a", &[]),
-            ("\\\n  a", "a", &[]),
-            ("a \\\n  b", "a b", &[]),
-            ("a\\n\\\n  b", "a\nb", &[]),
-            ("a\\t\\\n  b", "a\tb", &[]),
-            ("a\\n \\\n  b", "a\n b", &[]),
-            ("a\\n \\\n \tb", "a\n b", &[]),
-            ("a\\t \\\n  b", "a\t b", &[]),
-            ("\\\n \t a", "a", &[]),
-            (" \\\n \t a", " a", &[]),
-            ("\\\n \t a\n", "a", &[(6..7, StrNewline)]),
-            ("\\\n   \t   ", "", &[]),
-            (" \\\n   \t   ", " ", &[]),
-            (" he\\\n \\\nllo \\\n wor\\\nld", " hello world", &[]),
-            ("\\\n\na\\\nb", "ab", &[(2..3, CannotSkipMultipleLines)]),
-            ("\\\n \na\\\nb", "ab", &[(3..4, CannotSkipMultipleLines)]),
-            (
-                "\\\n \n\na\\\nb",
-                "ab",
-                &[(3..4, CannotSkipMultipleLines), (4..5, CannotSkipMultipleLines)],
-            ),
-            (
-                "a\\\n \n \t \nb\\\nc",
-                "abc",
-                &[(4..5, CannotSkipMultipleLines), (8..9, CannotSkipMultipleLines)],
-            ),
+            ("\\\n  a", "  a", &[]),
+            ("a \\\n  b", "a   b", &[]),
+            ("a\\n\\\n  b", "a\n  b", &[]),
+            ("a\\t\\\n  b", "a\t  b", &[]),
+            ("a\\n \\\n  b", "a\n   b", &[]),
+            ("a\\n \\\n \tb", "a\n  \tb", &[]),
+            ("a\\t \\\n  b", "a\t   b", &[]),
+            ("\\\n \t a", " \t a", &[]),
+            (" \\\n \t a", "  \t a", &[]),
+            ("\\\n \t a\n", " \t a", &[(6..7, StrNewline)]),
+            ("\\\n   \t   ", "   \t   ", &[]),
+            (" \\\n   \t   ", "    \t   ", &[]),
+            (" he\\\n \\\nllo \\\n wor\\\nld", " he llo  world", &[]),
+            ("\\\n\na\\\nb", "ab", &[(2..3, StrNewline)]),
+            ("\\\n \na\\\nb", " ab", &[(3..4, StrNewline)]),
+            ("\\\n \n\na\\\nb", " ab", &[(3..4, StrNewline), (4..5, StrNewline)]),
+            ("a\\\n \n \t \nb\\\nc", "a  \t bc", &[(4..5, StrNewline), (8..9, StrNewline)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
             check(StrKind::Str, src, expected_str, expected_errs);
@@ -461,7 +416,7 @@ mod tests {
     #[test]
     fn line_continuation_before_form_feed() {
         check(StrKind::Str, "\\\n\x0cafter", "\x0cafter", &[]);
-        check(StrKind::Str, "\\\r\n \t\x0cafter", "\x0cafter", &[]);
+        check(StrKind::Str, "\\\r\n \t\x0cafter", " \t\x0cafter", &[]);
     }
 
     #[test]
@@ -484,6 +439,8 @@ mod tests {
             check(StrKind::Unicode, src, expected_str, e1);
             check(StrKind::Str, src, "", e2);
         }
+
+        check_parse(StrKind::Unicode, "😃, 😭,\\\n and 😈", "😃, 😭, and 😈".as_bytes());
     }
 
     #[test]

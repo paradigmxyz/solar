@@ -10,9 +10,6 @@ Run with:
 # Criterion
 cargo bench -p solar-bench --bench criterion -- --quiet --format terse parser |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
-
-# Gungraun - requires `valgrind` and `gungraun-runner`
-cargo bench -p solar-bench --bench gungraun
 ```
 
 Currently this takes around 30 minutes to complete: `sources (15) * parsers (5) * lexers (2) * 15s`.
@@ -29,10 +26,8 @@ work.
 
 The [benchmark workflow](../.github/workflows/bench.yml) runs automatically for pull requests and
 updates to `main`. CodSpeed simulates the single-file and whole-project benchmarks, including
-codegen for selected projects. The workflow can also be dispatched for all benchmark families or
-one selected family: codegen runtime comparisons, CodSpeed, or Gungraun instruction counts.
-Dispatch inputs can select another Solar Git ref as the Gungraun baseline and override the pinned
-solc release.
+codegen for selected projects. The workflow can also be dispatched for codegen runtime comparisons,
+CodSpeed, or both, and can override the pinned solc release.
 
 The codegen runtime job compiles a vendored corpus with both compilers, deploys both artifacts to
 Anvil, executes ordered stateful workloads, and requires normalized return values and cold-path
@@ -61,7 +56,6 @@ gh workflow run bench.yml --ref my-branch \
   -f benchmark=gungraun \
   -f comparison_ref=main
 ```
-
 The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu`
 - CPU: AMD Ryzen 9 5950X

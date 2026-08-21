@@ -507,7 +507,7 @@ fn completes_imports_across_escaped_line_continuations() {
 
         //- /src/Main.sol open
         import "./nested/$2\
-            Tar$1get.sol";
+        Tar$1get.sol";
 
         //- /src/nested/Target.sol
         contract Target {}
@@ -522,7 +522,7 @@ label=./nested/Target.sol
 kind=File
 detail=<none>
 sort_text=<none>
-text_edit=edit 1:0-1:14
+text_edit=edit 1:0-1:10
 additional_text_edit=0:8-1:0 new_text=""
 insert_text_format=<none>
 new_text:
@@ -538,7 +538,7 @@ kind=File
 detail=<none>
 sort_text=<none>
 text_edit=edit 0:8-0:18
-additional_text_edit=0:18-1:14 new_text=""
+additional_text_edit=0:18-1:10 new_text=""
 insert_text_format=<none>
 new_text:
 ./nested/Target.sol
