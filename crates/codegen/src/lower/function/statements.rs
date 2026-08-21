@@ -621,6 +621,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> ValueId {
         let expr = expr.peel_parens();
+        let value = self.normalize_dirty_scalar(value, ty);
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {

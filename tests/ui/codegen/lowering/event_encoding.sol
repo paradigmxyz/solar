@@ -1,11 +1,13 @@
 //@compile-flags: -O none -Zdump=mir
 //@filecheck:
+// ported-from: test/libsolidity/semanticTests/cleanup/indexed_log_topic_during_explicit_downcast_during_emissions.sol
 
 contract EventEncoding {
     event ArrayEvent(uint256[2] values);
     event AnonymousEvent(address indexed sender, uint256 value) anonymous;
     event IndexedBytes(bytes indexed value);
     event IndexedFixedBytes(bytes3 indexed value);
+    event IndexedDirtyFixedBytes(bytes1 indexed value);
     event IndexedExternalFunction(function() external indexed target);
     event NamedEvent(uint256 a, uint256 b);
 
@@ -36,6 +38,17 @@ contract EventEncoding {
     // CHECK: log2 0, 0, {{[^,]+}}, 0x6162630000000000000000000000000000000000000000000000000000000000
     function emitIndexedFixedBytes() external {
         emit IndexedFixedBytes("abc");
+    }
+
+    // CHECK-LABEL: fn @emitIndexedDirtyFixedBytes
+    // CHECK: [[CLEAN:v[0-9]+]] = and {{[^,]+}}, 0xff00000000000000000000000000000000000000000000000000000000000000
+    // CHECK: log2 0, 0, {{[^,]+}}, [[CLEAN]]
+    function emitIndexedDirtyFixedBytes() external {
+        bytes1 value;
+        assembly {
+            value := 0x3131313131313131313131313131313131313131313131313131313131313131
+        }
+        emit IndexedDirtyFixedBytes(value);
     }
 
     // CHECK-LABEL: fn @emitIndexedExternalFunction
