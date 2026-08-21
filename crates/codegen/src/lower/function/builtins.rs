@@ -62,7 +62,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.imm_u256(U256::ZERO))
             }
             _ => self
-                .lower_solidity_value_builtin_call(builtin, args)
+                .lower_solidity_value_builtin_call(expr, builtin, args)
                 .or_else(|| Some(self.builder.imm_u256(U256::ZERO))),
         }
     }
@@ -206,6 +206,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_solidity_value_builtin_call(
         &mut self,
+        expr: &hir::Expr<'_>,
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
@@ -278,7 +279,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::StringConcat | Builtin::BytesConcat => {
                 self.lower_concat_builtin_call(builtin, args)
             }
-            Builtin::UdvtWrap | Builtin::UdvtUnwrap => {
+            Builtin::UdvtWrap => {
+                let value = self.builtin_args::<1>(builtin, &args)?.first()?;
+                let TyKind::Udvt(underlying, _) = self.context.gcx.type_of_expr(expr.id)?.kind
+                else {
+                    return report_error(
+                        self.context.gcx,
+                        expr.span,
+                        "codegen expected UDVT wrap to return a user-defined value type",
+                    );
+                };
+                self.lower_typed_expr(value, underlying)
+            }
+            Builtin::UdvtUnwrap => {
                 let value = self.builtin_args::<1>(builtin, &args)?.first()?;
                 self.lower_expr(value)
             }

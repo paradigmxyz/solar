@@ -55,9 +55,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => None,
                 })
             })?;
-            let value = if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
-                value
-            } else if source_ty.is_ref_at(DataLocation::Storage)
+            if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
+                return Some(value);
+            }
+            let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -65,8 +66,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && matches!(
                     target_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-            {
+                ) {
                 let access = self.storage_access(arg)?;
                 self.load_storage_bytes(access.slot)?
             } else {

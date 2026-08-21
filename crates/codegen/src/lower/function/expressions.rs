@@ -15,17 +15,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        if !matches!(
-            ty.peel_refs().kind,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-        ) {
+        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            ty.peel_refs().kind
+        else {
             return None;
-        }
+        };
         let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
             return None;
         };
-        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-        Some(self.lower_string_literal_word(bytes.as_byte_str()))
+        match &lit.kind {
+            LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
+            LitKind::Number(value) => {
+                let shift = usize::from(32 - size.bytes()) * 8;
+                Some(self.builder.imm_u256(*value << shift))
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
