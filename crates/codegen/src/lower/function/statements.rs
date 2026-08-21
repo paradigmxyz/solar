@@ -260,7 +260,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.builder.jump(target);
                 } else if !self.is_terminated() {
                     if values.is_empty() {
-                        self.builder.stop();
+                        let returns = self.returns.clone();
+                        self.finish(&returns)?;
                     } else {
                         if values.len() != self.returns.len() {
                             return report_unsupported(
