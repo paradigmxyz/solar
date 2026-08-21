@@ -122,27 +122,6 @@ class BenchmarkData:
             for kind in self.kinds
         }
 
-    def apply_solc_correction(self) -> None:
-        """Apply correction to solc parser times to remove base overhead."""
-        # Find base solc time from empty benchmark
-        base_solc_entry = next(
-            (e for e in self.entries if e.bench_name == "empty" and e.parser == "solc"),
-            None,
-        )
-
-        if not base_solc_entry:
-            raise ValueError("Couldn't find base solc time")
-
-        # Subtract base overhead (keeping 1us)
-        base_solc_ns = base_solc_entry.time_ns - 1_000
-
-        # Apply correction to all solc entries
-        for entry in self.entries:
-            if entry.parser == "solc":
-                entry.time_ns = max(entry.time_ns - base_solc_ns, 1_000)
-                entry.time_str = format_ns(entry.time_ns)
-
-
 def main() -> None:
     """Main function to process benchmark data and generate output."""
     out_file = sys.argv[1] if len(sys.argv) > 1 else None
@@ -159,9 +138,6 @@ def main() -> None:
 
     # Extract timing data
     data = extract_timing_data(lines, benchmarks)
-
-    # Apply solc base overhead correction
-    data.apply_solc_correction()
 
     # Generate output
     out_s = ""
