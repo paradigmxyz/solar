@@ -1263,7 +1263,7 @@ fn state_with_diagnostic_capabilities(
             });
     }
     let config =
-        negotiate_capabilities_with_pull_diagnostic_data(initialize, pull_diagnostic_data).1;
+        negotiate_capabilities_with_pull_diagnostic_data(initialize, pull_diagnostic_data, None).1;
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
     state

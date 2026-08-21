@@ -85,6 +85,9 @@ jobs:
           cache-targets: false
       - name: build
         run: cargo build
+      - name: symbolic differential unit tests
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: python3 fuzz/fandango/test_symbolic_differential.py -v
       - name: test
         run: cargo nextest run --profile ci --workspace
       - name: test C API
