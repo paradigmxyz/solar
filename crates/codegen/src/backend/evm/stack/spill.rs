@@ -178,6 +178,11 @@ impl SpillManager {
         self.stored.contains(value)
     }
 
+    /// Iterates every value whose slot already-emitted code has stored.
+    pub(crate) fn stored_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.stored.iter()
+    }
+
     /// Marks an unstored value as safe to rematerialize from stable inputs.
     pub(crate) fn mark_recomputable(&mut self, value: ValueId) {
         debug_assert!(self.slots.contains_key(&value));

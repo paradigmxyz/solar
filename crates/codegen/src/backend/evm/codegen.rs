@@ -1068,6 +1068,14 @@ pub struct EvmCodegen<'gcx> {
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
+    /// Spill stores available on every emitted path into the current block
+    /// (`None` outside block emission or when no emitted forward predecessor
+    /// constrains it). A `stored` flag set by a sibling arm's emission is not
+    /// on this path, so skipping a store requires availability here.
+    spill_avail_in: Option<FxHashSet<ValueId>>,
+    /// Values whose slot was already stored when the current block's emission
+    /// began; a store emitted inside the block is trivially on this path.
+    stored_at_block_entry: FxHashSet<ValueId>,
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
@@ -1142,6 +1150,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
+            spill_avail_in: None,
+            stored_at_block_entry: FxHashSet::default(),
             elided_insts: FxHashSet::default(),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -2383,16 +2393,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         // base pointer feeding a second copy loop reloaded uninitialized
         // memory this way. Phi operands count as uses in the merge block, so
         // `live_in` alone cannot separate edge-only sources from these.
+        //
+        // A successor's entry layout only proves one hop: the value must be
+        // carried by the planned entry of EVERY block where it stays live, or
+        // an edge cleanup on some uncovered path drops the sole stack copy
+        // and a later block reloads its reserved slot uninitialized (a
+        // diamond over a multi-return value followed by an internal call read
+        // stale decode scratch this way).
+        let carried_at = |block: BlockId, value: ValueId| {
+            stack_phi_plan.entries.get(&block).is_some_and(|entry| entry.contains(&value))
+                || global_stack_plan.entries.get(&block).is_some_and(|entry| entry.contains(&value))
+        };
+        let mut carried_everywhere = FxHashMap::<ValueId, bool>::default();
         for (block_id, sources) in &mut stack_phi_sources {
             let Some(term) = func.blocks[*block_id].terminator.as_ref() else { continue };
             let successors = term.successors();
             sources.retain(|&value| {
                 successors.iter().all(|&succ| {
-                    if stack_phi_plan.entries.get(&succ).is_some_and(|entry| entry.contains(&value))
-                        || global_stack_plan
-                            .entries
-                            .get(&succ)
-                            .is_some_and(|entry| entry.contains(&value))
+                    if carried_at(succ, value)
+                        && *carried_everywhere.entry(value).or_insert_with(|| {
+                            func.blocks.indices().all(|block| {
+                                !liveness.live_in(block).contains(value) || carried_at(block, value)
+                            })
+                        })
                     {
                         return true;
                     }
@@ -2448,12 +2471,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // predecessor, restored here).
         let mut block_entry_stacks: FxHashMap<BlockId, StackModel> = FxHashMap::default();
         let mut preserved_fallthrough: Option<BlockId> = None;
+        // A spill store is a path fact, not a function fact: a store emitted
+        // in one branch arm must not satisfy reloads on paths that bypass it.
+        // Track store availability per emitted block — a slot is trustworthy
+        // at a block only when every forward predecessor makes it available —
+        // and drop the scheduler's stored guarantee where a live value is not
+        // available, so that path stores again before any reload.
+        let store_cfg = CfgInfo::new(func);
+        let mut spill_avail_out: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
-
             let label = self.block_labels[&block_id];
             if !entered_by_preserved_fallthrough && !block.predecessors.is_empty() {
                 self.asm.define_label(label);
@@ -2485,6 +2515,29 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.mark_live_in_spills(func, liveness, block_id);
                 }
             }
+            // A spill store is a path fact, not a function fact: a store
+            // emitted in a sibling branch arm sets the global `stored` flag,
+            // which must not suppress this path's own store. Intersect store
+            // availability over emitted forward predecessors (loop back edges
+            // are exempt: a value redefined around a loop is handled by the
+            // carried-phi invalidation, and its pre-loop store stays valid; a
+            // predecessor emitted later stores organically on its own path).
+            let mut avail_in: Option<FxHashSet<ValueId>> = None;
+            for &pred in func.blocks[block_id].predecessors.iter() {
+                if store_cfg.dominators().dominates(block_id, pred) {
+                    continue;
+                }
+                let pred_avail = spill_avail_out.get(&pred);
+                match (&mut avail_in, pred_avail) {
+                    (None, Some(pred_avail)) => avail_in = Some(pred_avail.clone()),
+                    (Some(set), Some(pred_avail)) => {
+                        set.retain(|value| pred_avail.contains(value));
+                    }
+                    (_, None) => {}
+                }
+            }
+            self.spill_avail_in = avail_in;
+            self.stored_at_block_entry = self.scheduler.spills.stored_values().collect();
             if block_id == BlockId::ENTRY
                 && let Some(values) =
                     self.resident_stack_args(func_id).map(|values| values.to_vec())
@@ -2741,6 +2794,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 block_entry_stacks.insert(target, entry_stack);
             }
+
+            spill_avail_out.insert(block_id, self.scheduler.spills.stored_values().collect());
         }
 
         if let Some(value) = self.scheduler.spills.unstored_required() {
@@ -3995,7 +4050,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        if self.scheduler.spills.is_stored(val) {
+        // `stored` is a global emission flag; a store emitted by a sibling
+        // branch arm sets it without covering this path. Trust it only when
+        // the store is available on every emitted path into this block, or
+        // was emitted inside this very block.
+        if self.scheduler.spills.is_stored(val)
+            && (self.spill_avail_in.as_ref().is_none_or(|avail| avail.contains(&val))
+                || !self.stored_at_block_entry.contains(&val))
+        {
             return;
         }
 
