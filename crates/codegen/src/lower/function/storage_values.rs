@@ -662,8 +662,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 (self.materialize_memory_argument(memory_ty, value, argument.span)?, memory_ty)
             } else {
                 let value = self.lower_typed_expr(argument, element)?;
-                let source_ty = self.context.gcx.type_of_expr(argument.id)?;
-                (self.coerce_value(value, source_ty, element), element)
+                // `lower_typed_expr` already applies the destination type. Re-coercing
+                // fixed-bytes literals shifts their already aligned value a second time.
+                (value, element)
             };
             Some((value, source_ty))
         } else {
