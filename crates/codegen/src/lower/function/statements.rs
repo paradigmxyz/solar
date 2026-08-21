@@ -36,7 +36,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.builder.imm_u256(U256::ZERO)
                 };
-                let value = self.materialize_memory_argument(
+                let value = self.materialize_call_argument(
                     ty,
                     value,
                     initializer.map_or(stmt.span, |expr| expr.span),
