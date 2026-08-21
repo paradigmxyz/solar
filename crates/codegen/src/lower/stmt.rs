@@ -174,7 +174,10 @@ impl<'gcx> Lowerer<'gcx> {
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
             StmtKind::AssemblyBlock(block) => {
+                let prev = self.in_assembly_block;
+                self.in_assembly_block = true;
                 self.lower_block(builder, block);
+                self.in_assembly_block = prev;
             }
 
             StmtKind::Err(_) => {}

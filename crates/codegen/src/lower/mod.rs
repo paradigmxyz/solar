@@ -204,6 +204,10 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
+    /// Variables assigned inside an inline assembly block. Assembly stores raw
+    /// words, so Solidity-level reads of these canonicalize for the variable's
+    /// type; assembly-level reads keep the raw word, matching solc.
+    asm_assigned_vars: GrowableBitSet<VariableId>,
     /// Invalid event declarations whose topic-count error has already been emitted.
     invalid_event_topics: GrowableBitSet<hir::EventId>,
     /// Whether the next expression is an error-checking boundary.
@@ -249,6 +253,11 @@ pub(crate) struct Lowerer<'gcx> {
     synthesizing_helper: bool,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
+    /// Whether the current statement is inside an inline assembly block, both
+    /// while lowering and during the assigned-vars pre-scan. Reads of
+    /// assembly-assigned variables stay raw there, and the pre-scan uses it to
+    /// populate `asm_assigned_vars`.
+    in_assembly_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
@@ -317,6 +326,7 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
+            asm_assigned_vars: GrowableBitSet::new_empty(),
             invalid_event_topics: GrowableBitSet::new_empty(),
             check_expr_errors: hir_has_errors,
             hir_has_errors,
@@ -336,6 +346,7 @@ impl<'gcx> Lowerer<'gcx> {
             storage_bytes_helper: None,
             synthesizing_helper: false,
             in_unchecked_block: false,
+            in_assembly_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
@@ -681,18 +692,21 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
             let saved_next_local_memory_offset = self.next_local_memory_offset;
             let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+            let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
             let saved_inline_returns = self.inline_returns.take();
             let saved_pending_inline_returns = self.pending_inline_returns.take();
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
+            let saved_in_assembly_block = self.in_assembly_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
             self.constructor_args_base = None;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
+            self.in_assembly_block = false;
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
@@ -703,12 +717,14 @@ impl<'gcx> Lowerer<'gcx> {
             self.slice_slot_locals = saved_slice_slot_locals;
             self.next_local_memory_offset = saved_next_local_memory_offset;
             self.assigned_vars = saved_assigned_vars;
+            self.asm_assigned_vars = saved_asm_assigned_vars;
             self.inline_returns = saved_inline_returns;
             self.pending_inline_returns = saved_pending_inline_returns;
             self.lowering_constructor = saved_lowering_constructor;
             self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
+            self.in_assembly_block = saved_in_assembly_block;
             self.current_return_tys = saved_current_return_tys;
         }
 
@@ -858,6 +874,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
@@ -865,6 +882,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
+        let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
         let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
         let saved_modifier_function = self.modifier_function.take();
@@ -874,6 +892,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         let mir_id = self.lower_function(func_id, false);
         self.lowering_functions.remove(func_id);
 
@@ -882,6 +901,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.asm_assigned_vars = saved_asm_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
@@ -889,6 +909,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
+        self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
         self.modifier_frames = saved_modifier_frames;
         self.modifier_function = saved_modifier_function;
@@ -973,6 +994,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
@@ -980,6 +1002,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
+        let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
         let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
         let saved_modifier_function = self.modifier_function.take();
@@ -988,6 +1011,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         let mir_id = self.lower_function(func_id, true);
 
         self.locals = saved_locals;
@@ -995,6 +1019,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.asm_assigned_vars = saved_asm_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
@@ -1002,6 +1027,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
+        self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
         self.modifier_frames = saved_modifier_frames;
         self.modifier_function = saved_modifier_function;
@@ -1203,10 +1229,12 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals.clear();
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
+        self.asm_assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         self.current_return_tys = current_return_tys;
         if !abi_return_types.is_empty() {
             mir_func.abi_returns =
@@ -1678,7 +1706,8 @@ impl<'gcx> Lowerer<'gcx> {
                                 )
                             } else {
                                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                                builder.mload(offset_val)
+                                let val = builder.mload(offset_val);
+                                self.clean_asm_dirty_read(&mut builder, ret_id, val)
                             }
                         } else if let Some(value) =
                             self.lower_default_variable_value(&mut builder, ret_id)
@@ -2134,7 +2163,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_block(&clause.block);
                 }
             }
-            StmtKind::AssemblyBlock(block) => self.collect_assigned_vars_block(block),
+            StmtKind::AssemblyBlock(block) => {
+                let prev = self.in_assembly_block;
+                self.in_assembly_block = true;
+                self.collect_assigned_vars_block(block);
+                self.in_assembly_block = prev;
+            }
             // The declared variables are initialized, not reassigned, but the
             // initializer can mutate other locals (`uint256 x = xs[i++];`).
             StmtKind::DeclSingle(var_id) => {
@@ -2247,6 +2281,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
         if let Some(var_id) = self.gcx.resolved_variable(expr) {
             self.assigned_vars.insert(var_id);
+            if self.in_assembly_block {
+                self.asm_assigned_vars.insert(var_id);
+            }
         }
     }
 

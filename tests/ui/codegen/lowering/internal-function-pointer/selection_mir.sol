@@ -40,7 +40,8 @@ contract FunctionPointerSelection {
     // CHECK: internal_call @__internal_dispatch_0, 1, [[CASTED]], arg0
     // CHECK-LABEL: fn @castViewToPure(
     // CHECK: mstore {{v[0-9]+}}, arg0
-    // CHECK: ret {{v[0-9]+}}
+    // CHECK: [[CLEAN:v[0-9]+]] = and {{v[0-9]+}}, 0xffffffffffffffff
+    // CHECK: ret [[CLEAN]]
     function throughCast(uint256 value) public pure returns (uint256) {
         return castViewToPure(incrementView)(value);
     }

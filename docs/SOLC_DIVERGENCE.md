@@ -110,4 +110,26 @@ No intentional divergences documented yet.
 
 ## Code Generation
 
-No intentional divergences documented yet.
+### CODEGEN-001: Dirty bits do not survive assembly-assigned variables read from Solidity
+
+- ID: CODEGEN-001
+- Status: intentional
+- Difference: When inline assembly assigns a variable whose type spans fewer
+  than 256 bits, `solc` leaves the raw word in the variable and cleans it at
+  each use site that needs a canonical value (comparisons, checked arithmetic,
+  ABI encoding). `solar` instead canonicalizes once, at every Solidity-level
+  read of such a variable; reads inside assembly see the raw word in both
+  compilers. Code that deliberately round-trips dirty upper bits through a
+  typed variable or an internal-function return back into assembly — solady's
+  `Brutalizer` test helpers assert exactly that — observes cleaned values
+  under `solar`.
+- Rationale: The Solidity documentation makes bits outside a type's width
+  unspecified after assembly assignments, so both models are conforming. A
+  single cleanup point at the assembly-to-Solidity boundary covers every
+  downstream consumer (comparisons, arithmetic, mapping keys, encodes) without
+  per-use-site masks, and keeps the in-assembly raw-scratch idiom
+  (`value := shl(96, value)` then reading `value` back) working exactly like
+  `solc`.
+- Coverage: `tests/ui/codegen/run-call/assembly_assign_cleanup.sol`;
+  external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
+  `testBrutalizedBool` fail by asserting dirt survives.

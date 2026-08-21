@@ -882,6 +882,23 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Canonicalizes a Solidity-level read of a variable that inline assembly
+    /// assigns. Assembly stores raw words and assembly-level reads keep them
+    /// raw, matching solc, so cleanup happens where the value re-enters typed
+    /// Solidity code (comparisons, arithmetic, encodes, keys).
+    pub(super) fn clean_asm_dirty_read(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        value: ValueId,
+    ) -> ValueId {
+        if self.in_assembly_block || !self.asm_assigned_vars.contains(var_id) {
+            return value;
+        }
+        let ty = self.gcx.type_of_item(var_id.into());
+        self.abi_clean_value(builder, value, ty)
+    }
+
     /// Lowers an identifier reference.
     fn lower_ident(
         &mut self,
@@ -901,7 +918,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // First check if it's a function parameter (SSA value)
                     if let Some(&val) = self.locals.get(var_id) {
-                        return val;
+                        return self.clean_asm_dirty_read(builder, *var_id, val);
                     }
 
                     // Check if it's a local variable stored in memory
@@ -914,7 +931,8 @@ impl<'gcx> Lowerer<'gcx> {
                             );
                         }
                         let offset_val = self.local_memory_addr(builder, offset);
-                        return builder.mload(offset_val);
+                        let val = builder.mload(offset_val);
+                        return self.clean_asm_dirty_read(builder, *var_id, val);
                     }
 
                     // Check if it's a constant - inline its value
