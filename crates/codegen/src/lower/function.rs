@@ -60,6 +60,9 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage_word_array_helper: &'ctx mut Option<FunctionId>,
     pub(super) packed_array_helpers: &'ctx mut FxHashMap<(u8, u8), FunctionId>,
     pub(super) storage_struct_array_helpers: &'ctx mut FxHashMap<hir::StructId, FunctionId>,
+    pub(super) recursive_storage_clear_helpers: &'ctx mut FxHashMap<hir::StructId, FunctionId>,
+    pub(super) recursive_storage_store_helpers:
+        &'ctx mut FxHashMap<(hir::StructId, hir::StructId), FunctionId>,
     pub(super) storage_clear_helper: &'ctx mut Option<FunctionId>,
     pub(super) revert_error_helper: &'ctx mut Option<FunctionId>,
     pub(super) literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
@@ -87,6 +90,8 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             storage_word_array_helper: &mut *self.storage_word_array_helper,
             packed_array_helpers: &mut *self.packed_array_helpers,
             storage_struct_array_helpers: &mut *self.storage_struct_array_helpers,
+            recursive_storage_clear_helpers: &mut *self.recursive_storage_clear_helpers,
+            recursive_storage_store_helpers: &mut *self.recursive_storage_store_helpers,
             storage_clear_helper: &mut *self.storage_clear_helper,
             revert_error_helper: &mut *self.revert_error_helper,
             literal_helpers: &mut *self.literal_helpers,
