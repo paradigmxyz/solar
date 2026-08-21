@@ -1729,25 +1729,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.switch_to_block(exit);
             }
             TyKind::Struct(struct_id) => {
-                let mut cleared_packed_slot = None;
-                for (index, &field) in
-                    self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
-                {
-                    let field_ty = self.context.gcx.type_of_item(field.into());
-                    let location = self.context.storage.field_location(struct_id, index)?;
-                    let field_slot = self.add_storage_offset(access.slot, location.slot);
-                    if location.size.bits() < 256 {
-                        if cleared_packed_slot != Some(location.slot) {
-                            self.builder.sstore(field_slot, zero);
-                            cleared_packed_slot = Some(location.slot);
-                        }
-                        continue;
-                    }
-                    self.clear_storage_access(
-                        field_ty,
-                        StorageAccess { slot: field_slot, location, offset: None },
-                        span,
-                    )?;
+                if self.storage_clear_is_recursive(struct_id) {
+                    let helper = self.ensure_recursive_storage_clear_helper(struct_id, span)?;
+                    self.builder.internal_call_void(helper, vec![access.slot], 0);
+                } else {
+                    self.clear_storage_struct_fields(struct_id, access.slot, span)?;
                 }
             }
             TyKind::Array(element, len) => {
@@ -1796,6 +1782,113 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         Some(())
+    }
+
+    fn clear_storage_struct_fields(
+        &mut self,
+        struct_id: solar_sema::hir::StructId,
+        slot: ValueId,
+        span: Span,
+    ) -> Option<()> {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let mut cleared_packed_slot = None;
+        for (index, &field) in self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
+            let field_ty = self.context.gcx.type_of_item(field.into());
+            let location = self.context.storage.field_location(struct_id, index)?;
+            let field_slot = self.add_storage_offset(slot, location.slot);
+            if location.size.bits() < 256 {
+                if cleared_packed_slot != Some(location.slot) {
+                    self.builder.sstore(field_slot, zero);
+                    cleared_packed_slot = Some(location.slot);
+                }
+                continue;
+            }
+            self.clear_storage_access(
+                field_ty,
+                StorageAccess { slot: field_slot, location, offset: None },
+                span,
+            )?;
+        }
+        Some(())
+    }
+
+    fn storage_clear_is_recursive(&self, struct_id: solar_sema::hir::StructId) -> bool {
+        let mut visiting = FxHashSet::default();
+        self.context.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
+            self.storage_clear_reaches_struct(
+                self.context.gcx.type_of_item(field.into()),
+                struct_id,
+                &mut visiting,
+            )
+        })
+    }
+
+    fn storage_clear_reaches_struct(
+        &self,
+        ty: Ty<'gcx>,
+        target: solar_sema::hir::StructId,
+        visiting: &mut FxHashSet<solar_sema::hir::StructId>,
+    ) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
+                if struct_id == target {
+                    return true;
+                }
+                if !visiting.insert(struct_id) {
+                    return false;
+                }
+                let contains = self.context.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
+                    self.storage_clear_reaches_struct(
+                        self.context.gcx.type_of_item(field.into()),
+                        target,
+                        visiting,
+                    )
+                });
+                visiting.remove(&struct_id);
+                contains
+            }
+            TyKind::Array(element, _) | TyKind::DynArray(element) => {
+                self.storage_clear_reaches_struct(element, target, visiting)
+            }
+            _ => false,
+        }
+    }
+
+    fn ensure_recursive_storage_clear_helper(
+        &mut self,
+        struct_id: solar_sema::hir::StructId,
+        span: Span,
+    ) -> Option<FunctionId> {
+        if let Some(&helper) = self.context.recursive_storage_clear_helpers.get(&struct_id) {
+            return Some(helper);
+        }
+
+        let name = Ident::from_str(&format!(
+            "__clear_recursive_storage_{}",
+            self.context.module.functions.len()
+        ));
+        let mut function = Function::new(name);
+        function.attributes.no_inline = true;
+        let helper = self.context.module.add_function(Function::new(name));
+        self.context.recursive_storage_clear_helpers.insert(struct_id, helper);
+
+        let lowered = {
+            let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
+            let slot = lowerer.builder.add_param(MirType::uint256());
+            let lowered = lowerer.clear_storage_struct_fields(struct_id, slot, span).is_some();
+            if lowered {
+                lowerer.builder.stop();
+            } else {
+                lowerer.builder.invalid();
+            }
+            lowered
+        };
+        *self.context.module.function_mut(helper) = function;
+        if !lowered {
+            self.context.recursive_storage_clear_helpers.remove(&struct_id);
+            return None;
+        }
+        Some(helper)
     }
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {

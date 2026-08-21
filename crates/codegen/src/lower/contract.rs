@@ -150,6 +150,7 @@ pub(super) fn lower(
     let mut storage_word_array_helper = None;
     let mut packed_array_helpers = FxHashMap::default();
     let mut storage_struct_array_helpers = FxHashMap::default();
+    let mut recursive_storage_clear_helpers = FxHashMap::default();
     let mut storage_clear_helper = None;
     let mut revert_error_helper = None;
     let mut literal_helpers = FxHashMap::default();
@@ -194,6 +195,7 @@ pub(super) fn lower(
             storage_word_array_helper: &mut storage_word_array_helper,
             packed_array_helpers: &mut packed_array_helpers,
             storage_struct_array_helpers: &mut storage_struct_array_helpers,
+            recursive_storage_clear_helpers: &mut recursive_storage_clear_helpers,
             storage_clear_helper: &mut storage_clear_helper,
             revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
@@ -249,6 +251,7 @@ pub(super) fn lower(
             storage_word_array_helper: &mut storage_word_array_helper,
             packed_array_helpers: &mut packed_array_helpers,
             storage_struct_array_helpers: &mut storage_struct_array_helpers,
+            recursive_storage_clear_helpers: &mut recursive_storage_clear_helpers,
             storage_clear_helper: &mut storage_clear_helper,
             revert_error_helper: &mut revert_error_helper,
             literal_helpers: &mut literal_helpers,
