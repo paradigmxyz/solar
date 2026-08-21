@@ -47,7 +47,7 @@ from seconds to minutes on solc, participate only in the compilation-time table,
 gas, and runtime comparisons.
 The runtime harness and its tests are in [`runtime/`](runtime/).
 
-Use `--suite heavy` (or its `--suite projects` alias) to compare full-project compile times. This
+Use `--suite heavy` to compare full-project compile times. This
 suite passes each archived Foundry Standard JSON input unchanged to both compilers, so it includes
 the project's test sources and build settings. It records compile time (and peak RSS) only; it does
 not run Criterion, deployments, gas calls, or runtime checks. `--suite large` remains the focused

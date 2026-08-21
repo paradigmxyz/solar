@@ -1196,9 +1196,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--suite",
-        choices=("micro", "repository", "large", "heavy", "projects", "all"),
+        choices=("micro", "repository", "large", "heavy", "all"),
         default="micro",
-        help="Benchmark suite to run (heavy/projects measure full project compile time)",
+        help="Benchmark suite to run (heavy measures full project compile time)",
     )
     parser.add_argument(
         "--compile-repeats",
@@ -1233,11 +1233,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    suite = "heavy" if args.suite == "projects" else args.suite
     all_tests = [
         test
         for test in TEST_CASES
-        if suite == "all" or test.suite == suite
+        if args.suite == "all" or test.suite == args.suite
     ]
 
     if args.projects:

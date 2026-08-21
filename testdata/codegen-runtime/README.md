@@ -6,7 +6,7 @@ the same upstream project. The runner selects only each entrypoint's transitive 
 closure before compiling it. Keeping the inputs here makes the benchmark reproducible from this
 checkout and removes the CI dependency on a second repository and its recursive submodules.
 
-The separate `benches/runtime/benchmark.py --suite projects` suite passes the full archived
+The separate `benches/runtime/benchmark.py --suite heavy` suite passes the full archived
 Standard JSON inputs to both compilers and measures compile time without deployment or runtime
 workloads.
 
