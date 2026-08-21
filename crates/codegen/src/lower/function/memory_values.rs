@@ -95,8 +95,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let field_ty = self.context.gcx.type_of_item(field.into());
             let value = self.lower_typed_expr(argument, field_ty)?;
             let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
-            let value =
-                self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, field_ty);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)

@@ -211,10 +211,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
-            let from_ty = self.context.gcx.type_of_expr(expr.id)?;
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);
@@ -1620,12 +1618,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
-        let input_ty = self.context.gcx.type_of_expr(input.id)?;
-        if !matches!(self.types.memory_layout(input_ty)?, MemoryObjectLayout::Bytes) {
-            return report_unsupported(self.context.gcx, input.span, "precompile input");
-        }
         let span = input.span;
-        let memory_ty = input_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+        let memory_ty = self.context.gcx.types.bytes_ref.memory;
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);

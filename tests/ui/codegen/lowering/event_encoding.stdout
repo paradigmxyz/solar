@@ -29,6 +29,13 @@ fn @emitIndexedFixedBytes() [selector=0x25daad67, abi_args=lazy, abi_params=[], 
     stop
 }
 
+fn @emitIndexedDirtyFixedBytes() [selector=0xf989586c, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = and 0x3131313131313131313131313131313131313131313131313131313131313131, 0xff00000000000000000000000000000000000000000000000000000000000000
+    log2 0, 0, 0xa1b9025fec76aacfc164a8b852a67542854b624636617444b5004cf6019753b7, v0
+    stop
+}
+
 fn @emitIndexedExternalFunction() [selector=0x208d2555, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = address

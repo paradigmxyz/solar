@@ -130,7 +130,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .push((parameter, self.storage_refs.insert(parameter, access)));
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
-                let value = self.coerce_call_argument(argument, parameter_ty, value);
                 let value = self.materialize_call_argument(parameter_ty, value, argument.span)?;
                 saved_parameters.push((parameter, self.values.insert(parameter, value)));
             }
