@@ -121,7 +121,8 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         repo: "https://github.com/Uniswap/v4-core",
         rev: "46c6834698c48bc4a463a86d8420f4eb1d7f3b75",
         mode: ExternalMode::Test,
-        solc_version: None,
+        // `src/PoolManager.sol` pins `pragma solidity =0.8.26`.
+        solc_version: Some("0.8.26"),
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
