@@ -47,48 +47,43 @@ pub fn get_srcs() -> &'static [Source] {
         // project inputs, including the test sources selected by each
         // project's benchmark profile.
         //
-        // OpenZeppelin, v4-core, and PRBMath currently stop before codegen
-        // on unsupported compiler behavior. Only project codegen cases that
-        // keep the full simulated suite under ten minutes opt in below.
+        // CodSpeed runs project codegen by default. Mark projects that are too
+        // slow or unsupported under instrumentation with `no_codspeed_codegen`.
         sources.extend([
-            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all()),
+            // Full Seaport codegen is too expensive under CodSpeed instrumentation.
+            include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
+            // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all()),
+            // Full Solady codegen is too expensive under CodSpeed instrumentation.
+            include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
+            // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
+            // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            // These archives are also used by the runtime benchmark. Keep
-            // unsupported or expensive full-project codegen cases in the
-            // parser and lowering benches.
-            include_source("../testdata/projects/aave-l2-encoder.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/lilweb3-ens.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/lilweb3-runtime.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
-            include_source("../testdata/projects/maple-erc20.json.gz", Capabilities::all())
-                .with_codspeed_codegen(),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/aave-l2-encoder.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/lilweb3-ens.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/lilweb3-runtime.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/maple-erc20.json.gz", Capabilities::all()),
             include_source(
                 "../testdata/projects/nitro-one-step-proof.json.gz",
                 Capabilities::all(),
-            )
-            .with_codspeed_codegen(),
+            ),
+            // This legacy 0.5.16 corpus is used only for lexer compatibility.
             include_source(
                 "../testdata/projects/uniswap-v2-pair.json.gz",
                 Capabilities::lex_only(),
@@ -293,7 +288,7 @@ fn include_source(path: &str, capabilities: Capabilities) -> Source {
         remappings,
         bytes,
         capabilities,
-        codspeed_codegen: false,
+        codspeed_codegen: true,
     }
 }
 
@@ -312,8 +307,8 @@ pub struct Source {
 }
 
 impl Source {
-    fn with_codspeed_codegen(mut self) -> Self {
-        self.codspeed_codegen = true;
+    fn no_codspeed_codegen(mut self) -> Self {
+        self.codspeed_codegen = false;
         self
     }
 
