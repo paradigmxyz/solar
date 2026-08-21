@@ -271,39 +271,16 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_arg
     revert 0, 0
   bb26:
     v71 = add v58, 32
-    v72 = mul v64, 32
-    v73 = iszero 32
-    v74 = div v72, 32
-    v75 = eq v74, v64
-    v76 = or v73, v75
-    v77 = iszero v76
-    jumpi v77, bb27, bb28
+    v72 = make_calldata_slice v71, v64
+    v73 = slice_len v72
+    v74 = add v23, v73
+    v75 = lt v74, v23
+    jumpi v75, bb27, bb28
   bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb28:
-    v78 = add 32, v72
-    v79 = lt v78, 32
-    jumpi v79, bb29, bb30
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb30:
-    v80 = alloc memoryarray<1>, exact, uninitialized, infallible, v78
-    set_memory_object_len memoryarray, v80, v64
-    v81 = make_calldata_slice v71, v72
-    memory_object_copy_from_slice memoryarray, v80, v81
-    v82 = memory_object_len memoryarray, v80
-    v83 = add v23, v82
-    v84 = lt v83, v23
-    jumpi v84, bb31, bb32
-  bb31:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb32:
-    ret v83
+  bb28:
+    ret v74
 }
 

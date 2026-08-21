@@ -5,6 +5,7 @@
 //@ run-call: nested() => 6
 //@ run-call: whileControl() => 3
 //@ run-call: whileConditionalContinue() => 22
+//@ run-call: exitUsesPreviousLoopValue() => 5
 // ported-from: test/libsolidity/semanticTests/statements/do_while_loop_continue.sol
 
 contract DoWhileContinue {
@@ -71,5 +72,16 @@ contract DoWhileContinue {
             }
             sum += 10;
         }
+    }
+
+    function exitUsesPreviousLoopValue() external pure returns (uint256 x) {
+        x = 1;
+        uint256 i;
+        do {
+            ++i;
+            continue;
+            x += x;
+        } while (i < 4);
+        x += i;
     }
 }
