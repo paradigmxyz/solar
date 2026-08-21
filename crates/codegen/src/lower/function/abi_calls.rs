@@ -392,6 +392,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
+                let element_head_size = self.builder.imm_u64(element_type.head_size());
+                let head_size = self.builder.checked_mul(length, element_head_size);
+                self.check_calldata_tail_range(data, head_size);
                 if matches!(element_type, AbiType::Word)
                     && Self::calldata_word_is_full_width(element)
                 {

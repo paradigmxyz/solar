@@ -244,11 +244,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn store_variable(
         &mut self,
         id: VariableId,
-        value: ValueId,
+        mut value: ValueId,
         span: Span,
     ) -> Option<()> {
         if self.in_inline_assembly {
             self.dirty_values.insert(value);
+            if !matches!(
+                self.builder.func().value_ty(value),
+                Some(MirType::Slice(SliceLocation::Calldata))
+            ) && let Some(previous) = self.values.get(&id).copied()
+                && matches!(
+                    self.builder.func().value_ty(previous),
+                    Some(MirType::Slice(SliceLocation::Calldata))
+                )
+            {
+                let length = self.builder.slice_len(previous);
+                value = self.builder.make_slice(value, length, SliceLocation::Calldata);
+            }
         }
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
