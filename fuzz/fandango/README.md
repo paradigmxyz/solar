@@ -287,6 +287,9 @@ test compares return bytes, revert behavior, logs, and normalized state diffs.
 `solsymdiff` uses Foundry's symbolic executor to compare one explicitly chosen
 function over bounded symbolic inputs:
 
+Agents using this workflow should also follow the repository's
+[agent guidance](../../AGENTS.md).
+
 ```bash
 cargo build -p solar-compiler --bin solar
 
