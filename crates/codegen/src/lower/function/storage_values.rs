@@ -656,11 +656,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.lower_typed_expr(argument, element)?;
             let value =
                 self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, element);
-            if self.types.memory_layout(element).is_some() {
+            let value = if self.types.memory_layout(element).is_some() {
                 self.materialize_memory_argument(element, value, argument.span)?
             } else {
                 value
-            }
+            };
+            Some(value)
         } else {
             if !arguments.is_empty() {
                 return report_unsupported(
@@ -669,14 +670,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     "storage array push arguments",
                 );
             }
-            self.default_value(element)
+            None
         };
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
         let new_length = self.builder.checked_add(length, one);
         let element_access =
             self.storage_array_element_access(base.slot, length, element, true, expr.span)?;
-        self.store_storage_value(element, element_access, value, expr.span)?;
+        if let Some(value) = value {
+            self.store_storage_value(element, element_access, value, expr.span)?;
+        }
         self.builder.sstore(base.slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
     }
