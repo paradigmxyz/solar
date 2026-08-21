@@ -653,15 +653,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     "storage array push arguments",
                 );
             };
-            let value = self.lower_typed_expr(argument, element)?;
-            let value =
-                self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, element);
-            let value = if self.types.memory_layout(element).is_some() {
-                self.materialize_memory_argument(element, value, argument.span)?
+            let (value, source_ty) = if self.types.memory_layout(element).is_some() {
+                let memory_ty = element.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+                let value = self.lower_typed_expr(argument, memory_ty)?;
+                (self.materialize_memory_argument(memory_ty, value, argument.span)?, memory_ty)
             } else {
-                value
+                let value = self.lower_typed_expr(argument, element)?;
+                let source_ty = self.context.gcx.type_of_expr(argument.id)?;
+                (self.coerce_value(value, source_ty, element), element)
             };
-            Some(value)
+            Some((value, source_ty))
         } else {
             if !arguments.is_empty() {
                 return report_unsupported(
@@ -677,8 +678,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let new_length = self.builder.checked_add(length, one);
         let element_access =
             self.storage_array_element_access(base.slot, length, element, true, expr.span)?;
-        if let Some(value) = value {
-            self.store_storage_value(element, element_access, value, expr.span)?;
+        if let Some((value, source_ty)) = value {
+            self.store_storage_value_with_source(
+                element,
+                source_ty,
+                element_access,
+                value,
+                expr.span,
+            )?;
         }
         self.builder.sstore(base.slot, new_length);
         Some(self.builder.imm_u256(U256::ZERO))
@@ -1313,30 +1320,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if fields != source_fields {
                     return report_unsupported(self.context.gcx, span, "storage struct conversion");
                 }
-                let layout = self.types.memory_layout(source_ty)?;
-                for (index, &field) in
-                    self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
-                {
-                    let field_ty = self.context.gcx.type_of_item(field.into());
-                    let location = self.context.storage.field_location(struct_id, index)?;
-                    let field_slot = self.add_storage_offset(slot, location.slot);
-                    let value = self.builder.memory_object_load_field(object, layout, index as u64);
-                    let source_field = self.context.gcx.hir.strukt(source_struct_id).fields[index];
-                    let source_field_ty = self.context.gcx.type_of_item(source_field.into());
-                    let access = StorageAccess { slot: field_slot, location, offset: None };
-                    if self.types.memory_layout(field_ty).is_some() {
-                        self.store_storage_object_with_source(
-                            field_ty,
-                            source_field_ty,
-                            field_slot,
-                            value,
-                            span,
-                        )?;
-                    } else {
-                        self.store_storage_value(field_ty, access, value, span)?;
-                    }
+                if self.storage_struct_is_recursive(struct_id) {
+                    let helper = self.ensure_recursive_storage_store_helper(
+                        struct_id,
+                        source_struct_id,
+                        span,
+                    )?;
+                    self.builder.internal_call_void(helper, vec![slot, object], 0);
+                    return Some(());
                 }
-                Some(())
+                self.store_storage_struct_fields_with_source(
+                    struct_id,
+                    source_struct_id,
+                    slot,
+                    object,
+                    span,
+                )
             }
             TyKind::Array(element, len) => {
                 let TyKind::Array(source_element, source_len) = source_ty.peel_refs().kind else {
@@ -1679,6 +1678,87 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
+    fn store_storage_struct_fields_with_source(
+        &mut self,
+        struct_id: solar_sema::hir::StructId,
+        source_struct_id: solar_sema::hir::StructId,
+        slot: ValueId,
+        object: ValueId,
+        span: Span,
+    ) -> Option<()> {
+        let source_ty = self.context.gcx.mk_ty(TyKind::Struct(source_struct_id));
+        let layout = self.types.memory_layout(source_ty)?;
+        for (index, &field) in self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
+            let field_ty = self.context.gcx.type_of_item(field.into());
+            let location = self.context.storage.field_location(struct_id, index)?;
+            let field_slot = self.add_storage_offset(slot, location.slot);
+            let value = self.builder.memory_object_load_field(object, layout, index as u64);
+            let source_field = self.context.gcx.hir.strukt(source_struct_id).fields[index];
+            let source_field_ty = self.context.gcx.type_of_item(source_field.into());
+            let access = StorageAccess { slot: field_slot, location, offset: None };
+            if self.types.memory_layout(field_ty).is_some() {
+                self.store_storage_object_with_source(
+                    field_ty,
+                    source_field_ty,
+                    field_slot,
+                    value,
+                    span,
+                )?;
+            } else {
+                self.store_storage_value(field_ty, access, value, span)?;
+            }
+        }
+        Some(())
+    }
+
+    fn ensure_recursive_storage_store_helper(
+        &mut self,
+        struct_id: solar_sema::hir::StructId,
+        source_struct_id: solar_sema::hir::StructId,
+        span: Span,
+    ) -> Option<FunctionId> {
+        let key = (struct_id, source_struct_id);
+        if let Some(&helper) = self.context.recursive_storage_store_helpers.get(&key) {
+            return Some(helper);
+        }
+
+        let name = Ident::from_str(&format!(
+            "__store_recursive_storage_{}",
+            self.context.module.functions.len()
+        ));
+        let mut function = Function::new(name);
+        function.attributes.no_inline = true;
+        let helper = self.context.module.add_function(Function::new(name));
+        self.context.recursive_storage_store_helpers.insert(key, helper);
+
+        let lowered = {
+            let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
+            let slot = lowerer.builder.add_param(MirType::uint256());
+            let object = lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::Struct));
+            let lowered = lowerer
+                .store_storage_struct_fields_with_source(
+                    struct_id,
+                    source_struct_id,
+                    slot,
+                    object,
+                    span,
+                )
+                .is_some();
+            if lowered {
+                lowerer.builder.stop();
+            } else {
+                lowerer.builder.invalid();
+            }
+            lowered
+        };
+        *self.context.module.function_mut(helper) = function;
+        if !lowered {
+            self.context.recursive_storage_store_helpers.remove(&key);
+            return None;
+        }
+        Some(helper)
+    }
+
     pub(super) fn clear_storage_access(
         &mut self,
         ty: Ty<'gcx>,
@@ -1729,7 +1809,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.switch_to_block(exit);
             }
             TyKind::Struct(struct_id) => {
-                if self.storage_clear_is_recursive(struct_id) {
+                if self.storage_struct_is_recursive(struct_id) {
                     let helper = self.ensure_recursive_storage_clear_helper(struct_id, span)?;
                     self.builder.internal_call_void(helper, vec![access.slot], 0);
                 } else {
@@ -1812,10 +1892,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn storage_clear_is_recursive(&self, struct_id: solar_sema::hir::StructId) -> bool {
+    fn storage_struct_is_recursive(&self, struct_id: solar_sema::hir::StructId) -> bool {
         let mut visiting = FxHashSet::default();
         self.context.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
-            self.storage_clear_reaches_struct(
+            self.storage_type_reaches_struct(
                 self.context.gcx.type_of_item(field.into()),
                 struct_id,
                 &mut visiting,
@@ -1823,7 +1903,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    fn storage_clear_reaches_struct(
+    fn storage_type_reaches_struct(
         &self,
         ty: Ty<'gcx>,
         target: solar_sema::hir::StructId,
@@ -1838,7 +1918,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return false;
                 }
                 let contains = self.context.gcx.hir.strukt(struct_id).fields.iter().any(|&field| {
-                    self.storage_clear_reaches_struct(
+                    self.storage_type_reaches_struct(
                         self.context.gcx.type_of_item(field.into()),
                         target,
                         visiting,
@@ -1848,7 +1928,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 contains
             }
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
-                self.storage_clear_reaches_struct(element, target, visiting)
+                self.storage_type_reaches_struct(element, target, visiting)
             }
             _ => false,
         }
