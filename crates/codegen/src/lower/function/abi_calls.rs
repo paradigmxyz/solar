@@ -60,7 +60,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         ty: Ty<'gcx>,
     ) -> bool {
-        if !self.needs_calldata_aggregate_validation(value, ty) {
+        if self.is_external_abi_argument(value)
+            || !self.needs_calldata_aggregate_validation(value, ty)
+        {
             return false;
         }
         let Some(abi_type) = self.types.abi_type(ty) else { return false };
@@ -511,6 +513,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(
                 base_ty.kind,
                 TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_)
                     | TyKind::Struct(_)
                     | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             ) {
