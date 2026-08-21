@@ -1042,10 +1042,12 @@ impl<'gcx> Lowerer<'gcx> {
                         "codegen does not support indexed event aggregate encoding yet",
                     ));
                 } else {
-                    topics.push(self.lower_return_value_for_ty(builder, arg, ty));
+                    let value = self.lower_return_value_for_ty(builder, arg, ty);
+                    topics.push(self.abi_clean_value(builder, value, ty));
                 }
             } else {
                 let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
+                let arg_val = self.abi_clean_value(builder, arg_val, ty);
                 data_items.push((arg_val, ty));
             }
         }

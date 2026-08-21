@@ -39,8 +39,9 @@ fn @emitAnonymous(arg0: address, arg1: u256) {
   bb3:
     revert 0, 0
   bb4:
+    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, arg1 !metadata(memory=scratch)
-    log1 0, 32, arg0
+    log1 0, 32, v6
     stop
   bb1:
     revert 0, 0
@@ -73,7 +74,8 @@ fn @emitIndexedBytes(arg0: memorybytes) {
 
 fn @emitIndexedFixedBytes() {
   bb0:
-    log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, v0
     stop
 }
 

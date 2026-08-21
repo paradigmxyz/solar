@@ -6,6 +6,8 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -21,60 +23,59 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb5:
     revert 0, 0
   bb6:
-    v9 = abi_encode [word, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args arg1, arg2
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = gas
-    v13 = call v12, arg0, 0, v10, v11, 0, 0
-    v14 = returndatasize
-    v15 = make_returndata_slice 0, v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = add v17, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v21 = add v20, 32
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v17
-    v23 = memory_object_data memorybytes, v22
-    returndatacopy v23, v16, v17
-    jumpi v13, bb7, bb8
+    v9 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = abi_encode [word, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v9, arg2
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = gas
+    v14 = call v13, arg0, 0, v11, v12, 0, 0
+    v15 = returndatasize
+    v16 = make_returndata_slice 0, v15
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = add v18, 31
+    v20 = not 31
+    v21 = and v19, v20
+    v22 = add v21, 32
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, v18
+    v24 = memory_object_data memorybytes, v23
+    returndatacopy v24, v17, v18
+    jumpi v14, bb7, bb8
   bb7:
-    v24 = mload v22
-    v25 = eq v24, 0
-    jumpi v25, bb10, bb9
+    v25 = mload v23
+    v26 = eq v25, 0
+    jumpi v26, bb10, bb9
+  bb8:
+    v36 = phi [bb6: 0], [bb10: v35]
+    v37 = iszero v36
+    jumpi v37, bb15, bb16
   bb9:
-    v26 = memory_object_len memorybytes, v22
-    v27 = memory_object_data memorybytes, v22
-    v28 = lt v26, 32
-    jumpi v28, bb11, bb12
-  bb12:
-    v29 = mload v27
-    v30 = iszero v29
-    v31 = iszero v30
-    v32 = eq v29, v31
-    v33 = iszero v32
-    jumpi v33, bb13, bb14
-  bb14:
-    jump bb10
-  bb13:
-    revert 0, 0
+    v27 = memory_object_len memorybytes, v23
+    v28 = memory_object_data memorybytes, v23
+    v29 = lt v27, 32
+    jumpi v29, bb11, bb12
+  bb10:
+    v35 = phi [bb7: 1], [bb14: v32]
+    jump bb8
   bb11:
     revert 0, 0
-  bb10:
-    v34 = phi [bb7: 1], [bb14: v31]
-    jump bb8
-  bb8:
-    v35 = phi [bb6: 0], [bb10: v34]
-    v36 = iszero v35
-    jumpi v36, bb15, bb16
-  bb16:
-    stop
+  bb12:
+    v30 = mload v28
+    v31 = iszero v30
+    v32 = iszero v31
+    v33 = eq v30, v32
+    v34 = iszero v33
+    jumpi v34, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    jump bb10
   bb15:
     internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb1:
-    revert 0, 0
+  bb16:
+    stop
 }
 
 fn @__revert_error(arg0: u256, arg1: u256) {
@@ -92,6 +93,8 @@ fn @balanceOf(arg0: address) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -102,39 +105,38 @@ fn @balanceOf(arg0: address) -> u256 [abi_returns=[word]] {
   bb4:
     v6 = address
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gas
-    v12 = staticcall v11, arg0, v9, v10, 0, 0
-    v13 = returndatasize
-    v14 = make_returndata_slice 0, v13
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = add v16, 31
-    v18 = not 31
-    v19 = and v17, v18
-    v20 = add v19, 32
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    v22 = memory_object_data memorybytes, v21
-    returndatacopy v22, v15, v16
-    v23 = iszero v12
-    jumpi v23, bb5, bb6
-  bb6:
-    v24 = memory_object_len memorybytes, v21
-    v25 = memory_object_data memorybytes, v21
-    v26 = lt v24, 32
-    jumpi v26, bb7, bb8
-  bb8:
-    v27 = mload v25
-    ret v27
-  bb7:
-    revert 0, 0
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v8
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gas
+    v13 = staticcall v12, arg0, v10, v11, 0, 0
+    v14 = returndatasize
+    v15 = make_returndata_slice 0, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = add v17, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v21 = add v20, 32
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    v23 = memory_object_data memorybytes, v22
+    returndatacopy v23, v16, v17
+    v24 = iszero v13
+    jumpi v24, bb5, bb6
   bb5:
     revert 0, 0
-  bb1:
+  bb6:
+    v25 = memory_object_len memorybytes, v22
+    v26 = memory_object_data memorybytes, v22
+    v27 = lt v25, 32
+    jumpi v27, bb7, bb8
+  bb7:
     revert 0, 0
+  bb8:
+    v28 = mload v26
+    ret v28
 }
 
 fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -143,6 +145,8 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_returns=[memor
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -180,11 +184,9 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [abi_returns=[memor
     returndatacopy v28, v21, v22
     v29 = iszero v18
     jumpi v29, bb5, bb6
-  bb6:
-    ret v27
   bb5:
     revert 0, 0
-  bb1:
-    revert 0, 0
+  bb6:
+    ret v27
 }
 
