@@ -42,3 +42,71 @@ fn @spin(arg0: u256) {
     internal_call fn3, 0, arg0
     revert 0, 0
 }
+
+// A backedge phi copy must not overwrite the previous value used on the exit edge.
+// CHECK-LABEL: {{^[ +].*}}fn @live_on_sibling{{[( ]}}
+// CHECK: + [[LOOP_VALUE:v[0-9]+]] = phi {{\[}}bb0: 0], {{\[}}[[LIVE_EDGE:bb[0-9]+]]: [[NEXT_VALUE:v[0-9]+]]]
+// CHECK: + jumpi arg0, [[LIVE_EDGE]], bb3
+// CHECK: + [[LIVE_EDGE]]:
+// CHECK-NEXT: + jump bb1
+fn @live_on_sibling(arg0: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v2]
+    v2 = add v1, 1
+    jumpi v2, bb2, bb3
+  bb2:
+    jumpi arg0, bb1, bb3
+  bb3:
+    ret v1
+}
+
+// A phi destination used by the branch itself must also survive until the edge is selected.
+// CHECK-LABEL: {{^[ +].*}}fn @used_by_terminator{{[( ]}}
+// CHECK: + [[CONDITION:v[0-9]+]] = phi {{\[}}bb0: 1], {{\[}}[[CONDITION_EDGE:bb[0-9]+]]: {{v[0-9]+}}]
+// CHECK: + jumpi [[CONDITION]], [[CONDITION_EDGE]], bb3
+fn @used_by_terminator() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb2: v2]
+    v2 = sub v1, 1
+    jump bb2
+  bb2:
+    jumpi v1, bb1, bb3
+  bb3:
+    ret 7
+}
+
+// The same rule applies to a switch edge, including duplicate cases for one logical edge.
+// CHECK-LABEL: {{^[ +].*}}fn @switch_edge{{[( ]}}
+// CHECK: + {{v[0-9]+}} = phi {{\[}}bb0: 0], {{\[}}[[SWITCH_EDGE:bb[0-9]+]]: {{v[0-9]+}}]
+// CHECK: + switch arg0, default [[SWITCH_EDGE]], {{\[}}1 => [[SWITCH_EDGE]], 2 => bb3]
+fn @switch_edge(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v2]
+    v2 = add v1, 1
+    jump bb2
+  bb2:
+    switch arg0, default bb1, [1 => bb1, 2 => bb3]
+  bb3:
+    ret v1
+}
+
+// Keep the original edge when its phi destination is dead on every sibling path.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_on_sibling{{[( ]}}
+// CHECK-NOT: + bb
+fn @dead_on_sibling(arg0: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: 1]
+    jump bb2
+  bb2:
+    jumpi arg0, bb1, bb3
+  bb3:
+    ret 7
+}

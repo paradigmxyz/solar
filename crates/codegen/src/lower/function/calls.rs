@@ -207,10 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut salt = None;
         if let Some(options) = call_opts {
             for option in options.args {
-                let value = self.lower_expr(&option.value)?;
                 match option.name.name {
-                    sym::value => call_value = value,
-                    sym::salt => salt = Some(value),
+                    sym::value => {
+                        call_value =
+                            self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
+                    }
+                    sym::salt => {
+                        salt = Some(self.lower_typed_expr(
+                            &option.value,
+                            self.context.gcx.types.fixed_bytes(32),
+                        )?);
+                    }
                     _ => {
                         return report_unsupported(
                             self.context.gcx,
@@ -361,7 +368,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types.abi_return_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
-        }) || self.context.gcx.sess.opts.evm_version.supports_returndata();
+        });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
             |(_, data, _)| *data,
@@ -412,6 +419,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
                 .collect::<Vec<_>>();
             return self.lower_abi_decode_values(data, &return_types, callee.span);
+        }
+        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+            self.validate_static_returndata(ret_offset, function.returns);
         }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
@@ -920,7 +930,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.types
                 .abi_return_type(self.context.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
-        }) || self.context.gcx.sess.opts.evm_version.supports_returndata();
+        });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
             |(_, data, _)| *data,
@@ -997,15 +1007,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return values.into_iter().next().or(Some(zero));
         }
         if self.context.gcx.sess.opts.evm_version.supports_returndata() {
-            let size = self.builder.imm_u64((returns as u64).saturating_mul(32));
-            self.revert_if_short_returndata(size);
-            for (index, &ret) in function.returns.iter().enumerate() {
-                let value = self.load_multi_return_value(ret_offset, index, returns);
-                self.validate_external_return_value(
-                    self.context.gcx.type_of_item(ret.into()),
-                    value,
-                );
-            }
+            self.validate_static_returndata(ret_offset, &return_tys);
         }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
@@ -1158,6 +1160,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm_u256(U256::ZERO);
         self.builder.revert(zero, zero);
         self.builder.switch_to_block(continue_block);
+    }
+
+    fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
+        let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
+        let size = self.builder.imm_u64(words.saturating_mul(32));
+        self.revert_if_short_returndata(size);
+        for (index, &ty) in returns.iter().enumerate() {
+            let value = self.load_multi_return_value(offset, index, returns.len());
+            self.validate_external_return_value(ty, value);
+        }
     }
 
     fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {
