@@ -874,7 +874,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
-            let items = self.gather_return_items(builder, value);
+            let items = match value {
+                Some(_) => self.gather_return_items(builder, value),
+                // A bare `return;` (and Yul `leave`) delivers the declared
+                // return variables' current values, like the implicit epilogue.
+                None => self.gather_named_return_values(builder),
+            };
             if items.is_empty() {
                 builder.stop();
             } else {
@@ -886,8 +891,48 @@ impl<'gcx> Lowerer<'gcx> {
             let items = self.gather_return_items(builder, Some(expr));
             self.finish_return(builder, items);
         } else {
-            builder.ret([]);
+            let items = self.gather_named_return_values(builder);
+            if items.is_empty() {
+                builder.ret([]);
+            } else {
+                self.finish_return(builder, items);
+            }
         }
+    }
+
+    /// Loads the current values of the declared return variables in
+    /// declaration order, mirroring the implicit-return epilogue: a bare
+    /// `return;` and Yul's `leave` deliver whatever the body assigned so far.
+    fn gather_named_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> Vec<(ValueId, Ty<'gcx>)> {
+        let return_vars = self.current_return_vars.clone();
+        let mut items = Vec::with_capacity(return_vars.len());
+        for ret_id in return_vars {
+            let ty = self.gcx.type_of_item(ret_id.into());
+            let val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                if self.is_slice_slot_local(&ret_id) {
+                    self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+                } else {
+                    let addr = self.local_memory_addr(builder, offset);
+                    let val = builder.mload(addr);
+                    self.clean_asm_dirty_read(builder, ret_id, val)
+                }
+            } else if let Some(&val) = self.locals.get(&ret_id) {
+                self.clean_asm_dirty_read(builder, ret_id, val)
+            } else if let Some(val) = self.lower_default_variable_value(builder, ret_id) {
+                val
+            } else {
+                self.err_value(
+                    builder,
+                    self.gcx.hir.variable(ret_id).span,
+                    "codegen is missing a return variable slot",
+                )
+            };
+            items.push((val, ty));
+        }
+        items
     }
 
     /// Delivers an inlined body's `return` values to its call site: each value
