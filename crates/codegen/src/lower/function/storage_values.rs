@@ -1691,6 +1691,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let length = self.builder.sload(access.slot);
                 self.builder.sstore(access.slot, zero);
 
+                if let Some((size, _)) = self.context.storage.packed_encoding(element)
+                    && size.bits() < 256
+                {
+                    let elements_per_slot = self.builder.imm_u64(32 / u64::from(size.bytes()));
+                    let full_slots = self.builder.div(length, elements_per_slot);
+                    let remainder = self.builder.mod_(length, elements_per_slot);
+                    let remainder_is_zero = self.builder.iszero(remainder);
+                    let has_partial_slot = self.builder.iszero(remainder_is_zero);
+                    let slots = self.builder.add(full_slots, has_partial_slot);
+                    self.clear_storage_words(access.slot, zero, slots, zero);
+                    return Some(());
+                }
+
                 let preheader = self.builder.current_block();
                 let header = self.builder.create_block();
                 let body = self.builder.create_block();
@@ -1713,12 +1726,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.switch_to_block(exit);
             }
             TyKind::Struct(struct_id) => {
+                let mut cleared_packed_slot = None;
                 for (index, &field) in
                     self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
                 {
                     let field_ty = self.context.gcx.type_of_item(field.into());
                     let location = self.context.storage.field_location(struct_id, index)?;
                     let field_slot = self.add_storage_offset(access.slot, location.slot);
+                    if location.size.bits() < 256 {
+                        if cleared_packed_slot != Some(location.slot) {
+                            self.builder.sstore(field_slot, zero);
+                            cleared_packed_slot = Some(location.slot);
+                        }
+                        continue;
+                    }
                     self.clear_storage_access(
                         field_ty,
                         StorageAccess { slot: field_slot, location, offset: None },
@@ -1727,6 +1748,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             TyKind::Array(element, len) => {
+                if let Some((size, _)) = self.context.storage.packed_encoding(element)
+                    && size.bits() < 256
+                {
+                    let slots = self.context.storage.element_slots(ty, span);
+                    for index in 0..slots {
+                        let slot = self.add_storage_offset(access.slot, U256::from(index));
+                        self.builder.sstore(slot, zero);
+                    }
+                    return Some(());
+                }
+
                 let len = u64::try_from(len).ok()?;
                 for index in 0..len {
                     let index = self.builder.imm_u64(index);
@@ -1740,6 +1772,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.clear_storage_access(element, element_access, span)?;
                 }
             }
+            TyKind::Mapping(..) => {}
             _ => {
                 if let Some(offset) = access.offset {
                     self.context.storage.store_packed_at_slot(
