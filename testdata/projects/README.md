@@ -1,8 +1,7 @@
-# Benchmark project corpus
+# Benchmark project archives
 
-This directory is the single source archive for the project benchmarks. Each archive is a
-gzip-compressed Solidity Standard JSON input with inline source contents and the upstream build
-settings needed by the benchmark that owns it.
+This directory stores the project benchmark inputs. Each archive is a gzip-compressed Solidity
+Standard JSON input with inline source contents and the upstream build settings for its benchmark.
 
 Criterion and CodSpeed load these archives directly for their existing Solar-only workloads. The
 runtime benchmark's `heavy` suite passes each archive
@@ -23,6 +22,5 @@ The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Sea
 Solarray, Solmate, and v4-core. The runtime suite currently exercises OpenZeppelin and Solady test
 entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
-The runtime workload definitions and upstream revisions are documented in
-[`../../benches/runtime/README.md`](../../benches/runtime/README.md). Runtime fixtures remain under
-`../../benches/runtime/fixtures/`.
+Runtime workload definitions and upstream revisions are documented in
+[`../../benches/runtime/README.md`](../../benches/runtime/README.md).
