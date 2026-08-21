@@ -55,9 +55,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => None,
                 })
             })?;
-            let value = if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
-                value
-            } else if source_ty.is_ref_at(DataLocation::Storage)
+            if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
+                return Some(value);
+            }
+            let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -65,8 +66,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && matches!(
                     target_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-            {
+                ) {
                 let access = self.storage_access(arg)?;
                 self.load_storage_bytes(access.slot)?
             } else {
@@ -207,10 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut salt = None;
         if let Some(options) = call_opts {
             for option in options.args {
-                let value = self.lower_expr(&option.value)?;
                 match option.name.name {
-                    sym::value => call_value = value,
-                    sym::salt => salt = Some(value),
+                    sym::value => {
+                        call_value =
+                            self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
+                    }
+                    sym::salt => {
+                        salt = Some(self.lower_typed_expr(
+                            &option.value,
+                            self.context.gcx.types.fixed_bytes(32),
+                        )?);
+                    }
                     _ => {
                         return report_unsupported(
                             self.context.gcx,
@@ -361,7 +368,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = function.returns.iter().any(|&ret| {
             self.types.abi_return_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
-        }) || self.context.gcx.sess.opts.evm_version.supports_returndata();
+        });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
             |(_, data, _)| *data,
@@ -413,6 +420,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .collect::<Vec<_>>();
             return self.lower_abi_decode_values(data, &return_types, callee.span);
         }
+        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+            self.validate_static_returndata(ret_offset, function.returns);
+        }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
             let mut values = Vec::with_capacity(returns);
@@ -456,7 +466,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let value = self.lower_typed_expr(argument, parameter)?;
-            let value = self.coerce_call_argument(argument, parameter, value);
             values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
@@ -520,6 +529,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        let value = if from.peel_refs() != to.peel_refs() {
+            self.normalize_dirty_scalar(value, from)
+        } else {
+            value
+        };
         let source_size = match from.peel_refs().kind {
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
@@ -528,23 +542,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         };
-        if let TyKind::Slice(underlying) = from.peel_refs().kind
-            && let Some(size) = destination_size
+        if let Some(size) = destination_size
+            && self.is_calldata_dynamic_bytes_type(from)
             && matches!(
-                underlying.peel_refs().kind,
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
+                self.builder.func().value_ty(value),
+                Some(MirType::Slice(SliceLocation::Calldata))
             )
-            && let Some(location) = self.builder.func().value_ty(value).and_then(|ty| match ty {
-                MirType::Slice(location) => Some(location),
-                _ => None,
-            })
         {
             let zero = self.builder.imm_u64(0);
-            let word = match location {
-                SliceLocation::Calldata => self.builder.calldata_slice_load_word(value, zero),
-                SliceLocation::Memory => self.builder.memory_slice_load_word(value, zero),
-                SliceLocation::Returndata => return value,
-            };
+            let word = self.builder.calldata_slice_load_word(value, zero);
             let width = u64::from(size.bytes());
             let fixed_mask =
                 self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
@@ -686,6 +692,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    pub(super) fn normalize_dirty_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        if self.in_inline_assembly || !self.dirty_values.contains(&value) {
+            return value;
+        }
+        if let TyKind::Enum(id) = ty.peel_refs().kind {
+            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+            self.builder.validate_enum_value(variants, value);
+        }
+        self.normalize_abi_scalar(value, ty)
+    }
+
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
@@ -696,19 +713,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.normalize_abi_scalar(value, ty)
     }
 
-    pub(super) fn coerce_call_argument(
-        &mut self,
-        argument: &hir::Expr<'_>,
-        parameter_ty: Ty<'gcx>,
-        value: ValueId,
-    ) -> ValueId {
-        let source_ty = self.context.gcx.type_of_expr(argument.id).or_else(|| {
-            let ExprKind::Lit(lit) = &argument.kind else { return None };
-            let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-            Some(self.context.gcx.mk_ty_string_literal(bytes.as_byte_str()))
-        });
-        source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, parameter_ty))
-    }
     pub(super) fn lower_function_call(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -770,7 +774,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            let value = self.coerce_call_argument(receiver, parameter_ty, value);
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
         for index in receiver_count..function.parameters.len() {
@@ -785,7 +788,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(argument, parameter_ty)?
             };
-            let value = self.coerce_call_argument(argument, parameter_ty, value);
             values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.context.function_ids.get(&function_id) else {
@@ -920,7 +922,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.types
                 .abi_return_type(self.context.gcx.type_of_item(ret.into()))
                 .is_some_and(|ty| !matches!(ty, AbiType::Word))
-        }) || self.context.gcx.sess.opts.evm_version.supports_returndata();
+        });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
             |(_, data, _)| *data,
@@ -997,15 +999,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return values.into_iter().next().or(Some(zero));
         }
         if self.context.gcx.sess.opts.evm_version.supports_returndata() {
-            let size = self.builder.imm_u64((returns as u64).saturating_mul(32));
-            self.revert_if_short_returndata(size);
-            for (index, &ret) in function.returns.iter().enumerate() {
-                let value = self.load_multi_return_value(ret_offset, index, returns);
-                self.validate_external_return_value(
-                    self.context.gcx.type_of_item(ret.into()),
-                    value,
-                );
-            }
+            self.validate_static_returndata(ret_offset, &return_tys);
         }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
@@ -1158,6 +1152,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm_u256(U256::ZERO);
         self.builder.revert(zero, zero);
         self.builder.switch_to_block(continue_block);
+    }
+
+    fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
+        let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
+        let size = self.builder.imm_u64(words.saturating_mul(32));
+        self.revert_if_short_returndata(size);
+        for (index, &ty) in returns.iter().enumerate() {
+            let value = self.load_multi_return_value(offset, index, returns.len());
+            self.validate_external_return_value(ty, value);
+        }
     }
 
     fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {

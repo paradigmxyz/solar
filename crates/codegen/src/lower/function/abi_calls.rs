@@ -60,7 +60,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         ty: Ty<'gcx>,
     ) -> bool {
-        if !self.needs_calldata_aggregate_validation(value, ty) {
+        if self.is_external_abi_argument(value)
+            || !self.needs_calldata_aggregate_validation(value, ty)
+        {
             return false;
         }
         let Some(abi_type) = self.types.abi_type(ty) else { return false };
@@ -283,7 +285,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let access = self.storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
-        self.lower_expr(expr)
+        let value = self.lower_expr(expr)?;
+        let source_ty = self.context.gcx.type_of_expr(expr.id).or_else(|| {
+            let ExprKind::Lit(lit) = &expr.kind else { return None };
+            let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+            Some(self.context.gcx.mk_ty_string_literal(bytes.as_byte_str()))
+        });
+        Some(source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty)))
     }
 
     pub(super) fn lower_abi_call_argument(
@@ -292,7 +300,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-        value = self.coerce_call_argument(argument, parameter_ty, value);
         let mut abi_type = self.types.abi_type(parameter_ty)?;
         abi_type = self.abi_type_for_value(value, abi_type);
         self.validate_calldata_bytes_argument(value, &abi_type);
@@ -514,6 +521,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(
                 base_ty.kind,
                 TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_)
                     | TyKind::Struct(_)
                     | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             ) {

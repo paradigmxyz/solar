@@ -2,6 +2,8 @@
 //@ run-call: clearReference() => 1, 2, 3, 0, 0, 0
 //@ run-call: clearMapping() => 0, 0, 0
 //@ run-call: assign() => 4, 21862, 7
+//@ run-call: clearDirtyWord() => 0
+//@ run-call: clearStructWithMapping() => 0, 0, 17, 23
 
 contract StorageDeletePackedStruct {
     struct Pair {
@@ -12,6 +14,15 @@ contract StorageDeletePackedStruct {
 
     Pair[] private pairs;
     mapping(uint256 => Pair) private mapped;
+    Pair private direct;
+
+    struct WithMapping {
+        uint256 value;
+        mapping(uint256 => uint256) entries;
+        uint8 tail;
+    }
+
+    WithMapping private withMapping;
 
     function clearArray() external returns (uint8, uint16, uint8, uint8, uint16, uint8) {
         pairs.push();
@@ -43,5 +54,35 @@ contract StorageDeletePackedStruct {
         pairs.push();
         pairs[0] = pair;
         return (pairs[0].first, pairs[0].middle, pairs[0].last);
+    }
+
+    function clearDirtyWord() external returns (uint256 word) {
+        assembly {
+            sstore(direct.slot, not(0))
+        }
+        delete direct;
+        assembly {
+            word := sload(direct.slot)
+        }
+    }
+
+    function clearStructWithMapping()
+        external
+        returns (uint256 value, uint8 tail, uint256 baseWord, uint256 entry)
+    {
+        mapping(uint256 => uint256) storage entries = withMapping.entries;
+        withMapping.value = 1;
+        withMapping.tail = 2;
+        entries[1] = 23;
+        assembly {
+            sstore(entries.slot, 17)
+        }
+        delete withMapping;
+        value = withMapping.value;
+        tail = withMapping.tail;
+        entry = entries[1];
+        assembly {
+            baseWord := sload(entries.slot)
+        }
     }
 }

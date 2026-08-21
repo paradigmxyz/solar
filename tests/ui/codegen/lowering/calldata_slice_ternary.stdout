@@ -9,36 +9,8 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [selector
     jump bb3
   bb3:
     v0 = phi [bb1: arg1], [bb2: arg2]
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = gt v2, 0xffffffffffffffff
-    jumpi v3, bb4, bb5
-  bb4:
-    revert 0, 0
-  bb5:
-    v4 = calldatasize
-    v5 = sub v4, v2
-    v6 = sgt v1, v5
-    jumpi v6, bb6, bb7
-  bb6:
-    revert 0, 0
-  bb7:
-    v7 = slice_len v0
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    jumpi v9, bb8, bb9
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    memory_object_copy_from_slice memorybytes, v12, v0
-    v13 = memory_object_len memorybytes, v12
-    ret v13
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, pure, abi_args=lazy, abi_params=[bool, bytes], abi_returns=[memory_bytes]] {

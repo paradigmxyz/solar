@@ -474,19 +474,8 @@ impl<'gcx> StorageBuilder<'gcx> {
                     && size < StorageLocation::WORD
                 {
                     let bytes = u64::from(size.bytes());
-                    let Some(full_words) = (len / 32).checked_mul(bytes) else {
-                        self.unsupported_size(span, "fixed-size storage array");
-                        return None;
-                    };
-                    let Some(partial_bytes) = (len % 32).checked_mul(bytes) else {
-                        self.unsupported_size(span, "fixed-size storage array");
-                        return None;
-                    };
-                    let Some(slots) = full_words.checked_add(partial_bytes.div_ceil(32)) else {
-                        self.unsupported_size(span, "fixed-size storage array");
-                        return None;
-                    };
-                    return Some(slots.max(1));
+                    let elements_per_slot = u64::from(StorageLocation::word_bytes()) / bytes;
+                    return Some(len.div_ceil(elements_per_slot).max(1));
                 }
                 let slots = self.storage_slots_inner(element, span)?;
                 let Some(slots) = len.checked_mul(slots) else {

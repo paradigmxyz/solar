@@ -2,6 +2,7 @@
 //@ run-call: nestedPush 2, 64 => 64
 //@ run-call: bytesPush => 71, 0x00
 //@ run-call: bytesTransition => 0
+//@ run-call: pushPreservesStorage => 42
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_struct.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_2d.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_bytes.sol
@@ -47,5 +48,16 @@ contract StorageArrayPushReferences {
             if (byteValues[i - 1] != bytes1(i)) return 0x1000000 + i;
         }
         return 0;
+    }
+
+    function pushPreservesStorage() external returns (uint256) {
+        uint256 entrySlot;
+        assembly {
+            mstore(0, entries.slot)
+            entrySlot := keccak256(0, 32)
+            sstore(entrySlot, 42)
+        }
+        entries.push();
+        return entries[0].value;
     }
 }

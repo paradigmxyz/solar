@@ -7,6 +7,10 @@
 //@ run-call: recoverInvalid() => 0x0000000000000000000000000000000000000000
 //@ run-call: sha() => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 //@ run-call: ripemd() => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
+//@ run-call: shaLiteral() => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+//@ run-call: ripemdLiteral() => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
+//@ run-call: shaEmpty() => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+//@ run-call: ripemdEmpty() => 0x9c1185a5c5e9fc54612808977ee8f548b2258d31
 
 contract PrecompileBuiltins {
     function recover() external pure returns (address) {
@@ -28,5 +32,21 @@ contract PrecompileBuiltins {
 
     function ripemd() external pure returns (bytes20) {
         return ripemd160(bytes("abc"));
+    }
+
+    function shaLiteral() external pure returns (bytes32) {
+        return sha256("abc");
+    }
+
+    function ripemdLiteral() external pure returns (bytes20) {
+        return ripemd160("abc");
+    }
+
+    function shaEmpty() external pure returns (bytes32) {
+        return sha256("");
+    }
+
+    function ripemdEmpty() external pure returns (bytes20) {
+        return ripemd160("");
     }
 }
