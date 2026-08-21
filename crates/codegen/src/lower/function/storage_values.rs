@@ -545,6 +545,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.bounds_check(index, length);
                 self.storage_array_element_access(base.slot, index, element, dynamic, expr.span)
             }
+            ExprKind::Assign(lhs, None, rhs) if self.is_storage_reference_binding(lhs) => {
+                let access = self.storage_access(rhs)?;
+                let id = self.context.gcx.resolved_variable(lhs)?;
+                self.storage_refs.insert(id, access);
+                Some(access)
+            }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 self.storage_access_ternary(condition, then_expr, else_expr)
             }

@@ -8,6 +8,8 @@
 //@ run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
 //@ run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
 //@ run-call: yulPackedOffset 17 => 1
+//@ run-call: assignmentExpression 3, 5, 17 => 0, 17
+//@ run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
 contract StorageReferenceReassignment {
     struct Item {
@@ -108,6 +110,30 @@ contract StorageReferenceReassignment {
             let mask := shl(shift, 0xff)
             sstore(yulPacked.slot, or(and(sload(yulPacked.slot), not(mask)), shl(shift, value)))
         }
+    }
+
+    function assignmentExpression(uint256 first, uint256 second, uint256 value)
+        external
+        returns (uint256, uint256)
+    {
+        Item storage item = items[first];
+        (item = items[second]).a = value;
+        return (items[first].a, items[second].a);
+    }
+
+    function mappingAssignmentExpression(uint256 first, uint256 second, uint8 value)
+        external
+        returns (uint8, uint8, uint8, uint8)
+    {
+        mapping(uint256 => PackedItem) storage itemsRef = packedItems;
+        itemsRef[first].second = 1;
+        (itemsRef = otherPackedItems)[second].second = value;
+        return (
+            packedItems[first].second,
+            packedItems[second].second,
+            otherPackedItems[first].second,
+            otherPackedItems[second].second
+        );
     }
 
     function readB(Item storage item) internal view returns (uint256) {
