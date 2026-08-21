@@ -122,6 +122,29 @@ class BenchmarkData:
             for kind in self.kinds
         }
 
+    def apply_solc_correction(self) -> None:
+        """Remove the fixed solc process startup cost from parse timings."""
+        base_solc_entry = next(
+            (e for e in self.entries if e.bench_name == "empty" and e.parser == "solc"),
+            None,
+        )
+
+        if not base_solc_entry:
+            raise ValueError("Couldn't find base solc time")
+
+        base_solc_ns = base_solc_entry.time_ns - 1_000
+        entries = []
+        for entry in self.entries:
+            if entry.parser == "solc":
+                corrected_time_ns = entry.time_ns - base_solc_ns
+                if corrected_time_ns <= 1_000:
+                    continue
+                entry.time_ns = corrected_time_ns
+                entry.time_str = format_ns(corrected_time_ns)
+            entries.append(entry)
+        self.entries = entries
+
+
 def main() -> None:
     """Main function to process benchmark data and generate output."""
     out_file = sys.argv[1] if len(sys.argv) > 1 else None
@@ -138,6 +161,9 @@ def main() -> None:
 
     # Extract timing data
     data = extract_timing_data(lines, benchmarks)
+
+    # Remove solc process startup from parse timings.
+    data.apply_solc_correction()
 
     # Generate output
     out_s = ""
