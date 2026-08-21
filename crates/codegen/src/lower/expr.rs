@@ -3688,7 +3688,13 @@ impl<'gcx> Lowerer<'gcx> {
                         self.lower_expr_as_memory_bytes(builder, arg)
                     }
                     TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
-                    _ => self.lower_value_expr(builder, arg),
+                    _ => {
+                        let value = self.lower_value_expr(builder, arg);
+                        // A bare numeric literal pushed into a `bytesN` array
+                        // types from the element, so it needs the same
+                        // left-aligned representation.
+                        self.coerce_literal_for_ty(builder, arg, element_ty, value)
+                    }
                 };
 
                 let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
