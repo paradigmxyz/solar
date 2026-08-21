@@ -513,6 +513,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(
                 base_ty.kind,
                 TyKind::Array(..)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_)
                     | TyKind::Struct(_)
                     | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
             ) {

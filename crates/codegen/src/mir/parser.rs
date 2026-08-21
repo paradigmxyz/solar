@@ -1908,8 +1908,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                 }
                 let ty = incoming
-                    .first()
-                    .and_then(|(_, value)| builder.func().value_ty(*value))
+                    .iter()
+                    .filter(|(_, value)| !matches!(builder.func().value(*value), Value::Undef(_)))
+                    .find_map(|(_, value)| builder.func().value_ty(*value))
                     .unwrap_or(MirType::uint256());
                 (InstKind::Phi(incoming), Some(ty))
             }
