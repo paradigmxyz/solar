@@ -55,9 +55,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => None,
                 })
             })?;
-            let value = if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
-                value
-            } else if source_ty.is_ref_at(DataLocation::Storage)
+            if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
+                return Some(value);
+            }
+            let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
                     source_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -65,8 +66,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && matches!(
                     target_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-            {
+                ) {
                 let access = self.storage_access(arg)?;
                 self.load_storage_bytes(access.slot)?
             } else {
@@ -466,7 +466,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let value = self.lower_typed_expr(argument, parameter)?;
-            let value = self.coerce_call_argument(argument, parameter, value);
             values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
@@ -714,19 +713,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.normalize_abi_scalar(value, ty)
     }
 
-    pub(super) fn coerce_call_argument(
-        &mut self,
-        argument: &hir::Expr<'_>,
-        parameter_ty: Ty<'gcx>,
-        value: ValueId,
-    ) -> ValueId {
-        let source_ty = self.context.gcx.type_of_expr(argument.id).or_else(|| {
-            let ExprKind::Lit(lit) = &argument.kind else { return None };
-            let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-            Some(self.context.gcx.mk_ty_string_literal(bytes.as_byte_str()))
-        });
-        source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, parameter_ty))
-    }
     pub(super) fn lower_function_call(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -788,7 +774,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            let value = self.coerce_call_argument(receiver, parameter_ty, value);
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
         for index in receiver_count..function.parameters.len() {
@@ -803,7 +788,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(argument, parameter_ty)?
             };
-            let value = self.coerce_call_argument(argument, parameter_ty, value);
             values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
         let Some(&mir_id) = self.context.function_ids.get(&function_id) else {

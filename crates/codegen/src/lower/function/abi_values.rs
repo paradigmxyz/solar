@@ -211,10 +211,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
-            let from_ty = self.context.gcx.type_of_expr(expr.id)?;
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            value = self.coerce_value(value, from_ty, ty);
             let mut abi_type = self.types.abi_type(ty)?;
             abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);

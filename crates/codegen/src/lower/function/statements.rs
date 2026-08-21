@@ -25,12 +25,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
                 let value = if let Some(expr) = initializer {
-                    let value = if self.in_inline_assembly {
+                    if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?
                     } else {
                         self.lower_typed_expr(expr, ty)?
-                    };
-                    self.coerce_value(value, self.context.gcx.type_of_expr(expr.id)?, ty)
+                    }
                 } else if let Some(value) = self.default_object(ty) {
                     value
                 } else {
@@ -208,6 +207,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 && self.types.memory_layout(ty).is_some()
                             {
                                 return Some(vec![self.lower_typed_expr(expr, ty)?]);
+                            }
+                            if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
+                                return Some(vec![value]);
                             }
                             if let ExprKind::Lit(lit) =
                                 self.peel_bytes_conversion(expr).peel_parens().kind

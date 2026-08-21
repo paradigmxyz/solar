@@ -471,13 +471,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             _ => {
-                let source_ty = self.context.gcx.type_of_expr(expr.id)?;
-                let value = match self.context.gcx.try_eval_const_value(expr) {
-                    Ok(ConstValue::Bool(value)) => self.builder.imm_bool(*value),
-                    Ok(ConstValue::Integer(value)) => self.builder.imm_u256(value.as_u256()?),
-                    _ => self.lower_typed_expr(expr, ty)?,
+                let constant = match self.context.gcx.try_eval_const_value(expr) {
+                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
+                    Ok(ConstValue::Integer(value)) => Some(self.builder.imm_u256(value.as_u256()?)),
+                    _ => None,
                 };
-                let value = self.coerce_value(value, source_ty, ty);
+                let value = if let Some(value) = constant {
+                    self.coerce_value(value, self.context.gcx.type_of_expr(expr.id)?, ty)
+                } else {
+                    self.lower_typed_expr(expr, ty)?
+                };
                 self.store_storage_value(ty, access, value, expr.span)
             }
         }
@@ -654,8 +657,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let value = self.lower_typed_expr(argument, element)?;
-            let value =
-                self.coerce_value(value, self.context.gcx.type_of_expr(argument.id)?, element);
             if self.types.memory_layout(element).is_some() {
                 self.materialize_memory_argument(element, value, argument.span)?
             } else {
@@ -697,9 +698,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     "storage bytes push arguments",
                 );
             };
-            let source_ty = self.context.gcx.type_of_expr(argument.id)?;
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
-            let value = self.coerce_value(value, source_ty, self.context.gcx.types.fixed_bytes(1));
             let shift = self.builder.imm_u64(248);
             self.builder.shr(shift, value)
         } else {

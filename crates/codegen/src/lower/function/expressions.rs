@@ -15,17 +15,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        if !matches!(
-            ty.peel_refs().kind,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-        ) {
+        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
+            ty.peel_refs().kind
+        else {
             return None;
-        }
+        };
         let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
             return None;
         };
-        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-        Some(self.lower_string_literal_word(bytes.as_byte_str()))
+        match &lit.kind {
+            LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
+            LitKind::Number(value) => {
+                let shift = usize::from(32 - size.bytes()) * 8;
+                Some(self.builder.imm_u256(*value << shift))
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
@@ -132,7 +137,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let id = self.context.gcx.resolved_variable(expr)?;
         let variable = self.context.gcx.hir.variable(id);
         if variable.is_constant() {
-            return self.lower_constant(variable.initializer, expr.span);
+            return self.lower_constant_variable(id, expr.span);
         }
         if let Some(hir::ItemId::Enum(enum_id)) = variable.parent {
             let Some(index) = self
@@ -601,20 +606,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr
     }
 
-    pub(super) fn lower_constant(
+    pub(super) fn lower_constant_variable(
         &mut self,
-        initializer: Option<&hir::Expr<'_>>,
+        id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        let Some(initializer) = initializer else {
+        let variable = self.context.gcx.hir.variable(id);
+        let Some(initializer) = variable.initializer else {
             return report_unsupported(self.context.gcx, span, "constant initializer");
         };
+        let ty = self.context.gcx.type_of_item(id.into());
         if let Ok(value) = self.context.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                ConstValue::Integer(value) => Some(self.builder.imm_u256(value.as_u256()?)),
+                ConstValue::Integer(value) => {
+                    let value = value.as_u256()?;
+                    if let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
+                        ty.peel_refs().kind
+                    {
+                        let shift = usize::from(32 - size.bytes()) * 8;
+                        Some(self.builder.imm_u256(value << shift))
+                    } else {
+                        Some(self.builder.imm_u256(value))
+                    }
+                }
                 ConstValue::String(value) => {
-                    self.lower_bytes_literal(value.as_byte_str_in(self.context.gcx.sess), span)
+                    let bytes = value.as_byte_str_in(self.context.gcx.sess);
+                    if matches!(
+                        ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::FixedBytes(_))
+                    ) {
+                        Some(self.lower_string_literal_word(bytes))
+                    } else {
+                        self.lower_bytes_literal(bytes, span)
+                    }
                 }
             };
         }

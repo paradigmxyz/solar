@@ -9,7 +9,7 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @fromHex{{[( ]}}
-    // CHECK: memory_object_store_word memorybytes, {{v[0-9]+}}, 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    // CHECK: ret 0x100000000000000000000000000000000000000000000000000000000000000
     function fromHex() external pure returns (bytes1) {
         return hex"01";
     }
