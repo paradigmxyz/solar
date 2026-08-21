@@ -2653,7 +2653,18 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(&field_tys).enumerate() {
             // Memory struct fields hold memory values. Calldata reference
             // values therefore materialize recursively before storing their
-            // pointer in the field slot.
+            // pointer in the field slot. Struct member types keep their
+            // declared storage flavor, so peel it off: a storage-located
+            // argument must land as a materialized memory copy, never as its
+            // slot.
+            let field_ty = match field_ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Storage)
+                    if !matches!(inner.kind, TyKind::Mapping(..)) =>
+                {
+                    inner
+                }
+                _ => field_ty,
+            };
             let field_val = self.lower_return_value_for_ty(builder, arg, field_ty);
             let field_addr = builder.memory_object_field_addr(
                 struct_ptr,
