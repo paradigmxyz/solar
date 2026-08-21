@@ -58,6 +58,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
+    /// Whether the parser is currently parsing a modifier body.
+    in_modifier: bool,
     /// Whether incomplete input should be recovered into a partial AST.
     recover_incomplete_input: bool,
 
@@ -159,6 +161,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
+            in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
             import_callback: None,
