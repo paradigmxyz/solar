@@ -208,7 +208,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dep upgrades ([#852](https://github.com/paradigmxyz/solar/issues/852))
 - [meta] Add .config/nextest.toml
 - [meta] Stupid bot
-- Migrate benchmarks to Gungraun ([#766](https://github.com/paradigmxyz/solar/issues/766))
 - Tmp ignore ([#765](https://github.com/paradigmxyz/solar/issues/765))
 - [meta] Remove RUSTFLAGS from AGENTS.md
 - [meta] Ignore bincode advisory
