@@ -220,7 +220,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let var = self.context.gcx.hir.variable(id);
         if var.is_constant() {
-            return self.lower_constant(var.initializer, span);
+            return self.lower_constant_variable(id, span);
         }
         if let Some(location) = self.context.storage.get(id) {
             let ty = self.context.gcx.type_of_item(id.into());
