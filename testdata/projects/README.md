@@ -24,5 +24,5 @@ Solarray, Solmate, and v4-core. The runtime suite currently exercises OpenZeppel
 entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
 The runtime workload definitions and upstream revisions are documented in
-[`../codegen-runtime/README.md`](../codegen-runtime/README.md). Runtime fixtures remain under
-`../codegen-runtime/fixtures/`.
+[`../../benches/runtime/README.md`](../../benches/runtime/README.md). Runtime fixtures remain under
+`../../benches/runtime/fixtures/`.

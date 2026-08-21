@@ -36,7 +36,7 @@ observations to match. The corpus contains four micro contracts, including the s
 contracts extracted from the pinned OpenZeppelin and Solady project inputs. Its sources and
 upstream commits are documented in the shared project archive
 [`testdata/projects/`](../testdata/projects/) and in
-[`testdata/codegen-runtime/`](../testdata/codegen-runtime/README.md).
+[`benches/runtime/`](runtime/README.md).
 A `heavy` suite additionally compiles nine vendored whole-project inputs end to end; they take
 from seconds to minutes on solc, participate only in the compilation-time table, and skip size,
 gas, and runtime comparisons.

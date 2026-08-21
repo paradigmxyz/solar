@@ -1,9 +1,9 @@
 # Codegen runtime corpus
 
 This directory contains the runtime-specific fixtures and workload documentation for the codegen
-runtime benchmark. The shared project archives live in `../projects/`; archives group cases from
-the same upstream project. The runner selects only each entrypoint's transitive Solidity import
-closure before compiling it. Keeping the inputs here makes the benchmark reproducible from this
+runtime benchmark. The shared project archives live in `../../testdata/projects/`; archives group
+cases from the same upstream project. The runner selects only each entrypoint's transitive Solidity
+import closure before compiling it. Keeping the inputs here makes the benchmark reproducible from this
 checkout and removes the CI dependency on a second repository and its recursive submodules.
 
 The separate `benches/runtime/benchmark.py --suite heavy` suite passes the full archived
@@ -28,19 +28,20 @@ normalized runtime observations to match.
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
 
-The OpenZeppelin cases share the canonical `../projects/openzeppelin-5.6.1.json.gz` archive; the
-file counts above are the sliced closure for each case. This replaces the extracted OpenZeppelin
+The OpenZeppelin cases share the canonical
+`../../testdata/projects/openzeppelin-5.6.1.json.gz` archive; the file counts above are the sliced
+closure for each case. This replaces the extracted OpenZeppelin
 runtime archive used by earlier versions of the benchmark.
 
-The Lil Web3 cases share `../projects/lilweb3-runtime.json.gz`; the file counts above are the
-sliced closure for each case.
+The Lil Web3 cases share `../../testdata/projects/lilweb3-runtime.json.gz`; the file counts above
+are the sliced closure for each case.
 
-The large OpenZeppelin and Solady cases use the pinned archives in `../projects/`. The normal
-benchmark suite also reads those archives from there.
+The large OpenZeppelin and Solady cases use the pinned archives in `../../testdata/projects/`. The
+normal benchmark suite also reads those archives from there.
 
-The three additional micro contracts (`../Arithmetic.sol`, `../Factorial.sol`, and
-`../SumArray.sol`) came from the benchmark repository at the commit above. The runtime suite
-reuses the existing `../Counter.sol` source from the normal benchmark suite. The Aave harness is
-embedded in `../projects/aave-l2-encoder.json.gz`.
+The three additional micro contracts (`../../testdata/Arithmetic.sol`,
+`../../testdata/Factorial.sol`, and `../../testdata/SumArray.sol`) came from the benchmark repository at the commit above. The
+runtime suite reuses the existing `../../testdata/Counter.sol` source from the normal benchmark
+suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.json.gz`.
 `fixtures/runtime/RuntimeFixtures.sol` provides local Apache-2.0 helpers with the same interfaces
 used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
