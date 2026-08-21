@@ -483,6 +483,16 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Result<[ValueId; N], ErrorGuaranteed> {
         let exprs = self.builtin_args(builtin, args)?;
+        // Yul evaluates call arguments right to left; code like solady's
+        // `mul(extcodesize(a), call(...))` deploy idiom depends on the call
+        // executing before the code-size check.
+        if self.in_assembly_block {
+            let mut values = [None; N];
+            for i in (0..N).rev() {
+                values[i] = Some(self.lower_value_expr(builder, &exprs[i]));
+            }
+            return Ok(values.map(|value| value.unwrap()));
+        }
         Ok(exprs.each_ref().map(|arg| self.lower_value_expr(builder, arg)))
     }
 
@@ -2141,25 +2151,36 @@ impl<'gcx> Lowerer<'gcx> {
                 return (!func.returns.is_empty()).then(|| builder.error_value(guar));
             }
         };
-        let arg_vals: Vec<ValueId> = arg_exprs
-            .into_iter()
-            .enumerate()
-            .map(|(i, arg)| {
-                if params.get(i).is_some_and(|&p| self.param_is_storage_ref(p))
-                    && let Some(slot) = self.lower_lvalue_slot(builder, arg)
-                {
-                    slot
-                } else {
-                    // A memory parameter receives one word; a logical slice
-                    // materializes into the memory object the parameter expects.
-                    let value = self.lower_value_expr(builder, arg);
-                    match params.get(i) {
-                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
-                        None => self.coerce_memory_slice_value(builder, value),
-                    }
+        let lower_arg = |this: &mut Self, builder: &mut FunctionBuilder<'_>, i: usize, arg| {
+            if params.get(i).is_some_and(|&p| this.param_is_storage_ref(p))
+                && let Some(slot) = this.lower_lvalue_slot(builder, arg)
+            {
+                slot
+            } else {
+                // A memory parameter receives one word; a logical slice
+                // materializes into the memory object the parameter expects.
+                let value = this.lower_value_expr(builder, arg);
+                match params.get(i) {
+                    Some(&param_id) => this.coerce_arg_for_param(builder, param_id, arg, value),
+                    None => this.coerce_memory_slice_value(builder, value),
                 }
-            })
-            .collect();
+            }
+        };
+        // Yul evaluates call arguments right to left; a Yul function call is
+        // only reachable from inside an assembly block.
+        let arg_vals: Vec<ValueId> = if self.in_assembly_block {
+            let mut values: Vec<Option<ValueId>> = vec![None; arg_exprs.len()];
+            for (i, arg) in arg_exprs.into_iter().enumerate().rev() {
+                values[i] = Some(lower_arg(self, builder, i, arg));
+            }
+            values.into_iter().map(|value| value.unwrap()).collect()
+        } else {
+            arg_exprs
+                .into_iter()
+                .enumerate()
+                .map(|(i, arg)| lower_arg(self, builder, i, arg))
+                .collect()
+        };
 
         self.lower_internal_call_values(builder, func_id, arg_vals)
     }
