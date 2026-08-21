@@ -1,0 +1,81 @@
+- // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (before coalesce-allocs) ===
++ // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (after coalesce-allocs) ===
+  @module CoalesceAllocsBasic
+  fn @fuse_consecutive() -> u256 {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 64
++     v0 = alloc raw, exact, uninitialized, infallible, 160
+      mstore v0, 1
+-     v1 = alloc raw, exact, uninitialized, infallible, 32
+-     v2 = alloc raw, exact, uninitialized, infallible, 64
++     v1 = add v0, 64
++     v2 = add v0, 96
+      mstore v1, 2
+      mstore v2, 3
+      v3 = mload v1
+      ret v3
+  }
+  
+  fn @fuse_zeroed() -> u256 {
+    bb0:
+-     v0 = alloc raw, exact, zeroed, panic, 64
+-     v1 = alloc raw, exact, zeroed, infallible, 32
++     v0 = alloc raw, exact, uninitialized, panic, 96
++     memory_zero v0, 64
++     v1 = add v0, 64
++     memory_zero v1, 32
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @preserve_zero_timing() -> u256 {
+    bb0:
+-     v0 = alloc raw, exact, zeroed, infallible, 32
++     v0 = alloc raw, exact, uninitialized, infallible, 64
++     memory_zero v0, 32
+      mstore 160, 7
+-     v1 = alloc raw, exact, zeroed, infallible, 32
++     v1 = add v0, 32
++     memory_zero v1, 32
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @keep_across_wrapped_fmp() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = sub 64, v0
+      v2 = add v0, v1
+      mstore v2, 0x10000
+      v3 = alloc raw, exact, uninitialized, infallible, 32
+      ret v3
+  }
+  
+  fn @keep_across_fmp() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = fmp
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 1
+      mstore v2, 2
+      ret v1
+  }
+  
+  fn @keep_across_constant_fmp_store() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore 64, 0x10000
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v1, 4
+      ret v1
+  }
+  
+  fn @keep_across_set_fmp() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      set_fmp 0x10000
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v1, 5
+      ret v1
+  }
+  

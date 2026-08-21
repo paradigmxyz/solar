@@ -3,6 +3,6 @@ contract test {
       _;
     }
     function f() external {
-      _; //~ ERROR: placeholder statements can only be used in modifiers
+      _; //~ ERROR: unresolved symbol `_`
     }
 }

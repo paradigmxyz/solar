@@ -309,9 +309,6 @@ bb25:
   push 64
   mstore
   dup3
-  dup1
-  push 192
-  mstore
   dup2
   mstore
   swap2

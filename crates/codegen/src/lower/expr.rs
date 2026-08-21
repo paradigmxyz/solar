@@ -286,6 +286,14 @@ impl<'gcx> Lowerer<'gcx> {
                             let addr = self.lower_value_expr(builder, base);
                             return builder.balance(addr);
                         }
+                        Builtin::AddressCodehash => {
+                            let addr = self.lower_value_expr(builder, base);
+                            return builder.extcodehash(addr);
+                        }
+                        Builtin::AddressCode => {
+                            let addr = self.lower_value_expr(builder, base);
+                            return self.lower_address_code(builder, addr);
+                        }
                         // Handle function and error selector member access.
                         Builtin::FunctionSelector => {
                             if let Some(selector) = self.lower_resolved_function_selector(base) {
@@ -331,6 +339,16 @@ impl<'gcx> Lowerer<'gcx> {
                             }
                         }
                         Builtin::ArrayLength => {
+                            // `addr.code.length` needs only the size, not the copy.
+                            if let ExprKind::Member(code_base, _) = &base.kind
+                                && matches!(
+                                    self.gcx.resolved_builtin(base),
+                                    Some(Builtin::AddressCode)
+                                )
+                            {
+                                let addr = self.lower_value_expr(builder, code_base);
+                                return builder.extcodesize(addr);
+                            }
                             if let Some(length) = self.lower_array_length_member(builder, base) {
                                 return length;
                             }
@@ -1446,6 +1464,30 @@ impl<'gcx> Lowerer<'gcx> {
                 "`type(T).min` and `type(T).max` require an integer type",
             ),
         }
+    }
+
+    /// Lowers `addr.code` into a fresh `bytes memory` copy of the account's
+    /// runtime code.
+    fn lower_address_code(&mut self, builder: &mut FunctionBuilder<'_>, addr: ValueId) -> ValueId {
+        let size = builder.extcodesize(addr);
+        let thirty_one = builder.imm_u64(31);
+        let padded = builder.add(size, thirty_one);
+        let align_mask = builder.imm_u256(!U256::from(31u64));
+        let aligned = builder.and(padded, align_mask);
+        let word = builder.imm_u64(32);
+        let total = builder.add(aligned, word);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
+        builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let zero = builder.imm_u64(0);
+        // Copying the aligned region zero-fills the final word's tail:
+        // EXTCODECOPY pads reads past the code end with zeros.
+        builder.extcodecopy(addr, data, zero, aligned);
+        ptr
     }
 
     /// Lowers `type(Contract).creationCode` or `type(Contract).runtimeCode`.

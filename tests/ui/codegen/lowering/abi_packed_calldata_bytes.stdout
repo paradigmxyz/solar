@@ -189,9 +189,6 @@ bb21:
   mstore
   dup2
   dup4
-  dup1
-  push 256
-  mstore
   mcopy
   pop
   push 288

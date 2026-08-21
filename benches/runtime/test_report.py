@@ -148,6 +148,7 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
+
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, results, timings=None):
         if timings is None:
@@ -327,6 +328,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             ["codegen_runtime_suite/large"],
         )
 
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -357,10 +359,10 @@ class CompileTimeReportTests(unittest.TestCase):
         lines = benchmark.compile_time_report(results, {}, "`main`")
         text = "\n".join(lines)
         self.assertIn("### Compilation time", text)
-        self.assertIn("| fast | 100.0 ms | 5.0 ms (n/a) | 20.00x |", text)
-        self.assertIn("| slow | 1.500 s | 55.0 ms (n/a) | 27.27x |", text)
+        self.assertIn("| fast | 5.0 ms (n/a) | 100.0 ms (✅ +1900.00%) |", text)
+        self.assertIn("| slow | 55.0 ms (n/a) | 1.500 s (✅ +2627.27%) |", text)
         self.assertIn(
-            "| **sum of medians** | **1.600 s** | **60.0 ms** | **26.67x** |", text
+            "| **sum of medians** | **60.0 ms** | **1.600 s (✅ +2566.67%)** |", text
         )
 
     def test_compile_time_sum_skips_unpaired_results(self):
@@ -369,8 +371,10 @@ class CompileTimeReportTests(unittest.TestCase):
             self.timed_result("failed", 0.400, 0.010, solar_status="failed"),
         ]
         text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
-        self.assertIn("| failed | 400.0 ms | 10.0 ms (failed) (n/a) | n/a |", text)
-        self.assertIn("| **sum of medians** | **200.0 ms** | **10.0 ms** | **20.00x** |", text)
+        self.assertIn("| failed | n/a (n/a) | 400.0 ms (n/a) |", text)
+        self.assertIn(
+            "| **sum of medians** | **10.0 ms** | **200.0 ms (✅ +1900.00%)** |", text
+        )
 
     def test_compile_time_report_uses_solar_baseline_delta(self):
         results = [self.timed_result("bench", 0.100, 0.011)]
@@ -378,20 +382,18 @@ class CompileTimeReportTests(unittest.TestCase):
             ("repository", "bench"): self.timed_result("bench", 0.100, 0.010),
         }
         text = "\n".join(benchmark.compile_time_report(results, baseline, "`main`"))
-        self.assertIn("Solar (delta vs `main`)", text)
         self.assertIn("(❌ +10.00%)", text)
 
     def test_compile_time_baseline_ignores_different_build_profile(self):
         current = self.timed_result("bench", 0.100, 0.011)
         baseline = self.timed_result("bench", 0.100, 0.010)
-        current["compilers"]["solar"]["command"] = "target/release/solar --standard-json"
         baseline["compilers"]["solar"]["command"] = "target/debug/solar --standard-json"
         text = "\n".join(
             benchmark.compile_time_report(
                 [current], {("repository", "bench"): baseline}, "`main`"
             )
         )
-        self.assertIn("| bench | 100.0 ms | 11.0 ms (n/a) | 9.09x |", text)
+        self.assertIn("| bench | 11.0 ms (n/a) | 100.0 ms (✅ +809.09%) |", text)
         self.assertTrue(benchmark.has_baseline_changes([current], [baseline]))
 
     def test_compile_time_baseline_ignores_different_input(self):
@@ -403,10 +405,10 @@ class CompileTimeReportTests(unittest.TestCase):
                 [current], {("repository", "bench"): baseline}, "`main`"
             )
         )
-        self.assertIn("| bench | 100.0 ms | 11.0 ms (n/a) | 9.09x |", text)
+        self.assertIn("| bench | 11.0 ms (n/a) | 100.0 ms (✅ +809.09%) |", text)
         self.assertTrue(benchmark.has_baseline_changes([current], [baseline]))
 
-    def test_whole_project_rows_render_compile_time_only(self):
+    def test_whole_project_rows_skip_missing_codegen(self):
         result = {
             "test_id": "heavy-project",
             "suite": "heavy",
@@ -426,12 +428,11 @@ class CompileTimeReportTests(unittest.TestCase):
             },
         }
         rows = benchmark.benchmark_rows([result], {})
-        self.assertEqual(
-            rows[0],
-            "| heavy-project | n/a (n/a) | n/a (n/a) | n/a (n/a) | n/a (n/a) |",
-        )
+        self.assertEqual(rows, [])
         text = "\n".join(benchmark.compile_time_report([result], {}, "`main`"))
-        self.assertIn("| heavy-project | 60.000 s | 5.000 s (n/a) | 12.00x |", text)
+        self.assertIn(
+            "| heavy-project | 5.000 s (n/a) | 60.000 s (✅ +1100.00%) |", text
+        )
 
     @staticmethod
     def paired(current_seconds, baseline_seconds):
@@ -439,13 +440,14 @@ class CompileTimeReportTests(unittest.TestCase):
         base = CompileTimeReportTests.timed_result("bench", 1.0, baseline_seconds)
         return [current], [base]
 
-    def test_compile_time_change_detection_uses_thresholds(self):
+    def test_compile_time_change_requires_relative_and_absolute_thresholds(self):
         results, baseline = self.paired(0.125, 0.100)
         self.assertTrue(benchmark.has_baseline_changes(results, baseline))
-        results, baseline = self.paired(0.105, 0.100)
+        self.assertFalse(benchmark.has_codegen_changes(results, baseline))
+        results, baseline = self.paired(0.006, 0.003)
         self.assertFalse(benchmark.has_baseline_changes(results, baseline))
 
-    def test_compile_time_total_change_detection(self):
+    def test_compile_time_total_change_requires_relative_and_absolute_thresholds(self):
         current = [
             self.timed_result("a", 1.0, 0.112),
             self.timed_result("b", 1.0, 0.112),
@@ -454,21 +456,21 @@ class CompileTimeReportTests(unittest.TestCase):
             self.timed_result("a", 1.0, 0.100),
             self.timed_result("b", 1.0, 0.100),
         ]
+        self.assertFalse(benchmark.has_baseline_changes(current, base))
+        current = [self.timed_result(str(i), 1.0, 0.056) for i in range(200)]
+        base = [self.timed_result(str(i), 1.0, 0.050) for i in range(200)]
         self.assertTrue(benchmark.has_baseline_changes(current, base))
 
-    def test_compile_time_bootstrap_counts_as_change(self):
+    def test_compile_time_bootstrap_triggers_comments(self):
         current = [self.timed_result("bench", 1.0, 0.1)]
-        base = [
-            {
-                "test_id": "bench",
-                "suite": "repository",
-                "compilers": {"solar": {"status": "ok"}},
-            }
-        ]
+        base = [{"test_id": "bench", "suite": "repository", "compilers": {"solar": {"status": "ok"}}}]
         self.assertTrue(benchmark.has_baseline_changes(current, base))
 
-    def test_compile_time_report_keeps_unpaired_compile_times(self):
+    def test_codegen_changes_trigger_comments(self):
+        current = [result(status="ok", total_gas=2)]
+        base = [result(status="ok", total_gas=1)]
+        self.assertTrue(benchmark.has_codegen_changes(current, base))
+
+    def test_compile_time_report_empty_without_pairs(self):
         results = [self.timed_result("failed", 0.400, 0.010, solar_status="failed")]
-        text = "\n".join(benchmark.compile_time_report(results, {}, "`main`"))
-        self.assertIn("| failed | 400.0 ms | 10.0 ms (failed) (n/a) | n/a |", text)
-        self.assertNotIn("sum of medians", text)
+        self.assertEqual(benchmark.compile_time_report(results, {}, "`main`"), [])

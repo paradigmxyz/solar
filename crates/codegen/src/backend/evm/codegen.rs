@@ -31,8 +31,8 @@ use crate::{
     },
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
-        MirPhase, Module, Terminator, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
+        InstKind, MirPhase, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
@@ -147,6 +147,26 @@ struct StackReturnPlan {
     arity: usize,
     /// First local/spill byte in the original MIR frame layout.
     local_base: u64,
+}
+
+/// Caller-side binding of stack-returned tuple words to their multi-return
+/// protocol loads.
+struct StackResultProjection {
+    /// The buffer-pointer read, its offset additions, and the extra-return
+    /// loads; all skipped during emission.
+    elided: Vec<InstId>,
+    /// The adopted load result for each extra return index `1..arity`.
+    extras: Vec<ValueId>,
+}
+
+/// Subset-invariant analyses shared by one resident-layout subset search.
+struct ResidentSearchContext {
+    /// Planned stack-phi edges, present when the function has phis.
+    phi_plan: Option<StackPhiPlan>,
+    /// CFG facts whose memoized dominators persist across candidates.
+    cfg: CfgInfo,
+    /// Operand occurrences per candidate value across the whole function.
+    value_uses: FxHashMap<ValueId, usize>,
 }
 
 /// Complete stack calling convention selected for one non-recursive static callee.
@@ -317,7 +337,7 @@ impl GlobalStackPlan {
                 continue;
             }
 
-            let values: Vec<_> = liveness
+            let values = liveness
                 .live_in(block_id)
                 .iter()
                 .filter(|&value| {
@@ -327,7 +347,7 @@ impl GlobalStackPlan {
                         })
                 })
                 .take(GLOBAL_STACK_LAYOUT_LIMIT)
-                .collect();
+                .collect::<Vec<_>>();
             if !values.is_empty() {
                 entries.insert(block_id, values);
             }
@@ -669,6 +689,34 @@ impl GlobalStackPlan {
             }
         }
         (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
+    }
+
+    /// Returns values present in every physical successor layout of `term`.
+    ///
+    /// Requires a terminal-sensitive plan: `edge_layout`'s terminal shortcut would
+    /// otherwise report one-sided carriage for edges the layout does not cover,
+    /// and spill-elision consumers rely on an every-edge guarantee.
+    fn uniformly_carried_values(&self, func: &Function, term: &Terminator) -> Vec<ValueId> {
+        debug_assert!(
+            self.terminal_sensitive,
+            "carried-value queries require terminal-sensitive plans"
+        );
+        if let Some((then_layout, else_layout)) = self.branch_layouts(term) {
+            return then_layout
+                .iter()
+                .copied()
+                .filter(|value| else_layout.contains(value))
+                .collect();
+        }
+        if let Some(layouts) = self.switch_layouts(term) {
+            let mut layouts = layouts.into_iter().map(|(_, layout)| layout);
+            let mut values = layouts.next().unwrap_or_default().to_vec();
+            for layout in layouts {
+                values.retain(|value| layout.contains(value));
+            }
+            return values;
+        }
+        self.edge_layout(func, term).unwrap_or_default().to_vec()
     }
 
     fn is_terminal_block(func: &Function, block: BlockId) -> bool {
@@ -1018,8 +1066,11 @@ pub struct EvmCodegen<'gcx> {
     current_internal_function: Option<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
-    /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
+    /// Values carried by planned stack-resident edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
+    /// Multi-return protocol instructions satisfied directly from adopted
+    /// stack-return words; the emission loop skips them.
+    elided_insts: FxHashSet<InstId>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1091,6 +1142,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
+            elided_insts: FxHashSet::default(),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -2171,6 +2223,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Eliminate phis.
         self.block_copies.clear();
+        self.elided_insts.clear();
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -2181,20 +2234,45 @@ impl<'gcx> EvmCodegen<'gcx> {
         // common phi-free function.
         let mut stack_phi_plan =
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
-        let global_stack_plan = self
-            .resident_stack_plan(func_id)
-            .cloned()
+        let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
+        let mut global_stack_plan = resident_stack_plan
+            .clone()
             .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
-        if self.resident_stack_plan(func_id).is_some()
-            && !stack_phi_plan.merge_resident(func, &global_stack_plan)
+        let mut stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        if resident_stack_plan.is_some() {
+            if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
+                // Selection preflights this exact composition. If a future transform invalidates
+                // that proof, regenerate the runtime with the ordinary frame-backed convention
+                // instead of emitting a partial stack ABI or panicking.
+                self.disabled_stack_only_functions.insert(func_id);
+                return;
+            }
+            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        } else if global_stack_plan.is_empty()
+            && let Some((values, plan)) =
+                self.compute_cross_block_stack_layout(func, liveness, has_phis)
+            // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
+            // that composition is proven, mirroring the resident arm.
+            && stack_phi_plan.merge_resident(func, &plan)
         {
-            // Selection preflights this exact composition. If a future transform invalidates that
-            // proof, regenerate the runtime with the ordinary frame-backed convention instead of
-            // emitting a partial stack ABI or panicking.
-            self.disabled_stack_only_functions.insert(func_id);
-            return;
+            global_stack_plan = plan;
+            // An early spill store can be omitted only when every physical successor layout
+            // carries the value; an edge-specific cleanup may otherwise discard the sole stack
+            // copy before a later block reloads its reserved slot. The reserved spill slot
+            // remains available if edge emission ever falls back to the memory convention.
+            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let Some(term) = block.terminator.as_ref() else { continue };
+                let carried = global_stack_plan.uniformly_carried_values(func, term);
+                let sources = stack_phi_sources.entry(block_id).or_default();
+                for &value in &values {
+                    if carried.contains(&value) && !sources.contains(&value) {
+                        sources.push(value);
+                    }
+                }
+            }
         }
-        self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        self.stack_phi_sources = stack_phi_sources;
         self.global_stack_active = !global_stack_plan.is_empty();
         self.global_stack_aliases = global_stack_plan.aliases.clone();
 
@@ -2309,6 +2387,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+
+                // Skip multi-return protocol instructions already satisfied
+                // from adopted stack-return words.
+                if self.elided_insts.remove(&inst_id) {
                     continue;
                 }
 
@@ -5106,6 +5190,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
+                && !self.disabled_stack_only_functions.contains(func_id)
                 && (1..=MAX_STACK_ACCESS).contains(&arity)
                 && has_return
                 && has_consistent_returns
@@ -5353,19 +5438,46 @@ impl<'gcx> EvmCodegen<'gcx> {
         all_values
     }
 
+    /// Builds the subset-invariant analyses shared by one resident-layout
+    /// search. The exhaustive subset loop evaluates up to `2^8` candidates;
+    /// recomputing the CFG, its dominators, the phi plan, or operand counts
+    /// per candidate made the search quadratic on large functions.
+    fn resident_search_context(
+        func: &Function,
+        values: &[ValueId],
+        has_phis: bool,
+    ) -> ResidentSearchContext {
+        let mut value_uses = FxHashMap::default();
+        for block in &func.blocks {
+            for operand in block
+                .instructions
+                .iter()
+                .flat_map(|&inst| func.inst(inst).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if values.contains(&operand) {
+                    *value_uses.entry(operand).or_insert(0usize) += 1;
+                }
+            }
+        }
+        ResidentSearchContext {
+            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func)),
+            cfg: CfgInfo::new(func),
+            value_uses,
+        }
+    }
+
     fn analyze_resident_subset(
         &self,
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        has_phis: bool,
-    ) -> Option<(GlobalStackPlan, usize, usize)> {
+        context: &ResidentSearchContext,
+    ) -> Option<(GlobalStackPlan, ScheduleCost)> {
         let plan =
             GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
-        if has_phis {
-            let phi_plan = StackPhiPlan::analyze(func);
-            let cfg = CfgInfo::new(func);
+        if let Some(phi_plan) = &context.phi_plan {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
             // non-square layout and a phantom word at the successor entry. Reject the complete or
@@ -5381,15 +5493,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             if resident_is_phi_source {
                 return None;
             }
-            // A resident prefix on a planned backedge pays its shuffle on every loop iteration.
-            // Keep loop phis on the established layout until the planner has
-            // execution-frequency-aware costing; acyclic join edges compose without that
+            // A resident prefix on a planned backedge pays its shuffle on every loop iteration
+            // and the composed emission is not yet correct for loop-carried prefixes: lifting
+            // this gate miscompiled the nitro cold-prover paths (deep nested-loop deserialize
+            // callees) and cost gas even where output stayed correct. Keep loop phis on the
+            // established layout until the planner has execution-frequency-aware costing and
+            // the loop composition is fixed; acyclic join edges compose without that
             // multiplier.
             let carries_planned_backedge = phi_plan.edges.keys().any(|&pred| {
                 let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
                     return false;
                 };
-                plan.entry(*target).is_some() && cfg.dominators().dominates(*target, pred)
+                plan.entry(*target).is_some() && context.cfg.dominators().dominates(*target, pred)
             });
             if carries_planned_backedge {
                 return None;
@@ -5412,29 +5527,63 @@ impl<'gcx> EvmCodegen<'gcx> {
                 entry.iter().filter(|&&value| !liveness.live_in(*block).contains(value)).count()
             })
             .sum::<usize>();
-        let uses = func
-            .blocks
+        // Without execution frequencies, the exact opcode cost below still cannot account for
+        // padding paid repeatedly on hot edges. Require enough static uses to amortize every
+        // padded word before comparing otherwise realizable layouts.
+        let uses = values
             .iter()
-            .flat_map(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .flat_map(|&inst| func.inst(inst).kind.operands())
-                    .chain(block.terminator.iter().flat_map(Terminator::operands))
-            })
-            .filter(|value| values.contains(value))
-            .count();
-        // Every padded word needs at least a POP on the arm where it is dead and often a SWAP to
-        // expose it. Require two real argument uses per padded entry before replacing the memory
-        // fallback with that branch traffic.
-        (uses >= padding * 2).then_some((plan, padding, uses))
+            .map(|value| context.value_uses.get(value).copied().unwrap_or_default())
+            .sum::<usize>();
+        if uses < padding * 2 {
+            return None;
+        }
+        let padded_entry =
+            ScheduleCost::stack_op(StackOp::Swap(1)).plus(ScheduleCost::stack_op(StackOp::Pop));
+        let mut overhead = padded_entry.times(padding);
+        for block in &func.blocks {
+            match block.terminator.as_ref() {
+                Some(term @ Terminator::Branch { then_block, else_block, .. }) => {
+                    let Some((then_layout, else_layout)) = plan.branch_layouts(term) else {
+                        continue;
+                    };
+                    let union = Self::global_branch_union(then_layout, else_layout);
+                    let terminal_cleanup = (then_layout.is_empty()
+                        && else_layout == union
+                        && GlobalStackPlan::is_terminal_block(func, *then_block))
+                        || (else_layout.is_empty()
+                            && then_layout == union
+                            && GlobalStackPlan::is_terminal_block(func, *else_block));
+                    if then_layout != else_layout && !terminal_cleanup {
+                        overhead = overhead.plus(ScheduleCost::control_flow_jump());
+                    }
+                }
+                Some(term @ Terminator::Switch { .. }) => {
+                    let Some(layouts) = plan.switch_layouts(term) else { continue };
+                    let union = layouts.iter().fold(Vec::new(), |mut union, (_, layout)| {
+                        for &value in *layout {
+                            if !union.contains(&value) {
+                                union.push(value);
+                            }
+                        }
+                        union
+                    });
+                    let trampolines = layouts.iter().filter(|(_, layout)| *layout != union).count();
+                    overhead = overhead.plus(
+                        ScheduleCost::control_flow_jump()
+                            .plus(ScheduleCost::jumpdest())
+                            .times(trampolines),
+                    );
+                }
+                _ => {}
+            }
+        }
+        Some((plan, overhead))
     }
 
-    /// Finds a profitable spill boundary when the complete argument tuple has no realizable
-    /// cross-block stack layout. This is deliberately exhaustive: the static ABI is capped at
-    /// eight values, so all subsets are cheap to evaluate and a difficult argument need not force
-    /// every independent word back into memory.
-    fn select_resident_subset(
+    /// Finds the least-cost realizable resident layout. This is deliberately exhaustive: the
+    /// static ABI is capped at eight values, so all subsets are cheap to evaluate and a difficult
+    /// argument need not force every independent word back into memory.
+    fn select_resident_layout(
         &self,
         func: &Function,
         liveness: &Liveness,
@@ -5444,51 +5593,257 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
-        for operand in func.blocks.iter().flat_map(|block| {
-            block
+        let mut use_blocks = FxHashMap::default();
+        for block in &func.blocks {
+            let mut used_here = FxHashSet::default();
+            for operand in block
                 .instructions
                 .iter()
                 .flat_map(|&inst| func.inst(inst).kind.operands())
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
-        }) {
-            if values.contains(&operand) {
-                *use_counts.entry(operand).or_insert(0usize) += 1;
+            {
+                if values.contains(&operand) {
+                    *use_counts.entry(operand).or_insert(0usize) += 1;
+                    used_here.insert(operand);
+                }
+            }
+            for operand in used_here {
+                *use_blocks.entry(operand).or_insert(0usize) += 1;
             }
         }
 
-        let mut best: Option<(usize, Vec<ValueId>, GlobalStackPlan)> = None;
-        for bits in 1usize..(1usize << values.len()) - 1 {
-            let subset: Vec<_> = values
+        let frame_store = ScheduleCost::memory_store(OperandCostModel::DIRECT);
+        let frame_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
+        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let memory_cost = |value: ValueId| {
+            let uses = use_counts.get(&value).copied().unwrap_or_default();
+            let blocks = use_blocks.get(&value).copied().unwrap_or_default();
+            frame_store
+                .plus(frame_load.times(blocks))
+                .plus(resident_access.times(uses.saturating_sub(blocks)))
+        };
+        let baseline = values
+            .iter()
+            .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
+        let optimization = self.gcx.sess.opts.optimization;
+        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let context = Self::resident_search_context(func, values, has_phis);
+        let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
+        for bits in 1usize..(1usize << values.len()) {
+            let subset = values
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
-                .collect();
-            let Some((plan, padding, _)) = self.analyze_resident_subset(
+                .collect::<Vec<_>>();
+            let Some((plan, mut candidate)) = self.analyze_resident_subset(
                 func,
                 liveness,
                 &subset,
                 preserve_across_calls,
-                has_phis,
+                &context,
             ) else {
                 continue;
             };
 
-            // One prologue store plus one direct-address load per use disappear for each resident
-            // word. Charge one very-low operation for every padded entry; exact shuffles remain
-            // the scheduler's responsibility, but this rejects marginal layout expansion.
-            let savings = subset
-                .iter()
-                .map(|value| 6 + use_counts.get(value).copied().unwrap_or(0) * 6)
-                .sum::<usize>();
-            let cost = padding * 3;
-            let gain = savings.saturating_sub(cost);
-            if gain == 0 {
+            // A resident word is accessed with a DUP/SWAP-class stack operation instead of a
+            // direct-address load. Charge every use rather than assuming the last one is free;
+            // this is conservative when a return shuffle consumes the final copy. A padded entry
+            // pays both the exposure swap and final pop that codegen may need on its dead arm.
+            for &value in values {
+                candidate = candidate.plus(if subset.contains(&value) {
+                    resident_access.times(
+                        use_counts.get(&value).copied().unwrap_or_default().saturating_sub(1),
+                    )
+                } else {
+                    memory_cost(value)
+                });
+            }
+            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
                 continue;
             }
-            if best.as_ref().is_none_or(|(best_gain, best_values, _)| {
-                gain > *best_gain || (gain == *best_gain && subset.len() > best_values.len())
+            if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
+                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                    || (candidate == *best_cost && subset.len() > best_values.len())
             }) {
-                best = Some((gain, subset, plan));
+                best = Some((candidate, subset, plan));
+            }
+        }
+        best.map(|(_, values, plan)| (values, plan))
+    }
+
+    /// Retains profitable computed words across acyclic joins while reserving ordinary spill slots
+    /// as an edge-time fallback. The current global argument planner owns external entry layouts
+    /// when it applies, so this incremental planner runs only when that plan is empty and limits
+    /// its search to eight cross-block definitions.
+    fn compute_cross_block_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        has_phis: bool,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if !self.gcx.sess.opts.optimization.is_gas()
+            || !Self::is_external_entry(func)
+            || func.blocks.len() < 3
+        {
+            return None;
+        }
+
+        let inst_blocks = func.inst_blocks();
+        let cross_block = Self::cross_block_live_values(func, liveness);
+        let mut uses =
+            FxHashMap::<ValueId, (BlockId, usize, FxHashSet<BlockId>, bool, bool, bool)>::default();
+        for value in &cross_block {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
+            if matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                || Self::is_cross_block_recomputable_inst(func, value)
+            {
+                continue;
+            }
+            let Some(&definition) = inst_blocks.get(inst_id) else { continue };
+            uses.insert(value, (definition, 0, FxHashSet::default(), false, false, false));
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &user in &block.instructions {
+                let phi = matches!(func.inst(user).kind, InstKind::Phi(_));
+                for operand in func.inst(user).kind.operands() {
+                    if let Some((definition, count, blocks, used_in_definition, used_by_phi, _)) =
+                        uses.get_mut(&operand)
+                    {
+                        *used_in_definition |= block_id == *definition;
+                        *used_by_phi |= phi;
+                        *count += 1;
+                        blocks.insert(block_id);
+                    }
+                }
+            }
+            for operand in block.terminator.iter().flat_map(Terminator::operands) {
+                if let Some((definition, count, blocks, used_in_definition, _, _)) =
+                    uses.get_mut(&operand)
+                {
+                    *used_in_definition |= block_id == *definition;
+                    *count += 1;
+                    blocks.insert(block_id);
+                }
+            }
+            if block.predecessors.len() > 1 {
+                for value in liveness.live_in(block_id) {
+                    if let Some((_, _, _, _, _, crosses_join)) = uses.get_mut(&value) {
+                        *crosses_join = true;
+                    }
+                }
+            }
+        }
+
+        let mut ranked = Vec::new();
+        for (value, (_, use_count, use_blocks, used_in_definition, used_by_phi, crosses_join)) in
+            uses
+        {
+            // Definition-block and phi-edge uses need position-sensitive accounting. Leave those
+            // to the existing spill/phi planners until this plan models individual program points.
+            if used_in_definition || used_by_phi || !crosses_join || use_count < 2 {
+                continue;
+            }
+            ranked.push((value, use_blocks.len(), use_count));
+        }
+        ranked.sort_by_key(|&(value, blocks, uses)| {
+            (std::cmp::Reverse(blocks), std::cmp::Reverse(uses), value.index())
+        });
+        let values = ranked
+            .into_iter()
+            .take(GLOBAL_STACK_LAYOUT_LIMIT)
+            .map(|(value, _, _)| value)
+            .collect::<Vec<_>>();
+        self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+    }
+
+    fn select_cross_block_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        values: &[ValueId],
+        has_phis: bool,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if values.is_empty() {
+            return None;
+        }
+        debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
+
+        let mut use_counts = FxHashMap::default();
+        let mut use_blocks = FxHashMap::<ValueId, FxHashSet<BlockId>>::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for operand in block
+                .instructions
+                .iter()
+                .flat_map(|&inst| func.inst(inst).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if values.contains(&operand) {
+                    *use_counts.entry(operand).or_insert(0usize) += 1;
+                    use_blocks.entry(operand).or_default().insert(block_id);
+                }
+            }
+        }
+
+        let spill_store = ScheduleCost::spill_store(OperandCostModel::DIRECT);
+        let spill_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
+        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let memory_cost = |value: ValueId| {
+            let uses = use_counts.get(&value).copied().unwrap_or_default();
+            let blocks = use_blocks.get(&value).map_or(0, FxHashSet::len);
+            spill_store
+                .plus(spill_load.times(blocks))
+                .plus(resident_access.times(uses.saturating_sub(blocks)))
+        };
+        let baseline = values
+            .iter()
+            .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
+        let optimization = self.gcx.sess.opts.optimization;
+        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let context = Self::resident_search_context(func, values, has_phis);
+        let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
+        for bits in 1usize..(1usize << values.len()) {
+            let subset = values
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &value)| ((bits >> index) & 1 != 0).then_some(value))
+                .collect::<Vec<_>>();
+            let Some((plan, mut candidate)) = self.analyze_resident_subset(
+                func,
+                liveness,
+                &subset,
+                self.preserve_caller_stack,
+                &context,
+            ) else {
+                continue;
+            };
+            if plan.entries.iter().any(|(&block, _)| {
+                func.blocks[block]
+                    .predecessors
+                    .iter()
+                    .any(|&pred| context.cfg.dominators().dominates(block, pred))
+            }) {
+                continue;
+            }
+
+            for &value in values {
+                candidate = candidate.plus(if subset.contains(&value) {
+                    let uses = use_counts.get(&value).copied().unwrap_or_default();
+                    // A carried SSA copy can be consumed on its final use; all earlier uses retain
+                    // it with a stack operation. Its spill store is emitted only if an edge falls
+                    // back to memory, so it does not belong to the selected layout's hot cost.
+                    resident_access.times(uses.saturating_sub(1))
+                } else {
+                    memory_cost(value)
+                });
+            }
+            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
+                continue;
+            }
+            if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
+                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                    || (candidate == *best_cost && subset.len() > best_values.len())
+            }) {
+                best = Some((candidate, subset, plan));
             }
         }
         best.map(|(_, values, plan)| (values, plan))
@@ -5609,9 +5964,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The layout keeps arguments in descending index order.
             values.reverse();
 
-            // Reject shapes the resident-layout analysis cannot represent
-            // before paying for whole-function liveness. Single-block leaves
-            // have no inter-block layout to solve at all.
+            // Reject shapes the resident-layout analysis cannot represent before paying for
+            // whole-function liveness. Single-block leaves have no inter-block layout to solve.
             if func.blocks.iter().any(|block| {
                 !self.preserve_caller_stack
                     && block.instructions.iter().any(|&inst_id| {
@@ -5624,15 +5978,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                if let Some((plan, _, _)) = self.analyze_resident_subset(
+                let context = Self::resident_search_context(func, &values, has_phis);
+                if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
                     &values,
                     self.preserve_caller_stack,
-                    has_phis,
+                    &context,
                 ) {
+                    // Preserve the established full-tuple layout when it passes the structural
+                    // amortization guard. Costed subset selection is a fallback for tuples where
+                    // one difficult value would otherwise disable every independent resident
+                    // argument.
                     plan
-                } else if let Some((subset, plan)) = self.select_resident_subset(
+                } else if let Some((subset, plan)) = self.select_resident_layout(
                     func,
                     liveness,
                     &values,
@@ -7417,8 +7776,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Adopts a static callee's stack-native return tuple.
     ///
     /// MIR names only the first result; later results are consumed through the multi-return
-    /// buffer. The callee leaves result `N - 1` on top, so stage those anonymous tail words in
-    /// reverse order and then attach result zero to the caller's scheduler model.
+    /// buffer. When the caller's protocol reads project cleanly, every returned word binds
+    /// directly to its consumer and the buffer never materializes. Otherwise the callee leaves
+    /// result `N - 1` on top, so stage those anonymous tail words in reverse order and then
+    /// attach result zero to the caller's scheduler model.
     #[allow(clippy::too_many_arguments)]
     fn adopt_stack_call_results(
         &mut self,
@@ -7433,6 +7794,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         assert_eq!(returns, plan.arity, "stack-return call arity changed after ABI planning");
 
         if plan.arity > 1 {
+            if let Some(result) =
+                Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
+                && let Some(projection) =
+                    Self::plan_stack_result_projection(func, block, inst_idx, plan.arity)
+            {
+                // The words already sit in tuple order with result `N - 1` on
+                // top; bind each to its protocol load and skip the republish
+                // and the loads entirely.
+                self.scheduler.stack.push(result);
+                for &extra in &projection.extras {
+                    self.scheduler.stack.push(extra);
+                }
+                self.elided_insts.extend(projection.elided);
+                self.spill_adopted_call_result(func, liveness, block, inst_idx, result);
+                for &extra in &projection.extras {
+                    self.spill_adopted_call_result(func, liveness, block, inst_idx, extra);
+                }
+                return;
+            }
+
             self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
@@ -7455,6 +7836,129 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         } else {
             self.asm.emit_op(op::POP);
+        }
+    }
+
+    /// Plans direct adoption of a stack-returned tuple's anonymous tail words.
+    ///
+    /// MIR consumes returns `1..N` through the ephemeral buffer published at
+    /// the scratch pointer slot. When the complete protocol — the pointer read
+    /// and one offset load per extra return — follows the call with only pure
+    /// instructions between, each load observes exactly the word the callee
+    /// left on the stack, so the loads' results can adopt those words and the
+    /// buffer never needs to exist. Any other consumer of the pointer or its
+    /// offset addresses keeps the memory protocol.
+    fn plan_stack_result_projection(
+        func: &Function,
+        block: BlockId,
+        call_idx: usize,
+        arity: usize,
+    ) -> Option<StackResultProjection> {
+        let tail = func.blocks[block].instructions.get(call_idx + 1..)?;
+
+        // The first effectful instruction after the call must be the buffer
+        // pointer read; nothing may intervene that could publish or clobber.
+        let mut base = None;
+        for (offset, &inst_id) in tail.iter().enumerate() {
+            let inst = func.inst(inst_id);
+            if let InstKind::MLoad(addr) = inst.kind
+                && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
+            {
+                base = Some((offset, inst_id));
+                break;
+            }
+            if inst.kind.effect_kind() != EffectKind::Pure {
+                return None;
+            }
+        }
+        let (base_offset, base_inst) = base?;
+        let base_value = func.inst_result_value(base_inst)?;
+
+        let mut elided = vec![base_inst];
+        let mut addresses = FxHashMap::default();
+        let mut extras = vec![None; arity - 1];
+        for &inst_id in &tail[base_offset + 1..] {
+            let inst = func.inst(inst_id);
+            match &inst.kind {
+                InstKind::Add(a, b) if *a == base_value || *b == base_value => {
+                    let imm = if *a == base_value { *b } else { *a };
+                    let index = func
+                        .value_u64(imm)
+                        .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
+                        .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
+                    let address = func.inst_result_value(inst_id)?;
+                    if !(1..arity).contains(&index) || addresses.insert(address, index).is_some() {
+                        return None;
+                    }
+                    elided.push(inst_id);
+                }
+                InstKind::MLoad(addr) if addresses.contains_key(addr) => {
+                    let result = func.inst_result_value(inst_id)?;
+                    if extras[addresses[addr] - 1].replace(result).is_some() {
+                        return None;
+                    }
+                    elided.push(inst_id);
+                    if extras.iter().all(Option::is_some) {
+                        break;
+                    }
+                }
+                kind if kind.effect_kind() == EffectKind::Pure => {}
+                _ => return None,
+            }
+        }
+        let extras = extras.into_iter().collect::<Option<Vec<_>>>()?;
+
+        // The pointer and its offset addresses must have no consumers beyond
+        // the elided protocol; anything else still expects the buffer.
+        let tracked = addresses.keys().copied().chain([base_value]).collect::<FxHashSet<_>>();
+        let elided_set = elided.iter().copied().collect::<FxHashSet<_>>();
+        for check_block in func.blocks.iter() {
+            for &inst_id in &check_block.instructions {
+                if !elided_set.contains(&inst_id)
+                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
+                {
+                    return None;
+                }
+            }
+            if let Some(terminator) = &check_block.terminator
+                && terminator.operands().iter().any(|op| tracked.contains(op))
+            {
+                return None;
+            }
+        }
+
+        Some(StackResultProjection { elided, extras })
+    }
+
+    /// Applies the eager-spill contract to a call result adopted mid-stack.
+    ///
+    /// Mirrors [`Self::spill_top_value_if_live`] without requiring the value
+    /// on top: adopted tuple words sit in return order, so earlier results
+    /// spill from beneath the later ones.
+    fn spill_adopted_call_result(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        value: ValueId,
+    ) {
+        if Self::is_rematerializable_value(func, value) {
+            return;
+        }
+        let has_reserved_cross_block_slot = self.scheduler.spills.get(value).is_some();
+        if liveness.is_dead_after(value, block, inst_idx) && !has_reserved_cross_block_slot {
+            return;
+        }
+        if !self.spill_value_to_reserved_slot(func, value) {
+            self.spill_value_if_needed(func, value);
+        }
+        if has_reserved_cross_block_slot {
+            assert!(
+                self.scheduler.reloadable_spill(value).is_some(),
+                "reserved operand {value:?} was not stored before consumption in `{}`",
+                func.name
+            );
         }
     }
 
@@ -8357,19 +8861,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.name
             );
             self.pop_stack_values_not_needed_by(values);
-            for &value in values {
-                self.emit_value(func, value);
+            for value in Self::missing_stack_phi_sources(&self.scheduler.stack, values) {
+                self.emit_operand(func, value);
             }
             // StackModel and the shuffler use top-to-bottom order. The physical ABI leaves the
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
             let target: Vec<_> = values.iter().rev().copied().map(TargetSlot::Value).collect();
-            let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
-                panic!(
-                    "could not construct {}-word stack return for `{}`: stack={:?}",
-                    plan.arity, func.name, self.scheduler.stack
-                )
-            });
+            let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+                // A forwarded multi-result call leaves adopted copies of the
+                // returned values on the stack; re-emitting them for the
+                // return doubles every word and the bounded shuffler cannot
+                // always drop the surplus mid-stack. Regenerate the runtime
+                // with this function on the frame-backed return convention
+                // instead of panicking.
+                let func_id = self
+                    .current_internal_function
+                    .expect("stack-return plans only cover internal functions");
+                self.disabled_stack_only_functions.insert(func_id);
+                self.scheduler.clear_stack();
+                return;
+            };
             for op in shuffle.ops {
                 self.asm.emit_op(op.opcode());
             }
@@ -8776,6 +9288,41 @@ mod tests {
     }
 
     #[test]
+    fn spill_elision_requires_uniform_successor_residency() {
+        let mut function = Function::new(Ident::DUMMY);
+        let condition = function.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let first = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let second = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let then_block = function.alloc_block();
+        let else_block = function.alloc_block();
+        let term = Terminator::Branch { condition, then_block, else_block };
+        let mut plan = GlobalStackPlan {
+            entries: FxHashMap::from_iter([
+                (then_block, vec![first, second]),
+                (else_block, vec![first]),
+            ]),
+            aliases: FxHashMap::default(),
+            terminal_sensitive: true,
+        };
+
+        assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
+        plan.entries.insert(else_block, vec![first, second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &term), [first, second]);
+
+        // Switch layouts intersect across the default and every case target.
+        let case_block = function.alloc_block();
+        let switch = Terminator::Switch {
+            value: condition,
+            default: else_block,
+            cases: vec![(condition, case_block)],
+        };
+        plan.entries.insert(case_block, vec![second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &switch), [second]);
+        plan.entries.insert(case_block, vec![first, second]);
+        assert_eq!(plan.uniformly_carried_values(&function, &switch), [first, second]);
+    }
+
+    #[test]
     fn internal_call_headroom_includes_return_label() {
         let value = ValueId::from_usize(0);
         let call = InstKind::InternalCall {
@@ -8875,6 +9422,7 @@ mod tests {
 
             codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.static_frame_functions.insert(function);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.function_spill_sizes.insert(function, 0);
             codegen.runtime_stack_args = false;
             codegen.compute_stack_return_plans(&module);
@@ -8918,6 +9466,50 @@ mod tests {
 
             assert!(codegen.direct_stack_args(function).is_none());
         });
+    }
+
+    #[test]
+    fn resident_layout_selection_is_pinned_across_runs() {
+        // `select_resident_layout` weighs runtime gas against deploy bytes
+        // through `optimizer_runs`. No current cost shape flips the choice
+        // (an eligible stack-riding value dominates the frame convention in
+        // both dimensions), so this pins the selection at both extremes:
+        // a cost-model change that silently alters layout choices, or makes
+        // them run-count-unstable, must show up here as an intentional edit.
+        let select = |runs: u64| {
+            let opts = CompileOpts {
+                optimization: OptimizationMode::Gas,
+                optimizer_runs: Some(runs),
+                ..Default::default()
+            };
+            with_codegen(opts, |codegen| {
+                let mut function = Function::new(Ident::DUMMY);
+                let argument = function.alloc_param(MirType::uint256());
+                let mut builder = FunctionBuilder::new(&mut function);
+                let one = builder.imm_u64(1);
+                let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
+                builder.jump(blocks[0]);
+                for (index, &block) in blocks.iter().enumerate() {
+                    builder.switch_to_block(block);
+                    if let Some(&next) = blocks.get(index + 1) {
+                        builder.jump(next);
+                    }
+                }
+                let acc = builder.add(argument, one);
+                builder.ret([acc]);
+                let liveness = Liveness::compute(&function);
+                codegen
+                    .select_resident_layout(&function, &liveness, &[argument], false, false)
+                    .map(|(values, _)| values)
+            })
+        };
+
+        let deploy_dominated = select(1);
+        let runtime_dominated = select(200_000);
+        assert_eq!(deploy_dominated, select(1));
+        assert_eq!(runtime_dominated, select(200_000));
+        assert_eq!(deploy_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
+        assert_eq!(runtime_dominated.as_deref(), Some(&[ValueId::from_usize(0)][..]));
     }
 
     #[test]
