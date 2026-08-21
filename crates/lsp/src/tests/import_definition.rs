@@ -311,7 +311,7 @@ fn resolves_import_literals_across_escaped_line_continuations() {
         r#"
         //- /Imports.sol
         import "./nes$2ted/\
-            Tar$1get.sol";
+        Tar$1get.sol";
 
         //- /nested/Target.sol
         contract Target {}
