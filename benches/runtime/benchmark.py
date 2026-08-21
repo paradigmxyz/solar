@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import argparse
+import gzip
+import hashlib
 import json
 import re
 import shutil
@@ -38,6 +40,7 @@ from cases import (
 from common import (
     DEFAULT_PRIVATE_KEY,
     DEFAULT_RPC_URL,
+    PROJECTS_ROOT,
     REPOSITORY_ROOT,
     RUNTIME_CORPUS_ROOT,
     load_project,
@@ -194,22 +197,29 @@ def standard_json_input(test_case: TestCase) -> str:
 
 @lru_cache(maxsize=None)
 def project_full_standard_json_input(project_file: str) -> str:
-    path = REPOSITORY_ROOT / project_file
-    project = load_project(path)
-    settings = dict(project["settings"])
-    settings["outputSelection"] = {"*": {"*": ["evm.bytecode.object"]}}
-    payload = {
-        "language": project["language"],
-        "sources": project["sources"],
-        "settings": settings,
-    }
-    return json.dumps(payload)
+    path = PROJECTS_ROOT / project_file
+    with gzip.open(path, mode="rt", encoding="utf-8") as file:
+        return file.read()
 
 
-def project_standard_json_input(project_file: str, source: str, contract_name: str) -> str:
-    path = REPOSITORY_ROOT / project_file
+def full_project_standard_json_input(project_file: str) -> str:
+    return project_full_standard_json_input(project_file)
+
+
+def project_standard_json_input(
+    project_file: str, source: str, contract_name: str, settings_profile: str = ""
+) -> str:
+    path = PROJECTS_ROOT / project_file
     project = load_project(path)
-    settings = dict(project["settings"])
+    if settings_profile == "runtime":
+        project_settings = project["settings"]
+        settings = {
+            "optimizer": {"enabled": True, "runs": 200},
+            "remappings": project_settings.get("remappings", []),
+            "viaIR": True,
+        }
+    else:
+        settings = dict(project["settings"])
     settings["outputSelection"] = {
         source: {
             contract_name: [
@@ -256,13 +266,17 @@ def compile_case(
             timeout = 900
         else:
             input_text = project_standard_json_input(
-                test_case.project_file, test_case.source, test_case.contract_name
+                test_case.project_file,
+                test_case.source,
+                test_case.contract_name,
+                test_case.settings_profile,
             )
             timeout = 180
     else:
         input_text = standard_json_input(test_case)
         timeout = 120
 
+    result["input_fingerprint"] = hashlib.sha256(input_text.encode()).hexdigest()
     cmd = [str(spec.path), "--standard-json"]
     samples = []
     proc = None
@@ -344,6 +358,11 @@ def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
     if objects == 0:
         return compiled, 0, "no bytecode objects were emitted"
     return compiled, objects, ""
+
+
+def parse_full_project_output(stdout: str, test_case: TestCase) -> Tuple[int, int, str]:
+    del test_case
+    return parse_whole_project_output(stdout)
 
 
 def parse_standard_json_output(
@@ -1058,6 +1077,9 @@ def run_test_case(
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
 
+        if test_case.whole_project:
+            continue
+
         checks = runtime_checks(test_case)
         calls = gas_calls(test_case, gas_profile)
         has_cold_paths = test_case.test_id in {
@@ -1176,7 +1198,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--suite",
         choices=("micro", "repository", "large", "heavy", "all"),
         default="micro",
-        help="Benchmark suite to run",
+        help="Benchmark suite to run (heavy measures full project compile time)",
     )
     parser.add_argument(
         "--compile-repeats",
@@ -1282,6 +1304,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.gas and any(
         test.project_file is not None
+        and not test.whole_project
         and not gas_calls(test, args.gas_profile)
         and not runtime_checks(test)
         for test in tests
