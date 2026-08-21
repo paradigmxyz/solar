@@ -71,12 +71,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             "memory array slice index",
                         );
                     }
-                    let element = self.array_element_type(receiver_ty)?;
-                    let element = if matches!(element.peel_refs().kind, TyKind::Struct(_)) {
-                        element.with_loc_if_ref(self.context.gcx, DataLocation::Calldata)
-                    } else {
-                        element
-                    };
+                    let element = self
+                        .context
+                        .gcx
+                        .type_of_expr(expr.id)?
+                        .with_loc_if_ref(self.context.gcx, DataLocation::Calldata);
                     let head_size = self.types.abi_type(element)?.head_size();
                     let head_size = self.builder.imm_u64(head_size);
                     let offset = self.builder.checked_mul(index, head_size);

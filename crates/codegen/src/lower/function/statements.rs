@@ -35,7 +35,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.builder.imm_u256(U256::ZERO)
                 };
-                let value = self.materialize_memory_argument(
+                let value = self.materialize_call_argument(
                     ty,
                     value,
                     initializer.map_or(stmt.span, |expr| expr.span),
@@ -623,6 +623,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> ValueId {
         let expr = expr.peel_parens();
+        let value = self.normalize_dirty_scalar(value, ty);
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
