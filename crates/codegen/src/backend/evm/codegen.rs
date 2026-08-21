@@ -22,8 +22,8 @@ use super::{
 };
 use crate::{
     analysis::{
-        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
-        PhiEliminator,
+        AliasAnalysis, CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer,
+        MemoryBase, ParallelCopy, PhiEliminator,
     },
     immutable::{
         immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
@@ -32,7 +32,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, MirPhase, Module, Terminator, ValueId,
+        InstKind, MemoryRegion, MirPhase, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
@@ -50,6 +50,10 @@ use solar_sema::Gcx;
 mod switch;
 
 use self::switch::MAX_GAS_CODE_GROWTH;
+
+/// A dynamic-length write to a low absolute base below this bound above
+/// `HEAP_START` is treated as possibly reaching the spill area.
+const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
@@ -1078,6 +1082,11 @@ pub struct EvmCodegen<'gcx> {
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
+    /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
+    /// in a proxy) whose write reaches the compiler spill area. Values live
+    /// across one are kept stack-resident instead of reloaded from the
+    /// overwritten slot. Empty for every function without such a forward.
+    spill_hazard_insts: FxHashSet<InstId>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1152,6 +1161,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_avail_in: None,
             stored_at_block_entry: FxHashSet::default(),
             elided_insts: FxHashSet::default(),
+            spill_hazard_insts: FxHashSet::default(),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -2332,6 +2342,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             .unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
 
+        self.spill_hazard_insts = Self::compute_spill_hazard_insts(func);
+
         // Eliminate phis.
         self.block_copies.clear();
         self.elided_insts.clear();
@@ -2573,6 +2585,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Generate instructions
+            let mut pinned_hazard_values = FxHashSet::<ValueId>::default();
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.inst(inst_id);
 
@@ -2585,6 +2598,36 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // from adopted stack-return words.
                 if self.elided_insts.remove(&inst_id) {
                     continue;
+                }
+
+                // A whole-calldata-forwarding clobber overwrites the low memory
+                // the spill area lives in. Reload every value live across it
+                // onto the stack while the slot is still valid, and drop the
+                // stored flag so nothing reloads the clobbered slot. The slot is
+                // NOT re-stored here: the clobbered range is the very memory the
+                // following forward reads, so writing it back would corrupt the
+                // forwarded input. The value rides the stack, which the write
+                // never touches; live-out values re-store once at block end.
+                // Only values still needed past the clobber are pinned: a phi
+                // source or an operand the copy itself consumes has its last
+                // recorded use in this block at or before it, and reloading it
+                // would only deepen the stack with a dead word.
+                if self.spill_hazard_insts.contains(&inst_id) {
+                    let at_risk: Vec<ValueId> = self
+                        .scheduler
+                        .spills
+                        .reloadable_values()
+                        .filter(|&value| {
+                            liveness.is_used_at_or_after(value, block_id, inst_idx + 1)
+                        })
+                        .collect();
+                    for value in at_risk {
+                        if !self.scheduler.stack.contains(value) {
+                            self.emit_value(func, value);
+                        }
+                        self.scheduler.spills.invalidate_stored(value);
+                        pinned_hazard_values.insert(value);
+                    }
                 }
 
                 // Find the value ID that corresponds to this instruction (if any)
@@ -2615,6 +2658,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                             if func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
                     ) {
                         self.spill_value_if_needed(func, result);
+                    }
+                }
+            }
+
+            // Every clobber in this block has now been emitted, so its spill
+            // slots are safe to write again. Re-store a pinned value only if a
+            // successor reloads it; values consumed within this block stay
+            // stack-resident and need no memory home, so drop their obligation.
+            if !pinned_hazard_values.is_empty() {
+                let live_out = liveness.live_out(block_id);
+                for value in std::mem::take(&mut pinned_hazard_values) {
+                    if live_out.contains(value) {
+                        self.spill_value_if_needed(func, value);
+                    } else {
+                        self.scheduler.spills.clear_store_requirement(value);
                     }
                 }
             }
@@ -4003,6 +4061,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// once memory has moved on: reaching them through a reload keeps the
     /// original definition.
     fn prepare_fresh_operands(&mut self, func: &Function, operands: &[ValueId]) {
+        // The spill here is only a burial fallback: `emit_value_fresh` DUPs an
+        // on-stack operand and recomputes a cheap one, reaching this spill copy
+        // only if the operand sinks past DUP16 during argument emission. In a
+        // forwarding proxy the call reads the low memory the spill area lives in
+        // (a `delegatecall` whose args are `[0, calldatasize())`), so writing
+        // the backup there corrupts the call's own input. Such a function keeps
+        // its few operands stack-resident instead — a simple forwarder never
+        // buries them.
+        if !self.spill_hazard_insts.is_empty() {
+            return;
+        }
         for &operand in operands {
             self.spill_value_if_needed(func, operand);
         }
@@ -7229,6 +7298,75 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
         self.runtime_entry_reachability.insert(entry, reachable);
+    }
+
+    /// Collects whole-calldata-forwarding clobbers that overwrite the spill
+    /// area. Only a `calldatacopy` with a dynamic length into low, unowned
+    /// memory qualifies — a `delegatecall` proxy trashing `[0, calldatasize())`.
+    /// Alias analysis is built only when the function has such a copy, and
+    /// destinations resolved to the free-memory pointer, an allocation, or the
+    /// internal frame (ordinary high memory, including hand-written
+    /// `calldatacopy(mload(0x40), …)` decode loops) are excluded, so this never
+    /// perturbs normal or assembly-heavy code that stays above the spill area.
+    fn compute_spill_hazard_insts(func: &Function) -> FxHashSet<InstId> {
+        let mut hazards = FxHashSet::default();
+        let has_dynamic_calldatacopy = func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::CalldataCopy(_, _, size)
+                if func.value_u64(size).is_none())
+        });
+        // The clobber only matters when the copied low memory is then forwarded
+        // to a call: a proxy `delegatecall`/`call` whose argument length is
+        // dynamic. Pure calldata manipulation (a decompressor writing scratch)
+        // never reads a spilled value back from the overwritten region, so it
+        // must not be perturbed.
+        let has_dynamic_forwarding_call = func.instructions().any(|inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::Call { args_size, .. }
+                    | InstKind::CallCode { args_size, .. }
+                    | InstKind::StaticCall { args_size, .. }
+                    | InstKind::DelegateCall { args_size, .. }
+                if func.value_u64(args_size).is_none())
+        });
+        if !has_dynamic_calldatacopy || !has_dynamic_forwarding_call {
+            return hazards;
+        }
+        let aa = AliasAnalysis::new(func);
+        for inst_id in func.instructions() {
+            let InstKind::CalldataCopy(dest, _, size) = func.inst(inst_id).kind else {
+                continue;
+            };
+            if func.value_u64(size).is_some() {
+                continue;
+            }
+            if Self::write_dest_may_reach_spills(func, &aa, dest) {
+                hazards.insert(inst_id);
+            }
+        }
+        hazards
+    }
+
+    /// Whether a dynamic-length write's destination may overlap the spill area.
+    /// A free-memory-pointer, allocation, or internal-frame destination stays
+    /// in compiler-owned high memory; a symbolic low base (raw
+    /// `returndatasize()` addressing) or a low absolute base can reach the
+    /// fixed low-memory spill slots.
+    fn write_dest_may_reach_spills(func: &Function, aa: &AliasAnalysis, dest: ValueId) -> bool {
+        let Some(address) = aa.memory_address(func, dest) else {
+            return true;
+        };
+        if matches!(address.region, MemoryRegion::Heap | MemoryRegion::InternalFrame) {
+            return false;
+        }
+        match address.base {
+            MemoryBase::Allocation(_)
+            | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::InternalFrame => false,
+            MemoryBase::Absolute => {
+                address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
+            }
+            MemoryBase::Value(_) => true,
+        }
     }
 
     /// Returns whether a function can read, write, or observe the reserved free-memory-pointer
