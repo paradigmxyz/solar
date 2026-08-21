@@ -943,6 +943,21 @@ impl MemoryStoreEliminator {
                         *size,
                     );
                 }
+                InstKind::Call { args_offset, args_size, .. }
+                | InstKind::CallCode { args_offset, args_size, .. }
+                | InstKind::StaticCall { args_offset, args_size, .. }
+                | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                    // A call reads its whole input, but it only copies
+                    // `min(ret_size, returndatasize())` bytes into the output
+                    // area. The rest remains unchanged, so the output cannot
+                    // prove that an earlier store is dead.
+                    self.retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut scratch.overwritten,
+                        *args_offset,
+                        *args_size,
+                    );
+                }
                 // Keccak and logs only *read* memory. A read over a constant
                 // range observes only the stores that fall in it, so a later
                 // overwrite of a disjoint slot still kills its earlier store.
