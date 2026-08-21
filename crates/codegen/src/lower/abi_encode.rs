@@ -617,6 +617,15 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
+        // A storage-reference return travels as its slot, like a storage-ref
+        // argument does: hand back the lvalue's slot rather than
+        // materializing a memory copy whose pointer the caller would then
+        // treat as a slot.
+        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage) | TyKind::Mapping(..))
+            && let Some(slot) = self.lower_lvalue_slot(builder, expr)
+        {
+            return slot;
+        }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
             if Self::value_is_calldata_slice(builder, value) {
