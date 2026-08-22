@@ -142,7 +142,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Expr(expr) => {
-                if let ExprKind::Assign(lhs, None, rhs) = &expr.peel_parens().kind
+                let expr = expr.peel_parens();
+                let is_item_reference = matches!(
+                    self.context.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                    Some(TyKind::Type(_))
+                ) || matches!(
+                    expr.kind,
+                    ExprKind::Member(receiver, _)
+                        if matches!(
+                            self.context.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                            Some(TyKind::Type(_))
+                        )
+                );
+                if is_item_reference {
+                    return Some(());
+                }
+                if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
                     && self.is_constant_storage_assignment(lhs, rhs)
                 {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
