@@ -764,6 +764,37 @@ impl<'gcx> Lowerer<'gcx> {
         if self.lhs_expects_memory_bytes_value(lhs) {
             return self.lower_expr_as_memory_bytes(builder, rhs);
         }
+        if self
+            .get_expr_type(lhs)
+            .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::DynArray(_)))
+            && let Some(len) = self.fixed_array_len_of_expr(rhs)
+        {
+            let value = self.lower_value_expr(builder, rhs);
+            if matches!(
+                builder.func().value_ty(value),
+                Some(MirType::MemoryObject(MemoryObjectKind::FixedArray))
+            ) {
+                let Some(data_size) = len.checked_mul(32) else {
+                    return self.err_value(builder, rhs.span, "array is too large for codegen");
+                };
+                let Some(total_size) = data_size.checked_add(32) else {
+                    return self.err_value(builder, rhs.span, "array is too large for codegen");
+                };
+                let total_size = builder.imm_u64(total_size);
+                let ptr = self.allocate_memory_object_dynamic(
+                    builder,
+                    total_size,
+                    MemoryObjectKind::DynamicArray,
+                );
+                let len = builder.imm_u64(len);
+                builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+                let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+                let data_size = builder.imm_u64(data_size);
+                builder.mcopy(data, value, data_size);
+                return ptr;
+            }
+            return value;
+        }
         if self.lhs_expects_memory_dyn_array_value(lhs) {
             return self.lower_expr_as_memory_dyn_array(builder, rhs);
         }
