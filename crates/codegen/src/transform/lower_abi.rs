@@ -129,7 +129,7 @@ impl LowerAbiCx {
                     || func.attributes.is_receive
                     || func.attributes.is_fallback
             });
-            if !has_selectorless_entry {
+            if !has_selectorless_entry && module.is_library {
                 return false;
             }
             module.advance_phase(MirPhase::Abi);

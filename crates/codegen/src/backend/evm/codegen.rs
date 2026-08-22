@@ -1404,7 +1404,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if module.is_interface {
             return EvmArtifact::default();
         }
-        if !module.functions.iter().any(Self::is_module_entry) {
+        if module.is_library && !module.functions.iter().any(Self::is_module_entry) {
             if self.capture_mir {
                 self.run_optimization_passes(module);
             }
