@@ -1,4 +1,4 @@
-use crate::{flycheck, global_state::GlobalState, test_support::TestProject};
+use crate::{LaunchConfig, flycheck, global_state::GlobalState, test_support::TestProject};
 use async_lsp::ClientSocket;
 use lsp_types::{
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
@@ -15,6 +15,32 @@ use tokio::sync::oneshot;
 
 const SOURCE: &str = "contract Test { function run() public view {} }";
 const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
+
+#[tokio::test(flavor = "current_thread")]
+async fn default_forge_flycheck_uses_selected_profile() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Test.sol
+        contract Test {}
+        "#,
+    );
+    // Libtest accepts `lint --help`, providing a portable successful capability probe.
+    let forge = std::env::current_exe().unwrap();
+
+    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(
+        LaunchConfig::default().with_default_forge_path(&forge).with_selected_profile("custom"),
+    );
+    state.on_initialize(project.initialize_params()).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let source = project.path("/src/Test.sol");
+    let [flycheck] = state.config.flychecks_for_path(&source).try_into().unwrap();
+    assert_eq!(flycheck.command, forge);
+    assert_eq!(flycheck.args, ["lint", "--json", "--profile", "custom"]);
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
