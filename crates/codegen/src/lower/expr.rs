@@ -2272,6 +2272,12 @@ impl<'gcx> Lowerer<'gcx> {
             ElementaryType::UInt(size) => self.mask_to_bits(builder, value, *size),
             ElementaryType::Int(size) => self.sign_extend_to_bits(builder, value, *size),
             ElementaryType::FixedBytes(size) => {
+                if let Some(bytes) = self.constant_string_bytes(source) {
+                    let mut padded = [0u8; 32];
+                    let len = bytes.len().min(usize::from(size.bytes()));
+                    padded[..len].copy_from_slice(&bytes[..len]);
+                    return builder.imm_u256(U256::from_be_bytes(padded));
+                }
                 // `bytesN(someBytesSlice)` takes the slice's leading word,
                 // which is already left-aligned like every fixed-bytes value.
                 // Without this the slice value itself would be shifted as if it
