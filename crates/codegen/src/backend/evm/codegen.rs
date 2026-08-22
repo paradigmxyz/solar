@@ -8004,20 +8004,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.clear_stack();
         }
 
-        if let Some(result) =
-            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
-        {
+        let live_result =
+            Self::live_internal_call_result(result, returns, liveness, block, inst_idx);
+        if let Some(result) = live_result {
             self.emit_current_internal_frame_addr(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                     + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE,
             );
             self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
-            // Store the result to its reserved slot now, while it is on top.
-            // Other value-producing instructions do this; internal calls did
-            // not, so a reserved result (e.g. a recompute leaf of a live-out
-            // cheap value) was never stored. No-op unless reserved and live.
-            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+            if returns <= 1 {
+                self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+            }
         }
 
         // Publish the callee's return area directly as the multi-return buffer.
@@ -8054,6 +8052,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MLOAD);
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MSTORE);
+
+        // Store a multi-return call's first result only after restoring the
+        // caller frame pointer. The result is a caller value, so spilling it
+        // while the callee frame is active can overwrite another return word.
+        if returns > 1
+            && let Some(result) = live_result
+        {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
