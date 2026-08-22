@@ -85,7 +85,10 @@ pub(super) struct StorageLayout<'gcx> {
 impl<'gcx> StorageLayout<'gcx> {
     /// Computes Solidity's base-to-derived storage order once for a module.
     pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
-        StorageBuilder::new(gcx).lower(contract_id)
+        let base_slot = gcx.hir.contract(contract_id).layout.map_or(U256::ZERO, |layout| {
+            gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
+        });
+        StorageBuilder::new(gcx, base_slot).lower(contract_id)
     }
 
     pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
@@ -303,8 +306,8 @@ struct StorageCursor {
 }
 
 impl StorageCursor {
-    fn new(transient: bool) -> Self {
-        Self { slot: U256::ZERO, offset: 0, transient }
+    fn new(slot: U256, transient: bool) -> Self {
+        Self { slot, offset: 0, transient }
     }
 
     fn take(
@@ -360,14 +363,14 @@ impl StorageCursor {
 }
 
 impl<'gcx> StorageBuilder<'gcx> {
-    fn new(gcx: Gcx<'gcx>) -> Self {
+    fn new(gcx: Gcx<'gcx>, base_slot: U256) -> Self {
         Self {
             gcx,
             locations: FxHashMap::default(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
-            storage_cursor: StorageCursor::new(false),
-            transient_cursor: StorageCursor::new(true),
+            storage_cursor: StorageCursor::new(base_slot, false),
+            transient_cursor: StorageCursor::new(U256::ZERO, true),
         }
     }
 
@@ -408,7 +411,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             return locations.as_ref()?.get(field).copied();
         }
 
-        let mut cursor = StorageCursor::new(false);
+        let mut cursor = StorageCursor::new(U256::ZERO, false);
         let locations = self
             .struct_field_types(struct_id)
             .iter()
@@ -489,7 +492,7 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<u64> {
-        let mut cursor = StorageCursor::new(false);
+        let mut cursor = StorageCursor::new(U256::ZERO, false);
         for ty in tys {
             let encoding = self.packed_encoding(ty);
             let slots = self.storage_slots_inner(ty, span)?;
