@@ -2160,23 +2160,17 @@ impl LowerAbiCx {
                     return base;
                 }
                 let total = builder.add(bytes, word);
-                let ptr = builder.alloc_object(
-                    total,
-                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
-                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
+                let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
+                let ptr =
+                    builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
+                builder.set_memory_object_len(ptr, len, layout.kind());
                 let location = if constructor {
                     crate::mir::SliceLocation::Memory
                 } else {
                     crate::mir::SliceLocation::Calldata
                 };
                 let source = builder.make_slice(data, bytes, location);
-                builder.memory_object_copy_from_slice(
-                    ptr,
-                    crate::mir::MemoryObjectKind::DynamicArray,
-                    source,
-                );
+                builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
@@ -2261,32 +2255,23 @@ impl LowerAbiCx {
                         has_bitwise_shifting,
                     );
                     let total = builder.add(bytes, word);
+                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
                         total,
-                        crate::mir::MemoryObjectLayout::WORD_ARRAY,
+                        layout,
                         crate::mir::AllocationSemantics::INTERNAL,
                     );
-                    builder.set_memory_object_len(
-                        ptr,
-                        len,
-                        crate::mir::MemoryObjectKind::DynamicArray,
-                    );
+                    builder.set_memory_object_len(ptr, len, layout.kind());
                     let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
-                    builder.memory_object_copy_from_slice(
-                        ptr,
-                        crate::mir::MemoryObjectKind::DynamicArray,
-                        source,
-                    );
+                    builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                     return ptr;
                 }
 
                 let total = builder.add(bytes, word);
-                let ptr = builder.alloc_object(
-                    total,
-                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
-                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::DynamicArray);
+                let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
+                let ptr =
+                    builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
+                builder.set_memory_object_len(ptr, len, layout.kind());
 
                 // Dynamic ABI arrays use a head of one word per element. The
                 // element value may itself be dynamic, so nested objects are
@@ -2378,21 +2363,15 @@ impl LowerAbiCx {
                     let data_size = builder.and(rounded, mask);
                     builder.add(data_size, word)
                 };
-                let ptr = builder.alloc_object(
-                    total,
-                    crate::mir::MemoryObjectLayout::Bytes,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
-                builder.set_memory_object_len(ptr, len, crate::mir::MemoryObjectKind::Bytes);
+                let layout = crate::mir::MemoryObjectLayout::Bytes;
+                let ptr =
+                    builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
+                builder.set_memory_object_len(ptr, len, layout.kind());
                 let src = builder.add(base, word);
                 let location =
                     if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
                 let source = builder.make_slice(src, len, location);
-                builder.memory_object_copy_from_slice(
-                    ptr,
-                    crate::mir::MemoryObjectKind::Bytes,
-                    source,
-                );
+                builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                 ptr
             }
             crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {

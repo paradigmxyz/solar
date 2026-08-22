@@ -13,23 +13,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, expr.span, "array literal");
         };
         let layout = self.types.memory_layout(ty)?;
-        let (size, kind) = match layout {
+        let (size, dynamic) = match layout {
             MemoryObjectLayout::FixedArray { len, element_words } => {
                 let words = len.checked_mul(u64::from(element_words))?;
-                (words.checked_mul(32)?, MemoryObjectKind::FixedArray)
+                (words.checked_mul(32)?, false)
             }
             MemoryObjectLayout::DynamicArray { element_words } => {
                 let words =
                     u64::try_from(elements.len()).ok()?.checked_mul(u64::from(element_words))?;
-                (words.checked_add(1)?.checked_mul(32)?, MemoryObjectKind::DynamicArray)
+                (words.checked_add(1)?.checked_mul(32)?, true)
             }
             _ => return report_unsupported(self.context.gcx, expr.span, "array literal"),
         };
         let size = self.builder.imm_u64(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        if kind == MemoryObjectKind::DynamicArray {
+        if dynamic {
             let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
-            self.builder.set_memory_object_len(object, length, kind);
+            self.builder.set_memory_object_len(object, length, layout.kind());
         }
         for (index, element) in elements.iter().enumerate() {
             let value = self.lower_expr(element)?;

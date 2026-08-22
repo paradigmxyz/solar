@@ -197,8 +197,7 @@ fn synthesize_storage_packed_array_helper(
             }
             _ => unreachable!("unknown storage encoding"),
         };
-        let address = builder.memory_object_element_addr(object, layout, index);
-        builder.mstore(address, value);
+        builder.memory_object_store_element(object, layout, index, value);
         let one = builder.imm_u64(1);
         let next = builder.add(index, one);
         let backedge = builder.current_block();
