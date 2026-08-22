@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
+@module AbiValidation
+fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+

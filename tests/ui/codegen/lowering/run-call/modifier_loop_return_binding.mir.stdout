@@ -1,0 +1,43 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_loop_return_binding.sol:ModifierLoopReturnBinding ===
+@module ModifierLoopReturnBinding
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb2
+  bb1:
+    ret v0
+  bb2:
+    v0 = phi [bb0: 0], [bb12: v4]
+    v1 = phi [bb0: 0], [bb12: v6]
+    v2 = phi [bb0: 10], [bb12: v2]
+    v3 = lt v1, v2
+    jumpi v3, bb5, bb6
+  bb3:
+    jump bb1
+  bb4:
+    v6 = add v1, 1
+    v7 = lt v6, v1
+    jumpi v7, bb11, bb12
+  bb5:
+    v4 = add 0, 1
+    v5 = lt v4, 0
+    jumpi v5, bb9, bb10
+  bb6:
+    jump bb3
+  bb7:
+    jump bb4
+  bb8:
+    jump bb7
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    jump bb8
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    jump bb2
+}
+

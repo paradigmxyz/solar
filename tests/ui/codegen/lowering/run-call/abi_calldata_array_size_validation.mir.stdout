@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_array_size_validation.sol:AbiCalldataArraySizeValidation ===
+@module AbiCalldataArraySizeValidation
+fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+

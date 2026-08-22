@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/msg_sig_mask.sol:MsgSigMask ===
+@module MsgSigMask
+fn @f(arg0: u256) -> bytes32 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+

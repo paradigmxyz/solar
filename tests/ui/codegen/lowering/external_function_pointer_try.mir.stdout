@@ -1,0 +1,195 @@
+// === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
+@module ExternalFunctionPointerTry
+fn @invoke(arg0: function, arg1: memorystruct) {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [tuple<word>], selector v1, args arg1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 0
+    jumpi v7, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    v8 = returndata_size
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb4, bb5
+  bb3:
+    stop
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = memory_object_data memorybytes, v13
+    v16 = memory_object_len memorybytes, v13
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
+    jumpi 1, bb6, bb7
+  bb6:
+    v28 = memory_object_len memorybytes, v13
+    sstore 0, v28 !metadata(storage=slot(0))
+    jump bb3
+  bb7:
+    revert v15, v16
+}
+
+fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    sstore 0, v0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[]] {
+  bb0:
+    internal_call @__revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @pair(arg0: memorystruct) -> (u256, memorybytes) [selector=0x76ea4d37, pure, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 2
+    memory_object_store_word memorybytes, v1, 0, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    ret v0, v1
+}
+
+fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [tuple<word>], selector v1, args arg1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 0
+    jumpi v7, bb1, bb2
+  bb1:
+    v8 = returndata_size
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb4, bb5
+  bb2:
+    v18 = returndata_size
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    jumpi v20, bb6, bb7
+  bb3:
+    ret 0, 96
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = abi_decode [u256, bytes], v13
+    v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v17 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
+    ret v15, v17
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, v18
+    v24 = make_returndata_slice 0, v18
+    memory_object_copy_from_slice memorybytes, v23, v24
+    v25 = memory_object_data memorybytes, v23
+    v26 = memory_object_len memorybytes, v23
+    v27 = make_memory_slice v25, v26
+    v28 = memory_slice_load_word memory, v27, 0
+    v29 = lt v26, 4
+    v30 = iszero v29
+    v31 = shr 224, v28
+    v32 = eq v31, 0x8c379a0
+    v33 = and v30, v32
+    v34 = lt v26, 36
+    v35 = iszero v34
+    v36 = eq v31, 0x4e487b71
+    v37 = and v35, v36
+    jumpi 1, bb8, bb9
+  bb8:
+    v38 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v38, 6
+    memory_object_store_word memorybytes, v38, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    ret 0, v38
+  bb9:
+    revert v25, v26
+}
+
+fn @trySuccess() -> u256 [selector=0x3984eec7, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x93edcd0d
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v3, 0, 7
+    internal_call @invoke, 0, v2, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    ret v4
+}
+
+fn @tryFailure() -> u256 [selector=0x86763122, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xe8be0a6f
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v3, 0, 7
+    internal_call @invoke, 0, v2, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    ret v4
+}
+
+fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x76ea4d37
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v3, 0, 7
+    v4 = internal_call @invokePair, 2, v2, v3
+    v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v6 = memory_object_load_element memoryfixedarray<2, 1>, v5, 1
+    ret v4, v6
+}
+
+fn @__revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}
+

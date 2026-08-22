@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytesBase ===
+@module ConstructorBaseFixedBytesBase
+fn @value() -> bytes3 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @_anonymous(arg0: bytes3) [constructor, abi_args=lazy, abi_params=[bytes3]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = shr 232, arg0
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytes ===
+@module ConstructorBaseFixedBytes
+fn @value() -> bytes3 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = shr 232, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    stop
+}
+

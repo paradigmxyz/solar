@@ -1,0 +1,380 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
+@module ExternalFunctionPointerCalldataArray
+fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = eq v0, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = slice_len arg0
+    v4 = lt 0, v3
+    v5 = iszero v4
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = slice_ptr arg0
+    v7 = add v6, 0
+    v8 = calldataload v7
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v10 = eq v8, v9
+    v11 = iszero v10
+    jumpi v11, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v12 = shr 64, v8
+    v13 = and v12, 0xffffffff
+    v14 = shl 224, v13
+    v15 = shr 32, v12
+    v16 = gas
+    v17 = abi_encode [], selector v14
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = call v16, v15, 0, v18, v19, 0, 32
+    jumpi v20, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v21 = returndata_size
+    v22 = lt v21, 32
+    jumpi v22, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = add 0, 0
+    v26 = mload v25
+    v27 = slice_len arg0
+    v28 = lt 1, v27
+    v29 = iszero v28
+    jumpi v29, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v30 = slice_ptr arg0
+    v31 = add v30, 32
+    v32 = calldataload v31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v34 = eq v32, v33
+    v35 = iszero v34
+    jumpi v35, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    v36 = shr 64, v32
+    v37 = and v36, 0xffffffff
+    v38 = shl 224, v37
+    v39 = shr 32, v36
+    v40 = gas
+    v41 = abi_encode [], selector v38
+    v42 = slice_ptr v41
+    v43 = slice_len v41
+    v44 = call v40, v39, 0, v42, v43, 0, 32
+    jumpi v44, bb16, bb15
+  bb15:
+    revert_returndata
+  bb16:
+    v45 = returndata_size
+    v46 = lt v45, 32
+    jumpi v46, bb17, bb18
+  bb17:
+    revert 0, 0
+  bb18:
+    v47 = add 0, 0
+    v48 = mload v47
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = slice_len arg0
+    v52 = lt 2, v51
+    v53 = iszero v52
+    jumpi v53, bb19, bb20
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    v54 = slice_ptr arg0
+    v55 = add v54, 64
+    v56 = calldataload v55
+    v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v58 = eq v56, v57
+    v59 = iszero v58
+    jumpi v59, bb21, bb22
+  bb21:
+    revert 0, 0
+  bb22:
+    v60 = shr 64, v56
+    v61 = and v60, 0xffffffff
+    v62 = shl 224, v61
+    v63 = shr 32, v60
+    v64 = gas
+    v65 = abi_encode [], selector v62
+    v66 = slice_ptr v65
+    v67 = slice_len v65
+    v68 = call v64, v63, 0, v66, v67, 0, 32
+    jumpi v68, bb24, bb23
+  bb23:
+    revert_returndata
+  bb24:
+    v69 = returndata_size
+    v70 = lt v69, 32
+    jumpi v70, bb25, bb26
+  bb25:
+    revert 0, 0
+  bb26:
+    v71 = add 0, 0
+    v72 = mload v71
+    v73 = add 0, 0
+    v74 = mload v73
+    ret v26, v50, v74
+}
+
+fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = slice_len arg0
+    v3 = slice_ptr arg0
+    v4 = mul v2, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, v2
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v10 = add v3, v4
+    v11 = calldatasize
+    v12 = gt v10, v11
+    jumpi v12, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v13 = mul v2, 32
+    v14 = iszero 32
+    v15 = div v13, 32
+    v16 = eq v15, v2
+    v17 = or v14, v16
+    v18 = iszero v17
+    jumpi v18, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v19 = add 32, v13
+    v20 = lt v19, 32
+    jumpi v20, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    set_memory_object_len memoryarray, v21, v2
+    jump bb9
+  bb9:
+    v22 = phi [bb8: 0], [bb15: v36]
+    v23 = lt v22, v2
+    jumpi v23, bb10, bb11
+  bb10:
+    v24 = mul v22, 32
+    v25 = iszero 32
+    v26 = div v24, 32
+    v27 = eq v26, v22
+    v28 = or v25, v27
+    v29 = iszero v28
+    jumpi v29, bb12, bb13
+  bb11:
+    v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v21
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = call v1, v0, 0, v38, v39, v38, 96
+    jumpi v40, bb17, bb16
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v30 = add v3, v24
+    v31 = calldataload v30
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v33 = eq v31, v32
+    v34 = iszero v33
+    jumpi v34, bb14, bb15
+  bb14:
+    revert 0, 0
+  bb15:
+    v35 = shr 64, v31
+    memory_object_store_element memoryarray<1>, v21, v22, v35
+    v36 = add v22, 1
+    jump bb9
+  bb16:
+    revert_returndata
+  bb17:
+    v41 = returndata_size
+    v42 = lt v41, 96
+    jumpi v42, bb18, bb19
+  bb18:
+    revert 0, 0
+  bb19:
+    v43 = add v38, 0
+    v44 = mload v43
+    v45 = add v38, 32
+    v46 = mload v45
+    v47 = add v38, 64
+    v48 = mload v47
+    frame_store multi_return, word, 0, v38 !metadata(memory=scratch)
+    v49 = add v38, 0
+    v50 = mload v49
+    v51 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v52 = add v51, 32
+    v53 = mload v52
+    v54 = add v51, 64
+    v55 = mload v54
+    ret v50, v53, v55
+}
+
+fn @getter1() -> u256 [selector=0x0ec1632e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 23
+}
+
+fn @getter2() -> u256 [selector=0xe255e5f9, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 37
+}
+
+fn @getter3() -> u256 [selector=0xec202537, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 71
+}
+
+fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_args=lazy, abi_params=[bool], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0xec1632e
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, 0, v3
+    v7 = address
+    v8 = shl 32, v7
+    v9 = or v8, 0xe255e5f9
+    v10 = memory_object_len memoryarray, v0
+    v11 = lt 1, v10
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    memory_object_store_element memoryarray<1>, v0, 1, v9
+    v13 = address
+    v14 = shl 32, v13
+    v15 = or v14, 0xec202537
+    v16 = memory_object_len memoryarray, v0
+    v17 = lt 2, v16
+    v18 = iszero v17
+    jumpi v18, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    memory_object_store_element memoryarray<1>, v0, 2, v15
+    jumpi arg0, bb7, bb8
+  bb7:
+    v19 = address
+    v20 = gas
+    v21 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = call v20, v19, 0, v22, v23, v22, 96
+    jumpi v24, bb11, bb10
+  bb8:
+    v40 = address
+    v41 = gas
+    v42 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
+    v43 = slice_ptr v42
+    v44 = slice_len v42
+    v45 = call v41, v40, 0, v43, v44, v43, 96
+    jumpi v45, bb15, bb14
+  bb9:
+    v61 = phi [bb13: v34], [bb17: v55]
+    v62 = phi [bb13: v37], [bb17: v58]
+    v63 = phi [bb13: v39], [bb17: v60]
+    ret v61, v62, v63
+  bb10:
+    revert_returndata
+  bb11:
+    v25 = returndata_size
+    v26 = lt v25, 96
+    jumpi v26, bb12, bb13
+  bb12:
+    revert 0, 0
+  bb13:
+    v27 = add v22, 0
+    v28 = mload v27
+    v29 = add v22, 32
+    v30 = mload v29
+    v31 = add v22, 64
+    v32 = mload v31
+    frame_store multi_return, word, 0, v22 !metadata(memory=scratch)
+    v33 = add v22, 0
+    v34 = mload v33
+    v35 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v36 = add v35, 32
+    v37 = mload v36
+    v38 = add v35, 64
+    v39 = mload v38
+    jump bb9
+  bb14:
+    revert_returndata
+  bb15:
+    v46 = returndata_size
+    v47 = lt v46, 96
+    jumpi v47, bb16, bb17
+  bb16:
+    revert 0, 0
+  bb17:
+    v48 = add v43, 0
+    v49 = mload v48
+    v50 = add v43, 32
+    v51 = mload v50
+    v52 = add v43, 64
+    v53 = mload v52
+    frame_store multi_return, word, 0, v43 !metadata(memory=scratch)
+    v54 = add v43, 0
+    v55 = mload v54
+    v56 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v57 = add v56, 32
+    v58 = mload v57
+    v59 = add v56, 64
+    v60 = mload v59
+    jump bb9
+}
+

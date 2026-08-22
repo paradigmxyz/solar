@@ -1,0 +1,96 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_function_bytes.sol:IndexedEventFunctionBytes ===
+@module IndexedEventFunctionBytes
+fn @target() [selector=0xd4b83992, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @emitEvent() [selector=0x7b0cb839, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0xd4b83992
+    memory_object_store_field memorystruct<2>, v0, 0, v3
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v4, 1
+    memory_object_store_word memorybytes, v4, 0, 0x7800000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<2>, v0, 1, v4
+    v5 = memory_object_load_field memorystruct<2>, v0, 0
+    v6 = memory_object_load_field memorystruct<2>, v0, 1
+    v7 = memory_object_len memorybytes, v6
+    v8 = add v7, 31
+    v9 = lt v8, v7
+    jumpi v9, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = div v11, 32
+    v13 = add 1, v12
+    v14 = lt v13, 1
+    jumpi v14, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v15 = mul v13, 32
+    v16 = iszero 32
+    v17 = div v15, 32
+    v18 = eq v17, v13
+    v19 = or v16, v18
+    v20 = iszero v19
+    jumpi v20, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v21 = add 32, v15
+    v22 = lt v21, 32
+    jumpi v22, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v23, v15
+    v24 = memory_object_load_field memorystruct<2>, v0, 0
+    v25 = shl 64, v24
+    memory_object_store_word memorybytes, v23, 0, v25
+    v26 = memory_object_load_field memorystruct<2>, v0, 1
+    v27 = memory_object_len memorybytes, v26
+    v28 = add v27, 31
+    v29 = lt v28, v27
+    jumpi v29, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = iszero v31
+    jumpi v32, bb12, bb11
+  bb11:
+    v33 = sub v31, 32
+    v34 = add 32, v33
+    memory_object_store_word memorybytes, v23, v34, 0
+    jump bb12
+  bb12:
+    v35 = memory_object_data memorybytes, v26
+    v36 = make_memory_slice v35, v27
+    memory_object_copy_from_slice_at memorybytes, v23, 32, v36
+    v37 = add 32, v31
+    v38 = keccak256_bytes v23
+    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v38
+    stop
+}
+

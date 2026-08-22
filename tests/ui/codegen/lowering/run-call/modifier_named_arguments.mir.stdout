@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments.sol:ModifierNamedArguments ===
+@module ModifierNamedArguments
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = eq 7, 7
+    v1 = iszero v0
+    jumpi v1, bb2, bb3
+  bb1:
+    ret 7
+  bb2:
+    revert 0, 0
+  bb3:
+    jump bb4
+  bb4:
+    jump bb1
+}
+

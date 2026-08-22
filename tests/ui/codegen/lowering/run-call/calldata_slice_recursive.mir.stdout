@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_slice_recursive.sol:CalldataSliceRecursive ===
+@module CalldataSliceRecursive
+fn @peel(arg0: calldataslice) -> memorybytes [pure] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt v0, 2
+    v2 = make_calldata_slice 0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    v5 = gt v4, 0xffffffffffffffff
+    jumpi v5, bb4, bb5
+  bb2:
+    jump bb3
+  bb3:
+    v15 = slice_ptr arg0
+    v16 = slice_len arg0
+    v17 = gt v16, v16
+    v18 = lt v16, 1
+    v19 = or v17, v18
+    jumpi v19, bb10, bb11
+  bb4:
+    revert 0, 0
+  bb5:
+    v6 = calldatasize
+    v7 = sub v6, v4
+    v8 = sgt v3, v7
+    jumpi v8, bb6, bb7
+  bb6:
+    revert 0, 0
+  bb7:
+    v9 = slice_len arg0
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb8, bb9
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, arg0
+    ret v14
+  bb10:
+    revert 0, 0
+  bb11:
+    v20 = sub v16, 1
+    v21 = add v15, 1
+    v22 = make_calldata_slice v21, v20
+    v23 = internal_call @peel, 1, v22
+    ret v23
+}
+
+fn @use(arg0: calldataslice) -> u256 [selector=0x01bd03f7, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @peel, 1, arg0
+    v1 = memory_object_len memorybytes, v0
+    ret v1
+}
+

@@ -1,0 +1,42 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_packing.sol:ExternalFunctionPointerStoragePacking ===
+@module ExternalFunctionPointerStoragePacking
+fn @_anonymous() [constructor] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xd4b83992
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = and v3, v4
+    v6 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = or v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = shl 192, 0xffffffffffffffff
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and 0x1122334455667788, 0xffffffffffffffff
+    v13 = shl 192, v12
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
+    stop
+}
+
+fn @target() [selector=0xd4b83992, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @high() -> u64 [selector=0x713658f3, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 192, v0
+    ret v1
+}
+
+fn @nextSlot() -> u64 [selector=0x448bdfd7, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+

@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_inline_array_options.sol:FunctionPointerInlineArrayOptions ===
+@module FunctionPointerInlineArrayOptions
+fn @f() -> u256 [selector=0x26121ff0, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = callvalue
+    v1 = gt v0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret 1
+}
+
+fn @g() -> u256 [selector=0xe2179b8e, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = callvalue
+    v1 = gt v0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret 2
+}
+
+fn @h() -> u256 [selector=0xb8c9d365, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0x26121ff0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v3
+    v4 = address
+    v5 = shl 32, v4
+    v6 = or v5, 0xe2179b8e
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v6
+    v7 = lt 0, 2
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v9 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and v10, 0xffffffff
+    v12 = shl 224, v11
+    v13 = shr 32, v10
+    v14 = gas
+    v15 = abi_encode [], selector v12
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = call v14, v13, 1, v16, v17, 0, 32
+    jumpi v18, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v19 = returndata_size
+    v20 = lt v19, 32
+    jumpi v20, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
+}
+

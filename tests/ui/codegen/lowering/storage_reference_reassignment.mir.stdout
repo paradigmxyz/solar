@@ -1,0 +1,199 @@
+// === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
+@module StorageReferenceReassignment
+fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605b6474, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    sstore v0, arg1 !metadata(storage=symbolic(v0))
+    v1 = add arg1, 1
+    v2 = lt v1, arg1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = add v0, 1
+    sstore v3, v1 !metadata(storage=offset(v0, 1))
+    v4 = sload v0 !metadata(storage=symbolic(v0))
+    v5 = internal_call @readB, 1, v0
+    ret v4, v5
+}
+
+fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0xda61745d, abi_args=lazy, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg1, 0
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mapping_slot arg2, 0
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: v0]
+    sstore v2, arg3 !metadata(storage=symbolic(v2))
+    v3 = mapping_slot arg1, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = mapping_slot arg2, 0
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    ret v4, v6
+}
+
+fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xe4706ccb, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    internal_call @rebindParameterInner, 0, v0, arg1, arg2
+    v1 = mapping_slot arg0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = mapping_slot arg1, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v2, v4
+}
+
+fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x5673b02d, abi_args=lazy, abi_params=[u256, u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = mapping_slot arg1, 0
+    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    sstore v0, arg3 !metadata(storage=symbolic(v0))
+    v2 = mapping_slot arg0, 0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = mapping_slot arg1, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v3, v5
+}
+
+fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [selector=0xcccc734d, abi_args=lazy, abi_params=[bool, u256, u256, u8], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg1, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mapping_slot arg2, 1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: v0]
+    v3 = add v2, 1
+    v4 = shl 8, 255
+    v5 = sload v3 !metadata(storage=offset(v2, 1))
+    v6 = not v4
+    v7 = and v5, v6
+    v8 = and arg3, 255
+    v9 = shl 8, v8
+    v10 = or v7, v9
+    sstore v3, v10 !metadata(storage=offset(v2, 1))
+    v11 = mapping_slot arg1, 1
+    v12 = add v11, 1
+    v13 = sload v12 !metadata(storage=offset(v11, 1))
+    v14 = shr 8, v13
+    v15 = and v14, 255
+    v16 = mapping_slot arg2, 1
+    v17 = add v16, 1
+    v18 = sload v17 !metadata(storage=offset(v16, 1))
+    v19 = shr 8, v18
+    v20 = and v19, 255
+    ret v15, v20
+}
+
+fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3c827d72, abi_args=lazy, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 2], [bb2: 1]
+    v1 = mapping_slot arg1, v0
+    sstore v1, arg3 !metadata(storage=symbolic(v1))
+    v2 = mapping_slot arg1, v0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = mapping_slot arg2, v0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v3, v5, 0
+}
+
+fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    v0 = mul 1, 8
+    v1 = shl v0, 255
+    v2 = sload 3 !metadata(storage=slot(3))
+    v3 = not v1
+    v4 = and v2, v3
+    v5 = shl v0, arg0
+    v6 = or v4, v5
+    sstore 3, v6 !metadata(storage=slot(3))
+    ret 1
+}
+
+fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x3edbf013, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = mapping_slot arg1, 0
+    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    v2 = mapping_slot arg0, 0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = mapping_slot arg1, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v3, v5
+}
+
+fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> (u8, u8, u8, u8) [selector=0xe5a9572e, abi_args=lazy, abi_params=[u256, u256, u8], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = mapping_slot arg0, 1
+    v1 = add v0, 1
+    v2 = shl 8, 255
+    v3 = sload v1 !metadata(storage=offset(v0, 1))
+    v4 = not v2
+    v5 = and v3, v4
+    v6 = and 1, 255
+    v7 = shl 8, v6
+    v8 = or v5, v7
+    sstore v1, v8 !metadata(storage=offset(v0, 1))
+    v9 = mapping_slot arg1, 2
+    v10 = add v9, 1
+    v11 = shl 8, 255
+    v12 = sload v10 !metadata(storage=offset(v9, 1))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and arg2, 255
+    v16 = shl 8, v15
+    v17 = or v14, v16
+    sstore v10, v17 !metadata(storage=offset(v9, 1))
+    v18 = mapping_slot arg0, 1
+    v19 = add v18, 1
+    v20 = sload v19 !metadata(storage=offset(v18, 1))
+    v21 = shr 8, v20
+    v22 = and v21, 255
+    v23 = mapping_slot arg1, 1
+    v24 = add v23, 1
+    v25 = sload v24 !metadata(storage=offset(v23, 1))
+    v26 = shr 8, v25
+    v27 = and v26, 255
+    v28 = mapping_slot arg0, 2
+    v29 = add v28, 1
+    v30 = sload v29 !metadata(storage=offset(v28, 1))
+    v31 = shr 8, v30
+    v32 = and v31, 255
+    v33 = mapping_slot arg1, 2
+    v34 = add v33, 1
+    v35 = sload v34 !metadata(storage=offset(v33, 1))
+    v36 = shr 8, v35
+    v37 = and v36, 255
+    ret v22, v27, v32, v37
+}
+
+fn @readB(arg0: storageptr) -> u256 [view] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = sload v0 !metadata(storage=offset(arg0, 1))
+    ret v1
+}
+
+fn @rebindParameterInner(arg0: storageptr, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = mapping_slot arg1, 0
+    sstore v0, arg2 !metadata(storage=symbolic(v0))
+    stop
+}
+

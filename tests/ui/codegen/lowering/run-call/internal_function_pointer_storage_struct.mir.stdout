@@ -1,0 +1,165 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_struct.sol:InternalFunctionPointerStorageStruct ===
+@module InternalFunctionPointerStorageStruct
+fn @firstTarget() -> u256 [pure] {
+  bb0:
+    ret 1
+}
+
+fn @secondTarget() -> u256 [pure] {
+  bb0:
+    ret 2
+}
+
+fn @_anonymous() [constructor] {
+  bb0:
+    v0 = lt 0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = add 0, 0
+    v3 = sload v2 !metadata(storage=slot(0))
+    v4 = not 0xffff
+    v5 = and v3, v4
+    v6 = and 0xff07, 0xffff
+    v7 = or v5, v6
+    sstore v2, v7 !metadata(storage=slot(0))
+    v8 = lt 0, 2
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v10 = add 0, 0
+    v11 = shl 80, 0xffff
+    v12 = sload v10 !metadata(storage=slot(0))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and 0xff07, 0xffff
+    v16 = shl 80, v15
+    v17 = or v14, v16
+    sstore v10, v17 !metadata(storage=slot(0))
+    v18 = lt 1, 2
+    v19 = iszero v18
+    jumpi v19, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v20 = add 0, 1
+    v21 = shl 16, 0xffffffffffffffff
+    v22 = sload v20 !metadata(storage=slot(1))
+    v23 = not v21
+    v24 = and v22, v23
+    v25 = and 2, 0xffffffffffffffff
+    v26 = shl 16, v25
+    v27 = or v24, v26
+    sstore v20, v27 !metadata(storage=slot(1))
+    v28 = lt 1, 2
+    v29 = iszero v28
+    jumpi v29, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v30 = add 0, 1
+    v31 = sload v30 !metadata(storage=slot(1))
+    v32 = not 0xffff
+    v33 = and v31, v32
+    v34 = and 0xff07, 0xffff
+    v35 = or v33, v34
+    sstore v30, v35 !metadata(storage=slot(1))
+    v36 = lt 1, 2
+    v37 = iszero v36
+    jumpi v37, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v38 = add 0, 1
+    v39 = shl 80, 0xffff
+    v40 = sload v38 !metadata(storage=slot(1))
+    v41 = not v39
+    v42 = and v40, v41
+    v43 = and 0xff07, 0xffff
+    v44 = shl 80, v43
+    v45 = or v42, v44
+    sstore v38, v45 !metadata(storage=slot(1))
+    v46 = lt 0, 2
+    v47 = iszero v46
+    jumpi v47, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v48 = add 0, 0
+    v49 = shl 16, 0xffffffffffffffff
+    v50 = sload v48 !metadata(storage=slot(0))
+    v51 = not v49
+    v52 = and v50, v51
+    v53 = and 1, 0xffffffffffffffff
+    v54 = shl 16, v53
+    v55 = or v52, v54
+    sstore v48, v55 !metadata(storage=slot(0))
+    stop
+}
+
+fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = lt 0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = add 0, 0
+    v3 = sload v2 !metadata(storage=slot(0))
+    v4 = shr 16, v3
+    v5 = and v4, 0xffffffffffffffff
+    v6 = internal_call @__internal_dispatch_0, 1, v5
+    v7 = lt 1, 2
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = add 0, 1
+    v10 = sload v9 !metadata(storage=slot(1))
+    v11 = shr 16, v10
+    v12 = and v11, 0xffffffffffffffff
+    v13 = internal_call @__internal_dispatch_0, 1, v12
+    ret v6, v13
+}
+
+fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call @firstTarget, 1
+    ret v1
+  bb2:
+    v2 = eq arg0, 2
+    jumpi v2, bb3, bb4
+  bb3:
+    v3 = internal_call @secondTarget, 1
+    ret v3
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+

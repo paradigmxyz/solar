@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage.sol:FixedBytesStorage ===
+@module FixedBytesStorage
+fn @_anonymous() [constructor] {
+  bb0:
+    v0 = shl 16, 0xffff
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not v0
+    v3 = and v1, v2
+    v4 = shr 240, 0xbbcc000000000000000000000000000000000000000000000000000000000000
+    v5 = and v4, 0xffff
+    v6 = shl 16, v5
+    v7 = or v3, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = shl 248, 170
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 255
+    v11 = and v9, v10
+    v12 = shr 248, v8
+    v13 = and v12, 255
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
+    v15 = shl 8, 255
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = not v15
+    v18 = and v16, v17
+    v19 = and 17, 255
+    v20 = shl 8, v19
+    v21 = or v18, v20
+    sstore 0, v21 !metadata(storage=slot(0))
+    v22 = sub 0, 2
+    v23 = shl 32, 255
+    v24 = sload 0 !metadata(storage=slot(0))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and v22, 255
+    v28 = shl 32, v27
+    v29 = or v26, v28
+    sstore 0, v29 !metadata(storage=slot(0))
+    v30 = shl 232, 0xddeeff
+    v31 = shl 40, 0xffffff
+    v32 = sload 0 !metadata(storage=slot(0))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = shr 232, v30
+    v36 = and v35, 0xffffff
+    v37 = shl 40, v36
+    v38 = or v34, v37
+    sstore 0, v38 !metadata(storage=slot(0))
+    stop
+}
+
+fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    v2 = shl 248, v1
+    v3 = shr 248, v2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = shr 8, v4
+    v6 = and v5, 255
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = shr 16, v7
+    v9 = and v8, 0xffff
+    v10 = shl 240, v9
+    v11 = shr 240, v10
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = shr 32, v12
+    v14 = and v13, 255
+    v15 = signextend 0, v14
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = shr 40, v16
+    v18 = and v17, 0xffffff
+    v19 = shl 232, v18
+    v20 = shr 232, v19
+    ret v3, v6, v11, v15, v20
+}
+
+fn @raw() -> bytes32 [selector=0xc096a632, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @selector() -> (bytes4, u32) [selector=0xea3d508a, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = calldataload 0
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v4 = shr 224, v3
+    ret v1, v4
+}
+

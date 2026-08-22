@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_storage_tuple.sol:MixedMemoryTuple ===
+@module MixedMemoryTuple
+fn @f() -> (u256, storageptr) [view] {
+  bb0:
+    ret 7, 0
+}
+
+fn @declared() -> u256 [selector=0xfd2ed72a, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 0, 11 !metadata(storage=slot(0))
+    v0 = add 0, 1
+    sstore v0, 22 !metadata(storage=slot(1))
+    v1 = internal_call @f, 2
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    memory_object_store_field memorystruct<2>, v5, 0, v6
+    v7 = add v4, 1
+    v8 = sload v7 !metadata(storage=offset(v4, 1))
+    memory_object_store_field memorystruct<2>, v5, 1, v8
+    sstore 0, 99 !metadata(storage=slot(0))
+    v9 = mul v1, 0x3e8
+    v10 = iszero 0x3e8
+    v11 = div v9, 0x3e8
+    v12 = eq v11, v1
+    v13 = or v10, v12
+    v14 = iszero v13
+    jumpi v14, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v15 = memory_object_load_field memorystruct<2>, v5, 0
+    v16 = mul v15, 10
+    v17 = iszero 10
+    v18 = div v16, 10
+    v19 = eq v18, v15
+    v20 = or v17, v19
+    v21 = iszero v20
+    jumpi v21, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v22 = add v9, v16
+    v23 = lt v22, v9
+    jumpi v23, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v24 = memory_object_load_field memorystruct<2>, v5, 1
+    v25 = add v22, v24
+    v26 = lt v25, v22
+    jumpi v26, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    ret v25
+}
+
+fn @assigned() -> u256 [selector=0xadb4d990, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 0, 11 !metadata(storage=slot(0))
+    v0 = add 0, 1
+    sstore v0, 22 !metadata(storage=slot(1))
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v1, 0, 1
+    memory_object_store_field memorystruct<2>, v1, 1, 2
+    v2 = internal_call @f, 2
+    v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v4 = add v3, 32
+    v5 = mload v4
+    sstore 2, v2 !metadata(storage=slot(2))
+    v6 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v7 = sload v5 !metadata(storage=symbolic(v5))
+    memory_object_store_field memorystruct<2>, v6, 0, v7
+    v8 = add v5, 1
+    v9 = sload v8 !metadata(storage=offset(v5, 1))
+    memory_object_store_field memorystruct<2>, v6, 1, v9
+    v10 = add 0, 1
+    sstore v10, 77 !metadata(storage=slot(1))
+    v11 = sload 2 !metadata(storage=slot(2))
+    v12 = mul v11, 0x2710
+    v13 = iszero 0x2710
+    v14 = div v12, 0x2710
+    v15 = eq v14, v11
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v18 = memory_object_load_field memorystruct<2>, v6, 0
+    v19 = mul v18, 100
+    v20 = iszero 100
+    v21 = div v19, 100
+    v22 = eq v21, v18
+    v23 = or v20, v22
+    v24 = iszero v23
+    jumpi v24, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v25 = add v12, v19
+    v26 = lt v25, v12
+    jumpi v26, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v27 = memory_object_load_field memorystruct<2>, v6, 1
+    v28 = add v25, v27
+    v29 = lt v28, v25
+    jumpi v29, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    ret v28
+}
+

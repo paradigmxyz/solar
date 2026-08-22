@@ -1,0 +1,313 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
+@module DoWhileContinue
+fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb9: v0]
+    v1 = phi [bb0: 0], [bb9: v3]
+    v2 = gt v1, 0
+    jumpi v2, bb4, bb5
+  bb2:
+    ret 42
+  bb3:
+    jumpi 0, bb9, bb10
+  bb4:
+    ret 0
+  bb5:
+    jump bb6
+  bb6:
+    v3 = add v1, 1
+    v4 = lt v3, v1
+    jumpi v4, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    jump bb3
+  bb9:
+    jump bb1
+  bb10:
+    jump bb2
+  bb11:
+    invalid
+}
+
+fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb6: v1]
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb4, bb5
+  bb2:
+    ret v1
+  bb3:
+    v3 = lt v1, 3
+    jumpi v3, bb6, bb7
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jump bb3
+  bb6:
+    jump bb1
+  bb7:
+    jump bb2
+  bb8:
+    invalid
+}
+
+fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb8: v2]
+    v1 = phi [bb0: 0], [bb8: v4]
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb2:
+    ret v2, v4
+  bb3:
+    v4 = add v1, 1
+    v5 = lt v4, v1
+    jumpi v5, bb6, bb7
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jump bb3
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v6 = lt v4, 2
+    jumpi v6, bb8, bb9
+  bb8:
+    jump bb1
+  bb9:
+    jump bb2
+  bb10:
+    invalid
+}
+
+fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb11: v2]
+    v1 = phi [bb0: 0], [bb11: v7]
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb2:
+    ret v7
+  bb3:
+    v7 = phi [bb10: v5], [bb6: v1]
+    v8 = lt v2, 4
+    jumpi v8, bb11, bb12
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v4 = lt v2, 3
+    jumpi v4, bb6, bb7
+  bb6:
+    jump bb3
+  bb7:
+    jump bb8
+  bb8:
+    v5 = add v1, 10
+    v6 = lt v5, v1
+    jumpi v6, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    jump bb3
+  bb11:
+    jump bb1
+  bb12:
+    jump bb2
+  bb13:
+    invalid
+}
+
+fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb16: v9]
+    v1 = phi [bb0: 0], [bb16: v5]
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb2:
+    ret v9
+  bb3:
+    v12 = lt v5, 2
+    jumpi v12, bb16, bb17
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jump bb6
+  bb6:
+    v4 = phi [bb5: v0], [bb13: v9]
+    v5 = phi [bb5: v2], [bb13: v5]
+    v6 = phi [bb5: 0], [bb13: v7]
+    v7 = add v6, 1
+    v8 = lt v7, v6
+    jumpi v8, bb9, bb10
+  bb7:
+    jump bb3
+  bb8:
+    v11 = lt v7, 3
+    jumpi v11, bb13, bb14
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v9 = add v4, 1
+    v10 = lt v9, v4
+    jumpi v10, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    jump bb8
+  bb13:
+    jump bb6
+  bb14:
+    jump bb7
+  bb15:
+    invalid
+  bb16:
+    jump bb1
+  bb17:
+    jump bb2
+  bb18:
+    invalid
+}
+
+fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb7: v2]
+    v1 = lt v0, 3
+    jumpi v1, bb3, bb4
+  bb2:
+    ret v0
+  bb3:
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb6, bb7
+  bb4:
+    jump bb2
+  bb5:
+    invalid
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    jump bb1
+}
+
+fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v8], [bb12: v6]
+    v1 = phi [bb0: 0], [bb5: v3], [bb12: v3]
+    v2 = lt v1, 4
+    jumpi v2, bb3, bb4
+  bb2:
+    ret v0
+  bb3:
+    v3 = add v1, 1
+    v4 = lt v3, v1
+    jumpi v4, bb6, bb7
+  bb4:
+    jump bb2
+  bb5:
+    jump bb1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v5 = lt v3, 3
+    jumpi v5, bb8, bb9
+  bb8:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb11, bb12
+  bb9:
+    jump bb10
+  bb10:
+    v8 = add v0, 10
+    v9 = lt v8, v0
+    jumpi v9, bb13, bb14
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    jump bb1
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    jump bb5
+}
+
+fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb6: v2]
+    v1 = phi [bb0: 1], [bb6: v1]
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb2:
+    v5 = add v1, v2
+    v6 = lt v5, v1
+    jumpi v6, bb9, bb10
+  bb3:
+    v4 = lt v2, 4
+    jumpi v4, bb6, bb7
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jump bb3
+  bb6:
+    jump bb1
+  bb7:
+    jump bb2
+  bb8:
+    invalid
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    ret v5
+}
+

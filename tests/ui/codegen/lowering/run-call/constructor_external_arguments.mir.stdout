@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
+@module ConstructorExternalArguments
+fn @_anonymous(arg0: bytes3, arg1: bool) [constructor, abi_args=lazy, abi_params=[bytes3, bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = shr 232, arg0
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = shl 24, 255
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not v6
+    v9 = and v7, v8
+    v10 = and arg1, 255
+    v11 = shl 24, v10
+    v12 = or v9, v11
+    sstore 0, v12 !metadata(storage=slot(0))
+    stop
+}
+
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 24, v0
+    v2 = and v1, 255
+    ret v2
+}
+

@@ -1,0 +1,9 @@
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/codegen/lowering/modifier_overriding_constructor.sol:LL:CC
+   │
+LL │ ┏     function getData() public returns (uint256 r) {
+LL │ ┃
+LL │ ┃         return data;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

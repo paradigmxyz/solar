@@ -1,0 +1,115 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrderChild ===
+@module CreationEvaluationOrderChild
+fn @_anonymous(arg0: u256) [constructor, payable, abi_args=lazy, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
+@module CreationEvaluationOrder
+fn @valueOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 2
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @saltOpt() -> bytes32 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 3
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @arg() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 4
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 1
+}
+
+fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @valueOpt, 1
+    v1 = internal_call @saltOpt, 1
+    v2 = internal_call @arg, 1
+    v3 = abi_encode [word], args v2
+    v4 = not 31
+    v5 = and 199, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, 136
+    memory_object_store_word memorybytes, v6, 0, 0x6068380380606860c03960c001601f017fffffffffffffffffffffffffffffff
+    memory_object_store_word memorybytes, v6, 32, 0xffffffffffffffffffffffffffffffffe01660405260c060c060683803016020
+    memory_object_store_word memorybytes, v6, 64, 0x82018281109250118117905015605b576057565b605f565b5f80fd5b6053565b
+    memory_object_store_word memorybytes, v6, 96, 0x5f8060685f395ff3000000000000000000000000000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v6, 104, v3
+    v7 = memory_object_data memorybytes, v6
+    v8 = create2 v0, v7, 136, v1
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+}
+

@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_memory_calldata_v1.sol:AbiEncodeMemoryCalldataV1 ===
+@module AbiEncodeMemoryCalldataV1
+fn @f(arg0: memoryarray, arg1: calldataslice) -> bytes32 [selector=0x510dd1f5, pure, abi_args=lazy, abi_params=[array<_, u256>, bytes], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [memory_array<word>, calldata_bytes], args arg0, arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @g(arg0: memoryarray, arg1: calldataslice) -> bytes32 [selector=0x876f6047, pure, abi_args=lazy, abi_params=[array<_, u256>, bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @f, 1, arg0, arg1
+    ret v0
+}
+

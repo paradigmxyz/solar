@@ -1,0 +1,446 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
+@module StoragePackedArrayCopy
+fn @_anonymous() [constructor] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb10: v19]
+    v1 = lt v0, 9
+    jumpi v1, bb4, bb5
+  bb2:
+    v21 = shl 192, 2
+    v22 = lt 8, 10
+    v23 = iszero v22
+    jumpi v23, bb11, bb12
+  bb3:
+    v19 = add v0, 1
+    v20 = lt v19, v0
+    jumpi v20, bb9, bb10
+  bb4:
+    v2 = and v0, 0xffffffffffffffff
+    v3 = shl 192, v2
+    v4 = lt v0, 9
+    v5 = iszero v4
+    jumpi v5, bb7, bb8
+  bb5:
+    jump bb2
+  bb6:
+    jump bb3
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v6 = div v0, 4
+    v7 = add 0, v6
+    v8 = mod v0, 4
+    v9 = mul v8, 8
+    v10 = mul v9, 8
+    v11 = shl v10, 0xffffffffffffffff
+    v12 = sload v7 !metadata(storage=symbolic(v6))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = shr 192, v3
+    v16 = and v15, 0xffffffffffffffff
+    v17 = shl v10, v16
+    v18 = or v14, v17
+    sstore v7, v18 !metadata(storage=symbolic(v6))
+    jump bb6
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    jump bb1
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v24 = div 8, 1
+    v25 = add 3, v24
+    v26 = mod 8, 1
+    v27 = mul v26, 17
+    v28 = mul v27, 8
+    v29 = shl v28, 0xffffffffffffffffffffffffffffffffff
+    v30 = sload v25 !metadata(storage=offset(v24, 3))
+    v31 = not v29
+    v32 = and v30, v31
+    v33 = shr 120, v21
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffff
+    v35 = shl v28, v34
+    v36 = or v32, v35
+    sstore v25, v36 !metadata(storage=offset(v24, 3))
+    v37 = shl 192, 2
+    v38 = lt 9, 10
+    v39 = iszero v38
+    jumpi v39, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v40 = div 9, 1
+    v41 = add 3, v40
+    v42 = mod 9, 1
+    v43 = mul v42, 17
+    v44 = mul v43, 8
+    v45 = shl v44, 0xffffffffffffffffffffffffffffffffff
+    v46 = sload v41 !metadata(storage=offset(v40, 3))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = shr 120, v37
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffff
+    v51 = shl v44, v50
+    v52 = or v48, v51
+    sstore v41, v52 !metadata(storage=offset(v40, 3))
+    stop
+}
+
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
+    v1 = div 0, 4
+    v2 = add 0, v1
+    v3 = mod 0, 4
+    v4 = mul v3, 8
+    v5 = sload v2 !metadata(storage=symbolic(v1))
+    v6 = mul v4, 8
+    v7 = shr v6, v5
+    v8 = and v7, 0xffffffffffffffff
+    v9 = shl 192, v8
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 0, v9
+    v10 = div 1, 4
+    v11 = add 0, v10
+    v12 = mod 1, 4
+    v13 = mul v12, 8
+    v14 = sload v11 !metadata(storage=symbolic(v10))
+    v15 = mul v13, 8
+    v16 = shr v15, v14
+    v17 = and v16, 0xffffffffffffffff
+    v18 = shl 192, v17
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 1, v18
+    v19 = div 2, 4
+    v20 = add 0, v19
+    v21 = mod 2, 4
+    v22 = mul v21, 8
+    v23 = sload v20 !metadata(storage=symbolic(v19))
+    v24 = mul v22, 8
+    v25 = shr v24, v23
+    v26 = and v25, 0xffffffffffffffff
+    v27 = shl 192, v26
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 2, v27
+    v28 = div 3, 4
+    v29 = add 0, v28
+    v30 = mod 3, 4
+    v31 = mul v30, 8
+    v32 = sload v29 !metadata(storage=symbolic(v28))
+    v33 = mul v31, 8
+    v34 = shr v33, v32
+    v35 = and v34, 0xffffffffffffffff
+    v36 = shl 192, v35
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 3, v36
+    v37 = div 4, 4
+    v38 = add 0, v37
+    v39 = mod 4, 4
+    v40 = mul v39, 8
+    v41 = sload v38 !metadata(storage=symbolic(v37))
+    v42 = mul v40, 8
+    v43 = shr v42, v41
+    v44 = and v43, 0xffffffffffffffff
+    v45 = shl 192, v44
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 4, v45
+    v46 = div 5, 4
+    v47 = add 0, v46
+    v48 = mod 5, 4
+    v49 = mul v48, 8
+    v50 = sload v47 !metadata(storage=symbolic(v46))
+    v51 = mul v49, 8
+    v52 = shr v51, v50
+    v53 = and v52, 0xffffffffffffffff
+    v54 = shl 192, v53
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 5, v54
+    v55 = div 6, 4
+    v56 = add 0, v55
+    v57 = mod 6, 4
+    v58 = mul v57, 8
+    v59 = sload v56 !metadata(storage=symbolic(v55))
+    v60 = mul v58, 8
+    v61 = shr v60, v59
+    v62 = and v61, 0xffffffffffffffff
+    v63 = shl 192, v62
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 6, v63
+    v64 = div 7, 4
+    v65 = add 0, v64
+    v66 = mod 7, 4
+    v67 = mul v66, 8
+    v68 = sload v65 !metadata(storage=symbolic(v64))
+    v69 = mul v67, 8
+    v70 = shr v69, v68
+    v71 = and v70, 0xffffffffffffffff
+    v72 = shl 192, v71
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 7, v72
+    v73 = div 8, 4
+    v74 = add 0, v73
+    v75 = mod 8, 4
+    v76 = mul v75, 8
+    v77 = sload v74 !metadata(storage=symbolic(v73))
+    v78 = mul v76, 8
+    v79 = shr v78, v77
+    v80 = and v79, 0xffffffffffffffff
+    v81 = shl 192, v80
+    memory_object_store_element memoryfixedarray<9, 1>, v0, 8, v81
+    v82 = div 0, 1
+    v83 = add 3, v82
+    v84 = mod 0, 1
+    v85 = mul v84, 17
+    v86 = memory_object_load_element memoryfixedarray<9, 1>, v0, 0
+    v87 = mul v85, 8
+    v88 = shl v87, 0xffffffffffffffffffffffffffffffffff
+    v89 = sload v83 !metadata(storage=offset(v82, 3))
+    v90 = not v88
+    v91 = and v89, v90
+    v92 = shr 120, v86
+    v93 = and v92, 0xffffffffffffffffffffffffffffffffff
+    v94 = shl v87, v93
+    v95 = or v91, v94
+    sstore v83, v95 !metadata(storage=offset(v82, 3))
+    v96 = div 1, 1
+    v97 = add 3, v96
+    v98 = mod 1, 1
+    v99 = mul v98, 17
+    v100 = memory_object_load_element memoryfixedarray<9, 1>, v0, 1
+    v101 = mul v99, 8
+    v102 = shl v101, 0xffffffffffffffffffffffffffffffffff
+    v103 = sload v97 !metadata(storage=offset(v96, 3))
+    v104 = not v102
+    v105 = and v103, v104
+    v106 = shr 120, v100
+    v107 = and v106, 0xffffffffffffffffffffffffffffffffff
+    v108 = shl v101, v107
+    v109 = or v105, v108
+    sstore v97, v109 !metadata(storage=offset(v96, 3))
+    v110 = div 2, 1
+    v111 = add 3, v110
+    v112 = mod 2, 1
+    v113 = mul v112, 17
+    v114 = memory_object_load_element memoryfixedarray<9, 1>, v0, 2
+    v115 = mul v113, 8
+    v116 = shl v115, 0xffffffffffffffffffffffffffffffffff
+    v117 = sload v111 !metadata(storage=offset(v110, 3))
+    v118 = not v116
+    v119 = and v117, v118
+    v120 = shr 120, v114
+    v121 = and v120, 0xffffffffffffffffffffffffffffffffff
+    v122 = shl v115, v121
+    v123 = or v119, v122
+    sstore v111, v123 !metadata(storage=offset(v110, 3))
+    v124 = div 3, 1
+    v125 = add 3, v124
+    v126 = mod 3, 1
+    v127 = mul v126, 17
+    v128 = memory_object_load_element memoryfixedarray<9, 1>, v0, 3
+    v129 = mul v127, 8
+    v130 = shl v129, 0xffffffffffffffffffffffffffffffffff
+    v131 = sload v125 !metadata(storage=offset(v124, 3))
+    v132 = not v130
+    v133 = and v131, v132
+    v134 = shr 120, v128
+    v135 = and v134, 0xffffffffffffffffffffffffffffffffff
+    v136 = shl v129, v135
+    v137 = or v133, v136
+    sstore v125, v137 !metadata(storage=offset(v124, 3))
+    v138 = div 4, 1
+    v139 = add 3, v138
+    v140 = mod 4, 1
+    v141 = mul v140, 17
+    v142 = memory_object_load_element memoryfixedarray<9, 1>, v0, 4
+    v143 = mul v141, 8
+    v144 = shl v143, 0xffffffffffffffffffffffffffffffffff
+    v145 = sload v139 !metadata(storage=offset(v138, 3))
+    v146 = not v144
+    v147 = and v145, v146
+    v148 = shr 120, v142
+    v149 = and v148, 0xffffffffffffffffffffffffffffffffff
+    v150 = shl v143, v149
+    v151 = or v147, v150
+    sstore v139, v151 !metadata(storage=offset(v138, 3))
+    v152 = div 5, 1
+    v153 = add 3, v152
+    v154 = mod 5, 1
+    v155 = mul v154, 17
+    v156 = memory_object_load_element memoryfixedarray<9, 1>, v0, 5
+    v157 = mul v155, 8
+    v158 = shl v157, 0xffffffffffffffffffffffffffffffffff
+    v159 = sload v153 !metadata(storage=offset(v152, 3))
+    v160 = not v158
+    v161 = and v159, v160
+    v162 = shr 120, v156
+    v163 = and v162, 0xffffffffffffffffffffffffffffffffff
+    v164 = shl v157, v163
+    v165 = or v161, v164
+    sstore v153, v165 !metadata(storage=offset(v152, 3))
+    v166 = div 6, 1
+    v167 = add 3, v166
+    v168 = mod 6, 1
+    v169 = mul v168, 17
+    v170 = memory_object_load_element memoryfixedarray<9, 1>, v0, 6
+    v171 = mul v169, 8
+    v172 = shl v171, 0xffffffffffffffffffffffffffffffffff
+    v173 = sload v167 !metadata(storage=offset(v166, 3))
+    v174 = not v172
+    v175 = and v173, v174
+    v176 = shr 120, v170
+    v177 = and v176, 0xffffffffffffffffffffffffffffffffff
+    v178 = shl v171, v177
+    v179 = or v175, v178
+    sstore v167, v179 !metadata(storage=offset(v166, 3))
+    v180 = div 7, 1
+    v181 = add 3, v180
+    v182 = mod 7, 1
+    v183 = mul v182, 17
+    v184 = memory_object_load_element memoryfixedarray<9, 1>, v0, 7
+    v185 = mul v183, 8
+    v186 = shl v185, 0xffffffffffffffffffffffffffffffffff
+    v187 = sload v181 !metadata(storage=offset(v180, 3))
+    v188 = not v186
+    v189 = and v187, v188
+    v190 = shr 120, v184
+    v191 = and v190, 0xffffffffffffffffffffffffffffffffff
+    v192 = shl v185, v191
+    v193 = or v189, v192
+    sstore v181, v193 !metadata(storage=offset(v180, 3))
+    v194 = div 8, 1
+    v195 = add 3, v194
+    v196 = mod 8, 1
+    v197 = mul v196, 17
+    v198 = memory_object_load_element memoryfixedarray<9, 1>, v0, 8
+    v199 = mul v197, 8
+    v200 = shl v199, 0xffffffffffffffffffffffffffffffffff
+    v201 = sload v195 !metadata(storage=offset(v194, 3))
+    v202 = not v200
+    v203 = and v201, v202
+    v204 = shr 120, v198
+    v205 = and v204, 0xffffffffffffffffffffffffffffffffff
+    v206 = shl v199, v205
+    v207 = or v203, v206
+    sstore v195, v207 !metadata(storage=offset(v194, 3))
+    v208 = div 9, 1
+    v209 = add 3, v208
+    v210 = mod 9, 1
+    v211 = mul v210, 17
+    v212 = mul v211, 8
+    v213 = shl v212, 0xffffffffffffffffffffffffffffffffff
+    v214 = sload v209 !metadata(storage=offset(v208, 3))
+    v215 = not v213
+    v216 = and v214, v215
+    v217 = shr 120, 0
+    v218 = and v217, 0xffffffffffffffffffffffffffffffffff
+    v219 = shl v212, v218
+    v220 = or v216, v219
+    sstore v209, v220 !metadata(storage=offset(v208, 3))
+    jump bb1
+  bb1:
+    v221 = phi [bb0: 0], [bb12: v237]
+    v222 = phi [bb0: 0], [bb12: v239]
+    v223 = phi [bb0: 0], [bb12: v223]
+    v224 = lt v222, 9
+    jumpi v224, bb4, bb5
+  bb2:
+    jump bb13
+  bb3:
+    v239 = add v222, 1
+    v240 = lt v239, v222
+    jumpi v240, bb11, bb12
+  bb4:
+    v225 = lt v222, 9
+    v226 = iszero v225
+    jumpi v226, bb7, bb8
+  bb5:
+    jump bb2
+  bb6:
+    jump bb3
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v227 = div v222, 4
+    v228 = add 0, v227
+    v229 = mod v222, 4
+    v230 = mul v229, 8
+    v231 = sload v228 !metadata(storage=symbolic(v227))
+    v232 = mul v230, 8
+    v233 = shr v232, v231
+    v234 = and v233, 0xffffffffffffffff
+    v235 = shl 192, v234
+    v236 = shr 192, v235
+    v237 = add v221, v236
+    v238 = lt v237, v221
+    jumpi v238, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    jump bb6
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    jump bb1
+  bb13:
+    v241 = phi [bb2: v221], [bb24: v241]
+    v242 = phi [bb2: v222], [bb24: v242]
+    v243 = phi [bb2: v223], [bb24: v259]
+    v244 = phi [bb2: 0], [bb24: v261]
+    v245 = lt v244, 10
+    jumpi v245, bb16, bb17
+  bb14:
+    ret v241, v243
+  bb15:
+    v261 = add v244, 1
+    v262 = lt v261, v244
+    jumpi v262, bb23, bb24
+  bb16:
+    v246 = lt v244, 10
+    v247 = iszero v246
+    jumpi v247, bb19, bb20
+  bb17:
+    jump bb14
+  bb18:
+    jump bb15
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    v248 = div v244, 1
+    v249 = add 3, v248
+    v250 = mod v244, 1
+    v251 = mul v250, 17
+    v252 = sload v249 !metadata(storage=offset(v248, 3))
+    v253 = mul v251, 8
+    v254 = shr v253, v252
+    v255 = and v254, 0xffffffffffffffffffffffffffffffffff
+    v256 = shl 120, v255
+    v257 = and v256, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v258 = shr 192, v257
+    v259 = add v243, v258
+    v260 = lt v259, v243
+    jumpi v260, bb21, bb22
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb22:
+    jump bb18
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb24:
+    jump bb13
+}
+

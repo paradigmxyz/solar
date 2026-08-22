@@ -1,0 +1,159 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
+@module ExternalCallEvaluationOrder
+fn @receiver() -> address {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 1
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = address
+    ret v9
+}
+
+fn @arg() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 4
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 7
+}
+
+fn @gasOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 2
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = gas
+    ret v9
+}
+
+fn @valueOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 3
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @receiver, 1
+    v1 = gas
+    v2 = internal_call @arg, 1
+    v3 = abi_encode [word], selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v0
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = call v1, v0, 0, v4, v5, 0, 0
+    jumpi v8, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+}
+
+fn @callOptions() -> u256 [selector=0xec5f47fe, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = internal_call @gasOpt, 1
+    v3 = internal_call @valueOpt, 1
+    v4 = internal_call @arg, 1
+    v5 = abi_encode [word], selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = call v2, v0, v3, v6, v7, 0, 0
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+}
+

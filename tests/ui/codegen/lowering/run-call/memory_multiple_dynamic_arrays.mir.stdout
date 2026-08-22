@@ -1,0 +1,462 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_multiple_dynamic_arrays.sol:MemoryMultipleDynamicArrays ===
+@module MemoryMultipleDynamicArrays
+fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 0x560
+    set_memory_object_len memoryarray, v0, 42
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, 1
+    v2 = memory_object_len memoryarray, v0
+    v3 = lt 0, v2
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, 0, v1
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = iszero v6
+    jumpi v7, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v8 = memory_object_load_element memoryarray<1>, v0, 0
+    v9 = eq v8, 0
+    jumpi v9, bb5, bb6
+  bb5:
+    v10 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v10, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v10
+    jump bb6
+  bb6:
+    v11 = phi [bb4: v8], [bb5: v10]
+    v12 = memory_object_len memoryarray, v11
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    memory_object_store_element memoryarray<1>, v11, 0, 1
+    v15 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v15, 1
+    v16 = memory_object_len memoryarray, v0
+    v17 = lt 4, v16
+    v18 = iszero v17
+    jumpi v18, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    memory_object_store_element memoryarray<1>, v0, 4, v15
+    v19 = memory_object_len memoryarray, v0
+    v20 = lt 4, v19
+    v21 = iszero v20
+    jumpi v21, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v22 = memory_object_load_element memoryarray<1>, v0, 4
+    v23 = eq v22, 0
+    jumpi v23, bb13, bb14
+  bb13:
+    v24 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v24, 0
+    memory_object_store_element memoryarray<1>, v0, 4, v24
+    jump bb14
+  bb14:
+    v25 = phi [bb12: v22], [bb13: v24]
+    v26 = memory_object_len memoryarray, v25
+    v27 = lt 0, v26
+    v28 = iszero v27
+    jumpi v28, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    memory_object_store_element memoryarray<1>, v25, 0, 2
+    v29 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v29, 1
+    v30 = memory_object_len memoryarray, v0
+    v31 = lt 10, v30
+    v32 = iszero v31
+    jumpi v32, bb17, bb18
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    memory_object_store_element memoryarray<1>, v0, 10, v29
+    v33 = memory_object_len memoryarray, v0
+    v34 = lt 10, v33
+    v35 = iszero v34
+    jumpi v35, bb19, bb20
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    v36 = memory_object_load_element memoryarray<1>, v0, 10
+    v37 = eq v36, 0
+    jumpi v37, bb21, bb22
+  bb21:
+    v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v38, 0
+    memory_object_store_element memoryarray<1>, v0, 10, v38
+    jump bb22
+  bb22:
+    v39 = phi [bb20: v36], [bb21: v38]
+    v40 = memory_object_len memoryarray, v39
+    v41 = lt 0, v40
+    v42 = iszero v41
+    jumpi v42, bb23, bb24
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb24:
+    memory_object_store_element memoryarray<1>, v39, 0, 44
+    v43 = alloc memoryarray<1>, exact, zeroed, panic, 800
+    set_memory_object_len memoryarray, v43, 24
+    v44 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v44, 1
+    v45 = memory_object_len memoryarray, v43
+    v46 = lt 0, v45
+    v47 = iszero v46
+    jumpi v47, bb25, bb26
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb26:
+    memory_object_store_element memoryarray<1>, v43, 0, v44
+    v48 = memory_object_len memoryarray, v43
+    v49 = lt 0, v48
+    v50 = iszero v49
+    jumpi v50, bb27, bb28
+  bb27:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb28:
+    v51 = memory_object_load_element memoryarray<1>, v43, 0
+    v52 = eq v51, 0
+    jumpi v52, bb29, bb30
+  bb29:
+    v53 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v53, 0
+    memory_object_store_element memoryarray<1>, v43, 0, v53
+    jump bb30
+  bb30:
+    v54 = phi [bb28: v51], [bb29: v53]
+    v55 = memory_object_len memoryarray, v54
+    v56 = lt 0, v55
+    v57 = iszero v56
+    jumpi v57, bb31, bb32
+  bb31:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb32:
+    memory_object_store_element memoryarray<1>, v54, 0, 1
+    v58 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v58, 1
+    v59 = memory_object_len memoryarray, v43
+    v60 = lt 4, v59
+    v61 = iszero v60
+    jumpi v61, bb33, bb34
+  bb33:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb34:
+    memory_object_store_element memoryarray<1>, v43, 4, v58
+    v62 = memory_object_len memoryarray, v43
+    v63 = lt 4, v62
+    v64 = iszero v63
+    jumpi v64, bb35, bb36
+  bb35:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb36:
+    v65 = memory_object_load_element memoryarray<1>, v43, 4
+    v66 = eq v65, 0
+    jumpi v66, bb37, bb38
+  bb37:
+    v67 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v67, 0
+    memory_object_store_element memoryarray<1>, v43, 4, v67
+    jump bb38
+  bb38:
+    v68 = phi [bb36: v65], [bb37: v67]
+    v69 = memory_object_len memoryarray, v68
+    v70 = lt 0, v69
+    v71 = iszero v70
+    jumpi v71, bb39, bb40
+  bb39:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb40:
+    memory_object_store_element memoryarray<1>, v68, 0, 2
+    v72 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v72, 1
+    v73 = memory_object_len memoryarray, v43
+    v74 = lt 10, v73
+    v75 = iszero v74
+    jumpi v75, bb41, bb42
+  bb41:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb42:
+    memory_object_store_element memoryarray<1>, v43, 10, v72
+    v76 = memory_object_len memoryarray, v43
+    v77 = lt 10, v76
+    v78 = iszero v77
+    jumpi v78, bb43, bb44
+  bb43:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb44:
+    v79 = memory_object_load_element memoryarray<1>, v43, 10
+    v80 = eq v79, 0
+    jumpi v80, bb45, bb46
+  bb45:
+    v81 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v81, 0
+    memory_object_store_element memoryarray<1>, v43, 10, v81
+    jump bb46
+  bb46:
+    v82 = phi [bb44: v79], [bb45: v81]
+    v83 = memory_object_len memoryarray, v82
+    v84 = lt 0, v83
+    v85 = iszero v84
+    jumpi v85, bb47, bb48
+  bb47:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb48:
+    memory_object_store_element memoryarray<1>, v82, 0, 88
+    v86 = memory_object_len memoryarray, v0
+    v87 = lt 0, v86
+    v88 = iszero v87
+    jumpi v88, bb49, bb50
+  bb49:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb50:
+    v89 = memory_object_load_element memoryarray<1>, v0, 0
+    v90 = eq v89, 0
+    jumpi v90, bb51, bb52
+  bb51:
+    v91 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v91, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v91
+    jump bb52
+  bb52:
+    v92 = phi [bb50: v89], [bb51: v91]
+    v93 = memory_object_len memoryarray, v92
+    v94 = lt 0, v93
+    v95 = iszero v94
+    jumpi v95, bb53, bb54
+  bb53:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb54:
+    v96 = memory_object_load_element memoryarray<1>, v92, 0
+    v97 = memory_object_len memoryarray, v43
+    v98 = lt 0, v97
+    v99 = iszero v98
+    jumpi v99, bb55, bb56
+  bb55:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb56:
+    v100 = memory_object_load_element memoryarray<1>, v43, 0
+    v101 = eq v100, 0
+    jumpi v101, bb57, bb58
+  bb57:
+    v102 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v102, 0
+    memory_object_store_element memoryarray<1>, v43, 0, v102
+    jump bb58
+  bb58:
+    v103 = phi [bb56: v100], [bb57: v102]
+    v104 = memory_object_len memoryarray, v103
+    v105 = lt 0, v104
+    v106 = iszero v105
+    jumpi v106, bb59, bb60
+  bb59:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb60:
+    v107 = memory_object_load_element memoryarray<1>, v103, 0
+    v108 = eq v96, v107
+    jumpi v108, bb61, bb62
+  bb61:
+    v109 = memory_object_len memoryarray, v0
+    v110 = lt 4, v109
+    v111 = iszero v110
+    jumpi v111, bb64, bb65
+  bb62:
+    jump bb63
+  bb63:
+    v132 = phi [bb75: v131], [bb62: 0]
+    jumpi v132, bb76, bb77
+  bb64:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb65:
+    v112 = memory_object_load_element memoryarray<1>, v0, 4
+    v113 = eq v112, 0
+    jumpi v113, bb66, bb67
+  bb66:
+    v114 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v114, 0
+    memory_object_store_element memoryarray<1>, v0, 4, v114
+    jump bb67
+  bb67:
+    v115 = phi [bb65: v112], [bb66: v114]
+    v116 = memory_object_len memoryarray, v115
+    v117 = lt 0, v116
+    v118 = iszero v117
+    jumpi v118, bb68, bb69
+  bb68:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb69:
+    v119 = memory_object_load_element memoryarray<1>, v115, 0
+    v120 = memory_object_len memoryarray, v43
+    v121 = lt 4, v120
+    v122 = iszero v121
+    jumpi v122, bb70, bb71
+  bb70:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb71:
+    v123 = memory_object_load_element memoryarray<1>, v43, 4
+    v124 = eq v123, 0
+    jumpi v124, bb72, bb73
+  bb72:
+    v125 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v125, 0
+    memory_object_store_element memoryarray<1>, v43, 4, v125
+    jump bb73
+  bb73:
+    v126 = phi [bb71: v123], [bb72: v125]
+    v127 = memory_object_len memoryarray, v126
+    v128 = lt 0, v127
+    v129 = iszero v128
+    jumpi v129, bb74, bb75
+  bb74:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb75:
+    v130 = memory_object_load_element memoryarray<1>, v126, 0
+    v131 = eq v119, v130
+    jump bb63
+  bb76:
+    v133 = memory_object_len memoryarray, v0
+    v134 = lt 10, v133
+    v135 = iszero v134
+    jumpi v135, bb79, bb80
+  bb77:
+    jump bb78
+  bb78:
+    v145 = phi [bb84: v144], [bb77: 0]
+    jumpi v145, bb85, bb86
+  bb79:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb80:
+    v136 = memory_object_load_element memoryarray<1>, v0, 10
+    v137 = eq v136, 0
+    jumpi v137, bb81, bb82
+  bb81:
+    v138 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v138, 0
+    memory_object_store_element memoryarray<1>, v0, 10, v138
+    jump bb82
+  bb82:
+    v139 = phi [bb80: v136], [bb81: v138]
+    v140 = memory_object_len memoryarray, v139
+    v141 = lt 0, v140
+    v142 = iszero v141
+    jumpi v142, bb83, bb84
+  bb83:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb84:
+    v143 = memory_object_load_element memoryarray<1>, v139, 0
+    v144 = eq v143, 44
+    jump bb78
+  bb85:
+    v146 = memory_object_len memoryarray, v43
+    v147 = lt 10, v146
+    v148 = iszero v147
+    jumpi v148, bb88, bb89
+  bb86:
+    jump bb87
+  bb87:
+    v158 = phi [bb93: v157], [bb86: 0]
+    jumpi v158, bb94, bb95
+  bb88:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb89:
+    v149 = memory_object_load_element memoryarray<1>, v43, 10
+    v150 = eq v149, 0
+    jumpi v150, bb90, bb91
+  bb90:
+    v151 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v151, 0
+    memory_object_store_element memoryarray<1>, v43, 10, v151
+    jump bb91
+  bb91:
+    v152 = phi [bb89: v149], [bb90: v151]
+    v153 = memory_object_len memoryarray, v152
+    v154 = lt 0, v153
+    v155 = iszero v154
+    jumpi v155, bb92, bb93
+  bb92:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb93:
+    v156 = memory_object_load_element memoryarray<1>, v152, 0
+    v157 = eq v156, 88
+    jump bb87
+  bb94:
+    ret 7
+  bb95:
+    jump bb96
+  bb96:
+    ret 0
+}
+

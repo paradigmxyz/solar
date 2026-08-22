@@ -1,0 +1,498 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:AbiFixedArray ===
+@module AbiFixedArray
+fn @makeFixedArray() -> memoryfixedarray {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v3, 64
+    ret v3
+}
+
+fn @fixedArrayLengthSideEffect() -> (u256, u256) [selector=0x336fc624, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @makeFixedArray, 1
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret 2, v1
+}
+
+fn @read(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8f65cc66, pure, abi_args=lazy, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt arg1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = mul arg1, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, arg1
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v10 = add v3, v4
+    v11 = calldataload v10
+    ret v11
+}
+
+fn @readDynamic(arg0: memoryarray, arg1: u256) -> u256 [selector=0xcd97b1f2, pure, abi_args=lazy, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt arg1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryarray<1>, arg0, arg1
+    ret v3
+}
+
+fn @readDynamicCalldata(arg0: calldataslice, arg1: u256) -> u256 [selector=0x55cc55da, pure, abi_args=lazy, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt arg1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = mul arg1, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, arg1
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v10 = add v3, v4
+    v11 = calldataload v10
+    ret v11
+}
+
+fn @readBytes(arg0: memorybytes) -> bytes1 [selector=0x8b33268b, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_byte memorybytes, arg0, 1
+    v4 = shl 248, v3
+    ret v4
+}
+
+fn @readBytesCalldata(arg0: calldataslice) -> bytes1 [selector=0x4bc2c5d5, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = calldata_slice_load_word calldata, arg0, 1
+    v5 = byte 0, v4
+    v6 = shl 248, v5
+    ret v6
+}
+
+fn @readPair(arg0: memorystruct) -> u256 [selector=0x5d4d7bfe, pure, abi_args=lazy, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @readDynamicPair(arg0: memorystruct) -> u256 [selector=0x96a23d6f, pure, abi_args=lazy, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v2 = memory_object_len memorybytes, v1
+    v3 = add v0, v2
+    v4 = lt v3, v0
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v3
+}
+
+fn @readWordList(arg0: memorystruct) -> u256 [selector=0xb5e6ddb8, pure, abi_args=lazy, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_len memoryarray, v0
+    v2 = memory_object_load_field memorystruct<2>, arg0, 1
+    v3 = add v1, v2
+    v4 = lt v3, v1
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v3
+}
+
+fn @readSignedList(arg0: memorystruct) -> u256 [selector=0xa15ab30e, pure, abi_args=lazy, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_len memoryarray, v0
+    v2 = memory_object_load_field memorystruct<2>, arg0, 1
+    v3 = add v1, v2
+    v4 = lt v3, v1
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v3
+}
+
+fn @readNestedList(arg0: memorystruct) -> u256 [selector=0x2fc71376, pure, abi_args=lazy, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = memory_object_len memoryarray, v0
+    v2 = memory_object_load_field memorystruct<1>, arg0, 0
+    v3 = memory_object_len memoryarray, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v6 = memory_object_load_element memoryarray<1>, v2, 0
+    v7 = eq v6, 0
+    jumpi v7, bb3, bb4
+  bb3:
+    v8 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v8, 0
+    memory_object_store_element memoryarray<1>, v2, 0, v8
+    jump bb4
+  bb4:
+    v9 = phi [bb2: v6], [bb3: v8]
+    v10 = memory_object_len memoryarray, v9
+    v11 = add v1, v10
+    v12 = lt v11, v1
+    jumpi v12, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    ret v11
+}
+
+fn @readEnumPair(arg0: memorystruct) -> u256 [selector=0xaea50307, pure, abi_args=lazy, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = and v0, 1
+    v2 = memory_object_load_field memorystruct<2>, arg0, 1
+    v3 = add v1, v2
+    v4 = lt v3, v1
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v3
+}
+
+fn @readEnumArray(arg0: memoryfixedarray) -> u256 [selector=0xf8507bf5, pure, abi_args=lazy, abi_params=[array<2, enum<2, u8>>], abi_returns=[word]] {
+  bb0:
+    v0 = lt 0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
+    v3 = and v2, 1
+    ret v3
+}
+
+fn @readMode(arg0: u8) -> u256 [selector=0x1bcfbcf9, pure, abi_args=lazy, abi_params=[enum<2, u8>], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_args=lazy, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = lt 1, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v4 = memory_object_load_field memorystruct<2>, arg0, 1
+    v5 = and v4, 255
+    v6 = add v3, v5
+    v7 = lt v6, v3
+    jumpi v7, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret v6
+}
+
+fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_args=lazy, abi_params=[tuple<array<2, bytes>>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v4 = eq v3, 0
+    jumpi v4, bb3, bb4
+  bb3:
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v5, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v5
+    jump bb4
+  bb4:
+    v6 = phi [bb2: v3], [bb3: v5]
+    v7 = memory_object_len memorybytes, v6
+    v8 = memory_object_load_field memorystruct<1>, arg0, 0
+    v9 = lt 1, 2
+    v10 = iszero v9
+    jumpi v10, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v11 = memory_object_load_element memoryfixedarray<2, 1>, v8, 1
+    v12 = eq v11, 0
+    jumpi v12, bb7, bb8
+  bb7:
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v13, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v8, 1, v13
+    jump bb8
+  bb8:
+    v14 = phi [bb6: v11], [bb7: v13]
+    v15 = memory_object_len memorybytes, v14
+    v16 = add v7, v15
+    v17 = lt v16, v7
+    jumpi v17, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    ret v16
+}
+
+fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, abi_args=lazy, abi_params=[enum<2, u8>, bytes], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg1
+    v1 = add arg0, v0
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
+@module ConstructorAbiFixedArray
+fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memoryfixedarray, arg1: i256) [constructor, abi_args=lazy, abi_params=[array<2, array<2, u256>>, i256]] {
+  bb0:
+    v0 = lt 1, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
+    v3 = eq v2, 0
+    jumpi v3, bb3, bb4
+  bb3:
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v4, 64
+    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v4
+    jump bb4
+  bb4:
+    v5 = phi [bb2: v2], [bb3: v4]
+    v6 = lt 0, 2
+    v7 = iszero v6
+    jumpi v7, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v8 = memory_object_load_element memoryfixedarray<2, 1>, v5, 0
+    v9 = add v8, arg1
+    v10 = lt v9, v8
+    jumpi v10, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    sstore 0, v9 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
+@module ConstructorAbiDynamic
+fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[array<_, u256>, bytes]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryarray<1>, arg0, 1
+    v4 = memory_object_len memorybytes, arg1
+    v5 = add v3, v4
+    v6 = lt v5, v3
+    jumpi v6, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v5 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
+@module ConstructorAbiDynamicWords
+fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memoryarray) [constructor, abi_args=lazy, abi_params=[array<_, u256>]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryarray<1>, arg0, 1
+    sstore 0, v3 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
+@module ConstructorAbiBytes
+fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
+@module ConstructorAbiStruct
+fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memorystruct) [constructor, abi_args=lazy, abi_params=[tuple<u256, bytes>]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v2 = memory_object_len memorybytes, v1
+    v3 = add v0, v2
+    v4 = lt v3, v0
+    jumpi v4, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    sstore 0, v3 !metadata(storage=slot(0))
+    stop
+}
+

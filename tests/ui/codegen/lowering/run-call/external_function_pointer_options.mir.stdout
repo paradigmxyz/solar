@@ -1,0 +1,119 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_options.sol:ExternalFunctionPointerOptions ===
+@module ExternalFunctionPointerOptions
+fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @gasOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 2
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = gas
+    ret v9
+}
+
+fn @valueOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 3
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @arg() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 4
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 7
+}
+
+fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xa4ba067e
+    v3 = and v2, 0xffffffff
+    v4 = shl 224, v3
+    v5 = shr 32, v2
+    v6 = gas
+    v7 = internal_call @gasOpt, 1
+    v8 = internal_call @valueOpt, 1
+    v9 = internal_call @arg, 1
+    v10 = abi_encode [word], selector v4, args v9
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = extcodesize v5
+    v14 = iszero v13
+    jumpi v14, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v15 = call v7, v5, v8, v11, v12, 0, 0
+    jumpi v15, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v16 = sload 0 !metadata(storage=slot(0))
+    ret v16
+}
+

@@ -1,0 +1,112 @@
+// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTarget ===
+@module EmptyCodeTarget
+fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
+@module EmptyCodeLibrary
+fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===
+@module EmptyCodeCalls
+fn @direct() [selector=0x222b1407, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v6 = call v0, 0, 0, v2, v3, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+}
+
+fn @pointer() [selector=0x2f5f3b3c, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = shl 32, 0
+    v1 = or v0, 0x5dfc2e4a
+    v2 = and v1, 0xffffffff
+    v3 = shl 224, v2
+    v4 = shr 32, v1
+    v5 = gas
+    v6 = abi_encode [], selector v3
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = extcodesize v4
+    v10 = iszero v9
+    jumpi v10, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v11 = call v5, v4, 0, v7, v8, 0, 0
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+}
+
+fn @libraryCall() [selector=0x239b86e9, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+}
+
+fn @lowLevel() -> bool [selector=0x5e4fa723, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = memory_object_data memorybytes, v1
+    v3 = memory_object_len memorybytes, v1
+    v4 = call v0, 0, 0, v2, v3, 0, 0
+    ret v4
+}
+
+fn @selfCall() -> bool [selector=0x8dae0159, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    ret 1
+}
+
+fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+

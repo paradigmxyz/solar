@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/lowering/qualified_modifier.sol:Base ===
+@module Base
+
+// === ROOT/tests/ui/codegen/lowering/qualified_modifier.sol:Derived ===
+@module Derived
+fn @qualified() -> (u256, u256) [selector=0xf25be4f2, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    jump bb2
+  bb1:
+    ret 9, v0
+  bb2:
+    jump bb1
+}
+
+fn @virtualDispatch() -> (u256, u256) [selector=0x9996f134, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    jump bb2
+  bb1:
+    ret 10, v0
+  bb2:
+    jump bb1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}
+

@@ -1,0 +1,114 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderA ===
+@module EvaluationOrderA
+fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderB ===
+@module EvaluationOrderB
+fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderC ===
+@module EvaluationOrderC
+fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:D ===
+@module D
+fn @_anonymous() [constructor] {
+  bb0:
+    v0 = internal_call @f, 1, 4
+    v1 = internal_call @f, 1, 2
+    v2 = internal_call @f, 1, 6
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = internal_call @f, 1, 1
+    v4 = internal_call @f, 1, 3
+    v5 = internal_call @f, 1, 5
+    v6 = internal_call @f, 1, 7
+    jump bb7
+  bb4:
+    stop
+  bb5:
+    jump bb4
+  bb6:
+    jump bb5
+  bb7:
+    jump bb6
+}
+
+fn @query() -> memoryarray [selector=0x2c46b205, view, abi_args=lazy, abi_params=[], abi_returns=[memory_array<word>]] {
+  bb0:
+    v0 = internal_call @__load_storage_word_array, 1, 0
+    ret v0
+}
+
+fn @f(arg0: u256) -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, arg0 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @__load_storage_word_array(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v9, v0
+    v10 = storage_array_data_slot arg0
+    jump bb5
+  bb5:
+    v11 = phi [bb4: 0], [bb6: v15]
+    v12 = lt v11, v0
+    jumpi v12, bb6, bb7
+  bb6:
+    v13 = add v10, v11
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    memory_object_store_element memoryarray<1>, v9, v11, v14
+    v15 = add v11, 1
+    jump bb5
+  bb7:
+    ret v9
+}
+

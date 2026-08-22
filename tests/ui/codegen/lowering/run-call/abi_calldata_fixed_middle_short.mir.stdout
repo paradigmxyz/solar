@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_middle_short.sol:AbiCalldataFixedMiddleShort ===
+@module AbiCalldataFixedMiddleShort
+fn @read(arg0: calldataslice) -> u256 [selector=0xae6a5262, pure, abi_args=lazy, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = add v4, 32
+    v6 = lt v5, v4
+    v7 = calldatasize
+    v8 = gt v5, v7
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = calldataload v4
+    v11 = add v3, v10
+    v12 = calldatasize
+    v13 = sub v12, v3
+    v14 = sub v13, 31
+    v15 = slt v10, v14
+    v16 = iszero v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = add v11, 64
+    v18 = calldatasize
+    v19 = gt v17, v18
+    jumpi v19, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v20 = make_calldata_slice v11, 2
+    ret 23
+}
+

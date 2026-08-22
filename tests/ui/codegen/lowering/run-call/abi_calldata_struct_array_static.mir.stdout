@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
+@module AbiCalldataStructArrayStatic
+fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a7, pure, abi_args=lazy, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = slice_len arg0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v4 = slice_ptr arg0
+    v5 = add v4, 0
+    v6 = make_calldata_slice v5, 64
+    v7 = slice_ptr v6
+    v8 = add v7, 0
+    v9 = calldataload v8
+    v10 = slice_len arg0
+    v11 = lt 0, v10
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v13 = slice_ptr arg0
+    v14 = add v13, 0
+    v15 = make_calldata_slice v14, 64
+    v16 = slice_ptr v15
+    v17 = add v16, 32
+    v18 = calldataload v17
+    v19 = slice_len arg0
+    v20 = lt 1, v19
+    v21 = iszero v20
+    jumpi v21, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v22 = slice_ptr arg0
+    v23 = add v22, 64
+    v24 = make_calldata_slice v23, 64
+    v25 = slice_ptr v24
+    v26 = add v25, 0
+    v27 = calldataload v26
+    v28 = slice_len arg0
+    v29 = lt 1, v28
+    v30 = iszero v29
+    jumpi v30, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v31 = slice_ptr arg0
+    v32 = add v31, 64
+    v33 = make_calldata_slice v32, 64
+    v34 = slice_ptr v33
+    v35 = add v34, 32
+    v36 = calldataload v35
+    ret v0, v9, v18, v27, v36
+}
+

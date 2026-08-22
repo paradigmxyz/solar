@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target ===
+@module Target
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: function) [constructor, abi_args=lazy, abi_params=[function]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [], selector v1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = staticcall v3, v2, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndata_size
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
+@module Caller
+fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x990227f1
+    v3 = abi_encode [function], args v2
+    v4 = not 31
+    v5 = and 423, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, 360
+    memory_object_store_word memorybytes, v6, 0, 0x6101483803806101486101603961016001601f017fffffffffffffffffffffff
+    memory_object_store_word memorybytes, v6, 32, 0xffffffffffffffffffffffffffffffffffffffffe0166040526101608060c052
+    memory_object_store_word memorybytes, v6, 64, 0x8060c05261016061014838030160208201828060c05281108282119150915081
+    memory_object_store_word memorybytes, v6, 96, 0x17905090501560ef5760eb565b63ffffffff6101605160401c8060e0521660e0
+    memory_object_store_word memorybytes, v6, 128, 0x1b60e0518060e05260201c5a6040518061010052602081016040528381529250
+    memory_object_store_word memorybytes, v6, 160, 0x60048301508061012052816101405260205f6004858585fa9250505060ce573d
+    memory_object_store_word memorybytes, v6, 192, 0x80610100525f803e610100515ffd5b3d602090101560db575f80fd5b5f5f0151
+    memory_object_store_word memorybytes, v6, 224, 0x505f5f01515f5561010d565b5f80fd5b5f60c051015160c01b151560eb576101
+    memory_object_store_word memorybytes, v6, 256, 0x605160401c8060e05250606c565b6030806101185f395ff334601a575f3560e0
+    memory_object_store_word memorybytes, v6, 288, 0x1c80633fa4f24514601657601a565b601e565b5f80fd5b5f5460805260206080
+    memory_object_store_word memorybytes, v6, 320, 0x1608090036080f3000000000000000000000000000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v6, 328, v3
+    v7 = memory_object_data memorybytes, v6
+    v8 = create 0, v7, 360
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = gas
+    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v8, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v14 = returndata_size
+    v15 = lt v14, 32
+    jumpi v15, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
+}
+
+fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 16
+}
+

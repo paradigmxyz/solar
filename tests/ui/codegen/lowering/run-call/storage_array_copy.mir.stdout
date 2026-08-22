@@ -1,0 +1,280 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
+@module C
+fn @copyState() -> (u256, u256) [selector=0x183a6195, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 1 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore v9, 0 !metadata(storage=symbolic(v9))
+    sstore 0, v6 !metadata(storage=slot(0))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = add v10, 1
+    v12 = lt v11, v10
+    jumpi v12, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v13 = storage_array_data_slot 0
+    v14 = add v13, v10
+    sstore v14, 0 !metadata(storage=symbolic(v14))
+    sstore 0, v11 !metadata(storage=slot(0))
+    v15 = internal_call @__load_storage_word_array, 1, 0
+    v16 = memory_object_len memoryarray, v15
+    v17 = lt 0, v16
+    v18 = iszero v17
+    jumpi v18, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v19 = memory_object_load_element memoryarray<1>, v15, 0
+    v20 = memory_object_len memoryarray, v15
+    ret v19, v20
+}
+
+fn @copyReference() -> (u256, u256) [selector=0x4cf1051d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 4 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore v9, 0 !metadata(storage=symbolic(v9))
+    sstore 0, v6 !metadata(storage=slot(0))
+    v10 = internal_call @__load_storage_word_array, 1, 0
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 0, v11
+    v13 = iszero v12
+    jumpi v13, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v14 = memory_object_load_element memoryarray<1>, v10, 0
+    v15 = memory_object_len memoryarray, v10
+    ret v14, v15
+}
+
+fn @__load_storage_word_array(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v9, v0
+    v10 = storage_array_data_slot arg0
+    jump bb5
+  bb5:
+    v11 = phi [bb4: 0], [bb6: v15]
+    v12 = lt v11, v0
+    jumpi v12, bb6, bb7
+  bb6:
+    v13 = add v10, v11
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    memory_object_store_element memoryarray<1>, v9, v11, v14
+    v15 = add v11, 1
+    jump bb5
+  bb7:
+    ret v9
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
+@module AggregateStorageCopy
+fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = mul v0, 2
+    v5 = add v3, v4
+    sstore 0, v1 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = lt 0, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = storage_array_data_slot 0
+    v10 = mul 0, 2
+    v11 = add v9, v10
+    sstore v11, 7 !metadata(storage=symbolic(v11))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v15 = storage_array_data_slot 0
+    v16 = mul 0, 2
+    v17 = add v15, v16
+    v18 = add v17, 1
+    sstore v18, 9 !metadata(storage=offset(v17, 1))
+    v19 = internal_call @__load_storage_struct_array_1, 1, 0
+    v20 = memory_object_len memoryarray, v19
+    v21 = lt 0, v20
+    v22 = iszero v21
+    jumpi v22, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v23 = memory_object_load_element memoryarray<1>, v19, 0
+    v24 = eq v23, 0
+    jumpi v24, bb9, bb10
+  bb9:
+    v25 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v25, 0, 0
+    memory_object_store_field memorystruct<2>, v25, 1, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v25
+    jump bb10
+  bb10:
+    v26 = phi [bb8: v23], [bb9: v25]
+    v27 = memory_object_load_field memorystruct<2>, v26, 0
+    v28 = memory_object_len memoryarray, v19
+    v29 = lt 0, v28
+    v30 = iszero v29
+    jumpi v30, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v31 = memory_object_load_element memoryarray<1>, v19, 0
+    v32 = eq v31, 0
+    jumpi v32, bb13, bb14
+  bb13:
+    v33 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v33, 0, 0
+    memory_object_store_field memorystruct<2>, v33, 1, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v33
+    jump bb14
+  bb14:
+    v34 = phi [bb12: v31], [bb13: v33]
+    v35 = memory_object_load_field memorystruct<2>, v34, 1
+    v36 = memory_object_len memoryarray, v19
+    ret v27, v35, v36
+}
+
+fn @__load_storage_struct_array_1(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v9, v0
+    v10 = storage_array_data_slot arg0
+    jump bb5
+  bb5:
+    v11 = phi [bb4: 0], [bb6: v18]
+    v12 = phi [bb4: v10], [bb6: v19]
+    v13 = lt v11, v0
+    jumpi v13, bb6, bb7
+  bb6:
+    v14 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v15 = sload v12 !metadata(storage=symbolic(v12))
+    memory_object_store_field memorystruct<2>, v14, 0, v15
+    v16 = add v12, 1
+    v17 = sload v16 !metadata(storage=offset(v12, 1))
+    memory_object_store_field memorystruct<2>, v14, 1, v17
+    memory_object_store_element memoryarray<1>, v9, v11, v14
+    v18 = add v11, 1
+    v19 = add v12, 2
+    jump bb5
+  bb7:
+    ret v9
+}
+

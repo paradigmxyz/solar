@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_void.sol:InternalFunctionPointerVoid ===
+@module InternalFunctionPointerVoid
+fn @setFlag() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    stop
+}
+
+fn @f() -> bool [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    internal_call @__internal_dispatch_0, 0, 1
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @__internal_dispatch_0(arg0: function) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb1:
+    internal_call @setFlag, 0
+    ret
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+

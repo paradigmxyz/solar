@@ -1,0 +1,60 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_validation.sol:AbiCalldataNestedValidation ===
+@module AbiCalldataNestedValidation
+fn @f(arg0: calldataslice) -> u256 [selector=0xc26b6b9a, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @g(arg0: calldataslice) -> u256 [selector=0xebcd97f8, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = add v4, 32
+    v6 = lt v5, v4
+    v7 = calldatasize
+    v8 = gt v5, v7
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = calldataload v4
+    v11 = add v3, v10
+    v12 = calldatasize
+    v13 = sub v12, v3
+    v14 = sub v13, 31
+    v15 = slt v10, v14
+    v16 = iszero v15
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v17 = calldataload v11
+    v18 = gt v17, 0xffffffffffffffff
+    jumpi v18, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v19 = mul v17, 32
+    v20 = add v11, 32
+    v21 = calldatasize
+    v22 = sub v21, v19
+    v23 = sgt v20, v22
+    jumpi v23, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v24 = add v11, 32
+    v25 = make_calldata_slice v24, v17
+    ret 42
+}
+

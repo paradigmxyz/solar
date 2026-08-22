@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_special_args_v2.sol:AbiEncodeCallSpecialArgs ===
+@module AbiEncodeCallSpecialArgs
+fn @fNoArgs() [selector=0x1af93581, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @fArray(arg0: memoryarray) [selector=0x0a326c0c, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @fUint(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x432672b2, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    ret 0, 0
+}
+
+fn @test() -> bool [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [], selector 0x1af9358100000000000000000000000000000000000000000000000000000000
+    v1 = slice_len v0
+    v2 = add v1, 63
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, v1
+    memory_object_copy_from_slice memorybytes, v6, v0
+    v7 = keccak256_bytes v6
+    v8 = abi_encode [], selector 0x1af9358100000000000000000000000000000000000000000000000000000000
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, v8
+    v15 = keccak256_bytes v14
+    v16 = eq v7, v15
+    jumpi v16, bb5, bb6
+  bb5:
+    v17 = abi_encode [memory_array<word>], selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args 96
+    v18 = slice_len v17
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    jumpi v20, bb8, bb9
+  bb6:
+    jump bb7
+  bb7:
+    v34 = phi [bb11: v33], [bb6: 0]
+    jumpi v34, bb12, bb13
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, v18
+    memory_object_copy_from_slice memorybytes, v23, v17
+    v24 = keccak256_bytes v23
+    v25 = abi_encode [memory_array<word>], selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args 96
+    v26 = slice_len v25
+    v27 = add v26, 63
+    v28 = lt v27, v26
+    jumpi v28, bb10, bb11
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v31, v26
+    memory_object_copy_from_slice memorybytes, v31, v25
+    v32 = keccak256_bytes v31
+    v33 = eq v24, v32
+    jump bb7
+  bb12:
+    v35 = abi_encode [word, word], selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v36 = slice_len v35
+    v37 = add v36, 63
+    v38 = lt v37, v36
+    jumpi v38, bb15, bb16
+  bb13:
+    jump bb14
+  bb14:
+    v52 = phi [bb18: v51], [bb13: 0]
+    ret v52
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v39 = not 31
+    v40 = and v37, v39
+    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
+    set_memory_object_len memorybytes, v41, v36
+    memory_object_copy_from_slice memorybytes, v41, v35
+    v42 = keccak256_bytes v41
+    v43 = abi_encode [word, word], selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v44 = slice_len v43
+    v45 = add v44, 63
+    v46 = lt v45, v44
+    jumpi v46, bb17, bb18
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    v47 = not 31
+    v48 = and v45, v47
+    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
+    set_memory_object_len memorybytes, v49, v44
+    memory_object_copy_from_slice memorybytes, v49, v43
+    v50 = keccak256_bytes v49
+    v51 = eq v42, v50
+    jump bb14
+}
+

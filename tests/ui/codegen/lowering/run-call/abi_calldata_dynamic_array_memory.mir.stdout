@@ -1,0 +1,172 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
+@module AbiCalldataDynamicArrayMemory
+fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = slice_ptr arg0
+    v2 = mul v0, 32
+    v3 = iszero 32
+    v4 = div v2, 32
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v8 = add v1, v2
+    v9 = calldatasize
+    v10 = gt v8, v9
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = mul v0, 32
+    v12 = iszero 32
+    v13 = div v11, 32
+    v14 = eq v13, v0
+    v15 = or v12, v14
+    v16 = iszero v15
+    jumpi v16, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v17 = add 32, v11
+    v18 = lt v17, 32
+    jumpi v18, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
+    set_memory_object_len memoryarray, v19, v0
+    jump bb9
+  bb9:
+    v20 = phi [bb8: 0], [bb25: v59]
+    v21 = lt v20, v0
+    jumpi v21, bb10, bb11
+  bb10:
+    v22 = mul v20, 32
+    v23 = iszero 32
+    v24 = div v22, 32
+    v25 = eq v24, v20
+    v26 = or v23, v25
+    v27 = iszero v26
+    jumpi v27, bb12, bb13
+  bb11:
+    ret v19
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v28 = add v1, v22
+    v29 = add v28, 32
+    v30 = lt v29, v28
+    v31 = calldatasize
+    v32 = gt v29, v31
+    v33 = or v30, v32
+    jumpi v33, bb14, bb15
+  bb14:
+    revert 0, 0
+  bb15:
+    v34 = calldataload v28
+    v35 = add v1, v34
+    v36 = calldatasize
+    v37 = sub v36, v1
+    v38 = sub v37, 31
+    v39 = slt v34, v38
+    v40 = iszero v39
+    jumpi v40, bb16, bb17
+  bb16:
+    revert 0, 0
+  bb17:
+    v41 = calldataload v35
+    v42 = gt v41, 0xffffffffffffffff
+    jumpi v42, bb18, bb19
+  bb18:
+    revert 0, 0
+  bb19:
+    v43 = mul v41, 32
+    v44 = add v35, 32
+    v45 = calldatasize
+    v46 = sub v45, v43
+    v47 = sgt v44, v46
+    jumpi v47, bb20, bb21
+  bb20:
+    revert 0, 0
+  bb21:
+    v48 = add v35, 32
+    v49 = mul v41, 32
+    v50 = iszero 32
+    v51 = div v49, 32
+    v52 = eq v51, v41
+    v53 = or v50, v52
+    v54 = iszero v53
+    jumpi v54, bb22, bb23
+  bb22:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb23:
+    v55 = add 32, v49
+    v56 = lt v55, 32
+    jumpi v56, bb24, bb25
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, v55
+    set_memory_object_len memoryarray, v57, v41
+    v58 = make_calldata_slice v48, v49
+    memory_object_copy_from_slice memoryarray, v57, v58
+    memory_object_store_element memoryarray<1>, v19, v20, v57
+    v59 = add v20, 1
+    jump bb9
+}
+
+fn @lengthMemory(arg0: memoryarray) -> u256 [selector=0xdefa62e9, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    ret v0
+}
+
+fn @sumMemory(arg0: memoryarray) -> u256 [selector=0x13201b5d, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = memory_object_load_element memoryarray<1>, arg0, 0
+    v4 = memory_object_len memoryarray, arg0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = memory_object_load_element memoryarray<1>, arg0, 1
+    v8 = add v3, v7
+    v9 = lt v8, v3
+    jumpi v9, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    ret v8
+}
+

@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_call_fixed_bytes.sol:ConstructorFunctionCallFixedBytes ===
+@module ConstructorFunctionCallFixedBytes
+fn @_anonymous() [constructor] {
+  bb0:
+    internal_call @setName, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
+    stop
+}
+
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @setName(arg0: bytes3) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = shr 232, arg0
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    stop
+}
+

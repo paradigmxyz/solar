@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_fixed_array_forwarding.sol:C ===
+@module C
+fn @a() -> u256 [selector=0x0dbe671f, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = lt arg0, 3
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = add 1, arg0
+    v3 = sload v2 !metadata(storage=offset(arg0, 1))
+    ret v3
+}
+
+fn @_anonymous(arg0: u256, arg1: memoryfixedarray) [constructor, abi_args=lazy, abi_params=[u256, array<3, u256>]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    v0 = add 1, 0
+    v1 = memory_object_load_element memoryfixedarray<3, 1>, arg1, 0
+    sstore v0, v1 !metadata(storage=slot(1))
+    v2 = add 1, 1
+    v3 = memory_object_load_element memoryfixedarray<3, 1>, arg1, 1
+    sstore v2, v3 !metadata(storage=slot(2))
+    v4 = add 1, 2
+    v5 = memory_object_load_element memoryfixedarray<3, 1>, arg1, 2
+    sstore v4, v5 !metadata(storage=slot(3))
+    stop
+}
+

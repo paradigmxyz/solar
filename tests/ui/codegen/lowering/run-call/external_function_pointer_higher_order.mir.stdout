@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
+@module ExternalFunctionPointerHigherOrderTarget
+fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 2
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
+@module ExternalFunctionPointerHigherOrder
+fn @store(arg0: function) [selector=0xf018a0a7, abi_args=lazy, abi_params=[function], abi_returns=[]] {
+  bb0:
+    v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not v0
+    v3 = and v1, v2
+    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = shl 64, v4
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    stop
+}
+
+fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_args=lazy, abi_params=[function], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [word], selector v1, args 7
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndata_size
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
+}
+
+fn @t() -> u256 [selector=0x92d0d153, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 3, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = address
+    v6 = gas
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 211, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, 148
+    memory_object_store_word memorybytes, v10, 0, 0x608b8060095f395ff334601a575f3560e01c8063cae5791314601657601a565b
+    memory_object_store_word memorybytes, v10, 32, 0x601e565b5f80fd5b3660249010156087576083565b6002600435018060a05280
+    memory_object_store_word memorybytes, v10, 64, 0x60a052600435811015606f577f4e487b71000000000000000000000000000000
+    memory_object_store_word memorybytes, v10, 96, 0x5f52601160045260245ffd5b8060a052608052
+    memory_object_store_word memorybytes, v10, 128, 0x6020608001608090036080f35b5f80fd5b602b56000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v10, 148, v7
+    v11 = memory_object_data memorybytes, v10
+    v12 = create 0, v11, 148
+    jumpi v12, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v13 = shl 32, v12
+    v14 = or v13, 0xcae57913
+    v15 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = call v6, v5, 0, v16, v17, 0, 0
+    jumpi v18, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = and v19, 0xffffffffffffffff
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = shr 64, v21
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v24 = internal_call @__internal_dispatch_0, 1, v20, v23
+    ret v24
+}
+
+fn @__internal_dispatch_0(arg0: function, arg1: function) -> u256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 3
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call @eval, 1, arg1
+    ret v1
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+

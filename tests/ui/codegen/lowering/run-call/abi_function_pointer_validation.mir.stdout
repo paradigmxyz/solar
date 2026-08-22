@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
+@module AbiFunctionPointerValidation
+fn @f(arg0: memorystruct) -> u256 [selector=0x9f4a608d, pure, abi_args=lazy, abi_params=[tuple<function>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @g(arg0: calldataslice) -> u256 [selector=0x5cf6281d, pure, abi_args=lazy, abi_params=[tuple<function>], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @h(arg0: calldataslice) -> u256 [selector=0x4fc262ac, pure, abi_args=lazy, abi_params=[tuple<function>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v4 = eq v2, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v6 = shr 64, v2
+    ret 3
+}
+

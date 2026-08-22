@@ -1,0 +1,143 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
+@module AbiDecodeCalldataSlice
+fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice 0, v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = gt v3, v3
+    v5 = lt v3, 4
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v7 = sub v3, 4
+    v8 = add v2, 4
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gt v11, 0xffffffffffffffff
+    jumpi v12, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v13 = calldatasize
+    v14 = sub v13, v11
+    v15 = sgt v10, v14
+    jumpi v15, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v16 = slice_len v9
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    memory_object_copy_from_slice memorybytes, v21, v9
+    v22 = abi_decode [u256, u256], v21
+    v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v24 = add v23, 32
+    v25 = mload v24
+    v26 = calldatasize
+    v27 = make_calldata_slice 0, v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = add 4, 32
+    v31 = gt v30, v29
+    v32 = lt v30, 4
+    v33 = or v31, v32
+    jumpi v33, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v34 = sub v30, 4
+    v35 = add v28, 4
+    v36 = make_calldata_slice v35, v34
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = gt v38, 0xffffffffffffffff
+    jumpi v39, bb11, bb12
+  bb11:
+    revert 0, 0
+  bb12:
+    v40 = calldatasize
+    v41 = sub v40, v38
+    v42 = sgt v37, v41
+    jumpi v42, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    v43 = slice_len v36
+    v44 = add v43, 63
+    v45 = lt v44, v43
+    jumpi v45, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v46 = not 31
+    v47 = and v44, v46
+    v48 = alloc memorybytes, exact, uninitialized, infallible, v47
+    set_memory_object_len memorybytes, v48, v43
+    memory_object_copy_from_slice memorybytes, v48, v36
+    v49 = abi_decode [u256], v48
+    v50 = calldatasize
+    v51 = make_calldata_slice 0, v50
+    v52 = slice_ptr v51
+    v53 = slice_len v51
+    v54 = add 4, 32
+    v55 = add 4, 32
+    v56 = add v55, 32
+    v57 = gt v56, v53
+    v58 = lt v56, v54
+    v59 = or v57, v58
+    jumpi v59, bb17, bb18
+  bb17:
+    revert 0, 0
+  bb18:
+    v60 = sub v56, v54
+    v61 = add v52, v54
+    v62 = make_calldata_slice v61, v60
+    v63 = slice_ptr v62
+    v64 = slice_len v62
+    v65 = gt v64, 0xffffffffffffffff
+    jumpi v65, bb19, bb20
+  bb19:
+    revert 0, 0
+  bb20:
+    v66 = calldatasize
+    v67 = sub v66, v64
+    v68 = sgt v63, v67
+    jumpi v68, bb21, bb22
+  bb21:
+    revert 0, 0
+  bb22:
+    v69 = slice_len v62
+    v70 = add v69, 63
+    v71 = lt v70, v69
+    jumpi v71, bb23, bb24
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb24:
+    v72 = not 31
+    v73 = and v70, v72
+    v74 = alloc memorybytes, exact, uninitialized, infallible, v73
+    set_memory_object_len memorybytes, v74, v69
+    memory_object_copy_from_slice memorybytes, v74, v62
+    v75 = abi_decode [u256], v74
+    ret v22, v25, v49, v75
+}
+

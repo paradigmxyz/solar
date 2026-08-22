@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_struct_reference.sol:DeleteMemoryStructReference ===
+@module DeleteMemoryStructReference
+fn @f() -> (u256, u256) [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 96
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, 1
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = memory_object_load_field memorystruct<1>, v0, 0
+    v3 = memory_object_len memoryarray, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryarray<1>, v2, 0, 7
+    v6 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v7 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v7, 0
+    memory_object_store_field memorystruct<1>, v6, 0, v7
+    v8 = memory_object_load_field memorystruct<1>, v6, 0
+    v9 = memory_object_len memoryarray, v8
+    v10 = memory_object_load_field memorystruct<1>, v0, 0
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 0, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v14 = memory_object_load_element memoryarray<1>, v10, 0
+    ret v9, v14
+}
+
+fn @fixedArray() -> (u256, u256) [selector=0x391e2457, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 7
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v3, 64
+    v4 = lt 0, 2
+    v5 = iszero v4
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
+    v7 = lt 0, 2
+    v8 = iszero v7
+    jumpi v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    ret v6, v9
+}
+

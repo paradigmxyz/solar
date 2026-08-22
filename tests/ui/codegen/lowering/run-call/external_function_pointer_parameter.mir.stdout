@@ -1,0 +1,79 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_parameter.sol:ExternalFunctionPointerParameter ===
+@module ExternalFunctionPointerParameter
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = address
+    v3 = shl 32, v2
+    v4 = or v3, 0x7cf5dab0
+    v5 = abi_encode [function, word], selector 0xc61581a000000000000000000000000000000000000000000000000000000000, args v4, arg0
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = call v1, v0, 0, v6, v7, 0, 32
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = returndata_size
+    v10 = lt v9, 32
+    jumpi v10, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = add 0, 0
+    v14 = mload v13
+    ret v14
+}
+
+fn @f2(arg0: u256) -> u256 [selector=0xbf3724af, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x7cf5dab0
+    v3 = internal_call @eval, 1, v2, arg0
+    ret v3
+}
+
+fn @eval(arg0: function, arg1: u256) -> u256 [selector=0xc61581a0, abi_args=lazy, abi_params=[function, u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [word], selector v1, args arg1
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndata_size
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
+}
+
+fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v0
+}
+

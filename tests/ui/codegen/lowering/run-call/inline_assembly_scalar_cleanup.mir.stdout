@@ -1,0 +1,195 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
+@module InlineAssemblyScalarCleanup
+fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = and 257, 255
+    v1 = add v0, 0
+    v2 = gt v1, 255
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = and 257, 255
+    v4 = mul v3, 1
+    v5 = iszero 1
+    v6 = div v4, 1
+    v7 = eq v6, v3
+    v8 = or v5, v7
+    v9 = iszero v8
+    v10 = gt v4, 255
+    v11 = or v9, v10
+    jumpi v11, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v12 = and 257, 255
+    jumpi 1, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v13 = div v12, 1
+    v14 = and 257, 255
+    jumpi 2, bb8, bb7
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v15 = mod v14, 2
+    v16 = and 257, 255
+    v17 = shl 0, v16
+    v18 = and v17, 255
+    v19 = and 257, 255
+    v20 = shr 1, v19
+    ret v1, v4, v13, v15, v18, v20
+}
+
+fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = and 257, 255
+    v1 = eq v0, 1
+    v2 = and 257, 255
+    v3 = eq v2, 1
+    v4 = iszero v3
+    v5 = and 257, 255
+    v6 = lt v5, 1
+    v7 = iszero v6
+    v8 = and 257, 255
+    v9 = gt v8, 0
+    v10 = iszero v9
+    v11 = and 257, 255
+    v12 = gt v11, 0
+    v13 = and 257, 255
+    v14 = lt v13, 1
+    ret v1, v4, v7, v10, v12, v14
+}
+
+fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = and 256, 255
+    v1 = add v0, 1
+    v2 = gt v1, 255
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = and 256, 255
+    v4 = add v3, 1
+    v5 = gt v4, 255
+    jumpi v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret v1, v3
+}
+
+fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = not 255
+    v1 = and v0, 255
+    v2 = sub v1, 1
+    v3 = lt v1, 1
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v2
+}
+
+fn @negation() -> i8 [selector=0x336c96f8, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 0, 128
+    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sub 0, v0
+    ret v2
+}
+
+fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = and 0x12345678, 255
+    v1 = and 0x12345678, 255
+    v2 = internal_call @widen, 1, v1
+    ret v0, v2
+}
+
+fn @explicitWideningReturn() -> u256 [selector=0xbd2ce75e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = and 0x12345678, 255
+    ret v0
+}
+
+fn @implicitReturn() -> u8 [selector=0xf8438e3d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0x12345678
+}
+
+fn @invalidEnum() -> u8 [selector=0xb65e9efe, pure, abi_args=lazy, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
+  bb0:
+    v0 = lt 2, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = and 2, 1
+    v3 = eq v2, 0
+    ret 2
+}
+
+fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 257
+}
+
+fn @internalArguments() -> (u8, u8) [selector=0xd0754141, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @dirtyNot, 1, 0x4200
+    v1 = internal_call @dirtyNot, 1, 0x4200
+    ret v0, v1
+}
+
+fn @storageAssignment() -> u256 [selector=0x7bae1f27, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = eq 5, 0
+    v1 = iszero v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = not 255
+    v4 = and v2, v3
+    v5 = and v1, 255
+    v6 = or v4, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
+}
+
+fn @widen(arg0: u256) -> u256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @dirtyNot(arg0: u8) -> u8 [pure] {
+  bb0:
+    v0 = div arg0, 256
+    ret v0
+}
+
