@@ -546,23 +546,8 @@ impl<'gcx> Lowerer<'gcx> {
                         "tuple assignment does not produce a single value",
                     );
                 }
-                let rhs_val = if op.is_none()
-                    && self
-                        .gcx
-                        .resolved_variable(lhs)
-                        .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
-                {
-                    self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                        self.err_value(
-                            builder,
-                            rhs.span,
-                            "unsupported storage reference assignment",
-                        )
-                    })
-                } else if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
-                    self.lower_expr_as_memory_bytes(builder, rhs)
-                } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
-                    self.lower_expr_as_memory_dyn_array(builder, rhs)
+                let rhs_val = if op.is_none() {
+                    self.lower_assignment_rhs(builder, lhs, rhs)
                 } else {
                     let value = self.lower_value_expr(builder, rhs);
                     match self.get_expr_type(lhs) {
@@ -729,6 +714,39 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Err(guar) => builder.error_value(*guar),
+        }
+    }
+
+    /// Lowers an assignment RHS in the representation required by its lvalue.
+    ///
+    /// In particular, a calldata slice assigned to a memory reference must be
+    /// materialized before it is stored or carried through control flow. A
+    /// logical slice has no one-word memory representation.
+    pub(super) fn lower_assignment_rhs(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+    ) -> ValueId {
+        if self
+            .gcx
+            .resolved_variable(lhs)
+            .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
+        {
+            return self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                self.err_value(builder, rhs.span, "unsupported storage reference assignment")
+            });
+        }
+        if self.lhs_expects_memory_bytes_value(lhs) {
+            return self.lower_expr_as_memory_bytes(builder, rhs);
+        }
+        if self.lhs_expects_memory_dyn_array_value(lhs) {
+            return self.lower_expr_as_memory_dyn_array(builder, rhs);
+        }
+        let value = self.lower_value_expr(builder, rhs);
+        match self.get_expr_type(lhs) {
+            Some(lhs_ty) => self.coerce_literal_for_ty(builder, rhs, lhs_ty, value),
+            None => value,
         }
     }
 
