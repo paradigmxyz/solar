@@ -2435,7 +2435,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let hazard_stack_plan = hazard_stack_layout.as_ref().map(|(_, plan)| plan.clone());
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
-        let mut global_stack_plan = resident_stack_plan.clone().unwrap_or_else(|| {
+        let mut global_stack_plan = resident_stack_plan.unwrap_or_else(|| {
             hazard_stack_plan
                 .clone()
                 .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan))

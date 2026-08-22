@@ -832,7 +832,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let size = match kind {
             PackedKind::HighAligned => value,
             _ => {
-                if value % 8 != 0 {
+                if !value.is_multiple_of(8) {
                     return Some(Err(format!("packed bit size `{text}` is not a byte multiple")));
                 }
                 value / 8
