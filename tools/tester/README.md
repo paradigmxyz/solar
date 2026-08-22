@@ -41,7 +41,7 @@ Environment variables:
   curated list, for out-of-repo projects. Entries are `[[project]]` tables
   with `name` plus either `repo` and `rev` (fetched) or `path` (an existing
   local directory, resolved relative to the manifest). Optional keys: `mode`
-  (`"test"` or `"build"`), `solc_version` (emulated solc version for the Solar
+  (`"test"` or `"build"`), `solc_version` (emulated solc version for the compiler
   leg, needed when sources pin an exact `pragma solidity`), `skip_tests`,
   `skip_contracts` (arrays of `{ pattern, reason }`; the reason is mandatory),
   and `notes`.
