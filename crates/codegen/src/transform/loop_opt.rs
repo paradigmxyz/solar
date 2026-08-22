@@ -183,8 +183,7 @@ impl LoopOptimizer {
             return;
         }
 
-        let hoistable: Vec<InstId> = selected.iter().collect();
-        let ordered = self.topological_sort_instructions(func, &hoistable);
+        let ordered = self.topological_sort_instructions(func, &selected);
 
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
@@ -813,11 +812,11 @@ impl LoopOptimizer {
             .any(|operand| self.value_feeds_affine_address(func, ctx, needle, operand, depth + 1))
     }
 
-    fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let mut inst_set = DenseBitSet::new_empty(func.num_insts());
-        for &inst_id in insts {
-            inst_set.insert(inst_id);
-        }
+    fn topological_sort_instructions(
+        &self,
+        func: &Function,
+        inst_set: &DenseBitSet<InstId>,
+    ) -> Vec<InstId> {
         let mut result = Vec::new();
         let mut visited = DenseBitSet::new_empty(func.num_insts());
 
@@ -843,8 +842,8 @@ impl LoopOptimizer {
             result.push(inst_id);
         }
 
-        for &inst_id in insts {
-            visit(func, inst_id, &inst_set, &mut visited, &mut result);
+        for inst_id in inst_set.iter() {
+            visit(func, inst_id, inst_set, &mut visited, &mut result);
         }
 
         result
