@@ -1072,14 +1072,11 @@ pub struct EvmCodegen<'gcx> {
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
-    /// Spill stores available on every emitted path into the current block
-    /// (`None` outside block emission or when no emitted forward predecessor
-    /// constrains it). A `stored` flag set by a sibling arm's emission is not
-    /// on this path, so skipping a store requires availability here.
-    spill_avail_in: Option<FxHashSet<ValueId>>,
-    /// Values whose slot was already stored when the current block's emission
-    /// began; a store emitted inside the block is trivially on this path.
-    stored_at_block_entry: FxHashSet<ValueId>,
+    /// Spill stores available on the current block's path at the current
+    /// emission point (`None` outside block emission or when no emitted
+    /// forward predecessor constrains it). Stores and clobbers in the block
+    /// update the set before it propagates to successors.
+    spill_available: Option<FxHashSet<ValueId>>,
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
@@ -1159,8 +1156,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
-            spill_avail_in: None,
-            stored_at_block_entry: FxHashSet::default(),
+            spill_available: None,
             elided_insts: FxHashSet::default(),
             spill_hazard_insts: FxHashSet::default(),
             global_stack_active: false,
@@ -2577,8 +2573,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     (_, None) => {}
                 }
             }
-            self.spill_avail_in = avail_in;
-            self.stored_at_block_entry = self.scheduler.spills.stored_values().collect();
+            self.spill_available = avail_in;
             if block_id == BlockId::ENTRY
                 && let Some(values) =
                     self.resident_stack_args(func_id).map(|values| values.to_vec())
@@ -2657,6 +2652,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.emit_value(func, value);
                         }
                         self.scheduler.spills.invalidate_stored(value);
+                        if let Some(available) = &mut self.spill_available {
+                            available.remove(&value);
+                        }
                         pinned_hazard_values.insert(value);
                     }
                 }
@@ -2888,7 +2886,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block_entry_stacks.insert(target, entry_stack);
             }
 
-            spill_avail_out.insert(block_id, self.scheduler.spills.stored_values().collect());
+            spill_avail_out.insert(
+                block_id,
+                self.spill_available
+                    .clone()
+                    .unwrap_or_else(|| self.scheduler.spills.stored_values().collect()),
+            );
         }
 
         if let Some(value) = self.scheduler.spills.unstored_required() {
@@ -4156,11 +4159,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // `stored` is a global emission flag; a store emitted by a sibling
         // branch arm sets it without covering this path. Trust it only when
-        // the store is available on every emitted path into this block, or
-        // was emitted inside this very block.
+        // the store is available on every emitted path into this block. The
+        // current availability set is updated whenever this block stores.
         if self.scheduler.spills.is_stored(val)
-            && (self.spill_avail_in.as_ref().is_none_or(|avail| avail.contains(&val))
-                || !self.stored_at_block_entry.contains(&val))
+            && self.spill_available.as_ref().is_none_or(|avail| avail.contains(&val))
         {
             return;
         }
@@ -4284,6 +4286,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.pop();
         self.scheduler.stack.pop();
         self.scheduler.spills.mark_stored(value);
+        if let Some(available) = &mut self.spill_available {
+            available.insert(value);
+        }
     }
 
     /// Spills operands that are live-out before an instruction consumes them.
@@ -9355,6 +9360,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.stack.pop(); // pop the untracked offset
                 self.scheduler.stack.pop(); // pop the value
                 self.scheduler.spills.mark_stored(*dst_val);
+                if let Some(available) = &mut self.spill_available {
+                    available.insert(*dst_val);
+                }
             }
             CopyDest::Temp(temp_id) => {
                 // Mark this temporary as defined - it's now on the stack
