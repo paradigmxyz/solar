@@ -3056,6 +3056,14 @@ impl<'gcx> Lowerer<'gcx> {
                     // struct-array parameters.
                     let pos = if self.abi_is_dynamic(ty) {
                         let offset = builder.mload(head_pos);
+                        let before_tail = builder.lt(offset, head_size_val);
+                        self.emit_abi_decode_revert_if(builder, before_tail);
+                        let word = builder.imm_u64(32);
+                        let body_head_end = builder.add(offset, word);
+                        let head_overflow = builder.lt(body_head_end, offset);
+                        self.emit_abi_decode_revert_if(builder, head_overflow);
+                        let head_oob = builder.gt(body_head_end, len);
+                        self.emit_abi_decode_revert_if(builder, head_oob);
                         builder.add(data_start, offset)
                     } else {
                         head_pos
