@@ -298,17 +298,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !value_is_memory_object {
             return value;
         }
-        let (kind, length) = match layout {
+        let (length, dynamic) = match layout {
             MemoryObjectLayout::DynamicArray { .. } => {
                 let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
-                (MemoryObjectKind::DynamicArray, length)
+                (length, true)
             }
-            MemoryObjectLayout::FixedArray { len, .. } => {
-                (MemoryObjectKind::FixedArray, self.builder.imm_u64(len))
-            }
+            MemoryObjectLayout::FixedArray { len, .. } => (self.builder.imm_u64(len), false),
             _ => unreachable!("scalar array layout checked above"),
         };
-        let words = if kind == MemoryObjectKind::DynamicArray {
+        let words = if dynamic {
             let one = self.builder.imm_u64(1);
             self.builder.checked_add(length, one)
         } else {
@@ -317,16 +315,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm_u64(32);
         let size = self.builder.checked_mul(words, word);
         let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        if kind == MemoryObjectKind::DynamicArray {
-            self.builder.set_memory_object_len(output, length, kind);
+        if dynamic {
+            self.builder.set_memory_object_len(output, length, layout.kind());
         }
 
         if !matches!(
             element_ty.peel_refs().kind,
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_)
         ) {
-            let source = self.builder.memory_object_data(value, kind);
-            let destination = self.builder.memory_object_data(output, kind);
+            let source = self.builder.memory_object_data(value, layout.kind());
+            let destination = self.builder.memory_object_data(output, layout.kind());
             let preheader = self.builder.current_block();
             let header = self.builder.create_block();
             let body = self.builder.create_block();
@@ -1262,16 +1260,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> Option<(Ty<'gcx>, ValueId, MemoryObjectLayout)> {
         let ty = ty.peel_refs();
-        let (element, length, layout) = match ty.kind {
+        let layout = self.types.memory_layout(ty)?;
+        let (element, length) = match ty.kind {
             TyKind::DynArray(element) => {
-                let layout = self.types.memory_layout(ty)?;
-                let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
-                (element, length, layout)
+                let length = self.builder.memory_object_len(value, layout.kind());
+                (element, length)
             }
             TyKind::Array(element, length) => {
-                let layout = self.types.memory_layout(ty)?;
                 let length = self.builder.imm_u64(u64::try_from(length).ok()?);
-                (element, length, layout)
+                (element, length)
             }
             _ => return None,
         };

@@ -166,13 +166,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
                 let condition = self.lower_expr(condition)?;
+                let message = match message {
+                    Some(message) => Some(self.prepare_revert_payload(message)?),
+                    None => None,
+                };
                 let is_false = self.builder.iszero(condition);
                 let revert_block = self.builder.create_block();
                 let continue_block = self.builder.create_block();
                 self.builder.branch(is_false, revert_block, continue_block);
                 self.builder.switch_to_block(revert_block);
                 if let Some(message) = message {
-                    self.lower_revert_payload(message)?;
+                    self.emit_revert_payload(message);
                 } else {
                     let zero = self.builder.imm_u256(U256::ZERO);
                     self.builder.revert(zero, zero);

@@ -15,8 +15,47 @@ use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
 use solar_config::LspArgs;
-use std::ops::ControlFlow;
+use std::{
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+};
 use tower::ServiceBuilder;
+
+/// Configuration used to launch the language server before the client initializes it.
+#[derive(Clone, Debug, Default)]
+pub struct LaunchConfig {
+    default_forge_path: Option<PathBuf>,
+    /// Foundry profile selected by the embedding host, if any.
+    selected_profile: Option<String>,
+}
+
+impl From<LspArgs> for LaunchConfig {
+    fn from(_: LspArgs) -> Self {
+        Self::default()
+    }
+}
+
+impl LaunchConfig {
+    /// Sets the Forge executable to use when the client does not provide one.
+    pub fn with_default_forge_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.default_forge_path = Some(path.into());
+        self
+    }
+
+    /// Selects the Foundry profile used for workspace discovery and Forge flychecks.
+    pub fn with_selected_profile(mut self, profile: impl Into<String>) -> Self {
+        self.selected_profile = Some(profile.into());
+        self
+    }
+
+    pub(crate) fn default_forge_path(&self) -> Option<&Path> {
+        self.default_forge_path.as_deref()
+    }
+
+    pub(crate) fn selected_profile(&self) -> Option<&str> {
+        self.selected_profile.as_deref()
+    }
+}
 
 mod call_hierarchy;
 mod code_actions;
@@ -166,13 +205,14 @@ fn request_layer(client: ClientSocket) -> request_cancellation::RequestCancellat
 
 fn new_server_service_with_router<S>(
     client: ClientSocket,
+    launch_config: LaunchConfig,
     new_router: impl FnOnce(GlobalState) -> S,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 where
     S: LspService<Response = serde_json::Value, Error = ResponseError> + Send,
     S::Future: Send + 'static,
 {
-    let state = GlobalState::new(client.clone());
+    let state = GlobalState::new(client.clone()).with_launch_config(launch_config);
     let protocol_trace = state.protocol_trace();
     ServiceBuilder::new()
         .layer(TracingLayer::default())
@@ -185,15 +225,20 @@ where
 
 fn new_server_service(
     client: ClientSocket,
+    launch_config: LaunchConfig,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 {
-    new_server_service_with_router(client, new_router_with_state)
+    new_server_service_with_router(client, launch_config, new_router_with_state)
 }
 
 /// Start the LSP server over stdin/stdout.
 ///
+/// The caller must poll this future inside a Tokio runtime and owns all process-global setup. Once
+/// polled, the server owns stdin and stdout until the LSP session exits; stdout is reserved for
+/// JSON-RPC frames. Transport and protocol failures are returned to the caller.
+///
 /// This future is long running and will not stop until the server exits.
-pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
+pub async fn launch(config: LaunchConfig) -> async_lsp::Result<()> {
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
     let (stdin, stdout) =
@@ -206,7 +251,8 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
         tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(tokio::io::stdout()),
     );
 
-    let (eloop, _) = async_lsp::MainLoop::new_server(new_server_service);
+    let (eloop, _) =
+        async_lsp::MainLoop::new_server(move |client| new_server_service(client, config));
 
     eloop.run_buffered(stdin, stdout).await
 }
@@ -218,3 +264,7 @@ mod tests;
 #[cfg(test)]
 #[path = "tests/flycheck.rs"]
 mod flycheck_tests;
+
+#[cfg(test)]
+#[path = "tests/launch.rs"]
+mod launch_tests;

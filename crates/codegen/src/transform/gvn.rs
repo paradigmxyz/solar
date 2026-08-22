@@ -298,7 +298,7 @@ impl GlobalValueNumberer {
     ) -> Option<Vec<(BlockId, ClassId)>> {
         let mut entries: Vec<(BlockId, ClassId)> =
             incoming.iter().map(|&(pred, value)| (pred, vn[value])).collect();
-        entries.sort_by_key(|&(pred, class)| (pred.index(), class.index()));
+        entries.sort_unstable_by_key(|&(pred, class)| (pred.index(), class.index()));
         entries.dedup();
         // A predecessor listed with two distinct classes has no well-defined
         // per-edge value; leave such phis unmerged.

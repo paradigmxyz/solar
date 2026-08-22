@@ -10,21 +10,6 @@ pub enum EscapeError {
     InvalidEscape,
     /// Raw '\r' encountered.
     BareCarriageReturn,
-    /// Can only skip one line of whitespace.
-    ///
-    /// ```text
-    /// "this is \
-    ///  ok" == "this is ok";
-    ///
-    /// "this is \
-    ///  \
-    ///  also ok" == "this is also ok";
-    ///
-    /// "this is \
-    ///  
-    ///  not ok"; // error: cannot skip multiple lines
-    /// ```
-    CannotSkipMultipleLines,
 
     /// Numeric character escape is too short (e.g. '\x1').
     HexEscapeTooShort,
@@ -57,7 +42,6 @@ impl EscapeError {
             Self::LoneSlash => "invalid trailing slash in literal",
             Self::InvalidEscape => "unknown character escape",
             Self::BareCarriageReturn => "bare CR not allowed in string, use `\\r` instead",
-            Self::CannotSkipMultipleLines => "cannot skip multiple lines with `\\`",
             Self::HexEscapeTooShort => "hex escape must be followed by 2 hex digits",
             Self::InvalidHexEscape => "invalid character in hex escape",
             Self::UnicodeEscapeTooShort => "unicode escape must be followed by 4 hex digits",

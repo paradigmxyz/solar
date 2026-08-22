@@ -377,10 +377,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if matches!(
             self.builder.func().value_ty(value),
             Some(MirType::MemoryObject(_)) | Some(MirType::Slice(SliceLocation::Memory))
-        ) || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
-            &self.builder.func().inst(*inst).kind,
-            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-        )) {
+        ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })
+            && self.builder.func().value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT))
+            || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
+                &self.builder.func().inst(*inst).kind,
+                InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
+            ))
+        {
             Self::memory_abi_type(ty)
         } else {
             ty
@@ -446,14 +449,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm_u64(32);
         let byte_length = self.builder.checked_mul(length, word);
         let size = self.builder.checked_add(word, byte_length);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+        let layout = MemoryObjectLayout::WORD_ARRAY;
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        self.builder.set_memory_object_len(object, length, layout.kind());
         let source = self.builder.make_slice(data, byte_length, SliceLocation::Calldata);
-        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::DynamicArray, source);
+        self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
         object
     }
 
@@ -471,12 +471,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_head_size = self.builder.imm_u64(element_abi.head_size());
         let payload_size = self.builder.checked_mul(length, word);
         let size = self.builder.checked_add(word, payload_size);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::WORD_ARRAY,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
+        let layout = MemoryObjectLayout::WORD_ARRAY;
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        self.builder.set_memory_object_len(object, length, layout.kind());
 
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -500,12 +497,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             span,
             validate_bounds && element_is_dynamic,
         )?;
-        self.builder.memory_object_store_element(
-            object,
-            MemoryObjectLayout::WORD_ARRAY,
-            index,
-            value,
-        );
+        self.builder.memory_object_store_element(object, layout, index, value);
         let one = self.builder.imm_u64(1);
         let next = self.builder.add(index, one);
         let backedge = self.builder.current_block();

@@ -105,33 +105,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
             }
-            if receiver_ty.is_ref_at(DataLocation::Storage) {
-                if let Some(access) = self.storage_access(receiver) {
-                    return match receiver_ty.peel_refs().kind {
-                        TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                            let object = self.load_storage_bytes(access.slot)?;
-                            Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
-                        }
-                        _ => report_unsupported(self.context.gcx, expr.span, "length member"),
-                    };
-                }
-                let object = self.lower_expr(receiver)?;
-                return match self.builder.func().value_ty(object) {
-                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
-                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
-                    }
-                    _ => report_unsupported(self.context.gcx, expr.span, "length member"),
-                };
-            }
-            let object = self.lower_expr(receiver)?;
-            let layout = self.types.memory_layout(receiver_ty)?;
-            return match layout.kind() {
-                MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
-                    Some(self.builder.memory_object_len(object, layout.kind()))
-                }
-                _ => report_unsupported(self.context.gcx, expr.span, "length member"),
-            };
+            return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
 
         let id = self.context.gcx.resolved_variable(expr)?;
@@ -209,6 +183,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         Some(self.normalize_memory_scalar(field_ty, value))
+    }
+
+    fn lower_array_length(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        receiver_ty: Ty<'gcx>,
+        span: Span,
+        what: &'static str,
+    ) -> Option<ValueId> {
+        if receiver_ty.is_ref_at(DataLocation::Storage) {
+            if let Some(access) = self.storage_access(receiver) {
+                return match receiver_ty.peel_refs().kind {
+                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                        let object = self.load_storage_bytes(access.slot)?;
+                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                    }
+                    _ => report_unsupported(self.context.gcx, span, what),
+                };
+            }
+            let object = self.lower_expr(receiver)?;
+            return match self.builder.func().value_ty(object) {
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                    Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                }
+                _ => report_unsupported(self.context.gcx, span, what),
+            };
+        }
+        let object = self.lower_expr(receiver)?;
+        if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
+            return Some(self.builder.slice_len(object));
+        }
+        let layout = self.types.memory_layout(receiver_ty)?;
+        match layout.kind() {
+            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
+                Some(self.builder.memory_object_len(object, layout.kind()))
+            }
+            _ => report_unsupported(self.context.gcx, span, what),
+        }
     }
 
     pub(super) fn lower_yul_member(
@@ -462,36 +475,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
             }
-            if receiver_ty.is_ref_at(DataLocation::Storage) {
-                if let Some(access) = self.storage_access(receiver) {
-                    return match receiver_ty.peel_refs().kind {
-                        TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
-                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                            let object = self.load_storage_bytes(access.slot)?;
-                            Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
-                        }
-                        _ => report_unsupported(self.context.gcx, expr.span, "array length"),
-                    };
-                }
-                let object = self.lower_expr(receiver)?;
-                return match self.builder.func().value_ty(object) {
-                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
-                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
-                    }
-                    _ => report_unsupported(self.context.gcx, expr.span, "array length"),
-                };
-            }
-            let object = self.lower_expr(receiver)?;
-            if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                return Some(self.builder.slice_len(object));
-            }
-            let layout = self.types.memory_layout(receiver_ty)?;
-            return match layout.kind() {
-                MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
-                    Some(self.builder.memory_object_len(object, layout.kind()))
-                }
-                _ => report_unsupported(self.context.gcx, expr.span, "array length"),
-            };
+            return self.lower_array_length(receiver, receiver_ty, expr.span, "array length");
         }
         if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax | Builtin::InterfaceId) {
             let ExprKind::Member(receiver, _) = &expr.kind else {

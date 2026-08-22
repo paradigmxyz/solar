@@ -247,10 +247,6 @@ impl DominatorTree {
                 children[idom].push(block);
             }
         }
-        for children in &mut children {
-            children.sort_by_key(|block| block.index());
-        }
-
         Self { idoms, children }
     }
 

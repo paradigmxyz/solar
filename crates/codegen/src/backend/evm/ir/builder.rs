@@ -346,8 +346,9 @@ impl<'gcx> Assembler<'gcx> {
         // splice after every in-place relocation patch above. Descending
         // instruction order keeps earlier indices in the same block valid.
         let mut alloc_relocations = std::mem::take(&mut self.alloc_relocations);
-        alloc_relocations
-            .sort_by_key(|&(block, instruction, _)| std::cmp::Reverse((block, instruction)));
+        alloc_relocations.sort_unstable_by_key(|&(block, instruction, _)| {
+            std::cmp::Reverse((block, instruction))
+        });
         for (block, instruction, id) in alloc_relocations {
             let resolution = self
                 .deferred_allocations

@@ -128,8 +128,9 @@ fn can_lex(compiler: &dyn Compiler, source: &Source) -> bool {
 }
 
 fn can_parse(compiler: &dyn Compiler, source: &Source) -> bool {
-    // compiler.capabilities().can_parse() && source.capabilities.can_parse()
     compiler.supports(source)
+        && compiler.capabilities().can_parse()
+        && source.capabilities.can_parse()
 }
 
 fn can_lower(compiler: &dyn Compiler, source: &Source) -> bool {

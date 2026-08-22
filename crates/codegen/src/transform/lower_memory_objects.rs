@@ -742,9 +742,10 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
                     alignment: AllocationAlignment::Word,
                     ..AllocationSemantics::SOLIDITY_UNINITIALIZED
                 };
-                let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
-                builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
-                builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, value);
+                let layout = MemoryObjectLayout::Bytes;
+                let object = builder.alloc_object(size, layout, semantics);
+                builder.set_memory_object_len(object, length, layout.kind());
+                builder.memory_object_copy_from_slice(object, layout.kind(), value);
                 lowered.push((predecessor, object));
             }
             func.inst_mut(inst).kind = InstKind::Phi(lowered);

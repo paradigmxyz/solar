@@ -9,13 +9,13 @@ bytes constant b1 = hex"\
 //~| ERROR: invalid hex digit
 // 2 for \\, \n
 
-// Escaped, but can only escape one newline
+// Only the escaped newline is removed.
 string constant s3 = "\
 
-"; //~^ ERROR: cannot skip multiple lines
+"; //~^ ERROR: unescaped newline
 string constant s4 = unicode"\
 
-"; //~^ ERROR: cannot skip multiple lines
+"; //~^ ERROR: unescaped newline
 bytes constant b2 = hex"\
 
 ";

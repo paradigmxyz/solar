@@ -6,6 +6,7 @@ Convenience entrypoints live under `fuzz/bin/`:
 
 - `fuzz/bin/solsmith`: generates typed Solidity runtime harnesses.
 - `fuzz/bin/solreduce`: reduces a replayable runtime mismatch.
+- `fuzz/bin/solsymdiff`: symbolically compares one Solc/Solar function.
 
 See `fandango/` for the combined Fandango + Foundry fuzzing flow. Fandango
 and SolSmith generate ABI values and Solidity programs; Foundry's builtin

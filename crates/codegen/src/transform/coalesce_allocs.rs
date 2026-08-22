@@ -212,6 +212,8 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
     } else {
         AllocationFailure::Infallible
     };
+    let preserves_fmp =
+        members.iter().any(|member| func.inst(member.inst).metadata.preserves_fmp());
 
     let base = members[0].result;
     let appended_start = func.blocks[block].instructions.len();
@@ -251,6 +253,7 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
             failure,
         },
     };
+    instruction.metadata.set_preserves_fmp(preserves_fmp);
 
     for (member, offset) in members[1..].iter().zip(offsets) {
         let instruction = func.inst_mut(member.inst);
