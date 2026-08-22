@@ -2,7 +2,7 @@ use crate::{
     NotifyResult,
     config::{
         Config, WatchedFileSpec, WorkspaceDiscoveryResult,
-        negotiate_capabilities_with_pull_diagnostic_data,
+        negotiate_capabilities_with_pull_diagnostic_data_and_profile,
     },
     diagnostics::{
         AnalyzedDocuments, DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport,
@@ -622,10 +622,11 @@ impl GlobalState {
         pull_diagnostic_data_support: bool,
     ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
         self.protocol_trace.set_level(params.trace.unwrap_or_default());
-        let (capabilities, config) = negotiate_capabilities_with_pull_diagnostic_data(
+        let (capabilities, config) = negotiate_capabilities_with_pull_diagnostic_data_and_profile(
             params,
             pull_diagnostic_data_support,
             self.launch_config.default_forge_path(),
+            self.launch_config.selected_profile(),
         );
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());

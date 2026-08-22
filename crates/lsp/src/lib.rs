@@ -25,6 +25,8 @@ use tower::ServiceBuilder;
 #[derive(Clone, Debug, Default)]
 pub struct LaunchConfig {
     default_forge_path: Option<PathBuf>,
+    /// Foundry profile selected by the embedding host, if any.
+    selected_profile: Option<String>,
 }
 
 impl From<LspArgs> for LaunchConfig {
@@ -40,8 +42,18 @@ impl LaunchConfig {
         self
     }
 
+    /// Selects the Foundry profile used for workspace discovery and Forge flychecks.
+    pub fn with_selected_profile(mut self, profile: impl Into<String>) -> Self {
+        self.selected_profile = Some(profile.into());
+        self
+    }
+
     pub(crate) fn default_forge_path(&self) -> Option<&Path> {
         self.default_forge_path.as_deref()
+    }
+
+    pub(crate) fn selected_profile(&self) -> Option<&str> {
+        self.selected_profile.as_deref()
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{flycheck, global_state::GlobalState, test_support::TestProject};
+use crate::{LaunchConfig, flycheck, global_state::GlobalState, test_support::TestProject};
 use async_lsp::ClientSocket;
 use lsp_types::{
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
@@ -10,11 +10,50 @@ use solar_interface::{
     diagnostics::{Applicability, Diag, DiagCtxt, JsonEmitter, Level},
     source_map::{FileName, SourceMap},
 };
+#[cfg(unix)]
+use std::{fs, os::unix::fs::PermissionsExt};
 use std::{io, path::Path, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
 const SOURCE: &str = "contract Test { function run() public view {} }";
 const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn default_forge_flycheck_passes_selected_profile_to_probe_and_run() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Test.sol
+        contract Test {}
+        "#,
+    );
+    let forge = project.path("/fake-forge");
+    project.write_file("/fake-forge", "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$0.args\"\n");
+    let mut permissions = fs::metadata(&forge).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&forge, permissions).unwrap();
+
+    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(
+        LaunchConfig::default().with_default_forge_path(&forge).with_selected_profile("custom"),
+    );
+    state.on_initialize(project.initialize_params()).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let source = project.path("/src/Test.sol");
+    let [flycheck] = state.config.flychecks_for_path(&source).try_into().unwrap();
+    assert_eq!(flycheck.args, ["lint", "--json", "--profile", "custom"]);
+
+    let (_cancel, cancelled) = oneshot::channel();
+    flycheck::run(flycheck, Duration::from_secs(30), cancelled, vec![source]).await.unwrap();
+
+    assert_eq!(
+        project.read_file("/fake-forge.args"),
+        "lint\n--help\n--profile\ncustom\nlint\n--json\n--profile\ncustom\n"
+    );
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {

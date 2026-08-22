@@ -31,6 +31,7 @@ impl ProjectManifest {
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
+        selected_profile: Option<&str>,
     ) -> io::Result<Option<ManifestDiscoveryResult>> {
         // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
         let mut manifests = Vec::new();
@@ -38,7 +39,8 @@ impl ProjectManifest {
         let mut marker_watch_roots = Vec::new();
         if let Some(manifest) = find_in_parent_dirs(path, "foundry.toml") {
             let workspace_root = manifest.parent().unwrap_or(path).to_path_buf();
-            let (source_roots, import_only_roots) = foundry_index_roots(&manifest, approved_roots);
+            let (source_roots, import_only_roots) =
+                foundry_index_roots_for_profile(&manifest, approved_roots, selected_profile);
             manifests.push(manifest);
             if let Ok(entries) = read_dir(path)
                 && matches!(
@@ -50,6 +52,7 @@ impl ProjectManifest {
                         policy,
                         cancellation,
                         metrics,
+                        selected_profile,
                     })
                     .find_in_child_dirs(
                         entries,
@@ -78,6 +81,7 @@ impl ProjectManifest {
                     policy,
                     cancellation,
                     metrics,
+                    selected_profile,
                 })
                 .find_in_child_dirs(
                     read_dir(path)?,
@@ -118,12 +122,31 @@ impl ProjectManifest {
             .map(|(manifests, _, _)| manifests)
     }
 
+    #[cfg(test)]
     pub(crate) fn discover_all_with_watch_roots(
         paths: &[PathBuf],
         approved_roots: &[PathBuf],
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
+    ) -> Option<ManifestDiscoveryResult> {
+        Self::discover_all_with_watch_roots_for_profile(
+            paths,
+            approved_roots,
+            policy,
+            cancellation,
+            metrics,
+            None,
+        )
+    }
+
+    pub(crate) fn discover_all_with_watch_roots_for_profile(
+        paths: &[PathBuf],
+        approved_roots: &[PathBuf],
+        policy: &WorkspaceIndexPolicy,
+        cancellation: &IndexingCancellation,
+        metrics: &mut WorkspaceIndexMetrics,
+        selected_profile: Option<&str>,
     ) -> Option<ManifestDiscoveryResult> {
         let mut discovered = FxHashSet::default();
         let mut watch_roots = Vec::new();
@@ -132,8 +155,14 @@ impl ProjectManifest {
             if cancellation.is_cancelled() {
                 return None;
             }
-            if let Ok(result) = Self::discover(path, approved_roots, policy, cancellation, metrics)
-            {
+            if let Ok(result) = Self::discover(
+                path,
+                approved_roots,
+                policy,
+                cancellation,
+                metrics,
+                selected_profile,
+            ) {
                 let (manifests, mut roots, mut marker_roots) = result?;
                 discovered.extend(manifests);
                 watch_roots.append(&mut roots);
@@ -231,6 +260,7 @@ struct ManifestDiscovery<'a> {
     policy: &'a WorkspaceIndexPolicy,
     cancellation: &'a IndexingCancellation,
     metrics: &'a mut WorkspaceIndexMetrics,
+    selected_profile: Option<&'a str>,
 }
 
 #[derive(Clone, Copy)]
@@ -317,7 +347,11 @@ impl ManifestDiscovery<'_> {
                 && let Ok(children) = read_dir(&path)
             {
                 let nested_index_roots = if is_project {
-                    foundry_index_roots(&manifest, self.approved_roots)
+                    foundry_index_roots_for_profile(
+                        &manifest,
+                        self.approved_roots,
+                        self.selected_profile,
+                    )
                 } else {
                     Default::default()
                 };
@@ -374,14 +408,15 @@ impl ManifestDiscovery<'_> {
     }
 }
 
-fn foundry_index_roots(
+fn foundry_index_roots_for_profile(
     manifest: &Path,
     approved_roots: &[PathBuf],
+    selected_profile: Option<&str>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let Some(root) = manifest.parent() else { return Default::default() };
     load_foundry_document(manifest)
         .map(|document| {
-            let profile = document.default_profile();
+            let profile = document.profile_for(selected_profile);
             let source_roots = profile
                 .source_roots(root)
                 .into_iter()
@@ -412,6 +447,19 @@ mod tests {
             &mut WorkspaceIndexMetrics::default(),
         )
         .unwrap()
+    }
+
+    fn discover_all_with_profile(paths: &[PathBuf], profile: Option<&str>) -> Vec<ProjectManifest> {
+        ProjectManifest::discover_all_with_watch_roots_for_profile(
+            paths,
+            paths,
+            &WorkspaceIndexPolicy::default(),
+            &IndexingCancellation::default(),
+            &mut WorkspaceIndexMetrics::default(),
+            profile,
+        )
+        .unwrap()
+        .0
     }
 
     #[test]
@@ -578,6 +626,54 @@ mod tests {
             vec![
                 ProjectManifest::Foundry(project.path("/foundry.toml")),
                 ProjectManifest::Foundry(project.path("/src/nested/foundry.toml")),
+            ]
+        );
+    }
+
+    #[test]
+    fn selected_profile_source_root_controls_nested_manifest_discovery() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = ".hidden/default-src"
+
+            [profile.custom]
+            src = ".hidden/custom-src"
+
+            //- /.hidden/default-src/nested/foundry.toml
+
+            //- /.hidden/custom-src/nested/foundry.toml
+            [profile.default]
+            src = ".hidden/default-src"
+
+            [profile.custom]
+            src = ".hidden/custom-src"
+
+            //- /.hidden/custom-src/nested/.hidden/default-src/deep/foundry.toml
+
+            //- /.hidden/custom-src/nested/.hidden/custom-src/deep/foundry.toml
+            "#,
+        );
+
+        assert_eq!(
+            foundry_index_roots_for_profile(
+                &project.path("/foundry.toml"),
+                &[project.root().to_path_buf()],
+                Some("custom"),
+            )
+            .0,
+            [project.path("/.hidden/custom-src")]
+        );
+
+        let nested_custom_manifest =
+            project.path("/.hidden/custom-src/nested/.hidden/custom-src/deep/foundry.toml");
+        assert_eq!(
+            discover_all_with_profile(&[project.root().to_path_buf()], Some("custom")),
+            vec![
+                ProjectManifest::Foundry(nested_custom_manifest),
+                ProjectManifest::Foundry(project.path("/.hidden/custom-src/nested/foundry.toml")),
+                ProjectManifest::Foundry(project.path("/foundry.toml")),
             ]
         );
     }

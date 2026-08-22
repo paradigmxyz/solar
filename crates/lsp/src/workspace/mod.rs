@@ -477,22 +477,40 @@ impl Workspace {
 
     #[cfg(any(test, feature = "bench"))]
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, None)
+        Self::load_foundry_inner(path, None, None)
     }
 
+    #[cfg(test)]
+    pub(crate) fn load_foundry_with_profile(
+        path: PathBuf,
+        selected_profile: Option<&str>,
+    ) -> Result<Self, WorkspaceError> {
+        Self::load_foundry_inner(path, None, selected_profile)
+    }
+
+    #[cfg(test)]
     pub(crate) fn load_foundry_bounded(
         path: PathBuf,
         workspace_roots: &[PathBuf],
     ) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, Some(workspace_roots))
+        Self::load_foundry_inner(path, Some(workspace_roots), None)
+    }
+
+    pub(crate) fn load_foundry_bounded_with_profile(
+        path: PathBuf,
+        workspace_roots: &[PathBuf],
+        selected_profile: Option<&str>,
+    ) -> Result<Self, WorkspaceError> {
+        Self::load_foundry_inner(path, Some(workspace_roots), selected_profile)
     }
 
     fn load_foundry_inner(
         path: PathBuf,
         workspace_roots: Option<&[PathBuf]>,
+        selected_profile: Option<&str>,
     ) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?.normalize();
-        let profile = load_foundry_document(&path)?.default_profile();
+        let profile = load_foundry_document(&path)?.profile_for(selected_profile);
         let approved = |path: &Path| {
             workspace_roots
                 .is_none_or(|workspace_roots| is_approved_index_root(path, &root, workspace_roots))
@@ -1040,6 +1058,54 @@ mod tests {
             ]
         );
         assert_eq!(workspace.source_roots(), &[project.path("/contracts")]);
+    }
+
+    #[test]
+    fn foundry_workspace_loads_selected_profile_compile_config() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /default-src/Main.sol
+            contract DefaultMain {}
+
+            //- /custom-src/Main.sol
+            contract CustomMain {}
+
+            //- /default-libs/pkg/src/Lib.sol
+            contract Lib {}
+
+            //- /custom-libs/pkg/src/CustomLib.sol
+            contract CustomLib {}
+
+            //- /foundry.toml
+            [profile.default]
+            src = "default-src"
+            test = "default-test"
+            script = "default-script"
+            libs = ["default-libs"]
+            evm_version = "paris"
+
+            [profile.custom]
+            src = "custom-src"
+            libs = ["custom-libs"]
+            evm_version = "cancun"
+            "#,
+        );
+
+        let workspace =
+            Workspace::load_foundry_with_profile(project.path("/foundry.toml"), Some("custom"))
+                .unwrap();
+
+        assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
+        assert_eq!(
+            workspace.import_source_roots(),
+            &[
+                project.path("/custom-src"),
+                project.path("/default-test"),
+                project.path("/default-script"),
+            ]
+        );
+        assert_eq!(workspace.compile_opts().include_paths, [project.path("/custom-libs")]);
+        assert_eq!(workspace.compile_opts().evm_version, EvmVersion::Cancun);
     }
 
     #[test]

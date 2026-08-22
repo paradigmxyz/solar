@@ -29,6 +29,16 @@ async fn initialize_applies_launch_config_default_forge_path() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn initialize_applies_launch_config_selected_profile() {
+    let config = LaunchConfig::default().with_selected_profile("custom");
+    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
+
+    state.on_initialize(InitializeParams::default()).await.unwrap();
+
+    assert_eq!(state.config.selected_profile(), Some("custom"));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn configured_server_service_applies_launch_default_during_initialize() {
     let observed_path = Arc::new(Mutex::new(None::<PathBuf>));
     let server_observed_path = observed_path.clone();
