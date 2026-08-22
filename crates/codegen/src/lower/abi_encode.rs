@@ -679,6 +679,28 @@ impl<'gcx> Lowerer<'gcx> {
         self.coerce_memory_slice_value(builder, value)
     }
 
+    /// Converts an already-lowered calldata slice into the memory object
+    /// required by a forwarding function's declared return type.
+    fn materialize_forwarded_return_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if !Self::value_is_calldata_slice(builder, value) {
+            return value;
+        }
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_calldata_bytes(builder, value)
+            }
+            TyKind::DynArray(_) | TyKind::Slice(_) => {
+                self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
+            }
+            _ => value,
+        }
+    }
+
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
     /// encoder expects (`[length][data...]`), through the module's shared
     /// `__load_storage_bytes` helper: the short/long-form decode and copy loop
@@ -952,7 +974,21 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return items;
         }
+        let delivers_pending = self.is_slice_multi_return_call(expr);
+        if delivers_pending {
+            self.pending_inline_returns = None;
+        }
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
+        if delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            return values
+                .into_iter()
+                .zip(tys)
+                .map(|(value, ty)| {
+                    (self.materialize_forwarded_return_value(builder, value, ty), ty)
+                })
+                .collect();
+        }
+        self.pending_inline_returns = None;
         let mut items = vec![(first, tys[0])];
         if tys.len() > 1 {
             let tail_base = self.multi_return_buffer_base(builder);
