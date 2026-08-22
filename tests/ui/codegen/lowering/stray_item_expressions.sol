@@ -1,7 +1,9 @@
+//@ filecheck:
+// CHECK: @module
 //@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: f 33 => 42
 // ported-from: test/libsolidity/semanticTests/libraries/library_enum_as_an_expression.sol
 // ported-from: test/libsolidity/semanticTests/libraries/library_stray_values.sol

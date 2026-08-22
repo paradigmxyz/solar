@@ -1,7 +1,9 @@
+//@ filecheck:
+// CHECK: @module
 //@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: simple() => 2
 //@ run-call: conditional(uint256) 0 => 9
 //@ run-call: conditional(uint256) 1 => 2

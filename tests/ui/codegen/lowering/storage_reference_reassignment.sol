@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: bindAfterDeclaration 7, 11 => 11, 12
 //@ run-call: rebind true, 3, 5, 17 => 0, 17
 //@ run-call: rebind false, 3, 5, 17 => 17, 0

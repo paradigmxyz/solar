@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: C::getData() => 0x4300
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_calling_functions_in_creation_context.sol
 

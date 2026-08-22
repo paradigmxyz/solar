@@ -1,7 +1,9 @@
+//@ filecheck:
+// CHECK: @module
 //@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: RequireEvaluationOrder::customError() => 1
 //@ run-call: RequireEvaluationOrder::stringError() => 1
 //@ run-call: RequireEvaluationOrder::earlyReturn() => 7

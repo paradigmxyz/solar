@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: read => 1, 2, 3
 //@ run-call: copyValues => 1, 2, 3
 //@ run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201

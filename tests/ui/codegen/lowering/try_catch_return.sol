@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: TryCatchReturn::success() => 13
 //@ run-call: TryCatchReturn::failure() => 9
 //@ run-call: TryCatchReturn::ignored() => 13
