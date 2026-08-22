@@ -375,9 +375,10 @@ fn parse_test_results(stdout: &str) -> Vec<TestResult> {
     tests
 }
 
-/// Returns whether an artifact contains only solc's library call-protection
-/// stub. Internal-only libraries have no callable ABI and revert immediately
-/// after checking their deployment address; the remaining bytes are metadata.
+/// Returns whether an artifact contains only one of solc's non-callable
+/// library stubs. Depending on the compiler and optimizer, internal-only
+/// libraries either revert immediately or first check their deployment
+/// address; the remaining bytes are metadata.
 fn is_internal_only_library_stub(json: &serde_json::Value, bytecode: &str) -> bool {
     let abi_has_callable_entry =
         json.get("abi").and_then(serde_json::Value::as_array).is_none_or(|abi| {
@@ -398,11 +399,17 @@ fn is_internal_only_library_stub(json: &serde_json::Value, bytecode: &str) -> bo
 
     let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
     const ADDRESS_GUARD: &str = "7300000000000000000000000000000000000000003014";
-    const PUSH0_REVERT: &str = "60806040525f80fdfe";
-    const PUSH1_REVERT: &str = "6080604052600080fdfe";
-    bytecode
-        .strip_prefix(ADDRESS_GUARD)
-        .is_some_and(|rest| rest.starts_with(PUSH0_REVERT) || rest.starts_with(PUSH1_REVERT))
+    const GUARDED_REVERTS: [&str; 4] = [
+        "60806040525f80fdfe",
+        "60806040525f5ffdfe",
+        "6080604052600080fdfe",
+        "608060405260006000fdfe",
+    ];
+    const BARE_REVERTS: [&str; 4] = ["5f80fdfe", "5f5ffdfe", "600080fdfe", "60006000fdfe"];
+    BARE_REVERTS.iter().any(|stub| bytecode.starts_with(stub))
+        || bytecode
+            .strip_prefix(ADDRESS_GUARD)
+            .is_some_and(|rest| GUARDED_REVERTS.iter().any(|stub| rest.starts_with(stub)))
 }
 
 /// Extracts deployed artifact data from a forge output directory.
@@ -1100,6 +1107,19 @@ mod tests {
         let push1_bytecode =
             concat!("7300000000000000000000000000000000000000003014", "6080604052600080fdfe",);
         assert!(is_internal_only_library_stub(&push0, push1_bytecode));
+
+        let bare_revert = "600080fdfea164736f6c6343000813000a";
+        assert!(is_internal_only_library_stub(&push0, bare_revert));
+
+        let bare_push0_revert = "5f80fdfea164736f6c634300081a000a";
+        assert!(is_internal_only_library_stub(&push0, bare_push0_revert));
+
+        let separate_zeros = concat!(
+            "7300000000000000000000000000000000000000003014",
+            "60806040525f5ffdfe",
+            "a26469706673582212200033",
+        );
+        assert!(is_internal_only_library_stub(&push0, separate_zeros));
     }
 
     #[test]
