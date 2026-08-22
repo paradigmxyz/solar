@@ -376,17 +376,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         (object, base, layout)
     }
 
-    pub(super) fn store_multi_return_values(&mut self, values: &[ValueId]) {
-        if values.len() <= 1 {
-            return;
-        }
-        let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
-        for (index, value) in values.iter().copied().enumerate().skip(1) {
-            let index = self.builder.imm_u64(index as u64);
-            self.builder.memory_object_store_element(object, layout, index, value);
-        }
-    }
-
     pub(super) fn load_multi_return_value(
         &mut self,
         base: ValueId,

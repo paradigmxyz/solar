@@ -644,12 +644,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
-        if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bool)) {
+        let peeled = ty.peel_refs();
+        if matches!(peeled.kind, TyKind::Elementary(ElementaryType::Bool)) {
             let zero = self.builder.imm_u256(U256::ZERO);
             let is_zero = self.builder.eq(value, zero);
             return self.builder.iszero(is_zero);
         }
-        let validator = match ty.peel_refs().kind {
+        let validator = match peeled.kind {
             TyKind::Enum(id) => Some(AbiWordValidator::EnumRange(
                 self.context.gcx.hir.enumm(id).variants.len() as u64,
             )),
@@ -1070,7 +1071,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         zero: ValueId,
     ) -> Option<ValueId> {
         let values = self.lower_abi_decode_values(data, return_types, span)?;
-        self.store_multi_return_values(&values);
+        if values.len() > 1 {
+            let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
+            for (index, value) in values.iter().copied().enumerate().skip(1) {
+                let index = self.builder.imm_u64(index as u64);
+                self.builder.memory_object_store_element(object, layout, index, value);
+            }
+        }
         values.into_iter().next().or(Some(zero))
     }
 

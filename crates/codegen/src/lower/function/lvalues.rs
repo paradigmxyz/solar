@@ -67,20 +67,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. }
                     | MemoryObjectLayout::FixedArray { .. } => {
-                        let (ty, length) = match (receiver_ty.peel_refs().kind, layout) {
-                            (TyKind::DynArray(ty), MemoryObjectLayout::DynamicArray { .. }) => {
-                                (ty, self.memory_object_length(object, layout))
-                            }
-                            (TyKind::Array(ty, _), MemoryObjectLayout::FixedArray { .. }) => {
-                                (ty, self.memory_object_length(object, layout))
-                            }
-                            _ => {
-                                return report_unsupported(
-                                    self.context.gcx,
-                                    expr.span,
-                                    "index l-value",
-                                );
-                            }
+                        let Some((ty, length)) =
+                            self.array_element_and_length(receiver_ty, object, layout)
+                        else {
+                            return report_unsupported(
+                                self.context.gcx,
+                                expr.span,
+                                "index l-value",
+                            );
                         };
                         self.builder.bounds_check(index, length);
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })

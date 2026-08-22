@@ -49,6 +49,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         ty: Ty<'gcx>,
     ) -> bool {
+        if self.is_external_abi_argument(value) {
+            return false;
+        }
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
         self.validate_calldata_static_argument_inner(value, ty, needs_validation)
     }
@@ -298,6 +301,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let abi_type = self.abi_type_for_value(value, abi_type);
         self.validate_calldata_bytes_argument(value, &abi_type);
         self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
+    }
+
+    pub(super) fn prepare_abi_encode_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        abi_type: AbiType,
+    ) -> Option<(ValueId, AbiType)> {
+        let abi_type = self.abi_type_for_value(value, abi_type);
+        self.validate_calldata_bytes_argument(value, &abi_type);
+        self.validate_calldata_array_head(value, ty, &abi_type);
+        self.prepare_abi_argument(argument, ty, value, abi_type)
     }
 
     pub(super) fn prepare_abi_argument(

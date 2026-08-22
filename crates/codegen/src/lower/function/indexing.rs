@@ -17,6 +17,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    pub(super) fn array_element_and_length(
+        &mut self,
+        receiver_ty: Ty<'gcx>,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+    ) -> Option<(Ty<'gcx>, ValueId)> {
+        match (receiver_ty.peel_refs().kind, layout) {
+            (TyKind::DynArray(element), MemoryObjectLayout::DynamicArray { .. })
+            | (TyKind::Array(element, _), MemoryObjectLayout::FixedArray { .. }) => {
+                Some((element, self.memory_object_length(object, layout)))
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
@@ -113,14 +128,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
-                let (element, length) = match (receiver_ty.peel_refs().kind, layout) {
-                    (TyKind::DynArray(element), MemoryObjectLayout::DynamicArray { .. }) => {
-                        (element, self.memory_object_length(object, layout))
-                    }
-                    (TyKind::Array(element, _), MemoryObjectLayout::FixedArray { .. }) => {
-                        (element, self.memory_object_length(object, layout))
-                    }
-                    _ => return report_unsupported(self.context.gcx, expr.span, "array index"),
+                let Some((element, length)) =
+                    self.array_element_and_length(receiver_ty, object, layout)
+                else {
+                    return report_unsupported(self.context.gcx, expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
