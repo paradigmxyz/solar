@@ -204,9 +204,10 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
-    /// Variables assigned inside an inline assembly block. Assembly stores raw
-    /// words, so Solidity-level reads of these canonicalize for the variable's
-    /// type; assembly-level reads keep the raw word, matching solc.
+    /// Variables whose words may be dirty because they are assigned in inline
+    /// assembly or receive an internal-call result. Solidity-level reads
+    /// canonicalize for the variable's type; assembly-level reads keep the raw
+    /// word, matching solc.
     asm_assigned_vars: GrowableBitSet<VariableId>,
     /// Invalid event declarations whose topic-count error has already been emitted.
     invalid_event_topics: GrowableBitSet<hir::EventId>,
@@ -258,6 +259,9 @@ pub(crate) struct Lowerer<'gcx> {
     /// assembly-assigned variables stay raw there, and the pre-scan uses it to
     /// populate `asm_assigned_vars`.
     in_assembly_block: bool,
+    /// Functions currently being inspected for dirty named returns, preventing
+    /// recursive call cycles while still following helper chains.
+    dirty_return_scan_stack: GrowableBitSet<HirFunctionId>,
     /// Sema return types of the function currently being lowered (one per declared
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
@@ -350,6 +354,7 @@ impl<'gcx> Lowerer<'gcx> {
             synthesizing_helper: false,
             in_unchecked_block: false,
             in_assembly_block: false,
+            dirty_return_scan_stack: GrowableBitSet::new_empty(),
             current_return_tys: Vec::new(),
             current_return_vars: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -1297,7 +1302,6 @@ impl<'gcx> Lowerer<'gcx> {
                 self.collect_assigned_vars_block(mod_body);
             }
         }
-
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
@@ -1755,7 +1759,11 @@ impl<'gcx> Lowerer<'gcx> {
                             } else {
                                 let offset_val = self.local_memory_addr(&mut builder, offset);
                                 let val = builder.mload(offset_val);
-                                self.clean_asm_dirty_read(&mut builder, ret_id, val)
+                                if uses_external_abi || !self.asm_assigned_vars.contains(ret_id) {
+                                    self.clean_asm_dirty_read(&mut builder, ret_id, val)
+                                } else {
+                                    val
+                                }
                             }
                         } else if let Some(value) =
                             self.lower_default_variable_value(&mut builder, ret_id)
@@ -2228,10 +2236,20 @@ impl<'gcx> Lowerer<'gcx> {
             // initializer can mutate other locals (`uint256 x = xs[i++];`).
             StmtKind::DeclSingle(var_id) => {
                 if let Some(init) = self.gcx.hir.variable(*var_id).initializer {
+                    if self.call_result_may_be_dirty(init) {
+                        self.asm_assigned_vars.insert(*var_id);
+                    }
                     self.collect_assigned_vars_expr(init);
                 }
             }
-            StmtKind::DeclMulti(_, expr) => self.collect_assigned_vars_expr(expr),
+            StmtKind::DeclMulti(var_ids, expr) => {
+                if self.call_result_may_be_dirty(expr) {
+                    for &var_id in var_ids.iter().flatten() {
+                        self.asm_assigned_vars.insert(var_id);
+                    }
+                }
+                self.collect_assigned_vars_expr(expr);
+            }
             StmtKind::Return(None)
             | StmtKind::Continue
             | StmtKind::Break
@@ -2248,6 +2266,9 @@ impl<'gcx> Lowerer<'gcx> {
                 // Record assignment targets, then scan both operands for
                 // nested mutations such as the `i++` in `a[i++] = value`.
                 self.mark_assigned_var(lhs);
+                if self.call_result_may_be_dirty(rhs) {
+                    self.mark_may_be_dirty_var(lhs);
+                }
                 self.collect_assigned_vars_expr(lhs);
                 self.collect_assigned_vars_expr(rhs);
             }
@@ -2344,6 +2365,34 @@ impl<'gcx> Lowerer<'gcx> {
                 self.asm_assigned_vars.insert(var_id);
             }
         }
+    }
+
+    fn mark_may_be_dirty_var(&mut self, expr: &hir::Expr<'_>) {
+        if let hir::ExprKind::Tuple(elements) = &expr.kind {
+            for element in elements.iter().copied().flatten() {
+                self.mark_may_be_dirty_var(element);
+            }
+        } else if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            self.asm_assigned_vars.insert(var_id);
+        }
+    }
+
+    pub(super) fn call_result_may_be_dirty(&mut self, expr: &hir::Expr<'_>) -> bool {
+        let hir::ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        let Some(func_id) = self.resolved_function_callee(callee) else { return false };
+        let func_id = self.virtual_function_target(func_id);
+        if !self.dirty_return_scan_stack.insert(func_id) {
+            return false;
+        }
+        let (returns, body) = {
+            let func = self.gcx.hir.function(func_id);
+            (func.returns.to_vec(), func.body)
+        };
+        if let Some(body) = body {
+            self.collect_assigned_vars_block(&body);
+        }
+        self.dirty_return_scan_stack.remove(func_id);
+        body.is_some() && returns.into_iter().any(|ret_id| self.asm_assigned_vars.contains(ret_id))
     }
 
     /// Returns true if a variable is assigned after declaration.

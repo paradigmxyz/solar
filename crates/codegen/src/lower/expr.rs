@@ -541,7 +541,11 @@ impl<'gcx> Lowerer<'gcx> {
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
+                    let value = builder.mload(field_addr);
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.abi_clean_value(builder, value, ty);
+                    }
+                    return value;
                 }
 
                 if let Some((struct_id, field_index)) =
@@ -554,7 +558,11 @@ impl<'gcx> Lowerer<'gcx> {
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
+                    let value = builder.mload(field_addr);
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.abi_clean_value(builder, value, ty);
+                    }
+                    return value;
                 }
 
                 // Fallback: just load from base address
@@ -805,9 +813,15 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_expr_as_memory_dyn_array(builder, rhs);
         }
         let value = self.lower_value_expr(builder, rhs);
-        match self.get_expr_type(lhs) {
-            Some(lhs_ty) => self.coerce_literal_for_ty(builder, rhs, lhs_ty, value),
-            None => value,
+        let Some(lhs_ty) = self.get_expr_type(lhs) else { return value };
+        let value = self.coerce_literal_for_ty(builder, rhs, lhs_ty, value);
+        if !self.in_assembly_block
+            && !matches!(lhs.kind, ExprKind::Ident(_))
+            && self.call_result_may_be_dirty(rhs)
+        {
+            self.abi_clean_value(builder, value, lhs_ty)
+        } else {
+            value
         }
     }
 
@@ -1967,7 +1981,15 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return builder.imm_u256(*n << (usize::from(32 - width) * 8));
         }
-        self.lower_value_expr(builder, operand)
+        let value = self.lower_value_expr(builder, operand);
+        if !self.in_assembly_block
+            && self.call_result_may_be_dirty(operand)
+            && let Some(ty) = self.get_expr_type(operand)
+        {
+            self.abi_clean_value(builder, value, ty)
+        } else {
+            value
+        }
     }
 
     /// Lowers an assignment.

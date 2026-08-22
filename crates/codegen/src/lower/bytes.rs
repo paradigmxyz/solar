@@ -267,7 +267,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return self.materialize_calldata_bytes(builder, value);
         }
-        self.coerce_memory_slice_value(builder, value)
+        let value = self.coerce_memory_slice_value(builder, value);
+        if !self.in_assembly_block && self.call_result_may_be_dirty(arg) {
+            let ty =
+                self.get_expr_type(arg).unwrap_or_else(|| self.gcx.type_of_item(param_id.into()));
+            self.abi_clean_value(builder, value, ty)
+        } else {
+            value
+        }
     }
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
