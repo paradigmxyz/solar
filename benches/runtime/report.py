@@ -67,7 +67,8 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
             if data.get("status") != "ok":
-                error = str(data.get("error") or "").splitlines()[0]
+                error_lines = str(data.get("error") or "").strip().splitlines()
+                error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
     return failures
 
@@ -184,10 +185,12 @@ def has_compile_time_changes(
     for result in results:
         base = baseline.get(suite_key(result))
         if base is None:
+            if successful_compile_time(result, "solar") is not None:
+                return True
             continue
 
-        solar_time = compile_time(result, "solar")
-        base_solar_time = compile_time(base, "solar")
+        solar_time = successful_compile_time(result, "solar")
+        base_solar_time = baseline_compile_time(result, base, "solar")
         if solar_time is not None and base_solar_time is None:
             return True
         if solar_time is not None and base_solar_time is not None:
@@ -230,12 +233,18 @@ def compiler_data(result: dict[str, Any], compiler: str) -> dict[str, Any]:
 
 
 def total_gas(result: dict[str, Any], compiler: str) -> int | None:
-    value = compiler_data(result, compiler).get("total_gas")
+    data = compiler_data(result, compiler)
+    if data.get("status") != "ok":
+        return None
+    value = data.get("total_gas")
     return value if isinstance(value, int) else None
 
 
 def runtime_size(result: dict[str, Any], compiler: str) -> int | None:
-    value = compiler_data(result, compiler).get("runtime_size")
+    data = compiler_data(result, compiler)
+    if data.get("status") != "ok":
+        return None
+    value = data.get("runtime_size")
     return value if isinstance(value, int) else None
 
 
@@ -255,6 +264,40 @@ def compile_time(result: dict[str, Any], compiler: str) -> float | None:
     if isinstance(value, (int, float)) and value > 0:
         return float(value)
     return None
+
+
+def successful_compile_time(result: dict[str, Any], compiler: str) -> float | None:
+    if compiler_data(result, compiler).get("status") != "ok":
+        return None
+    return compile_time(result, compiler)
+
+
+def compiler_build_fingerprint(result: dict[str, Any], compiler: str) -> tuple[str, str]:
+    data = compiler_data(result, compiler)
+    command = str(data.get("command") or "")
+    if "target/release/" in command or "target\\release\\" in command:
+        profile = "release"
+    elif "target/debug/" in command or "target\\debug\\" in command:
+        profile = "debug"
+    else:
+        profile = "unknown"
+    return str(data.get("label") or ""), profile
+
+
+def baseline_compile_time(
+    result: dict[str, Any], baseline: dict[str, Any], compiler: str
+) -> float | None:
+    current_fingerprint = compiler_build_fingerprint(result, compiler)
+    baseline_fingerprint = compiler_build_fingerprint(baseline, compiler)
+    if current_fingerprint[1] == "unknown" or baseline_fingerprint[1] == "unknown":
+        return None
+    if current_fingerprint != baseline_fingerprint:
+        return None
+    current_input = compiler_data(result, compiler).get("input_fingerprint")
+    baseline_input = compiler_data(baseline, compiler).get("input_fingerprint")
+    if not current_input or current_input != baseline_input:
+        return None
+    return successful_compile_time(baseline, compiler)
 
 
 def fmt_duration(seconds: float | None) -> str:
@@ -458,7 +501,9 @@ def compile_time_rows(
         solc_time = compile_time(result, "solc")
         solar_time = compile_time(result, "solar")
         base = baseline.get(suite_key(result), {})
-        base_solar_time = compile_time(base, "solar") if base else None
+        base_solar_time = (
+            baseline_compile_time(result, base, "solar") if base else None
+        )
         rows.append(
             "| "
             + " | ".join(

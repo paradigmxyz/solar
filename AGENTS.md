@@ -382,8 +382,9 @@ memory use. Treat compile time as a tie-breaker after output quality. Reject a
 candidate whose only win is faster compilation.
 
 Use two corpora for codegen work. The UI codegen files give a fast generated
-size signal. The vendored corpus in `testdata/codegen-runtime` is the source of
-truth for runtime checks and gas.
+size signal. The shared project archives in `testdata/projects`, together with
+the runtime fixtures in `benches/runtime`, are the source of truth for
+runtime checks and gas.
 
 Build the debug compiler in the current checkout, then run the in-repository
 benchmark before editing. Do not use release builds for routine local tests:
@@ -406,7 +407,8 @@ regression in one contract.
 
 For the runtime corpus, use the `SOLC_VERSION` pinned in
 `.github/workflows/bench.yml`; the Solidity sources and their upstream commits
-are pinned in `testdata/codegen-runtime/README.md`. Run the command above as a
+are pinned in `testdata/projects/README.md` and
+`benches/runtime/README.md`. Run the command above as a
 quick size screen, then enable the hot gas workload with
 `--gas --gas-profile hot --start-anvil` before accepting an `-Ogas` candidate.
 Always write JSON with `--output`, retain the baseline JSON, and compare the

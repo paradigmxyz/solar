@@ -1,4 +1,7 @@
-use crate::{LaunchConfig, global_state::GlobalState, new_server_service_with_router, proto};
+use crate::{
+    LaunchConfig, global_state::GlobalState, new_server_service_with_router, proto,
+    test_support::TestProject, workspace::WorkspaceKind,
+};
 use async_lsp::{AnyRequest, ClientSocket, router::Router};
 use lsp_types::InitializeParams;
 use solar_config::LspArgs;
@@ -26,6 +29,42 @@ async fn initialize_applies_launch_config_default_forge_path() {
     state.on_initialize(InitializeParams::default()).await.unwrap();
 
     assert_eq!(state.config.forge_path(), Path::new("/embedded/forge"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn initialize_applies_launch_config_selected_profile_to_workspace_discovery() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /default-src/Default.sol
+        contract DefaultContract {}
+
+        //- /custom-src/Custom.sol
+        contract CustomContract {}
+
+        //- /foundry.toml
+        [profile.default]
+        src = "default-src"
+
+        [profile.custom]
+        src = "custom-src"
+        "#,
+    );
+    let config = LaunchConfig::default().with_selected_profile("custom");
+    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+
+    state.on_initialize(params).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+
+    let workspace = state
+        .config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
+        .unwrap();
+    assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
+    assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
 }
 
 #[tokio::test(flavor = "current_thread")]

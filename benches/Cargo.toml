@@ -29,7 +29,6 @@ tree-sitter-solidity = "=1.2.12"
 
 [dev-dependencies]
 criterion.workspace = true
-gungraun = "0.19"
 
 [features]
 ci = []
@@ -37,9 +36,4 @@ ci = []
 [[bench]]
 name = "criterion"
 path = "benches/criterion.rs"
-harness = false
-
-[[bench]]
-name = "gungraun"
-path = "benches/gungraun.rs"
 harness = false

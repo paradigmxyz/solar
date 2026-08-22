@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
-from common import REPOSITORY_ROOT, TESTDATA_ROOT
+from common import PROJECTS_ROOT, TESTDATA_ROOT
 
 
 DEFAULT_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -49,6 +49,7 @@ class TestCase:
     source_name: str = ""
     project: str = ""
     project_file: Optional[str] = None
+    settings_profile: str = ""
     source: str = ""
     gas_calls: Sequence[GasCall] = field(default_factory=tuple)
     constructor_args: Sequence[str] = field(default_factory=tuple)
@@ -66,7 +67,7 @@ class TestCase:
     def project_path(self) -> Path:
         if self.project_file is None:
             raise ValueError(f"inline case {self.test_id} has no project archive")
-        return REPOSITORY_ROOT / self.project_file
+        return PROJECTS_ROOT / self.project_file
 
 
 def source(name: str) -> str:
@@ -129,10 +130,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
         project="v2-core",
-        project_file="testdata/codegen-runtime/projects/uniswap-v2-pair.json.gz",
+        project_file="uniswap-v2-pair.json.gz",
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
         suite="repository",
+        settings_profile="runtime",
         min_solc="0.5.16",
         max_solc="0.5.16",
     ),
@@ -140,10 +142,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
         project="openzeppelin-contracts",
-        project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
+        project_file="openzeppelin-5.6.1.json.gz",
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
         suite="repository",
+        settings_profile="runtime",
         test_calls=(
             ("mint(address,uint256)", (DEFAULT_SENDER, "1000")),
             ("burn(address,uint256)", (DEFAULT_SENDER, "400")),
@@ -170,10 +173,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
         project="openzeppelin-contracts",
-        project_file="testdata/codegen-runtime/projects/openzeppelin-runtime.json.gz",
+        project_file="openzeppelin-5.6.1.json.gz",
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
         suite="repository",
+        settings_profile="runtime",
         constructor_args=(DEFAULT_SENDER, "1000", "100"),
         constructor_sig="constructor(address,uint64,uint64)",
         test_calls=(
@@ -205,10 +209,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
         project="nitro-contracts",
-        project_file="testdata/codegen-runtime/projects/nitro-one-step-proof.json.gz",
+        project_file="nitro-one-step-proof.json.gz",
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
         suite="repository",
+        settings_profile="runtime",
         constructor_args=(DEFAULT_SENDER, DEFAULT_SPENDER, DEFAULT_THIRD, DEFAULT_FOURTH),
         constructor_sig="constructor(address,address,address,address)",
         test_calls=(
@@ -273,10 +278,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
         project="aave-v3-core",
-        project_file="testdata/codegen-runtime/projects/aave-l2-encoder.json.gz",
+        project_file="aave-l2-encoder.json.gz",
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
         suite="repository",
+        settings_profile="runtime",
         test_calls=(
             ("POOL()", ()),
             ("encodeSupplyParams(address,uint256,uint16)", (DEFAULT_SPENDER, "123456", "7")),
@@ -406,10 +412,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="lilweb3-ens",
         description="LilENS",
         project="lil-web3",
-        project_file="testdata/codegen-runtime/projects/lilweb3-ens.json.gz",
+        project_file="lilweb3-ens.json.gz",
         source="src/LilENS.sol",
         contract_name="LilENS",
         suite="repository",
+        settings_profile="runtime",
         test_calls=(
             ("register(string)", ("testname",)),
             ("update(string,address)", ("testname", DEFAULT_SPENDER)),
@@ -438,10 +445,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
         project="lil-web3",
-        project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
+        project_file="lilweb3-runtime.json.gz",
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
         suite="repository",
+        settings_profile="runtime",
         test_calls=(
             ("manager()", ()),
             ("setFees(address,uint256)", (DEFAULT_SPENDER, "250")),
@@ -474,10 +482,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="lilweb3-fractional",
         description="LilFractional",
         project="lil-web3",
-        project_file="testdata/codegen-runtime/projects/lilweb3-runtime.json.gz",
+        project_file="lilweb3-runtime.json.gz",
         source="src/LilFractional.sol",
         contract_name="LilFractional",
         suite="repository",
+        settings_profile="runtime",
         test_calls=(
             ("getVault(uint256)", ("0",)),
             ("getVault(uint256)", ("1",)),
@@ -517,10 +526,11 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="maple-erc20",
         description="Maple ERC20",
         project="maple-erc20",
-        project_file="testdata/codegen-runtime/projects/maple-erc20.json.gz",
+        project_file="maple-erc20.json.gz",
         source="contracts/ERC20.sol",
         contract_name="ERC20",
         suite="repository",
+        settings_profile="runtime",
         constructor_args=("Maple Token", "MPL", "18"),
         constructor_sig="constructor(string,string,uint8)",
         test_calls=(
@@ -557,7 +567,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="openzeppelin-governor",
         description="OpenZeppelin Governor",
         project="openzeppelin-5.6.1",
-        project_file="testdata/codegen-runtime/projects/openzeppelin-5.6.1.json.gz",
+        project_file="openzeppelin-5.6.1.json.gz",
         source="test/governance/Governor.t.sol",
         contract_name="GovernorInternalTest",
         gas_calls=(
@@ -591,7 +601,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
         project="solady-0.1.26",
-        project_file="testdata/codegen-runtime/projects/solady-0.1.26.json.gz",
+        project_file="solady-0.1.26.json.gz",
         source="test/SignatureCheckerLib.t.sol",
         contract_name="SignatureCheckerLibTest",
         gas_calls=(
@@ -628,7 +638,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-lib-string",
         description="Solady LibString",
         project="solady-0.1.26",
-        project_file="testdata/codegen-runtime/projects/solady-0.1.26.json.gz",
+        project_file="solady-0.1.26.json.gz",
         source="test/LibString.t.sol",
         contract_name="LibStringTest",
         gas_calls=(
@@ -661,7 +671,7 @@ TEST_CASES: Sequence[TestCase] = (
         description="Seaport 1.6 full project",
         contract_name="*",
         project="seaport-1.6",
-        project_file="testdata/projects/seaport-1.6.json.gz",
+        project_file="seaport-1.6.json.gz",
         whole_project=True,
         suite="heavy",
     ),
@@ -670,7 +680,7 @@ TEST_CASES: Sequence[TestCase] = (
         description="Uniswap v4-core full project (viaIR)",
         contract_name="*",
         project="v4-core-4.0.0",
-        project_file="testdata/projects/v4-core-4.0.0.json.gz",
+        project_file="v4-core-4.0.0.json.gz",
         whole_project=True,
         suite="heavy",
     ),
@@ -679,7 +689,61 @@ TEST_CASES: Sequence[TestCase] = (
         description="Morpho Blue full project (viaIR)",
         contract_name="*",
         project="morpho-blue-1.0.0",
-        project_file="testdata/projects/morpho-blue-1.0.0.json.gz",
+        project_file="morpho-blue-1.0.0.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="openzeppelin-5.6.1-project",
+        description="OpenZeppelin 5.6.1 full project",
+        contract_name="*",
+        project="openzeppelin-5.6.1",
+        project_file="openzeppelin-5.6.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solady-0.1.26-project",
+        description="Solady 0.1.26 full project",
+        contract_name="*",
+        project="solady-0.1.26",
+        project_file="solady-0.1.26.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="forge-std-1.16.1-project",
+        description="Forge Std 1.16.1 full project",
+        contract_name="*",
+        project="forge-std-1.16.1",
+        project_file="forge-std-1.16.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="prb-math-4.1.1-project",
+        description="PRBMath 4.1.1 full project",
+        contract_name="*",
+        project="prb-math-4.1.1",
+        project_file="prb-math-4.1.1.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solmate-6-project",
+        description="Solmate 6 full project",
+        contract_name="*",
+        project="solmate-6",
+        project_file="solmate-6.json.gz",
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="solarray-a547630-project",
+        description="Solarray full project",
+        contract_name="*",
+        project="solarray-a547630",
+        project_file="solarray-a547630.json.gz",
         whole_project=True,
         suite="heavy",
     ),

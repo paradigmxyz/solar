@@ -666,6 +666,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
             crate::workspace::Workspace::load_foundry_bounded(
                 project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
+                None,
             )
             .unwrap(),
         ],
@@ -1468,6 +1469,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         }),
         ControlFlow::Continue(())
     ));
+    state.analysis_scheduler.tasks.lock().cancel();
     let discovered_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
     assert!(
         discovered_specs
@@ -1494,7 +1496,6 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         "**/*.sol"
     ));
 
-    state.analysis_scheduler.tasks.lock().cancel();
     let dependency_parent = project.path("/repo/dependencies");
     let outside_parent = project.path("/outside");
     let missing_parent = project.path("/repo/missing");
