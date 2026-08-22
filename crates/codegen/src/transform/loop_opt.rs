@@ -122,12 +122,8 @@ impl LoopOptimizer {
             return &self.stats;
         }
 
-        let loop_headers: Vec<BlockId> = loop_info.loops.keys().copied().collect();
-
-        for header in loop_headers {
-            if let Some(loop_data) = loop_info.loops.get(&header) {
-                self.apply_licm(func, loop_data, &analyzer);
-            }
+        for loop_data in loop_info.loops.values() {
+            self.apply_licm(func, loop_data, &analyzer);
         }
 
         &self.stats
