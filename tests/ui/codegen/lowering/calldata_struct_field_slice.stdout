@@ -154,16 +154,21 @@ fn @factory.1(arg0: memptr) -> address {
     v19 = gt 20, v14
     jumpi v19, bb4, bb5
   bb3:
-    v29 = mload 0 !metadata(memory=scratch)
-    ret v29
+    v35 = mload 0 !metadata(memory=scratch)
+    ret v35
   bb4:
     revert 0, 0
   bb5:
     v25 = calldataload v15
-    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v27 = shr 96, v26
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 0, v28 !metadata(memory=scratch)
+    v27 = lt 20, 20
+    v28 = select v27, 20, 20
+    v29 = sub 32, v28
+    v30 = shl 3, v29
+    v31 = shl v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v32 = and v25, v31
+    v33 = shr 96, v32
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v34 !metadata(memory=scratch)
     jump bb3
 }
 
@@ -495,7 +500,13 @@ fn @midWord.5(arg0: memptr) -> bytes32 {
     revert 0, 0
   bb2:
     v16 = calldataload v6
-    ret v16
+    v18 = lt 32, 32
+    v19 = select v18, 32, 32
+    v20 = sub 32, v19
+    v21 = shl 3, v20
+    v22 = shl v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v23 = and v16, v22
+    ret v23
 }
 
 fn @__revert_stub0() {

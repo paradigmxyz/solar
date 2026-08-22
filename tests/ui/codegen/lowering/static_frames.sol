@@ -24,7 +24,7 @@ contract SF {
     // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 768
+    // CHECK-NEXT: push 832
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
