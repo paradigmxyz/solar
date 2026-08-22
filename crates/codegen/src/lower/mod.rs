@@ -2201,8 +2201,10 @@ impl<'gcx> Lowerer<'gcx> {
         use hir::ExprKind;
         match &expr.kind {
             ExprKind::Assign(lhs, _, rhs) => {
-                // Record assignment targets
+                // Record assignment targets, then scan both operands for
+                // nested mutations such as the `i++` in `a[i++] = value`.
                 self.mark_assigned_var(lhs);
+                self.collect_assigned_vars_expr(lhs);
                 self.collect_assigned_vars_expr(rhs);
             }
             ExprKind::Binary(lhs, _, rhs) => {
