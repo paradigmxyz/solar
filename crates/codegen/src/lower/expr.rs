@@ -2747,12 +2747,11 @@ impl<'gcx> Lowerer<'gcx> {
         ) {
             return self.materialize_storage_bytes(builder, elem_slot);
         }
-        if matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..)) {
-            if let Some(value) =
+        if matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..))
+            && let Some(value) =
                 self.materialize_storage_array_value(builder, elem, elem_slot, span)
-            {
-                return value;
-            }
+        {
+            return value;
         }
         if let TyKind::Struct(struct_id) = elem_peeled.kind {
             let struct_size = self.calculate_memory_words_for_ty(elem_peeled) * 32;
@@ -3996,7 +3995,7 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<MappingElementSlot> {
-        let (key_is_dynamic, value_is_mapping) = self.mapping_type_info(base)?;
+        let (key_ty, value_is_mapping) = self.mapping_type_info(base)?;
 
         // Mapping state variable: base slot is a compile-time constant.
         let base_slot = if let Some(slot) = self.get_mapping_base_slot(base) {
@@ -4011,17 +4010,12 @@ impl<'gcx> Lowerer<'gcx> {
             // path.
             MappingBaseSlot::Value(self.lower_lvalue_slot(builder, base)?)
         };
-        let key_ty = self.get_expr_type(base).and_then(|ty| match ty.peel_refs().kind {
-            TyKind::Mapping(key, _) => Some(key),
-            _ => None,
-        });
         Some(self.finish_mapping_element_slot(
             builder,
             base.span,
             base_slot,
             index,
             key_ty,
-            key_is_dynamic,
             value_is_mapping,
         ))
     }
@@ -4034,17 +4028,14 @@ impl<'gcx> Lowerer<'gcx> {
         base_span: Span,
         base_slot: MappingBaseSlot,
         index: Option<&hir::Expr<'_>>,
-        key_ty: Option<Ty<'gcx>>,
-        key_is_dynamic: bool,
+        key_ty: Ty<'gcx>,
         value_is_mapping: bool,
     ) -> MappingElementSlot {
         let index_val = self.lower_index_value(builder, base_span, index);
         // A bare numeric literal key for a `bytesN` mapping must hash its
         // left-aligned word, like every other representation of that key.
-        let index_val = match (index, key_ty) {
-            (Some(expr), Some(key_ty)) => {
-                self.coerce_literal_for_ty(builder, expr, key_ty, index_val)
-            }
+        let index_val = match index {
+            Some(expr) => self.coerce_literal_for_ty(builder, expr, key_ty, index_val),
             _ => index_val,
         };
         // Materialize the base slot after the index so a constant state-variable
@@ -4058,7 +4049,7 @@ impl<'gcx> Lowerer<'gcx> {
             index,
             index_val,
             slot_val,
-            key_is_dynamic,
+            Self::is_dynamic_mapping_key_ty(key_ty),
         );
         MappingElementSlot { slot, value_is_mapping }
     }
@@ -4071,13 +4062,10 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the key and value shape of the mapping represented by `expr`.
-    fn mapping_type_info(&self, expr: &hir::Expr<'_>) -> Option<(bool, bool)> {
+    fn mapping_type_info(&self, expr: &hir::Expr<'_>) -> Option<(Ty<'gcx>, bool)> {
         let ty = self.get_expr_type(expr)?.peel_refs();
         let TyKind::Mapping(key, value) = ty.kind else { return None };
-        Some((
-            Self::is_dynamic_mapping_key_ty(key),
-            matches!(value.peel_refs().kind, TyKind::Mapping(..)),
-        ))
+        Some((key, matches!(value.peel_refs().kind, TyKind::Mapping(..))))
     }
 
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
