@@ -485,7 +485,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Materializes a dynamic calldata array. Arrays of ABI-word values can
     /// be copied directly; reference and aggregate elements are rebuilt one at
     /// a time so their memory slots contain memory pointers.
-    fn materialize_calldata_dynamic_array_at(
+    pub(super) fn materialize_calldata_dynamic_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,
