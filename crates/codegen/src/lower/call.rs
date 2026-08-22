@@ -890,6 +890,17 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, len, object_layout.kind());
 
+        if let TyKind::DynArray(element_ty) = self.gcx.type_of_hir_ty(ty).peel_refs().kind
+            && !element_ty.peel_refs().is_value_type()
+        {
+            self.emit_decode_elements_loop(builder, len, |this, builder, index| {
+                let value = this.zero_memory_field_value_ty(builder, element_ty, ty.span);
+                let addr =
+                    builder.memory_object_element_addr(ptr, MemoryObjectLayout::WORD_ARRAY, index);
+                builder.mstore(addr, value);
+            });
+        }
+
         ptr
     }
 
