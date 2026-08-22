@@ -218,7 +218,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.peel_refs().kind,
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             ) {
-                let ptr = self.lower_value_expr(builder, arg);
+                let ptr = self.lower_expr_as_memory_bytes(builder, arg);
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
             }
