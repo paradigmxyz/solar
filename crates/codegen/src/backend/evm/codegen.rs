@@ -10228,6 +10228,7 @@ mod tests {
             codegen.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.static_frame_functions.insert(function);
             codegen.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+            codegen.recursive_frame_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.function_spill_sizes.insert(function, 0);
             codegen.runtime_stack_args = false;
             codegen.compute_stack_return_plans(&module);
