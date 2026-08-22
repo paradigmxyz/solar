@@ -1,5 +1,5 @@
-//@ run-call: length(false) => 1
-//@ run-call: length(true) => 0
+//@ run-call: length(bool) false => 1
+//@ run-call: length(bool) true => 0
 //@ run-call: lengthAfterDirtyScratch() => 0
 
 contract DeleteMemoryLocal {
