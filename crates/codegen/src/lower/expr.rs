@@ -161,8 +161,22 @@ impl<'gcx> Lowerer<'gcx> {
 
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
-                let is_signed =
-                    int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
+                // Comparison expressions themselves have type `bool`, so a
+                // literal on the left cannot determine the common integer
+                // signedness. Sema has already rejected incompatible mixed
+                // integer operands; use either signed operand here.
+                let is_comparison = matches!(
+                    op.kind,
+                    hir::BinOpKind::Lt
+                        | hir::BinOpKind::Gt
+                        | hir::BinOpKind::Le
+                        | hir::BinOpKind::Ge
+                );
+                let is_signed = if is_comparison {
+                    self.is_expr_signed(lhs) || self.is_expr_signed(rhs)
+                } else {
+                    int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed)
+                };
                 let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
 
                 // `&&`/`||` must short-circuit: the right operand may have
