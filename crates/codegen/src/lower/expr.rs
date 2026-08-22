@@ -1134,7 +1134,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Materializes a wide default return struct with one bulk zeroing
-    /// operation while giving reference fields real empty objects.
+    /// operation while pointing empty reference fields at the zero slot.
     pub(super) fn lower_bulk_zero_return_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1173,8 +1173,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Materializes a language-defined default for an uninitialized local or
-    /// named return. Reference values get a real empty object rather than a
-    /// zero pointer.
+    /// named return. Reference values point at Solidity's permanent zero slot
+    /// rather than address zero or a fresh allocation.
     pub(super) fn lower_default_variable_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,

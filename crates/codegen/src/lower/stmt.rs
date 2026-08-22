@@ -341,26 +341,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 ptr
             }
-            TyKind::DynArray(_) => {
-                let ptr = self.allocate_memory_object(
-                    builder,
-                    32,
-                    crate::mir::MemoryObjectKind::DynamicArray,
-                );
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.set_memory_object_len(
-                    ptr,
-                    zero,
-                    crate::mir::MemoryObjectKind::DynamicArray,
-                );
-                ptr
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                let ptr =
-                    self.allocate_memory_object(builder, 32, crate::mir::MemoryObjectKind::Bytes);
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
-                ptr
+            TyKind::DynArray(_)
+            | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                builder.imm_u64(EvmMemoryLayout::ZERO_SLOT)
             }
             TyKind::Struct(struct_id) => {
                 let ptr = self.allocate_memory_object(
