@@ -433,6 +433,9 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
+                        if self.var_expects_memory_bytes_value(var) {
+                            return self.lower_expr_as_memory_bytes(builder, init);
+                        }
                         return self.lower_value_expr(builder, init);
                     }
                 }
@@ -972,6 +975,9 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
+                        if self.var_expects_memory_bytes_value(var) {
+                            return self.lower_expr_as_memory_bytes(builder, init);
+                        }
                         return self.lower_value_expr(builder, init);
                     }
 
