@@ -380,6 +380,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
         };
+        if returns == 0 {
+            self.revert_if_no_code(address);
+        }
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
@@ -902,6 +905,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
         };
+        if returns == 0
+            && (self.builder.func().attributes.is_constructor
+                || self.context.gcx.resolved_builtin(receiver) != Some(Builtin::This))
+        {
+            self.revert_if_no_code(address);
+        }
         let success = if matches!(
             function.state_mutability,
             hir::StateMutability::Pure | hir::StateMutability::View
@@ -1023,6 +1032,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm_u256(U256::ZERO);
         let address = self.builder.imm_u256(address);
         let gas = self.builder.gas();
+        if function.returns.is_empty() {
+            self.revert_if_no_code(address);
+        }
         let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
         self.revert_external_call(success);
         if function.returns.is_empty() {
@@ -1110,6 +1122,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let revert = self.builder.create_block();
         let continue_block = self.builder.create_block();
         self.builder.branch(short, revert, continue_block);
+        self.builder.switch_to_block(revert);
+        let zero = self.builder.imm_u256(U256::ZERO);
+        self.builder.revert(zero, zero);
+        self.builder.switch_to_block(continue_block);
+    }
+
+    fn revert_if_no_code(&mut self, address: ValueId) {
+        let size = self.builder.extcodesize(address);
+        let missing = self.builder.iszero(size);
+        let revert = self.builder.create_block();
+        let continue_block = self.builder.create_block();
+        self.builder.branch(missing, revert, continue_block);
         self.builder.switch_to_block(revert);
         let zero = self.builder.imm_u256(U256::ZERO);
         self.builder.revert(zero, zero);
