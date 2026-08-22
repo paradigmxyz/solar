@@ -109,8 +109,7 @@ impl StorageScalarPromoter {
         loop {
             let mut analyzer = LoopAnalyzer::new();
             let loop_info = analyzer.analyze(func);
-            let mut loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
-            loops.sort_unstable_by_key(|loop_data| loop_data.header.index());
+            let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
 
             let mut promoted = false;
             for loop_data in loops {

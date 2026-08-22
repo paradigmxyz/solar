@@ -11,7 +11,10 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
 };
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxIndexMap},
+};
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -60,7 +63,7 @@ pub(crate) struct InductionVariable {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LoopInfo {
     /// All loops in the function, keyed by header block.
-    pub loops: FxHashMap<BlockId, Loop>,
+    pub loops: FxIndexMap<BlockId, Loop>,
     /// Mapping from block to the innermost loop containing it.
     pub block_to_loop: FxHashMap<BlockId, BlockId>,
 }
@@ -95,7 +98,9 @@ impl LoopAnalyzer {
         let mut info = LoopInfo::default();
 
         self.cfg = Some(CfgInfo::new(func));
-        let loops = self.find_natural_loops(func);
+        let mut loops = self.find_natural_loops(func);
+
+        loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
 
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);

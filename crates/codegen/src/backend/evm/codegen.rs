@@ -793,8 +793,7 @@ impl<'a> StackPhiPlanner<'a> {
     fn new(func: &'a Function) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
-        let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
-        loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
+        let loops = loop_info.all_loops().cloned().collect();
 
         let mut planner = Self { func, loops, header_results: FxHashMap::default() };
         planner.collect_header_results();

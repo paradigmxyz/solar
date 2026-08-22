@@ -85,15 +85,12 @@ impl LoopCanonicalizer {
         loop {
             let mut analyzer = LoopAnalyzer::new();
             let loop_info = analyzer.analyze(func);
-            let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();
-            headers.sort_unstable_by_key(|header| header.index());
-
-            let Some(header) = headers.into_iter().find(|&header| {
-                let loop_data = &loop_info.loops[&header];
+            let Some(header) = loop_info.loops.iter().find_map(|(&header, loop_data)| {
                 let outside_preds = self.outside_predecessors(func, loop_data);
-                loop_data.preheader.is_none()
+                (loop_data.preheader.is_none()
                     && !outside_preds.is_empty()
-                    && self.can_split_preheader(func, header, &outside_preds)
+                    && self.can_split_preheader(func, header, &outside_preds))
+                .then_some(header)
             }) else {
                 break;
             };

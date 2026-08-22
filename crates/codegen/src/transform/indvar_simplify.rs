@@ -94,8 +94,7 @@ impl IndVarSimplifier {
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
-        let mut loops: Vec<_> = loop_info.loops.values().cloned().collect();
-        loops.sort_unstable_by_key(|loop_data| loop_data.header.index());
+        let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
             self.run_loop(func, &loop_data);
