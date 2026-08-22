@@ -306,20 +306,20 @@ fn @strs() {
   bb14:
     v42 = add v29, v37
     v43 = mload v42
-    v44 = add v43, 31
-    v45 = lt v44, v43
+    v44 = add v39, v43
+    v45 = lt v44, v39
     jumpi v45, bb1, bb15
   bb15:
-    v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = add v39, v47
-    v49 = lt v48, v39
-    jumpi v49, bb1, bb16
+    v46 = gt v44, v30
+    jumpi v46, bb1, bb16
   bb16:
-    v50 = gt v48, v30
-    jumpi v50, bb1, bb17
+    v47 = add v43, 31
+    v48 = lt v47, v43
+    jumpi v48, bb1, bb17
   bb17:
-    v51 = iszero v47
-    v52 = select v51, 32, v47
+    v50 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = iszero v50
+    v52 = select v51, 32, v50
     v53 = add v52, 32
     v54 = lt v53, v52
     jumpi v54, bb18, bb19
@@ -413,20 +413,20 @@ fn @mixed() {
   bb11:
     v40 = add v10, v35
     v41 = mload v40
-    v42 = add v41, 31
-    v43 = lt v42, v41
+    v42 = add v37, v41
+    v43 = lt v42, v37
     jumpi v43, bb1, bb12
   bb12:
-    v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v37, v45
-    v47 = lt v46, v37
-    jumpi v47, bb1, bb13
+    v44 = gt v42, v12
+    jumpi v44, bb1, bb13
   bb13:
-    v48 = gt v46, v12
-    jumpi v48, bb1, bb14
+    v45 = add v41, 31
+    v46 = lt v45, v41
+    jumpi v46, bb1, bb14
   bb14:
-    v49 = iszero v45
-    v50 = select v49, 32, v45
+    v48 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v49 = iszero v48
+    v50 = select v49, 32, v48
     v51 = add v50, 32
     v52 = lt v51, v50
     jumpi v52, bb15, bb16
