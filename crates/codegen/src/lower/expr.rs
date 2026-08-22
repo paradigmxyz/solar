@@ -820,11 +820,19 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_delete(&mut self, builder: &mut FunctionBuilder<'_>, target: &hir::Expr<'_>) {
         if let Some(ty) = self.get_expr_type(target)
             && matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
-            && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
         {
-            self.clear_storage_struct_at(builder, struct_id, slot);
-            return;
+            match ty.peel_refs().kind {
+                TyKind::Struct(struct_id) => {
+                    self.clear_storage_struct_at(builder, struct_id, slot);
+                    return;
+                }
+                _ if !ty.peel_refs().is_value_type() => {
+                    self.clear_storage_value_at(builder, ty, slot);
+                    return;
+                }
+                _ => {}
+            }
         }
 
         // Deleting a memory fixed-size array zeroes its elements in place;
