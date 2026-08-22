@@ -34,13 +34,13 @@ fn @require_empty(arg0: bool) [selector=0xfa8d4a29, pure, abi_args=lazy, abi_par
 
 fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
   bb0:
-    v0 = iszero arg0
-    jumpi v0, bb1, bb2
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 6
+    memory_object_store_word memorybytes, v0, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v1 = iszero arg0
+    jumpi v1, bb1, bb2
   bb1:
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 6
-    memory_object_store_word memorybytes, v1, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v2 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v1
+    v2 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
