@@ -452,16 +452,18 @@ fn unifap_benches(c: &mut Criterion) {
         assert_clean(&edited_analysis);
     }
 
-    let mut group = c.benchmark_group("lsp");
-    group.bench_function(format!("project-analysis/{UNIFAP_PROJECT}"), |b| {
+    let mut group = c.benchmark_group("lsp/project-analysis");
+    group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
             || project.clone(),
             |project| black_box(project.analyze()),
             BatchSize::PerIteration,
         );
     });
+    group.finish();
 
-    group.bench_function(format!("project-analysis-after-edit/{UNIFAP_PROJECT}"), |b| {
+    let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
+    group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
             || {
                 let mut project = project.clone();
@@ -472,18 +474,22 @@ fn unifap_benches(c: &mut Criterion) {
             BatchSize::PerIteration,
         );
     });
+    group.finish();
 
+    let mut group = c.benchmark_group("lsp/project-edit-application");
     group.throughput(Throughput::Elements(1));
-    group.bench_function(format!("project-edit-application/{UNIFAP_PROJECT}"), |b| {
+    group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
             || document_change.clone(),
             |change| black_box(change.apply()),
             BatchSize::PerIteration,
         );
     });
+    group.finish();
 
+    let mut group = c.benchmark_group("lsp/symbol-table-queries");
     for (name, request) in &requests {
-        let id = format!("symbol-table-queries/{UNIFAP_PROJECT}/{name}");
+        let id = format!("{UNIFAP_PROJECT}/{name}");
         group.bench_with_input(id, request, |b, request| {
             b.iter(|| black_box(analysis.execute(black_box(request))))
         });
