@@ -21,20 +21,23 @@
 +     v7 = add v2, 32
 +     jump bb2
 +   bb4:
-+     v8 = and arg2, 31
-+     v9 = sub 32, v8
-+     v10 = shl 3, v9
-+     v11 = add arg1, v1
-+     v12 = mload v11
-+     v13 = shr v10, v12
-+     v14 = shl v10, v13
-+     v15 = add arg0, v1
-+     v16 = mload v15
-+     v17 = shl v10, 1
-+     v18 = sub v17, 1
-+     v19 = and v16, v18
-+     v20 = or v14, v19
-+     mstore v15, v20
++     v8 = lt v1, arg2
++     jumpi v8, bb5, bb1
++   bb5:
++     v9 = and arg2, 31
++     v10 = sub 32, v9
++     v11 = shl 3, v10
++     v12 = add arg1, v1
++     v13 = mload v12
++     v14 = shr v11, v13
++     v15 = shl v11, v14
++     v16 = add arg0, v1
++     v17 = mload v16
++     v18 = shl v11, 1
++     v19 = sub v18, 1
++     v20 = and v17, v19
++     v21 = or v15, v20
++     mstore v16, v21
 +     jump bb1
   }
   
