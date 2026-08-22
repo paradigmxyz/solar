@@ -114,7 +114,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        for inst in instructions {
+        for &inst in &instructions {
             let kind = builder.func().inst(inst).kind.clone();
             match kind {
                 InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
@@ -172,14 +172,43 @@ fn lower_function<P: MemoryLayoutPolicy>(
                 }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
                     if let Some(location) = slice_location(builder.func(), object) {
-                        if location != SliceLocation::Memory {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
-                        }
                         let Some(offset) = P::field_offset(layout, field) else {
                             builder.func_mut().blocks[block].instructions.push(inst);
                             continue;
                         };
+                        if location == SliceLocation::Calldata {
+                            let Some(result) = builder.func().inst_result_value(inst) else {
+                                builder.func_mut().blocks[block].instructions.push(inst);
+                                continue;
+                            };
+                            let mut user = None;
+                            let mut multiple_users = false;
+                            for &candidate in &instructions {
+                                if !builder.func().inst(candidate).operands().contains(&result) {
+                                    continue;
+                                }
+                                if user.replace(candidate).is_some() {
+                                    multiple_users = true;
+                                    break;
+                                }
+                            }
+                            if !multiple_users
+                                && let Some(user) = user
+                                && matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == result)
+                            {
+                                let base = builder.slice_ptr(object);
+                                let address = offset_address(&mut builder, base, offset);
+                                builder.func_mut().inst_mut(user).kind =
+                                    InstKind::CalldataLoad(address);
+                                removed.insert(inst);
+                                stats.accesses += 1;
+                                continue;
+                            }
+                        }
+                        if location != SliceLocation::Memory {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        }
                         let base = builder.slice_ptr(object);
                         let address = offset_address(&mut builder, base, offset);
                         if let Some(result) = builder.func().inst_result_value(inst) {
