@@ -3,6 +3,7 @@
 use super::Lowerer;
 use crate::mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, TypeSize, ValueId};
 use alloy_primitives::U256;
+use solar_ast::DataLocation;
 use solar_sema::{
     hir::{self, ElementaryType},
     ty::TyKind,
@@ -112,6 +113,27 @@ impl<'gcx> Lowerer<'gcx> {
                     let byte_offset = builder.mul(index_val, stride);
                     builder.add(data_pos, byte_offset)
                 };
+                // An indexed dynamic element whose expression remains
+                // calldata-located is itself a logical calldata slice. Keep
+                // its `(data, length)` pair instead of eagerly copying the
+                // body to memory: calldata locals and calldata parameters
+                // need the original offset for `.offset`, forwarding, and
+                // low-level calls.
+                let is_calldata_ref = self.get_expr_type(expr).is_some_and(|ty| {
+                    matches!(ty.kind, TyKind::Ref(_, DataLocation::Calldata) | TyKind::Slice(_))
+                });
+                if is_calldata_ref
+                    && matches!(
+                        elem_ty.peel_refs().kind,
+                        TyKind::DynArray(_)
+                            | TyKind::Slice(_)
+                            | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                {
+                    let len = builder.calldataload(element_pos);
+                    let data = builder.add(element_pos, offset_32);
+                    return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
+                }
                 return self.materialize_calldata_value_at(
                     builder,
                     super::bytes::AbiSource::Calldata,
