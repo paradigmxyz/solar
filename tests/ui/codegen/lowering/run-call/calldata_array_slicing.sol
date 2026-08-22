@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
 //@[none, gas, size] run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
 //@[none, gas, size] run-call: chainedIndex [1, 2, 3, 4, 5] => 3

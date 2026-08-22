@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: ConstructorVirtualArgumentInitialization::x() => 2
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 

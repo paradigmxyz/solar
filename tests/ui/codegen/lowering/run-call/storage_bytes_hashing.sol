@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: mappingEmpty() => true
 //@[none, gas, size] run-call: mappingLong(bytes32,bytes1) 0x0000000000000000000000000000000000000000000000000000000000000000, 0x00 => true
 //@[none, gas, size] run-call: mappingShort(bytes31) 0x00000000000000000000000000000000000000000000000000000000000000 => true

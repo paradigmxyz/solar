@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
 //@[none, gas, size] run-call: test2 [[1, 2], [3, 4]] => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_memory_to_storage.sol

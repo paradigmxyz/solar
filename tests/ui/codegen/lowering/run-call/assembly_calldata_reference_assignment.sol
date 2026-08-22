@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: structs((uint256),(uint256,uint256)) (66), (7, 119) => 7, 66
 //@[none, gas, size] run-call: staticArray(uint256[2][2]) [[8, 7], [6, 5]] => 8, 5
 //@[none, gas, size] run-call: dynamicArray(uint256[2][]) [[8, 7], [6, 5]] => 2, 8, 5

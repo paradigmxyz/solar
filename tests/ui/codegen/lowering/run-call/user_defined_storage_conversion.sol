@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
 //@[none, gas, size] run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
 //@[none, gas, size] run-call: storeSmall(uint16[]) [1, 2, 3] => 2

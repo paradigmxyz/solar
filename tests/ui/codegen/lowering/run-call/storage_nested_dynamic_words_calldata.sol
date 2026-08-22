@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: copyDynamic(uint256[][]) [[10, 11], [20, 21, 22]] => 33
 //@[none, gas, size] run-call: copyFixedDynamic(uint256[][2]) [[10, 11], [20, 21]] => 33
 //@[none, gas, size] run-call: copyDynamicFixed(uint256[2][]) [[10, 11], [20, 21]] => 33

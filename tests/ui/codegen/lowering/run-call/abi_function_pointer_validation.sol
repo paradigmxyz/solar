@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: f((function)) (0x303132333435363738393031323334353637383961626364) => 1
 //@[none, gas, size] run-call-fail: 0x9f4a608d3031323334353637383930313233343536373839616263645800000000000000
 //@[none, gas, size] run-call: g((function)) (0x303132333435363738393031323334353637383961626364) => 2

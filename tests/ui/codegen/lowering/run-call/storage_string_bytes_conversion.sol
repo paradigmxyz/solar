@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: readLength; constructor=["hello"] => 5
 //@[none, gas, size] run-call: readBytes; constructor=["hello"] => 0x68656c6c6f
 //@[none, gas, size] run-call: readBytes; constructor=["abcdefghijklmnopqrstuvwxyz0123456789"] => 0x6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839

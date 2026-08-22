@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: slots() => 0, 3, 4, 7, 8, 10
 //@[none, gas, size] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
 //@[none, gas, size] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000

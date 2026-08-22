@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: encPackedBytes(bytes,uint256,uint256) 0x414242, 1, 3 => 0x4242
 //@[none, gas, size] run-call: encPackedBytesReference(bytes,uint256,uint256) 0x414242, 1, 3 => 0x4242
 //@[none, gas, size] run-call: encBytes(bytes,uint256,uint256) 0x414242, 1, 3 => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000024242000000000000000000000000000000000000000000000000000000000000

@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: f() => 0x6dddb956123400000000000000000000000000000000000000000000000000000000000061620000000000000000000000000000000000000000000000000000000000001234000000000000000000000000000000000000000000000000000000000000
 //@[none, gas, size] run-call: f2() => 0x2a62baf500000000000000000000000000000000000000000000000000000000000012340000000000000000000000000000000000000000000000000000000000001234
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_uint_bytes.sol

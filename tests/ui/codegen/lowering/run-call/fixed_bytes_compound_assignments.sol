@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
 //@[none, gas, size] run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
 //@[none, gas, size] run-call: shifts(bytes1) 0x81 => 0x02, 0x40

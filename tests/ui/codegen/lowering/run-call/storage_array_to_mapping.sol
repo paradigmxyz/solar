@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: from_storage() => [[10, 11], [12, 13, 14]]
 //@[none, gas, size] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
 //@[none, gas, size] run-call: from_memory() => [[10, 11], [12, 13, 14]]

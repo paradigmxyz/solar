@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: readDynamic(uint256,uint256) 5, 0 => 0
 //@[none, gas, size] run-call: readDynamic(uint256,uint256) 5, 4 => 0
 //@[none, gas, size] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032

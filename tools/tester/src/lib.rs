@@ -8,6 +8,7 @@
 use cfg_if as _;
 
 use eyre::{Result, eyre};
+use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
     io,
@@ -341,9 +342,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         let line = line.trim_start();
         line.starts_with("//@") && line.contains("-Zdump=mir")
     });
-    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) && !has_mir_dump {
-        config.program.args.push("--emit=abi,bin".into());
-        config.stdout_filter(r"(?s).+", "");
+    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+        if has_mir_dump {
+            configure_run_call_stdout(config, src);
+        } else {
+            config.program.args.push("--emit=abi,bin".into());
+            config.stdout_filter(r"(?s).+", "");
+        }
     }
     if src.lines().any(|line| {
         let line = line.trim_start();
@@ -353,6 +358,36 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }) {
         config.program.args.retain(|arg| arg != "-j1");
     }
+}
+
+fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
+    let mut runtime_revisions = Vec::new();
+    for line in src.lines() {
+        let line = line.trim_start();
+        let Some(line) = line.strip_prefix("//@[") else {
+            continue;
+        };
+        let Some((revisions, directive)) = line.split_once(']') else {
+            continue;
+        };
+        if directive.contains("compile-flags") && !directive.contains("-Zdump=mir") {
+            runtime_revisions
+                .extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
+        }
+    }
+    runtime_revisions.sort_unstable();
+    runtime_revisions.dedup();
+    if runtime_revisions.is_empty() {
+        return;
+    }
+
+    config
+        .comment_defaults
+        .revisioned
+        .entry(runtime_revisions)
+        .or_default()
+        .normalize_stdout
+        .push((Regex::new(r"(?s).+").unwrap().into(), vec![]));
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.

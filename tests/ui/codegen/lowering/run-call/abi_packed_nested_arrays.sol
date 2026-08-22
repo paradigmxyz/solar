@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: encodeFixed [[1, 2], [3, 4]] => 0x392791df626408017a264f53fde61065d5a93a32b60171df9d8a46afdf82992d
 //@[none, gas, size] run-call: encodeDynamic [[1, 2], [3, 4]] => 0x392791df626408017a264f53fde61065d5a93a32b60171df9d8a46afdf82992d
 //@[none, gas, size] run-call: encodeCalldata [[1, 2], [3, 4]] => 0x392791df626408017a264f53fde61065d5a93a32b60171df9d8a46afdf82992d

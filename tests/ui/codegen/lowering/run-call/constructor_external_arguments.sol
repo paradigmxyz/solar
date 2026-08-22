@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: getName(); constructor=[0x616263, true] => 0x616263
 //@[none, gas, size] run-call: getFlag(); constructor=[0x616263, true] => true
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_arguments_external.sol

@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
 //@[none, gas, size] run-call: TransientStorage::packed() => 4386, 13124, 860098850
 //@[none, gas, size] run-call: TransientStorage::signed() => -2

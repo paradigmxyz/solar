@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: bindAfterDeclaration 7, 11 => 11, 12
 //@[none, gas, size] run-call: rebind true, 3, 5, 17 => 0, 17
 //@[none, gas, size] run-call: rebind false, 3, 5, 17 => 17, 0

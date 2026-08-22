@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: f(uint256[][2][],uint256,uint256,uint256) [[[42], [23]]], 0, 0, 0 => 1, 2, 1, 42
 //@[none, gas, size] run-call: f(uint256[][2][],uint256,uint256,uint256) [[[42], [23]]], 0, 1, 0 => 1, 2, 1, 23
 //@[none, gas, size] run-call: f(uint256[][2][],uint256,uint256,uint256) [[[42], [23, 17]]], 0, 1, 0 => 1, 2, 2, 23

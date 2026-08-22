@@ -5,9 +5,6 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none] normalize-stdout-test: "(?s).+" -> ""
-//@[gas] normalize-stdout-test: "(?s).+" -> ""
-//@[size] normalize-stdout-test: "(?s).+" -> ""
 //@[none, gas, size] run-call: ConstructorMemoryReturn::value() => "1"
 //@[none, gas, size] run-call: ConstructorMemoryReturn::direct() => 5
 //@[none, gas, size] run-call: ConstructorMemoryReturn::pairValue() => 3
