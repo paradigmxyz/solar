@@ -32,7 +32,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, MemoryRegion, MirPhase, Module, Terminator, ValueId,
+        InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, ValueId,
     },
     pass::run_pipeline,
 };
@@ -7324,6 +7324,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
+        let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
+            .runtime_entry_reachability
+            .iter()
+            .map(|(&entry, reachable)| {
+                let guard = reachable
+                    .iter()
+                    .map(|func_id| Self::heap_prefix_guard(&module.functions[func_id]))
+                    .max()
+                    .unwrap_or(0);
+                (entry, guard)
+            })
+            .collect();
         let free_memory_floor =
             |entry: FunctionId, entry_ends: &FxHashMap<FunctionId, u64>, region_start: u64| {
                 let mut floor = entry_ends.get(&entry).copied().unwrap_or(low_memory_end);
@@ -7331,6 +7343,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && span != 0
                 {
                     floor = floor.max(region_start + span);
+                }
+                if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
+                    floor = floor.checked_add(guard).expect("runtime heap prefix overflow");
                 }
                 floor.max(low_memory_end)
             };
@@ -7466,6 +7481,53 @@ impl<'gcx> EvmCodegen<'gcx> {
         // store never lands inside it.
         let mark = Self::constant_memory_high_water_mark(func);
         base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
+    }
+
+    /// Returns the working-memory prefix a hand-written heap image needs.
+    ///
+    /// Static frames end where the runtime heap begins. Creation-code builders
+    /// such as CWIA intentionally save, write, and restore words immediately
+    /// before a `bytes` object, then consume that prefix with `create2` or
+    /// `keccak256`. Reserve the largest constant backward offset for entries
+    /// that reach such a builder so its temporary image cannot overlap the
+    /// highest static-frame spill slots.
+    fn heap_prefix_guard(func: &Function) -> u64 {
+        let subtracted_offset = |value: ValueId| {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
+            let InstKind::Sub(base, offset) = func.inst(*inst_id).kind else { return None };
+            if !func.value_ty(base).is_some_and(MirType::is_memory_reference) {
+                return None;
+            }
+            func.value_u64(offset)
+        };
+        let consumes_prefix = func.instructions().any(|inst_id| {
+            let offset = match func.inst(inst_id).kind {
+                InstKind::Keccak256(offset, _)
+                | InstKind::Create(_, offset, _)
+                | InstKind::Create2(_, offset, _, _)
+                | InstKind::Call { args_offset: offset, .. }
+                | InstKind::CallCode { args_offset: offset, .. }
+                | InstKind::StaticCall { args_offset: offset, .. }
+                | InstKind::DelegateCall { args_offset: offset, .. } => Some(offset),
+                _ => None,
+            };
+            offset.and_then(subtracted_offset).is_some()
+        });
+        if !consumes_prefix {
+            return 0;
+        }
+        func.instructions()
+            .filter_map(|inst_id| match func.inst(inst_id).kind {
+                InstKind::Sub(base, offset)
+                    if func.value_ty(base).is_some_and(MirType::is_memory_reference) =>
+                {
+                    func.value_u64(offset)
+                }
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0)
+            .next_multiple_of(EvmMemoryLayout::WORD_SIZE)
     }
 
     /// Returns the highest end address of any memory access in `func` whose
