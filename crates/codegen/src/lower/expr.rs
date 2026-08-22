@@ -3314,17 +3314,22 @@ impl<'gcx> Lowerer<'gcx> {
 
         let tail_len_addr = builder.add(tuple_base, head);
         let tail_len = builder.mload(tail_len_addr);
+        // Decoding only requires the actual payload bytes to be present. The
+        // trailing padding belongs to canonical ABI encoding, but solc also
+        // accepts returndata and other decode inputs that end before the next
+        // word boundary once the full payload is available.
+        let tail_end = builder.add(tail_head_end, tail_len);
+        let tail_overflow = builder.lt(tail_end, tail_head_end);
+        self.emit_abi_decode_revert_if(builder, tail_overflow);
+        let tail_oob = builder.gt(tail_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, tail_oob);
+
         let thirty_one = builder.imm_u64(31);
         let rounded = builder.add(tail_len, thirty_one);
         let rounded_overflow = builder.lt(rounded, tail_len);
         self.emit_abi_decode_revert_if(builder, rounded_overflow);
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
-        let tail_end = builder.add(tail_head_end, padded);
-        let tail_overflow = builder.lt(tail_end, tail_head_end);
-        self.emit_abi_decode_revert_if(builder, tail_overflow);
-        let tail_oob = builder.gt(tail_end, tuple_len);
-        self.emit_abi_decode_revert_if(builder, tail_oob);
 
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word, padded);
