@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: cleanup() => true, true, 32
-//@[gas] run-call: cleanup() => true, true, 32
-//@[size] run-call: cleanup() => true, true, 32
-//@[none] run-call: cleanupShort() => false, true, 1
-//@[gas] run-call: cleanupShort() => false, true, 1
-//@[size] run-call: cleanupShort() => false, true, 1
+//@[none, gas, size] run-call: cleanup() => true, true, 32
+//@[none, gas, size] run-call: cleanupShort() => false, true, 1
 
 contract StorageBytesAssignmentCleanup {
     bytes private data;

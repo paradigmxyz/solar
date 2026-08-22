@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: run() => 7
-//@[gas] run-call: run() => 7
-//@[size] run-call: run() => 7
+//@[none, gas, size] run-call: run() => 7
 // ported-from: test/libsolidity/semanticTests/functionTypes/internal_function_pointer_with_calldata_args.sol
 
 contract InternalFunctionPointerCalldata {

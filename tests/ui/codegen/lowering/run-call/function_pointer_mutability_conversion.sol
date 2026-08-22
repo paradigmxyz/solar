@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: testViewToDefault => 12, 22
-//@[gas] run-call: testViewToDefault => 12, 22
-//@[size] run-call: testViewToDefault => 12, 22
-//@[none] run-call: testPureToDefault => 13, 23
-//@[gas] run-call: testPureToDefault => 13, 23
-//@[size] run-call: testPureToDefault => 13, 23
-//@[none] run-call: testPureToView => 13, 23
-//@[gas] run-call: testPureToView => 13, 23
-//@[size] run-call: testPureToView => 13, 23
+//@[none, gas, size] run-call: testViewToDefault => 12, 22
+//@[none, gas, size] run-call: testPureToDefault => 13, 23
+//@[none, gas, size] run-call: testPureToView => 13, 23
 // ported-from: test/libsolidity/semanticTests/conversions/function_type_array_to_storage.sol
 
 contract FunctionPointerMutabilityConversion {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
-//@[gas] run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
-//@[size] run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
+//@[none, gas, size] run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_calldata_to_memory.sol
 
 pragma abicoder v2;

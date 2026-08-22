@@ -8,27 +8,13 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: read() => 7, "ok"
-//@[gas] run-call: read() => 7, "ok"
-//@[size] run-call: read() => 7, "ok"
-//@[none] run-call: readArguments() => 7, "ok"
-//@[gas] run-call: readArguments() => 7, "ok"
-//@[size] run-call: readArguments() => 7, "ok"
-//@[none] run-call: pointerArgumentRoundtrip() => 8
-//@[gas] run-call: pointerArgumentRoundtrip() => 8
-//@[size] run-call: pointerArgumentRoundtrip() => 8
-//@[none] run-call: pointerReturnRoundtrip() => 9
-//@[gas] run-call: pointerReturnRoundtrip() => 9
-//@[size] run-call: pointerReturnRoundtrip() => 9
-//@[none] run-call: pointerStructRoundtrip() => 9
-//@[gas] run-call: pointerStructRoundtrip() => 9
-//@[size] run-call: pointerStructRoundtrip() => 9
-//@[none] run-call: pointerArrayRoundtrip() => 9
-//@[gas] run-call: pointerArrayRoundtrip() => 9
-//@[size] run-call: pointerArrayRoundtrip() => 9
-//@[none] run-call: calldataPointerRoundtrip() => true
-//@[gas] run-call: calldataPointerRoundtrip() => true
-//@[size] run-call: calldataPointerRoundtrip() => true
+//@[none, gas, size] run-call: read() => 7, "ok"
+//@[none, gas, size] run-call: readArguments() => 7, "ok"
+//@[none, gas, size] run-call: pointerArgumentRoundtrip() => 8
+//@[none, gas, size] run-call: pointerReturnRoundtrip() => 9
+//@[none, gas, size] run-call: pointerStructRoundtrip() => 9
+//@[none, gas, size] run-call: pointerArrayRoundtrip() => 9
+//@[none, gas, size] run-call: calldataPointerRoundtrip() => true
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {

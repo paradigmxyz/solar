@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: C::f() => false
-//@[gas] run-call: C::f() => false
-//@[size] run-call: C::f() => false
+//@[none, gas, size] run-call: C::f() => false
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_overriding.sol
 
 contract A {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 2, 3
-//@[gas] run-call: f() => 2, 3
-//@[size] run-call: f() => 2, 3
+//@[none, gas, size] run-call: f() => 2, 3
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_return_reference.sol
 
 contract ModifierReturnReference {

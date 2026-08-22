@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
-//@[gas] run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
-//@[size] run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
-//@[none] run-call: test2 [[1, 2], [3, 4]] => 10
-//@[gas] run-call: test2 [[1, 2], [3, 4]] => 10
-//@[size] run-call: test2 [[1, 2], [3, 4]] => 10
+//@[none, gas, size] run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
+//@[none, gas, size] run-call: test2 [[1, 2], [3, 4]] => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_memory_to_storage.sol
 
 contract NestedArrayElementMemoryStorage {

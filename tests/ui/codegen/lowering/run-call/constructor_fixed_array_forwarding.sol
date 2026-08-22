@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: C::a(); constructor=[1, [2, 3, 4]] => 1
-//@[gas] run-call: C::a(); constructor=[1, [2, 3, 4]] => 1
-//@[size] run-call: C::a(); constructor=[1, [2, 3, 4]] => 1
-//@[none] run-call: C::b(uint256) 0; constructor=[1, [2, 3, 4]] => 2
-//@[gas] run-call: C::b(uint256) 0; constructor=[1, [2, 3, 4]] => 2
-//@[size] run-call: C::b(uint256) 0; constructor=[1, [2, 3, 4]] => 2
-//@[none] run-call: C::b(uint256) 1; constructor=[1, [2, 3, 4]] => 3
-//@[gas] run-call: C::b(uint256) 1; constructor=[1, [2, 3, 4]] => 3
-//@[size] run-call: C::b(uint256) 1; constructor=[1, [2, 3, 4]] => 3
-//@[none] run-call: C::b(uint256) 2; constructor=[1, [2, 3, 4]] => 4
-//@[gas] run-call: C::b(uint256) 2; constructor=[1, [2, 3, 4]] => 4
-//@[size] run-call: C::b(uint256) 2; constructor=[1, [2, 3, 4]] => 4
+//@[none, gas, size] run-call: C::a(); constructor=[1, [2, 3, 4]] => 1
+//@[none, gas, size] run-call: C::b(uint256) 0; constructor=[1, [2, 3, 4]] => 2
+//@[none, gas, size] run-call: C::b(uint256) 1; constructor=[1, [2, 3, 4]] => 3
+//@[none, gas, size] run-call: C::b(uint256) 2; constructor=[1, [2, 3, 4]] => 4
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_static_array_argument.sol
 
 contract C {

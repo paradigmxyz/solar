@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: slots() => 0, 3, 4, 7, 8, 10
-//@[gas] run-call: slots() => 0, 3, 4, 7, 8, 10
-//@[size] run-call: slots() => 0, 3, 4, 7, 8, 10
-//@[none] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
-//@[gas] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
-//@[size] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
-//@[none] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[gas] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[size] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[none, gas, size] run-call: slots() => 0, 3, 4, 7, 8, 10
+//@[none, gas, size] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
+//@[none, gas, size] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
 
 contract StorageFixedArrayLayout {
     bytes9[7] private bytes9Values;

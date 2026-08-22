@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: t() => 9
-//@[gas] run-call: t() => 9
-//@[size] run-call: t() => 9
+//@[none, gas, size] run-call: t() => 9
 // ported-from: test/libsolidity/semanticTests/functionTypes/store_function.sol
 
 contract ExternalFunctionPointerHigherOrderTarget {

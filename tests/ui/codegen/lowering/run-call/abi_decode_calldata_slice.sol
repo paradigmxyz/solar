@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f 42, 23 => 42, 23, 42, 23
-//@[gas] run-call: f 42, 23 => 42, 23, 42, 23
-//@[size] run-call: f 42, 23 => 42, 23, 42, 23
+//@[none, gas, size] run-call: f 42, 23 => 42, 23, 42, 23
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_slice.sol
 
 contract AbiDecodeCalldataSlice {

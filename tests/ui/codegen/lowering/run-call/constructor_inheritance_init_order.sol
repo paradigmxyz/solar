@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorInitOrderDerived::y() => 42
-//@[gas] run-call: ConstructorInitOrderDerived::y() => 42
-//@[size] run-call: ConstructorInitOrderDerived::y() => 42
-//@[none] run-call: NoCtorDerived::y() => 42
-//@[gas] run-call: NoCtorDerived::y() => 42
-//@[size] run-call: NoCtorDerived::y() => 42
+//@[none, gas, size] run-call: ConstructorInitOrderDerived::y() => 42
+//@[none, gas, size] run-call: NoCtorDerived::y() => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order.sol
 
 contract ConstructorInitOrderBase {

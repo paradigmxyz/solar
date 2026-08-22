@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy => 207
-//@[gas] run-call: copy => 207
-//@[size] run-call: copy => 207
+//@[none, gas, size] run-call: copy => 207
 // ported-from: test/libsolidity/semanticTests/array/copying/storage_memory_nested_bytes.sol
 
 contract StorageMemoryNestedBytes {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 0, 0
-//@[gas] run-call: f() => 0, 0
-//@[size] run-call: f() => 0, 0
+//@[none, gas, size] run-call: f() => 0, 0
 
 contract NestedDynamicStorageCleanup {
     uint256[][] private x;

@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: add_(uint256,uint256) 3, 4 => 7
-//@[gas] run-call: add_(uint256,uint256) 3, 4 => 7
-//@[size] run-call: add_(uint256,uint256) 3, 4 => 7
-//@[none] run-call: mul_(uint256,uint256) 3, 4 => 12
-//@[gas] run-call: mul_(uint256,uint256) 3, 4 => 12
-//@[size] run-call: mul_(uint256,uint256) 3, 4 => 12
-//@[none] run-call: eq_(uint256,uint256) 3, 4 => false
-//@[gas] run-call: eq_(uint256,uint256) 3, 4 => false
-//@[size] run-call: eq_(uint256,uint256) 3, 4 => false
-//@[none] run-call: eq_(uint256,uint256) 4, 4 => true
-//@[gas] run-call: eq_(uint256,uint256) 4, 4 => true
-//@[size] run-call: eq_(uint256,uint256) 4, 4 => true
+//@[none, gas, size] run-call: add_(uint256,uint256) 3, 4 => 7
+//@[none, gas, size] run-call: mul_(uint256,uint256) 3, 4 => 12
+//@[none, gas, size] run-call: eq_(uint256,uint256) 3, 4 => false
+//@[none, gas, size] run-call: eq_(uint256,uint256) 4, 4 => true
 
 type Balance is uint256;
 

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: word [1, 2, 3, 4] => [2, 3, 4]
-//@[gas] run-call: word [1, 2, 3, 4] => [2, 3, 4]
-//@[size] run-call: word [1, 2, 3, 4] => [2, 3, 4]
+//@[none, gas, size] run-call: word [1, 2, 3, 4] => [2, 3, 4]
 
 contract CalldataArraySubsliceRuntime {
     // Range access on a word-element calldata array keeps the slice lazy: the

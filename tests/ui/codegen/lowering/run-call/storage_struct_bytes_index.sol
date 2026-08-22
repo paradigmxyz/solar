@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 255, 3
-//@[gas] run-call: f() => 255, 3
-//@[size] run-call: f() => 255, 3
-//@[none] run-call: g() => 2
-//@[gas] run-call: g() => 2
-//@[size] run-call: g() => 2
+//@[none, gas, size] run-call: f() => 255, 3
+//@[none, gas, size] run-call: g() => 2
 
 contract StorageStructBytesIndex {
     struct S {

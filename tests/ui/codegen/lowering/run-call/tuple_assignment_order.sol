@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: swap() => 2, 1
-//@[gas] run-call: swap() => 2, 1
-//@[size] run-call: swap() => 2, 1
+//@[none, gas, size] run-call: swap() => 2, 1
 
 contract TupleAssignmentOrder {
     function swap() external pure returns (uint256, uint256) {

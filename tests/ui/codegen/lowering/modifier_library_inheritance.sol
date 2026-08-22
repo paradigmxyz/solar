@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: Test::f() => 0x202
-//@[gas] run-call: Test::f() => 0x202
-//@[size] run-call: Test::f() => 0x202
+//@[none, gas, size] run-call: Test::f() => 0x202
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_library_inheritance.sol
 
 library L {

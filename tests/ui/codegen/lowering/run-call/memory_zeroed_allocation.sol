@@ -8,33 +8,15 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: readDynamic(uint256,uint256) 5, 0 => 0
-//@[gas] run-call: readDynamic(uint256,uint256) 5, 0 => 0
-//@[size] run-call: readDynamic(uint256,uint256) 5, 0 => 0
-//@[none] run-call: readDynamic(uint256,uint256) 5, 4 => 0
-//@[gas] run-call: readDynamic(uint256,uint256) 5, 4 => 0
-//@[size] run-call: readDynamic(uint256,uint256) 5, 4 => 0
-//@[none] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
-//@[gas] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
-//@[size] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
-//@[none] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call: readFixed(uint256) 2 => 0
-//@[gas] run-call: readFixed(uint256) 2 => 0
-//@[size] run-call: readFixed(uint256) 2 => 0
-//@[none] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call: readStatic(uint256,uint256) 2, 1 => 0
-//@[gas] run-call: readStatic(uint256,uint256) 2, 1 => 0
-//@[size] run-call: readStatic(uint256,uint256) 2, 1 => 0
-//@[none] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: readDynamic(uint256,uint256) 5, 0 => 0
+//@[none, gas, size] run-call: readDynamic(uint256,uint256) 5, 4 => 0
+//@[none, gas, size] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
+//@[none, gas, size] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: readFixed(uint256) 2 => 0
+//@[none, gas, size] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: readStatic(uint256,uint256) 2, 1 => 0
+//@[none, gas, size] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_2d_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_static_zeroed_memory_index_access.sol

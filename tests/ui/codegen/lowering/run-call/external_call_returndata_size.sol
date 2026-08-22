@@ -8,30 +8,14 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: directOne => 32, 42
-//@[gas] run-call: directOne => 32, 42
-//@[size] run-call: directOne => 32, 42
-//@[none] run-call: pointerOne => 32, 42
-//@[gas] run-call: pointerOne => 32, 42
-//@[size] run-call: pointerOne => 32, 42
-//@[none] run-call: directTwo => 32, 42, 43
-//@[gas] run-call: directTwo => 32, 42, 43
-//@[size] run-call: directTwo => 32, 42, 43
-//@[none] run-call: pointerTwo => 32, 42, 43
-//@[gas] run-call: pointerTwo => 32, 42, 43
-//@[size] run-call: pointerTwo => 32, 42, 43
-//@[none] run-call-fail: directShort()
-//@[gas] run-call-fail: directShort()
-//@[size] run-call-fail: directShort()
-//@[none] run-call-fail: pointerShort()
-//@[gas] run-call-fail: pointerShort()
-//@[size] run-call-fail: pointerShort()
-//@[none] run-call-fail: directInvalidBool()
-//@[gas] run-call-fail: directInvalidBool()
-//@[size] run-call-fail: directInvalidBool()
-//@[none] run-call-fail: pointerInvalidBool()
-//@[gas] run-call-fail: pointerInvalidBool()
-//@[size] run-call-fail: pointerInvalidBool()
+//@[none, gas, size] run-call: directOne => 32, 42
+//@[none, gas, size] run-call: pointerOne => 32, 42
+//@[none, gas, size] run-call: directTwo => 32, 42, 43
+//@[none, gas, size] run-call: pointerTwo => 32, 42, 43
+//@[none, gas, size] run-call-fail: directShort()
+//@[none, gas, size] run-call-fail: pointerShort()
+//@[none, gas, size] run-call-fail: directInvalidBool()
+//@[none, gas, size] run-call-fail: pointerInvalidBool()
 
 interface OneReturn {
     function f() external pure returns (uint256);

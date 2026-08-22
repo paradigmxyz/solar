@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: pushArray(uint120[]) [1, 2, 3] => 1
-//@[gas] run-call: pushArray(uint120[]) [1, 2, 3] => 1
-//@[size] run-call: pushArray(uint120[]) [1, 2, 3] => 1
-//@[none] run-call: pushStruct((uint16,uint16,uint16[3],uint16[])) (2, 3, [0, 0, 4], [0, 0, 5, 0]) => 2345
-//@[gas] run-call: pushStruct((uint16,uint16,uint16[3],uint16[])) (2, 3, [0, 0, 4], [0, 0, 5, 0]) => 2345
-//@[size] run-call: pushStruct((uint16,uint16,uint16[3],uint16[])) (2, 3, [0, 0, 4], [0, 0, 5, 0]) => 2345
+//@[none, gas, size] run-call: pushArray(uint120[]) [1, 2, 3] => 1
+//@[none, gas, size] run-call: pushStruct((uint16,uint16,uint16[3],uint16[])) (2, 3, [0, 0, 4], [0, 0, 5, 0]) => 2345
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested_from_calldata.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_struct_from_calldata.sol
 

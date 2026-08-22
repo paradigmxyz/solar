@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: C::getData() => 0x4300
-//@[gas] run-call: C::getData() => 0x4300
-//@[size] run-call: C::getData() => 0x4300
+//@[none, gas, size] run-call: C::getData() => 0x4300
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_calling_functions_in_creation_context.sol
 
 contract ConstructorModifierBase {

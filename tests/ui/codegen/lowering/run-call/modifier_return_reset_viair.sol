@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: foo() => 0
-//@[gas] run-call: foo() => 0
-//@[size] run-call: foo() => 0
+//@[none, gas, size] run-call: foo() => 0
 // Solc's via-IR modifier frames reset return variables for each placeholder.
 
 contract ModifierReturnResetViaIr {

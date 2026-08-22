@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: trySuccess() => 7
-//@[gas] run-call: trySuccess() => 7
-//@[size] run-call: trySuccess() => 7
-//@[none] run-call: tryFailure() => 100
-//@[gas] run-call: tryFailure() => 100
-//@[size] run-call: tryFailure() => 100
-//@[none] run-call: tryPair() => 7, "ok"
-//@[gas] run-call: tryPair() => 7, "ok"
-//@[size] run-call: tryPair() => 7, "ok"
+//@[none, gas, size] run-call: trySuccess() => 7
+//@[none, gas, size] run-call: tryFailure() => 100
+//@[none, gas, size] run-call: tryPair() => 7, "ok"
 
 contract ExternalFunctionPointerTry {
     struct Context {

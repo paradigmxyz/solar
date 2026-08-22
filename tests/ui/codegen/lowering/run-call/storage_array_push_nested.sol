@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: pushEmpty => 0
-//@[gas] run-call: pushEmpty => 0
-//@[size] run-call: pushEmpty => 0
-//@[none] run-call: pushMemory => 1
-//@[gas] run-call: pushMemory => 1
-//@[size] run-call: pushMemory => 1
-//@[none] run-call: pushStruct => 2345
-//@[gas] run-call: pushStruct => 2345
-//@[size] run-call: pushStruct => 2345
-//@[none] run-call: pushBytes => 97
-//@[gas] run-call: pushBytes => 97
-//@[size] run-call: pushBytes => 97
+//@[none, gas, size] run-call: pushEmpty => 0
+//@[none, gas, size] run-call: pushMemory => 1
+//@[none, gas, size] run-call: pushStruct => 2345
+//@[none, gas, size] run-call: pushBytes => 97
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested_from_memory.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_struct.sol

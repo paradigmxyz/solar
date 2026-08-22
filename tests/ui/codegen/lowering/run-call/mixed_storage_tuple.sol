@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test_g() => 1, 7
-//@[gas] run-call: test_g() => 1, 7
-//@[size] run-call: test_g() => 1, 7
-//@[none] run-call: test_h() => 43
-//@[gas] run-call: test_h() => 43
-//@[size] run-call: test_h() => 43
+//@[none, gas, size] run-call: test_g() => 1, 7
+//@[none, gas, size] run-call: test_h() => 43
 
 contract C {
     struct S {

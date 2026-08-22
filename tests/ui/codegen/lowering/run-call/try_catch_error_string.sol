@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: reasonLength() => 5
-//@[gas] run-call: reasonLength() => 5
-//@[size] run-call: reasonLength() => 5
+//@[none, gas, size] run-call: reasonLength() => 5
 
 contract TryErrorTarget {
     function fail() external pure {

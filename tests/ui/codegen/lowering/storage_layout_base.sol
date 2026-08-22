@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@[gas] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@[size] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@[none] run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@[gas] run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@[size] run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@[none] run-call: LayoutDerived::slots() => 2, 3, 4
-//@[gas] run-call: LayoutDerived::slots() => 2, 3, 4
-//@[size] run-call: LayoutDerived::slots() => 2, 3, 4
-//@[none] run-call: LayoutTransient::slots() => 0, 7
-//@[gas] run-call: LayoutTransient::slots() => 0, 7
-//@[size] run-call: LayoutTransient::slots() => 0, 7
-//@[none] run-call: LayoutErc7201::matchesReference() => true
-//@[gas] run-call: LayoutErc7201::matchesReference() => true
-//@[size] run-call: LayoutErc7201::matchesReference() => true
+//@[none, gas, size] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
+//@[none, gas, size] run-call: LayoutStorage::store(uint256) 99 => 99, 99
+//@[none, gas, size] run-call: LayoutDerived::slots() => 2, 3, 4
+//@[none, gas, size] run-call: LayoutTransient::slots() => 0, 7
+//@[none, gas, size] run-call: LayoutErc7201::matchesReference() => true
 
 function erc7201Reference(string memory namespace) pure returns (uint256) {
     return uint256(

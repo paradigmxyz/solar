@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: use(bytes) 0x010203 => 1
-//@[gas] run-call: use(bytes) 0x010203 => 1
-//@[size] run-call: use(bytes) 0x010203 => 1
-//@[none] run-call: use(bytes) 0x01 => 1
-//@[gas] run-call: use(bytes) 0x01 => 1
-//@[size] run-call: use(bytes) 0x01 => 1
+//@[none, gas, size] run-call: use(bytes) 0x010203 => 1
+//@[none, gas, size] run-call: use(bytes) 0x01 => 1
 
 contract CalldataSliceRecursive {
     function peel(bytes calldata data)

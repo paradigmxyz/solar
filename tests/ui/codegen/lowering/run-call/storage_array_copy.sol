@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copyState => 1, 3
-//@[gas] run-call: copyState => 1, 3
-//@[size] run-call: copyState => 1, 3
-//@[none] run-call: copyReference => 4, 2
-//@[gas] run-call: copyReference => 4, 2
-//@[size] run-call: copyReference => 4, 2
-//@[none] run-call: copyAggregate => 7, 9, 1
-//@[gas] run-call: copyAggregate => 7, 9, 1
-//@[size] run-call: copyAggregate => 7, 9, 1
+//@[none, gas, size] run-call: copyState => 1, 3
+//@[none, gas, size] run-call: copyReference => 4, 2
+//@[none, gas, size] run-call: copyAggregate => 7, 9, 1
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_to_memory.sol
 
 contract C {

@@ -8,30 +8,14 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
-//@[gas] run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
-//@[size] run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
-//@[none] run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
-//@[gas] run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
-//@[size] run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
-//@[none] run-call: allocatedAggregates() => 2, 18, 5, 2, 8
-//@[gas] run-call: allocatedAggregates() => 2, 18, 5, 2, 8
-//@[size] run-call: allocatedAggregates() => 2, 18, 5, 2, 8
-//@[none] run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
-//@[gas] run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
-//@[size] run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
-//@[none] run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
-//@[gas] run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
-//@[size] run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
-//@[none] run-call: zeroDynamicAggregates() => 2, 0, 2, 0
-//@[gas] run-call: zeroDynamicAggregates() => 2, 0, 2, 0
-//@[size] run-call: zeroDynamicAggregates() => 2, 0, 2, 0
-//@[none] run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
-//@[gas] run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
-//@[size] run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
-//@[none] run-call: zeroNestedDynamicAggregateAfterScratch() => 0
-//@[gas] run-call: zeroNestedDynamicAggregateAfterScratch() => 0
-//@[size] run-call: zeroNestedDynamicAggregateAfterScratch() => 0
+//@[none, gas, size] run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
+//@[none, gas, size] run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
+//@[none, gas, size] run-call: allocatedAggregates() => 2, 18, 5, 2, 8
+//@[none, gas, size] run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
+//@[none, gas, size] run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
+//@[none, gas, size] run-call: zeroDynamicAggregates() => 2, 0, 2, 0
+//@[none, gas, size] run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
+//@[none, gas, size] run-call: zeroNestedDynamicAggregateAfterScratch() => 0
 
 struct InitInput {
     address asset;

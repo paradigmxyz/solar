@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: sameShortLiteralSalt() => true
-//@[gas] run-call: sameShortLiteralSalt() => true
-//@[size] run-call: sameShortLiteralSalt() => true
-//@[none] run-call: sameEmptyLiteralSalt() => true
-//@[gas] run-call: sameEmptyLiteralSalt() => true
-//@[size] run-call: sameEmptyLiteralSalt() => true
-//@[none] run-call: sameFullLiteralSalt() => true
-//@[gas] run-call: sameFullLiteralSalt() => true
-//@[size] run-call: sameFullLiteralSalt() => true
-//@[none] run-call: differentLiteralSalts() => true
-//@[gas] run-call: differentLiteralSalts() => true
-//@[size] run-call: differentLiteralSalts() => true
+//@[none, gas, size] run-call: sameShortLiteralSalt() => true
+//@[none, gas, size] run-call: sameEmptyLiteralSalt() => true
+//@[none, gas, size] run-call: sameFullLiteralSalt() => true
+//@[none, gas, size] run-call: differentLiteralSalts() => true
 
 contract CreationOptionsChild {}
 

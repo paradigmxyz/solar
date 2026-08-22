@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: TryCatchPanic::success() => 7
-//@[gas] run-call: TryCatchPanic::success() => 7
-//@[size] run-call: TryCatchPanic::success() => 7
-//@[none] run-call: TryCatchPanic::failure() => 1
-//@[gas] run-call: TryCatchPanic::failure() => 1
-//@[size] run-call: TryCatchPanic::failure() => 1
+//@[none, gas, size] run-call: TryCatchPanic::success() => 7
+//@[none, gas, size] run-call: TryCatchPanic::failure() => 1
 
 contract TryCatchPanicTarget {
     function ok() external pure {}

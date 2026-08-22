@@ -8,30 +8,14 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorStateOrderDerived::a() => 17
-//@[gas] run-call: ConstructorStateOrderDerived::a() => 17
-//@[size] run-call: ConstructorStateOrderDerived::a() => 17
-//@[none] run-call: ConstructorStateOrderDerived::b() => 42
-//@[gas] run-call: ConstructorStateOrderDerived::b() => 42
-//@[size] run-call: ConstructorStateOrderDerived::b() => 42
-//@[none] run-call: ConstructorStateOrderDerived::c() => 51
-//@[gas] run-call: ConstructorStateOrderDerived::c() => 51
-//@[size] run-call: ConstructorStateOrderDerived::c() => 51
-//@[none] run-call: ConstructorStateOrderDerived::bA() => 17
-//@[gas] run-call: ConstructorStateOrderDerived::bA() => 17
-//@[size] run-call: ConstructorStateOrderDerived::bA() => 17
-//@[none] run-call: ConstructorStateOrderDerived::bB() => 42
-//@[gas] run-call: ConstructorStateOrderDerived::bB() => 42
-//@[size] run-call: ConstructorStateOrderDerived::bB() => 42
-//@[none] run-call: ConstructorStateOrderDerived::bC() => 51
-//@[gas] run-call: ConstructorStateOrderDerived::bC() => 51
-//@[size] run-call: ConstructorStateOrderDerived::bC() => 51
-//@[none] run-call: ConstructorStateOrderDerived::d() => 23
-//@[gas] run-call: ConstructorStateOrderDerived::d() => 23
-//@[size] run-call: ConstructorStateOrderDerived::d() => 23
-//@[none] run-call: ConstructorStateOrderDerived::e() => 42
-//@[gas] run-call: ConstructorStateOrderDerived::e() => 42
-//@[size] run-call: ConstructorStateOrderDerived::e() => 42
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::a() => 17
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::b() => 42
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::c() => 51
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::bA() => 17
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::bB() => 42
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::bC() => 51
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::d() => 23
+//@[none, gas, size] run-call: ConstructorStateOrderDerived::e() => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/state_variables_init_order_3.sol
 
 contract ConstructorStateOrderBase {

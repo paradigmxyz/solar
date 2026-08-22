@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
-//@[gas] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
-//@[size] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
+//@[none, gas, size] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
 // ported-from: test/libsolidity/semanticTests/constructor/functions_called_by_constructor_through_dispatch.sol
 
 contract ConstructorFunctionPointerDispatch {

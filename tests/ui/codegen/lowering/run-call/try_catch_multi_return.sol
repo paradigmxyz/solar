@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: success() => 15
-//@[gas] run-call: success() => 15
-//@[size] run-call: success() => 15
-//@[none] run-call: failure() => 9
-//@[gas] run-call: failure() => 9
-//@[size] run-call: failure() => 9
+//@[none, gas, size] run-call: success() => 15
+//@[none, gas, size] run-call: failure() => 9
 
 contract TryMultiReturnTarget {
     function value(bool ok) external pure returns (uint256, string memory) {

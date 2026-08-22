@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: comparison() => true
-//@[gas] run-call: comparison() => true
-//@[size] run-call: comparison() => true
-//@[none] run-call: abiEncoding() => true
-//@[gas] run-call: abiEncoding() => true
-//@[size] run-call: abiEncoding() => true
+//@[none, gas, size] run-call: comparison() => true
+//@[none, gas, size] run-call: abiEncoding() => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/comparison_operator_for_external_function_cleans_dirty_bits.sol
 
 contract FunctionPointerDirtyBits {

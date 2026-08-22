@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: clear() => true
-//@[gas] run-call: clear() => true
-//@[size] run-call: clear() => true
+//@[none, gas, size] run-call: clear() => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_external_delete_storage.sol
 
 contract ExternalFunctionPointerDelete {

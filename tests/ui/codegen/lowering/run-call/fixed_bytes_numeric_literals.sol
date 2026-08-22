@@ -8,36 +8,16 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: wrapBytes1() => 0x01
-//@[gas] run-call: wrapBytes1() => 0x01
-//@[size] run-call: wrapBytes1() => 0x01
-//@[none] run-call: wrapBytes2() => 0x0102
-//@[gas] run-call: wrapBytes2() => 0x0102
-//@[size] run-call: wrapBytes2() => 0x0102
-//@[none] run-call: wrapBytes4() => 0x01020304
-//@[gas] run-call: wrapBytes4() => 0x01020304
-//@[size] run-call: wrapBytes4() => 0x01020304
-//@[none] run-call: wrapBytes32() => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-//@[gas] run-call: wrapBytes32() => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-//@[size] run-call: wrapBytes32() => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-//@[none] run-call: overloadedOr() => 0x03
-//@[gas] run-call: overloadedOr() => 0x03
-//@[size] run-call: overloadedOr() => 0x03
-//@[none] run-call: literalReturn() => 0x01
-//@[gas] run-call: literalReturn() => 0x01
-//@[size] run-call: literalReturn() => 0x01
-//@[none] run-call: widen() => 0x0100
-//@[gas] run-call: widen() => 0x0100
-//@[size] run-call: widen() => 0x0100
-//@[none] run-call: roundTrip(bytes1) 0xab => 0xab
-//@[gas] run-call: roundTrip(bytes1) 0xab => 0xab
-//@[size] run-call: roundTrip(bytes1) 0xab => 0xab
-//@[none] run-call: encodeSelector(bytes4) 0x12345678 => 0x12345678
-//@[gas] run-call: encodeSelector(bytes4) 0x12345678 => 0x12345678
-//@[size] run-call: encodeSelector(bytes4) 0x12345678 => 0x12345678
-//@[none] run-call: encodeLocalSelector() => 0x12345678
-//@[gas] run-call: encodeLocalSelector() => 0x12345678
-//@[size] run-call: encodeLocalSelector() => 0x12345678
+//@[none, gas, size] run-call: wrapBytes1() => 0x01
+//@[none, gas, size] run-call: wrapBytes2() => 0x0102
+//@[none, gas, size] run-call: wrapBytes4() => 0x01020304
+//@[none, gas, size] run-call: wrapBytes32() => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+//@[none, gas, size] run-call: overloadedOr() => 0x03
+//@[none, gas, size] run-call: literalReturn() => 0x01
+//@[none, gas, size] run-call: widen() => 0x0100
+//@[none, gas, size] run-call: roundTrip(bytes1) 0xab => 0xab
+//@[none, gas, size] run-call: encodeSelector(bytes4) 0x12345678 => 0x12345678
+//@[none, gas, size] run-call: encodeLocalSelector() => 0x12345678
 
 type Byte is bytes1;
 type TwoBytes is bytes2;

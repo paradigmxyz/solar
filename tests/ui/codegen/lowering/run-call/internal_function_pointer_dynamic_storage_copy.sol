@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 7
-//@[gas] run-call: test() => 7
-//@[size] run-call: test() => 7
+//@[none, gas, size] run-call: test() => 7
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_function_internal_storage_array.sol
 
 contract InternalFunctionPointerDynamicStorageCopy {

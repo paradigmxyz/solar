@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: assignment 42 => 42
-//@[gas] run-call: assignment 42 => 42
-//@[size] run-call: assignment 42 => 42
-//@[none] run-call: newValue 42 => 42
-//@[gas] run-call: newValue 42 => 42
-//@[size] run-call: newValue 42 => 42
+//@[none, gas, size] run-call: assignment 42 => 42
+//@[none, gas, size] run-call: newValue 42 => 42
 // ported-from: test/libsolidity/semanticTests/array/array_3d_assignment.sol
 // ported-from: test/libsolidity/semanticTests/array/array_3d_new.sol
 

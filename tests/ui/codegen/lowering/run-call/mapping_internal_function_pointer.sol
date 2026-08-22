@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: run() => true
-//@[gas] run-call: run() => true
-//@[size] run-call: run() => true
+//@[none, gas, size] run-call: run() => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/mapping_of_functions.sol
 
 contract MappingInternalFunctionPointer {

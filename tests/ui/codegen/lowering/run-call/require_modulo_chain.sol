@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: chain 12, 3 => 15
-//@[gas] run-call: chain 12, 3 => 15
-//@[size] run-call: chain 12, 3 => 15
-//@[none] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@[gas] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@[size] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@[none] run-call-fail: chain 11, 3
-//@[gas] run-call-fail: chain 11, 3
-//@[size] run-call-fail: chain 11, 3
-//@[none] run-call: chain 0, 1 => 1
-//@[gas] run-call: chain 0, 1 => 1
-//@[size] run-call: chain 0, 1 => 1
+//@[none, gas, size] run-call: chain 12, 3 => 15
+//@[none, gas, size] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@[none, gas, size] run-call-fail: chain 11, 3
+//@[none, gas, size] run-call: chain 0, 1 => 1
 
 contract RequireModuloCases {
     function chain(uint256 a, uint256 b) external pure returns (uint256) {

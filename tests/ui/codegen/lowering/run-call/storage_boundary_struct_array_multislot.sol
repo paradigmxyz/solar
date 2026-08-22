@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 45
-//@[gas] run-call: test() => 45
-//@[size] run-call: test() => 45
+//@[none, gas, size] run-call: test() => 45
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_struct_array_multislot.sol
 
 contract StorageBoundaryStructArrayMultislot {

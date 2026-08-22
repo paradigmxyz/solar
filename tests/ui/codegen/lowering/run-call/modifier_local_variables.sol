@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f true => 0
-//@[gas] run-call: f true => 0
-//@[size] run-call: f true => 0
-//@[none] run-call: f false => 3
-//@[gas] run-call: f false => 3
-//@[size] run-call: f false => 3
+//@[none, gas, size] run-call: f true => 0
+//@[none, gas, size] run-call: f false => 3
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_local_variables.sol
 
 contract ModifierLocalVariables {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: Creator::f() => 23
-//@[gas] run-call: Creator::f() => 23
-//@[size] run-call: Creator::f() => 23
+//@[none, gas, size] run-call: Creator::f() => 23
 
 contract ConstructorAggregateBase {
     struct Entry {

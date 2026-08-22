@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorVirtualArgumentInitialization::x() => 2
-//@[gas] run-call: ConstructorVirtualArgumentInitialization::x() => 2
-//@[size] run-call: ConstructorVirtualArgumentInitialization::x() => 2
+//@[none, gas, size] run-call: ConstructorVirtualArgumentInitialization::x() => 2
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 
 contract ConstructorVirtualArgumentBase {

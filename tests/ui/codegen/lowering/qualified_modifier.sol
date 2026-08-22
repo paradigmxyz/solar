@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: Derived::qualified() => 9, 2
-//@[gas] run-call: Derived::qualified() => 9, 2
-//@[size] run-call: Derived::qualified() => 9, 2
-//@[none] run-call: Derived::virtualDispatch() => 10, 1
-//@[gas] run-call: Derived::virtualDispatch() => 10, 1
-//@[size] run-call: Derived::virtualDispatch() => 10, 1
+//@[none, gas, size] run-call: Derived::qualified() => 9, 2
+//@[none, gas, size] run-call: Derived::virtualDispatch() => 10, 1
 // ported-from: test/libsolidity/semanticTests/modifiers/access_through_contract_name.sol
 
 contract Base {

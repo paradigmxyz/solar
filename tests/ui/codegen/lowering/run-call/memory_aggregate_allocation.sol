@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: allocate => 143
-//@[gas] run-call: allocate => 143
-//@[size] run-call: allocate => 143
+//@[none, gas, size] run-call: allocate => 143
 // ported-from: test/libsolidity/semanticTests/array/create_memory_array.sol
 
 contract MemoryAggregateAllocation {

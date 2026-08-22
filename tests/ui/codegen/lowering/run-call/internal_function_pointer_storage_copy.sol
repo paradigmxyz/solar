@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: one() => 3
-//@[gas] run-call: one() => 3
-//@[size] run-call: one() => 3
-//@[none] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
-//@[gas] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
-//@[size] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@[none, gas, size] run-call: one() => 3
+//@[none, gas, size] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_internal_function_array_to_storage.sol
 
 contract InternalFunctionPointerStorageCopy {

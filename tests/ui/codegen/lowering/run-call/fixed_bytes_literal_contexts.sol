@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: exercise() => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
-//@[gas] run-call: exercise() => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
-//@[size] run-call: exercise() => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
-//@[none] run-call: throughModifier() => 0x05
-//@[gas] run-call: throughModifier() => 0x05
-//@[size] run-call: throughModifier() => 0x05
+//@[none, gas, size] run-call: exercise() => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
+//@[none, gas, size] run-call: throughModifier() => 0x05
 
 library FixedBytesLiteralLibrary {
     function identity(bytes2 value) internal pure returns (bytes2) {

@@ -8,24 +8,12 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: readCalldata(string) "abc" => 7
-//@[gas] run-call: readCalldata(string) "abc" => 7
-//@[size] run-call: readCalldata(string) "abc" => 7
-//@[none] run-call: readMemory(string) "abc" => 7
-//@[gas] run-call: readMemory(string) "abc" => 7
-//@[size] run-call: readMemory(string) "abc" => 7
-//@[none] run-call: callReadMemory(string) "abc" => 7
-//@[gas] run-call: callReadMemory(string) "abc" => 7
-//@[size] run-call: callReadMemory(string) "abc" => 7
-//@[none] run-call: readStorage() => 7
-//@[gas] run-call: readStorage() => 7
-//@[size] run-call: readStorage() => 7
-//@[none] run-call: readLongLiteral() => 11
-//@[gas] run-call: readLongLiteral() => 11
-//@[size] run-call: readLongLiteral() => 11
-//@[none] run-call: overwriteShort() => 13
-//@[gas] run-call: overwriteShort() => 13
-//@[size] run-call: overwriteShort() => 13
+//@[none, gas, size] run-call: readCalldata(string) "abc" => 7
+//@[none, gas, size] run-call: readMemory(string) "abc" => 7
+//@[none, gas, size] run-call: callReadMemory(string) "abc" => 7
+//@[none, gas, size] run-call: readStorage() => 7
+//@[none, gas, size] run-call: readLongLiteral() => 11
+//@[none, gas, size] run-call: overwriteShort() => 13
 
 contract MappingDynamicLiteral {
     string private key;

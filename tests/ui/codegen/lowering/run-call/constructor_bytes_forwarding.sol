@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
-//@[gas] run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
-//@[size] run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
+//@[none, gas, size] run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
 // ported-from: test/libsolidity/semanticTests/constructor/bytes_in_constructors_packer.sol
 
 contract ConstructorBytesBase {

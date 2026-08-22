@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorBaseFixedBytes::value() => 0x616263
-//@[gas] run-call: ConstructorBaseFixedBytes::value() => 0x616263
-//@[size] run-call: ConstructorBaseFixedBytes::value() => 0x616263
+//@[none, gas, size] run-call: ConstructorBaseFixedBytes::value() => 0x616263
 
 contract ConstructorBaseFixedBytesBase {
     bytes3 public value;

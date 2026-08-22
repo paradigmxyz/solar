@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: g false => 23, 37, 71
-//@[gas] run-call: g false => 23, 37, 71
-//@[size] run-call: g false => 23, 37, 71
-//@[none] run-call: g true => 23, 37, 71
-//@[gas] run-call: g true => 23, 37, 71
-//@[size] run-call: g true => 23, 37, 71
+//@[none, gas, size] run-call: g false => 23, 37, 71
+//@[none, gas, size] run-call: g true => 23, 37, 71
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_function_types_v2.sol
 
 contract ExternalFunctionPointerCalldataArray {

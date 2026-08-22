@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
-//@[gas] run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
-//@[size] run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
+//@[none, gas, size] run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
 
 contract ConstructorArgumentInitializationA {
     uint256 public x = 2;

@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: externalReceiver() => 14
-//@[gas] run-call: externalReceiver() => 14
-//@[size] run-call: externalReceiver() => 14
-//@[none] run-call: callOptions() => 234
-//@[gas] run-call: callOptions() => 234
-//@[size] run-call: callOptions() => 234
+//@[none, gas, size] run-call: externalReceiver() => 14
+//@[none, gas, size] run-call: callOptions() => 234
 
 contract ExternalCallEvaluationOrder {
     uint256 marker;

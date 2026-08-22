@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ShortCallOutput::shortOutput() => true, 7
-//@[gas] run-call: ShortCallOutput::shortOutput() => true, 7
-//@[size] run-call: ShortCallOutput::shortOutput() => true, 7
+//@[none, gas, size] run-call: ShortCallOutput::shortOutput() => true, 7
 
 // EVM calls only copy the bytes that the callee returned. Bytes after that
 // remain unchanged, even when the requested output area is larger.

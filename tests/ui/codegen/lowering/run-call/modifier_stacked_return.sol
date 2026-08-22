@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f => 42
-//@[gas] run-call: f => 42
-//@[size] run-call: f => 42
-//@[none] run-call: fAndRead => 4
-//@[gas] run-call: fAndRead => 4
-//@[size] run-call: fAndRead => 4
+//@[none, gas, size] run-call: f => 42
+//@[none, gas, size] run-call: fAndRead => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/stacked_return_with_modifiers.sol
 
 contract ModifierStackedReturn {

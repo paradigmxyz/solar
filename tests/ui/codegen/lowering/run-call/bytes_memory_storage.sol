@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy => 101
-//@[gas] run-call: copy => 101
-//@[size] run-call: copy => 101
-//@[none] run-call: dirty => 513
-//@[gas] run-call: dirty => 513
-//@[size] run-call: dirty => 513
+//@[none, gas, size] run-call: copy => 101
+//@[none, gas, size] run-call: dirty => 513
 // ported-from: test/libsolidity/semanticTests/array/copying/bytes_memory_to_storage.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/dirty_memory_bytes_to_storage_copy.sol
 

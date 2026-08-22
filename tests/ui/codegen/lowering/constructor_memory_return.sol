@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorMemoryReturn::value() => "1"
-//@[gas] run-call: ConstructorMemoryReturn::value() => "1"
-//@[size] run-call: ConstructorMemoryReturn::value() => "1"
-//@[none] run-call: ConstructorMemoryReturn::direct() => 5
-//@[gas] run-call: ConstructorMemoryReturn::direct() => 5
-//@[size] run-call: ConstructorMemoryReturn::direct() => 5
-//@[none] run-call: ConstructorMemoryReturn::pairValue() => 3
-//@[gas] run-call: ConstructorMemoryReturn::pairValue() => 3
-//@[size] run-call: ConstructorMemoryReturn::pairValue() => 3
+//@[none, gas, size] run-call: ConstructorMemoryReturn::value() => "1"
+//@[none, gas, size] run-call: ConstructorMemoryReturn::direct() => 5
+//@[none, gas, size] run-call: ConstructorMemoryReturn::pairValue() => 3
 
 contract ConstructorMemoryReturn {
     string public value;

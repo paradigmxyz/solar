@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f => 16, 32, 64
-//@[gas] run-call: f => 16, 32, 64
-//@[size] run-call: f => 16, 32, 64
-//@[none] run-call: g => 4
-//@[gas] run-call: g => 4
-//@[size] run-call: g => 4
+//@[none, gas, size] run-call: f => 16, 32, 64
+//@[none, gas, size] run-call: g => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/function_return_parameter_complex.sol
 
 contract ModifierReturnParameterComplex {

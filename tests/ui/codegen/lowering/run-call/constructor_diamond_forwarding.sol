@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
-//@[gas] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
-//@[size] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
-//@[none] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
-//@[gas] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
-//@[size] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
-//@[none] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
-//@[gas] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
-//@[size] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
+//@[none, gas, size] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
+//@[none, gas, size] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
+//@[none, gas, size] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_with_params_diamond_inheritance.sol
 
 contract DiamondBase {

@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f(bool) false => true
-//@[gas] run-call: f(bool) false => true
-//@[size] run-call: f(bool) false => true
-//@[none] run-call: f(bool) true => false
-//@[gas] run-call: f(bool) true => false
-//@[size] run-call: f(bool) true => false
+//@[none, gas, size] run-call: f(bool) false => true
+//@[none, gas, size] run-call: f(bool) true => false
 
 contract TryCreationChild {
     constructor(bool fail) {

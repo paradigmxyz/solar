@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call-fail: test()
-//@[gas] run-call-fail: test()
-//@[size] run-call-fail: test()
-//@[none] run-call-fail: withinArray()
-//@[gas] run-call-fail: withinArray()
-//@[size] run-call-fail: withinArray()
+//@[none, gas, size] run-call-fail: test()
+//@[none, gas, size] run-call-fail: withinArray()
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_3.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_2.sol
 

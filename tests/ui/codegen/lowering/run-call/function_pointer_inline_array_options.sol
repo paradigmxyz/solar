@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: h(); value=1 => 1
-//@[gas] run-call: h(); value=1 => 1
-//@[size] run-call: h(); value=1 => 1
+//@[none, gas, size] run-call: h(); value=1 => 1
 // ported-from: test/libsolidity/semanticTests/functionTypes/inline_array_with_value_call_option.sol
 
 contract FunctionPointerInlineArrayOptions {

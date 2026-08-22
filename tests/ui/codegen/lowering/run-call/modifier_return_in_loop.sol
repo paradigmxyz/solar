@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: fAndRead() => 4
-//@[gas] run-call: fAndRead() => 4
-//@[size] run-call: fAndRead() => 4
+//@[none, gas, size] run-call: fAndRead() => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/return_in_modifier.sol
 
 contract ModifierReturnInLoop {

@@ -8,24 +8,12 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test_value() => 42
-//@[gas] run-call: test_value() => 42
-//@[size] run-call: test_value() => 42
-//@[none] run-call: test_storage_view() => 0
-//@[gas] run-call: test_storage_view() => 0
-//@[size] run-call: test_storage_view() => 0
-//@[none] run-call: test_storage_write() => 1
-//@[gas] run-call: test_storage_write() => 1
-//@[size] run-call: test_storage_write() => 1
-//@[none] run-call: test_multi() => 7, 8
-//@[gas] run-call: test_multi() => 7, 8
-//@[size] run-call: test_multi() => 7, 8
-//@[none] run-call: test_calldata [1, 2, 3] => 1
-//@[gas] run-call: test_calldata [1, 2, 3] => 1
-//@[size] run-call: test_calldata [1, 2, 3] => 1
-//@[none] run-call: test_using() => 15
-//@[gas] run-call: test_using() => 15
-//@[size] run-call: test_using() => 15
+//@[none, gas, size] run-call: test_value() => 42
+//@[none, gas, size] run-call: test_storage_view() => 0
+//@[none, gas, size] run-call: test_storage_write() => 1
+//@[none, gas, size] run-call: test_multi() => 7, 8
+//@[none, gas, size] run-call: test_calldata [1, 2, 3] => 1
+//@[none, gas, size] run-call: test_using() => 15
 
 library Lib {
     struct S {

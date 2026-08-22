@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: simple() => 2
-//@[gas] run-call: simple() => 2
-//@[size] run-call: simple() => 2
-//@[none] run-call: conditional(uint256) 0 => 9
-//@[gas] run-call: conditional(uint256) 0 => 9
-//@[size] run-call: conditional(uint256) 0 => 9
-//@[none] run-call: conditional(uint256) 1 => 2
-//@[gas] run-call: conditional(uint256) 1 => 2
-//@[size] run-call: conditional(uint256) 1 => 2
-//@[none] run-call: multiple() => 2, 3
-//@[gas] run-call: multiple() => 2, 3
-//@[size] run-call: multiple() => 2, 3
-//@[none] run-call: fallthrough() => 9
-//@[gas] run-call: fallthrough() => 9
-//@[size] run-call: fallthrough() => 9
+//@[none, gas, size] run-call: simple() => 2
+//@[none, gas, size] run-call: conditional(uint256) 0 => 9
+//@[none, gas, size] run-call: conditional(uint256) 1 => 2
+//@[none, gas, size] run-call: multiple() => 2, 3
+//@[none, gas, size] run-call: fallthrough() => 9
 
 contract YulLeave {
     function simple() external pure returns (uint256 result) {

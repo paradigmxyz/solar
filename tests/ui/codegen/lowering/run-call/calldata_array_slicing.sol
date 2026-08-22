@@ -8,42 +8,18 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
-//@[gas] run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
-//@[size] run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
-//@[none] run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
-//@[gas] run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
-//@[size] run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
-//@[none] run-call: chainedIndex [1, 2, 3, 4, 5] => 3
-//@[gas] run-call: chainedIndex [1, 2, 3, 4, 5] => 3
-//@[size] run-call: chainedIndex [1, 2, 3, 4, 5] => 3
-//@[none] run-call: nestedSliceLength [1, 2, 3, 4, 5], 1, 4, 1, 2 => 1
-//@[gas] run-call: nestedSliceLength [1, 2, 3, 4, 5], 1, 4, 1, 2 => 1
-//@[size] run-call: nestedSliceLength [1, 2, 3, 4, 5], 1, 4, 1, 2 => 1
-//@[none] run-call: startSliceLength [1, 2, 3, 4, 5], 2 => 3
-//@[gas] run-call: startSliceLength [1, 2, 3, 4, 5], 2 => 3
-//@[size] run-call: startSliceLength [1, 2, 3, 4, 5], 2 => 3
-//@[none] run-call: endSliceLength [1, 2, 3, 4, 5], 3 => 3
-//@[gas] run-call: endSliceLength [1, 2, 3, 4, 5], 3 => 3
-//@[size] run-call: endSliceLength [1, 2, 3, 4, 5], 3 => 3
-//@[none] run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
-//@[gas] run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
-//@[size] run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
-//@[none] run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
-//@[gas] run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
-//@[size] run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
-//@[none] run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
-//@[gas] run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
-//@[size] run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
-//@[none] run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call-fail: bytesSlice 0x010203, 0, 4
-//@[gas] run-call-fail: bytesSlice 0x010203, 0, 4
-//@[size] run-call-fail: bytesSlice 0x010203, 0, 4
-//@[none] run-call-fail: bytesSlice 0x010203, 2, 1
-//@[gas] run-call-fail: bytesSlice 0x010203, 2, 1
-//@[size] run-call-fail: bytesSlice 0x010203, 2, 1
+//@[none, gas, size] run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
+//@[none, gas, size] run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
+//@[none, gas, size] run-call: chainedIndex [1, 2, 3, 4, 5] => 3
+//@[none, gas, size] run-call: nestedSliceLength [1, 2, 3, 4, 5], 1, 4, 1, 2 => 1
+//@[none, gas, size] run-call: startSliceLength [1, 2, 3, 4, 5], 2 => 3
+//@[none, gas, size] run-call: endSliceLength [1, 2, 3, 4, 5], 3 => 3
+//@[none, gas, size] run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
+//@[none, gas, size] run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
+//@[none, gas, size] run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
+//@[none, gas, size] run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call-fail: bytesSlice 0x010203, 0, 4
+//@[none, gas, size] run-call-fail: bytesSlice 0x010203, 2, 1
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_slicing_v2.sol
 
 contract CalldataArraySlicing {

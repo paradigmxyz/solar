@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f 3 => 10
-//@[gas] run-call: f 3 => 10
-//@[size] run-call: f 3 => 10
+//@[none, gas, size] run-call: f 3 => 10
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_multiple_times_local_vars.sol
 
 contract ModifierMultipleInvocations {

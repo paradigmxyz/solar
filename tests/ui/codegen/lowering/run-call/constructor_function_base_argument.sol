@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorFunctionBaseDerived::getA() => 2
-//@[gas] run-call: ConstructorFunctionBaseDerived::getA() => 2
-//@[size] run-call: ConstructorFunctionBaseDerived::getA() => 2
+//@[none, gas, size] run-call: ConstructorFunctionBaseDerived::getA() => 2
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
 
 contract ConstructorFunctionBaseBase {

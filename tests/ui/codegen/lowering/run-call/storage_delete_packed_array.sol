@@ -8,24 +8,12 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: clear() => 1, 0, 3
-//@[gas] run-call: clear() => 1, 0, 3
-//@[size] run-call: clear() => 1, 0, 3
-//@[none] run-call: clearReference() => 0, 0, 0
-//@[gas] run-call: clearReference() => 0, 0, 0
-//@[size] run-call: clearReference() => 0, 0, 0
-//@[none] run-call: clearFixed() => 0, 0, 0
-//@[gas] run-call: clearFixed() => 0, 0, 0
-//@[size] run-call: clearFixed() => 0, 0, 0
-//@[none] run-call: clearDynamicDirtyWord() => 0
-//@[gas] run-call: clearDynamicDirtyWord() => 0
-//@[size] run-call: clearDynamicDirtyWord() => 0
-//@[none] run-call: clearFixedDirtyWord() => 0
-//@[gas] run-call: clearFixedDirtyWord() => 0
-//@[size] run-call: clearFixedDirtyWord() => 0
-//@[none] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
-//@[gas] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
-//@[size] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@[none, gas, size] run-call: clear() => 1, 0, 3
+//@[none, gas, size] run-call: clearReference() => 0, 0, 0
+//@[none, gas, size] run-call: clearFixed() => 0, 0, 0
+//@[none, gas, size] run-call: clearDynamicDirtyWord() => 0
+//@[none, gas, size] run-call: clearFixedDirtyWord() => 0
+//@[none, gas, size] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
 
 contract StorageDeletePackedArray {
     uint8[] private values;

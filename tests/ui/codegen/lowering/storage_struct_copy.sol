@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: readCopy => 0x0000000000000000000000000000000000001234, 0x12345678
-//@[gas] run-call: readCopy => 0x0000000000000000000000000000000000001234, 0x12345678
-//@[size] run-call: readCopy => 0x0000000000000000000000000000000000001234, 0x12345678
-//@[none] run-call: readDirect => 0x0000000000000000000000000000000000001234, 0x12345678
-//@[gas] run-call: readDirect => 0x0000000000000000000000000000000000001234, 0x12345678
-//@[size] run-call: readDirect => 0x0000000000000000000000000000000000001234, 0x12345678
+//@[none, gas, size] run-call: readCopy => 0x0000000000000000000000000000000000001234, 0x12345678
+//@[none, gas, size] run-call: readDirect => 0x0000000000000000000000000000000000001234, 0x12345678
 
 contract StorageStructCopy {
     struct Value {

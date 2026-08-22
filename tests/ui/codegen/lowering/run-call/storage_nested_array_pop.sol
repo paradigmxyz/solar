@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test => 1, 2, 3
-//@[gas] run-call: test => 1, 2, 3
-//@[size] run-call: test => 1, 2, 3
+//@[none, gas, size] run-call: test => 1, 2, 3
 // ported-from: test/libsolidity/semanticTests/array/pop/array_pop_array_transition.sol
 
 contract StorageNestedArrayPop {

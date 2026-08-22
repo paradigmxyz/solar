@@ -9,12 +9,8 @@
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
 // ported-from: tests/libsolidity/semanticTests/types/tuple_assign_multi_slot_grow.sol
-//@[none] run-call: assign() => 0x30, 0x31, 0x32
-//@[gas] run-call: assign() => 0x30, 0x31, 0x32
-//@[size] run-call: assign() => 0x30, 0x31, 0x32
-//@[none] run-call: swap() => 2, 1, 4, 3
-//@[gas] run-call: swap() => 2, 1, 4, 3
-//@[size] run-call: swap() => 2, 1, 4, 3
+//@[none, gas, size] run-call: assign() => 0x30, 0x31, 0x32
+//@[none, gas, size] run-call: swap() => 2, 1, 4, 3
 
 contract NestedTupleAssignment {
     function assign() external pure returns (uint256, uint256, uint256) {

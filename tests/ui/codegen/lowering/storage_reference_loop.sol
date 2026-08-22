@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: rebindLoop false, 3, 5, 17 => 17, 0
-//@[gas] run-call: rebindLoop false, 3, 5, 17 => 17, 0
-//@[size] run-call: rebindLoop false, 3, 5, 17 => 17, 0
-//@[none] run-call: rebindLoop true, 3, 5, 17 => 0, 17
-//@[gas] run-call: rebindLoop true, 3, 5, 17 => 0, 17
-//@[size] run-call: rebindLoop true, 3, 5, 17 => 0, 17
+//@[none, gas, size] run-call: rebindLoop false, 3, 5, 17 => 17, 0
+//@[none, gas, size] run-call: rebindLoop true, 3, 5, 17 => 0, 17
 
 contract StorageReferenceLoop {
     struct Item {

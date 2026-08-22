@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: result() => 4
-//@[gas] run-call: result() => 4
-//@[size] run-call: result() => 4
-//@[none] run-call: use(uint256) 3 => 6
-//@[gas] run-call: use(uint256) 3 => 6
-//@[size] run-call: use(uint256) 3 => 6
+//@[none, gas, size] run-call: result() => 4
+//@[none, gas, size] run-call: use(uint256) 3 => 6
 // ported-from: test/libsolidity/semanticTests/constructor/store_function_in_constructor.sol
 
 contract ConstructorStoreFunction {

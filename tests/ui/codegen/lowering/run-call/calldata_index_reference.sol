@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
-//@[gas] run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
-//@[size] run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
-//@[none] run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
-//@[gas] run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
-//@[size] run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
-//@[none] run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
-//@[gas] run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
-//@[size] run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
-//@[none] run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
-//@[gas] run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
-//@[size] run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
+//@[none, gas, size] run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
+//@[none, gas, size] run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
+//@[none, gas, size] run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
+//@[none, gas, size] run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
 // ported-from: test/libsolidity/semanticTests/inlineAssembly/calldata_array_read.sol
 
 contract CalldataIndexReference {

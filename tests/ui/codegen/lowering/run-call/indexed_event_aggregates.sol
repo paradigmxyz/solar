@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test_nested() => 2, 0x68656c6c6f
-//@[gas] run-call: test_nested() => 2, 0x68656c6c6f
-//@[size] run-call: test_nested() => 2, 0x68656c6c6f
-//@[none] run-call: test_strings() => 0x776f726c64
-//@[gas] run-call: test_strings() => 0x776f726c64
-//@[size] run-call: test_strings() => 0x776f726c64
+//@[none, gas, size] run-call: test_nested() => 2, 0x68656c6c6f
+//@[none, gas, size] run-call: test_strings() => 0x776f726c64
 
 contract IndexedAggregates {
     struct Payload {

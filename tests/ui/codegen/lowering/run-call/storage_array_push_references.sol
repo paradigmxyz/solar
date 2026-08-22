@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: references 42 => 42, 84, 4096
-//@[gas] run-call: references 42 => 42, 84, 4096
-//@[size] run-call: references 42 => 42, 84, 4096
-//@[none] run-call: nestedPush 2, 64 => 64
-//@[gas] run-call: nestedPush 2, 64 => 64
-//@[size] run-call: nestedPush 2, 64 => 64
-//@[none] run-call: bytesPush => 71, 0x00
-//@[gas] run-call: bytesPush => 71, 0x00
-//@[size] run-call: bytesPush => 71, 0x00
-//@[none] run-call: bytesTransition => 0
-//@[gas] run-call: bytesTransition => 0
-//@[size] run-call: bytesTransition => 0
-//@[none] run-call: pushPreservesStorage => 42
-//@[gas] run-call: pushPreservesStorage => 42
-//@[size] run-call: pushPreservesStorage => 42
+//@[none, gas, size] run-call: references 42 => 42, 84, 4096
+//@[none, gas, size] run-call: nestedPush 2, 64 => 64
+//@[none, gas, size] run-call: bytesPush => 71, 0x00
+//@[none, gas, size] run-call: bytesTransition => 0
+//@[none, gas, size] run-call: pushPreservesStorage => 42
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_struct.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_2d.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_bytes.sol

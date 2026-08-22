@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: MappingDynamicGetter::read() => 7, 0x616263
-//@[gas] run-call: MappingDynamicGetter::read() => 7, 0x616263
-//@[size] run-call: MappingDynamicGetter::read() => 7, 0x616263
-//@[none] run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
-//@[gas] run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
-//@[size] run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
+//@[none, gas, size] run-call: MappingDynamicGetter::read() => 7, 0x616263
+//@[none, gas, size] run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
 
 contract MappingDynamicGetter {
     struct Entry {

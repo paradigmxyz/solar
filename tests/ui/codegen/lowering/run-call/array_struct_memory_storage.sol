@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy => 10
-//@[gas] run-call: copy => 10
-//@[size] run-call: copy => 10
+//@[none, gas, size] run-call: copy => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_memory_to_storage.sol
 
 contract ArrayStructMemoryStorage {

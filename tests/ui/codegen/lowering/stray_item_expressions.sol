@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f 33 => 42
-//@[gas] run-call: f 33 => 42
-//@[size] run-call: f 33 => 42
+//@[none, gas, size] run-call: f 33 => 42
 // ported-from: test/libsolidity/semanticTests/libraries/library_enum_as_an_expression.sol
 // ported-from: test/libsolidity/semanticTests/libraries/library_stray_values.sol
 // ported-from: test/libsolidity/semanticTests/libraries/library_struct_as_an_expression.sol

@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f 9 => [0, 0, 0, 0, 0]
-//@[gas] run-call: f 9 => [0, 0, 0, 0, 0]
-//@[size] run-call: f 9 => [0, 0, 0, 0, 0]
-//@[none] run-call: f 10 => [0, 0, 3, 0, 0]
-//@[gas] run-call: f 10 => [0, 0, 3, 0, 0]
-//@[size] run-call: f 10 => [0, 0, 3, 0, 0]
+//@[none, gas, size] run-call: f 9 => [0, 0, 0, 0, 0]
+//@[none, gas, size] run-call: f 10 => [0, 0, 3, 0, 0]
 // ported-from: test/libsolidity/semanticTests/modifiers/modifier_init_return.sol
 
 contract ModifierInitReturn {

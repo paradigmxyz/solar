@@ -8,24 +8,12 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
-//@[gas] run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
-//@[size] run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
-//@[none] run-call: TransientStorage::packed() => 4386, 13124, 860098850
-//@[gas] run-call: TransientStorage::packed() => 4386, 13124, 860098850
-//@[size] run-call: TransientStorage::packed() => 4386, 13124, 860098850
-//@[none] run-call: TransientStorage::signed() => -2
-//@[gas] run-call: TransientStorage::signed() => -2
-//@[size] run-call: TransientStorage::signed() => -2
-//@[none] run-call: TransientStorage::clear() => 0, 0
-//@[gas] run-call: TransientStorage::clear() => 0, 0
-//@[size] run-call: TransientStorage::clear() => 0, 0
-//@[none] run-call: TransientStorage::getter() => 77
-//@[gas] run-call: TransientStorage::getter() => 77
-//@[size] run-call: TransientStorage::getter() => 77
-//@[none] run-call: TransientModifier::run() => 100
-//@[gas] run-call: TransientModifier::run() => 100
-//@[size] run-call: TransientModifier::run() => 100
+//@[none, gas, size] run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
+//@[none, gas, size] run-call: TransientStorage::packed() => 4386, 13124, 860098850
+//@[none, gas, size] run-call: TransientStorage::signed() => -2
+//@[none, gas, size] run-call: TransientStorage::clear() => 0, 0
+//@[none, gas, size] run-call: TransientStorage::getter() => 77
+//@[none, gas, size] run-call: TransientModifier::run() => 100
 // ported-from: test/libsolidity/semanticTests/operators/compound_assign_transient_storage.sol
 // ported-from: test/libsolidity/semanticTests/modifiers/transient_state_variable_value_type.sol
 

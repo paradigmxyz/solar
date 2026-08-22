@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: exercise() => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
-//@[gas] run-call: exercise() => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
-//@[size] run-call: exercise() => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
+//@[none, gas, size] run-call: exercise() => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
 
 contract StorageCopyRecursiveStruct {
     struct Node {

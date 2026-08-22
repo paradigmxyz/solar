@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => false
-//@[gas] run-call: f() => false
-//@[size] run-call: f() => false
+//@[none, gas, size] run-call: f() => false
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_empty.sol
 
 abstract contract ModifierVirtualEmptyBase {

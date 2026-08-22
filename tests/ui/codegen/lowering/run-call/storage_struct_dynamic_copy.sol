@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy => 2550103
-//@[gas] run-call: copy => 2550103
-//@[size] run-call: copy => 2550103
-//@[none] run-call: arrayCopy => 103
-//@[gas] run-call: arrayCopy => 103
-//@[size] run-call: arrayCopy => 103
+//@[none, gas, size] run-call: copy => 2550103
+//@[none, gas, size] run-call: arrayCopy => 103
 // ported-from: test/libsolidity/semanticTests/structs/struct_containing_bytes_copy_and_delete.sol
 
 contract StorageStructDynamicCopy {

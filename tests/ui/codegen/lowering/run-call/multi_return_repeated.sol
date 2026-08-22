@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 1
-//@[gas] run-call: test() => 1
-//@[size] run-call: test() => 1
+//@[none, gas, size] run-call: test() => 1
 
 library MultiReturnRepeatedLib {
     function sort(uint256 a, uint256 b) internal pure returns (uint256, uint256) {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test => 2, 1, 1
-//@[gas] run-call: test => 2, 1, 1
-//@[size] run-call: test => 2, 1, 1
+//@[none, gas, size] run-call: test => 2, 1, 1
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop.sol
 
 contract StorageBytesPop {

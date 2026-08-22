@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: read() => 1, 2, 3
-//@[gas] run-call: read() => 1, 2, 3
-//@[size] run-call: read() => 1, 2, 3
+//@[none, gas, size] run-call: read() => 1, 2, 3
 // ported-from: test/libsolidity/semanticTests/array/copying/array_storage_multi_items_per_slot.sol
 
 contract StoragePackedArrayElements {

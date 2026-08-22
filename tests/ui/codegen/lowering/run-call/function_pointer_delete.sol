@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: callAfterSet => 7
-//@[gas] run-call: callAfterSet => 7
-//@[size] run-call: callAfterSet => 7
-//@[none] run-call-fail: callAfterDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
-//@[gas] run-call-fail: callAfterDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
-//@[size] run-call-fail: callAfterDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@[none, gas, size] run-call: callAfterSet => 7
+//@[none, gas, size] run-call-fail: callAfterDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_delete_storage.sol
 
 contract FunctionPointerDelete {

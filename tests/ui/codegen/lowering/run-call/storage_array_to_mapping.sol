@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: from_storage() => [[10, 11], [12, 13, 14]]
-//@[gas] run-call: from_storage() => [[10, 11], [12, 13, 14]]
-//@[size] run-call: from_storage() => [[10, 11], [12, 13, 14]]
-//@[none] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
-//@[gas] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
-//@[size] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
-//@[none] run-call: from_memory() => [[10, 11], [12, 13, 14]]
-//@[gas] run-call: from_memory() => [[10, 11], [12, 13, 14]]
-//@[size] run-call: from_memory() => [[10, 11], [12, 13, 14]]
-//@[none] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
-//@[gas] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
-//@[size] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
+//@[none, gas, size] run-call: from_storage() => [[10, 11], [12, 13, 14]]
+//@[none, gas, size] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
+//@[none, gas, size] run-call: from_memory() => [[10, 11], [12, 13, 14]]
+//@[none, gas, size] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
 // ported-from: test/libsolidity/semanticTests/array/copying/array_to_mapping.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/calldata_array_to_mapping.sol
 

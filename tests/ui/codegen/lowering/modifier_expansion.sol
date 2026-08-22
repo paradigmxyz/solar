@@ -8,27 +8,13 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: value() => 1
-//@[gas] run-call: value() => 1
-//@[size] run-call: value() => 1
-//@[none] run-call: valueWithArg() => 2
-//@[gas] run-call: valueWithArg() => 2
-//@[size] run-call: valueWithArg() => 2
-//@[none] run-call: valueWithTwo() => 2
-//@[gas] run-call: valueWithTwo() => 2
-//@[size] run-call: valueWithTwo() => 2
-//@[none] run-call: valueWithTwoPlaceholders() => 2
-//@[gas] run-call: valueWithTwoPlaceholders() => 2
-//@[size] run-call: valueWithTwoPlaceholders() => 2
-//@[none] run-call: repeatFalse() => 1
-//@[gas] run-call: repeatFalse() => 1
-//@[size] run-call: repeatFalse() => 1
-//@[none] run-call: repeatTrue() => 2
-//@[gas] run-call: repeatTrue() => 2
-//@[size] run-call: repeatTrue() => 2
-//@[none] run-call: modifierMutates 1 => 1
-//@[gas] run-call: modifierMutates 1 => 1
-//@[size] run-call: modifierMutates 1 => 1
+//@[none, gas, size] run-call: value() => 1
+//@[none, gas, size] run-call: valueWithArg() => 2
+//@[none, gas, size] run-call: valueWithTwo() => 2
+//@[none, gas, size] run-call: valueWithTwoPlaceholders() => 2
+//@[none, gas, size] run-call: repeatFalse() => 1
+//@[none, gas, size] run-call: repeatTrue() => 2
+//@[none, gas, size] run-call: modifierMutates 1 => 1
 
 contract ModifierExpansion {
     uint256 private count;

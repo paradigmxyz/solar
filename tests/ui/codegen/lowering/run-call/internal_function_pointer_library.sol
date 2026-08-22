@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f(uint256[]) [1, 7, 3] => 11
-//@[gas] run-call: f(uint256[]) [1, 7, 3] => 11
-//@[size] run-call: f(uint256[]) [1, 7, 3] => 11
+//@[none, gas, size] run-call: f(uint256[]) [1, 7, 3] => 11
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_type_library_internal.sol
 
 library InternalFunctionPointerLibraryUtils {

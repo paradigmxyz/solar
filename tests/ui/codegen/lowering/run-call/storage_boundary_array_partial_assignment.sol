@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 36
-//@[gas] run-call: test() => 36
-//@[size] run-call: test() => 36
+//@[none, gas, size] run-call: test() => 36
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_partial_assignment.sol
 
 contract StorageBoundaryArrayPartialAssignment {

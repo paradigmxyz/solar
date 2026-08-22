@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 55
-//@[gas] run-call: test() => 55
-//@[size] run-call: test() => 55
+//@[none, gas, size] run-call: test() => 55
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_assignment.sol
 
 contract StorageBoundaryArrayAssignment {

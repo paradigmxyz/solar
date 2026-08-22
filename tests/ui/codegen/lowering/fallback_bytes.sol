@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: invoke 0x1234 => 2, 0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432
-//@[gas] run-call: invoke 0x1234 => 2, 0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432
-//@[size] run-call: invoke 0x1234 => 2, 0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432
-//@[none] run-call: invoke 0x12345678 => 4, 0x30ca65d5da355227c97ff836c9c6719af9d3835fc6bc72bddc50eeecc1bb2b25
-//@[gas] run-call: invoke 0x12345678 => 4, 0x30ca65d5da355227c97ff836c9c6719af9d3835fc6bc72bddc50eeecc1bb2b25
-//@[size] run-call: invoke 0x12345678 => 4, 0x30ca65d5da355227c97ff836c9c6719af9d3835fc6bc72bddc50eeecc1bb2b25
+//@[none, gas, size] run-call: invoke 0x1234 => 2, 0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432
+//@[none, gas, size] run-call: invoke 0x12345678 => 4, 0x30ca65d5da355227c97ff836c9c6719af9d3835fc6bc72bddc50eeecc1bb2b25
 
 contract FallbackBytes {
     function invoke(bytes memory input) external returns (uint256, bytes32) {

@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: TryCatchError::success() => 7
-//@[gas] run-call: TryCatchError::success() => 7
-//@[size] run-call: TryCatchError::success() => 7
-//@[none] run-call: TryCatchError::failure() => 2
-//@[gas] run-call: TryCatchError::failure() => 2
-//@[size] run-call: TryCatchError::failure() => 2
+//@[none, gas, size] run-call: TryCatchError::success() => 7
+//@[none, gas, size] run-call: TryCatchError::failure() => 2
 
 contract TryCatchErrorTarget {
     function ok() external pure {}

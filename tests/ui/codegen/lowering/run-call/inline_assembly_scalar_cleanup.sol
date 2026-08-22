@@ -8,42 +8,18 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
-//@[gas] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
-//@[size] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
-//@[none] run-call: comparisons() => true, false, true, false, true, false
-//@[gas] run-call: comparisons() => true, false, true, false, true, false
-//@[size] run-call: comparisons() => true, false, true, false, true, false
-//@[none] run-call: increments() => 1, 0
-//@[gas] run-call: increments() => 1, 0
-//@[size] run-call: increments() => 1, 0
-//@[none] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[gas] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[size] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[none] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[gas] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[size] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@[none] run-call: wideningConversions() => 0x78, 0x78
-//@[gas] run-call: wideningConversions() => 0x78, 0x78
-//@[size] run-call: wideningConversions() => 0x78, 0x78
-//@[none] run-call: explicitWideningReturn() => 0x78
-//@[gas] run-call: explicitWideningReturn() => 0x78
-//@[size] run-call: explicitWideningReturn() => 0x78
-//@[none] run-call: implicitReturn() => 0x78
-//@[gas] run-call: implicitReturn() => 0x78
-//@[size] run-call: implicitReturn() => 0x78
-//@[none] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call: assemblyRead() => 0x0101
-//@[gas] run-call: assemblyRead() => 0x0101
-//@[size] run-call: assemblyRead() => 0x0101
-//@[none] run-call: internalArguments() => 0x42, 0x42
-//@[gas] run-call: internalArguments() => 0x42, 0x42
-//@[size] run-call: internalArguments() => 0x42, 0x42
-//@[none] run-call: storageAssignment() => 1
-//@[gas] run-call: storageAssignment() => 1
-//@[size] run-call: storageAssignment() => 1
+//@[none, gas, size] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
+//@[none, gas, size] run-call: comparisons() => true, false, true, false, true, false
+//@[none, gas, size] run-call: increments() => 1, 0
+//@[none, gas, size] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[none, gas, size] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[none, gas, size] run-call: wideningConversions() => 0x78, 0x78
+//@[none, gas, size] run-call: explicitWideningReturn() => 0x78
+//@[none, gas, size] run-call: implicitReturn() => 0x78
+//@[none, gas, size] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call: assemblyRead() => 0x0101
+//@[none, gas, size] run-call: internalArguments() => 0x42, 0x42
+//@[none, gas, size] run-call: storageAssignment() => 1
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol

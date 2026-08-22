@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
-//@[gas] run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
-//@[size] run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
-//@[none] run-call: test2(uint8[][]) [[7], [8, 9]]
-//@[gas] run-call: test2(uint8[][]) [[7], [8, 9]]
-//@[size] run-call: test2(uint8[][]) [[7], [8, 9]]
+//@[none, gas, size] run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
+//@[none, gas, size] run-call: test2(uint8[][]) [[7], [8, 9]]
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_dynamic_array_element_calldata_to_storage.sol
 
 contract StorageNestedDynamicCalldataToStorage {

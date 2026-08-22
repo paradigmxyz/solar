@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: h(bool) true => 0x26121ff0
-//@[gas] run-call: h(bool) true => 0x26121ff0
-//@[size] run-call: h(bool) true => 0x26121ff0
-//@[none] run-call: h(bool) false => 0xe2179b8e
-//@[gas] run-call: h(bool) false => 0xe2179b8e
-//@[size] run-call: h(bool) false => 0xe2179b8e
+//@[none, gas, size] run-call: h(bool) true => 0x26121ff0
+//@[none, gas, size] run-call: h(bool) false => 0xe2179b8e
 // ported-from: test/libsolidity/semanticTests/functionTypes/selector_ternary.sol
 
 contract FunctionSelectorTernary {

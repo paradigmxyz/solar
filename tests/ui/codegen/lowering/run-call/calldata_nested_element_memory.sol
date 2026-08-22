@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
-//@[gas] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
-//@[size] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
-//@[none] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
-//@[gas] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
-//@[size] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
-//@[none] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
-//@[gas] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
-//@[size] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
+//@[none, gas, size] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
+//@[none, gas, size] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
+//@[none, gas, size] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_calldata_to_memory.sol
 
 pragma abicoder v2;

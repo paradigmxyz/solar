@@ -8,45 +8,19 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: add 2 => 42
-//@[gas] run-call: add 2 => 42
-//@[size] run-call: add 2 => 42
-//@[none] run-call: negate(bool) true => false
-//@[gas] run-call: negate(bool) true => false
-//@[size] run-call: negate(bool) true => false
-//@[none] run-call: pair 41, true => 42, false
-//@[gas] run-call: pair 41, true => 42, false
-//@[size] run-call: pair 41, true => 42, false
-//@[none] run-call: sum(uint256[]) [1, 2, 3] => 6
-//@[gas] run-call: sum(uint256[]) [1, 2, 3] => 6
-//@[size] run-call: sum(uint256[]) [1, 2, 3] => 6
-//@[none] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[gas] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[size] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[none] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
-//@[gas] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
-//@[size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
-//@[none] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[gas] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[none] run-call: increment => 41
-//@[gas] run-call: increment => 41
-//@[size] run-call: increment => 41
-//@[none] run-call: testInline()
-//@[gas] run-call: testInline()
-//@[size] run-call: testInline()
-//@[none] run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@[gas] run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@[size] run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@[none] run-call: reservedSpillFreshness(bool) true => 83
-//@[gas] run-call: reservedSpillFreshness(bool) true => 83
-//@[size] run-call: reservedSpillFreshness(bool) true => 83
-//@[none] run-call: reservedSpillFreshness(bool) false => 137
-//@[gas] run-call: reservedSpillFreshness(bool) false => 137
-//@[size] run-call: reservedSpillFreshness(bool) false => 137
-//@[none] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
-//@[gas] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
-//@[size] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
+//@[none, gas, size] run-call: add 2 => 42
+//@[none, gas, size] run-call: negate(bool) true => false
+//@[none, gas, size] run-call: pair 41, true => 42, false
+//@[none, gas, size] run-call: sum(uint256[]) [1, 2, 3] => 6
+//@[none, gas, size] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[none, gas, size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@[none, gas, size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[none, gas, size] run-call: increment => 41
+//@[none, gas, size] run-call: testInline()
+//@[none, gas, size] run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@[none, gas, size] run-call: reservedSpillFreshness(bool) true => 83
+//@[none, gas, size] run-call: reservedSpillFreshness(bool) false => 137
+//@[none, gas, size] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
     struct DynamicHolder {

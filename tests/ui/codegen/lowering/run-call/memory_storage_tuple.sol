@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: declared() => 7132
-//@[gas] run-call: declared() => 7132
-//@[size] run-call: declared() => 7132
-//@[none] run-call: assigned() => 71122
-//@[gas] run-call: assigned() => 71122
-//@[size] run-call: assigned() => 71122
+//@[none, gas, size] run-call: declared() => 7132
+//@[none, gas, size] run-call: assigned() => 71122
 
 contract MixedMemoryTuple {
     struct S {

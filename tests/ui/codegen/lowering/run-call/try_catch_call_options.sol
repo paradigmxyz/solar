@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: highLevelGas() => true
-//@[gas] run-call: highLevelGas() => true
-//@[size] run-call: highLevelGas() => true
+//@[none, gas, size] run-call: highLevelGas() => true
 
 contract TryCallOptionsTarget {
     function ping() external {}

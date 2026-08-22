@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
-//@[gas] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
-//@[size] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
-//@[none] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
-//@[gas] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
-//@[size] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
-//@[none] run-call: testOnePop => 3
-//@[gas] run-call: testOnePop => 3
-//@[size] run-call: testOnePop => 3
+//@[none, gas, size] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
+//@[none, gas, size] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
+//@[none, gas, size] run-call: testOnePop => 3
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop_copy_long.sol
 
 contract StorageBytesPopCopyLong {

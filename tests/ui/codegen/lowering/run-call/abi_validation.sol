@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: vBool false => false
-//@[gas] run-call: vBool false => false
-//@[size] run-call: vBool false => false
-//@[none] run-call: vUint8 7 => 7
-//@[gas] run-call: vUint8 7 => 7
-//@[size] run-call: vUint8 7 => 7
-//@[none] run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
-//@[gas] run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
-//@[size] run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
-//@[none] run-call-fail: 0x18a11c47
-//@[gas] run-call-fail: 0x18a11c47
-//@[size] run-call-fail: 0x18a11c47
-//@[none] run-call-fail: 0xd5f6949e
-//@[gas] run-call-fail: 0xd5f6949e
-//@[size] run-call-fail: 0xd5f6949e
+//@[none, gas, size] run-call: vBool false => false
+//@[none, gas, size] run-call: vUint8 7 => 7
+//@[none, gas, size] run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
+//@[none, gas, size] run-call-fail: 0x18a11c47
+//@[none, gas, size] run-call-fail: 0xd5f6949e
 
 contract AbiValidation {
     function vBool(bool value) external pure returns (bool) {

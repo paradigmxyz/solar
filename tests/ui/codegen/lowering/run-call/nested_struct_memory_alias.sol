@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: check => 14
-//@[gas] run-call: check => 14
-//@[size] run-call: check => 14
+//@[none, gas, size] run-call: check => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_of_structs_memory_to_memory.sol
 
 contract NestedStructMemoryAlias {

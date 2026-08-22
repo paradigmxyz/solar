@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: clearNested() => 0, 0, 0, 0, 0, 0
-//@[gas] run-call: clearNested() => 0, 0, 0, 0, 0, 0
-//@[size] run-call: clearNested() => 0, 0, 0, 0, 0, 0
-//@[none] run-call: clearMutual() => 0, 0, 0, 0, 0, 0
-//@[gas] run-call: clearMutual() => 0, 0, 0, 0, 0, 0
-//@[size] run-call: clearMutual() => 0, 0, 0, 0, 0, 0
+//@[none, gas, size] run-call: clearNested() => 0, 0, 0, 0, 0, 0
+//@[none, gas, size] run-call: clearMutual() => 0, 0, 0, 0, 0, 0
 
 contract StorageDeleteRecursiveStruct {
     struct Node {

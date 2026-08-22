@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[gas] run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[size] run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[none] run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[gas] run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[size] run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@[none] run-call: storeSmall(uint16[]) [1, 2, 3] => 2
-//@[gas] run-call: storeSmall(uint16[]) [1, 2, 3] => 2
-//@[size] run-call: storeSmall(uint16[]) [1, 2, 3] => 2
-//@[none] run-call: storeLeft(bytes2[]) [0x6162, 0x6364, 0x6566] => 99
-//@[gas] run-call: storeLeft(bytes2[]) [0x6162, 0x6364, 0x6566] => 99
-//@[size] run-call: storeLeft(bytes2[]) [0x6162, 0x6364, 0x6566] => 99
+//@[none, gas, size] run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
+//@[none, gas, size] run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
+//@[none, gas, size] run-call: storeSmall(uint16[]) [1, 2, 3] => 2
+//@[none, gas, size] run-call: storeLeft(bytes2[]) [0x6162, 0x6364, 0x6566] => 99
 // ported-from: test/libsolidity/semanticTests/userDefinedValueType/calldata_to_storage.sol
 // ported-from: test/libsolidity/semanticTests/userDefinedValueType/memory_to_storage.sol
 

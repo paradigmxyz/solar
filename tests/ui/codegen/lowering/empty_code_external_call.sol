@@ -9,21 +9,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call-fail: EmptyCodeCalls::direct() => 0x
-//@[gas] run-call-fail: EmptyCodeCalls::direct() => 0x
-//@[size] run-call-fail: EmptyCodeCalls::direct() => 0x
-//@[none] run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@[gas] run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@[size] run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@[none] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@[gas] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@[size] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@[none] run-call: EmptyCodeCalls::lowLevel() => true
-//@[gas] run-call: EmptyCodeCalls::lowLevel() => true
-//@[size] run-call: EmptyCodeCalls::lowLevel() => true
-//@[none] run-call: EmptyCodeCalls::selfCall() => true
-//@[gas] run-call: EmptyCodeCalls::selfCall() => true
-//@[size] run-call: EmptyCodeCalls::selfCall() => true
+//@[none, gas, size] run-call-fail: EmptyCodeCalls::direct() => 0x
+//@[none, gas, size] run-call-fail: EmptyCodeCalls::pointer() => 0x
+//@[none, gas, size] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
+//@[none, gas, size] run-call: EmptyCodeCalls::lowLevel() => true
+//@[none, gas, size] run-call: EmptyCodeCalls::selfCall() => true
 
 contract EmptyCodeTarget {
     function noop() external {}

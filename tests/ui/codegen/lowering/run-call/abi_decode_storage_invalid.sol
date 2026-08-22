@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call-fail: decode(bytes) 0x0000000000000000000000000000000000000000000000000000000000000020
-//@[gas] run-call-fail: decode(bytes) 0x0000000000000000000000000000000000000000000000000000000000000020
-//@[size] run-call-fail: decode(bytes) 0x0000000000000000000000000000000000000000000000000000000000000020
+//@[none, gas, size] run-call-fail: decode(bytes) 0x0000000000000000000000000000000000000000000000000000000000000020
 
 contract AbiDecodeStorageInvalid {
     bytes private data;

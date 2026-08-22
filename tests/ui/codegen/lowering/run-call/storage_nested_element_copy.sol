@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copyDynamic => 18
-//@[gas] run-call: copyDynamic => 18
-//@[size] run-call: copyDynamic => 18
-//@[none] run-call: copyFixed => 30
-//@[gas] run-call: copyFixed => 30
-//@[size] run-call: copyFixed => 30
-//@[none] run-call: copyMixed => 18
-//@[gas] run-call: copyMixed => 18
-//@[size] run-call: copyMixed => 18
+//@[none, gas, size] run-call: copyDynamic => 18
+//@[none, gas, size] run-call: copyFixed => 30
+//@[none, gas, size] run-call: copyMixed => 18
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_storage_to_storage.sol
 
 pragma abicoder v2;

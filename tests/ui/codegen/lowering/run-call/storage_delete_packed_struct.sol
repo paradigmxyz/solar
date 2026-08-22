@@ -8,24 +8,12 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@[gas] run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@[size] run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@[none] run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@[gas] run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@[size] run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@[none] run-call: clearMapping() => 0, 0, 0
-//@[gas] run-call: clearMapping() => 0, 0, 0
-//@[size] run-call: clearMapping() => 0, 0, 0
-//@[none] run-call: assign() => 4, 21862, 7
-//@[gas] run-call: assign() => 4, 21862, 7
-//@[size] run-call: assign() => 4, 21862, 7
-//@[none] run-call: clearDirtyWord() => 0
-//@[gas] run-call: clearDirtyWord() => 0
-//@[size] run-call: clearDirtyWord() => 0
-//@[none] run-call: clearStructWithMapping() => 0, 0, 17, 23
-//@[gas] run-call: clearStructWithMapping() => 0, 0, 17, 23
-//@[size] run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@[none, gas, size] run-call: clearArray() => 1, 2, 3, 0, 0, 0
+//@[none, gas, size] run-call: clearReference() => 1, 2, 3, 0, 0, 0
+//@[none, gas, size] run-call: clearMapping() => 0, 0, 0
+//@[none, gas, size] run-call: assign() => 4, 21862, 7
+//@[none, gas, size] run-call: clearDirtyWord() => 0
+//@[none, gas, size] run-call: clearStructWithMapping() => 0, 0, 17, 23
 
 contract StorageDeletePackedStruct {
     struct Pair {

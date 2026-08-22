@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test_try() => 1042
-//@[gas] run-call: test_try() => 1042
-//@[size] run-call: test_try() => 1042
+//@[none, gas, size] run-call: test_try() => 1042
 
 contract Callee {
     function f(uint x) external pure returns (uint) {

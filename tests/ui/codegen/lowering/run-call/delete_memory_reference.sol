@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: array() => 0, 1, 7
-//@[gas] run-call: array() => 0, 1, 7
-//@[size] run-call: array() => 0, 1, 7
-//@[none] run-call: bytesValue() => 0, 2, 0xabcd
-//@[gas] run-call: bytesValue() => 0, 2, 0xabcd
-//@[size] run-call: bytesValue() => 0, 2, 0xabcd
+//@[none, gas, size] run-call: array() => 0, 1, 7
+//@[none, gas, size] run-call: bytesValue() => 0, 2, 0xabcd
 
 contract DeleteMemoryReference {
     function array() external pure returns (uint256, uint256, uint256) {

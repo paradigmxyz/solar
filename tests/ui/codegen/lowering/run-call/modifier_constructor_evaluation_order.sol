@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: D::query() => [4, 2, 6, 1, 3, 5, 7]
-//@[gas] run-call: D::query() => [4, 2, 6, 1, 3, 5, 7]
-//@[size] run-call: D::query() => [4, 2, 6, 1, 3, 5, 7]
+//@[none, gas, size] run-call: D::query() => [4, 2, 6, 1, 3, 5, 7]
 // ported-from: test/libsolidity/semanticTests/modifiers/evaluation_order.sol
 
 contract EvaluationOrderA {

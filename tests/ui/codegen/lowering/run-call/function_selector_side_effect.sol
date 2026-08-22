@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: read() => 42
-//@[gas] run-call: read() => 42
-//@[size] run-call: read() => 42
+//@[none, gas, size] run-call: read() => 42
 // ported-from: test/libsolidity/semanticTests/functionTypes/selector_expression_side_effect.sol
 
 contract FunctionSelectorSideEffect {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: AbiEncodePackedExternalFunction::matches() => true
-//@[gas] run-call: AbiEncodePackedExternalFunction::matches() => true
-//@[size] run-call: AbiEncodePackedExternalFunction::matches() => true
+//@[none, gas, size] run-call: AbiEncodePackedExternalFunction::matches() => true
 
 contract AbiEncodePackedExternalFunction {
     function target() external {}

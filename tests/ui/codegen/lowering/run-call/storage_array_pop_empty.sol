@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
-//@[gas] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
-//@[size] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
+//@[none, gas, size] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
 // ported-from: test/libsolidity/semanticTests/array/pop/array_pop_empty_exception.sol
 
 contract StorageArrayPopEmpty {

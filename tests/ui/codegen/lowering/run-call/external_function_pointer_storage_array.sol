@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
-//@[gas] run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
-//@[size] run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
+//@[none, gas, size] run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
 // ported-from: test/libsolidity/semanticTests/array/copying/function_type_array_to_storage.sol
 
 contract ExternalFunctionPointerStorageArray {

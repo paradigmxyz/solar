@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 7
-//@[gas] run-call: f() => 7
-//@[size] run-call: f() => 7
+//@[none, gas, size] run-call: f() => 7
 
 contract ModifierNamedArguments {
     modifier check(uint256 expected) {

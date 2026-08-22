@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: TryCatchBytes::success() => 7
-//@[gas] run-call: TryCatchBytes::success() => 7
-//@[size] run-call: TryCatchBytes::success() => 7
-//@[none] run-call: TryCatchBytes::failure() => 100
-//@[gas] run-call: TryCatchBytes::failure() => 100
-//@[size] run-call: TryCatchBytes::failure() => 100
+//@[none, gas, size] run-call: TryCatchBytes::success() => 7
+//@[none, gas, size] run-call: TryCatchBytes::failure() => 100
 
 contract TryCatchBytesTarget {
     function ok() external pure {}

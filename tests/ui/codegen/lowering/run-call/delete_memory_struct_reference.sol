@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: DeleteMemoryStructReference::f() => 0, 7
-//@[gas] run-call: DeleteMemoryStructReference::f() => 0, 7
-//@[size] run-call: DeleteMemoryStructReference::f() => 0, 7
-//@[none] run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
-//@[gas] run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
-//@[size] run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
+//@[none, gas, size] run-call: DeleteMemoryStructReference::f() => 0, 7
+//@[none, gas, size] run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
 
 contract DeleteMemoryStructReference {
     struct S {

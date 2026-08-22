@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 5, 6, 7
-//@[gas] run-call: test() => 5, 6, 7
-//@[size] run-call: test() => 5, 6, 7
+//@[none, gas, size] run-call: test() => 5, 6, 7
 // ported-from: test/libsolidity/semanticTests/array/function_array_cross_calls.sol
 
 contract ExternalFunctionPointerNestedArrayTarget {

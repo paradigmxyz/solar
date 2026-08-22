@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorModifierStorageVirtual::result() => 1, 2
-//@[gas] run-call: ConstructorModifierStorageVirtual::result() => 1, 2
-//@[size] run-call: ConstructorModifierStorageVirtual::result() => 1, 2
+//@[none, gas, size] run-call: ConstructorModifierStorageVirtual::result() => 1, 2
 
 contract ConstructorModifierStorageVirtualBase {
     uint256[] internal values;

@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorInternalArguments::getFlag() => true
-//@[gas] run-call: ConstructorInternalArguments::getFlag() => true
-//@[size] run-call: ConstructorInternalArguments::getFlag() => true
-//@[none] run-call: ConstructorInternalArguments::getName() => 0x616263
-//@[gas] run-call: ConstructorInternalArguments::getName() => 0x616263
-//@[size] run-call: ConstructorInternalArguments::getName() => 0x616263
+//@[none, gas, size] run-call: ConstructorInternalArguments::getFlag() => true
+//@[none, gas, size] run-call: ConstructorInternalArguments::getName() => 0x616263
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_arguments_internal.sol
 
 contract ConstructorInternalArgumentsHelper {

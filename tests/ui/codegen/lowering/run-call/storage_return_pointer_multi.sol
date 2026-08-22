@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 3
-//@[gas] run-call: test() => 3
-//@[size] run-call: test() => 3
+//@[none, gas, size] run-call: test() => 3
 // ported-from: test/libsolidity/semanticTests/viaYul/return_storage_pointers.sol
 
 contract StorageReturnPointerMulti {

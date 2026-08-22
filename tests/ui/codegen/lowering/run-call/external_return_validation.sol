@@ -8,72 +8,28 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call-fail: ExternalReturnValidation::short()
-//@[gas] run-call-fail: ExternalReturnValidation::short()
-//@[size] run-call-fail: ExternalReturnValidation::short()
-//@[none] run-call-fail: ExternalReturnValidation::dirty()
-//@[gas] run-call-fail: ExternalReturnValidation::dirty()
-//@[size] run-call-fail: ExternalReturnValidation::dirty()
-//@[none] run-call: ExternalReturnValidation::dirtyValue() => 0
-//@[gas] run-call: ExternalReturnValidation::dirtyValue() => 0
-//@[size] run-call: ExternalReturnValidation::dirtyValue() => 0
-//@[none] run-call: ExternalReturnValidation::dirtyBool() => true
-//@[gas] run-call: ExternalReturnValidation::dirtyBool() => true
-//@[size] run-call: ExternalReturnValidation::dirtyBool() => true
-//@[none] run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
-//@[gas] run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
-//@[size] run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
-//@[none] run-call: ExternalReturnValidation::dirtyArray() => [true, true]
-//@[gas] run-call: ExternalReturnValidation::dirtyArray() => [true, true]
-//@[size] run-call: ExternalReturnValidation::dirtyArray() => [true, true]
-//@[none] run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
-//@[gas] run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
-//@[size] run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
-//@[none] run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
-//@[gas] run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
-//@[size] run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
-//@[none] run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
-//@[gas] run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
-//@[size] run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
-//@[none] run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
-//@[gas] run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
-//@[size] run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call-fail: ExternalReturnValidation::dirtyEnumNested() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[gas] run-call-fail: ExternalReturnValidation::dirtyEnumNested() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[size] run-call-fail: ExternalReturnValidation::dirtyEnumNested() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@[none] run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
-//@[gas] run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
-//@[size] run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
-//@[none] run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
-//@[gas] run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
-//@[size] run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
-//@[none] run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
-//@[gas] run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
-//@[size] run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::short()
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirty()
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyValue() => 0
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyBool() => true
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyArray() => [true, true]
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyMemoryStruct() => true
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyMemoryLvalue() => true
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumStorage() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumPacked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dirtyEnumNested() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none, gas, size] run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
+//@[none, gas, size] run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
+//@[none, gas, size] run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol

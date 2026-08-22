@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: compound() => 1, 17, 20
-//@[gas] run-call: compound() => 1, 17, 20
-//@[size] run-call: compound() => 1, 17, 20
-//@[none] run-call: postIncrement() => 1, 11, 20
-//@[gas] run-call: postIncrement() => 1, 11, 20
-//@[size] run-call: postIncrement() => 1, 11, 20
-//@[none] run-call: pushSideEffect() => 2, 9, 7
-//@[gas] run-call: pushSideEffect() => 2, 9, 7
-//@[size] run-call: pushSideEffect() => 2, 9, 7
+//@[none, gas, size] run-call: compound() => 1, 17, 20
+//@[none, gas, size] run-call: postIncrement() => 1, 11, 20
+//@[none, gas, size] run-call: pushSideEffect() => 2, 9, 7
 
 contract LValueEvaluationOrder {
     uint256[] values;

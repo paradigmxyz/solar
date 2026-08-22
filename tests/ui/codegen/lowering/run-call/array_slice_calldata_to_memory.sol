@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: copy [1, 2, 3, 4], 1, 3 => 2
-//@[gas] run-call: copy [1, 2, 3, 4], 1, 3 => 2
-//@[size] run-call: copy [1, 2, 3, 4], 1, 3 => 2
-//@[none] run-call: forward [1, 2, 3, 4], 1, 3 => 2
-//@[gas] run-call: forward [1, 2, 3, 4], 1, 3 => 2
-//@[size] run-call: forward [1, 2, 3, 4], 1, 3 => 2
+//@[none, gas, size] run-call: copy [1, 2, 3, 4], 1, 3 => 2
+//@[none, gas, size] run-call: forward [1, 2, 3, 4], 1, 3 => 2
 // ported-from: test/libsolidity/semanticTests/array/slices/array_slice_calldata_to_memory.sol
 
 contract ArraySliceCalldataToMemory {

@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: andSkipsRhs() => 0, false
-//@[gas] run-call: andSkipsRhs() => 0, false
-//@[size] run-call: andSkipsRhs() => 0, false
-//@[none] run-call: orSkipsRhs() => 0, true
-//@[gas] run-call: orSkipsRhs() => 0, true
-//@[size] run-call: orSkipsRhs() => 0, true
-//@[none] run-call: andRunsRhs() => 1, true
-//@[gas] run-call: andRunsRhs() => 1, true
-//@[size] run-call: andRunsRhs() => 1, true
-//@[none] run-call: orRunsRhs() => 1, true
-//@[gas] run-call: orRunsRhs() => 1, true
-//@[size] run-call: orRunsRhs() => 1, true
+//@[none, gas, size] run-call: andSkipsRhs() => 0, false
+//@[none, gas, size] run-call: orSkipsRhs() => 0, true
+//@[none, gas, size] run-call: andRunsRhs() => 1, true
+//@[none, gas, size] run-call: orRunsRhs() => 1, true
 
 contract LogicalShortCircuit {
     uint256 calls;

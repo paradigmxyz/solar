@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f(uint256) 7 => 8
-//@[gas] run-call: f(uint256) 7 => 8
-//@[size] run-call: f(uint256) 7 => 8
-//@[none] run-call: f2(uint256) 7 => 8
-//@[gas] run-call: f2(uint256) 7 => 8
-//@[size] run-call: f2(uint256) 7 => 8
+//@[none, gas, size] run-call: f(uint256) 7 => 8
+//@[none, gas, size] run-call: f2(uint256) 7 => 8
 // ported-from: test/libsolidity/semanticTests/functionTypes/pass_function_types_externally.sol
 
 contract ExternalFunctionPointerParameter {

@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: RequireEvaluationOrder::customError() => 1
-//@[gas] run-call: RequireEvaluationOrder::customError() => 1
-//@[size] run-call: RequireEvaluationOrder::customError() => 1
-//@[none] run-call: RequireEvaluationOrder::stringError() => 1
-//@[gas] run-call: RequireEvaluationOrder::stringError() => 1
-//@[size] run-call: RequireEvaluationOrder::stringError() => 1
-//@[none] run-call: RequireEvaluationOrder::earlyReturn() => 7
-//@[gas] run-call: RequireEvaluationOrder::earlyReturn() => 7
-//@[size] run-call: RequireEvaluationOrder::earlyReturn() => 7
-//@[none] run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
-//@[gas] run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
-//@[size] run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
-//@[none] run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
-//@[gas] run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
-//@[size] run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
+//@[none, gas, size] run-call: RequireEvaluationOrder::customError() => 1
+//@[none, gas, size] run-call: RequireEvaluationOrder::stringError() => 1
+//@[none, gas, size] run-call: RequireEvaluationOrder::earlyReturn() => 7
+//@[none, gas, size] run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
+//@[none, gas, size] run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
 
 contract RequireEvaluationOrder {
     error E(uint256);

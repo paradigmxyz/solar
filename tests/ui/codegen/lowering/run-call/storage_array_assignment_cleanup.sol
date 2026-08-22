@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: cleanup() => 3, 0
-//@[gas] run-call: cleanup() => 3, 0
-//@[size] run-call: cleanup() => 3, 0
+//@[none, gas, size] run-call: cleanup() => 3, 0
 
 contract StorageArrayAssignmentCleanup {
     uint256[] private values;

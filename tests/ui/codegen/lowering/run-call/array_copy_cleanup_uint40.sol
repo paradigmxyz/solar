@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => true
-//@[gas] run-call: f() => true
-//@[size] run-call: f() => true
+//@[none, gas, size] run-call: f() => true
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_cleanup_uint40.sol
 
 contract ArrayCopyCleanupUint40 {

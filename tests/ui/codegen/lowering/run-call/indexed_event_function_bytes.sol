@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: IndexedEventFunctionBytes::emitEvent()
-//@[gas] run-call: IndexedEventFunctionBytes::emitEvent()
-//@[size] run-call: IndexedEventFunctionBytes::emitEvent()
+//@[none, gas, size] run-call: IndexedEventFunctionBytes::emitEvent()
 
 contract IndexedEventFunctionBytes {
     struct Payload {

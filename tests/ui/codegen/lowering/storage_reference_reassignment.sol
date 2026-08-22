@@ -8,42 +8,18 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: bindAfterDeclaration 7, 11 => 11, 12
-//@[gas] run-call: bindAfterDeclaration 7, 11 => 11, 12
-//@[size] run-call: bindAfterDeclaration 7, 11 => 11, 12
-//@[none] run-call: rebind true, 3, 5, 17 => 0, 17
-//@[gas] run-call: rebind true, 3, 5, 17 => 0, 17
-//@[size] run-call: rebind true, 3, 5, 17 => 0, 17
-//@[none] run-call: rebind false, 3, 5, 17 => 17, 0
-//@[gas] run-call: rebind false, 3, 5, 17 => 17, 0
-//@[size] run-call: rebind false, 3, 5, 17 => 17, 0
-//@[none] run-call: rebindParameter 3, 5, 19 => 0, 19
-//@[gas] run-call: rebindParameter 3, 5, 19 => 0, 19
-//@[size] run-call: rebindParameter 3, 5, 19 => 0, 19
-//@[none] run-call: swap 3, 5, 23, 29 => 29, 23
-//@[gas] run-call: swap 3, 5, 23, 29 => 29, 23
-//@[size] run-call: swap 3, 5, 23, 29 => 29, 23
-//@[none] run-call: packedRebind false, 3, 5, 17 => 17, 0
-//@[gas] run-call: packedRebind false, 3, 5, 17 => 17, 0
-//@[size] run-call: packedRebind false, 3, 5, 17 => 17, 0
-//@[none] run-call: packedRebind true, 3, 5, 17 => 0, 17
-//@[gas] run-call: packedRebind true, 3, 5, 17 => 0, 17
-//@[size] run-call: packedRebind true, 3, 5, 17 => 0, 17
-//@[none] run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
-//@[gas] run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
-//@[size] run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
-//@[none] run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
-//@[gas] run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
-//@[size] run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
-//@[none] run-call: yulPackedOffset 17 => 1
-//@[gas] run-call: yulPackedOffset 17 => 1
-//@[size] run-call: yulPackedOffset 17 => 1
-//@[none] run-call: assignmentExpression 3, 5, 17 => 0, 17
-//@[gas] run-call: assignmentExpression 3, 5, 17 => 0, 17
-//@[size] run-call: assignmentExpression 3, 5, 17 => 0, 17
-//@[none] run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
-//@[gas] run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
-//@[size] run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
+//@[none, gas, size] run-call: bindAfterDeclaration 7, 11 => 11, 12
+//@[none, gas, size] run-call: rebind true, 3, 5, 17 => 0, 17
+//@[none, gas, size] run-call: rebind false, 3, 5, 17 => 17, 0
+//@[none, gas, size] run-call: rebindParameter 3, 5, 19 => 0, 19
+//@[none, gas, size] run-call: swap 3, 5, 23, 29 => 29, 23
+//@[none, gas, size] run-call: packedRebind false, 3, 5, 17 => 17, 0
+//@[none, gas, size] run-call: packedRebind true, 3, 5, 17 => 0, 17
+//@[none, gas, size] run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
+//@[none, gas, size] run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
+//@[none, gas, size] run-call: yulPackedOffset 17 => 1
+//@[none, gas, size] run-call: assignmentExpression 3, 5, 17 => 0, 17
+//@[none, gas, size] run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
 contract StorageReferenceReassignment {
     struct Item {

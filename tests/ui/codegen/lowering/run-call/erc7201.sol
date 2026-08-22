@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: literal() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[gas] run-call: literal() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[size] run-call: literal() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[none] run-call: zeroLastByteLiteral() => 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
-//@[gas] run-call: zeroLastByteLiteral() => 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
-//@[size] run-call: zeroLastByteLiteral() => 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
-//@[none] run-call: memoryParam() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[gas] run-call: memoryParam() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[size] run-call: memoryParam() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[none] run-call: calldataParam(string) "example.main" => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[gas] run-call: calldataParam(string) "example.main" => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[size] run-call: calldataParam(string) "example.main" => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
-//@[none] run-call: storageValue() => 0x4318a0031e4d2f411be9017543511db04d79cf580aaff6bae7539a4a49eacc00
-//@[gas] run-call: storageValue() => 0x4318a0031e4d2f411be9017543511db04d79cf580aaff6bae7539a4a49eacc00
-//@[size] run-call: storageValue() => 0x4318a0031e4d2f411be9017543511db04d79cf580aaff6bae7539a4a49eacc00
+//@[none, gas, size] run-call: literal() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
+//@[none, gas, size] run-call: zeroLastByteLiteral() => 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
+//@[none, gas, size] run-call: memoryParam() => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
+//@[none, gas, size] run-call: calldataParam(string) "example.main" => 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
+//@[none, gas, size] run-call: storageValue() => 0x4318a0031e4d2f411be9017543511db04d79cf580aaff6bae7539a4a49eacc00
 // ported-from: test/cmdlineTests/yul_optimizer_erc7201_literal_comptime_evaluation/input.sol
 // ported-from: test/cmdlineTests/yul_optimizer_erc7201_param_memory/input.sol
 

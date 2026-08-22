@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f => 1
-//@[gas] run-call: f => 1
-//@[size] run-call: f => 1
+//@[none, gas, size] run-call: f => 1
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_loop_viair.sol
 
 contract ModifierLoopReturnBinding {

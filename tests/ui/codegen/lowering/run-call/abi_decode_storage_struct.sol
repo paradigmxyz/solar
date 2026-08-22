@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 8, 3, 9, 11
-//@[gas] run-call: f() => 8, 3, 9, 11
-//@[size] run-call: f() => 8, 3, 9, 11
+//@[none, gas, size] run-call: f() => 8, 3, 9, 11
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_from_storage_struct_v2.sol
 
 contract AbiDecodeStorageStruct {

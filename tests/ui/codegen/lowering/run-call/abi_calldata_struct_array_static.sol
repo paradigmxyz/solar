@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
-//@[gas] run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
-//@[size] run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
+//@[none, gas, size] run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_struct_static_v2.sol
 
 struct StaticPair {

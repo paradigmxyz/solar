@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 65, 99
-//@[gas] run-call: test() => 65, 99
-//@[size] run-call: test() => 65, 99
+//@[none, gas, size] run-call: test() => 65, 99
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_packing_not_overlapping_variable.sol
 
 contract StorageBoundaryArrayPacking {

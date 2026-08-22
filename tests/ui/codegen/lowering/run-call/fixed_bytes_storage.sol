@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: read() => 170, 17, 48076, -2, 14544639
-//@[gas] run-call: read() => 170, 17, 48076, -2, 14544639
-//@[size] run-call: read() => 170, 17, 48076, -2, 14544639
-//@[none] run-call: raw() => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
-//@[gas] run-call: raw() => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
-//@[size] run-call: raw() => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
-//@[none] run-call: selector() => 0xea3d508a, 3929886858
-//@[gas] run-call: selector() => 0xea3d508a, 3929886858
-//@[size] run-call: selector() => 0xea3d508a, 3929886858
+//@[none, gas, size] run-call: read() => 170, 17, 48076, -2, 14544639
+//@[none, gas, size] run-call: raw() => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
+//@[none, gas, size] run-call: selector() => 0xea3d508a, 3929886858
 
 contract FixedBytesStorage {
     bytes1 first;

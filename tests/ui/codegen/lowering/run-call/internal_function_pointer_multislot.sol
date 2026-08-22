@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 12
-//@[gas] run-call: test() => 12
-//@[size] run-call: test() => 12
+//@[none, gas, size] run-call: test() => 12
 // ported-from: test/libsolidity/semanticTests/functionCall/call_internal_function_with_multislot_arguments_via_pointer.sol
 
 contract InternalFunctionPointerMultislot {

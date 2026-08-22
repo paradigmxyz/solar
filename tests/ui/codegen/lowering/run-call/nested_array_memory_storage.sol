@@ -8,18 +8,10 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test => 24
-//@[gas] run-call: test => 24
-//@[size] run-call: test => 24
-//@[none] run-call: test1 => 3
-//@[gas] run-call: test1 => 3
-//@[size] run-call: test1 => 3
-//@[none] run-call: test2 => 6
-//@[gas] run-call: test2 => 6
-//@[size] run-call: test2 => 6
-//@[none] run-call: test3 => 24
-//@[gas] run-call: test3 => 24
-//@[size] run-call: test3 => 24
+//@[none, gas, size] run-call: test => 24
+//@[none, gas, size] run-call: test1 => 3
+//@[none, gas, size] run-call: test2 => 6
+//@[none, gas, size] run-call: test3 => 24
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_memory_to_storage.sol
 
 contract NestedArrayMemoryStorage {

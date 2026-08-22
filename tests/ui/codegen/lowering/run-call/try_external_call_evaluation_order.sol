@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 1234
-//@[gas] run-call: f() => 1234
-//@[size] run-call: f() => 1234
+//@[none, gas, size] run-call: f() => 1234
 
 contract TryExternalCallEvaluationOrderTarget {
     function ping(uint256) external payable returns (uint256) {

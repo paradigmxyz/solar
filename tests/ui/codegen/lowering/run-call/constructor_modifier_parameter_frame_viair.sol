@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorModifierParameterFrame::observed() => 6
-//@[gas] run-call: ConstructorModifierParameterFrame::observed() => 6
-//@[size] run-call: ConstructorModifierParameterFrame::observed() => 6
+//@[none, gas, size] run-call: ConstructorModifierParameterFrame::observed() => 6
 
 contract ConstructorModifierParameterFrameBase {
     uint256 public observed;

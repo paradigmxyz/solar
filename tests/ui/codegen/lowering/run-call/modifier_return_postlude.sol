@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f() => 2
-//@[gas] run-call: f() => 2
-//@[size] run-call: f() => 2
-//@[none] run-call: fThenRead() => 9
-//@[gas] run-call: fThenRead() => 9
-//@[size] run-call: fThenRead() => 9
+//@[none, gas, size] run-call: f() => 2
+//@[none, gas, size] run-call: fThenRead() => 9
 // ported-from: test/libsolidity/semanticTests/modifiers/return_does_not_skip_modifier.sol
 
 contract ModifierReturnPostlude {

@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
-//@[gas] run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
-//@[size] run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
-//@[none] run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
-//@[gas] run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
-//@[size] run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
-//@[none] run-call: shifts(bytes1) 0x81 => 0x02, 0x40
-//@[gas] run-call: shifts(bytes1) 0x81 => 0x02, 0x40
-//@[size] run-call: shifts(bytes1) 0x81 => 0x02, 0x40
-//@[none] run-call: wide(bytes2) 0x0102 => 0x0103
-//@[gas] run-call: wide(bytes2) 0x0102 => 0x0103
-//@[size] run-call: wide(bytes2) 0x0102 => 0x0103
-//@[none] run-call: storageBoundary() => 0x09
-//@[gas] run-call: storageBoundary() => 0x09
-//@[size] run-call: storageBoundary() => 0x09
+//@[none, gas, size] run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
+//@[none, gas, size] run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
+//@[none, gas, size] run-call: shifts(bytes1) 0x81 => 0x02, 0x40
+//@[none, gas, size] run-call: wide(bytes2) 0x0102 => 0x0103
+//@[none, gas, size] run-call: storageBoundary() => 0x09
 
 contract FixedBytesCompoundAssignments {
     bytes private data;

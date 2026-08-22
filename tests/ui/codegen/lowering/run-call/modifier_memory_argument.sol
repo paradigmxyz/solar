@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: f(uint256[]) [7] => 7
-//@[gas] run-call: f(uint256[]) [7] => 7
-//@[size] run-call: f(uint256[]) [7] => 7
-//@[none] run-call: f(uint256[]) [1, 2] => 1
-//@[gas] run-call: f(uint256[]) [1, 2] => 1
-//@[size] run-call: f(uint256[]) [1, 2] => 1
+//@[none, gas, size] run-call: f(uint256[]) [7] => 7
+//@[none, gas, size] run-call: f(uint256[]) [1, 2] => 1
 
 contract ModifierMemoryArgument {
     modifier rewrite(uint256[] memory values) {

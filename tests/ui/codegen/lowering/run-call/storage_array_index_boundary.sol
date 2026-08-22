@@ -8,21 +8,11 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: read(uint256,uint256) 10, 9 => 0
-//@[gas] run-call: read(uint256,uint256) 10, 9 => 0
-//@[size] run-call: read(uint256,uint256) 10, 9 => 0
-//@[none] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none] run-call: read(uint256,uint256) 256, 255 => 0
-//@[gas] run-call: read(uint256,uint256) 256, 255 => 0
-//@[size] run-call: read(uint256,uint256) 256, 255 => 0
-//@[none] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[gas] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[size] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: read(uint256,uint256) 10, 9 => 0
+//@[none, gas, size] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none, gas, size] run-call: read(uint256,uint256) 256, 255 => 0
+//@[none, gas, size] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/array_storage_index_boundary_test.sol
 
 contract StorageArrayIndexBoundary {

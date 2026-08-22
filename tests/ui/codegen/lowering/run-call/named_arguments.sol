@@ -8,15 +8,9 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: b() => 123
-//@[gas] run-call: b() => 123
-//@[size] run-call: b() => 123
-//@[none] run-call: c() => 123
-//@[gas] run-call: c() => 123
-//@[size] run-call: c() => 123
-//@[none] run-call: d() => 7
-//@[gas] run-call: d() => 7
-//@[size] run-call: d() => 7
+//@[none, gas, size] run-call: b() => 123
+//@[none, gas, size] run-call: c() => 123
+//@[none, gas, size] run-call: d() => 7
 // ported-from: test/libsolidity/semanticTests/functionCall/named_args.sol
 
 contract NamedArguments {

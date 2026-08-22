@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: Flow::f() => 1, 2
-//@[gas] run-call: Flow::f() => 1, 2
-//@[size] run-call: Flow::f() => 1, 2
+//@[none, gas, size] run-call: Flow::f() => 1, 2
 // ported-from: test/libsolidity/semanticTests/functionTypes/struct_with_external_function.sol
 
 struct S {

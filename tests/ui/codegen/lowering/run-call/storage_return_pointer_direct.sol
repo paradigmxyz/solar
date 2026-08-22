@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test(bool,uint256) false, 17 => 17, 0
-//@[gas] run-call: test(bool,uint256) false, 17 => 17, 0
-//@[size] run-call: test(bool,uint256) false, 17 => 17, 0
-//@[none] run-call: test(bool,uint256) true, 19 => 0, 19
-//@[gas] run-call: test(bool,uint256) true, 19 => 0, 19
-//@[size] run-call: test(bool,uint256) true, 19 => 0, 19
+//@[none, gas, size] run-call: test(bool,uint256) false, 17 => 17, 0
+//@[none, gas, size] run-call: test(bool,uint256) true, 19 => 0, 19
 
 contract StorageReturnPointerDirect {
     struct S {

@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: test() => 0xa7a0d537
-//@[gas] run-call: test() => 0xa7a0d537
-//@[size] run-call: test() => 0xa7a0d537
+//@[none, gas, size] run-call: test() => 0xa7a0d537
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_memory_v2.sol
 
 contract AbiEncodeCallMemoryTarget {

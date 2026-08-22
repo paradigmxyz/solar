@@ -8,9 +8,7 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: ConstructorFunctionCallFixedBytes::getName() => 0x616263
-//@[gas] run-call: ConstructorFunctionCallFixedBytes::getName() => 0x616263
-//@[size] run-call: ConstructorFunctionCallFixedBytes::getName() => 0x616263
+//@[none, gas, size] run-call: ConstructorFunctionCallFixedBytes::getName() => 0x616263
 // ported-from: test/libsolidity/semanticTests/constructor/functions_called_by_constructor.sol
 
 contract ConstructorFunctionCallFixedBytes {

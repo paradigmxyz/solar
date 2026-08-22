@@ -8,12 +8,8 @@
 //@[none] normalize-stdout-test: "(?s).+" -> ""
 //@[gas] normalize-stdout-test: "(?s).+" -> ""
 //@[size] normalize-stdout-test: "(?s).+" -> ""
-//@[none] run-call: tupleLiteral() => true
-//@[gas] run-call: tupleLiteral() => true
-//@[size] run-call: tupleLiteral() => true
-//@[none] run-call: tupleTernary() => true, 2
-//@[gas] run-call: tupleTernary() => true, 2
-//@[size] run-call: tupleTernary() => true, 2
+//@[none, gas, size] run-call: tupleLiteral() => true
+//@[none, gas, size] run-call: tupleTernary() => true, 2
 // ported-from: test/libsolidity/semanticTests/expressions/tuple_from_ternary_expression.sol
 contract C {
     function tupleLiteral() external pure returns (bool) {
