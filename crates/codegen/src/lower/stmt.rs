@@ -451,7 +451,32 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: &hir::Expr<'_>,
     ) {
         let bound: SmallVec<[bool; 4]> = elements.iter().map(Option::is_some).collect();
-        let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
+        let values = if let hir::ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
+            if rhs_elements.len() != elements.len() {
+                self.gcx.dcx().err("tuple arity mismatch in codegen").span(rhs.span).emit();
+                return;
+            }
+            let mut values = Vec::with_capacity(elements.len());
+            for (&lhs, &rhs_element) in elements.iter().zip((*rhs_elements).iter()) {
+                let Some(rhs_element) = rhs_element else {
+                    self.gcx
+                        .dcx()
+                        .err("tuple value contains an omitted element")
+                        .span(rhs.span)
+                        .emit();
+                    return;
+                };
+                let value = match lhs {
+                    Some(lhs) => self.lower_assignment_rhs(builder, lhs, rhs_element),
+                    None => self.lower_value_expr(builder, rhs_element),
+                };
+                values.push(lhs.map(|_| value));
+            }
+            values
+        } else {
+            let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
+            values
+        };
         for (&element, value) in elements.iter().zip(values) {
             if let (Some(element), Some(value)) = (element, value) {
                 self.lower_assign(builder, element, value);
