@@ -1068,6 +1068,7 @@ fn inline_call_impl(
             &return_values[1..],
             caller_is_external,
             caller_frame_prefix,
+            &mut replacements,
         )?;
     }
 
@@ -1276,6 +1277,7 @@ fn insert_extra_return_stores(
     values: &[ValueId],
     caller_is_external: bool,
     caller_frame_prefix: u64,
+    replacements: &mut FxHashMap<ValueId, ValueId>,
 ) -> Option<()> {
     if values.is_empty() {
         return Some(());
@@ -1297,6 +1299,12 @@ fn insert_extra_return_stores(
         .iter()
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
+    let base_load = caller.blocks[continuation].instructions.get(phi_count).and_then(|&inst_id| {
+        let InstKind::MLoad(addr) = caller.inst(inst_id).kind else { return None };
+        (caller.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+            .then(|| caller.inst_result_value(inst_id))
+            .flatten()
+    });
 
     let mut insert_at = phi_count;
 
@@ -1337,6 +1345,16 @@ fn insert_extra_return_stores(
         caller.blocks[continuation].instructions.insert(insert_at, base_inst);
         insert_at += 1;
     }
+
+    // Lowering reads the just-published base from scratch slot 0x20 before
+    // projecting returns 1..N. Preserve that same identity in SSA after
+    // inlining: otherwise memory DSE sees only an indirect load through the
+    // scratch word and can incorrectly delete a compiler-frame return store.
+    // Keep publishing the pointer as well for any non-canonical consumers.
+    if let Some(base_load) = base_load {
+        replacements.insert(base_load, base);
+    }
+
     let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
         EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
     ))));
