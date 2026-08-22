@@ -133,3 +133,24 @@ No intentional divergences documented yet.
 - Coverage: `tests/ui/codegen/run-call/assembly_assign_cleanup.sol`;
   external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
   `testBrutalizedBool` fail by asserting dirt survives.
+
+### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
+
+- ID: CODEGEN-002
+- Status: parity debt
+- Difference: ABI-heavy contracts can have substantially larger deployed
+  bytecode than their `solc` equivalents. Seaport currently has six helpers
+  that fit below EIP-170's 24,576-byte limit with `solc` but exceed it with
+  this compiler: `PausableZoneController` (26,974 bytes),
+  `SuggestedActionHelper` (46,267 bytes), `ExecutionsHelper` (28,064 bytes),
+  `MatchFulfillmentHelper` (39,280 bytes), `SeaportValidator` (52,420 bytes),
+  and `SeaportNavigator` (27,642 bytes).
+- Rationale: Progressive ABI lowering currently expands structurally similar
+  aggregate decoders independently in each external wrapper. The EVM IR
+  outliner shares repeated straight-line instruction runs but not equivalent
+  decoder control-flow subgraphs, so these large wrappers retain duplicated
+  validation and materialization code. The external artifact audit exempts
+  only these named contracts while continuing to enforce artifact presence
+  and EIP-170 parity for the rest of the corpus.
+- Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
+  `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
