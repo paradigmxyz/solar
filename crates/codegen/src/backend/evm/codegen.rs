@@ -1025,6 +1025,10 @@ pub struct EvmCodegen<'gcx> {
     /// prefix is unbounded, so preserving another caller prefix would change
     /// the recursion limit.
     recursive_stack_functions: DenseBitSet<FunctionId>,
+    /// Functions that are themselves members of a recursive call cycle. A
+    /// nested activation reuses their static scratch frame only after the
+    /// suspended activation's live words have moved to the EVM stack.
+    recursive_frame_functions: DenseBitSet<FunctionId>,
     /// Functions that are recursive or can reach recursion. A preserved
     /// prefix must not be carried into an unbounded descendant.
     recursion_reaching_functions: DenseBitSet<FunctionId>,
@@ -1139,6 +1143,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
+            recursive_frame_functions: DenseBitSet::new_empty(0),
             recursion_reaching_functions: DenseBitSet::new_empty(0),
             function_stack_peaks: FxHashMap::default(),
             internal_call_stack_edges: Vec::new(),
@@ -1931,6 +1936,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.static_call_abis.clear();
         self.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
+        self.recursive_frame_functions = DenseBitSet::new_empty(module.functions.len());
         self.recursion_reaching_functions = DenseBitSet::new_empty(module.functions.len());
         self.function_stack_peaks.clear();
         self.internal_call_stack_edges.clear();
@@ -2064,6 +2070,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.empty_stop_functions.insert(func_id);
             }
             if call_graph.is_recursive(func_id) {
+                if Self::uses_reentrant_static_frame(func_id, func) {
+                    self.recursive_frame_functions.insert(func_id);
+                }
                 self.recursive_stack_functions.insert(func_id);
                 self.recursive_stack_functions.union(&call_graph.reachable_callees_from([func_id]));
             }
@@ -2088,11 +2097,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 self.restorable_internal_frames.insert(func_id);
             }
-            // Non-recursive internal functions get compile-time-fixed frames.
+            // Internal functions get compile-time-fixed frames. Recursive
+            // activations reuse their function's scratch frame after carrying
+            // the suspended activation's live state on the EVM stack.
             if func_id != entry_id
                 && !Self::is_external_entry(func)
                 && Self::is_runtime_function(func)
-                && !call_graph.is_recursive(func_id)
+                && (!call_graph.is_recursive(func_id)
+                    || Self::uses_reentrant_static_frame(func_id, func))
                 && Self::static_frame_offsets_are_local(func)
             {
                 self.static_frame_functions.insert(func_id);
@@ -2189,6 +2201,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
             self.asm.set_deferred_const(id, U256::from(self.emitted_frame_size(module, callee)));
         }
+    }
+
+    /// Whether a directly self-recursive Yul helper can reuse one static
+    /// scratch frame while suspended activations carry their live state on the
+    /// EVM stack. Multi-return and mutually recursive functions retain the
+    /// ordinary dynamic-frame convention.
+    fn uses_reentrant_static_frame(func_id: FunctionId, func: &Function) -> bool {
+        func.attributes.is_yul
+            && func.returns.len() == 1
+            && (func.instructions().any(|inst_id| {
+                matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. }
+                    if function == func_id)
+            }) || func.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(Terminator::TailCall { function, .. })
+                    if function == func_id)
+            }))
     }
 
     fn is_external_entry(func: &Function) -> bool {
@@ -5562,6 +5590,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
             if self.static_frame_functions.contains(func_id)
                 && !self.disabled_stack_only_functions.contains(func_id)
+                && !self.recursive_frame_functions.contains(func_id)
                 // A multi-result fallback has to stage anonymous stack words
                 // in memory when direct projection is unavailable. Keep those
                 // functions frame-backed so the callee return area provides a
@@ -5757,6 +5786,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         scores.retain(|func_id, _| {
             self.static_frame_functions.contains(*func_id)
+                && !self.recursive_frame_functions.contains(*func_id)
                 && !excluded.contains(*func_id)
                 && !self.disabled_stack_only_functions.contains(*func_id)
         });
@@ -7098,13 +7128,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Placement is an overlay: `base(f) = region_start + depth(f)`, where
     /// `depth(f)` is the longest chain of static frames that can be live below
     /// an activation of `f`. Depth propagates along every call edge — a static
-    /// caller contributes its frame size, a dynamic caller (recursive, or an
-    /// external entry whose locals live below the region) only forwards its
-    /// own depth, so a static function reached THROUGH a dynamic one is still
-    /// placed above its static ancestors. Static functions are acyclic by
-    /// construction, so every cycle in the graph is weight-zero and the
-    /// relaxation converges. Functions that can never be simultaneously live
-    /// end up sharing addresses; that is the point of the overlay.
+    /// caller contributes its frame size, while an external entry whose locals
+    /// live below the region only forwards its depth. A supported directly
+    /// recursive Yul helper reuses its own frame, so that self-edge is also
+    /// weight-zero. Every remaining cycle is weight-zero and the relaxation
+    /// converges. Functions that can never be simultaneously live end up
+    /// sharing addresses; that is the point of the overlay.
     ///
     /// The heap floor moves up to `region_end`: each entry's free-pointer
     /// constant accounts for its exact spill area and every accepted static
@@ -7181,7 +7210,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut changed = false;
             for &(caller, callee) in &edges {
                 let mut contribution = depth.get(&caller).copied().unwrap_or(0);
-                if self.static_frame_functions.contains(caller) {
+                if self.static_frame_functions.contains(caller)
+                    && !(caller == callee && self.recursive_frame_functions.contains(caller))
+                {
                     contribution += self.emitted_frame_size(module, caller);
                 }
                 if contribution > depth.get(&callee).copied().unwrap_or(0) {
@@ -8092,7 +8123,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// addresses, the return address rides the EVM stack (same invariants as
     /// the dynamic path), and there is no frame-pointer save/update/restore
     /// and no free-pointer traffic — the callee's frame is a fixed region
-    /// below the heap that its single live activation owns.
+    /// below the heap. Supported self-recursive Yul callees temporarily carry
+    /// the suspended activation's live state on the EVM stack before reusing
+    /// that region.
     #[allow(clippy::too_many_arguments)]
     fn emit_internal_call_static(
         &mut self,
@@ -8111,19 +8144,66 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stack_mask =
             if self.runtime_stack_args { self.stack_arg_mask(callee).cloned() } else { None };
         let argument_words = stack_mask.as_ref().map_or(0, DenseBitSet::count);
-        let mut resident_call_values = Vec::new();
+        let recursive_reentry = self.recursive_frame_functions.contains(func_id)
+            && self.recursive_frame_functions.contains(callee);
+        let mut recursive_call_values = Vec::new();
+        if recursive_reentry {
+            // The callee is about to reuse a scratch frame that may belong to
+            // an older activation in the same recursive component. Recover
+            // every caller word needed after the call before argument stores
+            // overwrite that frame, then keep those words below the hidden
+            // return address for the duration of the nested activation.
+            let mut seen = FxHashSet::default();
+            for value in self
+                .scheduler
+                .stack
+                .iter()
+                .flatten()
+                .chain(self.scheduler.spills.reloadable_values())
+            {
+                if Some(value) != result
+                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                    && seen.insert(value)
+                {
+                    recursive_call_values.push(value);
+                }
+            }
+            for value in func.live_values() {
+                if Some(value) != result
+                    && matches!(func.value(value), crate::mir::Value::Arg(_))
+                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                    && seen.insert(value)
+                {
+                    recursive_call_values.push(value);
+                }
+            }
+            for &value in &recursive_call_values {
+                if !self.scheduler.stack.contains(value) {
+                    self.emit_value(func, value);
+                }
+                self.scheduler.spills.invalidate_stored(value);
+                if let Some(available) = &mut self.spill_available {
+                    available.remove(&value);
+                }
+            }
+        }
+        let mut resident_call_values = recursive_call_values.clone();
         if self.preserve_caller_stack
             && let Some(resident) = self.resident_stack_args(func_id)
         {
-            resident_call_values.extend(resident.iter().copied().filter(|&value| {
-                self.scheduler.is_stack_only_value(value)
+            for &value in resident {
+                if self.scheduler.is_stack_only_value(value)
                     && (liveness.is_used_at_or_after(value, block, inst_idx + 1)
                         || stack_mask.as_ref().is_some_and(|mask| {
                             args.iter()
                                 .enumerate()
                                 .any(|(index, &arg)| mask.contains(index) && arg == value)
                         }))
-            }));
+                    && !resident_call_values.contains(&value)
+                {
+                    resident_call_values.push(value);
+                }
+            }
         }
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
@@ -8166,7 +8246,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        if caller_stack_plan.is_none() {
+        if !recursive_reentry && caller_stack_plan.is_none() {
             // The fallback drains the caller stack, so park every value needed after the call
             // before consuming arguments.
             self.spill_live_stack_values(func, liveness, block, inst_idx);
@@ -8310,6 +8390,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.stack = caller_stack;
         } else {
             self.scheduler.clear_stack();
+        }
+
+        // The nested activation is finished, so rebuild the caller's frame
+        // homes from the words retained below its return address. This makes
+        // later block entries and another recursive call see the caller's
+        // state rather than the child activation's last stores.
+        for &value in &recursive_call_values {
+            if let crate::mir::Value::Arg(index) = func.value(value) {
+                let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
+                    panic!("recursive caller argument {value:?} was not preserved")
+                });
+                assert!(depth < MAX_STACK_ACCESS, "recursive caller argument exceeded DUP16 reach");
+                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                let addr = self.static_frame_addr(
+                    func_id,
+                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + index.index() as u64 * EvmMemoryLayout::WORD_SIZE,
+                );
+                self.asm.emit_push_deferred(addr);
+                self.scheduler.stack.push_unknown();
+                self.asm.emit_op(op::MSTORE);
+                self.scheduler.instruction_executed(2, None);
+            } else {
+                self.spill_value_if_needed(func, value);
+            }
         }
 
         if let Some(plan) = self.stack_return_plan(callee) {
