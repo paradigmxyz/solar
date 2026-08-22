@@ -95,7 +95,7 @@ impl IndVarSimplifier {
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
         let mut loops: Vec<_> = loop_info.loops.values().cloned().collect();
-        loops.sort_by_key(|loop_data| loop_data.header.index());
+        loops.sort_unstable_by_key(|loop_data| loop_data.header.index());
 
         for loop_data in loops {
             self.run_loop(func, &loop_data);
@@ -115,9 +115,7 @@ impl IndVarSimplifier {
         let scev = ScalarEvolution::analyze(func, loop_data);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
-        let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
-        blocks.sort_by_key(|block| block.index());
-        for block in blocks {
+        for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let Some(value) = func.inst_result_value(inst_id) else { continue };
                 if !self.is_reducible_result(func, inst_id) {

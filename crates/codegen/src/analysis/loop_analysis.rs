@@ -400,11 +400,8 @@ impl LoopAnalyzer {
         loop_info: &Loop,
         iv_value: ValueId,
     ) -> Option<(alloy_primitives::U256, BlockId)> {
-        let mut blocks: Vec<BlockId> = loop_info.blocks.iter().collect();
-        blocks.sort_by_key(|block| block.index());
-
         let mut bound: Option<(alloy_primitives::U256, BlockId)> = None;
-        for block_id in blocks {
+        for block_id in &loop_info.blocks {
             let Some(Terminator::Branch { condition, then_block, else_block }) =
                 &func.blocks[block_id].terminator
             else {

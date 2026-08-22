@@ -153,7 +153,7 @@ impl LoopOptimizer {
                     && self.is_profitable_licm_root(func, inst_id, ctx)
             })
             .collect();
-        roots.sort_by(|&a, &b| {
+        roots.sort_unstable_by(|&a, &b| {
             self.licm_profit(func, b)
                 .cmp(&self.licm_profit(func, a))
                 .then_with(|| a.index().cmp(&b.index()))
@@ -183,8 +183,7 @@ impl LoopOptimizer {
             return;
         }
 
-        let mut hoistable: Vec<InstId> = selected.iter().collect();
-        hoistable.sort_by_key(|inst_id| inst_id.index());
+        let hoistable: Vec<InstId> = selected.iter().collect();
         let ordered = self.topological_sort_instructions(func, &hoistable);
 
         for inst_id in ordered {

@@ -86,7 +86,7 @@ impl LoopCanonicalizer {
             let mut analyzer = LoopAnalyzer::new();
             let loop_info = analyzer.analyze(func);
             let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();
-            headers.sort_by_key(|header| header.index());
+            headers.sort_unstable_by_key(|header| header.index());
 
             let Some(header) = headers.into_iter().find(|&header| {
                 let loop_data = &loop_info.loops[&header];
