@@ -2311,12 +2311,7 @@ impl LowerAbiCx {
                     helpers,
                     has_bitwise_shifting,
                 );
-                builder.memory_object_store_element(
-                    ptr,
-                    crate::mir::MemoryObjectLayout::WORD_ARRAY,
-                    destination_index,
-                    value,
-                );
+                builder.memory_object_store_element(ptr, layout, destination_index, value);
                 let one = builder.imm_u64(1);
                 let next_remaining = builder.sub(remaining, one);
                 let element_head_size = builder
@@ -4356,14 +4351,14 @@ fn canonicalize_return_value(
         }
         AbiParamType::DynamicArray(element) => {
             let layout = MemoryObjectLayout::WORD_ARRAY;
-            let length = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+            let length = builder.memory_object_len(value, layout.kind());
             let one = builder.imm_u64(1);
             let mut current = builder.current_block();
             let words = LowerAbiCx::checked_add(builder, length, one, &mut current);
             let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
             let size = LowerAbiCx::checked_mul(builder, words, word, &mut current);
             let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-            builder.set_memory_object_len(output, length, MemoryObjectKind::DynamicArray);
+            builder.set_memory_object_len(output, length, layout.kind());
 
             let preheader = builder.current_block();
             let header = builder.create_block();
