@@ -3417,6 +3417,29 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
+                InstKind::MemoryObjectStoreField { value, .. }
+                | InstKind::MemoryObjectStoreElement { value, .. }
+                | InstKind::MemoryObjectStoreByte { value, .. }
+                | InstKind::MemoryObjectStoreWord { value, .. }
+                    if tainted.contains(*value)
+                        && (uses.contains(value)
+                            || matches!(
+                                func.value_ty(*value),
+                                Some(MirType::MemoryObject(_) | MirType::Slice(_))
+                            )) =>
+                {
+                    (true, false)
+                }
+                InstKind::MStore(_, value) | InstKind::MStore8(_, value)
+                    if tainted.contains(*value)
+                        && (uses.contains(value)
+                            || matches!(
+                                func.value_ty(*value),
+                                Some(MirType::MemoryObject(_) | MirType::Slice(_))
+                            )) =>
+                {
+                    (true, false)
+                }
                 InstKind::MemoryObjectLen(object, _)
                 | InstKind::MemoryObjectLoadByte { object, .. }
                 | InstKind::MemoryObjectLoadElement { object, .. }
