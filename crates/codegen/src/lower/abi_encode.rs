@@ -932,8 +932,50 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         items: Vec<(ValueId, Ty<'gcx>)>,
     ) {
-        let vals: Vec<ValueId> = items.into_iter().map(|(v, _)| v).collect();
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        let vals: Vec<ValueId> = items
+            .into_iter()
+            .map(|(value, ty)| self.normalize_calldata_struct_return(builder, value, ty, external))
+            .collect();
         builder.ret(vals);
+    }
+
+    /// Normalizes calldata structs with dynamic members at function boundaries.
+    /// Internal calls carry their original calldata base; an external return
+    /// needs the rebuilt memory object consumed by the ABI encoder.
+    fn normalize_calldata_struct_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        external: bool,
+    ) -> ValueId {
+        let TyKind::Ref(inner, solar_ast::DataLocation::Calldata) = ty.kind else { return value };
+        let TyKind::Struct(struct_id) = inner.kind else { return value };
+        let fields = self.gcx.struct_field_types(struct_id).to_vec();
+        if !fields.iter().any(|&field| self.abi_is_dynamic(field.peel_refs())) {
+            return value;
+        }
+        let is_memory = matches!(
+            builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::Struct))
+        );
+        if external {
+            if is_memory {
+                value
+            } else {
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Calldata,
+                    inner,
+                    value,
+                )
+            }
+        } else if is_memory {
+            self.calldata_base_of_copy(builder, value, fields.len() as u64)
+        } else {
+            value
+        }
     }
 
     /// Gathers `(value, type)` for each declared return of an explicit `return`
