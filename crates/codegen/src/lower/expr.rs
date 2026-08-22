@@ -463,7 +463,9 @@ impl<'gcx> Lowerer<'gcx> {
                         if self.var_expects_memory_bytes_value(var) {
                             return self.lower_expr_as_memory_bytes(builder, init);
                         }
-                        return self.lower_value_expr(builder, init);
+                        let value = self.lower_value_expr(builder, init);
+                        let ty = self.gcx.type_of_item(var_id.into());
+                        return self.coerce_literal_for_ty(builder, init, ty, value);
                     }
                 }
 
@@ -1063,7 +1065,9 @@ impl<'gcx> Lowerer<'gcx> {
                         if self.var_expects_memory_bytes_value(var) {
                             return self.lower_expr_as_memory_bytes(builder, init);
                         }
-                        return self.lower_value_expr(builder, init);
+                        let value = self.lower_value_expr(builder, init);
+                        let ty = self.gcx.type_of_item((*var_id).into());
+                        return self.coerce_literal_for_ty(builder, init, ty, value);
                     }
 
                     // Check if it's an immutable - load from appended runtime data.
