@@ -435,6 +435,11 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
+                        if let Some(value) =
+                            self.lower_integer_constant_value(builder, var_id, init)
+                        {
+                            return value;
+                        }
                         if self.var_expects_memory_bytes_value(var) {
                             return self.lower_expr_as_memory_bytes(builder, init);
                         }
@@ -977,6 +982,11 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
+                        if let Some(value) =
+                            self.lower_integer_constant_value(builder, *var_id, init)
+                        {
+                            return value;
+                        }
                         if self.var_expects_memory_bytes_value(var) {
                             return self.lower_expr_as_memory_bytes(builder, init);
                         }
@@ -1051,6 +1061,23 @@ impl<'gcx> Lowerer<'gcx> {
             }
             hir::Res::Err(guar) => builder.error_value(*guar),
         }
+    }
+
+    /// Folds an integer constant's initializer before MIR lowering. Solidity
+    /// constant expressions use mathematical intermediates, so lowering the
+    /// initializer as checked runtime arithmetic can spuriously panic for a
+    /// value such as `2**256 - 1` whose final word is valid.
+    fn lower_integer_constant_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        init: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        if !self.gcx.type_of_item(var_id.into()).peel_refs().is_integer() {
+            return None;
+        }
+        let value = self.gcx.try_eval_const(init).ok()?;
+        (value.bit_len() <= 256).then(|| builder.imm_u256(value.as_evm_word()))
     }
 
     /// Materializes a wide default return struct with one bulk zeroing
