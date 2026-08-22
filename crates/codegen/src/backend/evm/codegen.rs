@@ -5518,7 +5518,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
             if self.static_frame_functions.contains(func_id)
                 && !self.disabled_stack_only_functions.contains(func_id)
-                && (1..=MAX_STACK_ACCESS).contains(&arity)
+                // A multi-result fallback has to stage anonymous stack words
+                // in memory when direct projection is unavailable. Keep those
+                // functions frame-backed so the callee return area provides a
+                // compiler-owned buffer instead of clobbering unbumped user
+                // memory at the free-memory pointer.
+                && arity == 1
                 && has_return
                 && has_consistent_returns
             {
@@ -7746,29 +7751,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
-        // Copy returns 2..N to an ephemeral buffer at the current free-memory
-        // pointer. Keep the base below the loop and publish it through the
-        // dedicated scratch word afterwards; the first return stays on the
-        // stack. This happens before restoring the frame pointer while the
-        // callee frame remains addressable.
+        // Publish the callee's return area directly as the multi-return buffer.
+        // MIR consumes every tail result immediately after the call, while the
+        // callee frame is still intact. Copying those words to the unbumped
+        // free-memory pointer can overwrite user assembly that is constructing
+        // an object there.
         if returns > 1 {
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MLOAD);
+            self.emit_current_internal_frame_addr(
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
             self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
-            for i in 1..returns {
-                self.emit_current_internal_frame_addr(
-                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                        + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE
-                        + (i as u64) * EvmMemoryLayout::WORD_SIZE,
-                );
-                self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
-                self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from((i as u64) * 32));
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_op(op::MSTORE);
-            }
         }
 
         // Deallocate the callee frame in strict LIFO order by restoring the
@@ -8221,27 +8215,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
-        // Copy return values 2..N into the same ephemeral buffer as the
-        // dynamic-frame path.
+        // Publish the static callee's return area directly. Tail projections
+        // are consumed before another call can reuse the overlaid frame.
         if returns > 1 {
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MLOAD);
+            let addr = self.static_frame_addr(
+                callee,
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
+            self.asm.emit_push_deferred(addr);
             self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
-            for i in 1..returns {
-                let addr = self.static_frame_addr(
-                    callee,
-                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                        + ((args.len() + i) as u64) * EvmMemoryLayout::WORD_SIZE,
-                );
-                self.asm.emit_push_deferred(addr);
-                self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
-                self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from((i as u64) * 32));
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_op(op::MSTORE);
-            }
         }
         (preserved_words, argument_words)
     }
