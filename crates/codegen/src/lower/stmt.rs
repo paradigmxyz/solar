@@ -724,16 +724,11 @@ impl<'gcx> Lowerer<'gcx> {
         let loop_block = builder.create_block();
         let exit_block = builder.create_block();
 
-        // For `for` loops, we need a separate update block for `continue` to jump to.
-        // The desugared structure is: if (cond) { body; update; } else { break; }
-        // We need to handle the update separately so continue jumps to it.
-        let (continue_target, is_for_with_update) = if source == hir::LoopSource::For {
-            if self.is_for_loop_with_update(block) {
-                let update_block = builder.create_block();
-                (update_block, true)
-            } else {
-                (loop_block, false)
-            }
+        // A `continue` in a `for` loop must execute the update block before
+        // checking the condition again.
+        let (continue_target, is_for_with_update) = if source == hir::LoopSource::ForWithUpdate {
+            let update_block = builder.create_block();
+            (update_block, true)
         } else {
             (loop_block, false)
         };
@@ -761,31 +756,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(exit_block);
     }
 
-    /// Checks if a for loop has an update expression in the expected desugared structure.
-    fn is_for_loop_with_update(&self, block: &hir::Block<'_>) -> bool {
-        let stmts = block.stmts;
-        if stmts.len() != 1 {
-            return false;
-        }
-
-        let StmtKind::If(_, then_stmt, _) = &stmts[0].kind else {
-            return false;
-        };
-
-        let StmtKind::Block(b) = &then_stmt.kind else {
-            return false;
-        };
-
-        // Need at least 2 statements: body and update
-        if b.stmts.len() < 2 {
-            return false;
-        }
-
-        // Last statement should be an expression (the update)
-        matches!(b.stmts.last().map(|s| &s.kind), Some(StmtKind::Expr(_)))
-    }
-
-    /// Lowers a for loop body with special handling for update expression.
+    /// Lowers a for loop body with special handling for its update block.
     /// Creates: loop_block -> if(cond) { body -> update_block -> loop_block } else { exit }
     fn lower_for_loop_body(
         &mut self,
@@ -796,27 +767,45 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let stmts = block.stmts;
 
-        // Extract the if statement
-        let StmtKind::If(cond, then_stmt, else_stmt) = &stmts[0].kind else {
+        if let [stmt] = stmts
+            && let StmtKind::If(cond, then_stmt, else_stmt) = &stmt.kind
+            && let StmtKind::Block(then_body) = &then_stmt.kind
+        {
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            let cond_val = self.lower_value_expr(builder, cond);
+            builder.branch(cond_val, then_block, else_block);
+
+            builder.switch_to_block(then_block);
+            self.lower_for_body_and_update(builder, then_body, update_block, loop_block);
+
+            builder.switch_to_block(else_block);
+            if let Some(else_stmt) = else_stmt {
+                self.lower_stmt(builder, else_stmt);
+            }
+        } else if let [stmt] = stmts
+            && let StmtKind::Block(body) = &stmt.kind
+        {
+            self.lower_for_body_and_update(builder, body, update_block, loop_block);
+        } else {
+            debug_assert!(false, "invalid desugared for loop with update");
             self.lower_block(builder, block);
+        }
+    }
+
+    fn lower_for_body_and_update(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        body: &hir::Block<'_>,
+        update_block: crate::mir::BlockId,
+        loop_block: crate::mir::BlockId,
+    ) {
+        let Some((update, body_stmts)) = body.stmts.split_last() else {
+            debug_assert!(false, "missing desugared for-loop update");
+            builder.jump(loop_block);
             return;
         };
 
-        let StmtKind::Block(then_body) = &then_stmt.kind else {
-            self.lower_block(builder, block);
-            return;
-        };
-
-        // Create blocks for the if
-        let then_block = builder.create_block();
-        let else_block = builder.create_block();
-
-        let cond_val = self.lower_value_expr(builder, cond);
-        builder.branch(cond_val, then_block, else_block);
-
-        // Then branch: lower all statements except the last (update)
-        builder.switch_to_block(then_block);
-        let body_stmts = &then_body.stmts[..then_body.stmts.len() - 1];
         for stmt in body_stmts {
             self.lower_stmt(builder, stmt);
             if builder.func().block(builder.current_block()).is_terminated() {
@@ -827,21 +816,11 @@ impl<'gcx> Lowerer<'gcx> {
             builder.jump(update_block);
         }
 
-        // Update block: lower the update expression, then jump to loop
         builder.switch_to_block(update_block);
-        if let Some(last_stmt) = then_body.stmts.last() {
-            self.lower_stmt(builder, last_stmt);
-        }
+        self.lower_stmt(builder, update);
         if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(loop_block);
         }
-
-        // Else branch: should be break
-        builder.switch_to_block(else_block);
-        if let Some(else_s) = else_stmt {
-            self.lower_stmt(builder, else_s);
-        }
-        // Note: else branch with break will be terminated, no need for explicit jump
     }
 
     /// Lowers a return statement.
