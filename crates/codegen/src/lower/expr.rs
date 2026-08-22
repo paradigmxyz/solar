@@ -7,7 +7,9 @@ use super::{
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, PackedValue, StructField, TypeSize, ValueId},
+    mir::{
+        FunctionBuilder, MemoryObjectKind, MirType, PackedValue, StructField, TypeSize, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -2182,6 +2184,17 @@ impl<'gcx> Lowerer<'gcx> {
                 // Without this the slice value itself would be shifted as if it
                 // were a number, and the slice would survive to the backend.
                 if let Some(word) = self.slice_leading_word(builder, value) {
+                    return self.clean_fixed_bytes(builder, word, *size);
+                }
+                // A `bytes memory` value is a `[length][data...]` object rather
+                // than a MIR slice. The conversion takes its first data word,
+                // not the object's pointer value.
+                if matches!(
+                    builder.func().value_ty(value),
+                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                ) {
+                    let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                    let word = builder.mload(data);
                     return self.clean_fixed_bytes(builder, word, *size);
                 }
                 if self.expr_is_fixed_bytes(source) {
