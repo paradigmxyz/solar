@@ -1,9 +1,0 @@
-warning[2018]: function state mutability can be restricted to pure
-   ╭▸ ROOT/tests/ui/codegen/run-call/modifier_empty_virtual.sol:LL:CC
-   │
-LL │ ┏     function f() external mod returns (bool result) {
-LL │ ┃
-LL │ ┃         result = true;
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-

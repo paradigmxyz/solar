@@ -1,0 +1,18 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
+//@ run-call: f() => 7
+
+contract ModifierNamedArguments {
+    modifier check(uint256 expected) {
+        require(expected == 7);
+        _;
+    }
+
+    function f() external pure check({expected: 7}) returns (uint256) {
+        return 7;
+    }
+}
