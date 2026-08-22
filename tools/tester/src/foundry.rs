@@ -29,7 +29,7 @@ enum AssertionPolicy {
     /// In-repo projects: every test must pass under this compiler.
     InRepoStrict,
     /// External projects: solc's passing tests are the oracle; only
-    /// solc-pass/solar-fail divergences and artifact audit violations fail.
+    /// Solc-pass/compiler-fail divergences and artifact audit violations fail.
     ExternalDifferential,
 }
 
@@ -53,7 +53,7 @@ struct TestConfig {
     test_filter: Option<String>,
     /// Optional filter for contract names (substring match).
     contract_filter: Option<String>,
-    /// If true, only run with Solar (no solc comparison).
+    /// If true, only run with the compiler (no solc comparison).
     solar_only: bool,
     /// If true, defer this project until its compiler failures are fixed.
     ignored: bool,
@@ -70,7 +70,7 @@ struct TestConfig {
     build_only: bool,
     /// Fixed fuzz seed so both legs run identical fuzz and invariant inputs.
     fuzz_seed: Option<u64>,
-    /// Solc version to emulate on the Solar leg (`SOLC_WRAPPER_VERSION`), for
+    /// Solc version to emulate on the compiler leg (`SOLC_WRAPPER_VERSION`), for
     /// projects whose sources pin an exact solc version.
     solc_wrapper_version: Option<String>,
     /// Pass `-vvvvv --decode-internal` to `forge test`.
@@ -246,7 +246,7 @@ fn discover_project_paths(dir: &Path, projects: &mut Vec<PathBuf>) {
     }
 }
 
-/// Gets the path to the Solar binary.
+/// Gets the path to the compiler binary.
 ///
 /// Uses the binary supplied by the compiler test runner when available and
 /// falls back to a binary on disk for this crate's unit tests.
@@ -591,10 +591,10 @@ fn run_forge_test(
 
     // Add forge match filters if specified
     if !config.build_only {
-        if let Some(ref test_filter) = config.test_filter {
+        if let Some(test_filter) = &config.test_filter {
             cmd.arg("--match-test").arg(test_filter);
         }
-        if let Some(ref contract_filter) = config.contract_filter {
+        if let Some(contract_filter) = &config.contract_filter {
             cmd.arg("--match-contract").arg(contract_filter);
         }
         if let Some(pattern) = combine_skips(&config.skip_tests) {
@@ -639,7 +639,7 @@ fn run_forge_test(
 // Comparison & Reporting
 // ============================================================================
 
-/// Compares Solar and solc test results and prints a diff summary.
+/// Compares the compiler and solc test results and prints a diff summary.
 fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label: &str) {
     let solar_map: HashMap<&str, &TestResult> =
         solar_tests.iter().map(|t| (t.name.as_str(), t)).collect();
@@ -700,11 +700,11 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
     }
 }
 
-/// Runs a full comparison between Solar and solc for a project.
+/// Runs a full comparison between the compiler and solc for a project.
 fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
     let project_dir = &config.path;
 
-    // Step 1: Run tests with Solar
+    // Step 1: Run tests with the compiler
     let (solar_test_time, solar_tests, solar_artifacts) = run_forge_test(
         project_dir,
         &format!("{}-solar", config.name),
@@ -877,7 +877,7 @@ fn run_test_with_config(config: &TestConfig) {
     }
 }
 
-/// Runs test with Solar only (no solc comparison).
+/// Runs test with the compiler only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
     let project_dir = &config.path;
     let (test_time, tests, artifacts) =
@@ -903,7 +903,7 @@ fn run_test_solar_only(config: &TestConfig) {
     enforce_policy(config, &solar_run, None);
 }
 
-/// Runs test with Solar vs solc comparison.
+/// Runs test with a compiler-versus-solc comparison.
 fn run_test_with_comparison(config: &TestConfig) {
     let (solar_run, solc_run) = run_project_comparison(config);
     write_runtime_report(config, &solar_run, Some(&solc_run));
@@ -942,9 +942,9 @@ fn enforce_policy(config: &TestConfig, solar_run: &CompilerRun, solc_run: Option
 }
 
 /// Judges an external project differentially: solc's passing tests are the
-/// oracle and Solar must uphold every one of them. An empty solc leg means the
-/// baseline itself is broken (offline, incompatible forge), so the project is
-/// skipped instead of failed.
+/// oracle and the compiler must uphold every one of them. An empty solc leg
+/// means the baseline itself is broken (offline, incompatible forge), so the
+/// project is skipped instead of failed.
 fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &CompilerRun) {
     let audit_violations = audit_artifacts(config, solar_run, solc_run);
 
@@ -1007,8 +1007,8 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
         audit_violations.join("\n  ")
     );
 
-    // Remaining Solar failures correspond to tests that also fail under solc
-    // (or only exist under Solar); they are upstream issues, not compiler bugs.
+    // Remaining compiler failures correspond to tests that also fail under solc
+    // (or only exist under the compiler); they are upstream issues, not compiler bugs.
     if solar_run.total_failed > 0 {
         eprintln!(
             "ℹ️  [{}] {} tests fail under both compilers",
@@ -1023,9 +1023,10 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
 /// EIP-170 deployed bytecode size limit.
 const EIP170_LIMIT: usize = 24576;
 
-/// Audits Solar's artifacts against solc's: every contract solc deploys must
-/// have nonempty deployed bytecode under Solar, and must fit EIP-170 whenever
-/// the solc artifact does. Contracts matching `skip_contracts` are exempt.
+/// Audits the compiler's artifacts against solc's: every contract solc deploys
+/// must have nonempty deployed bytecode from the compiler and fit EIP-170
+/// whenever the solc artifact does. Contracts matching `skip_contracts` are
+/// exempt.
 fn audit_artifacts(
     config: &TestConfig,
     solar_run: &CompilerRun,
@@ -1043,7 +1044,7 @@ fn audit_artifacts(
         let solc_size = solc_run.bytecode_sizes[name];
         match solar_run.bytecode_sizes.get(name) {
             // Internal-only libraries get a call-protection stub from solc
-            // and no artifact from Solar; nothing can call either.
+            // and no compiler artifact; nothing can call either.
             None if solc_run.internal_only_library_stubs.contains(name) => {
                 eprintln!(
                     "[audit] `{name}`: {solc_size}B solc stub with no Solar artifact (internal-only library)"

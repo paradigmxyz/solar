@@ -48,7 +48,7 @@ struct ExternalProject {
     repo: &'static str,
     rev: &'static str,
     mode: ExternalMode,
-    /// Solc version to emulate on the Solar leg, for projects whose sources
+    /// Solc version to emulate on the compiler leg, for projects whose sources
     /// pin an exact solc version that forge's resolver checks pragmas against.
     solc_version: Option<&'static str>,
     skip_tests: &'static [Skip],
