@@ -112,6 +112,12 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
+        if self.get_expr_type(expr).is_some_and(|ty| ty.peel_refs().is_integer())
+            && let Ok(value) = self.gcx.try_eval_const(expr)
+            && value.bit_len() <= 256
+        {
+            return builder.imm_u256(value.as_evm_word());
+        }
         match &expr.kind {
             ExprKind::Lit(lit) => {
                 // A numeric literal typed `bytesN` uses the left-aligned word
