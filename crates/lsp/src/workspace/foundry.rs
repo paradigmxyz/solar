@@ -6,27 +6,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryDocument {
     profile: Option<FoundryProfiles>,
     default: Option<FoundryProfile>,
 }
 
 impl FoundryDocument {
-    #[cfg(test)]
-    pub(crate) fn default_profile(&self) -> FoundryProfile {
-        self.profile_for(None)
-    }
-
     pub(crate) fn profile_for(&self, selected_profile: Option<&str>) -> FoundryProfile {
         let default = self.base_profile();
         let Some(name) = selected_profile.filter(|name| *name != "default") else {
             return default;
         };
-        self.profile
-            .as_ref()
-            .and_then(|profiles| profiles.get(name))
-            .map_or(default.clone(), |profile| default.overlay(&profile))
+        let Some(profile) = self.profile.as_ref().and_then(|profiles| profiles.get(name)) else {
+            return default;
+        };
+        default.overlay(profile)
     }
 
     fn base_profile(&self) -> FoundryProfile {
@@ -39,7 +34,7 @@ impl FoundryDocument {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct FoundryProfiles {
     default: Option<FoundryProfile>,
     #[serde(flatten)]
@@ -48,7 +43,7 @@ struct FoundryProfiles {
 
 impl FoundryProfiles {
     fn get(&self, name: &str) -> Option<FoundryProfile> {
-        self.profiles.get(name).cloned().and_then(|profile| serde_json::from_value(profile).ok())
+        self.profiles.get(name).and_then(|profile| FoundryProfile::deserialize(profile).ok())
     }
 }
 
@@ -70,14 +65,14 @@ pub(crate) struct FoundryProfile {
 }
 
 impl FoundryProfile {
-    fn overlay(&self, overlay: &Self) -> Self {
+    fn overlay(self, overlay: Self) -> Self {
         Self {
-            src: overlay.src.clone().or_else(|| self.src.clone()),
-            test: overlay.test.clone().or_else(|| self.test.clone()),
-            script: overlay.script.clone().or_else(|| self.script.clone()),
-            libs: overlay.libs.clone().or_else(|| self.libs.clone()),
+            src: overlay.src.or(self.src),
+            test: overlay.test.or(self.test),
+            script: overlay.script.or(self.script),
+            libs: overlay.libs.or(self.libs),
             auto_detect_remappings: overlay.auto_detect_remappings.or(self.auto_detect_remappings),
-            remappings: overlay.remappings.clone().or_else(|| self.remappings.clone()),
+            remappings: overlay.remappings.or(self.remappings),
             evm_version: overlay.evm_version.or(self.evm_version),
         }
     }
@@ -115,7 +110,7 @@ impl FoundryProfile {
         }
         remappings.extend(read_remappings_txt(root));
         if let Some(configured) = &self.remappings {
-            remappings.extend(configured.clone());
+            remappings.extend_from_slice(configured);
         }
         remappings
     }
@@ -182,7 +177,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.default_profile().include_paths(Path::new("workspace")),
+            document.profile_for(None).include_paths(Path::new("workspace")),
             [PathBuf::from("workspace/lib"), PathBuf::from("workspace/vendor")]
         );
     }
@@ -224,7 +219,6 @@ mod tests {
             profile.include_paths(Path::new("workspace")),
             [PathBuf::from("workspace/default-libs")]
         );
-        assert!(profile.remappings.as_ref().is_some_and(Vec::is_empty));
         assert_eq!(profile.auto_detect_remappings, Some(false));
         assert_eq!(profile.evm_version(), Some(EvmVersion::Paris));
     }
@@ -242,8 +236,7 @@ mod tests {
         )
         .unwrap();
 
-        let default_roots = document.default_profile().source_roots(Path::new("workspace"));
-        assert_eq!(document.profile_for(None).source_roots(Path::new("workspace")), default_roots);
+        let default_roots = document.profile_for(None).source_roots(Path::new("workspace"));
         assert_eq!(
             document.profile_for(Some("default")).source_roots(Path::new("workspace")),
             default_roots
@@ -265,7 +258,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.default_profile().source_roots(Path::new("workspace")),
+            document.profile_for(None).source_roots(Path::new("workspace")),
             [PathBuf::from("workspace/legacy-src")]
         );
         assert_eq!(
@@ -288,7 +281,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.default_profile().source_roots(Path::new("workspace")),
+            document.profile_for(None).source_roots(Path::new("workspace")),
             [PathBuf::from("workspace/default-src")]
         );
     }

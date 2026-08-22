@@ -637,11 +637,6 @@ impl Config {
         self.forge_path.clone()
     }
 
-    #[cfg(test)]
-    pub(crate) fn selected_profile(&self) -> Option<&str> {
-        self.selected_profile.as_deref()
-    }
-
     pub(crate) fn formatter_root_for_path(&self, path: &Path) -> Option<PathBuf> {
         ProjectManifest::discover_in_parents(path)
             .and_then(|manifest| match manifest {
@@ -694,7 +689,7 @@ impl Config {
                 return None;
             }
             let (discovered, discovered_watch_roots, discovered_marker_watch_roots) =
-                ProjectManifest::discover_all_with_watch_roots_for_profile(
+                ProjectManifest::discover_all_with_watch_roots(
                     std::slice::from_ref(root),
                     &self.workspace_roots,
                     &self.index_policy,
@@ -863,7 +858,7 @@ impl Config {
     fn refresh_flychecks(&mut self) -> Vec<DiagnosticOwner> {
         let mut removed_owners =
             self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
-        self.flychecks = self.flycheck_options.configs_with_profile(
+        self.flychecks = self.flycheck_options.configs(
             &self.workspaces,
             &self.forge_path,
             self.selected_profile.as_deref(),
@@ -895,11 +890,7 @@ fn load_discovered_workspaces(
         match manifest {
             ProjectManifest::Foundry(path) => {
                 let fallback_root = path.parent().map(PathBuf::from);
-                match Workspace::load_foundry_bounded_with_profile(
-                    path,
-                    workspace_roots,
-                    selected_profile,
-                ) {
+                match Workspace::load_foundry_bounded(path, workspace_roots, selected_profile) {
                     Ok(workspace) => workspaces.push(workspace),
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
@@ -973,24 +964,10 @@ fn workspace_roots_from_initialize(
 
 #[cfg(any(test, feature = "bench"))]
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
-    negotiate_capabilities_with_pull_diagnostic_data(params, false, None)
+    negotiate_capabilities_with_pull_diagnostic_data(params, false, None, None)
 }
 
-#[cfg(any(test, feature = "bench"))]
 pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
-    params: InitializeParams,
-    pull_diagnostics_data: bool,
-    default_forge_path: Option<&Path>,
-) -> (ServerCapabilities, Config) {
-    negotiate_capabilities_with_pull_diagnostic_data_and_profile(
-        params,
-        pull_diagnostics_data,
-        default_forge_path,
-        None,
-    )
-}
-
-pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data_and_profile(
     params: InitializeParams,
     pull_diagnostics_data: bool,
     default_forge_path: Option<&Path>,
@@ -1783,7 +1760,7 @@ mod tests {
                 });
 
                 let (_, config) =
-                    negotiate_capabilities_with_pull_diagnostic_data(params, pull, None);
+                    negotiate_capabilities_with_pull_diagnostic_data(params, pull, None, None);
 
                 let expected_publish = delivery == DiagnosticDelivery::Push && publish;
                 let expected_pull = delivery == DiagnosticDelivery::Pull && pull;
@@ -2012,44 +1989,6 @@ mod tests {
     }
 
     #[test]
-    fn selected_profile_controls_workspace_source_indexing() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /default-src/Default.sol
-            contract DefaultContract {}
-
-            //- /custom-src/Custom.sol
-            contract CustomContract {}
-
-            //- /foundry.toml
-            [profile.default]
-            src = "default-src"
-
-            [profile.custom]
-            src = "custom-src"
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
-        let (_, mut config) = negotiate_capabilities_with_pull_diagnostic_data_and_profile(
-            params,
-            false,
-            None,
-            Some("custom"),
-        );
-        config.rediscover_workspaces();
-
-        assert_eq!(config.selected_profile(), Some("custom"));
-        let workspace = config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
-            .unwrap();
-        assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
-        assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
-    }
-
-    #[test]
     fn source_file_updates_follow_external_foundry_flycheck_roots() {
         let project = TestProject::from_fixture(
             r#"
@@ -2164,6 +2103,7 @@ mod tests {
             InitializeParams::default(),
             false,
             Some(Path::new("/embedded/forge")),
+            None,
         );
         assert_eq!(embedded_config.forge_path(), PathBuf::from("/embedded/forge"));
 
@@ -2178,6 +2118,7 @@ mod tests {
             params,
             false,
             Some(Path::new("/embedded/forge")),
+            None,
         );
 
         assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));

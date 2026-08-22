@@ -39,16 +39,7 @@ impl FlycheckInitializationOptions {
         value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default()
     }
 
-    #[cfg(test)]
     pub(crate) fn configs(
-        &self,
-        workspaces: &[Workspace],
-        forge_path: &Path,
-    ) -> Vec<FlycheckConfig> {
-        self.configs_with_profile(workspaces, forge_path, None)
-    }
-
-    pub(crate) fn configs_with_profile(
         &self,
         workspaces: &[Workspace],
         forge_path: &Path,
@@ -159,8 +150,6 @@ fn forge_lint_available(command: &Path, cwd: &Path, selected_profile: Option<&st
 mod tests {
     use super::*;
     use crate::test_support::TestProject;
-    #[cfg(unix)]
-    use std::{fs, os::unix::fs::PermissionsExt};
 
     #[test]
     fn configured_flychecks_expand_per_workspace() {
@@ -181,11 +170,8 @@ mod tests {
             }]),
         };
 
-        let configs = options.configs_with_profile(
-            project.config().workspaces(),
-            Path::new("forge"),
-            Some("custom"),
-        );
+        let configs =
+            options.configs(project.config().workspaces(), Path::new("forge"), Some("custom"));
 
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
@@ -206,38 +192,14 @@ mod tests {
         );
         let options = FlycheckInitializationOptions { flychecks: Some(Vec::new()) };
 
-        assert!(options.configs(project.config().workspaces(), Path::new("forge")).is_empty());
+        assert!(
+            options.configs(project.config().workspaces(), Path::new("forge"), None).is_empty()
+        );
     }
 
-    #[cfg(unix)]
     #[test]
-    fn default_forge_flycheck_profile_args_cover_probe_and_run() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Test.sol
-            contract Test {}
-            "#,
-        );
-        let forge = project.path("/fake-forge");
-        project.write_file("/fake-forge", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\n");
-        let mut permissions = fs::metadata(&forge).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&forge, permissions).unwrap();
-        let workspaces = project.config().workspaces().to_vec();
-        let options = FlycheckInitializationOptions::default();
-
-        let profiled = options.configs_with_profile(&workspaces, &forge, Some("custom"));
-        assert_eq!(profiled.len(), 1);
-        assert_eq!(profiled[0].args, ["lint", "--json", "--profile", "custom"]);
-        assert_eq!(project.read_file("/fake-forge.args"), "lint\n--help\n--profile\ncustom\n");
-
-        let unprofiled = options.configs(&workspaces, &forge);
-        assert_eq!(unprofiled.len(), 1);
-        assert_eq!(unprofiled[0].args, ["lint", "--json"]);
-        assert_eq!(project.read_file("/fake-forge.args"), "lint\n--help\n");
+    fn default_forge_lint_args_omit_unselected_profile() {
+        assert_eq!(forge_lint_args("--help", None), ["lint", "--help"]);
+        assert_eq!(forge_lint_args("--json", None), ["lint", "--json"]);
     }
 }

@@ -480,23 +480,7 @@ impl Workspace {
         Self::load_foundry_inner(path, None, None)
     }
 
-    #[cfg(test)]
-    pub(crate) fn load_foundry_with_profile(
-        path: PathBuf,
-        selected_profile: Option<&str>,
-    ) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, None, selected_profile)
-    }
-
-    #[cfg(test)]
     pub(crate) fn load_foundry_bounded(
-        path: PathBuf,
-        workspace_roots: &[PathBuf],
-    ) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, Some(workspace_roots), None)
-    }
-
-    pub(crate) fn load_foundry_bounded_with_profile(
         path: PathBuf,
         workspace_roots: &[PathBuf],
         selected_profile: Option<&str>,
@@ -1091,9 +1075,12 @@ mod tests {
             "#,
         );
 
-        let workspace =
-            Workspace::load_foundry_with_profile(project.path("/foundry.toml"), Some("custom"))
-                .unwrap();
+        let workspace = Workspace::load_foundry_bounded(
+            project.path("/foundry.toml"),
+            &[project.root().to_path_buf()],
+            Some("custom"),
+        )
+        .unwrap();
 
         assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
         assert_eq!(
@@ -1125,6 +1112,7 @@ mod tests {
         let workspace = Workspace::load_foundry_bounded(
             project.path("/workspace/foundry.toml"),
             &[project.path("/workspace")],
+            None,
         )
         .unwrap();
         let opts = workspace.compile_opts();
