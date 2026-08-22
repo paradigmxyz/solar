@@ -262,7 +262,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.var_expects_memory_bytes_value(var) {
+            if is_calldata_dynamic && let Some(slice) = self.calldata_member_slice(builder, init) {
+                slice
+            } else if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
@@ -945,6 +947,29 @@ impl<'gcx> Lowerer<'gcx> {
         value: Option<&hir::Expr<'_>>,
     ) {
         let n = ctx.return_vars.len();
+        // A tuple-valued ternary whose result includes a calldata slice cannot
+        // use the ordinary one-word-per-component staging buffer. Branch
+        // first, then deliver each selected tuple arm straight into the
+        // inliner's return slots, where slice returns already own two words.
+        if let Some(hir::Expr { kind: hir::ExprKind::Ternary(cond, then_expr, else_expr), .. }) =
+            value
+            && ctx.return_vars.iter().any(|&ret_id| {
+                Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some()
+            })
+        {
+            let cond = self.lower_value_expr(builder, cond);
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            builder.branch(cond, then_block, else_block);
+
+            builder.switch_to_block(then_block);
+            self.lower_inline_return(builder, ctx, Some(then_expr));
+
+            builder.switch_to_block(else_block);
+            self.lower_inline_return(builder, ctx, Some(else_expr));
+            return;
+        }
+
         let mut values = Vec::with_capacity(n);
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {

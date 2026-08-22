@@ -1307,7 +1307,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     _ => continue,
                 };
                 let span = inst.metadata.source_span().unwrap_or(module.name.span);
-                self.gcx.dcx().err(message).span(span).emit();
+                self.gcx
+                    .dcx()
+                    .err(message)
+                    .span(span)
+                    .note(format!("remaining MIR slice is in function `{}`", func.name))
+                    .emit();
                 emitted = true;
                 // One diagnostic per function is enough to explain the bail.
                 continue 'func;
