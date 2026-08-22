@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
+@module AddressCode
+fn @codeLength(arg0: address) -> u256 [selector=0xbd3736e3, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = extcodesize arg0
+    ret v0
+}
+
+fn @codeHash(arg0: address) -> bytes32 [selector=0x3dc44827, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = extcodehash arg0
+    ret v0
+}
+
+fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_args=lazy, abi_params=[address], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = extcodesize arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, v0
+    v6 = memory_object_data memorybytes, v5
+    extcodecopy arg0, v6, 0, v0
+    ret v5
+}
+
+fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi_args=lazy, abi_params=[bytes20], abi_returns=[word]] {
+  bb0:
+    v0 = shr 96, arg0
+    ret v0
+}
+

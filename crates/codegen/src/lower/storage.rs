@@ -1,616 +1,514 @@
-use super::Lowerer;
-use crate::mir::{
-    FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, StorageField, StorageLayout,
-    StorageLayoutRef, TypeSize, ValueId,
-};
+//! Type-directed storage locations used by HIR lowering.
+
+use std::{cell::RefCell, sync::OnceLock};
+
+use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
+use solar_ast::DataLocation;
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::Span;
 use solar_sema::{
-    hir,
-    hir::ElementaryType,
+    Gcx,
+    hir::{ContractId, ElementaryType, StructId, VariableId},
     ty::{Ty, TyKind},
 };
-use std::sync::Arc;
 
-/// Storage position for a state variable.
-#[derive(Clone, Copy, Debug)]
+/// The representation of a packed value in an EVM storage word.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StorageEncoding {
+    Unsigned,
+    Signed,
+    FixedBytes,
+}
+
+/// A logical storage location relative to the contract's storage root.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct StorageLocation {
     pub(super) slot: U256,
     pub(super) offset: u8,
     pub(super) size: TypeSize,
+    pub(super) encoding: StorageEncoding,
+    transient: bool,
 }
 
 impl StorageLocation {
-    const WORD_SIZE: TypeSize = TypeSize::new_int_bits(256);
+    const WORD: TypeSize = TypeSize::new_int_bits(256);
 
-    const fn full_word(slot: U256) -> Self {
-        Self { slot, offset: 0, size: Self::WORD_SIZE }
+    pub(super) const fn word(slot: U256) -> Self {
+        Self {
+            slot,
+            offset: 0,
+            size: Self::WORD,
+            encoding: StorageEncoding::Unsigned,
+            transient: false,
+        }
     }
 
-    const fn is_packed(self) -> bool {
-        self.offset != 0 || self.size.bits() != Self::WORD_SIZE.bits()
+    pub(super) const fn packed_word(size: TypeSize, encoding: StorageEncoding) -> Self {
+        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false }
+    }
+
+    const fn packed(self) -> bool {
+        self.offset != 0 || self.size.bits() != Self::WORD.bits()
+    }
+
+    const fn word_bytes() -> u8 {
+        Self::WORD.bytes()
+    }
+
+    fn mask(self) -> U256 {
+        if self.size >= Self::WORD {
+            U256::MAX
+        } else {
+            (U256::from(1) << self.size.bits()) - U256::from(1)
+        }
+    }
+
+    fn load(self, builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+        if self.transient { builder.tload(slot) } else { builder.sload(slot) }
+    }
+
+    fn store(self, builder: &mut FunctionBuilder<'_>, slot: ValueId, value: ValueId) {
+        if self.transient {
+            builder.tstore(slot, value);
+        } else {
+            builder.sstore(slot, value);
+        }
     }
 }
 
-impl<'gcx> Lowerer<'gcx> {
-    /// Stores one Solidity value at a runtime-computed storage slot.
-    pub(super) fn store_storage_value_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        slot: ValueId,
-        value: ValueId,
-    ) {
-        match ty.peel_refs().kind {
-            TyKind::Struct(struct_id) => {
-                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-                let fields = field_tys.len() as u64;
-                let mut storage_offset = 0;
-                for (index, field_ty) in field_tys.into_iter().enumerate() {
-                    let memory = builder.memory_object_field_addr(
-                        value,
-                        MemoryObjectLayout::structure(fields),
-                        index as u64,
-                    );
-                    let field_value = builder.mload(memory);
-                    let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.store_storage_value_at(builder, field_ty, field_slot, field_value);
-                    storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
-                }
-            }
-            TyKind::Array(element_ty, len) => {
-                let Ok(len) = u64::try_from(len) else {
-                    self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
-                    return;
-                };
-                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
-                for index in 0..len {
-                    let index_value = builder.imm_u64(index);
-                    let memory = builder.memory_object_element_addr(
-                        value,
-                        MemoryObjectLayout::word_fixed_array(len),
-                        index_value,
-                    );
-                    let element_value = builder.mload(memory);
-                    let storage_offset = index.saturating_mul(element_slots);
-                    let element_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.store_storage_value_at(builder, element_ty, element_slot, element_value);
-                }
-            }
-            TyKind::DynArray(element_ty) => {
-                self.copy_memory_dyn_array_to_storage(builder, slot, value, element_ty);
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.copy_memory_bytes_to_storage(builder, slot, value);
-            }
-            TyKind::Mapping(..) => {}
-            _ => builder.sstore(slot, value),
-        }
+/// Storage locations for all state variables visible to the selected contract.
+pub(super) struct StorageLayout<'gcx> {
+    builder: StorageBuilder<'gcx>,
+}
+
+impl<'gcx> StorageLayout<'gcx> {
+    /// Computes Solidity's base-to-derived storage order once for a module.
+    pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
+        let base_slot = gcx.hir.contract(contract_id).layout.map_or(U256::ZERO, |layout| {
+            gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
+        });
+        StorageBuilder::new(gcx, base_slot).lower(contract_id)
     }
 
-    /// Clears one Solidity value at a runtime-computed storage slot.
-    pub(super) fn clear_storage_value_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        slot: ValueId,
-    ) {
-        let ty = ty.peel_refs();
-        match ty.kind {
-            TyKind::Struct(struct_id) => {
-                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-                let mut storage_offset = 0;
-                for field_ty in field_tys {
-                    let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.clear_storage_value_at(builder, field_ty, field_slot);
-                    storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
-                }
-            }
-            TyKind::Array(element_ty, len) => {
-                let Ok(len) = u64::try_from(len) else {
-                    self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
-                    return;
-                };
-                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
-                for index in 0..len {
-                    let storage_offset = index.saturating_mul(element_slots);
-                    let element_slot = self.offset_storage_slot(builder, slot, storage_offset);
-                    self.clear_storage_value_at(builder, element_ty, element_slot);
-                }
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                let empty = self.allocate_memory_object(builder, 32, MemoryObjectKind::Bytes);
-                let zero = builder.imm_u64(0);
-                builder.set_memory_object_len(empty, zero, MemoryObjectKind::Bytes);
-                self.copy_memory_bytes_to_storage(builder, slot, empty);
-            }
-            TyKind::Mapping(..) => {}
-            TyKind::Err(_) => {}
-            _ if matches!(ty.kind, TyKind::DynArray(_)) || ty.is_value_type() => {
-                let zero = builder.imm_u64(0);
-                builder.sstore(slot, zero);
-            }
-            _ => {
-                self.gcx.dcx().err("codegen cannot clear this storage value").emit();
-            }
-        }
+    pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
+        self.builder.locations.get(&id).copied()
     }
 
-    fn offset_storage_slot(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        slot: ValueId,
-        offset: u64,
-    ) -> ValueId {
-        if offset == 0 {
-            slot
-        } else {
-            let offset = builder.imm_u64(offset);
-            builder.add(slot, offset)
-        }
-    }
-
-    /// Allocates the storage location for a state variable.
-    pub(super) fn allocate_storage_location(
-        &mut self,
-        ty: Ty<'gcx>,
-        span: Span,
-    ) -> StorageLocation {
-        if let Some(size) = self.packed_storage_size(ty)
-            && size < StorageLocation::WORD_SIZE
-        {
-            let bytes = size.bytes();
-            if self.next_storage_offset + bytes > StorageLocation::WORD_SIZE.bytes() {
-                self.next_storage_slot += U256::from(1);
-                self.next_storage_offset = 0;
-            }
-            let location = StorageLocation {
-                slot: self.next_storage_slot,
-                offset: self.next_storage_offset,
-                size,
-            };
-            self.next_storage_offset += bytes;
-            if self.next_storage_offset == StorageLocation::WORD_SIZE.bytes() {
-                self.next_storage_slot += U256::from(1);
-                self.next_storage_offset = 0;
-            }
-            return location;
-        }
-
-        if self.next_storage_offset != 0 {
-            self.next_storage_slot += U256::from(1);
-            self.next_storage_offset = 0;
-        }
-
-        let slot = self.next_storage_slot;
-        let num_slots = self.calculate_storage_slots_for_ty(ty, span);
-        // Storage slots span the EVM's full 2^256 space; a layout that walks
-        // past its end wraps back onto earlier variables, so reject it.
-        match self.next_storage_slot.checked_add(U256::from(num_slots)) {
-            Some(next) => self.next_storage_slot = next,
-            None => {
-                self.gcx
-                    .dcx()
-                    .err("contract storage layout exceeds the addressable storage space")
-                    .span(span)
-                    .emit();
-            }
-        }
-        StorageLocation::full_word(slot)
-    }
-
-    /// Returns the size of scalar types that this lowering can safely pack.
-    fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
-        match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bool) => Some(TypeSize::new_int_bits(8)),
-            TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
-            _ => None,
-        }
-    }
-
-    /// Calculates the number of storage slots needed for a type.
-    pub(super) fn calculate_storage_slots_for_ty(&self, ty: Ty<'gcx>, span: Span) -> u64 {
-        match ty.peel_refs().kind {
-            TyKind::Struct(struct_id) => {
-                let mut total = 0u64;
-                for &field_ty in self.gcx.struct_field_types(struct_id) {
-                    total = match total
-                        .checked_add(self.calculate_storage_slots_for_ty(field_ty, span))
-                    {
-                        Some(total) => total,
-                        None => {
-                            self.gcx
-                                .dcx()
-                                .err("storage structs this large are not supported")
-                                .span(span)
-                                .emit();
-                            return 1;
-                        }
-                    };
-                }
-                total.max(1)
-            }
-            // Fixed-size arrays occupy one slot per element (no packing),
-            // starting at the base slot. Dynamic arrays keep one length slot.
-            TyKind::Array(elem, len) => {
-                let elem_slots = self.calculate_storage_slots_for_ty(elem, span);
-                match u64::try_from(len).ok().and_then(|len| len.checked_mul(elem_slots)) {
-                    Some(slots) => slots.max(1),
-                    None => {
-                        self.gcx
-                            .dcx()
-                            .err("fixed-size storage arrays this large are not supported")
-                            .span(span)
-                            .emit();
-                        1
-                    }
-                }
-            }
-            _ => 1,
-        }
-    }
-
-    pub(super) fn load_storage_location_at_slot(
+    pub(super) fn load(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
-        slot: ValueId,
     ) -> ValueId {
-        let word = builder.sload(slot);
-        if !location.is_packed() {
-            return word;
-        }
-
-        let shifted = if location.offset == 0 {
-            word
-        } else {
-            let shift = builder.imm_u64(u64::from(location.offset) * 8);
-            builder.shr(shift, word)
-        };
-        let mask = Self::packed_storage_mask(location.size);
-        let mask = builder.imm_u256(mask);
-        builder.and(shifted, mask)
+        let slot = builder.imm_u256(location.slot);
+        self.load_at(builder, location, slot)
     }
 
-    pub(super) fn store_storage_location(
+    pub(super) fn store(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
         value: ValueId,
     ) {
         let slot = builder.imm_u256(location.slot);
-        if !location.is_packed() {
-            builder.sstore(slot, value);
+        self.store_at(builder, location, slot, value);
+    }
+
+    pub(super) fn load_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+    ) -> ValueId {
+        self.load_at(builder, location, slot)
+    }
+
+    pub(super) fn store_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        value: ValueId,
+    ) {
+        self.store_at(builder, location, slot, value);
+    }
+
+    pub(super) fn load_packed_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+    ) -> ValueId {
+        self.load_at_offset(builder, location, slot, offset)
+    }
+
+    pub(super) fn store_packed_at_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
+        self.store_at_offset(builder, location, slot, offset, value);
+    }
+
+    pub(super) fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
+        self.builder.packed_encoding(ty)
+    }
+
+    pub(super) fn field_location(
+        &self,
+        struct_id: solar_sema::hir::StructId,
+        field: usize,
+    ) -> Option<StorageLocation> {
+        self.builder.locate_field(struct_id, field)
+    }
+
+    pub(super) fn element_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        self.builder.storage_slots(ty, span)
+    }
+
+    fn load_at(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+    ) -> ValueId {
+        let word = location.load(builder, slot);
+        let shift = (location.offset != 0).then(|| builder.imm_u64(u64::from(location.offset) * 8));
+        self.load_word(builder, location, word, shift)
+    }
+
+    fn load_at_offset(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+    ) -> ValueId {
+        let word = location.load(builder, slot);
+        if !location.packed() {
+            return word;
+        }
+        let eight = builder.imm_u64(8);
+        let shift = builder.mul(offset, eight);
+        self.load_word(builder, location, word, Some(shift))
+    }
+
+    fn load_word(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        word: ValueId,
+        shift: Option<ValueId>,
+    ) -> ValueId {
+        if !location.packed() {
+            return word;
+        }
+        let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
+        let field_mask = builder.imm_u256(location.mask());
+        let masked = builder.and(shifted, field_mask);
+        match location.encoding {
+            StorageEncoding::Unsigned => masked,
+            StorageEncoding::Signed => {
+                let index = builder.imm_u64(u64::from(location.size.bytes() - 1));
+                builder.signextend(index, masked)
+            }
+            StorageEncoding::FixedBytes => {
+                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
+                let shift = builder.imm_u64(shift);
+                builder.shl(shift, masked)
+            }
+        }
+    }
+
+    fn store_at(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        value: ValueId,
+    ) {
+        if !location.packed() {
+            location.store(builder, slot, value);
+            return;
+        }
+        let shift = (location.offset != 0).then(|| builder.imm_u64(u64::from(location.offset) * 8));
+        self.store_word(builder, location, slot, shift, value);
+    }
+
+    fn store_at_offset(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
+        if !location.packed() {
+            location.store(builder, slot, value);
             return;
         }
 
-        let shift_bits = usize::from(location.offset) * 8;
-        let field_mask = Self::packed_storage_mask(location.size);
-        let shifted_mask = field_mask << shift_bits;
-        let keep_mask = builder.imm_u256(!shifted_mask);
-        let value_mask = builder.imm_u256(field_mask);
-
-        let word = builder.sload(slot);
-        let cleared = builder.and(word, keep_mask);
-        let masked = builder.and(value, value_mask);
-        let shifted = if location.offset == 0 {
-            masked
-        } else {
-            let shift = builder.imm_u64(shift_bits as u64);
-            builder.shl(shift, masked)
-        };
-        let updated = builder.or(cleared, shifted);
-        builder.sstore(slot, updated);
+        let eight = builder.imm_u64(8);
+        let shift = builder.mul(offset, eight);
+        self.store_word(builder, location, slot, Some(shift), value);
     }
 
-    fn packed_storage_mask(size: TypeSize) -> U256 {
-        if size >= StorageLocation::WORD_SIZE {
-            U256::MAX
-        } else {
-            (U256::from(1) << size.bits()) - U256::from(1)
-        }
-    }
-
-    /// Gets the storage slot offset for a struct field.
-    pub(crate) fn get_struct_field_slot_offset(
-        &mut self,
-        struct_id: hir::StructId,
-        field_index: usize,
-    ) -> u64 {
-        if let Some(&offset) = self.struct_field_offsets.get(&(struct_id, field_index)) {
-            return offset;
-        }
-
-        let mut offset = 0u64;
-        for (i, &field_ty) in self.gcx.struct_field_types(struct_id).iter().enumerate() {
-            if i == field_index {
-                break;
+    fn store_word(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        slot: ValueId,
+        shift: Option<ValueId>,
+        value: ValueId,
+    ) {
+        let field_mask = location.mask();
+        let field_mask_value = builder.imm_u256(field_mask);
+        let shifted_mask =
+            shift.map_or(field_mask_value, |shift| builder.shl(shift, field_mask_value));
+        let old = location.load(builder, slot);
+        let keep_mask = builder.not(shifted_mask);
+        let cleared = builder.and(old, keep_mask);
+        let value = match location.encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
+                let shift = builder.imm_u64(shift);
+                builder.shr(shift, value)
             }
-            offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+            StorageEncoding::Unsigned | StorageEncoding::Signed => value,
+        };
+        let value = builder.and(value, field_mask_value);
+        let value = shift.map_or(value, |shift| builder.shl(shift, value));
+        let updated = builder.or(cleared, value);
+        location.store(builder, slot, updated);
+    }
+}
+
+/// Stateful storage-layout computation for one contract.
+struct StorageBuilder<'gcx> {
+    gcx: Gcx<'gcx>,
+    locations: FxHashMap<VariableId, StorageLocation>,
+    field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
+    field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
+    storage_cursor: StorageCursor,
+    transient_cursor: StorageCursor,
+}
+
+/// Walks Solidity's sequential storage layout, including fields packed into a word.
+#[derive(Clone, Copy, Debug)]
+struct StorageCursor {
+    slot: U256,
+    offset: u8,
+    transient: bool,
+}
+
+impl StorageCursor {
+    fn new(slot: U256, transient: bool) -> Self {
+        Self { slot, offset: 0, transient }
+    }
+
+    fn take(
+        &mut self,
+        encoding: Option<(TypeSize, StorageEncoding)>,
+        slots: u64,
+    ) -> Option<StorageLocation> {
+        if let Some((size, encoding)) = encoding
+            && size < StorageLocation::WORD
+        {
+            let bytes = size.bytes();
+            if self.offset.checked_add(bytes)? > StorageLocation::word_bytes() {
+                self.finish_word()?;
+            }
+            let location = StorageLocation {
+                slot: self.slot,
+                offset: self.offset,
+                size,
+                encoding,
+                transient: self.transient,
+            };
+            self.offset += bytes;
+            if self.offset == StorageLocation::word_bytes() {
+                self.finish_word()?;
+            }
+            return Some(location);
         }
 
-        self.struct_field_offsets.insert((struct_id, field_index), offset);
-        offset
+        self.finish_word()?;
+        let location = StorageLocation {
+            slot: self.slot,
+            offset: 0,
+            size: StorageLocation::WORD,
+            encoding: StorageEncoding::Unsigned,
+            transient: self.transient,
+        };
+        self.slot = self.slot.checked_add(U256::from(slots))?;
+        Some(location)
     }
 
-    /// Calculates the number of 32-byte memory words needed for a value.
-    ///
-    /// A memory struct has one word per field. Nested structs and other
-    /// reference types occupy one pointer word in their parent allocation.
-    pub(crate) fn calculate_memory_words_for_ty(&self, ty: Ty<'gcx>) -> u64 {
-        match ty.peel_refs().kind {
-            TyKind::Struct(struct_id) => self.gcx.struct_field_types(struct_id).len().max(1) as u64,
-            _ => 1,
+    fn finish_word(&mut self) -> Option<()> {
+        if self.offset != 0 {
+            self.slot = self.slot.checked_add(U256::from(1))?;
+            self.offset = 0;
+        }
+        Some(())
+    }
+
+    fn slots(&mut self) -> Option<u64> {
+        self.finish_word()?;
+        self.slot.try_into().ok()
+    }
+}
+
+impl<'gcx> StorageBuilder<'gcx> {
+    fn new(gcx: Gcx<'gcx>, base_slot: U256) -> Self {
+        Self {
+            gcx,
+            locations: FxHashMap::default(),
+            field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
+            field_locations: RefCell::new(FxHashMap::default()),
+            storage_cursor: StorageCursor::new(base_slot, false),
+            transient_cursor: StorageCursor::new(U256::ZERO, true),
         }
     }
 
-    fn storage_field_for_ty(&mut self, ty: Ty<'gcx>) -> StorageField {
-        self.storage_layout_for_ty(ty).map_or(StorageField::Word, StorageField::Aggregate)
+    fn lower(mut self, contract_id: ContractId) -> StorageLayout<'gcx> {
+        let contract = self.gcx.hir.contract(contract_id);
+        for &base in contract.linearized_bases.iter().rev() {
+            for id in self.gcx.hir.contract(base).variables() {
+                let var = self.gcx.hir.variable(id);
+                if !var.is_state_variable() || var.is_constant() || var.is_immutable() {
+                    continue;
+                }
+                let ty = self.gcx.type_of_item(id.into());
+                let transient = var.data_location == Some(DataLocation::Transient);
+                if let Some(location) = self.allocate(ty, var.span, transient) {
+                    self.locations.insert(id, location);
+                }
+            }
+        }
+        StorageLayout { builder: self }
     }
 
-    fn storage_layout_for_ty(&mut self, ty: Ty<'gcx>) -> Option<StorageLayoutRef> {
+    fn allocate(&mut self, ty: Ty<'gcx>, span: Span, transient: bool) -> Option<StorageLocation> {
+        let encoding = self.packed_encoding(ty);
+        let slots = self.storage_slots(ty, span);
+        let cursor = if transient { &mut self.transient_cursor } else { &mut self.storage_cursor };
+        cursor.take(encoding, slots).or_else(|| {
+            self.gcx
+                .dcx()
+                .err("contract storage layout exceeds the addressable storage space")
+                .span(span)
+                .emit();
+            None
+        })
+    }
+
+    fn locate_field(&self, struct_id: StructId, field: usize) -> Option<StorageLocation> {
+        if let Some(locations) = self.field_locations.borrow().get(&struct_id) {
+            return locations.as_ref()?.get(field).copied();
+        }
+
+        let mut cursor = StorageCursor::new(U256::ZERO, false);
+        let locations = self
+            .struct_field_types(struct_id)
+            .iter()
+            .map(|&ty| {
+                let encoding = self.packed_encoding(ty);
+                let slots = self.storage_slots(ty, Span::DUMMY);
+                cursor.take(encoding, slots)
+            })
+            .collect::<Option<Box<_>>>();
+        if locations.is_none() {
+            self.unsupported_size(Span::DUMMY, "storage struct");
+        }
+        let mut cached = self.field_locations.borrow_mut();
+        cached.entry(struct_id).or_insert(locations).as_ref()?.get(field).copied()
+    }
+
+    fn struct_field_types(&self, struct_id: StructId) -> &'gcx [Ty<'gcx>] {
+        self.field_types[struct_id].get_or_init(|| self.gcx.struct_field_types(struct_id))
+    }
+
+    fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
+        Some(match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bool) => {
+                (TypeSize::new_int_bits(8), StorageEncoding::Unsigned)
+            }
+            TyKind::Elementary(ElementaryType::Address(_)) | TyKind::Contract(_) => {
+                (TypeSize::new_int_bits(160), StorageEncoding::Unsigned)
+            }
+            TyKind::Fn(function) if function.is_external() => {
+                (TypeSize::new_int_bits(192), StorageEncoding::Unsigned)
+            }
+            TyKind::Fn(_) => (TypeSize::new_int_bits(64), StorageEncoding::Unsigned),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                (size, StorageEncoding::FixedBytes)
+            }
+            TyKind::Elementary(ElementaryType::Int(size)) => (size, StorageEncoding::Signed),
+            TyKind::Elementary(ElementaryType::UInt(size)) => (size, StorageEncoding::Unsigned),
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len().max(1);
+                let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
+                (TypeSize::new_int_bits(bits.div_ceil(8) as u16 * 8), StorageEncoding::Unsigned)
+            }
+            TyKind::Udvt(inner, _) => return self.packed_encoding(inner),
+            _ => return None,
+        })
+    }
+
+    fn storage_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        self.storage_slots_inner(ty, span).unwrap_or(1)
+    }
+
+    fn storage_slots_inner(&self, ty: Ty<'gcx>, span: Span) -> Option<u64> {
         match ty.peel_refs().kind {
-            TyKind::Struct(struct_id) => Some(self.storage_layout_for_struct(struct_id)),
+            TyKind::Struct(id) => {
+                self.sequence_slots(self.struct_field_types(id).iter().copied(), span)
+            }
             TyKind::Array(element, len) => {
                 let Ok(len) = u64::try_from(len) else {
-                    self.gcx
-                        .dcx()
-                        .err("fixed-size storage arrays this large are not supported")
-                        .emit();
+                    self.unsupported_size(span, "fixed-size storage array");
                     return None;
                 };
-                let element = self.storage_field_for_ty(element);
-                Some(self.module.intern_storage_layout(StorageLayout::Array { element, len }))
+                if let Some((size, _)) = self.packed_encoding(element)
+                    && size < StorageLocation::WORD
+                {
+                    let bytes = u64::from(size.bytes());
+                    let elements_per_slot = u64::from(StorageLocation::word_bytes()) / bytes;
+                    return Some(len.div_ceil(elements_per_slot).max(1));
+                }
+                let slots = self.storage_slots_inner(element, span)?;
+                let Some(slots) = len.checked_mul(slots) else {
+                    self.unsupported_size(span, "fixed-size storage array");
+                    return None;
+                };
+                Some(slots.max(1))
             }
-            _ => None,
+            _ => Some(1),
         }
     }
 
-    fn storage_layout_for_struct(&mut self, struct_id: hir::StructId) -> StorageLayoutRef {
-        if let Some(layout) = self.struct_storage_layouts.get(&struct_id) {
-            return Arc::clone(layout);
+    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<u64> {
+        let mut cursor = StorageCursor::new(U256::ZERO, false);
+        for ty in tys {
+            let encoding = self.packed_encoding(ty);
+            let slots = self.storage_slots_inner(ty, span)?;
+            if cursor.take(encoding, slots).is_none() {
+                self.unsupported_size(span, "storage struct");
+                return None;
+            }
         }
-
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let fields = field_tys
-            .into_iter()
-            .map(|field_ty| self.storage_field_for_ty(field_ty))
-            .collect::<Vec<_>>();
-        let layout = self.module.intern_storage_layout(StorageLayout::Struct(fields.into()));
-        self.struct_storage_layouts.insert(struct_id, Arc::clone(&layout));
-        layout
-    }
-
-    /// Recursively copies a struct from storage to memory.
-    /// Allocates nested structs separately and stores their pointers in the parent.
-    /// Returns the next memory offset after all fields are copied.
-    pub(crate) fn copy_storage_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: U256,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let base_slot = builder.imm_u256(base_slot);
-        self.copy_storage_to_memory_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
-    }
-
-    /// Recursively copies a struct from a runtime-computed storage slot to memory.
-    pub(crate) fn copy_storage_to_memory_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let layout = self.storage_layout_for_struct(struct_id);
-        let memory = if mem_offset == 0 {
-            mem_ptr
-        } else {
-            let offset = builder.imm_u64(mem_offset);
-            builder.add(mem_ptr, offset)
+        let Some(slots) = cursor.slots() else {
+            self.unsupported_size(span, "storage struct");
+            return None;
         };
-        builder.storage_to_memory(Arc::clone(&layout), base_slot, memory);
-        mem_offset + layout.memory_words() * 32
+        Some(slots.max(1))
     }
 
-    /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
-    pub(crate) fn clear_storage_struct_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-    ) {
-        let layout = self.storage_layout_for_struct(struct_id);
-        builder.clear_storage(layout, base_slot);
-    }
-
-    /// Recursively copies a struct from memory to storage.
-    /// Follows nested-struct pointers stored in the parent memory allocation.
-    /// Returns the next memory offset after all fields are read.
-    pub(crate) fn copy_memory_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: U256,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let base_slot = builder.imm_u256(base_slot);
-        self.copy_memory_to_storage_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
-    }
-
-    /// Recursively copies a struct from memory to a runtime-computed storage slot.
-    pub(crate) fn copy_memory_to_storage_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let memory = if mem_offset == 0 {
-            mem_ptr
-        } else {
-            let offset = builder.imm_u64(mem_offset);
-            builder.add(mem_ptr, offset)
-        };
-        // Dynamic fields (bytes/string/dynamic arrays) do not fit the flat
-        // slot-for-word layout instruction; copy field by field so their
-        // storage length and data are written, not the memory pointer word.
-        if self.struct_needs_deep_storage_copy(struct_id) {
-            self.deep_copy_memory_struct_to_storage(builder, struct_id, base_slot, memory);
-            return mem_offset + self.calculate_memory_words_for_ty_struct(struct_id) * 32;
-        }
-        let layout = self.storage_layout_for_struct(struct_id);
-        builder.memory_to_storage(Arc::clone(&layout), memory, base_slot);
-        mem_offset + layout.memory_words() * 32
-    }
-
-    fn calculate_memory_words_for_ty_struct(&self, struct_id: hir::StructId) -> u64 {
-        self.gcx.struct_field_types(struct_id).len().max(1) as u64
-    }
-
-    /// Whether a struct (recursively) has a `bytes`/`string`/dynamic-array
-    /// field, which the flat layout copy cannot represent.
-    fn struct_needs_deep_storage_copy(&self, struct_id: hir::StructId) -> bool {
-        self.gcx.struct_field_types(struct_id).iter().any(|&f| self.ty_needs_deep_storage_copy(f))
-    }
-
-    fn ty_needs_deep_storage_copy(&self, ty: Ty<'gcx>) -> bool {
-        match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            | TyKind::DynArray(_)
-            | TyKind::Slice(_) => true,
-            TyKind::Struct(id) => self.struct_needs_deep_storage_copy(id),
-            TyKind::Array(elem, _) => self.ty_needs_deep_storage_copy(elem),
-            TyKind::Udvt(inner, _) => self.ty_needs_deep_storage_copy(inner),
-            _ => false,
-        }
-    }
-
-    /// Copies each field of a memory struct to storage, deep-copying dynamic
-    /// fields so their storage length and payload are written.
-    fn deep_copy_memory_struct_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-        mem_base: ValueId,
-    ) {
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        for (i, &field_ty) in field_tys.iter().enumerate() {
-            let field_slot_off = self.get_struct_field_slot_offset(struct_id, i);
-            let field_slot = if field_slot_off == 0 {
-                base_slot
-            } else {
-                let off = builder.imm_u64(field_slot_off);
-                builder.add(base_slot, off)
-            };
-            let mem_word_addr = if i == 0 {
-                mem_base
-            } else {
-                let off = builder.imm_u64((i as u64) * 32);
-                builder.add(mem_base, off)
-            };
-            let mem_word = builder.mload(mem_word_addr);
-            self.copy_memory_field_to_storage(builder, field_ty.peel_refs(), field_slot, mem_word);
-        }
-    }
-
-    /// Copies one struct field / array element from its memory word to a
-    /// storage slot. The memory word is a value for scalar fields or a pointer
-    /// for reference fields.
-    fn copy_memory_field_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        slot: ValueId,
-        mem_word: ValueId,
-    ) {
-        match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.copy_memory_bytes_to_storage(builder, slot, mem_word);
-            }
-            TyKind::DynArray(elem) => {
-                self.copy_memory_dyn_array_to_storage(builder, slot, mem_word, elem);
-            }
-            TyKind::Struct(id) => {
-                // `mem_word` is a pointer to the nested struct's memory.
-                self.copy_memory_to_storage_at(builder, id, slot, mem_word, 0);
-            }
-            TyKind::Array(elem, len) => {
-                self.copy_memory_fixed_array_to_storage(builder, slot, mem_word, elem, len.to());
-            }
-            _ => {
-                // A scalar field: its memory word is the value.
-                builder.sstore(slot, mem_word);
-            }
-        }
-    }
-
-    /// Copies a memory dynamic array to a storage dynamic array at `slot`:
-    /// writes the length, then each element at `keccak256(slot) + i *
-    /// elem_slots`.
-    pub(super) fn copy_memory_dyn_array_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        slot: ValueId,
-        mem_ptr: ValueId,
-        elem: Ty<'gcx>,
-    ) {
-        let len = builder.memory_object_len(mem_ptr, MemoryObjectKind::DynamicArray);
-        builder.sstore(slot, len);
-        let zero = builder.imm_u64(0);
-        builder.mstore(zero, slot);
-        let word = builder.imm_u64(32);
-        let data_slot = builder.keccak256(zero, word);
-        let data_ptr = builder.memory_object_data(mem_ptr, MemoryObjectKind::DynamicArray);
-        let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
-        let elem = elem.peel_refs();
-        self.emit_decode_elements_loop(builder, len, move |this, builder, index| {
-            let mem_off = builder.mul(index, word);
-            let mem_word_addr = builder.add(data_ptr, mem_off);
-            let mem_word = builder.mload(mem_word_addr);
-            let elem_slot = if elem_slots == 1 {
-                builder.add(data_slot, index)
-            } else {
-                let stride = builder.imm_u64(elem_slots);
-                let off = builder.mul(index, stride);
-                builder.add(data_slot, off)
-            };
-            this.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
-        });
-    }
-
-    /// Copies a memory fixed-size array to consecutive storage slots.
-    pub(super) fn copy_memory_fixed_array_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        slot: ValueId,
-        mem_ptr: ValueId,
-        elem: Ty<'gcx>,
-        len: u64,
-    ) {
-        let elem_slots = self.calculate_storage_slots_for_ty(elem, Span::DUMMY);
-        let elem = elem.peel_refs();
-        for i in 0..len {
-            let mem_word_addr = if i == 0 {
-                mem_ptr
-            } else {
-                let off = builder.imm_u64(i * 32);
-                builder.add(mem_ptr, off)
-            };
-            let mem_word = builder.mload(mem_word_addr);
-            let elem_slot = if i * elem_slots == 0 {
-                slot
-            } else {
-                let off = builder.imm_u64(i * elem_slots);
-                builder.add(slot, off)
-            };
-            self.copy_memory_field_to_storage(builder, elem, elem_slot, mem_word);
-        }
+    fn unsupported_size(&self, span: Span, kind: &str) {
+        self.gcx.dcx().err(format!("{kind} is too large for codegen")).span(span).emit();
     }
 }

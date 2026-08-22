@@ -1,20 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @set(arg0: u256) {
+fn @set(arg0: u256) [selector=0x60fe47b1, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
     internal_call @writeIfNonZero, 0, arg0
     stop
 }
@@ -26,72 +19,47 @@ fn @writeIfNonZero(arg0: u256) {
     jumpi v1, bb1, bb2
   bb1:
     sstore 0, arg0 !metadata(storage=slot(0))
-    jump bb2
+    jump bb3
   bb2:
+    jump bb3
+  bb3:
     stop
 }
 
-fn @setUnlessZero(arg0: u256) {
+fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = eq arg0, 0
-    jumpi v3, bb3, bb4
-  bb3:
     stop
-  bb4:
+  bb2:
+    jump bb3
+  bb3:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
 }
 
-fn @returnVoidCall(arg0: u256) {
+fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
     internal_call @writeIfNonZero, 0, arg0
     stop
 }
 
-fn @returnRevert() {
+fn @returnRevert() [selector=0xdcdb78bc, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
     revert 0, 0
 }
 
-fn @unitTernary(arg0: bool, arg1: u256) {
+fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_args=lazy, abi_params=[bool, u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    jumpi arg0, bb5, bb6
-  bb5:
     internal_call @writeIfNonZero, 0, arg1
-    jump bb7
-  bb6:
+    jump bb3
+  bb2:
     internal_call @clear, 0
-    jump bb7
-  bb7:
+    jump bb3
+  bb3:
     stop
 }
 

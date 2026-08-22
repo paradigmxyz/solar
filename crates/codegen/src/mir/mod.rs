@@ -6,11 +6,15 @@ use solar_data_structures::newtype_index;
 
 mod types;
 pub(crate) use types::{
-    ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, TypeSize,
+    FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
+    SliceLocation, TypeSize,
 };
 
 mod abi;
-pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
+pub(crate) use abi::{
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
+    AbiType, AbiWordValidator,
+};
 
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
@@ -38,7 +42,7 @@ mod module;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::FunctionBuilder;
+pub(crate) use builder::{FunctionBuilder, PanicCode};
 
 mod display;
 

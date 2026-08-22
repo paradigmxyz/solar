@@ -1,34 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/nested_static_struct_param.sol:NestedStaticStructParam ===
 @module NestedStaticStructParam
-fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [abi_returns=[word, word]] {
+fn @take(arg0: calldataslice) -> (u256, u256) [selector=0xd1a79489, pure, abi_args=lazy, abi_params=[tuple<u256, tuple<u256, u256>, u256>], abi_returns=[word, word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 96
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v4 = memory_object_field_addr memorystruct<3>, v3, 0
-    mstore v4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 64
-    v6 = calldataload 36
-    mstore v5, v6
-    v7 = add 36, 32
+    v0 = slice_ptr arg0
+    v1 = add v0, 32
+    v2 = make_calldata_slice v1, 64
+    v3 = slice_ptr v2
+    v4 = add v3, 32
+    v5 = calldataload v4
+    v6 = slice_ptr arg0
+    v7 = add v6, 96
     v8 = calldataload v7
-    v9 = add v5, 32
-    mstore v9, v8
-    v10 = memory_object_field_addr memorystruct<3>, v3, 1
-    mstore v10, v5
-    v11 = memory_object_field_addr memorystruct<3>, v3, 2
-    mstore v11, arg3
-    v12 = memory_object_field_addr memorystruct<3>, v3, 1
-    v13 = mload v12
-    v14 = memory_object_field_addr memorystruct<2>, v13, 1
-    v15 = mload v14
-    v16 = memory_object_field_addr memorystruct<3>, v3, 2
-    v17 = mload v16
-    ret v15, v17
+    ret v5, v8
 }
 

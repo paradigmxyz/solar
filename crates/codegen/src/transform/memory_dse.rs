@@ -388,6 +388,7 @@ impl MemoryStoreEliminator {
                     | InstKind::SetMemoryObjectLen(_, _, _)
                     | InstKind::StorageToMemory { .. }
                     | InstKind::AbiEncode { .. }
+                    | InstKind::AbiDecode { .. }
             )
         });
         if !has_memory_writes {
@@ -586,6 +587,7 @@ impl MemoryStoreEliminator {
             // successors already contribute liveness via `live_out`.
             Some(Terminator::Return { .. })
             | Some(Terminator::TailCall { .. })
+            | Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
             | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
@@ -837,9 +839,10 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
-                InstKind::SetFmp(_) | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                    memory_writes += 1
-                }
+                InstKind::SetFmp(_)
+                | InstKind::Alloc { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
@@ -938,6 +941,21 @@ impl MemoryStoreEliminator {
                         &mut scratch.overwritten,
                         *dest,
                         *size,
+                    );
+                }
+                InstKind::Call { args_offset, args_size, .. }
+                | InstKind::CallCode { args_offset, args_size, .. }
+                | InstKind::StaticCall { args_offset, args_size, .. }
+                | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                    // A call reads its whole input, but it only copies
+                    // `min(ret_size, returndatasize())` bytes into the output
+                    // area. The rest remains unchanged, so the output cannot
+                    // prove that an earlier store is dead.
+                    self.retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut scratch.overwritten,
+                        *args_offset,
+                        *args_size,
                     );
                 }
                 // Keccak and logs only *read* memory. A read over a constant

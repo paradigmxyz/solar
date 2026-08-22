@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (after storage-promotion) ===
   @module StoragePromotion
-  fn @promote_recomputed_offset_slot(arg0: u256) {
+  fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
@@ -26,7 +26,7 @@
       stop
   }
   
-  fn @reject_loop_variant_offset_slot(arg0: u256) {
+  fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
     bb0:
       jump bb1
     bb1:
@@ -45,7 +45,7 @@
       stop
   }
   
-  fn @promote_store_only_without_initial_load() {
+  fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     bb0:
 +     mstore 160, 0
       jump bb1
@@ -69,7 +69,7 @@
 +     jump bb5
   }
   
-  fn @promote_two_initialized_slots() {
+  fn @promote_two_initialized_slots() [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 -     sstore 1, 2
@@ -100,7 +100,7 @@
       stop
   }
   
-  fn @promote_without_init_rewrites_successor_phi() -> u256 {
+  fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
     bb0:
 +     v3 = sload 0
 +     mstore 128, v3

@@ -1,0 +1,28 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_lazy_args.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_lazy_args.mir (after lower-abi) ===
+  @module LowerAbiLazyArgs
+- fn @flag(arg0: bool) -> bool [selector=0x0d2020dd, abi_args=lazy, abi_returns=[word]] {
++ @phase abi
++ fn @flag() [selector=0x0d2020dd] {
+    bb0:
+-     ret arg0
++     v0 = calldatasize
++     v1 = lt v0, 36
++     jumpi v1, bb2, bb3
++   bb1:
++     v4 = iszero arg0
++     v5 = iszero v4
++     mstore 128, v5
++     v6 = add 128, 32
++     v7 = sub v6, 128
++     returndata 128, v7
++   bb2:
++     revert 0, 0
++   bb3:
++     v2 = calldataload 4
++     v3 = lt v2, 2
++     jumpi v3, bb4, bb2
++   bb4:
++     jump bb1
+  }
+  

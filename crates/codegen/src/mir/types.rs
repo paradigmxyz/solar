@@ -47,6 +47,37 @@ pub(crate) enum SliceLocation {
     Returndata,
 }
 
+/// Physical base used by a semantic mutable-local frame slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum FrameMode {
+    /// The function uses the shared low-memory region for its locals.
+    External,
+    /// The function uses its internal-call frame for its locals.
+    Internal,
+    /// The ephemeral buffer used by multi-value calls.
+    MultiReturn,
+}
+
+/// Logical value representation stored in a mutable-local frame slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum FrameSlotKind {
+    /// A single Solidity word.
+    Word,
+    /// A two-word pointer/length slice in the given address space.
+    Slice(SliceLocation),
+}
+
+impl FrameSlotKind {
+    /// Returns the MIR type produced by a frame load.
+    #[must_use]
+    pub(crate) const fn result_type(self) -> MirType {
+        match self {
+            Self::Word => MirType::uint256(),
+            Self::Slice(location) => MirType::Slice(location),
+        }
+    }
+}
+
 /// The semantic shape carried by a one-word memory-object reference.
 ///
 /// The physical representation is selected by the memory model during late
@@ -54,7 +85,7 @@ pub(crate) enum SliceLocation {
 /// and field layouts from being inferred from an untyped pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryObjectKind {
-    /// Dynamically sized bytes or string data.
+    /// Dynamically sized bytes or string data, addressed in word chunks.
     Bytes,
     /// A dynamically sized array.
     DynamicArray,

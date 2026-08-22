@@ -1,5 +1,6 @@
 //@ run-call: trySuccess() => 7
 //@ run-call: tryFailure() => 100
+//@ run-call: tryPair() => 7, "ok"
 
 contract ExternalFunctionPointerTry {
     struct Context {
@@ -25,6 +26,24 @@ contract ExternalFunctionPointerTry {
         revert("no");
     }
 
+    function pair(Context memory context) external pure returns (uint256, string memory) {
+        return (context.value, "ok");
+    }
+
+    function invokePair(
+        function(Context memory) external returns (uint256, string memory) fn,
+        Context memory context
+    )
+        internal
+        returns (uint256, string memory)
+    {
+        try fn(context) returns (uint256 value, string memory text) {
+            return (value, text);
+        } catch {
+            return (0, "failed");
+        }
+    }
+
     function trySuccess() external returns (uint256) {
         invoke(this.succeed, Context({value: 7}));
         return observed;
@@ -33,5 +52,9 @@ contract ExternalFunctionPointerTry {
     function tryFailure() external returns (uint256) {
         invoke(this.fail, Context({value: 7}));
         return observed;
+    }
+
+    function tryPair() external returns (uint256, string memory) {
+        return invokePair(this.pair, Context({value: 7}));
     }
 }

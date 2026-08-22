@@ -11,8 +11,9 @@ use super::MemoryCallSummaries;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, ArgIdx, BlockId, Function, ImmutableId, InstId, InstKind, MemoryObjectKind,
-        MemoryRegion, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+        AbiType, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, ImmutableId, InstId,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, SliceLocation, StorageAlias,
+        Terminator, Value, ValueId,
     },
 };
 use smallvec::SmallVec;
@@ -346,7 +347,10 @@ impl PointerProvenance {
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
         let has_allocations = func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::Alloc { .. } | InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. }
+            )
         });
         if !has_allocations {
             return Self::default();
@@ -386,7 +390,9 @@ impl PointerProvenance {
             for &inst_id in &block.instructions {
                 if matches!(
                     func.inst(inst_id).kind,
-                    InstKind::Alloc { .. } | InstKind::AbiEncode { .. }
+                    InstKind::Alloc { .. }
+                        | InstKind::AbiEncode { .. }
+                        | InstKind::AbiDecode { .. }
                 ) {
                     allocations.insert(
                         inst_id,
@@ -509,6 +515,48 @@ impl AliasAnalysis {
         kind: MemoryObjectKind,
     ) -> Option<MemoryLocation> {
         let offset = EvmMemoryLayout::object_length_offset(kind)?;
+        let mut address = self.memory_address(func, object)?.checked_add(offset)?;
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+    }
+
+    /// Returns the physical word holding a semantic memory object's field.
+    #[must_use]
+    pub(crate) fn memory_object_field_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        field: u64,
+    ) -> Option<MemoryLocation> {
+        let offset = EvmMemoryLayout::field_offset(layout, field)?;
+        let mut address = self.memory_address(func, object)?.checked_add(offset)?;
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+    }
+
+    /// Returns the physical word holding a semantic memory object's element.
+    #[must_use]
+    pub(crate) fn memory_object_element_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+    ) -> Option<MemoryLocation> {
+        let index = func.value_u64(index)?;
+        let offset = EvmMemoryLayout::object_data_offset(layout.kind())
+            .checked_add(index.checked_mul(EvmMemoryLayout::element_stride(layout)?)?)?;
         let mut address = self.memory_address(func, object)?.checked_add(offset)?;
         if let Some(region) = func.inst(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
@@ -677,14 +725,43 @@ impl AliasAnalysis {
             | InstKind::SlicePtr(_)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. } => false,
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. } => false,
             InstKind::MLoad(address)
             | InstKind::MappingSlotMemory(address, _)
             | InstKind::MemoryObjectLen(address, _) => operand != *address,
+            InstKind::MemoryObjectLoadElement { object, .. } => operand != *object,
             InstKind::MStore(address, _)
             | InstKind::MStore8(address, _)
             | InstKind::MemoryZero(address, _)
             | InstKind::SetMemoryObjectLen(address, _, _) => operand != *address,
+            InstKind::MemoryObjectStoreField { object, value, .. } => {
+                operand != *object && operand != *value
+            }
+            InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
+                operand != *object && operand != *index && operand != *value
+            }
+            InstKind::MemoryObjectStoreByte { object, index, value } => {
+                operand != *object && operand != *index && operand != *value
+            }
+            InstKind::MemoryObjectStoreWord { object, offset, value } => {
+                operand != *object && operand != *offset && operand != *value
+            }
+            InstKind::MemorySliceLoadWord { slice, offset } => {
+                operand != *slice && operand != *offset
+            }
+            InstKind::CalldataSliceLoadWord { slice, offset } => {
+                operand != *slice && operand != *offset
+            }
+            InstKind::MemoryObjectCopyFromSlice { object, source, .. } => {
+                operand != *object && operand != *source
+            }
+            InstKind::MemoryObjectCopyFromSliceAt { object, offset, source, .. } => {
+                operand != *object && operand != *offset && operand != *source
+            }
+            InstKind::MemoryObjectCopy { destination, source, length, .. } => {
+                operand != *destination && operand != *source && operand != *length
+            }
             InstKind::MCopy(dest, source, _)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
                 operand != *dest && operand != *source
@@ -707,6 +784,9 @@ impl AliasAnalysis {
             | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
                 operand != *args_offset && operand != *ret_offset
             }
+            InstKind::ExtCall { args_offset, .. }
+            | InstKind::ExtDelegateCall { args_offset, .. }
+            | InstKind::ExtStaticCall { args_offset, .. } => operand != *args_offset,
             InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
                 operand != *offset
             }
@@ -715,6 +795,7 @@ impl AliasAnalysis {
                 .zip(layout.types.iter())
                 .filter(|(arg, _)| **arg == operand)
                 .any(|(_, ty)| !Self::abi_type_reads_memory(ty)),
+            InstKind::AbiDecode { data, .. } => operand != *data,
             InstKind::InternalCall { function, args, .. } => self
                 .call_summaries
                 .as_deref()
@@ -851,6 +932,90 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
+            InstKind::MemoryObjectLoadField { object, layout, field } => {
+                if let Some(location) =
+                    self.memory_object_field_location(func, inst_id, object, layout, field)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectStoreField { object, layout, field, .. } => {
+                if let Some(location) =
+                    self.memory_object_field_location(func, inst_id, object, layout, field)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectLoadElement { object, layout, index } => {
+                if let Some(location) =
+                    self.memory_object_element_location(func, inst_id, object, layout, index)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectLoadByte { .. } => {
+                effects.read_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
+                if let Some(location) =
+                    self.memory_object_element_location(func, inst_id, object, layout, index)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectStoreByte { .. } => {
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectStoreWord { .. } => {
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemorySliceLoadWord { .. } => {
+                effects.read_any(AddressSpace::Memory);
+            }
+            InstKind::FrameLoad { offset, mode, kind } => {
+                if let Some(location) = Self::frame_location(func, offset, mode, kind) {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::FrameStore { offset, mode, kind, .. } => {
+                if let Some(location) = Self::frame_location(func, offset, mode, kind) {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::MemoryObjectCopyFromSlice { source, .. } => {
+                if matches!(
+                    func.value_ty(source),
+                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
+                ) {
+                    effects.read_any(AddressSpace::Memory);
+                }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
+                if matches!(
+                    func.value_ty(source),
+                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
+                ) {
+                    effects.read_any(AddressSpace::Memory);
+                }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MemoryObjectCopy { .. } => {
+                effects.read_any(AddressSpace::Memory);
+                effects.write_any(AddressSpace::Memory);
+            }
             InstKind::Alloc { size, semantics, .. } => {
                 let fmp = Access::Location(Location::Memory(Self::fmp_location()));
                 effects.read(fmp);
@@ -875,6 +1040,10 @@ impl AliasAnalysis {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
                     }
                 }
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::AbiDecode { data, .. } => {
+                read_memory(&mut effects, data, SizeOperand::Unknown);
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageToMemory { .. } => {
@@ -975,6 +1144,17 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                effects.read_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Transient);
+                if !matches!(kind, InstKind::ExtStaticCall { .. }) {
+                    effects.write_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Transient);
+                }
+            }
             InstKind::InternalCall { function, returns, .. } => {
                 // MIR names only result 0; a multi-result call publishes its tail
                 // results through a caller-side buffer written by backend lowering.
@@ -1010,6 +1190,17 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                     effects.read_any(AddressSpace::Immutable);
                     effects.write_any(AddressSpace::Immutable);
+                }
+
+                // Additional returns are copied into a fresh buffer and its
+                // pointer is published through the reserved scratch word.
+                // The backend performs that store after the MIR call, so
+                // model it here even when the callee itself is memory-pure.
+                if returns > 1 {
+                    effects.write(Access::Location(Location::Memory(MemoryLocation::new(
+                        MemoryAddress::absolute(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
+                        LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+                    ))));
                 }
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
@@ -1070,6 +1261,7 @@ impl AliasAnalysis {
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
+            | Terminator::RevertReturndata
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::SelfDestruct { .. } => {}
@@ -1088,6 +1280,43 @@ impl AliasAnalysis {
             },
             LocationSize::Const(32),
         )
+    }
+
+    /// Returns the physical memory range occupied by a logical frame slot.
+    #[must_use]
+    fn frame_location(
+        func: &Function,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+    ) -> Option<MemoryLocation> {
+        let address = match mode {
+            FrameMode::External => MemoryAddress {
+                region: MemoryRegion::Scratch,
+                base: MemoryBase::Absolute,
+                offset: EvmMemoryLayout::HEAP_START.checked_add(offset)?,
+            },
+            FrameMode::Internal => {
+                let args = (func.params.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+                let returns =
+                    (func.returns.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+                let offset = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    .checked_add(args)?
+                    .checked_add(returns)?
+                    .checked_add(offset)?;
+                MemoryAddress::internal_frame(offset)
+            }
+            FrameMode::MultiReturn => MemoryAddress {
+                region: MemoryRegion::Scratch,
+                base: MemoryBase::Absolute,
+                offset: EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
+            },
+        };
+        let size = match kind {
+            FrameSlotKind::Word => EvmMemoryLayout::WORD_SIZE,
+            FrameSlotKind::Slice(_) => EvmMemoryLayout::WORD_SIZE * 2,
+        };
+        Some(MemoryLocation::new(address, LocationSize::Const(size)))
     }
 
     fn access_may_alias(&self, access: Access, location: Location) -> bool {
@@ -1304,21 +1533,23 @@ impl AliasAnalysis {
                 // spaces, not memory, so they carry no memory provenance.
                 SliceLocation::Calldata | SliceLocation::Returndata => None,
             },
-            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
-                MemoryAddress {
-                    region: MemoryRegion::Heap,
-                    base: MemoryBase::DynamicAllocation(*inst_id),
-                    offset: 0,
-                }
-            } else if self.allocation_has_unique_provenance(func, *inst_id) {
-                MemoryAddress {
-                    region: MemoryRegion::Heap,
-                    base: MemoryBase::Allocation(*inst_id),
-                    offset: 0,
-                }
-            } else {
-                MemoryAddress::symbolic(slice, MemoryRegion::Heap)
-            }),
+            InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                Some(if self.allocation_is_dynamic(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::DynamicAllocation(*inst_id),
+                        offset: 0,
+                    }
+                } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::Allocation(*inst_id),
+                        offset: 0,
+                    }
+                } else {
+                    MemoryAddress::symbolic(slice, MemoryRegion::Heap)
+                })
+            }
             _ => Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown)),
         }
     }
@@ -1496,9 +1727,10 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst) = func.value(value) else { return None };
         match &func.inst(*inst).kind {
-            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                Some(EvmMemoryLayout::HEAP_START)
-            }
+            InstKind::Fmp
+            | InstKind::Alloc { .. }
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::MLoad(address)
                 if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
@@ -1519,7 +1751,9 @@ impl AliasAnalysis {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
-                    InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
+                    InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
+                        Some(EvmMemoryLayout::HEAP_START)
+                    }
                     _ => None,
                 }
             }
@@ -1560,6 +1794,7 @@ impl AliasAnalysis {
             // Calldata and returndata ABI values read their own buffers, not
             // memory (returndata does not occur as an ABI type in practice).
             AbiType::Word
+            | AbiType::Function
             | AbiType::Bytes(SliceLocation::Calldata | SliceLocation::Returndata)
             | AbiType::DynamicArray {
                 location: SliceLocation::Calldata | SliceLocation::Returndata,

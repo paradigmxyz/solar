@@ -7,6 +7,7 @@
 // CHECK: {{^[ +].*}}after lower-mapping-slots
 // CHECK: {{^[ +].*}}fn @word{{[( ]}}
 // CHECK: + mstore 0, arg0
+// CHECK: + mstore 32, 7
 // CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: + {{v[0-9]+}} = add [[LOWERED_HASH]], [[LOWERED_HASH]]
 fn @word(arg0: u256) -> u256 {
@@ -18,7 +19,7 @@ fn @word(arg0: u256) -> u256 {
 }
 
 // CHECK: {{^[ +].*}}fn @word_across_reverting_branch{{[( ]}}
-// CHECK: + [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: + [[HASH:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
 fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
   bb0:
@@ -48,9 +49,8 @@ fn @memory(arg0: memptr) -> u256 {
 }
 
 // CHECK: {{^[ +].*}}fn @calldata{{[( ]}}
-// CHECK: + calldatacopy
-// CHECK: + [[HASH:v[0-9]+]] = keccak256
-// CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
+// CHECK: - [[HASH:v[0-9]+]] = mapping_slot_calldata arg0, 11
+// CHECK: - {{v[0-9]+}} = add [[HASH]], [[HASH]]
 fn @calldata(arg0: calldataslice) -> u256 {
   bb0:
     v1 = mapping_slot_calldata arg0, 11

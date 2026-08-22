@@ -1,9 +1,10 @@
-//! Lower mapping-slot hash builtins to ordinary memory operations.
+//! Lower mapping-slot and storage-array slot builtins to physical hashing.
 //!
-//! Keeping mapping-slot computation as one MIR instruction lets dominator-tree
-//! CSE reuse repeated accesses without teaching HIR lowering about control-flow
-//! scopes or memory invalidation. This pass expands the builtin immediately
-//! after CSE so the remaining pipeline can optimize the concrete memory ops.
+//! Keeping storage-location hashing as one MIR instruction lets dominator-tree
+//! CSE reuse repeated accesses without teaching HIR lowering about scratch
+//! memory. This pass expands the builtins at the memory boundary. Variable-size
+//! hash inputs use the semantic allocation policy; fixed-width mapping and
+//! storage-array hashes use reserved scratch.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
@@ -11,7 +12,7 @@ use crate::{
 };
 use solar_data_structures::map::FxHashMap;
 
-/// Lowers mapping-slot hash builtins after mapping-aware CSE.
+/// Lowers mapping-slot hash builtins at the memory boundary.
 pub(crate) struct LowerMappingSlots;
 
 impl MirPass for LowerMappingSlots {
@@ -36,6 +37,8 @@ impl MirPass for LowerMappingSlots {
                     InstKind::MappingSlot(_, _)
                         | InstKind::MappingSlotMemory(_, _)
                         | InstKind::MappingSlotCalldata(_, _)
+                        | InstKind::StorageArrayDataSlot(_)
+                        | InstKind::StorageArrayElementSlot { .. }
                 )
             });
             if !has_mapping_slots {
@@ -59,6 +62,17 @@ impl MirPass for LowerMappingSlots {
                         InstKind::MappingSlotCalldata(key, slot) => {
                             Some(lower_calldata_mapping_slot(&mut builder, key, slot))
                         }
+                        InstKind::StorageArrayDataSlot(slot) => {
+                            Some(lower_storage_array_data_slot(&mut builder, slot))
+                        }
+                        InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
+                            Some(lower_storage_array_element_slot(
+                                &mut builder,
+                                slot,
+                                index,
+                                element_slots,
+                            ))
+                        }
                         _ => {
                             builder.func_mut().blocks[block_id].instructions.push(inst_id);
                             None
@@ -79,17 +93,44 @@ impl MirPass for LowerMappingSlots {
     }
 }
 
+fn lower_storage_array_data_slot(
+    builder: &mut FunctionBuilder<'_>,
+    slot: crate::mir::ValueId,
+) -> crate::mir::ValueId {
+    let word = builder.imm_u64(32);
+    let zero = builder.imm_u64(0);
+    builder.mstore(zero, slot);
+    builder.keccak256(zero, word)
+}
+
+fn lower_storage_array_element_slot(
+    builder: &mut FunctionBuilder<'_>,
+    slot: crate::mir::ValueId,
+    index: crate::mir::ValueId,
+    element_slots: u64,
+) -> crate::mir::ValueId {
+    let data_slot = lower_storage_array_data_slot(builder, slot);
+    let offset = if element_slots <= 1 {
+        index
+    } else {
+        let stride = builder.imm_u64(element_slots);
+        builder.mul(index, stride)
+    };
+    builder.add(data_slot, offset)
+}
+
+/// Hash a fixed-width mapping key in the reserved scratch region.
 fn lower_word_mapping_slot(
     builder: &mut FunctionBuilder<'_>,
     key: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let zero = builder.imm_u64(0);
+    let word = builder.imm_u64(32);
+    let size = builder.imm_u64(64);
     builder.mstore(zero, key);
-    let slot_offset = builder.imm_u64(32);
-    builder.mstore(slot_offset, slot);
-    let hash_size = builder.imm_u64(64);
-    builder.keccak256(zero, hash_size)
+    builder.mstore(word, slot);
+    builder.keccak256(zero, size)
 }
 
 fn lower_memory_mapping_slot(
@@ -97,15 +138,15 @@ fn lower_memory_mapping_slot(
     ptr: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let len = builder.mload(ptr);
+    let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
     let word_size = builder.imm_u64(32);
-    let data_start = builder.add(ptr, word_size);
-    let scratch = builder.fmp();
-    builder.mcopy(scratch, data_start, len);
-    let slot_addr = builder.add(scratch, len);
-    builder.mstore(slot_addr, slot);
-    let hash_len = builder.add(len, word_size);
-    builder.keccak256(scratch, hash_len)
+    let payload_size = builder.add(len, word_size);
+    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
+    let source = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
+    builder.mcopy(scratch, source, len);
+    let slot_address = builder.add(scratch, len);
+    builder.mstore(slot_address, slot);
+    builder.keccak256(scratch, payload_size)
 }
 
 fn lower_calldata_mapping_slot(
@@ -114,12 +155,12 @@ fn lower_calldata_mapping_slot(
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     let len = builder.slice_len(slice);
-    let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
-    let scratch = builder.fmp();
-    builder.calldatacopy(scratch, data_start, len);
-    let slot_addr = builder.add(scratch, len);
-    builder.mstore(slot_addr, slot);
-    let hash_len = builder.add(len, word_size);
-    builder.keccak256(scratch, hash_len)
+    let payload_size = builder.add(len, word_size);
+    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
+    let source = builder.slice_ptr(slice);
+    builder.calldatacopy(scratch, source, len);
+    let slot_address = builder.add(scratch, len);
+    builder.mstore(slot_address, slot);
+    builder.keccak256(scratch, payload_size)
 }

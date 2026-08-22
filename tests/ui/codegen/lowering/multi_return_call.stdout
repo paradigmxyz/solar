@@ -3,62 +3,36 @@
 
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
-fn @sat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = internal_call @tryAdd, 2, arg0, arg1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = iszero v0
+    jumpi v4, bb1, bb2
   bb1:
-    revert 0, 0
-  bb2:
-    v3 = internal_call @tryAdd, 2, arg0, arg1
-    v4 = mload 32 !metadata(memory=scratch)
-    v5 = add v4, 32
-    v6 = mload v5
-    v7 = iszero v3
-    jumpi v7, bb3, bb4
-  bb3:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  bb4:
-    ret v6
-}
-
-fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
-  bb0:
-    v0 = internal_frame_addr 192
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_frame_addr 224
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v2 = add arg0, arg1
-    v3 = internal_frame_addr 224
-    mstore v3, v2 !metadata(memory=internal_frame)
-    v4 = internal_frame_addr 224
-    v5 = mload v4 !metadata(memory=internal_frame)
-    v6 = lt v5, arg0
-    v7 = iszero v6
-    v8 = internal_frame_addr 192
-    mstore v8, v7 !metadata(memory=internal_frame)
-    v9 = internal_frame_addr 192
-    v10 = mload v9 !metadata(memory=internal_frame)
-    v11 = internal_frame_addr 224
-    v12 = mload v11 !metadata(memory=internal_frame)
-    ret v10, v12
-}
-
-fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [abi_returns=[word, word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = internal_call @tryAdd, 2, arg0, arg1
-    v4 = mload 32 !metadata(memory=scratch)
-    v5 = add v4, 32
-    v6 = mload v5
-    ret v3, v6
+    jump bb3
+  bb3:
+    ret v3
+}
+
+fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @tryAdd, 2, arg0, arg1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
+}
+
+fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    v2 = iszero v1
+    ret v2, v0
 }
 

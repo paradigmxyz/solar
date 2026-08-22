@@ -1339,6 +1339,22 @@ impl<'gcx> Gcx<'gcx> {
         self.virtual_function_target((contract, function))
     }
 
+    /// Resolves virtual dispatch for an unqualified modifier while preserving an explicitly
+    /// qualified target.
+    pub fn resolve_modifier_target(
+        self,
+        contract: hir::ContractId,
+        modifier: &hir::Modifier<'_>,
+    ) -> Option<hir::FunctionId> {
+        let hir::ItemId::Function(function) = modifier.id else {
+            return None;
+        };
+        if modifier.span.lo() != modifier.name_span.lo() {
+            return Some(function);
+        }
+        Some(self.resolve_virtual_function(contract, function))
+    }
+
     /// Resolves a `super` function call in the context of the most-derived contract.
     pub fn resolve_super_function(
         self,
@@ -1384,6 +1400,9 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> &'gcx DenseBitSet<hir::FunctionId> {
+        if self.sess.opts.unstable.codegen_all_functions {
+            return self.all_contract_reachable_functions(id);
+        }
         let items = self.interface_items(id);
         let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
         for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
@@ -1567,12 +1586,25 @@ fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceIt
     gcx.alloc(call_graph::interface_items(gcx, id))
 }
 
+fn all_contract_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::ReferencedItems {
+    assert!(gcx.has_typeck_results(), "contract items require type checking");
+    gcx.alloc(call_graph::all_items(gcx, id))
+}
+
 fn all_contract_bytecode_dependencies(
     gcx: _,
     id: hir::ContractId
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
-    call_graph::all_bytecode_dependencies(gcx, id)
+    &gcx.all_contract_items(id).bytecode_dependencies
+}
+
+fn all_contract_reachable_functions(
+    gcx: _,
+    id: hir::ContractId
+) -> &'gcx DenseBitSet<hir::FunctionId> {
+    assert!(gcx.has_typeck_results(), "contract functions require type checking");
+    &gcx.all_contract_items(id).functions
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.

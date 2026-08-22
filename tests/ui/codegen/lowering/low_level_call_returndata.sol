@@ -10,8 +10,8 @@ contract LowLevelCallReturndata {
     // CHECK: {{v[0-9]+}} = abi_encode [word, word], selector 0xa9059cbb
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
-    // CHECK: returndatacopy
-    // CHECK: internal_call @__revert_error
+    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: abi_decode [bool]
     function safeTransfer(address token, address to, uint256 value) public {
         (bool success, bytes memory data) =
             token.call(abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, value));
@@ -22,8 +22,8 @@ contract LowLevelCallReturndata {
     // CHECK: abi_encode [word], selector 0x70a08231
     // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
-    // CHECK: returndatacopy
-    // CHECK: mload
+    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: {{v[0-9]+}} = abi_decode [u256]
     function balanceOf(address token) public view returns (uint256) {
         (bool success, bytes memory data) =
             token.staticcall(abi.encodeWithSignature("balanceOf(address)", address(this)));
@@ -34,7 +34,7 @@ contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @forward{{[( ]}}
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
-    // CHECK: returndatacopy
+    // CHECK: memory_object_copy_from_slice memorybytes
     // CHECK: ret {{v[0-9]+}}
     function forward(address target, bytes memory payload) public returns (bytes memory) {
         (bool success, bytes memory result) = target.call(payload);

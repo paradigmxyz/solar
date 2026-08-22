@@ -473,6 +473,17 @@ impl FrameSlotPromoter {
                     slot_offset,
                 )
             }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    aa,
+                    args_offset,
+                    func.value_u64(args_size),
+                    slot_offset,
+                )
+            }
             InstKind::Add(a, b) => {
                 let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b, 0)
                     .or_else(|| Self::internal_frame_add_offset(func, aa, b, a, 0))
@@ -552,11 +563,15 @@ impl FrameSlotPromoter {
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
+            | InstKind::ExtCall { .. }
+            | InstKind::ExtDelegateCall { .. }
+            | InstKind::ExtStaticCall { .. }
             | InstKind::InternalCall { .. }
             | InstKind::Create(_, _, _)
             | InstKind::Create2(_, _, _, _)
             | InstKind::MappingSlotMemory(_, _)
             | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. }
             | InstKind::MSize => true,
             _ => false,
         }
@@ -576,6 +591,7 @@ impl FrameSlotPromoter {
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
+            | Terminator::RevertReturndata
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::TailCall { .. }

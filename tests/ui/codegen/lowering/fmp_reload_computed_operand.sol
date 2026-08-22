@@ -18,7 +18,10 @@ contract FmpReloadComputedOperand {
     }
 
     function run() external {
-        vm.expectRevert(stdError.arithmeticError);
+        (bool success,) = address(vm).call(
+            abi.encodeCall(Vm.expectRevert, (stdError.arithmeticError))
+        );
+        require(success);
         this.callWithFmp(2 ** 256 - 1, 2 ** 256 - 1);
     }
 }

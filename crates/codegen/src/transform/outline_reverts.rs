@@ -15,7 +15,7 @@
 //! argless `tail_call` to it — a bare jump in the backend.
 
 use crate::{
-    mir::{Function, FunctionBuilder, InstKind, Module, Terminator, Value},
+    mir::{Function, FunctionBuilder, FunctionId, InstKind, Module, Terminator, Value},
     pass::MirPass,
 };
 use alloy_primitives::U256;
@@ -46,17 +46,68 @@ impl MirPass for OutlineReverts {
 struct OutlineRevertsStats {
     /// Number of blocks rewritten into tail calls.
     outlined: usize,
-    /// Number of shared helpers synthesized.
-    helpers: usize,
 }
 
 #[derive(Debug, Default)]
 struct OutlineRevertsCx {
     stats: OutlineRevertsStats,
+    helpers: HelperRegistry,
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
+
+/// A helper description shared by every lowering site that requests it.
+///
+/// The registry owns helper identity and synthesis. A caller only creates a
+/// helper after the caller has proved that outlining pays for itself, and a
+/// repeated request returns the existing function instead of inserting a
+/// second copy.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum HelperKey {
+    Revert(RevertShape),
+}
+
+#[derive(Debug, Default)]
+struct HelperRegistry {
+    helpers: FxHashMap<HelperKey, FunctionId>,
+    next_revert: usize,
+}
+
+impl HelperRegistry {
+    fn get_or_create(&mut self, module: &mut Module, key: HelperKey) -> FunctionId {
+        if let Some(&id) = self.helpers.get(&key) {
+            return id;
+        }
+        let id = match &key {
+            HelperKey::Revert(shape) => self.create_revert(module, shape),
+        };
+        self.helpers.insert(key, id);
+        id
+    }
+
+    fn create_revert(
+        &mut self,
+        module: &mut Module,
+        (stores, offset, size): &RevertShape,
+    ) -> FunctionId {
+        let name = format!("__revert_stub{}", self.next_revert);
+        self.next_revert += 1;
+        let mut func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            for &(store_offset, value) in stores {
+                let store_offset = builder.imm_u256(store_offset);
+                let value = builder.imm_u256(value);
+                builder.mstore(store_offset, value);
+            }
+            let offset = builder.imm_u256(*offset);
+            let size = builder.imm_u256(*size);
+            builder.revert(offset, size);
+        }
+        module.add_function(func)
+    }
+}
 
 impl OutlineRevertsCx {
     fn run(&mut self, module: &mut Module) -> bool {
@@ -81,7 +132,7 @@ impl OutlineRevertsCx {
         worth_outlining.sort_by(|a, b| a.1.cmp(&b.1));
 
         for (shape, sites) in worth_outlining {
-            let helper = self.synthesize_helper(module, &shape);
+            let helper = self.helpers.get_or_create(module, HelperKey::Revert(shape));
             for (func_idx, block_idx) in sites {
                 let func = &mut module.functions[crate::mir::FunctionId::from_usize(func_idx)];
                 let block = &mut func.blocks[crate::mir::BlockId::from_usize(block_idx)];
@@ -93,29 +144,6 @@ impl OutlineRevertsCx {
         }
 
         self.stats.outlined != 0
-    }
-
-    fn synthesize_helper(
-        &mut self,
-        module: &mut Module,
-        (stores, offset, size): &RevertShape,
-    ) -> crate::mir::FunctionId {
-        let name = format!("__revert_stub{}", self.stats.helpers);
-        self.stats.helpers += 1;
-        let mut func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        func.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            for &(store_offset, value) in stores {
-                let store_offset = builder.imm_u256(store_offset);
-                let value = builder.imm_u256(value);
-                builder.mstore(store_offset, value);
-            }
-            let offset = builder.imm_u256(*offset);
-            let size = builder.imm_u256(*size);
-            builder.revert(offset, size);
-        }
-        module.add_function(func)
     }
 }
 

@@ -1,235 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
-fn @arrayA.0(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add arg0, 1
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    ret v3
-}
-
-fn @arrayB.1(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add arg0, 2
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    ret v3
-}
-
-fn @arrayC.2(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add arg0, 3
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    ret v3
-}
-
-fn @arrayD.3(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add arg0, 5
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    ret v3
-}
-
-fn @arrayE.4(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = add arg0, 8
-    v4 = lt v3, arg0
-    jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    ret v3
-}
-
-fn @callArray(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = mul 10, 32
-    v4 = div v3, 32
-    v5 = eq v4, 10
-    jumpi v5, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v6 = add v3, 32
-    v7 = lt v6, v3
-    jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
-    set_memory_object_len memoryarray, v8, 10
-    v9 = memory_object_len memoryarray, v8
-    v10 = lt 0, v9
-    jumpi v10, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v11 = memory_object_element_addr memoryarray<1>, v8, 0
-    mstore v11, 1
-    v12 = memory_object_len memoryarray, v8
-    v13 = lt 1, v12
-    jumpi v13, bb10, bb9
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v14 = memory_object_element_addr memoryarray<1>, v8, 1
-    mstore v14, 2
-    v15 = memory_object_len memoryarray, v8
-    v16 = lt 2, v15
-    jumpi v16, bb12, bb11
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v17 = memory_object_element_addr memoryarray<1>, v8, 2
-    mstore v17, 3
-    v18 = memory_object_len memoryarray, v8
-    v19 = lt 3, v18
-    jumpi v19, bb14, bb13
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
-    v20 = memory_object_element_addr memoryarray<1>, v8, 3
-    mstore v20, 4
-    v21 = memory_object_len memoryarray, v8
-    v22 = lt 4, v21
-    jumpi v22, bb16, bb15
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb16:
-    v23 = memory_object_element_addr memoryarray<1>, v8, 4
-    mstore v23, 5
-    v24 = memory_object_len memoryarray, v8
-    v25 = lt arg1, v24
-    jumpi v25, bb18, bb17
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb18:
-    v26 = memory_object_element_addr memoryarray<1>, v8, arg1
-    v27 = mload v26
-    v28 = internal_call @__internal_dispatch_0, 1, v27, arg0
-    ret v28
-}
-
-fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
-  bb0:
-    v0 = eq arg0, 1
-    jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @arrayA.7, 1, arg1
-    ret v1
-  bb2:
-    v2 = eq arg0, 2
-    jumpi v2, bb3, bb4
-  bb3:
-    v3 = internal_call @arrayB.8, 1, arg1
-    ret v3
-  bb4:
-    v4 = eq arg0, 3
-    jumpi v4, bb5, bb6
-  bb5:
-    v5 = internal_call @arrayC.9, 1, arg1
-    ret v5
-  bb6:
-    v6 = eq arg0, 4
-    jumpi v6, bb7, bb8
-  bb7:
-    v7 = internal_call @arrayD.10, 1, arg1
-    ret v7
-  bb8:
-    v8 = eq arg0, 5
-    jumpi v8, bb9, bb10
-  bb9:
-    v9 = internal_call @arrayE.11, 1, arg1
-    ret v9
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-fn @arrayA.7(arg0: u256) -> u256 {
+fn @arrayA(arg0: u256) -> u256 [selector=0xad3149a4, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -242,7 +13,7 @@ fn @arrayA.7(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayB.8(arg0: u256) -> u256 {
+fn @arrayB(arg0: u256) -> u256 [selector=0x9b889676, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 2
     v1 = lt v0, arg0
@@ -255,7 +26,7 @@ fn @arrayB.8(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayC.9(arg0: u256) -> u256 {
+fn @arrayC(arg0: u256) -> u256 [selector=0x794b7d08, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 3
     v1 = lt v0, arg0
@@ -268,7 +39,7 @@ fn @arrayC.9(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayD.10(arg0: u256) -> u256 {
+fn @arrayD(arg0: u256) -> u256 [selector=0xd82c9b10, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 5
     v1 = lt v0, arg0
@@ -281,7 +52,7 @@ fn @arrayD.10(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @arrayE.11(arg0: u256) -> u256 {
+fn @arrayE(arg0: u256) -> u256 [selector=0x866ce1e6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 8
     v1 = lt v0, arg0
@@ -292,5 +63,110 @@ fn @arrayE.11(arg0: u256) -> u256 {
     revert 0, 36
   bb2:
     ret v0
+}
+
+fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
+    set_memory_object_len memoryarray, v0, 10
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    memory_object_store_element memoryarray<1>, v0, 1, 2
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 2, v7
+    v9 = iszero v8
+    jumpi v9, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    memory_object_store_element memoryarray<1>, v0, 2, 3
+    v10 = memory_object_len memoryarray, v0
+    v11 = lt 3, v10
+    v12 = iszero v11
+    jumpi v12, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    memory_object_store_element memoryarray<1>, v0, 3, 4
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 4, v13
+    v15 = iszero v14
+    jumpi v15, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    memory_object_store_element memoryarray<1>, v0, 4, 5
+    v16 = memory_object_len memoryarray, v0
+    v17 = lt arg1, v16
+    v18 = iszero v17
+    jumpi v18, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v19 = memory_object_load_element memoryarray<1>, v0, arg1
+    v20 = internal_call @__internal_dispatch_0, 1, v19, arg0
+    ret v20
+}
+
+fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call @arrayA, 1, arg1
+    ret v1
+  bb2:
+    v2 = eq arg0, 2
+    jumpi v2, bb3, bb4
+  bb3:
+    v3 = internal_call @arrayB, 1, arg1
+    ret v3
+  bb4:
+    v4 = eq arg0, 3
+    jumpi v4, bb5, bb6
+  bb5:
+    v5 = internal_call @arrayC, 1, arg1
+    ret v5
+  bb6:
+    v6 = eq arg0, 4
+    jumpi v6, bb7, bb8
+  bb7:
+    v7 = internal_call @arrayD, 1, arg1
+    ret v7
+  bb8:
+    v8 = eq arg0, 5
+    jumpi v8, bb9, bb10
+  bb9:
+    v9 = internal_call @arrayE, 1, arg1
+    ret v9
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
 }
 

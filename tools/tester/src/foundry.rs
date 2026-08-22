@@ -33,8 +33,6 @@ struct TestConfig {
     contract_filter: Option<String>,
     /// If true, only run with Solar (no solc comparison).
     solar_only: bool,
-    /// If true, defer this project until its compiler failures are fixed.
-    ignored: bool,
 }
 
 impl TestConfig {
@@ -114,20 +112,6 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
-const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
-    "abi-encoding",
-    "equivalence",
-    "erc20-minimal",
-    "erc721-minimal",
-    "multicall",
-    "stress-arrays",
-    "stress-inheritance",
-    "stress-modifiers",
-    "unifap-v2",
-    "unifap-v2-create",
-    "vault-minimal",
-];
-
 fn foundry_root() -> PathBuf {
     workspace_root().join("tests/foundry")
 }
@@ -150,16 +134,8 @@ fn discover_projects() -> Vec<TestConfig> {
                 return None;
             }
             let solar_only = relative == Path::new("stack-deep");
-            let ignored = TEMPORARILY_IGNORED_PROJECTS.contains(&name.as_str());
 
-            Some(TestConfig {
-                name,
-                path,
-                test_filter: None,
-                contract_filter: None,
-                solar_only,
-                ignored,
-            })
+            Some(TestConfig { name, path, test_filter: None, contract_filter: None, solar_only })
         })
         .collect()
 }
@@ -762,10 +738,6 @@ pub(super) fn run_default_suite(solar: &Path) {
 
     let mut failures = Vec::new();
     for config in projects {
-        if config.ignored {
-            eprintln!("[{}] temporarily ignored", config.name);
-            continue;
-        }
         let name = config.name.clone();
         if catch_unwind(AssertUnwindSafe(|| config.run())).is_err() {
             failures.push(name);

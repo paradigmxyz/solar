@@ -1,12 +1,34 @@
 //! MIR function builder.
 
 use super::{
-    AllocationSemantics, BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
+    MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+
+/// Solidity's built-in `Panic(uint256)` error codes.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum PanicCode {
+    Assert = 0x01,
+    ArithmeticOverflowUnderflow = 0x11,
+    DivisionByZero = 0x12,
+    EnumConversion = 0x21,
+    StorageEncoding = 0x22,
+    EmptyArrayPop = 0x31,
+    ArrayOutOfBounds = 0x32,
+    MemoryAllocationOverflow = 0x41,
+    InvalidInternalFunction = 0x51,
+}
+
+impl PanicCode {
+    const fn as_u64(self) -> u64 {
+        self as u64
+    }
+}
 
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
@@ -61,6 +83,103 @@ impl<'a> FunctionBuilder<'a> {
     /// Creates a boolean immediate.
     pub(crate) fn imm_bool(&mut self, value: bool) -> ValueId {
         self.alloc_value(Value::Immediate(Immediate::bool(value)))
+    }
+
+    /// Reverts with Solidity's `Panic(uint256)` payload.
+    pub(crate) fn panic(&mut self, code: PanicCode) {
+        let selector = self.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
+        let code = self.imm_u64(code.as_u64());
+        let zero = self.imm_u256(U256::ZERO);
+        self.mstore(zero, selector);
+        let four = self.imm_u256(U256::from(4));
+        self.mstore(four, code);
+        let size = self.imm_u256(U256::from(36));
+        self.revert(zero, size);
+    }
+
+    /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
+    pub(crate) fn panic_if(&mut self, condition: ValueId, code: PanicCode) {
+        let panic_block = self.create_block();
+        let continue_block = self.create_block();
+        self.branch(condition, panic_block, continue_block);
+        self.switch_to_block(panic_block);
+        self.panic(code);
+        self.switch_to_block(continue_block);
+    }
+
+    /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is zero.
+    pub(crate) fn panic_if_zero(&mut self, condition: ValueId, code: PanicCode) {
+        let panic_block = self.create_block();
+        let continue_block = self.create_block();
+        self.branch(condition, continue_block, panic_block);
+        self.switch_to_block(panic_block);
+        self.panic(code);
+        self.switch_to_block(continue_block);
+    }
+
+    /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
+    pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
+        let limit = self.imm_u64(variants);
+        let valid = self.lt(value, limit);
+        let invalid = self.iszero(valid);
+        self.panic_if(invalid, PanicCode::EnumConversion);
+    }
+
+    /// Reverts with `PanicCode::ArrayOutOfBounds` when `index` is not below `length`.
+    pub(crate) fn bounds_check(&mut self, index: ValueId, length: ValueId) {
+        let in_range = self.lt(index, length);
+        let invalid = self.iszero(in_range);
+        self.panic_if(invalid, PanicCode::ArrayOutOfBounds);
+    }
+
+    /// Adds two words and reverts when the result overflows.
+    pub(crate) fn checked_add(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
+            && let Some(result) = lhs.checked_add(rhs)
+        {
+            return self.imm_u256(result);
+        }
+        let result = self.add(lhs, rhs);
+        let overflow = self.lt(result, lhs);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        result
+    }
+
+    /// Multiplies two words and reverts when the result overflows.
+    pub(crate) fn checked_mul(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
+        if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
+            && let Some(result) = lhs.checked_mul(rhs)
+        {
+            return self.imm_u256(result);
+        }
+        let result = self.mul(lhs, rhs);
+        let rhs_zero = self.iszero(rhs);
+        let quotient = self.div(result, rhs);
+        let exact = self.eq(quotient, lhs);
+        let valid = self.or(rhs_zero, exact);
+        let overflow = self.iszero(valid);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        result
+    }
+
+    /// Returns the word-aligned allocation size for a bytes-like object.
+    pub(crate) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm_u64(63);
+        let rounded = self.checked_add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    /// Returns the Solidity-compatible padded size for `bytes.concat`.
+    pub(crate) fn padded_size(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm_u64(63);
+        let rounded = self.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
+    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
+        let mask = self.imm_u64(31);
+        let mask = self.not(mask);
+        self.and(rounded, mask)
     }
 
     /// Creates an undefined value.
@@ -128,6 +247,13 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
+        if let InstKind::FrameLoad { mode, .. } | InstKind::FrameStore { mode, .. } = *kind {
+            return Some(match mode {
+                FrameMode::External => MemoryRegion::Scratch,
+                FrameMode::Internal => MemoryRegion::InternalFrame,
+                FrameMode::MultiReturn => MemoryRegion::Scratch,
+            });
+        }
         let addr = match *kind {
             InstKind::MLoad(addr)
             | InstKind::MStore(addr, _)
@@ -358,19 +484,21 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
     }
 
-    /// Reads the free-memory pointer as the base of a semantic object being built in place.
-    pub(crate) fn fmp_object(&mut self, layout: crate::mir::MemoryObjectLayout) -> ValueId {
-        self.emit_inst(InstKind::Fmp, Some(MirType::MemoryObject(layout.kind())))
-    }
-
     /// Sets the free-memory pointer.
+    #[cfg(test)]
     pub(crate) fn set_fmp(&mut self, ptr: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(ptr))
     }
 
-    /// Reserves memory under an explicit semantic policy.
-    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+    /// Reserves untyped memory under an explicit semantic policy.
+    pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
+    }
+
+    /// Reserves memory under an explicit semantic policy.
+    #[cfg(test)]
+    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+        self.alloc_raw(size, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
@@ -381,6 +509,18 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Object(layout), semantics)
+    }
+
+    /// Allocates a fixed array whose elements each occupy one memory word.
+    pub(crate) fn alloc_word_array(
+        &mut self,
+        len: u64,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, MemoryObjectLayout) {
+        let size = self.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let layout = MemoryObjectLayout::word_fixed_array(len);
+        let object = self.alloc_object(size, layout, semantics);
+        (object, layout)
     }
 
     /// Reads the logical length of a dynamic memory object.
@@ -411,7 +551,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
     }
 
-    /// Addresses a direct struct field.
+    /// Projects a direct struct-field address through the semantic object layout.
     pub(crate) fn memory_object_field_addr(
         &mut self,
         object: ValueId,
@@ -424,7 +564,7 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
-    /// Addresses an array element.
+    /// Projects an array-element address through the semantic object layout.
     pub(crate) fn memory_object_element_addr(
         &mut self,
         object: ValueId,
@@ -435,6 +575,151 @@ impl<'a> FunctionBuilder<'a> {
             InstKind::MemoryObjectElementAddr { object, layout, index },
             Some(MirType::MemPtr),
         )
+    }
+
+    /// Loads a direct struct field through the semantic object layout.
+    pub(crate) fn memory_object_load_field(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadField { object, layout, field },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Stores a direct struct field through the semantic object layout.
+    pub(crate) fn memory_object_store_field(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreField { object, layout, field, value });
+    }
+
+    /// Loads an array element through the semantic object layout.
+    pub(crate) fn memory_object_load_element(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadElement { object, layout, index },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Loads a memory-object pointer stored in a one-word array.
+    pub(crate) fn memory_object_load_object(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectLoadElement { object, layout, index },
+            Some(MirType::MemoryObject(kind)),
+        )
+    }
+
+    /// Loads one byte from a bytes object through its semantic layout.
+    pub(crate) fn memory_object_load_byte(&mut self, object: ValueId, index: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::uint256()))
+    }
+
+    /// Stores an array element through the semantic object layout.
+    pub(crate) fn memory_object_store_element(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreElement { object, layout, index, value });
+    }
+
+    /// Stores one byte in a bytes object through its semantic layout.
+    pub(crate) fn memory_object_store_byte(
+        &mut self,
+        object: ValueId,
+        index: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreByte { object, index, value });
+    }
+
+    /// Stores one word at a byte offset in a bytes object through its semantic
+    /// layout.
+    pub(crate) fn memory_object_store_word(
+        &mut self,
+        object: ValueId,
+        offset: ValueId,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectStoreWord { object, offset, value });
+    }
+
+    /// Loads one word from a memory slice at a byte offset through its
+    /// semantic representation.
+    pub(crate) fn memory_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
+        self.emit_inst(
+            InstKind::MemorySliceLoadWord { slice, offset },
+            Some(crate::mir::MirType::uint256()),
+        )
+    }
+
+    /// Loads one word from a calldata slice at a byte offset through its
+    /// semantic representation.
+    pub(crate) fn calldata_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
+        self.emit_inst(
+            InstKind::CalldataSliceLoadWord { slice, offset },
+            Some(crate::mir::MirType::uint256()),
+        )
+    }
+
+    /// Copies a typed slice into a dynamic memory object's payload.
+    pub(crate) fn memory_object_copy_from_slice(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+        source: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopyFromSlice { object, kind, source });
+    }
+
+    /// Copies a typed slice into a byte offset in a dynamic memory object's payload.
+    pub(crate) fn memory_object_copy_from_slice_at(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+        offset: ValueId,
+        source: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source });
+    }
+
+    /// Copies a byte range between two dynamic memory objects.
+    pub(crate) fn memory_object_copy(
+        &mut self,
+        destination: ValueId,
+        destination_kind: crate::mir::MemoryObjectKind,
+        source: ValueId,
+        source_kind: crate::mir::MemoryObjectKind,
+        length: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::MemoryObjectCopy {
+            destination,
+            destination_kind,
+            source,
+            source_kind,
+            length,
+        });
     }
 
     fn alloc_kind(
@@ -459,29 +744,18 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
-    /// Copies a statically shaped aggregate from storage into memory.
-    pub(crate) fn storage_to_memory(
+    /// Decodes a memory-backed ABI tuple into semantic values.
+    pub(crate) fn abi_decode(
         &mut self,
-        layout: crate::mir::StorageLayoutRef,
-        storage: ValueId,
-        memory: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::StorageToMemory { storage, memory, layout })
-    }
-
-    /// Copies a statically shaped aggregate from memory into storage.
-    pub(crate) fn memory_to_storage(
-        &mut self,
-        layout: crate::mir::StorageLayoutRef,
-        memory: ValueId,
-        storage: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::MemoryToStorage { memory, storage, layout })
-    }
-
-    /// Clears every storage slot occupied by a statically shaped aggregate.
-    pub(crate) fn clear_storage(&mut self, layout: crate::mir::StorageLayoutRef, storage: ValueId) {
-        self.emit_void_inst(InstKind::ClearStorage { storage, layout })
+        layout: crate::mir::AbiParamLayoutRef,
+        data: ValueId,
+    ) -> ValueId {
+        let result_ty = layout
+            .types
+            .first()
+            .map(crate::mir::AbiParamType::mir_type)
+            .expect("ABI decode requires at least one result");
+        self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
     /// Emits an mcopy instruction.
@@ -529,6 +803,14 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
+    /// Reads the preceding call's returndata size.
+    ///
+    /// Semantic form, materialized by the ABI phase; the counterpart of the
+    /// physical [`Self::returndatasize`] query.
+    pub(crate) fn returndata_size(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ReturndataSize, Some(MirType::uint256()))
+    }
+
     /// Projects the data pointer from a slice.
     pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
         self.emit_inst(InstKind::SlicePtr(slice), Some(MirType::uint256()))
@@ -542,6 +824,11 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits the base address of the constructor ABI argument blob.
     pub(crate) fn constructor_args_base(&mut self) -> ValueId {
         self.emit_inst(InstKind::ConstructorArgsBase, Some(MirType::uint256()))
+    }
+
+    /// Emits the end address of the constructor ABI argument blob.
+    pub(crate) fn constructor_args_end(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ConstructorArgsEnd, Some(MirType::uint256()))
     }
 
     /// Emits a calldatacopy instruction.
@@ -586,6 +873,10 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a returndatasize instruction.
+    ///
+    /// Physical form: the raw volatile `returndatasize()` query, emitted by
+    /// the ABI phase and the yul builtin; the counterpart of the semantic
+    /// [`Self::returndata_size`].
     pub(crate) fn returndatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::ReturnDataSize, Some(MirType::uint256()))
     }
@@ -624,6 +915,27 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
         self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+    }
+
+    /// Loads a mutable local through its logical frame slot.
+    pub(crate) fn frame_load(
+        &mut self,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+    ) -> ValueId {
+        self.emit_inst(InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
+    }
+
+    /// Stores a mutable local through its logical frame slot.
+    pub(crate) fn frame_store(
+        &mut self,
+        offset: u64,
+        mode: FrameMode,
+        kind: FrameSlotKind,
+        value: ValueId,
+    ) {
+        self.emit_void_inst(InstKind::FrameStore { offset, mode, kind, value });
     }
 
     /// Emits a caller instruction.
@@ -728,6 +1040,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
     }
 
+    /// Resolves the first data slot of a dynamic storage array.
+    pub(crate) fn storage_array_data_slot(&mut self, slot: ValueId) -> ValueId {
+        self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
+    }
+
     /// Emits a basefee instruction.
     pub(crate) fn basefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))
@@ -807,6 +1124,46 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits an EOF external call.
+    pub(crate) fn extcall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        value: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtCall { addr, args_offset, args_size, value },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits an EOF external delegate call.
+    pub(crate) fn extdelegatecall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtDelegateCall { addr, args_offset, args_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits an EOF external static call.
+    pub(crate) fn extstaticcall(
+        &mut self,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::ExtStaticCall { addr, args_offset, args_size },
             Some(MirType::uint256()),
         )
     }
@@ -892,7 +1249,11 @@ impl<'a> FunctionBuilder<'a> {
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub(crate) fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.emit_inst(InstKind::Phi(incoming), Some(MirType::uint256()))
+        let ty = incoming
+            .first()
+            .and_then(|(_, value)| self.func.value_ty(*value))
+            .unwrap_or(MirType::uint256());
+        self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 
     /// Adds an incoming `(block, value)` edge to an existing phi. This is used
@@ -941,6 +1302,11 @@ impl<'a> FunctionBuilder<'a> {
     /// Sets a revert terminator.
     pub(crate) fn revert(&mut self, offset: ValueId, size: ValueId) {
         self.set_terminator(Terminator::Revert { offset, size });
+    }
+
+    /// Sets a returndata-bubbling revert terminator.
+    pub(crate) fn revert_returndata(&mut self) {
+        self.set_terminator(Terminator::RevertReturndata);
     }
 
     /// Sets a return-data terminator: `RETURN(offset, size)`.

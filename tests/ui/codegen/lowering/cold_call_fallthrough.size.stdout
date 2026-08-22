@@ -28,17 +28,14 @@ bb5:
   push 64
   mstore
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb4
   jumpi
   push 4
   calldataload
   iszero
-  push bb9
+  push bb8
   jump bb23
 bb23:
   jumpi
@@ -49,7 +46,7 @@ bb23:
   push 32
   push 128
   return
-bb9 [cold]:
+bb8 [cold]:
   push 4
   calldataload
   jump bb15
@@ -90,20 +87,17 @@ bb10:
   push 64
   mstore
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb4
   jumpi
   push 100
   push 4
   calldataload
   lt
-  push bb14
+  push bb13
   jump bb23
-bb14 [cold]:
+bb13 [cold]:
   push 4
   calldataload
   jump bb15

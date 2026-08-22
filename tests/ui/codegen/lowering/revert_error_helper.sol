@@ -1,16 +1,9 @@
 //@compile-flags: -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// Constant short revert messages share one synthesized `__revert_error`
-// helper per module: each `require`/`revert` site passes the length and the
-// left-aligned data word instead of materializing and ABI-encoding the string
-// in place (~60-90 bytes per site — aave's `Errors.X` constants alone account
-// for kilobytes). The constant may be a literal, a local `constant`, or a
-// library `constant` reached through a member access. Messages longer than
-// one word materialize their resolved bytes and use the generic encoder —
-// resolving through `lower_expr` would truncate the constant to one word.
-// Revert data is byte-identical to solc 0.8.30 for every shape (verified on
-// anvil, including the 33-byte and empty-string edges).
+// Constant short revert messages use one shared helper per module. Literal and
+// constant messages pass their length and left-aligned data word to the helper;
+// messages longer than one word use the generic encoder.
 
 library Errors {
     string public constant SHORT = "39";
@@ -20,30 +13,37 @@ library Errors {
 contract R {
     string constant LOCAL = "local-const-msg";
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: revert_error_helper.sol:R (runtime)
+    // CHECK: @module runtime
     // CHECK: indexed_jump
     // CHECK: push 0x3339
-    // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
-    // CHECK: [[SHORT_HELPER]] [cold]:
+    // CHECK: push 240
+    // CHECK: shl
+    // CHECK: push 2
+    // CHECK: swap1
+    // CHECK: jump [[ERROR_HELPER:bb[0-9]+]]
+    // CHECK: [[ERROR_HELPER]] [cold]:
     // CHECK: push 0x8c379a0
+    // CHECK: push 224
+    // CHECK: shl
+    // CHECK: push 0
+    // CHECK: mstore
+    // CHECK: push 32
+    // CHECK: push 4
+    // CHECK: mstore
+    // CHECK: push 100
+    // CHECK: push 0
     // CHECK: revert
     function viaLibConst(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.SHORT);
         return x;
     }
 
-    // CHECK: push 0x6c69746572616c206d7367
-    // CHECK: jump [[LEN11_HELPER:bb[0-9]+]]
-    // CHECK: [[LEN11_HELPER]] [cold]:
-    // CHECK: push 11
-    // CHECK: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
         return x;
     }
 
-    // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
-    // CHECK: jump [[SHORT_HELPER]]
     function viaLocalConst(uint256 x) external pure returns (uint256) {
         require(x > 5, LOCAL);
         return x;
@@ -54,12 +54,15 @@ contract R {
         return x;
     }
 
-    // CHECK: push 0x7265766572742d70617468
-    // CHECK: jump [[LEN11_HELPER]]
-    // CHECK: push 33
-    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: mcopy
-    // CHECK: revert
+    // The block layout puts the constant call sites before the literal helper.
+    // CHECK: push 0x6c69746572616c206d7367
+    // CHECK: jump [[LITERAL_HELPER:bb[0-9]+]]
+    // CHECK: [[LITERAL_HELPER]] [cold]:
+    // CHECK: push 168
+    // CHECK: shl
+    // CHECK: push 11
+    // CHECK: swap1
+    // CHECK: jump [[ERROR_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

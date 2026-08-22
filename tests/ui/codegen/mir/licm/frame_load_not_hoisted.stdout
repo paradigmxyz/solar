@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/mir/licm/frame_load_not_hoisted.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/frame_load_not_hoisted.mir (after licm) ===
+  @module FrameLoadNotHoisted
+  fn @frame_load_stays_in_body(arg0: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      jumpi 1, bb2, bb3
+    bb2:
+      frame_store internal_frame, word, 0, arg0
+      v0 = frame_load internal_frame, word, 0
+      v1 = mul v0, v0
+      jump bb1
+    bb3:
+      ret v1
+  }
+  

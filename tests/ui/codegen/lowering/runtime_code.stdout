@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCodeTarget ===
+@module RuntimeCodeTarget
+fn @value() -> u256 [selector=0x3fa4f245, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+
+// === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCode ===
+@module RuntimeCode
+fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 48
+    memory_object_store_word memorybytes, v0, 0, 0x34601a575f3560e01c80633fa4f24514601657601a565b601e565b5f80fd5b60
+    memory_object_store_word memorybytes, v0, 32, 0x76080526020608001608090036080f300000000000000000000000000000000
+    v1 = memory_object_len memorybytes, v0
+    ret v1
+}
+

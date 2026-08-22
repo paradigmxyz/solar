@@ -1,91 +1,86 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
-fn @_empty() -> memorybytes {
+fn @_empty() -> memorybytes [pure] {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_frame_addr 128
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v2 = internal_frame_addr 128
-    mstore v2, 0 !metadata(memory=internal_frame)
-    v3 = internal_frame_addr 96
-    v4 = mload v3 !metadata(memory=internal_frame)
-    v5 = internal_frame_addr 128
-    v6 = mload v5 !metadata(memory=internal_frame)
-    v7 = make_calldata_slice v4, v6
-    ret v7
-}
-
-fn @emptyLen() -> u256 [abi_returns=[word]] {
-  bb0:
-    mstore 128, 0
-    mstore 160, 0
-    mstore 160, 0
-    jump bb1
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = make_calldata_slice v1, 0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb1, bb2
   bb1:
-    v0 = mload 128
-    v1 = mload 160
-    v2 = make_calldata_slice v0, v1
-    v3 = internal_call @_sink, 1, v2
-    ret v3
+    revert 0, 0
+  bb2:
+    v7 = calldatasize
+    v8 = sub v7, v5
+    v9 = sgt v4, v8
+    jumpi v9, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v10 = slice_len v3
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    jumpi v12, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
+    set_memory_object_len memorybytes, v15, v10
+    memory_object_copy_from_slice memorybytes, v15, v3
+    ret v15
 }
 
-fn @_sink(arg0: calldataslice) -> u256 {
+fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @_empty, 1
+    v1 = internal_call @_sink, 1, v0
+    ret v1
+}
+
+fn @_sink(arg0: calldataslice) -> u256 [pure] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
-    v5 = slice_ptr arg0
-    v6 = add v5, 4
-    mstore 128, v6
-    v7 = slice_len arg0
-    v8 = sub v7, 4
-    mstore 160, v8
-    v9 = mload 128
-    v10 = mload 160
-    v11 = make_calldata_slice v9, v10
-    v12 = slice_len v11
-    ret v12
-}
-
-fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
+    v0 = slice_ptr arg0
+    v1 = add v0, 4
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
+    v4 = make_calldata_slice v1, v3
     v5 = slice_len arg0
-    v6 = gt v5, 32
-    jumpi v6, bb3, bb4
-  bb3:
-    mstore 160, 32
-    jump bb4
-  bb4:
-    v7 = mload 128
-    v8 = mload 160
-    v9 = make_calldata_slice v7, v8
+    v6 = sub v5, 4
+    v7 = slice_ptr v4
+    v8 = slice_len v4
+    v9 = make_calldata_slice v7, v6
     v10 = slice_len v9
     ret v10
+}
+
+fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = gt v0, 32
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
+    v4 = make_calldata_slice v2, 32
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: arg0]
+    v6 = slice_len v5
+    ret v6
 }
 

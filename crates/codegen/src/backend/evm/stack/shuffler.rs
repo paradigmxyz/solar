@@ -297,34 +297,26 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 3: Pop excess values from the stack.
     fn pop_excess(&mut self) {
-        // Count how many of each value we still need.
-        let mut still_needed: FxHashMap<ValueId, usize> = FxHashMap::default();
-        for slot in self.target.iter() {
-            let TargetSlot::Value(v) = slot;
-            *still_needed.entry(*v).or_default() += 1;
-        }
+        while self.source.len() > self.target.len() {
+            let target_len = self.target.len();
+            if target_len == 0 {
+                self.ops.push(StackOp::Pop);
+                self.source.remove(0);
+                continue;
+            }
 
-        // Pop values from the top that are no longer needed.
-        while !self.source.is_empty() {
-            if let Some(Some(top_val)) = self.source.first() {
-                let needed = still_needed.get(top_val).copied().unwrap_or(0);
-                let current = self.source.iter().filter(|&&v| v == Some(*top_val)).count();
-                if current > needed {
-                    self.ops.push(StackOp::Pop);
-                    self.source.remove(0);
-                } else {
-                    break;
-                }
-            } else if self.source.first() == Some(&None) {
-                // Pop an anonymous top value if the target is shorter.
-                if self.source.len() > self.target.len() {
-                    self.ops.push(StackOp::Pop);
-                    self.source.remove(0);
-                } else {
-                    break;
-                }
-            } else {
+            // The arrangement phase fixes the target prefix, so the first word after it is
+            // surplus. Rotate that word to the top, pop it, then restore the target prefix.
+            // Popping the top directly would discard the first returned value instead.
+            let depth = target_len;
+            if depth > MAX_STACK_ACCESS {
                 break;
+            }
+            self.swap(depth);
+            self.ops.push(StackOp::Pop);
+            self.source.remove(0);
+            for restore_depth in 1..depth {
+                self.swap(restore_depth);
             }
         }
     }
@@ -447,6 +439,36 @@ mod tests {
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
         // Should swap v1 to the top, then pop v0.
         assert!(result.ops.iter().any(|op| matches!(op, StackOp::Pop | StackOp::Swap(_))));
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_pops_duplicate_suffix() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+        let source = make_model(&[Some(v0), Some(v1), Some(v2), Some(v0), Some(v1), Some(v2)]);
+        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1), TargetSlot::Value(v2)];
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_pops_large_duplicate_suffix() {
+        let values = [23usize, 53, 17, 47, 11, 41, 5, 35, 53, 17, 41, 11, 35, 5, 47, 23];
+        let source = make_model(
+            &values.iter().copied().map(ValueId::from_usize).map(Some).collect::<Vec<_>>(),
+        );
+        let target = [23usize, 53, 17, 47, 11, 41, 5, 35]
+            .into_iter()
+            .map(ValueId::from_usize)
+            .map(TargetSlot::Value)
+            .collect::<Vec<_>>();
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
         assert_reaches(&source, &target, &result);
     }
 

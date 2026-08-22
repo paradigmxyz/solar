@@ -2,14 +2,11 @@
 //@filecheck: --check-prefix=CDSFS
 
 // Slicing a dynamic field of a calldata struct, the ERC-4337
-// `PackedUserOperation` accessor shape. The prologue rebuilds a calldata struct
-// in memory, including independent memory objects for its dynamic members, and
-// ordinary reads of a member go through that copy.
+// `PackedUserOperation` accessor shape. The struct stays in calldata and field
+// reads decode only the selected head.
 //
-// Slicing is the exception: the result keeps a calldata-located type, so it may
-// be sliced again or have its `.offset` read in assembly, neither of which the
-// copy can answer. The copy carries the struct's calldata position in a
-// trailing word, so the slice is taken there instead.
+// A dynamic field remains a calldata slice, so it may be sliced again or have
+// its `.offset` read in assembly.
 // Verified against solc on anvil.
 
 struct PackedUserOperation {
@@ -41,20 +38,22 @@ library ERC4337Utils {
 }
 
 contract CalldataStructFieldSlice {
-    // CDSFS-LABEL: fn @factory
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
+    // CDSFS: internal_call @factory
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS: calldataload
-    // CDSFS-NOT: make_calldata_slice
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
 
-    // CDSFS-LABEL: fn @tailHash
+    // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
     // CDSFS: keccak256
     function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.tailHash(op);
     }
 
-    // CDSFS-LABEL: fn @midWord
+    // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
+    // CDSFS: calldataload
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);
     }

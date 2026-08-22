@@ -1,6 +1,9 @@
 //! Block-local common-subexpression regeneration over scheduled EVM IR.
 
-use super::{EvmPass, peephole::Peephole};
+use super::{
+    EvmPass,
+    peephole::{Peephole, is_removable_copy},
+};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
     op,
@@ -498,12 +501,6 @@ fn append_unknown(
     let origin = instructions.len();
     instructions.push(inst);
     stack.push(StackValue { expr: fresh(next_expr), span: None, origin: Some(origin) });
-}
-
-/// Returns whether an instruction is a pure single-word push or copy whose
-/// removal cannot change anything except the word it pushed.
-fn is_removable_copy(inst: &Instruction) -> bool {
-    inst.is_encoded_push() || (op::DUP1..=op::DUP16).contains(&inst.opcode)
 }
 
 /// Returns whether a block addresses the same constant memory word from more

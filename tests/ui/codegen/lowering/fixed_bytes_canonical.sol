@@ -4,7 +4,6 @@
 contract FixedBytesCanonical {
     // CHECK-LABEL: fn @fromUint{{[( ]}}
     // CHECK: [[SHIFTED:v[0-9]+]] = shl 248, arg0
-    // CHECK: and [[SHIFTED]], 0xff00000000000000000000000000000000000000000000000000000000000000
     function fromUint(uint8 value) external pure returns (bytes1) {
         return bytes1(value);
     }
@@ -16,15 +15,16 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @compareElement{{[( ]}}
-    // CHECK: [[ELEMENT:v[0-9]+]] = and {{v[0-9]+}}, 0xff00000000000000000000000000000000000000000000000000000000000000
-    // CHECK: {{v[0-9]+}} = shl 248, {{v[0-9]+}}
-    // CHECK: eq [[ELEMENT]], {{v[0-9]+}}
+    // CHECK: memory_object_load_byte memorybytes, arg0, 0
+    // CHECK: shl 248,
+    // CHECK: eq
     function compareElement(bytes memory data) external pure returns (bool) {
         return data[0] == bytes1(uint8(1));
     }
 
     // CHECK-LABEL: fn @narrow{{[( ]}}
-    // CHECK: and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[MASKED:v[0-9]+]] = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    // CHECK: ret [[MASKED]]
     function narrow(bytes4 value) external pure returns (bytes2) {
         return bytes2(value);
     }

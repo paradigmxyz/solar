@@ -192,6 +192,7 @@ impl AggressiveDeadCodeEliminator {
             }
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::RevertReturndata
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
@@ -201,10 +202,10 @@ impl AggressiveDeadCodeEliminator {
     }
 
     fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {
-        func.blocks[block_id]
-            .instructions
-            .iter()
-            .any(|&inst_id| func.inst(inst_id).kind.has_side_effects())
+        func.blocks[block_id].instructions.iter().any(|&inst_id| {
+            let inst = func.inst(inst_id);
+            inst.kind.has_side_effects() || inst.metadata.abi_validation()
+        })
     }
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {

@@ -3,10 +3,9 @@
 
 contract YulLocalPhi {
     // CHECK-LABEL: fn @branchLocal{{[( ]}}
-    // CHECK: mstore 160, 1
     // CHECK: jumpi {{v[0-9]+}},
-    // CHECK: mstore 160, 2
-    // CHECK: {{v[0-9]+}} = mload 160
+    // CHECK: {{v[0-9]+}} = phi [bb1: 2], [bb2: 1]
+    // CHECK: ret {{v[0-9]+}}
     function branchLocal(uint256 flag) public pure returns (uint256 result) {
         assembly {
             let x := 1

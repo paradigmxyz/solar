@@ -1,0 +1,36 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/run-call/external_function_pointer_nested_array.sol:LL:CC
+   │
+LL │ ┏     function e() public returns (uint256) {
+LL │ ┃
+LL │ ┃         return 5;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/run-call/external_function_pointer_nested_array.sol:LL:CC
+   │
+LL │ ┏     function f() public returns (uint256) {
+LL │ ┃
+LL │ ┃         return 6;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/run-call/external_function_pointer_nested_array.sol:LL:CC
+   │
+LL │ ┏     function g() public returns (uint256) {
+LL │ ┃
+LL │ ┃         return 7;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/codegen/run-call/external_function_pointer_nested_array.sol:LL:CC
+   │
+LL │ ┏     function htwo() public returns (function() external returns (uint256)) {
+LL │ ┃
+LL │ ┃         return this.e;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

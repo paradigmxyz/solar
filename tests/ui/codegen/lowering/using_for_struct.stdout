@@ -3,50 +3,37 @@
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
-fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
+fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [selector=0x36245213, pure, abi_args=lazy, abi_params=[bytes32, bytes32], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v4 = memory_object_field_addr memorystruct<4>, v3, 0
-    mstore v4, arg0
-    v5 = memory_object_field_addr memorystruct<4>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_field_addr memorystruct<4>, v3, 2
-    mstore v6, 0
-    v7 = memory_object_field_addr memorystruct<4>, v3, 3
-    mstore v7, arg1
-    v8 = internal_call @hashLib, 1, v3
-    ret v8
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    memory_object_store_field memorystruct<4>, v0, 0, arg0
+    memory_object_store_field memorystruct<4>, v0, 1, 0
+    memory_object_store_field memorystruct<4>, v0, 2, 0
+    memory_object_store_field memorystruct<4>, v0, 3, arg1
+    v1 = internal_call @hashLib, 1, v0
+    ret v1
 }
 
-fn @hashLib(arg0: memorystruct) -> bytes32 {
+fn @hashLib(arg0: memorystruct) -> bytes32 [pure] {
   bb0:
-    v0 = memory_object_field_addr memorystruct<4>, arg0, 0
-    v1 = mload v0
-    v2 = memory_object_field_addr memorystruct<4>, arg0, 1
-    v3 = mload v2
-    v4 = memory_object_field_addr memorystruct<4>, arg0, 2
-    v5 = mload v4
-    v6 = memory_object_field_addr memorystruct<4>, arg0, 3
-    v7 = mload v6
-    v8 = fmp
-    mstore v8, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v9 = add v8, 1
-    mstore v9, v1
-    v10 = shl 224, v3
-    v11 = add v8, 33
-    mstore v11, v10
-    v12 = add v8, 37
-    mstore v12, v5
-    v13 = add v8, 69
-    mstore v13, v7
-    v14 = keccak256 v8, 101
-    ret v14
+    v0 = memory_object_load_field memorystruct<4>, arg0, 0
+    v1 = memory_object_load_field memorystruct<4>, arg0, 1
+    v2 = and v1, 0xffffffff
+    v3 = and v2, 0xffffffff
+    v4 = memory_object_load_field memorystruct<4>, arg0, 2
+    v5 = memory_object_load_field memorystruct<4>, arg0, 3
+    v6 = fmp
+    mstore v6, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v7 = add v6, 1
+    mstore v7, v0
+    v8 = shl 224, v3
+    v9 = add v6, 33
+    mstore v9, v8
+    v10 = add v6, 37
+    mstore v10, v4
+    v11 = add v6, 69
+    mstore v11, v5
+    v12 = keccak256 v6, 101
+    ret v12
 }
 

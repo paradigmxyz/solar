@@ -23,11 +23,21 @@ contract Structs {
         uint256 value;
     }
 
+    struct Complex {
+        bytes blob;
+        uint256[] values;
+    }
+
     // ========= Storage Variables =========
 
     Point public storedPoint;
+    Point[2] private storedPoints;
+    Point[] private storedPointList;
+    uint256[] private storedValues;
+    bytes[] private storedBlobs;
     Person public storedPerson;
     Nested public storedNested;
+    Complex[] private storedComplexList;
 
     // ========= Basic Storage Tests =========
 
@@ -120,8 +130,112 @@ contract Structs {
         return storedNested.value;
     }
 
-    // ========= Struct Arrays (Future) =========
-    // TODO: Add array of structs tests when arrays are supported
+    // ========= Struct Arrays =========
+
+    function setPointArray(uint256 index, uint256 x, uint256 y) external {
+        storedPoints[index] = Point(x, y);
+    }
+
+    function getPointArray(uint256 index) external view returns (Point memory) {
+        return storedPoints[index];
+    }
+
+    function sumStoredPoint(uint256 index) external view returns (uint256) {
+        return sumPointInternal(storedPoints[index]);
+    }
+
+    function sumStoredPointExternal(uint256 index) external view returns (uint256) {
+        return this.sumPoint(storedPoints[index]);
+    }
+
+    function sumPointInternal(Point memory point) internal pure returns (uint256) {
+        return point.x + point.y;
+    }
+
+    function encodeStoredPoint(uint256 index) external view returns (bytes memory) {
+        return abi.encode(storedPoints[index]);
+    }
+
+    function encodeCallStoredPoint(uint256 index) external view returns (bytes memory) {
+        return abi.encodeCall(this.sumPoint, (storedPoints[index]));
+    }
+
+    function setValues(uint256[] calldata values) external {
+        storedValues = values;
+    }
+
+    function sumValues(uint256[] memory values) external pure returns (uint256 total) {
+        for (uint256 i; i < values.length; i++) {
+            total += values[i];
+        }
+    }
+
+    function sumStoredValuesExternal() external view returns (uint256) {
+        return this.sumValues(storedValues);
+    }
+
+    function setBlobs(bytes calldata first, bytes calldata second) external {
+        delete storedBlobs;
+        storedBlobs.push(first);
+        storedBlobs.push(second);
+    }
+
+    function sumBlobLengths(bytes[] memory blobs) external pure returns (uint256 total) {
+        for (uint256 i; i < blobs.length; i++) {
+            total += blobs[i].length;
+        }
+    }
+
+    function sumStoredBlobLengthsExternal() external view returns (uint256) {
+        return this.sumBlobLengths(storedBlobs);
+    }
+
+    function setPointList(uint256 x0, uint256 y0, uint256 x1, uint256 y1) external {
+        delete storedPointList;
+        storedPointList.push();
+        storedPointList[0].x = x0;
+        storedPointList[0].y = y0;
+        storedPointList.push();
+        storedPointList[1].x = x1;
+        storedPointList[1].y = y1;
+    }
+
+    function sumPointList(Point[] memory points) external pure returns (uint256 total) {
+        for (uint256 i; i < points.length; i++) {
+            total += points[i].x + points[i].y;
+        }
+    }
+
+    function sumStoredPointListExternal() external view returns (uint256) {
+        return this.sumPointList(storedPointList);
+    }
+
+    function setComplexList(bytes calldata first, bytes calldata second) external {
+        delete storedComplexList;
+        storedComplexList.push();
+        storedComplexList[0].blob = first;
+        storedComplexList[0].values.push(5);
+        storedComplexList.push();
+        storedComplexList[1].blob = second;
+        storedComplexList[1].values.push(7);
+    }
+
+    function sumComplexList(Complex[] memory values)
+        external
+        pure
+        returns (uint256 total)
+    {
+        for (uint256 i; i < values.length; i++) {
+            total += values[i].blob.length;
+            for (uint256 j; j < values[i].values.length; j++) {
+                total += values[i].values[j];
+            }
+        }
+    }
+
+    function sumStoredComplexListExternal() external view returns (uint256) {
+        return this.sumComplexList(storedComplexList);
+    }
 
     // ========= Helper for Complex Operations =========
 

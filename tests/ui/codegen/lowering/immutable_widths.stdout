@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 441
+  push 493
   codesize
   sub
   dup1
-  push 441
+  push 493
   push 416
   codecopy
   push 416
@@ -22,13 +22,30 @@ bb0:
   dup1
   push 384
   mstore
-  mload
-  push 255
+  dup1
+  push 493
+  codesize
+  sub
+  add
+  push 192
+  dup3
+  add
+  dup3
   dup2
-  and
-  eq
-  iszero
-  push bb6
+  lt
+  swap2
+  lt
+  or
+  swap1
+  pop
+  push bb7
+  jumpi
+  push 384
+  mload
+  mload
+  push 8
+  shr
+  push bb7
   jumpi
   push 32
   push 384
@@ -39,45 +56,34 @@ bb0:
   push 1
   signextend
   sub
-  push bb6
+  push bb7
   jumpi
   push 64
   push 384
   mload
   add
   mload
-  push 0xffffff
-  push 232
+  push 24
   shl
-  dup2
-  and
-  sub
-  push bb6
+  push bb7
   jumpi
   push 96
   push 384
   mload
   add
   mload
-  push 0
-  not
-  push 96
+  push 160
   shr
-  dup2
-  and
-  sub
-  push bb6
+  push bb7
   jumpi
   push 160
   push 384
   mload
   add
   mload
-  push 0xffff
-  dup2
-  and
-  sub
-  push bb6
+  push 16
+  shr
+  push bb7
   jumpi
   push 416
   mload
@@ -113,28 +119,28 @@ bb0:
   mload
   push 352
   mstore
-  push 182
+  push 208
   dup1
-  push 259
-  push 0
+  push 285
+  push 384
   codecopy
   push 192
   mload
-  push 20
+  push 404
   mstore8
   push 224
   mload
-  push 22
+  push 406
   mstore
   push 256
   mload
-  push 55
+  push 439
   mstore
   push 288
   mload
   push 96
   shl
-  push 88
+  push 472
   mload
   push 0
   not
@@ -142,17 +148,17 @@ bb0:
   shr
   and
   or
-  push 88
+  push 472
   mstore
   push 320
   mload
-  push 109
+  push 493
   mstore
   push 352
   mload
   push 240
   shl
-  push 142
+  push 526
   mload
   push 0
   not
@@ -160,11 +166,11 @@ bb0:
   shr
   and
   or
-  push 142
+  push 526
   mstore
-  push 0
+  push 384
   return
-bb6 [cold]:
+bb7 [cold]:
   push 0
   dup1
   revert
@@ -190,23 +196,40 @@ bb0:
   push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2
-  dup6
+  swap4
+  push 1
+  signextend
+  swap3
+  push 0xffffff
+  push 232
+  shl
+  and
+  swap2
+  push 0
+  not
+  push 96
+  shr
+  and
+  swap4
+  push 0xffff
+  and
+  swap5
+  push 255
+  and
   push 128
   mstore
-  swap5
-  pop
-  dup4
+  dup3
   push 160
   mstore
-  swap3
+  swap2
   pop
-  dup2
   push 192
+  mstore
+  dup2
+  push 224
   mstore
   swap1
   pop
-  push 224
-  mstore
   push 256
   mstore
   push 288

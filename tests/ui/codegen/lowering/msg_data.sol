@@ -13,7 +13,7 @@ contract MsgData {
 
     // CHECK-LABEL: fn @copy{{[( ]}}
     // CHECK: calldatasize
-    // CHECK: calldatacopy
+    // CHECK: memory_object_copy_from_slice memorybytes
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
@@ -28,7 +28,7 @@ contract MsgData {
     // CHECK: chainid
     // CHECK: basefee
     // CHECK: blobbasefee
-    // CHECK: calldataload 0
+    // CHECK: calldataload
     // CHECK: origin
     // CHECK: gasprice
     // CHECK: gas
@@ -50,7 +50,7 @@ contract MsgData {
     // CHECK-LABEL: fn @tail{{[( ]}}
     // CHECK: calldatasize
     // CHECK: make_calldata_slice
-    // CHECK: calldatacopy
+    // CHECK: memory_object_copy_from_slice memorybytes
     function tail(uint256 a, uint256 b) external pure returns (bytes memory) {
         return msg.data[a:b];
     }

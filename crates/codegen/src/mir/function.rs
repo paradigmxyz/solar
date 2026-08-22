@@ -1,8 +1,8 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction,
-    MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
+    AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
+    InstKind, Instruction, MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -32,6 +32,18 @@ pub(crate) struct Function {
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
+    /// ABI return shape with scalar type information retained until `lower-abi`.
+    pub(crate) abi_return_params: Option<AbiParamLayout>,
+    /// ABI input layout retained until `lower-abi` materializes aggregate parameters.
+    pub(crate) abi_params: Option<AbiParamLayout>,
+    /// Source locations for the ABI parameters retained until `lower-abi`.
+    pub(crate) abi_param_locations: Option<Box<[AbiParamLocation]>>,
+    /// Whether external arguments remain typed MIR arguments until `lower-abi`.
+    ///
+    /// This is an internal lowering marker. It lets the ABI pass add calldata
+    /// guards and canonical-word checks without putting physical calldata
+    /// operations in built MIR.
+    pub(crate) abi_args_lazy: bool,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -75,6 +87,10 @@ impl Function {
             params: IndexVec::new(),
             returns: Vec::new(),
             abi_returns: None,
+            abi_return_params: None,
+            abi_params: None,
+            abi_param_locations: None,
+            abi_args_lazy: false,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),
@@ -586,9 +602,9 @@ pub(crate) struct FunctionAttributes {
     /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
     /// reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
-    /// Never clone this function into multiple callers (synthesized shared
-    /// helpers whose whole point is existing once per module). A sole call
-    /// site may still absorb it: with one caller there is nothing to share.
+    /// Whether this function dispatches an internal function-pointer shape.
+    pub(crate) is_function_pointer_dispatcher: bool,
+    /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
 }
 
@@ -602,6 +618,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             is_dispatch_entry: false,
             may_return_memory: false,
+            is_function_pointer_dispatcher: false,
             no_inline: false,
         }
     }

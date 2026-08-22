@@ -71,12 +71,13 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
-    &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
+    &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
@@ -151,10 +152,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
-    // Reuse mapping slots before their scratch-memory expansion can obscure
-    // the semantic expression from the remaining optimization passes.
-    &lower_mapping_slots::LowerMappingSlots,
     &gvn::Gvn,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
@@ -190,7 +187,6 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
     &gvn::Gvn,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
@@ -204,6 +200,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
+    // ABI lowering leaves tiny canonical-word helpers after the earlier
+    // inlining pass; expand those leaves before encoding wrappers.
+    &GasOnly(inline::InlineTinyLeaves),
+    &SizeOnly(inline::InlineTinyLeaves),
+    &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
@@ -218,9 +219,20 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly(cse::Cse),
     &dce::Dce,
-    &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
+    // Expand semantic mapping locations after ABI, dispatch, and frame
+    // lowering, while keeping variable-size hash objects ahead of the memory
+    // boundary.
+    &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
+    &GasOnly(cse::Cse),
+    &SizeOnly(cse::Cse),
+    // Revisit allocations after semantic memory accesses become bounded raw
+    // operations, so fixed-size hash buffers can use backend-known static
+    // regions.
+    &static_alloc::DeferAlloc,
+    &lower_slices::LowerSlices,
     &lower_immutables::LowerImmutables,
     // Fuse straight-line constant-size allocations before their free-memory
     // pointer traffic is materialized; pointer values are preserved exactly.
@@ -377,11 +389,6 @@ impl ModuleAnalyses {
     /// Provides module call summaries to subsequent pass runs.
     pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
         self.call_summaries = Some(summaries);
-    }
-
-    /// Withdraws module call summaries after the consuming pass completes.
-    pub(crate) fn clear_call_summaries(&mut self) {
-        self.call_summaries = None;
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {

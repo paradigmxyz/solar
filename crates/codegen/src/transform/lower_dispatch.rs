@@ -4,8 +4,8 @@
 //! makes it an ordinary MIR function named `entry` (the dispatch phase of the
 //! sketch in [`MirPhase`]).
 //!
-//! The synthesized `entry` function loads the 4-byte selector from
-//! `calldataload(0)` and switches on it to one argument-free `internal_call`
+//! The synthesized `entry` function loads the 4-byte selector through a
+//! semantic calldata slice and switches on it to one argument-free `internal_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
@@ -110,8 +110,8 @@ impl LowerDispatchCx {
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
-        // A fallback with the `fallback(bytes) returns (bytes)` shape takes an
-        // argument this switch cannot supply; bail all-or-nothing rather than half-routing.
+        // Any fallback that still takes parameters was outside the ABI pass's
+        // supported wrapper shapes; bail rather than routing it incorrectly.
         for id in [receive, fallback].into_iter().flatten() {
             if !module.function(id).params.is_empty() {
                 return false;

@@ -24,11 +24,8 @@ bb3 [cold]:
   revert
 bb4:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb6
   jumpi
   jump bb5

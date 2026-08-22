@@ -5,7 +5,7 @@
     first: u8
     second: bytes20
   
-  fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
+  fn @constructor(arg0: u8, arg1: bytes20) -> u8 [constructor] {
     bb0:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1
@@ -15,7 +15,7 @@
       ret v0
   }
   
-  fn @runtime() {
+  fn @runtime() [selector=0x00000001] {
     bb0:
       storeimmutable first, 1
       stop

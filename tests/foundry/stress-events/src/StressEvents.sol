@@ -16,6 +16,18 @@ contract StressEvents {
     event IndexedUint(uint256 indexed value);
     event IndexedAddress(address indexed addr);
     event IndexedBytes32(bytes32 indexed data);
+    event IndexedStaticArray(uint256[2] indexed values);
+    event IndexedDynamicArray(uint256[] indexed values);
+    event IndexedNestedDynamicArray(uint256[][] indexed values);
+    event IndexedStringArray(string[] indexed values);
+    event IndexedExternalFunction(function() external indexed target);
+
+    struct IndexedStruct {
+        uint256 value;
+        bytes data;
+    }
+
+    event IndexedStructArray(IndexedStruct[] indexed values);
     
     // ========== Mixed indexed and non-indexed ==========
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -92,6 +104,44 @@ contract StressEvents {
     
     function emitIndexedBytes32(bytes32 data) public {
         emit IndexedBytes32(data);
+    }
+
+    function emitIndexedStaticArray(uint256[2] memory values) public {
+        emit IndexedStaticArray(values);
+    }
+
+    function emitIndexedDynamicArray(uint256[] memory values) public {
+        emit IndexedDynamicArray(values);
+    }
+
+    function emitIndexedNestedDynamicArray(uint256[][] memory values) public {
+        emit IndexedNestedDynamicArray(values);
+    }
+
+    function emitIndexedNestedDynamicArrayCalldata(uint256[][] calldata values) external {
+        emit IndexedNestedDynamicArray(values);
+    }
+
+    function emitIndexedStringArray(string[] memory values) public {
+        emit IndexedStringArray(values);
+    }
+
+    function emitIndexedStringArrayCalldata(string[] calldata values) external {
+        emit IndexedStringArray(values);
+    }
+
+    function emitIndexedExternalFunction() public {
+        emit IndexedExternalFunction(this.functionPointerTarget);
+    }
+
+    function functionPointerTarget() external {}
+
+    function emitIndexedStructArray(IndexedStruct[] memory values) public {
+        emit IndexedStructArray(values);
+    }
+
+    function emitIndexedStructArrayCalldata(IndexedStruct[] calldata values) external {
+        emit IndexedStructArray(values);
     }
     
     // ========== Emit mixed events ==========

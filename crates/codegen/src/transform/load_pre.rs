@@ -1285,6 +1285,7 @@ impl LoadRedundancyEliminator {
                 replace(offset);
                 replace(size);
             }
+            Terminator::RevertReturndata => {}
             Terminator::SelfDestruct { recipient } => replace(recipient),
             Terminator::TailCall { args, .. } => {
                 for arg in args {

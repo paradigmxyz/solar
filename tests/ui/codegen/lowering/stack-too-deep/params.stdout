@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 421
+  push 417
   dup1
   push 10
   push 0
@@ -30,7 +30,7 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb26 [cold]:
+bb25 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -44,11 +44,8 @@ bb26 [cold]:
   revert
 bb4:
   calldatasize
-  push 4
-  swap1
-  sub
-  push 640
-  sgt
+  push 644
+  gt
   push bb3
   jumpi
   push 36
@@ -62,7 +59,7 @@ bb4:
   push 4
   calldataload
   gt
-  push bb26
+  push bb25
   jumpi
   push 68
   calldataload
@@ -75,7 +72,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 100
   calldataload
@@ -88,7 +85,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 132
   calldataload
@@ -101,7 +98,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 164
   calldataload
@@ -114,7 +111,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 196
   calldataload
@@ -127,7 +124,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 228
   calldataload
@@ -140,7 +137,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 260
   calldataload
@@ -153,7 +150,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 292
   calldataload
@@ -166,7 +163,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 324
   calldataload
@@ -179,7 +176,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 356
   calldataload
@@ -192,7 +189,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 388
   calldataload
@@ -205,7 +202,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 420
   calldataload
@@ -218,7 +215,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 452
   calldataload
@@ -231,7 +228,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 484
   calldataload
@@ -244,7 +241,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 516
   calldataload
@@ -257,7 +254,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 548
   calldataload
@@ -270,7 +267,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 580
   calldataload
@@ -283,7 +280,7 @@ bb4:
   push 160
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 612
   calldataload
@@ -296,7 +293,7 @@ bb4:
   push 192
   mload
   gt
-  push bb26
+  push bb25
   jumpi
   push 160
   mload

@@ -1,125 +1,100 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt v1, v1
+    v3 = lt v1, 1
+    v4 = or v2, v3
+    jumpi v4, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = lt v4, 1
-    jumpi v5, bb3, bb4
+    v5 = sub v1, 1
+    v6 = add v0, 1
+    v7 = make_calldata_slice v6, v5
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = gt v9, v9
+    v11 = lt v9, 1
+    v12 = or v10, v11
+    jumpi v12, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = sub v4, 1
-    v7 = add v3, 1
-    v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = lt v10, 1
-    jumpi v11, bb5, bb6
+    v13 = sub v9, 1
+    v14 = add v8, 1
+    v15 = make_calldata_slice v14, v13
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = gt v17, 0xffffffffffffffff
+    jumpi v18, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v12 = sub v10, 1
-    v13 = add v9, 1
-    v14 = make_calldata_slice v13, v12
-    v15 = slice_len v14
-    v16 = add v15, 31
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
+    v19 = calldatasize
+    v20 = sub v19, v17
+    v21 = sgt v16, v20
+    jumpi v21, bb7, bb8
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = iszero v19
-    v21 = select v20, 32, v19
-    v22 = add 32, v21
-    v23 = lt v22, v21
-    jumpi v23, bb9, bb10
+    v22 = slice_len v15
+    v23 = add v22, 63
+    v24 = lt v23, v22
+    jumpi v24, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v24, v15
-    v25 = memory_object_data memorybytes, v24
-    v26 = sub v21, 32
-    v27 = add v25, v26
-    mstore v27, 0
-    v28 = slice_ptr v14
-    calldatacopy v25, v28, v15
-    ret v24
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v27, v22
+    memory_object_copy_from_slice memorybytes, v27, v15
+    ret v27
 }
 
-fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt v1, v1
+    v3 = lt v1, 1
+    v4 = or v2, v3
+    jumpi v4, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = lt v4, 1
-    jumpi v5, bb3, bb4
+    v5 = sub v1, 1
+    v6 = add v0, 32
+    v7 = make_calldata_slice v6, v5
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = gt v9, v9
+    v11 = lt v9, 1
+    v12 = or v10, v11
+    jumpi v12, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v6 = sub v4, 1
-    v7 = mul 1, 32
-    v8 = add v3, v7
-    v9 = make_calldata_slice v8, v6
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = lt v11, 1
-    jumpi v12, bb5, bb6
+    v13 = sub v9, 1
+    v14 = add v8, 32
+    v15 = make_calldata_slice v14, v13
+    v16 = slice_len v15
+    v17 = lt 0, v16
+    v18 = iszero v17
+    jumpi v18, bb5, bb6
   bb5:
-    revert 0, 0
-  bb6:
-    v13 = sub v11, 1
-    v14 = mul 1, 32
-    v15 = add v10, v14
-    v16 = make_calldata_slice v15, v13
-    v17 = slice_len v16
-    v18 = lt 0, v17
-    jumpi v18, bb8, bb7
-  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    v19 = slice_ptr v16
-    v20 = mul 0, 32
-    v21 = add v19, v20
-    v22 = calldataload v21
-    v23 = add v19, v22
-    v24 = calldataload v23
-    v25 = add v23, 32
-    v26 = shr 251, v24
-    jumpi v26, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v27 = mul v24, 32
-    v28 = add 32, v27
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v29, v24
-    v30 = memory_object_data memoryarray, v29
-    calldatacopy v30, v25, v27
-    ret v29
+  bb6:
+    v19 = slice_ptr v15
+    v20 = add v19, 0
+    v21 = calldataload v20
+    ret v21
 }
 

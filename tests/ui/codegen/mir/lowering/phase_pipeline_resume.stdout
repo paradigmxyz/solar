@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after pipeline-default) ===
 @module PhasePipelineResume
 @phase evm-shaped
-fn @ping() {
+fn @ping() [selector=0x5c36b186] {
   bb0:
     stop
 }

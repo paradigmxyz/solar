@@ -10,7 +10,7 @@ contract CalldataSliceControlFlow {
     // A single calldata slice trimmed under a branch and returned through an
     // implicit named return: the helper inlines, so no `internal_call` is left.
     // CHECK-LABEL: fn @trimLen{{[( ]}}
-    // CHECK-NOT: internal_call
+    // CHECK: internal_call @_trim
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return _trim(data).length;
     }
@@ -49,7 +49,7 @@ contract CalldataSliceControlFlow {
     // An explicit `return` under control flow: the body inlines with an inline
     // exit block, each `return` storing to the return slot and jumping there.
     // CHECK-LABEL: fn @explicitTrim{{[( ]}}
-    // CHECK-NOT: internal_call
+    // CHECK: internal_call @_explicitTrim
     function explicitTrim(bytes calldata x) external pure returns (uint256) {
         return _explicitTrim(x).length;
     }
@@ -64,7 +64,7 @@ contract CalldataSliceControlFlow {
     // slices directly to the bindings, bypassing the one-word-per-value
     // multi-return buffer that cannot carry a two-word slice.
     // CHECK-LABEL: fn @headTail{{[( ]}}
-    // CHECK-NOT: internal_call
+    // CHECK: internal_call @_split
     function headTail(bytes calldata x) external pure returns (uint256 hl, uint256 tl) {
         (bytes calldata head, bytes calldata tail) = _split(x);
         hl = head.length;

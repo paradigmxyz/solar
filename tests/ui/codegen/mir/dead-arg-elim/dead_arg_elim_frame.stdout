@@ -13,7 +13,7 @@
       ret v2
   }
   
-  fn @entry() -> u256 {
+  fn @entry() -> u256 [selector=0x01020304] {
     bb0:
 -     v0 = internal_call @framed, 1, 5, 6, 7
 +     v0 = internal_call @framed, 1, 5, 7
@@ -28,7 +28,7 @@
       ret v1
   }
   
-  fn @explicit_slot_caller() -> u256 {
+  fn @explicit_slot_caller() -> u256 [selector=0x05060708] {
     bb0:
       v0 = internal_call @explicit_slot, 1, 1, 2
       ret v0

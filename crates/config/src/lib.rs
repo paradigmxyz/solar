@@ -159,6 +159,9 @@ impl EvmVersion {
     pub fn has_clz(self) -> bool {
         self >= Self::Osaka
     }
+    pub fn has_ext_call(self) -> bool {
+        self >= Self::Prague
+    }
 }
 
 str_enum! {

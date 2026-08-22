@@ -70,6 +70,14 @@ impl MirPass for Cse {
     ) -> bool {
         analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
         let changed = run_function_pass(module, analyses, |func, analyses| {
+            if func
+                .instructions()
+                .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
+                .nth(1)
+                .is_none()
+            {
+                return false;
+            }
             let mut eliminator = match &analyses.call_summaries {
                 Some(summaries) => {
                     CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
@@ -79,7 +87,8 @@ impl MirPass for Cse {
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run_to_fixpoint(func) != 0
         });
-        analyses.clear_call_summaries();
+        // CSE removes only side-effect-free instructions, so these summaries remain valid for
+        // the following allocation pass and avoid recomputing the module call graph.
         changed
     }
 }
@@ -133,6 +142,8 @@ enum ExprKey {
     MappingSlot(OperandKey, OperandKey),
     MappingSlotMemory(OperandKey, OperandKey),
     MappingSlotCalldata(OperandKey, OperandKey),
+    StorageArrayDataSlot(OperandKey),
+    StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, SliceLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
@@ -161,7 +172,7 @@ type MemRangeKey = MemoryLocation;
 
 struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
-    block_clobbers: &'a FxHashMap<BlockId, Vec<Clobber>>,
+    block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
@@ -178,12 +189,13 @@ struct GlobalCseContext<'a> {
 /// entries alone, which are themselves the ones clobbers keep removing.
 #[derive(Clone, Debug, Default)]
 struct ExprCache {
-    /// Entries no side effect can invalidate: pure arithmetic and constants.
-    pure: FxHashMap<ExprKey, ValueId>,
+    /// Entries no side effect can invalidate: pure arithmetic and constants. Branch caches share
+    /// this map until one of them inserts an entry.
+    pure: Rc<FxHashMap<ExprKey, ValueId>>,
     /// Entries a memory, storage, transient-storage, or account-environment
     /// write may invalidate, per
     /// [`CommonSubexprEliminator::is_path_sensitive_expr`].
-    stateful: FxHashMap<ExprKey, ValueId>,
+    stateful: Rc<FxHashMap<ExprKey, ValueId>>,
 }
 
 impl ExprCache {
@@ -197,9 +209,9 @@ impl ExprCache {
 
     fn insert(&mut self, key: ExprKey, value: ValueId) {
         if CommonSubexprEliminator::is_path_sensitive_expr(&key) {
-            self.stateful.insert(key, value);
+            Rc::make_mut(&mut self.stateful).insert(key, value);
         } else {
-            self.pure.insert(key, value);
+            Rc::make_mut(&mut self.pure).insert(key, value);
         }
     }
 
@@ -211,7 +223,7 @@ impl ExprCache {
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
     fn retain_stateful(&mut self, keep: impl FnMut(&ExprKey, &mut ValueId) -> bool) {
-        self.stateful.retain(keep);
+        Rc::make_mut(&mut self.stateful).retain(keep);
     }
 }
 
@@ -320,11 +332,8 @@ impl CommonSubexprEliminator {
         let has_path_sensitive_expr = func
             .instructions()
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
-        let block_clobbers = if has_path_sensitive_expr {
-            self.block_clobber_summaries(func)
-        } else {
-            FxHashMap::default()
-        };
+        let block_clobbers =
+            if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
         let empty_reachability = FxHashMap::default();
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
             (cfg.dominators(), &empty_reachability)
@@ -354,6 +363,10 @@ impl CommonSubexprEliminator {
     }
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function, cfg: &CfgInfo) {
+        if !func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_))) {
+            return;
+        }
+
         let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
@@ -477,19 +490,19 @@ impl CommonSubexprEliminator {
         let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
-                let kind = func.inst(inst_id).kind.clone();
+                let kind = &func.inst(inst_id).kind;
                 if kind.has_side_effects() {
                     self.invalidate_for_side_effect(
                         func,
                         inst_id,
-                        &kind,
+                        kind,
                         ctx.replacements,
                         &mut cache,
                     );
                     continue;
                 }
 
-                let Some(key) = self.make_expr_key(func, inst_id, &kind, ctx.replacements) else {
+                let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
                     continue;
                 };
 
@@ -539,24 +552,30 @@ impl CommonSubexprEliminator {
             return;
         }
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
-        for (&mid, clobbers) in ctx.block_clobbers {
+        for (mid, clobbers) in ctx.block_clobbers {
+            if !cache.has_stateful() {
+                break;
+            }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if mid == parent || !reachable_from_parent.contains(mid) {
+            if *mid == parent || !reachable_from_parent.contains(*mid) {
                 continue;
             }
-            if !ctx.reachability.get(&mid).is_some_and(|reachable| reachable.contains(child)) {
+            if !ctx.reachability.get(mid).is_some_and(|reachable| reachable.contains(child)) {
                 continue;
             }
             for clobber in clobbers {
                 self.apply_clobber(cache, clobber);
+                if !cache.has_stateful() {
+                    break;
+                }
             }
         }
     }
 
     /// Returns the per-block invalidation summaries for blocks with clobbering effects.
-    fn block_clobber_summaries(&self, func: &Function) -> FxHashMap<BlockId, Vec<Clobber>> {
+    fn block_clobber_summaries(&self, func: &Function) -> Vec<(BlockId, Vec<Clobber>)> {
         let no_replacements = FxHashMap::default();
-        let mut summaries = FxHashMap::default();
+        let mut summaries = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
@@ -566,7 +585,7 @@ impl CommonSubexprEliminator {
                 }
             }
             if !clobbers.is_empty() {
-                summaries.insert(block_id, clobbers);
+                summaries.push((block_id, clobbers));
             }
         }
         summaries
@@ -586,6 +605,8 @@ impl CommonSubexprEliminator {
         matches!(
             kind,
             InstKind::MLoad(_)
+                | InstKind::Fmp
+                | InstKind::MemoryObjectLen(_, _)
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlotMemory(_, _)
@@ -614,13 +635,13 @@ impl CommonSubexprEliminator {
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             let inst = func.inst(inst_id);
-            let kind = inst.kind.clone();
+            let kind = &inst.kind;
 
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(
                     func,
                     inst_id,
-                    &kind,
+                    kind,
                     &replacements,
                     &mut expr_cache,
                 );
@@ -628,7 +649,7 @@ impl CommonSubexprEliminator {
             }
 
             // Try to create an expression key
-            if let Some(key) = self.make_expr_key(func, inst_id, &kind, &replacements)
+            if let Some(key) = self.make_expr_key(func, inst_id, kind, &replacements)
                 && let Some(result) = func.inst_result_value(inst_id)
             {
                 if let Some(&cached_value) = expr_cache.get(&key) {
@@ -780,6 +801,12 @@ impl CommonSubexprEliminator {
             InstKind::MappingSlotCalldata(key, slot) => {
                 Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
             }
+            InstKind::StorageArrayDataSlot(slot) => {
+                Some(ExprKey::StorageArrayDataSlot(operand(*slot)))
+            }
+            InstKind::StorageArrayElementSlot { slot, index, element_slots } => Some(
+                ExprKey::StorageArrayElementSlot(operand(*slot), operand(*index), *element_slots),
+            ),
             InstKind::MakeSlice { ptr, len, location } => {
                 Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
             }
@@ -835,6 +862,9 @@ impl CommonSubexprEliminator {
         self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
         for clobber in &clobbers {
             self.apply_clobber(expr_cache, clobber);
+            if !expr_cache.has_stateful() {
+                break;
+            }
         }
     }
 
@@ -950,6 +980,8 @@ impl CommonSubexprEliminator {
             InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::DelegateCall { .. }
+                | InstKind::ExtCall { .. }
+                | InstKind::ExtDelegateCall { .. }
                 | InstKind::InternalCall { .. }
                 | InstKind::Create(_, _, _)
                 | InstKind::Create2(_, _, _, _)
@@ -964,6 +996,8 @@ impl CommonSubexprEliminator {
                 | ExprKey::MappingSlot(..)
                 | ExprKey::MappingSlotMemory(..)
                 | ExprKey::MappingSlotCalldata(..)
+                | ExprKey::StorageArrayDataSlot(..)
+                | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)
                 | ExprKey::TLoad(_)
                 | ExprKey::CalldataLoad(_)
@@ -1154,7 +1188,10 @@ impl CommonSubexprEliminator {
         };
 
         match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+            Terminator::Jump(_)
+            | Terminator::RevertReturndata
+            | Terminator::Stop
+            | Terminator::Invalid => {}
             Terminator::Branch { condition, .. } => count(*condition),
             Terminator::Switch { value, cases, .. } => {
                 count(*value);

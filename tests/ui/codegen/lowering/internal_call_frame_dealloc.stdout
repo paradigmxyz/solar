@@ -35,11 +35,8 @@ bb4:
   push 64
   mstore
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb3
   jumpi
   push 64

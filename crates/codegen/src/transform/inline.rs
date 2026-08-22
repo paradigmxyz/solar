@@ -8,12 +8,12 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
-        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
+        AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
-use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
@@ -184,9 +184,13 @@ struct MirInlineSummary {
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
+    has_reference_return: bool,
+    /// A one-block helper that only forwards an internal call's return value.
+    /// Such wrappers are safe to inline even when the value is memory-backed.
+    is_transparent_forwarder: bool,
     is_entry_point: bool,
     is_constructor: bool,
-    no_inline: bool,
+    is_function_pointer_dispatcher: bool,
     has_function_selector: bool,
 }
 
@@ -219,9 +223,9 @@ impl MirInliner {
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
-            summaries
-                .get(caller)
-                .is_some_and(|summary| summary.no_inline && summary.has_function_selector)
+            summaries.get(caller).is_some_and(|summary| {
+                summary.is_function_pointer_dispatcher && summary.has_function_selector
+            })
         });
         for caller_id in caller_ids {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -276,7 +280,15 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    call_counts = self.call_counts(module);
+                    if self.tiny_leaves_only {
+                        // Tiny-leaf candidates cannot contain internal calls, so inlining removes
+                        // exactly one call to the callee and cannot introduce another call site.
+                        if let Some(count) = call_counts.get_mut(&site.callee) {
+                            *count = count.saturating_sub(1);
+                        }
+                    } else {
+                        call_counts = self.call_counts(module);
+                    }
                     cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
@@ -401,11 +413,13 @@ impl MirInliner {
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.
-        let can_specialize_dispatcher = summary.no_inline
+        let can_specialize_dispatcher = summary.is_function_pointer_dispatcher
             && summary.has_function_selector
             && site.has_constant_function_selector;
         if caller == site.callee
-            || (summary.no_inline && !single_call && !can_specialize_dispatcher)
+            || (summary.is_function_pointer_dispatcher
+                && !single_call
+                && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -424,7 +438,8 @@ impl MirInliner {
                         self.max_instructions
                     }
                 || summary.return_count != 1
-                || summary.has_internal_call
+                || (summary.has_reference_return && !summary.is_transparent_forwarder)
+                || (summary.has_internal_call && !summary.is_transparent_forwarder)
                 || summary.has_control_flow)
         {
             return false;
@@ -524,7 +539,18 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        no_inline: func.attributes.no_inline,
+        has_reference_return: func.returns.iter().any(|ty| {
+            matches!(
+                ty,
+                MirType::MemPtr
+                    | MirType::MemoryObject(_)
+                    | MirType::StoragePtr
+                    | MirType::CalldataPtr
+                    | MirType::Slice(_)
+            )
+        }),
+        is_transparent_forwarder: is_transparent_forwarder(func),
+        is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         ..MirInlineSummary::default()
     };
@@ -536,6 +562,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::MappingSlot(..) => 3,
                 InstKind::MappingSlotMemory(..) => 8,
                 InstKind::MappingSlotCalldata(..) => 9,
+                InstKind::StorageArrayDataSlot(..) => 3,
+                InstKind::StorageArrayElementSlot { .. } => 4,
                 _ => 1,
             };
             let inst_cost = estimate_inst_cost(gcx, module, kind);
@@ -548,6 +576,9 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
+                | InstKind::ExtCall { .. }
+                | InstKind::ExtDelegateCall { .. }
+                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -570,6 +601,11 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
             Some(term @ Terminator::Revert { .. }) => {
+                let term_cost = estimate_terminator_cost(term);
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
+            Some(term @ Terminator::RevertReturndata) => {
                 let term_cost = estimate_terminator_cost(term);
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
@@ -598,6 +634,28 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     }
 
     summary
+}
+
+fn is_transparent_forwarder(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.selector.is_some()
+        || func.attributes.is_constructor
+        || func.attributes.is_fallback
+        || func.attributes.is_receive
+        || func.blocks.len() != 1
+        || func.internal_frame_size != 0
+        || func.returns.len() != 1
+    {
+        return false;
+    }
+
+    let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
+    let InstKind::InternalCall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let Some(result) = func.inst_result_value(*call) else { return false };
+    matches!(
+        func.blocks[BlockId::ENTRY].terminator.as_ref(),
+        Some(Terminator::Return { values }) if values.as_slice() == [result]
+    )
 }
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
@@ -644,12 +702,35 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
             (8 + base_cost * 3, 2 + base_cost as usize)
         }
+        InstKind::MemoryObjectLoadField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
+        }
+        InstKind::MemoryObjectStoreField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
+        }
+        InstKind::MemoryObjectLoadElement { layout, .. }
+        | InstKind::MemoryObjectStoreElement { layout, .. } => {
+            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
+            (11 + base_cost * 3, 3 + base_cost as usize)
+        }
+        InstKind::MemoryObjectLoadByte { .. } => (8, 2),
+        InstKind::MemoryObjectStoreByte { .. } => (8, 2),
+        InstKind::MemoryObjectStoreWord { .. } => (8, 2),
+        InstKind::MemorySliceLoadWord { .. } => (6, 1),
+        InstKind::CalldataSliceLoadWord { .. } => (6, 1),
+        InstKind::MemoryObjectCopyFromSlice { .. } => (12, 1),
+        InstKind::MemoryObjectCopyFromSliceAt { .. } => (12, 1),
+        InstKind::MemoryObjectCopy { .. } => (12, 1),
         InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
         InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
             let words = layout.head_size() / 32;
             (30 + words * 12, 8 + args.len() * 3)
+        }
+        InstKind::AbiDecode { layout, .. } => {
+            let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
+            (30 + words * 12, 8 + layout.types.len() * 3)
         }
         InstKind::StorageToMemory { layout, .. } => {
             let slots = layout.storage_slots();
@@ -677,7 +758,9 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::Sar(..)
         | InstKind::SignExtend(..)
         | InstKind::MLoad(..)
+        | InstKind::FrameLoad { .. }
         | InstKind::MStore(..)
+        | InstKind::FrameStore { .. }
         | InstKind::MStore8(..)
         | InstKind::CalldataLoad(..)
         | InstKind::CalldataSize
@@ -713,8 +796,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::ExtCodeCopy(..)
         | InstKind::ReturnDataCopy(..) => (12, 1),
         InstKind::MemoryZero(..) => (15, 2),
-        InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
+        InstKind::MSize
+        | InstKind::CodeSize
+        | InstKind::ReturndataSize
+        | InstKind::ReturnDataSize => (2, 1),
         InstKind::ConstructorArgsBase => (3, 3),
+        InstKind::ConstructorArgsEnd => (9, 8),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
         InstKind::LoadImmutable(id) => {
@@ -747,10 +834,17 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
+        InstKind::StorageArrayDataSlot(..) => (36, 3),
+        InstKind::StorageArrayElementSlot { element_slots, .. } => {
+            (36 + u64::from(*element_slots > 1) * 5, 4)
+        }
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. } => (700, 1),
+        | InstKind::DelegateCall { .. }
+        | InstKind::ExtCall { .. }
+        | InstKind::ExtDelegateCall { .. }
+        | InstKind::ExtStaticCall { .. } => (700, 1),
         InstKind::InternalCall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
@@ -772,7 +866,9 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::Branch { .. } => (13, 4),
         Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
         Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
-        Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
+        Terminator::Revert { .. }
+        | Terminator::RevertReturndata
+        | Terminator::ReturnData { .. } => (20, 4),
         Terminator::Stop => (0, 1),
         Terminator::SelfDestruct { .. } => (5_000, 1),
         Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
@@ -817,7 +913,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
     for (function, func) in module.functions.iter_enumerated() {
         if is_transparent_function_pointer_cast(func) {
             casts.insert(function);
-        } else if func.attributes.no_inline && func.params.first() == Some(&MirType::Function) {
+        } else if func.attributes.is_function_pointer_dispatcher {
             dispatchers.insert(function);
         }
     }
@@ -1229,6 +1325,7 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
+            Terminator::RevertReturndata => Terminator::RevertReturndata,
             Terminator::TailCall { function, args } => Terminator::TailCall {
                 function: *function,
                 args: args
@@ -1276,30 +1373,28 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
 
-    let (base_load, base) =
-        caller.alloc_value_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
-    let mut insert_at = phi_count;
-    caller.blocks[continuation].instructions.insert(insert_at, base_load);
-    insert_at += 1;
+    let existing_len = caller.blocks[continuation].instructions.len();
+    let appended = {
+        let mut builder = FunctionBuilder::new(caller);
+        builder.switch_to_block(continuation);
 
-    for (index, &value) in values.iter().enumerate() {
-        let offset = caller
-            .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let (addr, addr_value) = caller.alloc_value_inst(Instruction::new(
-            InstKind::Add(base, offset),
-            Some(MirType::uint256()),
-        ));
-        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
-        caller.blocks[continuation].instructions.insert(insert_at, addr);
-        caller.blocks[continuation].instructions.insert(insert_at + 1, store);
-        insert_at += 2;
-    }
+        let len = values.len() as u64 + 1;
+        let size = builder.imm_u64(len * 32);
+        let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
+        let object = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        for (index, &value) in values.iter().enumerate() {
+            let index = builder.imm_u64(index as u64 + 1);
+            builder.memory_object_store_element(object, layout, index, value);
+        }
+        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+        builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
 
-    let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-        EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
-    ))));
-    let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
-    caller.blocks[continuation].instructions.insert(insert_at, publish);
+        builder.func_mut().blocks[continuation]
+            .instructions
+            .drain(existing_len..)
+            .collect::<Vec<_>>()
+    };
+    caller.blocks[continuation].instructions.splice(phi_count..phi_count, appended);
 }
 
 fn redirect_phi_predecessors(

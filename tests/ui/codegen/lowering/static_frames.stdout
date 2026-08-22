@@ -36,11 +36,8 @@ bb6:
   push 64
   mstore
   calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
+  push 36
+  gt
   push bb4
   jumpi
   push 3
@@ -274,8 +271,8 @@ bb50:
   push 384
   mstore
   push bb52
-  jump bb60
-bb60:
+  jump bb67
+bb67:
   push 3
   push 384
   mload
@@ -795,7 +792,7 @@ bb54:
   push 384
   mstore
   push bb55
-  jump bb60
+  jump bb67
 bb55:
   dup1
   push 160
@@ -893,7 +890,7 @@ bb55:
   add
   mload
   iszero
-  push bb68
+  push bb65
   jumpi
   push 1
   push 160
@@ -973,7 +970,7 @@ bb55:
   add
   push 64
   mstore
-  push bb66
+  push bb63
   jump bb50
 bb57:
   push 160
@@ -1034,7 +1031,7 @@ bb57:
   mload
   push 192
   jump bb72
-bb66:
+bb63:
   push 160
   mload
   push 128
@@ -1065,7 +1062,7 @@ bb66:
   mstore
   push 1
   jump bb74
-bb68:
+bb65:
   push 13
   push 160
   mload

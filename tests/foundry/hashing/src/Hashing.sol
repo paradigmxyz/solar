@@ -2,6 +2,9 @@
 pragma solidity ^0.8.0;
 
 contract Hashing {
+    bytes private stored;
+    mapping(uint256 => bytes) private storedMap;
+
     function hashUint(uint256 a) external pure returns (bytes32) {
         return keccak256(abi.encode(a));
     }
@@ -22,5 +25,58 @@ contract Hashing {
     
     function hashBytes(bytes calldata data) external pure returns (bytes32) {
         return keccak256(data);
+    }
+
+    function hashSha256(bytes calldata data) external pure returns (bytes32) {
+        return sha256(data);
+    }
+
+    function hashRipemd160(bytes calldata data) external pure returns (bytes20) {
+        return ripemd160(data);
+    }
+
+    function setStored(bytes memory data) external {
+        stored = data;
+    }
+
+    function hashStoredPacked(bytes calldata suffix) external view returns (bytes32) {
+        return keccak256(abi.encodePacked(stored, suffix));
+    }
+
+    function hashStoredConcat(bytes calldata suffix) external view returns (bytes32) {
+        return keccak256(bytes.concat(stored, suffix));
+    }
+
+    function decodeStoredUint() external view returns (uint256) {
+        return abi.decode(stored, (uint256));
+    }
+
+    function setStoredMap(uint256 key, bytes memory data) external {
+        storedMap[key] = data;
+    }
+
+    function decodeStoredMap(uint256 key) external view returns (uint256) {
+        return abi.decode(storedMap[key], (uint256));
+    }
+
+    function forwardStored(uint256 key) external view returns (bytes memory) {
+        (bool ok, bytes memory result) = address(this).staticcall(storedMap[key]);
+        require(ok);
+        return result;
+    }
+
+    function hashStoredSha256() external view returns (bytes32) {
+        return sha256(stored);
+    }
+
+    function hashStoredRipemd160() external view returns (bytes20) {
+        return ripemd160(stored);
+    }
+
+    fallback() external {
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            return(0, calldatasize())
+        }
     }
 }

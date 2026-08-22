@@ -1,68 +1,88 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
-fn @flag() -> bool [abi_returns=[word]] {
+@phase abi
+fn @flag() [selector=0x890eba68, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    ret v1
+    v2 = iszero v1
+    v3 = iszero v2
+    mstore 128, v3
+    v4 = add 128, 32
+    v5 = sub v4, 128
+    returndata 128, v5
 }
 
-fn @second() -> bool [abi_returns=[word]] {
+fn @second() [selector=0x5a8ac02d, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 255
-    ret v2
-}
-
-fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
-  bb0:
-    v0 = constructor_args_base
-    v1 = add v0, 0
-    v2 = mload v1
     v3 = iszero v2
     v4 = iszero v3
-    v5 = eq v2, v4
-    jumpi v5, bb2, bb1
+    mstore 128, v4
+    v5 = add 128, 32
+    v6 = sub v5, 128
+    returndata 128, v6
+}
+
+fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
+  bb0:
+    v17 = constructor_args_base
+    v18 = constructor_args_end
+    v19 = add v17, 96
+    v20 = lt v19, v17
+    v21 = gt v19, v18
+    v22 = or v20, v21
+    jumpi v22, bb5, bb4
   bb1:
-    revert 0, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and arg0, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = lt 1, 2
+    v6 = iszero v5
+    jumpi v6, bb2, bb3
   bb2:
-    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v7 = add v0, 32
-    v8 = mload v7
-    v9 = iszero v8
-    v10 = iszero v9
-    v11 = eq v8, v10
-    jumpi v11, bb4, bb3
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb3:
-    revert 0, 0
+    v7 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
+    v8 = eq v7, 0
+    v9 = iszero v8
+    v10 = shl 8, 255
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = and v9, 255
+    v15 = shl 8, v14
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    stop
   bb4:
-    v12 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 0
-    mstore v12, arg1
-    v13 = add v0, 64
-    v14 = mload v13
-    v15 = iszero v14
-    v16 = iszero v15
-    v17 = eq v14, v16
-    jumpi v17, bb6, bb5
+    v23 = lt arg0, 2
+    jumpi v23, bb6, bb7
   bb5:
     revert 0, 0
   bb6:
-    v18 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
-    mstore v18, arg2
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v21 = and arg0, 255
-    v22 = or v20, v21
-    sstore 0, v22 !metadata(storage=slot(0))
-    v23 = memory_object_element_addr memoryfixedarray<2, 1>, v6, 1
-    v24 = mload v23
-    v25 = sload 0 !metadata(storage=slot(0))
-    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v27 = and v24, 255
-    v28 = shl 8, v27
-    v29 = or v26, v28
-    sstore 0, v29 !metadata(storage=slot(0))
-    stop
+    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v25 = lt arg1, 2
+    jumpi v25, bb8, bb9
+  bb7:
+    revert 0, 0
+  bb8:
+    memory_object_store_element memoryfixedarray<2, 1>, v24, 0, arg1
+    v26 = lt arg2, 2
+    jumpi v26, bb10, bb11
+  bb9:
+    revert 0, 0
+  bb10:
+    memory_object_store_element memoryfixedarray<2, 1>, v24, 1, arg2
+    jump bb1
+  bb11:
+    revert 0, 0
 }
 

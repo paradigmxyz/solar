@@ -417,7 +417,7 @@ const fn flipped_comparison(opcode: u8) -> Option<u8> {
     }
 }
 
-fn push_value(inst: &Instruction) -> Option<U256> {
+pub(super) fn push_value(inst: &Instruction) -> Option<U256> {
     if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
     {
         return None;
@@ -434,6 +434,10 @@ fn is_block_push(inst: &Instruction) -> bool {
 
 fn is_removable_push(inst: &Instruction) -> bool {
     inst.is_encoded_push() && inst.deferred_push().is_none()
+}
+
+pub(super) fn is_removable_copy(inst: &Instruction) -> bool {
+    is_removable_push(inst) || (op::DUP1..=op::DUP16).contains(&inst.opcode)
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);

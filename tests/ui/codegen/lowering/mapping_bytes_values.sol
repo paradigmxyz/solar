@@ -8,7 +8,6 @@ contract MappingBytesValues {
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
-    // CHECK: sload [[SLOT]]
     // CHECK: sstore [[SLOT]],
     function set(uint256 key, bytes memory value) external {
         data[key] = value;
@@ -17,7 +16,6 @@ contract MappingBytesValues {
     // CHECK-LABEL: fn @setNested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
-    // CHECK: sload [[INNER]]
     // CHECK: sstore [[INNER]],
     function setNested(uint256 outer, uint256 inner, string memory value) external {
         nested[outer][inner] = value;

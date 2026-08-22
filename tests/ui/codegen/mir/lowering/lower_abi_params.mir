@@ -1,0 +1,29 @@
+//@compile-flags: -Zmir-pipeline=lower-abi
+//@filecheck:
+
+// CHECK: + @phase abi
+// CHECK: + fn @read()
+// CHECK: + v{{[0-9]+}} = calldatasize
+@module LowerAbiParams
+
+fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+  bb0:
+    ret arg1
+}
+
+// CHECK: + fn @read_words()
+// CHECK: + {{v[0-9]+}} = calldataload
+// CHECK: + {{v[0-9]+}} = alloc memoryarray<1>
+// CHECK: + set_memory_object_len memoryarray
+// CHECK: + memory_object_copy_from_slice memoryarray
+// CHECK: + memory_object_store_field memorystruct<3>
+fn @read_words(arg0: memorystruct) -> u256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_field_addr memorystruct, arg0, 0
+    v1 = mload v0
+    v2 = memory_object_len memoryarray, v1
+    v3 = memory_object_field_addr memorystruct, arg0, 1
+    v4 = mload v3
+    v5 = add v2, v4
+    ret v5
+}

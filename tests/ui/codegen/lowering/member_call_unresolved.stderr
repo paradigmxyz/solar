@@ -56,41 +56,5 @@ error: wrong argument count for function call: 1 arguments given but expected 2
 LL │             let x := add(1)
    ╰╴                     ━━━━━━ expected 2 arguments, found 1
 
-error: wrong number of arguments for builtin `keccak256`: expected 1, found 0
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │         keccak256();
-   ╰╴                 ━━
-
-error: wrong number of arguments for builtin `encodeWithSelector`: expected at least 1, found 0
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │         abi.encodeWithSelector();
-   ╰╴                              ━━
-
-error: named arguments are not supported for builtin `encode` in codegen
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │         abi.encode({a: 1});
-   ╰╴                  ━━━━━━━━
-
-error: named arguments are not supported for builtin `keccak256` in codegen
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │         keccak256({a: bytes("")});
-   ╰╴                 ━━━━━━━━━━━━━━━━
-
-error: wrong number of arguments for Yul builtin `pop`: expected 1, found 0
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │             pop()
-   ╰╴            ━━━━━
-
-error: wrong number of arguments for Yul builtin `add`: expected 2, found 1
-   ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
-   │
-LL │             let x := add(1)
-   ╰╴                     ━━━━━━
-
-error: aborting due to 15 previous errors
+error: aborting due to 9 previous errors
 

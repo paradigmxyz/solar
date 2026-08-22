@@ -257,6 +257,7 @@ impl JumpThreader {
 
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::RevertReturndata
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
@@ -459,6 +460,7 @@ impl JumpThreader {
             }
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::RevertReturndata
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }

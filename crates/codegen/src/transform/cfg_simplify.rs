@@ -69,7 +69,7 @@ impl MirPass for FunctionDce {
 
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonBlock {
     insts: Vec<CanonInst>,
     term_mnemonic: &'static str,
@@ -78,7 +78,7 @@ struct CanonBlock {
 }
 
 /// Alpha-equivalence key for one instruction of a terminal block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonInst {
     mnemonic: &'static str,
     payload: CanonPayload,
@@ -88,7 +88,7 @@ struct CanonInst {
 }
 
 /// Non-operand payload carried by an instruction kind.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum CanonPayload {
     None,
     FrameAddr(u64),
@@ -97,7 +97,7 @@ enum CanonPayload {
 
 /// A canonicalized operand: block-local results compare by definition
 /// position, immediates by value, and everything else by exact [`ValueId`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum CanonOperand {
     Local(usize),
     Imm(Immediate),
@@ -204,7 +204,7 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
+        let mut kept: FxHashMap<CanonBlock, BlockId> = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
             if func.blocks[block_id].predecessors.is_empty() {
@@ -213,10 +213,9 @@ impl CfgSimplifier {
             let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
                 continue;
             };
-            if let Some((keep, _)) = kept.iter().find(|(_, existing)| *existing == canon) {
-                merges.push((block_id, *keep));
-            } else {
-                kept.push((block_id, canon));
+            let keep = *kept.entry(canon).or_insert(block_id);
+            if keep != block_id {
+                merges.push((block_id, keep));
             }
         }
 
@@ -404,6 +403,19 @@ impl CfgSimplifier {
 
     /// Runs CFG simplification iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
+        if func.blocks.len() == 1
+            && !func.blocks[BlockId::ENTRY]
+                .instructions
+                .iter()
+                .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            && !matches!(
+                func.blocks[BlockId::ENTRY].terminator,
+                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
+            )
+        {
+            return CfgSimplifyStats::default();
+        }
+
         let mut total_stats = CfgSimplifyStats::default();
         loop {
             let changed = self.run(func);
@@ -541,7 +553,7 @@ impl CfgSimplifier {
                 }
 
                 if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id)
+                    && !self.is_loop_preheader_forwarder(func, block_id, &cfg)
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
@@ -565,7 +577,12 @@ impl CfgSimplifier {
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
     }
 
-    fn is_loop_preheader_forwarder(&self, func: &Function, block_id: BlockId) -> bool {
+    fn is_loop_preheader_forwarder(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        cfg: &CfgInfo,
+    ) -> bool {
         let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
             return false;
         };
@@ -576,7 +593,6 @@ impl CfgSimplifier {
             return false;
         }
 
-        let cfg = CfgInfo::new(func);
         func.blocks[target]
             .predecessors
             .iter()

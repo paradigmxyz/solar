@@ -256,6 +256,15 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
+            // These semantic memory reads lower to `mload` after LICM. Keep them in
+            // place until their physical address and width are explicit so a store
+            // in the loop cannot be missed by the dependence check above.
+            InstKind::MemoryObjectLen(_, _)
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
@@ -268,7 +277,9 @@ impl LoopOptimizer {
             }
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _) => return false,
+            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::StorageArrayDataSlot(_)
+            | InstKind::StorageArrayElementSlot { .. } => return false,
             InstKind::SLoad(slot) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_storage_slot(
@@ -303,6 +314,7 @@ impl LoopOptimizer {
             | InstKind::SelfBalance
             | InstKind::ExtCodeSize(_)
             | InstKind::ExtCodeHash(_)
+            | InstKind::ReturndataSize
             | InstKind::ReturnDataSize => {
                 // Also require guaranteed execution: speculating a cold
                 // BALANCE/EXTCODESIZE/EXTCODEHASH into the preheader of a
@@ -394,6 +406,9 @@ impl LoopOptimizer {
                         | InstKind::CallCode { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
+                        | InstKind::ExtCall { .. }
+                        | InstKind::ExtDelegateCall { .. }
+                        | InstKind::ExtStaticCall { .. }
                         | InstKind::InternalCall { .. }
                         | InstKind::Create(_, _, _)
                         | InstKind::Create2(_, _, _, _)
@@ -413,7 +428,9 @@ impl LoopOptimizer {
             InstKind::Keccak256(_, _) => 30,
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _) => 30,
+            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::StorageArrayDataSlot(_)
+            | InstKind::StorageArrayElementSlot { .. } => 30,
             InstKind::Exp(_, _) => 10,
             InstKind::Mul(_, _)
             | InstKind::Div(_, _)

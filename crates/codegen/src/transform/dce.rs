@@ -5,7 +5,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+        BlockId, EffectKind, Function, InstId, InstKind, Module, Terminator, ValueId,
+        utils::repair_reachability_phis,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -147,13 +148,21 @@ impl DeadCodeEliminator {
     /// Finds instructions that are dead (unused result, no side effects).
     fn find_dead_instructions(&mut self, func: &Function) {
         self.dead.clear();
+        // A memory read can expand the EVM memory high-water mark, which a later `msize`
+        // observes even when the loaded value is discarded. Keep reads in such functions; a
+        // tighter path-sensitive proof is not worth risking a silent semantic change here.
+        let observes_msize =
+            func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize));
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
-                if inst.kind.has_side_effects() {
+                if inst.kind.has_side_effects()
+                    || inst.metadata.abi_validation()
+                    || (observes_msize && inst.kind.effect_kind() == EffectKind::MemoryRead)
+                {
                     continue;
                 }
 

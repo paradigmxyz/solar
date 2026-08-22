@@ -26,5 +26,9 @@ contract Require {
         return a / b;
     }
 
-    // TODO: requireChain skipped - modulo operator has bugs in require condition
+    function requireChain(uint256 a, uint256 b) public pure returns (uint256) {
+        require(a % b == 0);
+        require(b % 3 == 0 || a % 2 == 0);
+        return a + b;
+    }
 }

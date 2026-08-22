@@ -1,0 +1,33 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "Fallback.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "Fallback.sol": {
+      "C": {
+        "evm": {
+          "bytecode": {
+            "object": "604d8060095f395ff334604957610120604052365f905f1960c01c8111604957368190038213604957603f8101601f19166040518061010052908101604052818152602081018284823791509150905181f35b5f80fd"
+          },
+          "deployedBytecode": {
+            "object": "34604957610120604052365f905f1960c01c8111604957368190038213604957603f8101601f19166040518061010052908101604052818152602081018284823791509150905181f35b5f80fd"
+          }
+        }
+      }
+    }
+  }
+}

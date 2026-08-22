@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/static-alloc/derived_chain.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/static-alloc/derived_chain.mir (after storage-promotion) ===
   @module StaticAllocDerivedChain
-  fn @derived_chain() -> u256 {
+  fn @derived_chain() -> u256 [selector=0x01020304] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       jump bb5
@@ -23,7 +23,7 @@
       jump bb4
   }
   
-  fn @reserve_frame() {
+  fn @reserve_frame() [selector=0x01020305] {
     bb0:
 -     sstore 0, 1
 +     mstore 128, 1
@@ -48,7 +48,7 @@
 - // === ROOT/tests/ui/codegen/mir/static-alloc/derived_chain.mir (before static-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/static-alloc/derived_chain.mir (after static-alloc) ===
   @module StaticAllocDerivedChain
-  fn @derived_chain() -> u256 {
+  fn @derived_chain() -> u256 [selector=0x01020304] {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
       jump bb5
@@ -71,7 +71,7 @@
       jump bb4
   }
   
-  fn @reserve_frame() {
+  fn @reserve_frame() [selector=0x01020305] {
     bb0:
       mstore 128, 1
       jump bb1

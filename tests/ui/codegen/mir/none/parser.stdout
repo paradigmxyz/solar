@@ -63,9 +63,25 @@
       ret v0
   }
   
-  fn @constructor() -> u256 {
+  fn @constructor() -> u256 [constructor] {
     bb0:
       v0 = constructor_args_base
       ret v0
+  }
+  
+  fn @returndata_size() -> u256 {
+    bb0:
+      v0 = returndata_size
+      ret v0
+  }
+  
+  fn @pure() [pure] {
+    bb0:
+      stop
+  }
+  
+  fn @view() [view] {
+    bb0:
+      stop
   }
   

@@ -3,8 +3,21 @@ pragma solidity ^0.8.0;
 
 import "../src/StressEvents.sol";
 
+interface Vm {
+    function expectEmit(bool, bool, bool, bool) external;
+}
+
 contract StressEventsTest {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     StressEvents se;
+
+    event IndexedDynamicArray(uint256[] indexed values);
+    event IndexedStaticArray(uint256[2] indexed values);
+    event IndexedNestedDynamicArray(uint256[][] indexed values);
+    event IndexedStringArray(string[] indexed values);
+    event IndexedExternalFunction(function() external indexed target);
+
+    event IndexedStructArray(StressEvents.IndexedStruct[] indexed values);
     
     function setUp() public {
         se = new StressEvents();
@@ -43,6 +56,90 @@ contract StressEventsTest {
     
     function test_EmitIndexedBytes32() public {
         se.emitIndexedBytes32(keccak256("test"));
+    }
+
+    function test_EmitIndexedStaticArray() public {
+        uint256[2] memory values = [uint256(100), uint256(200)];
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStaticArray(values);
+        se.emitIndexedStaticArray(values);
+    }
+
+    function test_EmitIndexedDynamicArray() public {
+        uint256[] memory values = new uint256[](2);
+        values[0] = 100;
+        values[1] = 200;
+        vm.expectEmit(true, false, false, false);
+        emit IndexedDynamicArray(values);
+        se.emitIndexedDynamicArray(values);
+    }
+
+    function test_EmitIndexedNestedDynamicArray() public {
+        uint256[][] memory values = new uint256[][](2);
+        values[0] = new uint256[](2);
+        values[1] = new uint256[](1);
+        values[0][0] = 100;
+        values[0][1] = 200;
+        values[1][0] = 300;
+        vm.expectEmit(true, false, false, false);
+        emit IndexedNestedDynamicArray(values);
+        se.emitIndexedNestedDynamicArray(values);
+    }
+
+    function test_EmitIndexedNestedDynamicArrayCalldata() public {
+        uint256[][] memory values = new uint256[][](2);
+        values[0] = new uint256[](2);
+        values[1] = new uint256[](1);
+        values[0][0] = 100;
+        values[0][1] = 200;
+        values[1][0] = 300;
+        vm.expectEmit(true, false, false, false);
+        emit IndexedNestedDynamicArray(values);
+        se.emitIndexedNestedDynamicArrayCalldata(values);
+    }
+
+    function test_EmitIndexedStringArray() public {
+        string[] memory values = new string[](3);
+        values[0] = "";
+        values[1] = "01234567890123456789012345678901";
+        values[2] = "012345678901234567890123456789012";
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStringArray(values);
+        se.emitIndexedStringArray(values);
+    }
+
+    function test_EmitIndexedStringArrayCalldata() public {
+        string[] memory values = new string[](3);
+        values[0] = "";
+        values[1] = "01234567890123456789012345678901";
+        values[2] = "012345678901234567890123456789012";
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStringArray(values);
+        se.emitIndexedStringArrayCalldata(values);
+    }
+
+    function test_EmitIndexedExternalFunction() public {
+        vm.expectEmit(true, false, false, false);
+        emit IndexedExternalFunction(se.functionPointerTarget);
+        se.emitIndexedExternalFunction();
+    }
+
+    function test_EmitIndexedStructArray() public {
+        StressEvents.IndexedStruct[] memory values = new StressEvents.IndexedStruct[](2);
+        values[0] = StressEvents.IndexedStruct(100, hex"0102");
+        values[1] = StressEvents.IndexedStruct(200, hex"030405");
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStructArray(values);
+        se.emitIndexedStructArray(values);
+    }
+
+    function test_EmitIndexedStructArrayCalldata() public {
+        StressEvents.IndexedStruct[] memory values = new StressEvents.IndexedStruct[](2);
+        values[0] = StressEvents.IndexedStruct(100, hex"0102");
+        values[1] = StressEvents.IndexedStruct(200, hex"030405");
+        vm.expectEmit(true, false, false, false);
+        emit IndexedStructArray(values);
+        se.emitIndexedStructArrayCalldata(values);
     }
     
     // ========== Mixed event tests ==========

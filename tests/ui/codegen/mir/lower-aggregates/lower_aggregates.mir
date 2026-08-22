@@ -4,9 +4,8 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
 // CHECK: - storage_to_memory
-// CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + mstore [[FIELD]], [[VALUE]]
+// CHECK: + memory_object_store_field memorystruct<3>, arg1, 0, [[VALUE]]
 fn @storage_to_memory(arg0: u256, arg1: memptr) {
   bb0:
     storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
@@ -15,8 +14,7 @@ fn @storage_to_memory(arg0: u256, arg1: memptr) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
 // CHECK: - memory_to_storage
-// CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
-// CHECK: + [[VALUE:v[0-9]+]] = mload [[FIELD]]
+// CHECK: + [[VALUE:v[0-9]+]] = memory_object_load_field memorystruct<3>, arg0, 0
 // CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: memptr, arg1: u256) {
   bb0:

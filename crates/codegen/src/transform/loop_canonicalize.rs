@@ -290,6 +290,7 @@ impl LoopCanonicalizer {
             Terminator::TailCall { .. }
             | Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::RevertReturndata
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }

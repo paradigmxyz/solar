@@ -2,8 +2,8 @@
 
 use std::{fmt, sync::Arc};
 
-/// An interned layout for a statically shaped aggregate copied between memory
-/// and storage.
+/// A layout for a statically shaped aggregate copied between memory and
+/// storage.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StorageLayout {
     /// A struct, with one memory word per field.
@@ -75,7 +75,7 @@ impl StorageField {
     }
 }
 
-/// Shared reference returned by the module storage-layout interner.
+/// Shared reference to a recursive storage layout.
 pub type StorageLayoutRef = Arc<StorageLayout>;
 
 impl fmt::Display for StorageLayout {

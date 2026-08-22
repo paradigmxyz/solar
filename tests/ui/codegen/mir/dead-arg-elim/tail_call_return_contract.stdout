@@ -21,7 +21,7 @@
 +     ret
   }
   
-  fn @entry() {
+  fn @entry() [selector=0x01020304] {
     bb0:
       v0 = internal_call @forward, 1
 -     v1 = internal_call @user, 1
