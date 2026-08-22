@@ -1925,13 +1925,20 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> ValueId {
-        if let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind
-            && usize::from(size.bytes()) < 32
-            && let ExprKind::Lit(lit) = &expr.kind
-            && let LitKind::Number(n) = &lit.kind
-            && self.fixed_bytes_width_of_expr(expr).is_none()
-        {
-            return builder.imm_u256(*n << ((32 - usize::from(size.bytes())) * 8));
+        if let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind {
+            if let Some(bytes) = self.constant_string_bytes(expr) {
+                let mut padded = [0u8; 32];
+                let len = bytes.len().min(usize::from(size.bytes()));
+                padded[..len].copy_from_slice(&bytes[..len]);
+                return builder.imm_u256(U256::from_be_bytes(padded));
+            }
+            if usize::from(size.bytes()) < 32
+                && let ExprKind::Lit(lit) = &expr.kind
+                && let LitKind::Number(n) = &lit.kind
+                && self.fixed_bytes_width_of_expr(expr).is_none()
+            {
+                return builder.imm_u256(*n << ((32 - usize::from(size.bytes())) * 8));
+            }
         }
         value
     }
