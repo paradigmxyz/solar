@@ -2,6 +2,32 @@
 
 Solar LSP definitions and implementation.
 
+## Embedding
+
+Use the public `solar_lsp::launch` entry point to run the same language server implementation
+inside another Tokio application:
+
+```rust,no_run
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let config = solar_lsp::LaunchConfig::default()
+    .with_default_forge_path(std::env::current_exe()?);
+solar_lsp::launch(config).await?;
+# Ok(())
+# }
+```
+
+An embedding host that already selected a Foundry profile can pass it through with
+`with_selected_profile("custom")`; the language server uses that profile when discovering workspace
+sources and when running its automatically configured Forge lint checks.
+
+An embedding executable that also provides Forge commands can use its own path as the default, as
+shown above. Other hosts should supply the path to their Forge executable instead.
+
+The caller owns the Tokio runtime and process-global setup. `launch` owns process stdin and stdout
+until the LSP session exits, reserves stdout for JSON-RPC frames, and returns transport or protocol
+errors to the caller. A client-provided `initializationOptions.forgePath` overrides the launch
+default; when neither is configured, Forge is resolved as `forge` through `PATH`.
+
 ## Benchmarks
 
 Run the LSP benchmarks locally with:

@@ -17,13 +17,13 @@ SPEC.loader.exec_module(benchmark)
 
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 19)
+        self.assertEqual(len(benchmark.TEST_CASES), 25)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
         self.assertEqual(len(repository_cases), 9)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
-        self.assertEqual(len(heavy_cases), 3)
+        self.assertEqual(len(heavy_cases), 9)
         for case in heavy_cases:
             self.assertTrue(case.whole_project)
             self.assertTrue(case.project_path.is_file())
@@ -43,7 +43,10 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(case.project_path.is_file(), case.test_id)
             payload = json.loads(
                 benchmark.project_standard_json_input(
-                    case.project_file, case.source, case.contract_name
+                    case.project_file,
+                    case.source,
+                    case.contract_name,
+                    case.settings_profile,
                 )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
@@ -51,6 +54,53 @@ class CorpusTests(unittest.TestCase):
                 len(payload["sources"]), expected_source_counts[case.test_id]
             )
             self.assertTrue(payload["settings"]["viaIR"])
+
+    def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
+        criterion_sources = (
+            benchmark.REPOSITORY_ROOT / "benches/src/lib.rs"
+        ).read_text()
+        runtime_projects = {
+            case.project_file
+            for case in benchmark.TEST_CASES
+            if case.project_file is not None
+        }
+        missing = sorted(
+            project_file
+            for project_file in runtime_projects
+            if f'"../testdata/projects/{project_file}"' not in criterion_sources
+        )
+        self.assertEqual(missing, [])
+
+    def test_full_project_cases_preserve_archives(self) -> None:
+        heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
+        self.assertEqual(len(heavy_cases), 9)
+        self.assertTrue(all(case.whole_project for case in heavy_cases))
+        case = next(
+            case for case in heavy_cases if case.project == "solady-0.1.26"
+        )
+        archive = benchmark.load_project(case.project_path)
+        payload = json.loads(
+            benchmark.full_project_standard_json_input(case.project_file)
+        )
+        self.assertEqual(payload, archive)
+        self.assertEqual(len(payload["sources"]), 208)
+
+    def test_parse_full_project_output_counts_contract_artifacts(self) -> None:
+        case = next(case for case in benchmark.TEST_CASES if case.whole_project)
+        stdout = json.dumps(
+            {
+                "contracts": {
+                    "src/A.sol": {
+                        "A": {"evm": {"bytecode": {"object": "6000"}}},
+                        "Interface": {"evm": {"bytecode": {"object": ""}}},
+                    }
+                }
+            }
+        )
+        self.assertEqual(
+            benchmark.parse_full_project_output(stdout, case),
+            (2, 1, ""),
+        )
 
     def test_micro_sources_are_externalized(self) -> None:
         payload = json.loads(benchmark.standard_json_input(benchmark.TEST_CASES[0]))

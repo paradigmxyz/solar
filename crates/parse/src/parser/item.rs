@@ -149,13 +149,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         let flags = FunctionFlags::from_kind(kind);
         let header = self.parse_function_header(flags)?;
-        let (body_span, body) = self.parse_spanned(|this| {
+        let was_in_modifier = self.in_modifier;
+        self.in_modifier = kind.is_modifier();
+        let body = self.parse_spanned(|this| {
             Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(TokenKind::Semi) {
                 None
             } else {
                 Some(this.parse_block()?)
             })
-        })?;
+        });
+        self.in_modifier = was_in_modifier;
+        let (body_span, body) = body?;
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");

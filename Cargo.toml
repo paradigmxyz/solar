@@ -66,14 +66,23 @@ codegen-units = 16
 # Optimize non-perf-critical dependencies for size.
 [profile.release.package]
 annotate-snippets.opt-level = "s"
+async-lsp.opt-level = "s"
 clap.opt-level = "s"
 clap_builder.opt-level = "s"
+comfy-table.opt-level = "s"
+crop.opt-level = "s"
+lsp-types.opt-level = "s"
 num-bigint.opt-level = "s"
 regex.opt-level = "s"
 regex-automata.opt-level = "s"
 regex-syntax.opt-level = "s"
+serde_core.opt-level = "s"
 serde_json.opt-level = "s"
+toml_edit.opt-level = "s"
+toml_parser.opt-level = "s"
 tracing-subscriber.opt-level = "s"
+unicode-width.opt-level = "s"
+url.opt-level = "s"
 
 # Use the `--profile profiling` flag to show symbols in release mode.
 # e.g. `cargo build --profile profiling`
@@ -124,7 +133,7 @@ alloy-consensus = "2.2"
 alloy-dyn-abi = "1.6"
 alloy-primitives = "1.3"
 alloy-json-abi = "1.3"
-evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "f85cf2657362c742ce7f6e4e6d39d4ac14823cb3", default-features = false, features = [
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "b2f8f15240f2e46775f4f740b3a03efe8704a1d7", default-features = false, features = [
     "std",
     "map-foldhash",
     "asm-keccak",

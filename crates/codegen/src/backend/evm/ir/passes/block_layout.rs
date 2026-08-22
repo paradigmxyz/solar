@@ -174,7 +174,7 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
             state.candidates.push(Candidate { block, position, size, references: count });
         }
     }
-    state.candidates.sort_by(|a, b| {
+    state.candidates.sort_unstable_by(|a, b| {
         (b.references * a.size)
             .cmp(&(a.references * b.size))
             .then(b.references.cmp(&a.references))

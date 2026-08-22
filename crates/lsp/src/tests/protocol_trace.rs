@@ -1,4 +1,5 @@
 use crate::{
+    LaunchConfig,
     global_state::GlobalState,
     new_router_with_state, new_server_service, new_server_service_with_router,
     test_support::{assert_request_cancelled, read_lsp_frame, start_request, write_lsp_frame},
@@ -149,9 +150,8 @@ fn new_protocol_trace_test_service(
     pending: Option<PendingTraceControl>,
 ) -> impl LspService<Response = serde_json::Value, Error = ResponseError, Future: Send + 'static> + Send
 {
-    new_server_service_with_router(client, |state| ProtocolTraceTestRouter {
-        inner: new_router_with_state(state),
-        pending,
+    new_server_service_with_router(client, LaunchConfig::default(), |state| {
+        ProtocolTraceTestRouter { inner: new_router_with_state(state), pending }
     })
 }
 
@@ -218,7 +218,7 @@ where
 }
 
 fn protocol_trace_harness() -> ProtocolTraceHarness {
-    protocol_trace_harness_with(new_server_service)
+    protocol_trace_harness_with(|client| new_server_service(client, LaunchConfig::default()))
 }
 
 fn protocol_trace_test_harness(pending: Option<PendingTraceControl>) -> ProtocolTraceHarness {

@@ -282,6 +282,63 @@ bytecode blobs into one Foundry test, installs them at fixed addresses with
 `vm.etch`, and lets Foundry fuzz calldata/caller/environment values while the
 test compares return bytes, revert behavior, logs, and normalized state diffs.
 
+### Symbolic Solc-vs-Solar differential
+
+`solsymdiff` uses Foundry's symbolic executor to compare one explicitly chosen
+function over bounded symbolic inputs:
+
+Agents using this workflow should also follow the repository's
+[agent guidance](../../AGENTS.md).
+
+```bash
+cargo build -p solar-compiler --bin solar
+
+fuzz/bin/solsymdiff \
+  --source path/to/Target.sol \
+  --contract Target \
+  --signature 'probe(uint256,bytes)'
+```
+
+Both compilers receive the same closed Standard JSON input and compiler
+settings. The generated Foundry property installs both runtimes, calls them in
+the same context, and compares success or revert status and exact returndata.
+A mismatch is reported only after Foundry concretely replays the symbolic
+counterexample. The generated replay project, compiler input, and `result.json`
+are kept under `target/solsymdiff/`.
+
+Pure functions are enabled by default. `--include-view` allows a selected view
+function with zero-initialized storage. `--include-stateful` allows a selected
+nonpayable function under a zero-initialized, single-call model and additionally
+compares emitted logs and every written target-storage slot. Constructors,
+nonzero initial state, payable calls, and multi-call sequences remain outside
+this lane; the stateful result does not compare side effects in external
+contracts.
+
+For real projects, use `--project-root`, repeat `--include-path`, and pass
+`--remapping prefix=target` as needed. Solc resolves the import closure once;
+the tool then embeds all resolved sources before compiling with either
+compiler, so the final compiler inputs are byte-for-byte identical.
+
+Each runtime call receives the same fixed 10,000,000-gas budget, recorded as
+part of the bounds. Programs whose result depends on transaction-local access
+warmth or other dynamic gas context remain outside the sound comparison scope.
+
+The default dynamic input lengths are `0,1,2,3`. Use `--dynamic-lengths` to
+change all dynamic inputs or repeat `--input-length INDEX=LENGTHS` for a
+specific top-level array, `bytes`, or `string` argument. `--max-paths`,
+`--max-solver-queries`, `--max-depth`, `--max-calldata-bytes`,
+`--symbolic-timeout`, and `--exploration-order` expose the search bounds an
+external campaign runner needs. `--max-returndata-bytes` scopes exact output
+comparison; paths with longer equal outputs are excluded from the bounded
+claim.
+
+Exit status 0 means no mismatch was found within the recorded bounds, 1 means a
+concretely replayed mismatch was found, and 2 means the run was incomplete.
+The command is an opt-in focused primitive, not an automatic all-contract
+campaign or an unbounded equivalence proof. A mismatch proves the two recorded
+runtimes differ; source minimization and a Solidity-spec review still decide
+which compiler, if either, is wrong.
+
 ## Scaling
 
 PR CI uses bounded counts. Scheduled/manual CI runs can scale the same script

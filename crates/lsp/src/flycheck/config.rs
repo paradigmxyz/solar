@@ -31,7 +31,6 @@ impl FlycheckConfig {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FlycheckInitializationOptions {
-    forge_path: Option<PathBuf>,
     flychecks: Option<Vec<FlycheckTemplate>>,
 }
 
@@ -40,15 +39,16 @@ impl FlycheckInitializationOptions {
         value.and_then(|value| serde_json::from_value(value).ok()).unwrap_or_default()
     }
 
-    pub(crate) fn configs(&self, workspaces: &[Workspace]) -> Vec<FlycheckConfig> {
+    pub(crate) fn configs(
+        &self,
+        workspaces: &[Workspace],
+        forge_path: &Path,
+        selected_profile: Option<&str>,
+    ) -> Vec<FlycheckConfig> {
         match &self.flychecks {
             Some(templates) => expand_templates(templates, workspaces),
-            None => default_flychecks(workspaces, self.forge_path()),
+            None => default_flychecks(workspaces, forge_path.to_path_buf(), selected_profile),
         }
-    }
-
-    pub(crate) fn forge_path(&self) -> PathBuf {
-        self.forge_path.clone().unwrap_or_else(|| PathBuf::from("forge"))
     }
 }
 
@@ -98,7 +98,11 @@ fn expand_templates(
         .collect()
 }
 
-fn default_flychecks(workspaces: &[Workspace], forge_path: PathBuf) -> Vec<FlycheckConfig> {
+fn default_flychecks(
+    workspaces: &[Workspace],
+    forge_path: PathBuf,
+    selected_profile: Option<&str>,
+) -> Vec<FlycheckConfig> {
     workspaces
         .iter()
         .filter(|workspace| workspace.kind() == WorkspaceKind::Foundry)
@@ -107,7 +111,7 @@ fn default_flychecks(workspaces: &[Workspace], forge_path: PathBuf) -> Vec<Flych
         .map(|workspace_root| FlycheckConfig {
             id: "forge-lint".into(),
             command: forge_path.clone(),
-            args: vec!["lint".into(), "--json".into()],
+            args: forge_lint_args(selected_profile),
             cwd: workspace_root.clone(),
             workspace_root,
             output: FlycheckOutput::ForgeLintJson,
@@ -121,6 +125,14 @@ fn workspace_root(workspace: &Workspace) -> Option<PathBuf> {
 
 fn resolve_workspace_path(workspace_root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() { path.to_path_buf() } else { workspace_root.join(path) }
+}
+
+fn forge_lint_args(selected_profile: Option<&str>) -> Vec<String> {
+    let mut args = vec!["lint".into(), "--json".into()];
+    if let Some(profile) = selected_profile {
+        args.extend(["--profile".into(), profile.into()]);
+    }
+    args
 }
 
 fn forge_lint_available(command: &Path, cwd: &Path) -> bool {
@@ -149,7 +161,6 @@ mod tests {
             "#,
         );
         let options = FlycheckInitializationOptions {
-            forge_path: None,
             flychecks: Some(vec![FlycheckTemplate {
                 id: "custom".into(),
                 command: "custom-lint".into(),
@@ -159,7 +170,7 @@ mod tests {
             }]),
         };
 
-        let configs = options.configs(project.config().workspaces());
+        let configs = options.configs(project.config().workspaces(), Path::new("forge"), None);
 
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
@@ -178,9 +189,15 @@ mod tests {
             src = "src"
             "#,
         );
-        let options =
-            FlycheckInitializationOptions { forge_path: None, flychecks: Some(Vec::new()) };
+        let options = FlycheckInitializationOptions { flychecks: Some(Vec::new()) };
 
-        assert!(options.configs(project.config().workspaces()).is_empty());
+        assert!(
+            options.configs(project.config().workspaces(), Path::new("forge"), None).is_empty()
+        );
+    }
+
+    #[test]
+    fn default_forge_lint_args_omit_unselected_profile() {
+        assert_eq!(forge_lint_args(None), ["lint", "--json"]);
     }
 }
