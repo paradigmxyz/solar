@@ -15,59 +15,60 @@ fn @asValue() {
     v5 = eq v3, v4
     jumpi v5, bb3, bb1
   bb3:
-    v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v47 = add v23, 96
-    mstore 64, v47 !metadata(memory=scratch)
-    mstore v23, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v24 = add v23, 4
-    mstore v24, arg0
-    v25 = add v23, 36
-    mstore v25, arg1
-    v11 = add 68, 31
-    v12 = lt v11, 68
-    jumpi v12, bb4, bb5
+    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v24 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v48 = add v24, 96
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v24, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v25 = add v24, 4
+    mstore v25, v6
+    v26 = add v24, 36
+    mstore v26, arg1
+    v12 = add 68, 31
+    v13 = lt v12, 68
+    jumpi v13, bb4, bb5
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v14, 32
-    v16 = lt v15, v14
-    jumpi v16, bb4, bb6
+    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v15, 32
+    v17 = lt v16, v15
+    jumpi v17, bb4, bb6
   bb6:
-    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v48 = add v17, v15
-    mstore 64, v48 !metadata(memory=scratch)
-    mstore v17, 68
-    v18 = add v17, 32
-    mcopy v18, v23, 68
-    v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, 32
-    v29 = sub v28, v27
-    mstore v27, v29
-    v30 = mload v17
+    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v49 = add v18, v16
+    mstore 64, v49 !metadata(memory=scratch)
+    mstore v18, 68
+    v19 = add v18, 32
+    mcopy v19, v24, 68
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 32
+    v30 = sub v29, v28
     mstore v28, v30
-    v32 = add v30, 31
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v34 = add v27, 64
-    jumpi v33, bb7, bb8
+    v31 = mload v18
+    mstore v29, v31
+    v33 = add v31, 31
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v28, 64
+    jumpi v34, bb7, bb8
   bb7:
-    v36 = sub v33, 32
-    v37 = add v34, v36
-    mstore v37, 0
+    v37 = sub v34, 32
+    v38 = add v35, v37
+    mstore v38, 0
     jump bb8
   bb8:
-    v39 = add v34, v33
-    v38 = add v17, 32
-    mcopy v34, v38, v30
-    v40 = sub v39, v27
-    v42 = add v40, 31
-    v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v49 = add v45, v44
-    mstore 64, v49 !metadata(memory=scratch)
-    returndata v45, v40
+    v40 = add v35, v34
+    v39 = add v18, 32
+    mcopy v35, v39, v31
+    v41 = sub v40, v28
+    v43 = add v41, 31
+    v45 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v50 = add v46, v45
+    mstore 64, v50 !metadata(memory=scratch)
+    returndata v46, v41
 }
 
 fn @viaCall() {
@@ -90,17 +91,18 @@ fn @viaCall() {
     jumpi v8, bb4, bb1
   bb4:
     mstore 128, 0
-    v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v19 = add v15, 96
-    mstore 64, v19 !metadata(memory=scratch)
-    mstore v15, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v16 = add v15, 4
-    mstore v16, arg1
-    v17 = add v15, 36
-    mstore v17, arg2
-    v12 = gas
-    v13 = call v12, arg0, 0, v15, 68, 0, 0
-    mstore 128, v13
+    v9 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v20 = add v16, 96
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v16, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v17 = add v16, 4
+    mstore v17, v9
+    v18 = add v16, 36
+    mstore v18, arg2
+    v13 = gas
+    v14 = call v13, arg0, 0, v16, 68, 0, 0
+    mstore 128, v14
     returndata 128, 32
 }
 

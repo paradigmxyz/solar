@@ -224,6 +224,18 @@ complex runtime tests under `tests/foundry/` and run them with
 state, multiple actors or contracts, event assertions, cheatcodes, and complex
 setup.
 
+Real-world Foundry projects run as an external, local-only differential suite
+through `cargo tq foundry-external [name]`: each project's own test suite is
+the oracle, with solc as the baseline leg. Add a project to
+`tools/tester/src/foundry/external.rs` (pinned to a full commit hash, git
+submodules only for dependencies) when whole-project scale is what finds the
+bugs — dispatch and ABI breadth, deep inheritance, assembly-heavy libraries,
+EIP-170 pressure. Keep writing minimal in-repo `tests/foundry/` projects or
+`run-call` UI tests for anything that can be reduced: external projects are
+never run in CI, and a reduced regression test must land with any fix they
+surface. Skip entries require a reason; sustained divergences graduate to
+`docs/SOLC_DIVERGENCE.md`.
+
 Use FileCheck when exact full-output snapshots are too brittle or when a test
 needs to assert selected output properties such as ordering, presence, or
 absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related

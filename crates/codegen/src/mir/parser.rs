@@ -36,7 +36,8 @@ use super::{
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, Disambiguator,
     EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction,
     InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
-    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    PackedKind, PackedValue, StorageAlias, StorageField, StorageLayout, StorageLayoutRef,
+    StructField, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -742,17 +743,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    /// Parses a storage layout: `struct<field, ...>` or `array<len, field>`.
-    /// Structurally identical layouts are interned.
+    /// Parses a storage layout: `struct<slot[+offset]:field, ...>` or
+    /// `array<len, field>`. Structurally identical layouts are interned.
     fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
         let name = self.parser.parse_ident()?;
+        self.parse_storage_layout_named(name)
+    }
+
+    fn parse_storage_layout_named(&mut self, name: Symbol) -> PResult<'sess, StorageLayoutRef> {
         let layout = match name {
             kw::Struct => {
                 self.parser.expect(TokenKind::Lt)?;
                 let mut fields = Vec::new();
                 if !self.eat_gt() {
                     loop {
-                        fields.push(self.parse_storage_field()?);
+                        fields.push(self.parse_struct_field()?);
                         if self.eat_gt() {
                             break;
                         }
@@ -782,11 +787,61 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(layout)
     }
 
+    /// Parses a placed struct field: `slot[+offset]:shape`.
+    fn parse_struct_field(&mut self) -> PResult<'sess, StructField> {
+        let slot = self.parser.parse_uint()?;
+        let slot = slot
+            .try_into()
+            .map_err(|_| self.parser.error("storage field slot does not fit in u64"))?;
+        let mut offset = 0u8;
+        if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
+            let value = self.parser.parse_uint()?;
+            offset = u8::try_from(value)
+                .ok()
+                .filter(|offset| *offset < 32)
+                .ok_or_else(|| self.parser.error("storage field offset must be below 32"))?;
+        }
+        self.parser.expect(TokenKind::Colon)?;
+        let shape = self.parse_storage_field()?;
+        Ok(StructField { slot, offset, shape })
+    }
+
     fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
-        if self.parser.eat_keyword(sym::word) {
+        let name = self.parser.parse_ident()?;
+        if name == sym::word {
             return Ok(StorageField::Word);
         }
-        Ok(StorageField::Aggregate(self.parse_storage_layout()?))
+        if let Some(value) = Self::parse_packed_value(name) {
+            let value = value.map_err(|message| self.parser.error(message))?;
+            return Ok(StorageField::Packed(value));
+        }
+        Ok(StorageField::Aggregate(self.parse_storage_layout_named(name)?))
+    }
+
+    /// Parses a packed-value shape ident: `u<bits>`, `i<bits>`, or `b<bytes>`.
+    /// Returns `None` for idents that are not packed-value shapes.
+    fn parse_packed_value(name: Symbol) -> Option<Result<PackedValue, String>> {
+        let text = name.as_str();
+        let (kind, rest) = match text.split_at_checked(1)? {
+            ("u", rest) => (PackedKind::Unsigned, rest),
+            ("i", rest) => (PackedKind::Signed, rest),
+            ("b", rest) => (PackedKind::HighAligned, rest),
+            _ => return None,
+        };
+        let value: u16 = rest.parse().ok()?;
+        let size = match kind {
+            PackedKind::HighAligned => value,
+            _ => {
+                if !value.is_multiple_of(8) {
+                    return Some(Err(format!("packed bit size `{text}` is not a byte multiple")));
+                }
+                value / 8
+            }
+        };
+        if !(1..=31).contains(&size) {
+            return Some(Err(format!("packed value `{text}` does not fit within one slot")));
+        }
+        Some(Ok(PackedValue { size: size as u8, kind }))
     }
 
     /// Parses a memory-object layout whose kind identifier `name` has already

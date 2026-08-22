@@ -80,10 +80,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let ExprKind::Lit(lit) = &expr.kind
-            && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
-        {
-            return ptr;
+        if let Some(bytes) = self.constant_string_bytes(expr) {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
@@ -139,6 +137,17 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
         use crate::mir::{MirType, SliceLocation};
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Memory)))
+    }
+
+    /// Whether a lowered value already carries a bytes-like pointer or slice
+    /// type, meaning bytes/string consumers can use it (possibly after slice
+    /// coercion) without rematerializing it from constant data.
+    pub(super) fn value_is_bytes_like_object(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> bool {
+        use crate::mir::MirType;
+        matches!(builder.func().value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
     }
 
     /// Whether a lowered value is a logical calldata slice. A calldata-typed
@@ -235,6 +244,20 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return value;
         }
+        // A bare numeric literal for a `bytesN` parameter needs the
+        // left-aligned word representation.
+        let value =
+            self.coerce_literal_for_ty(builder, arg, self.gcx.type_of_item(param_id.into()), value);
+        // A string/bytes literal (or a `constant` string reference) lowers to
+        // its left-aligned content word; a memory parameter dereferences its
+        // argument, so materialize the constant as a real
+        // `[length][data...]` object.
+        if self.var_expects_memory_bytes_value(param)
+            && !Self::value_is_bytes_like_object(builder, value)
+            && let Some(bytes) = self.constant_string_bytes(arg)
+        {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
+        }
         if Self::value_is_calldata_slice(builder, value) {
             let ty = self.gcx.type_of_item(param_id.into());
             if matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
@@ -242,7 +265,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return self.materialize_calldata_bytes(builder, value);
         }
-        self.coerce_memory_slice_value(builder, value)
+        let value = self.coerce_memory_slice_value(builder, value);
+        if !self.in_assembly_block && self.call_result_may_be_dirty(arg) {
+            let ty =
+                self.get_expr_type(arg).unwrap_or_else(|| self.gcx.type_of_item(param_id.into()));
+            self.abi_clean_value(builder, value, ty)
+        } else {
+            value
+        }
     }
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
@@ -460,7 +490,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Materializes a dynamic calldata array. Arrays of ABI-word values can
     /// be copied directly; reference and aggregate elements are rebuilt one at
     /// a time so their memory slots contain memory pointers.
-    fn materialize_calldata_dynamic_array_at(
+    pub(super) fn materialize_calldata_dynamic_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,

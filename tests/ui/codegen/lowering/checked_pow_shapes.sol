@@ -67,9 +67,7 @@ contract CheckedPowShapes {
     }
 
     // CHECK-LABEL: fn @const_neg2{{[( ]}}
-    // CHECK: [[BASE:v[0-9]+]] = sub 0, 2
-    // CHECK: exp [[BASE]], arg0
-    // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[BASE]]
+    // CHECK: exp 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, arg0
     function const_neg2(uint256 b) public pure returns (int256) {
         return (-2) ** b;
     }

@@ -45,20 +45,12 @@ contract C {
 
     // CHECK: [[MULTI]]:
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
-    // The entry's free-memory initialization and the following static allocation share their
-    // identical base push.
-    // CHECK: push 224
-    // CHECK-NEXT: dup1
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push 9
-    // CHECK-NEXT: swap1
-    // CHECK: mstore
+    // Named results are written directly to their return slots.
     // CHECK: push 7
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 9
-    // CHECK: jump [[PAIR_RETURN]]
+    // CHECK-NEXT: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

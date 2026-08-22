@@ -18,15 +18,15 @@ bb3 [cold]:
   push 0
   dup1
   revert
-bb24 [cold]:
+bb22 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 17
-  jump bb25
-bb25 [cold]:
+  jump bb23
+bb23 [cold]:
   push 4
   mstore
   push 36
@@ -39,9 +39,9 @@ bb12 [cold]:
   push 0
   mstore
   push 65
-  jump bb25
+  jump bb23
 bb4:
-  push 480
+  push 448
   push 64
   mstore
   calldatasize
@@ -118,7 +118,7 @@ bb4:
   push 64
   mload
   dup1
-  push 384
+  push 352
   mstore
   swap1
   dup2
@@ -146,7 +146,7 @@ bb4:
   add
   dup2
   dup1
-  push 384
+  push 352
   mstore
   swap1
   mstore
@@ -197,7 +197,7 @@ bb4:
   dup2
   add
   dup1
-  push 416
+  push 384
   mstore
   lt
   push bb12
@@ -205,9 +205,9 @@ bb4:
   push 64
   mload
   dup1
-  push 384
+  push 352
   mstore
-  push 416
+  push 384
   mload
   dup2
   add
@@ -246,7 +246,7 @@ bb4:
   add
   dup2
   dup1
-  push 384
+  push 352
   mstore
   swap1
   mstore
@@ -288,33 +288,33 @@ bb4:
   mload
   push 128
   mstore
-  push 0
-  push 160
-  mstore
   push 32
   push 288
   mload
   add
-  push 320
+  push 224
   mstore
   pop
   push 0
   jump bb13
 bb13:
-  push 320
+  push 224
   mload
   mload
   mload
-  gt
-  push 4
-  calldataload
-  swap1
+  dup2
+  push 256
+  mstore
+  dup2
+  lt
   push bb17
   jumpi
   push 64
   push 288
   mload
   add
+  swap1
+  pop
   mload
   mload
   push 0x3e8
@@ -331,8 +331,11 @@ bb13:
   eq
   swap1
   pop
+  push 4
+  calldataload
+  swap1
   iszero
-  push bb24
+  push bb22
   jumpi
   push 128
   mload
@@ -344,7 +347,7 @@ bb13:
   push 192
   mstore
   lt
-  push bb24
+  push bb22
   jumpi
   push 192
   mload
@@ -355,6 +358,11 @@ bb13:
   mload
   add
   mload
+  push 0
+  not
+  push 96
+  shr
+  and
   push 0
   mstore
   push 32
@@ -370,75 +378,69 @@ bb13:
   push 128
   return
 bb17:
-  push 320
+  push 224
   mload
   mload
   dup1
   push 192
   mstore
-  push 160
   mload
-  dup1
-  push 224
-  mstore
   dup2
-  mload
-  gt
-  swap1
-  pop
-  iszero
-  push bb23
-  jumpi
-  push 32
-  push 192
-  mload
-  add
-  push 32
-  push 224
-  mload
-  mul
-  add
-  mload
-  push 192
-  mstore
-  push 160
-  mload
-  push 1
-  dup2
-  add
-  dup1
-  push 224
-  mstore
-  lt
-  push bb24
-  jumpi
-  push 224
-  mload
-  push 192
-  mload
-  mul
-  dup1
   push 256
   mstore
-  push 224
-  mload
+  dup2
+  lt
+  swap1
+  pop
+  push 4
+  calldataload
+  swap1
   iszero
-  push 224
+  push bb21
+  jumpi
+  push 32
+  push 192
   mload
+  add
+  push 32
+  push 256
+  mload
+  mul
+  add
+  mload
+  push 1
+  push 256
+  mload
+  add
+  dup1
+  push 416
+  mstore
+  dup1
+  dup3
+  mul
+  dup1
+  push 192
+  mstore
+  dup2
+  iszero
+  dup3
   dup3
   div
-  push 192
-  mload
-  eq
-  or
   swap1
+  swap4
+  eq
+  swap1
+  swap3
+  or
+  swap2
+  pop
   pop
   iszero
-  push bb24
+  push bb22
   jumpi
   push 128
   mload
-  push 256
+  push 192
   mload
   dup2
   add
@@ -446,39 +448,24 @@ bb17:
   push 192
   mstore
   lt
-  push bb24
+  push bb22
   jumpi
   push 192
   mload
   push 128
-  mstore
-  push 160
-  mload
-  push 1
-  dup2
-  add
-  dup1
-  push 352
-  mstore
-  lt
-  push bb24
-  jumpi
-  push 352
-  mload
-  push 160
   mstore
   pop
-  push 352
+  push 416
   mload
   jump bb13
-bb23 [cold]:
+bb21 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 50
-  jump bb25
+  jump bb23
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
 bb0:

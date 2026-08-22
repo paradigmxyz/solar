@@ -22,6 +22,10 @@ enum PackedAbiArg {
     /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
     /// copied without padding.
     DynamicBytes(ValueId),
+    /// A memory array whose elements each occupy one padded word.
+    MemoryWordArray { value: ValueId, fixed_len: Option<u64> },
+    /// A calldata array slice whose elements each occupy one padded word.
+    CalldataWordArray(ValueId),
 }
 
 impl PackedAbiArg {
@@ -49,7 +53,14 @@ impl PackedAbiArg {
                     max_write = max_write.max(offset + 32);
                     offset += *size;
                 }
-                Self::DynamicBytes(_) => return None,
+                Self::MemoryWordArray { fixed_len: Some(len), .. } => {
+                    let bytes = usize::try_from(*len).ok()?.checked_mul(32)?;
+                    max_write = max_write.max(offset + bytes);
+                    offset += bytes;
+                }
+                Self::DynamicBytes(_)
+                | Self::MemoryWordArray { fixed_len: None, .. }
+                | Self::CalldataWordArray(_) => return None,
             }
             i += 1;
         }
@@ -207,9 +218,42 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.peel_refs().kind,
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             ) {
-                let ptr = self.lower_value_expr(builder, arg);
+                let ptr = self.lower_expr_as_memory_bytes(builder, arg);
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
+            }
+
+            match ty.peel_refs().kind {
+                TyKind::DynArray(elem) if self.abi_is_word_element(elem) => {
+                    let value = self.lower_value_expr(builder, arg);
+                    if Self::value_is_calldata_slice(builder, value) {
+                        packed_args.push(PackedAbiArg::CalldataWordArray(value));
+                    } else {
+                        packed_args.push(PackedAbiArg::MemoryWordArray { value, fixed_len: None });
+                    }
+                    continue;
+                }
+                TyKind::Array(elem, len) if self.abi_is_word_element(elem) => {
+                    let value = self.lower_value_expr(builder, arg);
+                    let len = u64::try_from(len).map_err(|_| {
+                        self.gcx
+                            .dcx()
+                            .err("packed array is too large for codegen")
+                            .span(arg.span)
+                            .emit()
+                    })?;
+                    if len.checked_mul(32).is_none() {
+                        return Err(self
+                            .gcx
+                            .dcx()
+                            .err("packed array is too large for codegen")
+                            .span(arg.span)
+                            .emit());
+                    }
+                    packed_args.push(PackedAbiArg::MemoryWordArray { value, fixed_len: Some(len) });
+                    continue;
+                }
+                _ => {}
             }
 
             let size = self.get_packed_size_from_expr(arg, ty);
@@ -350,6 +394,38 @@ impl<'gcx> Lowerer<'gcx> {
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     builder.mcopy(dest, src, len);
                     base = builder.add(dest, len);
+                    offset = 0;
+                    is_static = false;
+                }
+                &PackedAbiArg::MemoryWordArray { value, fixed_len } => {
+                    let dest = self.offset_ptr(builder, base, offset);
+                    let (src, len) = if let Some(len) = fixed_len {
+                        (value, builder.imm_u64(len))
+                    } else {
+                        (
+                            builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
+                            builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
+                        )
+                    };
+                    let word = builder.imm_u64(32);
+                    let size = builder.mul(len, word);
+                    builder.mcopy(dest, src, size);
+                    if let Some(len) = fixed_len {
+                        offset += len * 32;
+                    } else {
+                        base = builder.add(dest, size);
+                        offset = 0;
+                        is_static = false;
+                    }
+                }
+                &PackedAbiArg::CalldataWordArray(slice) => {
+                    let dest = self.offset_ptr(builder, base, offset);
+                    let word = builder.imm_u64(32);
+                    let len = builder.slice_len(slice);
+                    let size = builder.mul(len, word);
+                    let src = builder.slice_ptr(slice);
+                    builder.calldatacopy(dest, src, size);
+                    base = builder.add(dest, size);
                     offset = 0;
                     is_static = false;
                 }

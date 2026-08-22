@@ -379,7 +379,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.ordered_args_for(args, self.gcx.call_param_source(callee))
     }
 
-    fn ordered_function_args<'hir>(
+    pub(super) fn ordered_function_args<'hir>(
         &self,
         func_id: hir::FunctionId,
         args: &CallArgs<'hir>,
@@ -483,6 +483,16 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Result<[ValueId; N], ErrorGuaranteed> {
         let exprs = self.builtin_args(builtin, args)?;
+        // Yul evaluates call arguments right to left; code like solady's
+        // `mul(extcodesize(a), call(...))` deploy idiom depends on the call
+        // executing before the code-size check.
+        if self.in_assembly_block {
+            let mut values = [None; N];
+            for i in (0..N).rev() {
+                values[i] = Some(self.lower_value_expr(builder, &exprs[i]));
+            }
+            return Ok(values.map(|value| value.unwrap()));
+        }
         Ok(exprs.each_ref().map(|arg| self.lower_value_expr(builder, arg)))
     }
 
@@ -508,6 +518,10 @@ impl<'gcx> Lowerer<'gcx> {
                 }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
                 {
                     slot
+                } else if let Some(value) = parameter.and_then(|parameter| {
+                    self.materialize_storage_arg_for_param(builder, arg, parameter)
+                }) {
+                    value
                 } else {
                     let value = self.lower_value_expr(builder, arg);
                     self.coerce_memory_slice_value(builder, value)
@@ -880,6 +894,17 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, len, object_layout.kind());
 
+        if let TyKind::DynArray(element_ty) = self.gcx.type_of_hir_ty(ty).peel_refs().kind
+            && !element_ty.peel_refs().is_value_type()
+        {
+            self.emit_decode_elements_loop(builder, len, |this, builder, index| {
+                let value = this.zero_memory_field_value_ty(builder, element_ty, ty.span);
+                let addr =
+                    builder.memory_object_element_addr(ptr, MemoryObjectLayout::WORD_ARRAY, index);
+                builder.mstore(addr, value);
+            });
+        }
+
         ptr
     }
 
@@ -963,6 +988,30 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
+        // Constructor arguments are a full ABI tuple appended after the
+        // creation code, not one word per argument: dynamic values carry
+        // offset heads and tails. Encode them first so the payload's own
+        // allocation cannot land inside the creation image below.
+        let encoded_args = if arg_exprs.is_empty() {
+            None
+        } else {
+            if let Some(ctor) = self.gcx.hir.contract(contract_id).ctor {
+                self.abi_encode_param_tys = Some(
+                    self.gcx
+                        .hir
+                        .function(ctor)
+                        .parameters
+                        .iter()
+                        .map(|&id| self.gcx.type_of_item(id.into()))
+                        .collect(),
+                );
+            }
+            match self.abi_encode_call_payload(builder, None, arg_exprs.iter().copied()) {
+                Ok(payload) => Some(payload),
+                Err(guar) => return builder.error_value(guar),
+            }
+        };
+
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
@@ -978,18 +1027,16 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val_id);
         }
 
-        // Append constructor arguments after bytecode
-        let mut args_offset = bytecode_len as u64;
-        for arg in arg_exprs {
-            let arg_val = self.lower_value_expr(builder, arg);
-            let arg_offset_imm = builder.imm_u64(args_offset);
-            let arg_dest = builder.add(mem_offset, arg_offset_imm);
-            builder.mstore(arg_dest, arg_val);
-            args_offset += 32; // Each arg is 32 bytes ABI encoded
-        }
-
-        // Total size = bytecode + args
-        let total_size = builder.imm_u64(args_offset);
+        // Append the encoded constructor arguments after the creation code.
+        let bytecode_len_val = builder.imm_u64(bytecode_len as u64);
+        let total_size = match &encoded_args {
+            Some((args_ptr, args_size)) => {
+                let args_dest = builder.add(mem_offset, bytecode_len_val);
+                builder.mcopy(args_dest, *args_ptr, *args_size);
+                builder.add(bytecode_len_val, *args_size)
+            }
+            None => bytecode_len_val,
+        };
 
         // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
         let thirty_one = builder.imm_u64(31);
@@ -1687,6 +1734,17 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(exprs) => exprs,
             Err(guar) => return self.call_error_result(builder, callee, guar),
         };
+        if let Some(func_id) = resolved_func {
+            self.abi_encode_param_tys = Some(
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect(),
+            );
+        }
         let selector_word = builder.imm_u256(U256::from(selector) << 224);
         let (calldata_start, calldata_size) =
             match self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs.into_iter())
@@ -1696,6 +1754,43 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
         let addr = self.lower_value_expr(builder, base);
+
+        // Returns containing dynamic types need real ABI decoding: their raw
+        // head words are payload-relative offsets, not memory pointers. Fixed
+        // arrays are static but span several head words, so they need the
+        // decode too; the legacy word buffer would truncate them. Only a
+        // resolved callee carries the return types.
+        let dynamic_return_tys = resolved_func
+            .map(|func_id| {
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .returns
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect::<Vec<_>>()
+            })
+            .filter(|tys| {
+                tys.iter().any(|&ty| {
+                    let ty = ty.peel_refs();
+                    self.abi_is_dynamic(ty) || matches!(ty.kind, TyKind::Array(..))
+                })
+            });
+        if let Some(return_tys) = dynamic_return_tys {
+            let kind = self.external_function_call_kind(resolved_func);
+            let (gas, value) =
+                self.lower_external_call_options(builder, call_opts, kind.accepts_value());
+            return self.lower_external_call_dynamic_returns(
+                builder,
+                kind,
+                gas,
+                addr,
+                value,
+                calldata_start,
+                calldata_size,
+                &return_tys,
+            );
+        }
 
         // Determine where to store return data and whether it's a struct
         let (ret_offset, ret_size, struct_ptr_opt) =
@@ -1755,6 +1850,107 @@ impl<'gcx> Lowerer<'gcx> {
         // Multi-return consumers snapshot additional words from the ephemeral
         // buffer at `ret_offset` before lowering any lvalues.
         Some(builder.mload(ret_offset))
+    }
+
+    /// Performs an external call whose declared returns contain dynamic types
+    /// and ABI-decodes them from the return data. The payload is copied into
+    /// fresh memory and decoded like any other ABI blob, with the head-size
+    /// and offset checks solc performs.
+    #[allow(clippy::too_many_arguments)]
+    fn lower_external_call_dynamic_returns(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        kind: ExternalCallKind,
+        gas: ValueId,
+        addr: ValueId,
+        value: Option<ValueId>,
+        calldata_start: ValueId,
+        calldata_size: ValueId,
+        return_tys: &[Ty<'gcx>],
+    ) -> Option<ValueId> {
+        let zero = builder.imm_u64(0);
+        let success = self.emit_external_call(
+            builder,
+            kind,
+            gas,
+            addr,
+            value,
+            calldata_start,
+            calldata_size,
+            zero,
+            zero,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
+
+        let head_size = match self.abi_head_size_sum(return_tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => return Some(builder.error_value(guar)),
+        };
+        let payload_size = builder.returndatasize();
+        let head_size_val = builder.imm_u64(head_size);
+        let too_short = builder.lt(payload_size, head_size_val);
+        self.emit_abi_decode_revert_if(builder, too_short);
+
+        let base = self.allocate_memory_object_dynamic(
+            builder,
+            payload_size,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
+        builder.returndatacopy(base, zero, payload_size);
+
+        let mut values = Vec::with_capacity(return_tys.len());
+        let mut head_offset = 0u64;
+        for &ty in return_tys {
+            let item_pos = self.offset_ptr(builder, base, head_offset);
+            let value = if self.abi_is_dynamic(ty.peel_refs()) {
+                let offset = builder.mload(item_pos);
+                let out_of_range = builder.gt(offset, payload_size);
+                self.emit_abi_decode_revert_if(builder, out_of_range);
+                let pos = builder.add(base, offset);
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Memory,
+                    ty,
+                    pos,
+                )
+            } else {
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Memory,
+                    ty,
+                    item_pos,
+                )
+            };
+            values.push(value);
+            head_offset += match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => return Some(builder.error_value(guar)),
+            };
+        }
+
+        if values.len() > 1 {
+            // Publish the decoded values through the one-word-per-value
+            // multi-return buffer the tuple consumers snapshot: reference
+            // types travel as their fresh memory pointers.
+            let count = values.len() as u64;
+            let size = builder.imm_u64(count * 32);
+            let buffer = builder.alloc_object(
+                size,
+                crate::mir::MemoryObjectLayout::structure(count),
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            for (index, &value) in values.iter().enumerate() {
+                let addr = builder.memory_object_field_addr(
+                    buffer,
+                    crate::mir::MemoryObjectLayout::structure(count),
+                    index as u64,
+                );
+                builder.mstore(addr, value);
+            }
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+            builder.mstore(ptr_slot, buffer);
+        }
+        Some(values[0])
     }
 
     pub(super) fn resolved_function_callee(
@@ -1938,6 +2134,37 @@ impl<'gcx> Lowerer<'gcx> {
             || var.data_location == Some(solar_ast::DataLocation::Storage)
     }
 
+    /// Materializes a storage aggregate when a by-value parameter expects a
+    /// memory object. Member expressions such as `heap.data` lower to their
+    /// storage contents when read normally, so the conversion must start from
+    /// the lvalue slot rather than reinterpret that first word as a pointer.
+    fn materialize_storage_arg_for_param(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg: &hir::Expr<'_>,
+        param_ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
+        if matches!(
+            param_ty.kind,
+            TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage | DataLocation::Calldata)
+        ) {
+            return None;
+        }
+        let arg_ty = self.get_expr_type(arg)?;
+        let TyKind::Ref(inner, DataLocation::Storage) = arg_ty.kind else { return None };
+        if !matches!(
+            inner.kind,
+            TyKind::Struct(_)
+                | TyKind::DynArray(_)
+                | TyKind::Array(..)
+                | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            return None;
+        }
+        let slot = self.lower_lvalue_slot(builder, arg)?;
+        Some(self.materialize_storage_ref_value(builder, arg_ty, slot, arg.span))
+    }
+
     /// Lowers an internal function call.
     fn lower_internal_call(
         &mut self,
@@ -1970,25 +2197,41 @@ impl<'gcx> Lowerer<'gcx> {
                 return (!func.returns.is_empty()).then(|| builder.error_value(guar));
             }
         };
-        let arg_vals: Vec<ValueId> = arg_exprs
-            .into_iter()
-            .enumerate()
-            .map(|(i, arg)| {
-                if params.get(i).is_some_and(|&p| self.param_is_storage_ref(p))
-                    && let Some(slot) = self.lower_lvalue_slot(builder, arg)
-                {
-                    slot
-                } else {
-                    // A memory parameter receives one word; a logical slice
-                    // materializes into the memory object the parameter expects.
-                    let value = self.lower_value_expr(builder, arg);
-                    match params.get(i) {
-                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
-                        None => self.coerce_memory_slice_value(builder, value),
-                    }
+        let lower_arg = |this: &mut Self, builder: &mut FunctionBuilder<'_>, i: usize, arg| {
+            if params.get(i).is_some_and(|&p| this.param_is_storage_ref(p))
+                && let Some(slot) = this.lower_lvalue_slot(builder, arg)
+            {
+                slot
+            } else if let Some(value) = params.get(i).and_then(|&param_id| {
+                let param_ty = this.gcx.type_of_item(param_id.into());
+                this.materialize_storage_arg_for_param(builder, arg, param_ty)
+            }) {
+                value
+            } else {
+                // A memory parameter receives one word; a logical slice
+                // materializes into the memory object the parameter expects.
+                let value = this.lower_value_expr(builder, arg);
+                match params.get(i) {
+                    Some(&param_id) => this.coerce_arg_for_param(builder, param_id, arg, value),
+                    None => this.coerce_memory_slice_value(builder, value),
                 }
-            })
-            .collect();
+            }
+        };
+        // Yul evaluates call arguments right to left; a Yul function call is
+        // only reachable from inside an assembly block.
+        let arg_vals: Vec<ValueId> = if self.in_assembly_block {
+            let mut values: Vec<Option<ValueId>> = vec![None; arg_exprs.len()];
+            for (i, arg) in arg_exprs.into_iter().enumerate().rev() {
+                values[i] = Some(lower_arg(self, builder, i, arg));
+            }
+            values.into_iter().map(|value| value.unwrap()).collect()
+        } else {
+            arg_exprs
+                .into_iter()
+                .enumerate()
+                .map(|(i, arg)| lower_arg(self, builder, i, arg))
+                .collect()
+        };
 
         self.lower_internal_call_values(builder, func_id, arg_vals)
     }

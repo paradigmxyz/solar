@@ -28,29 +28,45 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, 1
-    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v10 = memory_object_field_addr memorystruct<2>, v9, 0
-    mstore v10, arg0
-    v11 = add arg0, 1
-    v12 = lt v11, arg0
-    jumpi v12, bb7, bb8
+    jump bb7
   bb7:
+    v9 = phi [bb6: 0], [bb8: v15]
+    v10 = lt v9, 1
+    jumpi v10, bb8, bb9
+  bb8:
+    v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v12 = memory_object_field_addr memorystruct<2>, v11, 0
+    mstore v12, 0
+    v13 = memory_object_field_addr memorystruct<2>, v11, 1
+    mstore v13, 0
+    v14 = memory_object_element_addr memoryarray<1>, v8, v9
+    mstore v14, v11
+    v15 = add v9, 1
+    jump bb7
+  bb9:
+    v16 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v17 = memory_object_field_addr memorystruct<2>, v16, 0
+    mstore v17, arg0
+    v18 = add arg0, 1
+    v19 = lt v18, arg0
+    jumpi v19, bb10, bb11
+  bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    v13 = memory_object_field_addr memorystruct<2>, v9, 1
-    mstore v13, v11
-    v14 = memory_object_len memoryarray, v8
-    v15 = lt 0, v14
-    jumpi v15, bb10, bb9
-  bb9:
+  bb11:
+    v20 = memory_object_field_addr memorystruct<2>, v16, 1
+    mstore v20, v18
+    v21 = memory_object_len memoryarray, v8
+    v22 = lt 0, v21
+    jumpi v22, bb13, bb12
+  bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    v16 = memory_object_element_addr memoryarray<1>, v8, 0
-    mstore v16, v9
+  bb13:
+    v23 = memory_object_element_addr memoryarray<1>, v8, 0
+    mstore v23, v16
     ret v8
 }
 
@@ -82,35 +98,46 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, 1
-    v9 = mul arg0, 32
-    v10 = div v9, 32
-    v11 = eq v10, arg0
-    jumpi v11, bb8, bb7
+    jump bb7
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v9 = phi [bb6: 0], [bb8: v12]
+    v10 = lt v9, 1
+    jumpi v10, bb8, bb9
   bb8:
-    v12 = add v9, 32
-    v13 = lt v12, v9
-    jumpi v13, bb9, bb10
+    v11 = memory_object_element_addr memoryarray<1>, v8, v9
+    mstore v11, 96
+    v12 = add v9, 1
+    jump bb7
   bb9:
+    v13 = mul arg0, 32
+    v14 = div v13, 32
+    v15 = eq v14, arg0
+    jumpi v15, bb11, bb10
+  bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, v12
-    set_memory_object_len memoryarray, v14, arg0
-    v15 = memory_object_len memoryarray, v8
-    v16 = lt 0, v15
-    jumpi v16, bb12, bb11
   bb11:
+    v16 = add v13, 32
+    v17 = lt v16, v13
+    jumpi v17, bb12, bb13
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v18 = alloc memoryarray<1>, exact, zeroed, panic, v16
+    set_memory_object_len memoryarray, v18, arg0
+    v19 = memory_object_len memoryarray, v8
+    v20 = lt 0, v19
+    jumpi v20, bb15, bb14
+  bb14:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    v17 = memory_object_element_addr memoryarray<1>, v8, 0
-    mstore v17, v14
+  bb15:
+    v21 = memory_object_element_addr memoryarray<1>, v8, 0
+    mstore v21, v18
     ret v8
 }
 

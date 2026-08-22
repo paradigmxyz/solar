@@ -4,14 +4,40 @@
   fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
     bb0:
 -     mcopy arg0, arg1, arg2
-+     v0 = gas
-+     v1 = sub v0, 0x620c
-+     v2 = call v1, 4, 0, arg1, arg2, arg0, arg2
-+     v3 = iszero v2
-+     jumpi v3, bb2, bb1
++     v0 = not 31
++     v1 = and arg2, v0
++     jump bb2
 +   bb1:
       ret arg0
 +   bb2:
-+     revert 0, 0
++     v2 = phi [bb0: 0], [bb3: v7]
++     v3 = lt v2, v1
++     jumpi v3, bb3, bb4
++   bb3:
++     v4 = add arg1, v2
++     v5 = mload v4
++     v6 = add arg0, v2
++     mstore v6, v5
++     v7 = add v2, 32
++     jump bb2
++   bb4:
++     v8 = lt v1, arg2
++     jumpi v8, bb5, bb1
++   bb5:
++     v9 = and arg2, 31
++     v10 = sub 32, v9
++     v11 = shl 3, v10
++     v12 = add arg1, v1
++     v13 = mload v12
++     v14 = shr v11, v13
++     v15 = shl v11, v14
++     v16 = add arg0, v1
++     v17 = mload v16
++     v18 = shl v11, 1
++     v19 = sub v18, 1
++     v20 = and v17, v19
++     v21 = or v15, v20
++     mstore v16, v21
++     jump bb1
   }
   

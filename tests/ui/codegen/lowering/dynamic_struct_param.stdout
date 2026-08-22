@@ -113,16 +113,17 @@ fn @init(arg0: u256, arg1: address) -> u256 [abi_returns=[word]] {
   bb18:
     v54 = memory_object_field_addr memorystruct<4>, v5, 1
     v55 = mload v54
-    v56 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v57 = add v55, v56
-    v58 = gt v57, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v58, bb19, bb20
+    v56 = and v55, 255
+    v57 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v58 = add v56, v57
+    v59 = gt v58, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v59, bb19, bb20
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    ret v57
+    ret v58
 }
 
 fn @flat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {

@@ -1,9 +1,9 @@
 //@compile-flags: -Zmir-pipeline=default
 //@filecheck: --match-full-lines
-// Re-running the default pipeline on its own output keeps the phase instead of
-// rejecting the idempotent optimized-to-optimized transition.
+// Re-running the default pipeline on optimized input completes the progressive
+// lowering pipeline instead of rejecting the transition.
 // CHECK: @module PhaseHeaderPreserved
-// CHECK-NEXT: @phase optimized
+// CHECK-NEXT: @phase evm-shaped
 /// Module docs.
 @module PhaseHeaderPreserved
 @phase optimized

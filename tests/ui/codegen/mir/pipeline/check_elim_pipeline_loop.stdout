@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir (after pipeline-default) ===
 @module CheckElimPipelineLoop
-@phase optimized
+@phase evm-shaped
 fn @sum(arg0: u256) {
   bb0:
     mstore 128, 0
@@ -26,4 +26,13 @@ fn @sum(arg0: u256) {
     mstore 128, v6
     v3 = add v0, 1
     jump bb1
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
 }

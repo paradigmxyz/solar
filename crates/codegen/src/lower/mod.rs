@@ -175,6 +175,22 @@ pub(crate) struct Lowerer<'gcx> {
     /// return-variable slots and jumps here, instead of terminating the
     /// enclosing MIR function.
     inline_returns: Option<InlineReturnCtx>,
+    /// The resolved modifier chain of the function currently being lowered,
+    /// outermost first. Empty for functions without modifiers.
+    modifier_frames: Vec<(HirFunctionId, &'gcx hir::Modifier<'gcx>)>,
+    /// The function whose body the innermost chain level lowers.
+    modifier_function: Option<HirFunctionId>,
+    /// The chain level a placeholder statement enters next.
+    modifier_depth: usize,
+    /// Exit block of the modifier level currently being lowered: a `return`
+    /// inside a modifier body leaves only that modifier, so control continues
+    /// after the placeholder in the enclosing level.
+    modifier_return_exit: Option<BlockId>,
+    /// Declared parameter types of the callee whose arguments the ABI encoder
+    /// lowers next, consumed by [`Self::lower_abi_encode_items`]. Sema keeps a
+    /// bare numeric literal's own type, so the target type is what decides a
+    /// `bytesN` argument's word alignment.
+    abi_encode_param_tys: Option<Vec<Ty<'gcx>>>,
     /// Return values of the most recently inlined multi-return callee whose
     /// returns cannot ride the one-word-per-value multi-return buffer
     /// (calldata slices). Destructuring consumes them directly.
@@ -188,6 +204,11 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
+    /// Variables whose words may be dirty because they are assigned in inline
+    /// assembly or receive an internal-call result. Solidity-level reads
+    /// canonicalize for the variable's type; assembly-level reads keep the raw
+    /// word, matching solc.
+    asm_assigned_vars: GrowableBitSet<VariableId>,
     /// Invalid event declarations whose topic-count error has already been emitted.
     invalid_event_topics: GrowableBitSet<hir::EventId>,
     /// Whether the next expression is an error-checking boundary.
@@ -233,13 +254,22 @@ pub(crate) struct Lowerer<'gcx> {
     synthesizing_helper: bool,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
+    /// Whether the current statement is inside an inline assembly block, both
+    /// while lowering and during the assigned-vars pre-scan. Reads of
+    /// assembly-assigned variables stay raw there, and the pre-scan uses it to
+    /// populate `asm_assigned_vars`.
+    in_assembly_block: bool,
+    /// Functions currently being inspected for dirty named returns, preventing
+    /// recursive call cycles while still following helper chains.
+    dirty_return_scan_stack: GrowableBitSet<HirFunctionId>,
     /// Sema return types of the function currently being lowered (one per declared
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
+    /// Declared return variables of the function currently being lowered, so
+    /// a bare `return;` (and Yul `leave`) can deliver their current values.
+    current_return_vars: Vec<VariableId>,
     /// Mapping from struct state variable ID to base storage slot.
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
-    /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
-    pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Interned semantic memory/storage layout for each lowered struct type.
     struct_storage_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }
@@ -293,11 +323,17 @@ impl<'gcx> Lowerer<'gcx> {
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
             inline_returns: None,
+            modifier_frames: Vec::new(),
+            modifier_function: None,
+            modifier_depth: 0,
+            modifier_return_exit: None,
+            abi_encode_param_tys: None,
             pending_inline_returns: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
+            asm_assigned_vars: GrowableBitSet::new_empty(),
             invalid_event_topics: GrowableBitSet::new_empty(),
             check_expr_errors: hir_has_errors,
             hir_has_errors,
@@ -317,9 +353,11 @@ impl<'gcx> Lowerer<'gcx> {
             storage_bytes_helper: None,
             synthesizing_helper: false,
             in_unchecked_block: false,
+            in_assembly_block: false,
+            dirty_return_scan_stack: GrowableBitSet::new_empty(),
             current_return_tys: Vec::new(),
+            current_return_vars: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
-            struct_field_offsets: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
         }
     }
@@ -488,6 +526,7 @@ impl<'gcx> Lowerer<'gcx> {
         if contract.kind == hir::ContractKind::Interface {
             self.module.is_interface = true;
         }
+        self.module.is_library = contract.kind.is_library();
 
         self.allocate_storage(contract_id);
 
@@ -533,9 +572,12 @@ impl<'gcx> Lowerer<'gcx> {
                     {
                         interface.contains(function_id)
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    hir::FunctionKind::Function => {
                         base_id == contract_id || function.visibility != hir::Visibility::Private
                     }
+                    // Modifiers are inline templates spliced into their host
+                    // functions, never standalone code.
+                    hir::FunctionKind::Modifier => false,
                 };
                 if selected {
                     self.ensure_function_lowered(function_id);
@@ -586,7 +628,10 @@ impl<'gcx> Lowerer<'gcx> {
                             functions.push(func_id);
                         }
                     }
-                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                    // Modifiers are inline templates spliced into their host
+                    // functions, never standalone code.
+                    hir::FunctionKind::Modifier => continue,
+                    hir::FunctionKind::Function => {
                         // Skip private functions from base contracts - they're not inherited
                         if base_id != contract_id && func.visibility == hir::Visibility::Private {
                             continue;
@@ -646,6 +691,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_fallback: false,
             is_receive: false,
             is_dispatch_entry: false,
+            is_yul: false,
             may_return_memory: false,
             no_inline: false,
         };
@@ -657,18 +703,22 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
             let saved_next_local_memory_offset = self.next_local_memory_offset;
             let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+            let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
             let saved_inline_returns = self.inline_returns.take();
             let saved_pending_inline_returns = self.pending_inline_returns.take();
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_constructor_args_base = self.constructor_args_base;
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
+            let saved_in_assembly_block = self.in_assembly_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+            let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
             self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
             self.lowering_constructor = true;
             self.constructor_args_base = None;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
+            self.in_assembly_block = false;
 
             self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
@@ -679,13 +729,16 @@ impl<'gcx> Lowerer<'gcx> {
             self.slice_slot_locals = saved_slice_slot_locals;
             self.next_local_memory_offset = saved_next_local_memory_offset;
             self.assigned_vars = saved_assigned_vars;
+            self.asm_assigned_vars = saved_asm_assigned_vars;
             self.inline_returns = saved_inline_returns;
             self.pending_inline_returns = saved_pending_inline_returns;
             self.lowering_constructor = saved_lowering_constructor;
             self.constructor_args_base = saved_constructor_args_base;
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
+            self.in_assembly_block = saved_in_assembly_block;
             self.current_return_tys = saved_current_return_tys;
+            self.current_return_vars = saved_current_return_vars;
         }
 
         self.module.add_function(mir_func);
@@ -804,6 +857,21 @@ impl<'gcx> Lowerer<'gcx> {
             .then(|| (elem, len.to::<u64>()))
     }
 
+    /// Returns the element type of a memory-located dynamic-array parameter
+    /// whose elements need recursive ABI materialization.
+    fn memory_nested_dyn_array_param(&self, param_id: VariableId) -> Option<Ty<'gcx>> {
+        let param = self.gcx.hir.variable(param_id);
+        if param.data_location != Some(solar_ast::DataLocation::Memory) {
+            return None;
+        }
+        match self.gcx.type_of_item(param_id.into()).peel_refs().kind {
+            TyKind::DynArray(elem) | TyKind::Slice(elem) if !self.abi_is_word_element(elem) => {
+                Some(elem)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether a parameter is a memory-located dynamic array of single-word elements, which
     /// the prologue decodes from calldata into Solidity's `[length][data...]` memory layout.
     fn is_dyn_word_array_memory_param(&self, param_id: VariableId) -> bool {
@@ -834,6 +902,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
@@ -841,11 +910,18 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
+        let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
+        let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
+        let saved_modifier_function = self.modifier_function.take();
+        let saved_modifier_depth = self.modifier_depth;
+        let saved_modifier_return_exit = self.modifier_return_exit.take();
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         let mir_id = self.lower_function(func_id, false);
         self.lowering_functions.remove(func_id);
 
@@ -854,6 +930,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.asm_assigned_vars = saved_asm_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
@@ -861,7 +938,13 @@ impl<'gcx> Lowerer<'gcx> {
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
+        self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
+        self.current_return_vars = saved_current_return_vars;
+        self.modifier_frames = saved_modifier_frames;
+        self.modifier_function = saved_modifier_function;
+        self.modifier_depth = saved_modifier_depth;
+        self.modifier_return_exit = saved_modifier_return_exit;
         mir_id
     }
 
@@ -941,6 +1024,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_asm_assigned_vars = std::mem::take(&mut self.asm_assigned_vars);
         let saved_inline_returns = self.inline_returns.take();
         let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
@@ -948,10 +1032,17 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_constructor_args_base = self.constructor_args_base;
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
+        let saved_in_assembly_block = self.in_assembly_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
+        let saved_current_return_vars = std::mem::take(&mut self.current_return_vars);
+        let saved_modifier_frames = std::mem::take(&mut self.modifier_frames);
+        let saved_modifier_function = self.modifier_function.take();
+        let saved_modifier_depth = self.modifier_depth;
+        let saved_modifier_return_exit = self.modifier_return_exit.take();
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         let mir_id = self.lower_function(func_id, true);
 
         self.locals = saved_locals;
@@ -959,6 +1050,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.asm_assigned_vars = saved_asm_assigned_vars;
         self.inline_returns = saved_inline_returns;
         self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
@@ -966,8 +1058,121 @@ impl<'gcx> Lowerer<'gcx> {
         self.constructor_args_base = saved_constructor_args_base;
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
+        self.in_assembly_block = saved_in_assembly_block;
         self.current_return_tys = saved_current_return_tys;
+        self.current_return_vars = saved_current_return_vars;
+        self.modifier_frames = saved_modifier_frames;
+        self.modifier_function = saved_modifier_function;
+        self.modifier_depth = saved_modifier_depth;
+        self.modifier_return_exit = saved_modifier_return_exit;
         mir_id
+    }
+
+    /// Inlines level `depth` of the current modifier chain, solc-style.
+    ///
+    /// A level evaluates its modifier's arguments on entry — so an outer
+    /// modifier that reverts before its placeholder skips them, and an outer
+    /// placeholder that runs twice re-evaluates them — binds the modifier's
+    /// parameters, and lowers its body with `_` splicing in the next level.
+    /// A `return` inside the modifier jumps to this level's exit block, so
+    /// the enclosing level's post-placeholder code still runs. The innermost
+    /// level is the function body itself: its `return`s store into the
+    /// declared return slots through the inline-return machinery and control
+    /// falls through the whole chain to the shared epilogue, which reads the
+    /// slots back. Locals share one frame across levels, matching solc's
+    /// legacy pipeline (via-IR re-threads parameter copies per placeholder,
+    /// observable only when a body mutates a parameter under a modifier with
+    /// multiple placeholders).
+    pub(super) fn lower_modifier_level(&mut self, builder: &mut FunctionBuilder<'_>, depth: usize) {
+        let saved_depth = std::mem::replace(&mut self.modifier_depth, depth + 1);
+        self.lower_modifier_level_inner(builder, depth);
+        self.modifier_depth = saved_depth;
+    }
+
+    fn lower_modifier_level_inner(&mut self, builder: &mut FunctionBuilder<'_>, depth: usize) {
+        if depth >= self.modifier_frames.len() {
+            let Some(func_id) = self.modifier_function else { return };
+            let hir_func = self.gcx.hir.function(func_id);
+            let Some(body) = &hir_func.body else { return };
+            let exit_block = builder.create_block();
+            let saved_inline = self
+                .inline_returns
+                .replace(InlineReturnCtx { exit_block, return_vars: hir_func.returns.to_vec() });
+            let saved_exit = self.modifier_return_exit.take();
+            self.lower_block(builder, body);
+            self.inline_returns = saved_inline;
+            self.modifier_return_exit = saved_exit;
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            builder.switch_to_block(exit_block);
+            return;
+        }
+
+        let (mod_id, modifier) = self.modifier_frames[depth];
+        let mod_fn = self.gcx.hir.function(mod_id);
+        let Some(mod_body) = &mod_fn.body else {
+            self.recovery_error(
+                Some(modifier.span),
+                "codegen cannot inline a modifier without a body",
+            );
+            return;
+        };
+
+        // Bind the modifier's parameters to its argument values. Reassigned
+        // parameters live in (or reuse, when an outer placeholder re-enters
+        // this level) a frame slot; the rest stay SSA values whose previous
+        // bindings are restored on exit.
+        let arg_exprs = match self.ordered_function_args(mod_id, &modifier.args, false) {
+            Ok(exprs) => exprs,
+            Err(_) => return,
+        };
+        let params = mod_fn.parameters;
+        let mut saved_bindings: Vec<(VariableId, Option<ValueId>)> = Vec::new();
+        for (i, arg) in arg_exprs.into_iter().enumerate() {
+            let Some(&param_id) = params.get(i) else { break };
+            let value = if self.param_is_storage_ref(param_id) {
+                let slot = self.lower_lvalue_slot(builder, arg);
+                self.storage_ref_locals.insert(param_id);
+                match slot {
+                    Some(slot) => slot,
+                    None => self.lower_value_expr(builder, arg),
+                }
+            } else {
+                let value = self.lower_value_expr(builder, arg);
+                self.coerce_arg_for_param(builder, param_id, arg, value)
+            };
+            if self.is_var_assigned(&param_id) {
+                let offset = self
+                    .get_local_memory_offset(&param_id)
+                    .unwrap_or_else(|| self.alloc_local_memory(param_id));
+                let addr = self.local_memory_addr(builder, offset);
+                builder.mstore(addr, value);
+            } else {
+                saved_bindings.push((param_id, self.locals.insert(param_id, value)));
+            }
+        }
+
+        let exit_block = builder.create_block();
+        let saved_inline = self.inline_returns.take();
+        let saved_exit = self.modifier_return_exit.replace(exit_block);
+        self.lower_block(builder, mod_body);
+        self.inline_returns = saved_inline;
+        self.modifier_return_exit = saved_exit;
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(exit_block);
+        }
+        builder.switch_to_block(exit_block);
+        for (param_id, old) in saved_bindings {
+            match old {
+                Some(value) => {
+                    self.locals.insert(param_id, value);
+                }
+                None => {
+                    self.locals.remove(&param_id);
+                }
+            }
+        }
     }
 
     /// Lowers a function to MIR. When `force_internal` is set, the function is
@@ -997,6 +1202,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
             is_dispatch_entry: false,
+            is_yul: hir_func.is_yul,
             may_return_memory: false,
             no_inline: false,
         };
@@ -1056,22 +1262,48 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals.clear();
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
+        self.asm_assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.constructor_args_base = None;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
+        self.in_assembly_block = false;
         self.current_return_tys = current_return_tys;
+        self.current_return_vars = hir_func.returns.to_vec();
         if !abi_return_types.is_empty() {
             mir_func.abi_returns =
                 Some(self.module.intern_abi_layout(AbiLayout::new(abi_return_types)));
         }
+
+        // Resolve the modifier chain up front, outermost first. Entries that
+        // name a contract are base-constructor invocations, evaluated by the
+        // constructor prelude instead. Each modifier resolves to its
+        // most-derived override, like a virtual call.
+        self.modifier_frames = hir_func
+            .modifiers
+            .iter()
+            .filter_map(|modifier| match modifier.id {
+                hir::ItemId::Function(mod_id) => {
+                    Some((self.virtual_function_target(mod_id), modifier))
+                }
+                _ => None,
+            })
+            .collect();
+        self.modifier_function = Some(func_id);
+        self.modifier_depth = 0;
+        self.modifier_return_exit = None;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
         if let Some(body) = &hir_func.body {
             self.collect_assigned_vars_block(body);
         }
-
+        for i in 0..self.modifier_frames.len() {
+            let (mod_id, _) = self.modifier_frames[i];
+            if let Some(mod_body) = &self.gcx.hir.function(mod_id).body {
+                self.collect_assigned_vars_block(mod_body);
+            }
+        }
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
@@ -1301,6 +1533,27 @@ impl<'gcx> Lowerer<'gcx> {
                         builder.mstore(elem_addr, elem_val);
                     }
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
+                } else if decodes_abi_params
+                    && let Some(elem_ty) = self.memory_nested_dyn_array_param(param_id)
+                {
+                    // A dynamic memory array's ABI head is an offset to its
+                    // `[length][elements...]` tail. Rebuild the ordinary
+                    // memory object here; nested reference elements need
+                    // recursive materialization rather than a bulk copy.
+                    let head = builder.add_param(ty);
+                    let (source, abi_base) = if self.lowering_constructor {
+                        (bytes::AbiSource::Memory, self.constructor_args_base(&mut builder))
+                    } else {
+                        (bytes::AbiSource::Calldata, builder.imm_u64(4))
+                    };
+                    let len_pos = builder.add(abi_base, head);
+                    let array_ptr = self.materialize_calldata_dynamic_array_at(
+                        &mut builder,
+                        source,
+                        elem_ty,
+                        len_pos,
+                    );
+                    self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
                     // Dynamic array of word elements in memory: the ABI head is
                     // an offset to `[length][elements...]` in the ABI argument
@@ -1439,8 +1692,22 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 // An unnamed return cannot be assigned or read by the body.
                 // Keep it absent and materialize its default only if control
-                // actually reaches the implicit-return epilogue.
-                if ret_var.name.is_none() {
+                // actually reaches the implicit-return epilogue. With a
+                // modifier chain even unnamed returns need slots: the body's
+                // `return` values must survive the post-placeholder modifier
+                // code that still runs before the epilogue reads them.
+                if ret_var.name.is_none() && self.modifier_frames.is_empty() {
+                    continue;
+                }
+                // A storage-located named return is a storage reference:
+                // assignments bind its slot, and analysis guarantees it is
+                // assigned before use, so it takes no default value.
+                let ret_ty = self.gcx.type_of_item(ret_id.into());
+                if ret_var.data_location == Some(solar_ast::DataLocation::Storage)
+                    || matches!(ret_ty.peel_refs().kind, TyKind::Mapping(..))
+                {
+                    self.storage_ref_locals.insert(ret_id);
+                    let _ = self.alloc_local_memory(ret_id);
                     continue;
                 }
                 // Allocate memory for return variables so they can be assigned to
@@ -1468,7 +1735,11 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
-                self.lower_block(&mut builder, body);
+                if self.modifier_frames.is_empty() {
+                    self.lower_block(&mut builder, body);
+                } else {
+                    self.lower_modifier_level(&mut builder, 0);
+                }
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
@@ -1489,7 +1760,12 @@ impl<'gcx> Lowerer<'gcx> {
                                 )
                             } else {
                                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                                builder.mload(offset_val)
+                                let val = builder.mload(offset_val);
+                                if uses_external_abi || !self.asm_assigned_vars.contains(ret_id) {
+                                    self.clean_asm_dirty_read(&mut builder, ret_id, val)
+                                } else {
+                                    val
+                                }
                             }
                         } else if let Some(value) =
                             self.lower_default_variable_value(&mut builder, ret_id)
@@ -1687,11 +1963,27 @@ impl<'gcx> Lowerer<'gcx> {
                     && !var.is_constant()
                     && let Some(init) = var.initializer
                 {
-                    let init_val = self.lower_value_expr(builder, init);
+                    let var_ty = self.gcx.type_of_item(var_id.into());
+                    let init_val = if matches!(
+                        var_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    ) {
+                        self.lower_expr_as_memory_bytes(builder, init)
+                    } else {
+                        self.lower_value_expr(builder, init)
+                    };
                     if let Some(&id) = self.immutable_ids.get(&var_id) {
                         builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
-                        self.store_storage_location(builder, location, init_val);
+                        if var_ty.peel_refs().is_value_type() {
+                            self.store_storage_location(builder, location, init_val);
+                        } else {
+                            // An aggregate initializer lowers to a memory
+                            // object; copy its contents rather than storing
+                            // the pointer word.
+                            let slot = builder.imm_u256(location.slot);
+                            self.store_storage_value_at(builder, var_ty, slot, init_val);
+                        }
                     }
                 }
             }
@@ -1936,10 +2228,31 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_block(&clause.block);
                 }
             }
-            StmtKind::AssemblyBlock(block) => self.collect_assigned_vars_block(block),
-            StmtKind::DeclSingle(_)
-            | StmtKind::DeclMulti(_, _)
-            | StmtKind::Return(None)
+            StmtKind::AssemblyBlock(block) => {
+                let prev = self.in_assembly_block;
+                self.in_assembly_block = true;
+                self.collect_assigned_vars_block(block);
+                self.in_assembly_block = prev;
+            }
+            // The declared variables are initialized, not reassigned, but the
+            // initializer can mutate other locals (`uint256 x = xs[i++];`).
+            StmtKind::DeclSingle(var_id) => {
+                if let Some(init) = self.gcx.hir.variable(*var_id).initializer {
+                    if self.call_result_may_be_dirty(init) {
+                        self.asm_assigned_vars.insert(*var_id);
+                    }
+                    self.collect_assigned_vars_expr(init);
+                }
+            }
+            StmtKind::DeclMulti(var_ids, expr) => {
+                if self.call_result_may_be_dirty(expr) {
+                    for &var_id in var_ids.iter().flatten() {
+                        self.asm_assigned_vars.insert(var_id);
+                    }
+                }
+                self.collect_assigned_vars_expr(expr);
+            }
+            StmtKind::Return(None)
             | StmtKind::Continue
             | StmtKind::Break
             | StmtKind::Placeholder
@@ -1952,8 +2265,13 @@ impl<'gcx> Lowerer<'gcx> {
         use hir::ExprKind;
         match &expr.kind {
             ExprKind::Assign(lhs, _, rhs) => {
-                // Record assignment targets
+                // Record assignment targets, then scan both operands for
+                // nested mutations such as the `i++` in `a[i++] = value`.
                 self.mark_assigned_var(lhs);
+                if self.call_result_may_be_dirty(rhs) {
+                    self.mark_may_be_dirty_var(lhs);
+                }
+                self.collect_assigned_vars_expr(lhs);
                 self.collect_assigned_vars_expr(rhs);
             }
             ExprKind::Binary(lhs, _, rhs) => {
@@ -2010,9 +2328,11 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_expr(elem);
                 }
             }
-            ExprKind::Payable(inner) | ExprKind::Delete(inner) => {
-                self.collect_assigned_vars_expr(inner)
+            ExprKind::Delete(inner) => {
+                self.mark_assigned_var(inner);
+                self.collect_assigned_vars_expr(inner);
             }
+            ExprKind::Payable(inner) => self.collect_assigned_vars_expr(inner),
             ExprKind::New(_)
             | ExprKind::TypeCall(_)
             | ExprKind::Lit(_)
@@ -2043,7 +2363,38 @@ impl<'gcx> Lowerer<'gcx> {
         }
         if let Some(var_id) = self.gcx.resolved_variable(expr) {
             self.assigned_vars.insert(var_id);
+            if self.in_assembly_block {
+                self.asm_assigned_vars.insert(var_id);
+            }
         }
+    }
+
+    fn mark_may_be_dirty_var(&mut self, expr: &hir::Expr<'_>) {
+        if let hir::ExprKind::Tuple(elements) = &expr.kind {
+            for element in elements.iter().copied().flatten() {
+                self.mark_may_be_dirty_var(element);
+            }
+        } else if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            self.asm_assigned_vars.insert(var_id);
+        }
+    }
+
+    pub(super) fn call_result_may_be_dirty(&mut self, expr: &hir::Expr<'_>) -> bool {
+        let hir::ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        let Some(func_id) = self.resolved_function_callee(callee) else { return false };
+        let func_id = self.virtual_function_target(func_id);
+        if !self.dirty_return_scan_stack.insert(func_id) {
+            return false;
+        }
+        let (returns, body) = {
+            let func = self.gcx.hir.function(func_id);
+            (func.returns.to_vec(), func.body)
+        };
+        if let Some(body) = body {
+            self.collect_assigned_vars_block(&body);
+        }
+        self.dirty_return_scan_stack.remove(func_id);
+        body.is_some() && returns.into_iter().any(|ret_id| self.asm_assigned_vars.contains(ret_id))
     }
 
     /// Returns true if a variable is assigned after declaration.

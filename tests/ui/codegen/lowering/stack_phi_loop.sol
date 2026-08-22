@@ -1,5 +1,10 @@
-//@compile-flags: -Zdump=evm-ir-runtime --pretty-json
-//@ filecheck:
+//@ revisions: ir run
+//@[ir] compile-flags: -Zdump=evm-ir-runtime --pretty-json
+//@[ir] filecheck:
+//@[run] run-call: StackPhiLoop::loopCarried 4, true => 46
+//@[run] run-call: StackPhiLoop::loopCarried 4, false => 62
+//@[run] run-call: StackPhiLoop::sequential 3, 2 => 14
+//@[run] run-call: StackPhiLoop::nested 2, 3 => 15
 
 contract StackPhiLoop {
     // CHECK: push 0x50d1f082

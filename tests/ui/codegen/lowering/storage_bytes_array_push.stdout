@@ -30,6 +30,7 @@ fn @pushStr() {
     tail_call @__revert_stub0
   bb4:
     mstore 0, 0 !metadata(memory=scratch)
+    sstore 0, v13 !metadata(storage=slot(0))
     v16 = add v12, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     v17 = mload v9
     v19 = sload v16 !metadata(storage=symbolic(v16))
@@ -97,7 +98,6 @@ fn @pushStr() {
     mstore v36, v59
     jump bb10
   bb12:
-    sstore 0, v13 !metadata(storage=slot(0))
     stop
 }
 
@@ -256,6 +256,7 @@ fn @pushEmpty() {
     tail_call @__revert_stub0
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
+    sstore 2, v1 !metadata(storage=slot(2))
     v4 = add v0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v51 = add v5, 32
@@ -290,7 +291,6 @@ fn @pushEmpty() {
     mstore v25, v48
     jump bb3
   bb5:
-    sstore 2, v1 !metadata(storage=slot(2))
     stop
 }
 

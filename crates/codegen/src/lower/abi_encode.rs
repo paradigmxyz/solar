@@ -290,6 +290,7 @@ impl<'gcx> Lowerer<'gcx> {
         arg_exprs: impl ExactSizeIterator<Item = &'hir hir::Expr<'hir>> + Clone,
     ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
+        let mut storage_ref_args = FxHashSet::default();
         for arg in arg_exprs.clone() {
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
@@ -304,11 +305,27 @@ impl<'gcx> Lowerer<'gcx> {
                 TyKind::StringLiteral(..) => self.gcx.types.string_ref.memory,
                 _ => ty,
             };
+            // A storage-referenced struct/array/bytes argument is passed by
+            // value: its lowering already materialized a fresh memory copy,
+            // so encode the pointed-to type rather than the library-convention
+            // slot word. Mappings stay slot-typed; only library calls accept
+            // them, through their own encoding path.
+            let ty = match ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Storage)
+                    if !matches!(inner.kind, TyKind::Mapping(..)) =>
+                {
+                    storage_ref_args.insert(tys.len());
+                    inner
+                }
+                _ => ty,
+            };
             tys.push(ty);
         }
+        let param_tys = self.abi_encode_param_tys.take();
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
-        for (arg, ty) in arg_exprs.zip(tys) {
+        for (i, (arg, ty)) in arg_exprs.zip(tys).enumerate() {
+            let target_ty = param_tys.as_ref().and_then(|tys| tys.get(i)).copied().unwrap_or(ty);
             let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
@@ -325,11 +342,57 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 value
             } else {
-                self.lower_return_value_for_ty(builder, arg, ty)
+                let value = self.lower_return_value_for_ty(builder, arg, ty);
+                // A storage-referenced expression that lowered to its slot —
+                // a mapping element, unlike a plain state-variable ident —
+                // still needs the by-value memory copy the peeled type
+                // promises.
+                let value = if storage_ref_args.contains(&i) {
+                    self.materialize_storage_ref_value(builder, ty, value, arg.span)
+                } else {
+                    value
+                };
+                self.coerce_literal_for_ty(builder, arg, target_ty, value)
             };
-            items.push((value, ty));
+            // Encoded value words must be canonical like solc's: a consumer's
+            // strict decode rejects dirty upper bits, and callers like
+            // solady's tests hand over deliberately dirtied values.
+            let value = self.abi_clean_value(builder, value, target_ty);
+            items.push((value, target_ty));
         }
         Ok(LoweredAbiItems { items, calldata_slices })
+    }
+
+    /// Cleans a value-typed word into its canonical ABI form; reference types
+    /// pass through untouched.
+    pub(super) fn abi_clean_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bool)) {
+            let zero = builder.iszero(value);
+            return builder.iszero(zero);
+        }
+        match self.packed_value_of_ty(ty) {
+            Some(packed) => match packed.kind {
+                crate::mir::PackedKind::Unsigned => {
+                    let mask = builder.imm_u256(packed.mask());
+                    builder.and(value, mask)
+                }
+                crate::mir::PackedKind::Signed => {
+                    let size = builder.imm_u64(u64::from(packed.size) - 1);
+                    builder.signextend(size, value)
+                }
+                crate::mir::PackedKind::HighAligned => {
+                    let mask =
+                        builder.imm_u256(packed.mask() << ((32 - usize::from(packed.size)) * 8));
+                    builder.and(value, mask)
+                }
+            },
+            None => value,
+        }
     }
 
     /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
@@ -440,7 +503,7 @@ impl<'gcx> Lowerer<'gcx> {
         (data, size)
     }
 
-    /// ABI-encodes static event data in scratch memory.
+    /// ABI-encodes event data, using scratch memory for payloads that fit it.
     pub(super) fn abi_encode_event_data(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -451,6 +514,19 @@ impl<'gcx> Lowerer<'gcx> {
             return (zero, zero);
         }
         if items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty)) {
+            return self.abi_encode_items_to_memory(builder, items);
+        }
+        // Scratch memory is the two words below the free-memory pointer; a
+        // larger static payload written at address zero would run over the
+        // pointer and the zero slot, poisoning every later allocation.
+        let mut static_size = Some(0u64);
+        for &(_, ty) in items {
+            static_size = match (static_size, self.abi_head_size(ty)) {
+                (Some(total), Ok(size)) => total.checked_add(size),
+                _ => None,
+            };
+        }
+        if static_size.is_none_or(|size| size > 64) {
             return self.abi_encode_items_to_memory(builder, items);
         }
 
@@ -487,6 +563,17 @@ impl<'gcx> Lowerer<'gcx> {
             hir::ExprKind::Tuple(elems) => elems.iter().filter_map(|e| *e).collect(),
             _ => vec![args_tuple],
         };
+        if let Some(func_id) = self.resolved_function_callee(func_ref) {
+            self.abi_encode_param_tys = Some(
+                self.gcx
+                    .hir
+                    .function(func_id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.type_of_item(id.into()))
+                    .collect(),
+            );
+        }
         self.abi_encode_call_payload(builder, Some(selector_word), arg_exprs.iter().copied())
     }
 
@@ -528,6 +615,15 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
+        // A storage-reference return travels as its slot, like a storage-ref
+        // argument does: hand back the lvalue's slot rather than
+        // materializing a memory copy whose pointer the caller would then
+        // treat as a slot.
+        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage) | TyKind::Mapping(..))
+            && let Some(slot) = self.lower_lvalue_slot(builder, expr)
+        {
+            return slot;
+        }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
             if Self::value_is_calldata_slice(builder, value) {
@@ -568,7 +664,41 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         let value = self.lower_value_expr(builder, expr);
+        let value = self.coerce_literal_for_ty(builder, expr, ty, value);
+        // A `constant` string reference (or a `bytes()`/`string()` cast of
+        // one) can lower to its truncated content word; the encoder needs a
+        // real `[length][data...]` object, so materialize the constant bytes.
+        if matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) && !Self::value_is_bytes_like_object(builder, value)
+            && let Some(bytes) = self.constant_string_bytes(expr)
+        {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
+        }
         self.coerce_memory_slice_value(builder, value)
+    }
+
+    /// Converts an already-lowered calldata slice into the memory object
+    /// required by a forwarding function's declared return type.
+    fn materialize_forwarded_return_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if !Self::value_is_calldata_slice(builder, value) {
+            return value;
+        }
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_calldata_bytes(builder, value)
+            }
+            TyKind::DynArray(_) | TyKind::Slice(_) => {
+                self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
+            }
+            _ => value,
+        }
     }
 
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
@@ -802,8 +932,50 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         items: Vec<(ValueId, Ty<'gcx>)>,
     ) {
-        let vals: Vec<ValueId> = items.into_iter().map(|(v, _)| v).collect();
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        let vals: Vec<ValueId> = items
+            .into_iter()
+            .map(|(value, ty)| self.normalize_calldata_struct_return(builder, value, ty, external))
+            .collect();
         builder.ret(vals);
+    }
+
+    /// Normalizes calldata structs with dynamic members at function boundaries.
+    /// Internal calls carry their original calldata base; an external return
+    /// needs the rebuilt memory object consumed by the ABI encoder.
+    fn normalize_calldata_struct_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        external: bool,
+    ) -> ValueId {
+        let TyKind::Ref(inner, solar_ast::DataLocation::Calldata) = ty.kind else { return value };
+        let TyKind::Struct(struct_id) = inner.kind else { return value };
+        let fields = self.gcx.struct_field_types(struct_id).to_vec();
+        if !fields.iter().any(|&field| self.abi_is_dynamic(field.peel_refs())) {
+            return value;
+        }
+        let is_memory = matches!(
+            builder.func().value_ty(value),
+            Some(MirType::MemoryObject(MemoryObjectKind::Struct))
+        );
+        if external {
+            if is_memory {
+                value
+            } else {
+                self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Calldata,
+                    inner,
+                    value,
+                )
+            }
+        } else if is_memory {
+            self.calldata_base_of_copy(builder, value, fields.len() as u64)
+        } else {
+            value
+        }
     }
 
     /// Gathers `(value, type)` for each declared return of an explicit `return`
@@ -844,7 +1016,21 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return items;
         }
+        let delivers_pending = self.is_slice_multi_return_call(expr);
+        if delivers_pending {
+            self.pending_inline_returns = None;
+        }
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
+        if delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            return values
+                .into_iter()
+                .zip(tys)
+                .map(|(value, ty)| {
+                    (self.materialize_forwarded_return_value(builder, value, ty), ty)
+                })
+                .collect();
+        }
+        self.pending_inline_returns = None;
         let mut items = vec![(first, tys[0])];
         if tys.len() > 1 {
             let tail_base = self.multi_return_buffer_base(builder);

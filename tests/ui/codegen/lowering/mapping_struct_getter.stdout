@@ -20,10 +20,12 @@ fn @items(arg0: u256) -> (address, u256, address) [abi_returns=[word, word, word
     mstore 192, 0
     v3 = mapping_slot arg0, 1
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = add v3, 1
-    v6 = sload v5 !metadata(storage=offset(v3, 1))
-    v7 = add v3, 2
-    v8 = sload v7 !metadata(storage=offset(v3, 2))
-    ret v4, v6, v8
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = add v3, 1
+    v7 = sload v6 !metadata(storage=offset(v3, 1))
+    v8 = add v3, 2
+    v9 = sload v8 !metadata(storage=offset(v3, 2))
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v5, v7, v10
 }
 

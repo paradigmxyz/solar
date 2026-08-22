@@ -121,11 +121,11 @@ error: array length must be greater than zero
 LL │     uint[zero] public zeroArray;
    ╰╴         ━━━━
 
-error: failed to evaluate constant: arithmetic overflow
+error: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint[bigLiteral + 1] public tooBig1;
-   ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   ╰╴         ━━━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

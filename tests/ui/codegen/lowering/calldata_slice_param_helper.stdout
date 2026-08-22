@@ -20,8 +20,8 @@ fn @lastWord() {
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
   bb0:
-    v3 = sub arg1, 32
-    v4 = add arg0, v3
+    v2 = sub arg1, 32
+    v4 = add arg0, v2
     v5 = calldataload v4
     ret v5
 }
