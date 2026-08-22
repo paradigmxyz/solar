@@ -56,6 +56,33 @@ struct ExternalProject {
     notes: &'static str,
 }
 
+const SEAPORT_CODE_SIZE_SKIPS: &[Skip] = &[
+    Skip {
+        pattern: "^PausableZoneController$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+    Skip {
+        pattern: "^SuggestedActionHelper$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+    Skip {
+        pattern: "^ExecutionsHelper$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+    Skip {
+        pattern: "^MatchFulfillmentHelper$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+    Skip {
+        pattern: "^SeaportValidator$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+    Skip {
+        pattern: "^SeaportNavigator$",
+        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+    },
+];
+
 /// The curated corpus. Dependencies must come from the projects' own git
 /// submodules: `forge install` or npm/soldeer dependency managers would fetch
 /// unpinned revisions and break reproducibility, so projects that need them
@@ -103,7 +130,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         // `contracts/Seaport.sol` pins `pragma solidity =0.8.24`.
         solc_version: Some("0.8.24"),
         skip_tests: &[],
-        skip_contracts: &[],
+        skip_contracts: SEAPORT_CODE_SIZE_SKIPS,
         notes: "build-only: whole-project codegen, artifact parity and EIP-170 tracker",
     },
     ExternalProject {
