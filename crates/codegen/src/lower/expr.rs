@@ -795,6 +795,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn lower_delete(&mut self, builder: &mut FunctionBuilder<'_>, target: &hir::Expr<'_>) {
         if let Some(ty) = self.get_expr_type(target)
+            && matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
             && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
         {
@@ -812,27 +813,41 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(var_id);
             let ty = self.gcx.type_of_item(var_id.into()).peel_refs();
-            if matches!(var.data_location, None | Some(solar_ast::DataLocation::Memory))
-                && let TyKind::Array(element_ty, len) = ty.kind
-                && let Ok(len) = u64::try_from(len)
-            {
-                let ptr = self.lower_value_expr(builder, target);
-                if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
-                    let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
-                    builder.memory_zero(ptr, size);
+            if matches!(var.data_location, None | Some(solar_ast::DataLocation::Memory)) {
+                if let TyKind::Array(element_ty, len) = ty.kind
+                    && let Ok(len) = u64::try_from(len)
+                {
+                    let ptr = self.lower_value_expr(builder, target);
+                    if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
+                        let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
+                        builder.memory_zero(ptr, size);
+                        return;
+                    }
+                    for i in 0..len {
+                        let value =
+                            self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
+                        if i == 0 {
+                            builder.mstore(ptr, value);
+                        } else {
+                            let offset = builder.imm_u64(i * 32);
+                            let addr = builder.add(ptr, offset);
+                            builder.mstore(addr, value);
+                        }
+                    }
                     return;
                 }
-                for i in 0..len {
-                    let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
-                    if i == 0 {
-                        builder.mstore(ptr, value);
-                    } else {
-                        let offset = builder.imm_u64(i * 32);
-                        let addr = builder.add(ptr, offset);
-                        builder.mstore(addr, value);
-                    }
+
+                if let TyKind::Struct(struct_id) = ty.kind {
+                    let ptr = self.lower_value_expr(builder, target);
+                    self.zero_initialize_memory_struct(builder, struct_id, ptr, var.ty.span);
+                    return;
                 }
-                return;
+
+                if !ty.is_value_type() {
+                    let value = self.zero_memory_field_value_ty(builder, ty, var.ty.span);
+                    self.lower_assign(builder, target, value);
+                    return;
+                }
             }
         }
 

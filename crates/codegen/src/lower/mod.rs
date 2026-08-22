@@ -2259,9 +2259,11 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_expr(elem);
                 }
             }
-            ExprKind::Payable(inner) | ExprKind::Delete(inner) => {
-                self.collect_assigned_vars_expr(inner)
+            ExprKind::Delete(inner) => {
+                self.mark_assigned_var(inner);
+                self.collect_assigned_vars_expr(inner);
             }
+            ExprKind::Payable(inner) => self.collect_assigned_vars_expr(inner),
             ExprKind::New(_)
             | ExprKind::TypeCall(_)
             | ExprKind::Lit(_)
