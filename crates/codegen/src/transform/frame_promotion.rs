@@ -523,16 +523,12 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
-            // Single-word accesses keep the conservative model: an
-            // unresolvable pointer dereference disqualifies the slot. The
-            // ownership relaxation below is only needed for the ranged
-            // scribbles and calls that hand-written proxies use.
             InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
-                    && Self::memory_range_may_overlap(func, aa, addr, Some(32), slot_addr)
+                    && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
             InstKind::MStore8(addr, _) => {
-                Self::memory_range_may_overlap(func, aa, addr, Some(1), slot_addr)
+                Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
             }
             InstKind::Keccak256(addr, size)
             | InstKind::Log0(addr, size)
@@ -588,29 +584,11 @@ impl FrameSlotPromoter {
         }
     }
 
-    fn memory_range_may_overlap(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        size: Option<u64>,
-        slot_addr: u64,
-    ) -> bool {
-        let Some(size) = size else { return true };
-        let Some(address) = aa.memory_address(func, addr) else {
-            return true;
-        };
-        aa.memory_alias(
-            MemoryLocation::new(address, LocationSize::Const(size)),
-            MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
-        )
-        .may_alias()
-    }
-
-    /// Whether a ranged memory access can reference a compiler-owned external
-    /// local slot. Locals are unaddressable from source: only lowering-emitted
-    /// absolute addresses inside the local region reference them, so a base
-    /// that is unresolvable, pointer-derived, or outside the region cannot
-    /// reach the slot. Raw user-assembly scribbles — a proxy's
+    /// Whether a memory access can reference a compiler-owned external local
+    /// slot. Locals are unaddressable from source: only lowering-emitted absolute
+    /// addresses inside the local region reference them, so a base that is
+    /// unresolvable, pointer-derived, or outside the region cannot reach the
+    /// slot. Raw user-assembly scribbles — a proxy's
     /// `calldatacopy(0, 0, calldatasize())`, `mstore(0x40, returndatasize())`
     /// tricks — fall in that bucket, and promoting the local out of memory is
     /// exactly what restores solc's locals-on-stack semantics against them.
