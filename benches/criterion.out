@@ -1,766 +1,717 @@
-   Compiling proc-macro2 v1.0.101
-   Compiling unicode-ident v1.0.19
-   Compiling autocfg v1.5.0
-   Compiling serde_core v1.0.228
-   Compiling serde v1.0.228
-   Compiling cfg-if v1.0.3
-   Compiling parking_lot_core v0.9.11
-   Compiling libc v0.2.176
-   Compiling memchr v2.7.6
-   Compiling unicode-xid v0.2.6
-   Compiling crunchy v0.2.4
-   Compiling crossbeam-utils v0.8.21
-   Compiling unicode-segmentation v1.12.0
-   Compiling either v1.15.0
-   Compiling equivalent v1.0.2
-   Compiling itoa v1.0.15
-   Compiling hashbrown v0.16.0
-   Compiling scopeguard v1.2.0
-   Compiling once_cell v1.21.3
-   Compiling anstyle v1.0.11
-   Compiling foldhash v0.2.0
-   Compiling serde_json v1.0.145
-   Compiling smallvec v1.15.1
-   Compiling heck v0.5.0
-   Compiling ryu v1.0.20
-   Compiling thiserror v1.0.69
-   Compiling rayon-core v1.13.0
-   Compiling siphasher v1.0.1
-   Compiling tiny-keccak v2.0.2
-   Compiling paste v1.0.15
-   Compiling hashbrown v0.14.5
-   Compiling solar-config v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/config)
-   Compiling cpufeatures v0.2.17
-   Compiling utf8parse v0.2.2
-   Compiling bitflags v2.9.4
-   Compiling bumpalo v3.19.0
-   Compiling shlex v1.3.0
-   Compiling ruint-macro v1.2.1
-   Compiling find-msvc-tools v0.1.2
-   Compiling colorchoice v1.0.4
-   Compiling anstyle-parse v0.2.7
-   Compiling thread_local v1.1.9
-   Compiling is_terminal_polyfill v1.70.1
-   Compiling anstyle-query v1.1.4
-   Compiling phf_shared v0.11.3
-   Compiling tracing-core v0.1.34
-   Compiling itertools v0.10.5
-   Compiling index_vec v0.1.4
-   Compiling lock_api v0.4.13
-   Compiling num-traits v0.2.19
-   Compiling unicode-width v0.2.1
-   Compiling regex-syntax v0.8.6
-   Compiling pin-project-lite v0.2.16
-   Compiling cc v1.2.39
-   Compiling boxcar v0.2.14
-   Compiling rustc-hash v2.1.1
-   Compiling stable_deref_trait v1.2.0
-   Compiling fixedbitset v0.4.2
-   Compiling anstream v0.6.20
-   Compiling bit-vec v0.6.3
-   Compiling convert_case v0.7.1
-   Compiling crossbeam-epoch v0.9.18
-   Compiling rand_core v0.6.4
-   Compiling same-file v1.0.6
-   Compiling log v0.4.28
-   Compiling dunce v1.0.5
-   Compiling scoped-tls v1.0.1
-   Compiling quote v1.0.40
-   Compiling new_debug_unreachable v1.0.6
-   Compiling indexmap v2.11.4
-   Compiling cfg_aliases v0.2.1
-   Compiling precomputed-hash v0.1.1
-   Compiling normalize-path v0.2.1
-   Compiling getrandom v0.3.3
-   Compiling rand v0.8.5
-   Compiling bit-set v0.5.3
-   Compiling anyhow v1.0.100
-   Compiling winnow v0.7.13
-   Compiling lalrpop-util v0.20.2
-   Compiling walkdir v2.5.0
-   Compiling ena v0.14.3
-   Compiling rustversion v1.0.22
-   Compiling nix v0.29.0
-   Compiling half v2.6.0
-   Compiling clap_lex v0.7.5
-   Compiling lazy_static v1.5.0
-   Compiling minimal-lexical v0.2.1
-   Compiling aho-corasick v1.1.3
-   Compiling annotate-snippets v0.12.4
-   Compiling itertools v0.11.0
-   Compiling ciborium-io v0.2.2
-   Compiling syn v2.0.106
-   Compiling proc-macro-error-attr2 v2.0.0
-   Compiling iai-callgrind-runner v0.16.1
-   Compiling crossbeam-deque v0.8.6
-   Compiling tree-sitter-language v0.1.5
-   Compiling cast v0.3.0
-   Compiling colored v2.2.0
-   Compiling glob v0.3.3
-   Compiling itertools v0.12.1
-   Compiling tree-sitter-solidity v1.2.12
-   Compiling anes v0.1.6
-   Compiling clap_builder v4.5.48
-   Compiling oorandom v11.1.5
-   Compiling dirs-sys-next v0.1.2
-   Compiling nom v7.1.3
-   Compiling ciborium-ll v0.2.2
-   Compiling streaming-iterator v0.1.9
-   Compiling phf_generator v0.11.3
-   Compiling petgraph v0.6.5
-   Compiling strum v0.26.3
-   Compiling num-integer v0.1.46
-   Compiling approx v0.5.1
-   Compiling iai-callgrind v0.16.1
-   Compiling codspeed-criterion-compat v3.0.5 (https://github.com/DaniPopes/codspeed-rust.git?rev=1f8a7540e78f9a5a49fddff0dfee58513ba6859e#1f8a7540)
-   Compiling dirs-next v2.0.0
-   Compiling parking_lot v0.12.4
-   Compiling is-terminal v0.4.16
-   Compiling criterion-plot v0.5.0
-   Compiling regex-automata v0.4.11
-   Compiling term v0.7.0
-   Compiling const-hex v1.16.0
-   Compiling semver v1.0.27
-   Compiling statrs v0.18.0
-   Compiling uuid v1.18.1
-   Compiling ruint v1.17.0
-   Compiling num-bigint v0.4.6
-   Compiling dashmap v6.1.0
-   Compiling string_cache v0.8.9
-   Compiling rayon v1.11.0
-   Compiling ascii-canvas v3.0.0
-   Compiling tree-sitter v0.25.8
-   Compiling inturn v0.1.2
-   Compiling regex v1.11.3
-   Compiling clap v4.5.48
-   Compiling num-rational v0.4.2
-   Compiling lalrpop v0.20.2
-   Compiling proc-macro-error2 v2.0.1
-   Compiling serde_derive v1.0.228
-   Compiling derive_more-impl v2.0.1
-   Compiling thiserror-impl v1.0.69
-   Compiling strum_macros v0.27.2
-   Compiling tracing-attributes v0.1.30
-   Compiling solar-macros v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/macros)
-   Compiling phf_macros v0.11.3
-   Compiling strum_macros v0.26.4
-   Compiling phf v0.11.3
-   Compiling tracing v0.1.41
-   Compiling strum v0.27.2
-   Compiling derive_more v2.0.1
-   Compiling iai-callgrind-macros v0.6.1
-   Compiling bytes v1.10.1
-   Compiling bincode v1.3.3
-   Compiling alloy-sol-type-parser v1.4.0
-   Compiling tinytemplate v1.2.1
-   Compiling ciborium v0.2.2
-   Compiling metaslang_cst v0.18.3
-   Compiling codspeed v3.0.5 (https://github.com/DaniPopes/codspeed-rust.git?rev=1f8a7540e78f9a5a49fddff0dfee58513ba6859e#1f8a7540)
-   Compiling slang_solidity v0.18.3
-   Compiling once_map v0.4.23
-   Compiling alloy-primitives v1.4.0
-   Compiling codspeed-criterion-compat-walltime v3.0.5 (https://github.com/DaniPopes/codspeed-rust.git?rev=1f8a7540e78f9a5a49fddff0dfee58513ba6859e#1f8a7540)
-   Compiling solar-data-structures v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/data-structures)
-   Compiling solar-interface v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/interface)
-   Compiling alloy-json-abi v1.4.0
-   Compiling solang-parser v0.3.4
-   Compiling solar-ast v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/ast)
-   Compiling solar-parse v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/parse)
-   Compiling solar-sema v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/sema)
-   Compiling solar-compiler v0.1.8 (/media/vault/Projects/paradigmxyz/solar/crates/solar)
-   Compiling solar-bench v0.1.8 (/media/vault/Projects/paradigmxyz/solar/benches)
-    Finished `bench` profile [optimized + debuginfo] target(s) in 35.49s
-     Running benches/criterion.rs (target/release/deps/criterion-ba40e17e5f81b4a1)
-empty: 0 LoC, 0 bytes
-Counter: 14 LoC, 258 bytes
-verifier: 208 LoC, 11040 bytes
-OptimizorClub: 782 LoC, 35905 bytes
-UniswapV3: 3189 LoC, 146583 bytes
-Solarray: 1544 LoC, 35898 bytes
-console: 1552 LoC, 67315 bytes
-Vm: 1763 LoC, 91405 bytes
-safeconsole: 13248 LoC, 397898 bytes
-Seaport: 19935 LoC, 770547 bytes
-Solady: 31047 LoC, 1381235 bytes
-Optimism: 124413 LoC, 5383971 bytes
+    Finished `bench` profile [optimized + debuginfo] target(s) in 0.33s
+     Running benches/criterion.rs (target/release/build/solar-bench/05d57314f7b19541/out/criterion-05d57314f7b19541)
+empty: 1 files, 0 LoC, 0 bytes
+Counter: 1 files, 14 LoC, 258 bytes
+verifier: 1 files, 208 LoC, 11040 bytes
+OptimizorClub: 1 files, 782 LoC, 35905 bytes
+chains: 1 files, 91 LoC, 4761 bytes
+UniswapV3: 1 files, 3189 LoC, 146583 bytes
+Solarray: 1 files, 1544 LoC, 35898 bytes
+console: 1 files, 1552 LoC, 67315 bytes
+Vm: 1 files, 1763 LoC, 91405 bytes
+safeconsole: 1 files, 13248 LoC, 397898 bytes
+Seaport: 1 files, 19935 LoC, 770548 bytes
+Solady: 1 files, 31047 LoC, 1381235 bytes
+Optimism: 1 files, 124413 LoC, 5383971 bytes
+Arithmetic: 1 files, 15 LoC, 351 bytes
+Factorial: 1 files, 18 LoC, 361 bytes
+SumArray: 1 files, 14 LoC, 278 bytes
+many_symbols_small: 1 files, 107 LoC, 1786 bytes
+many_functions_small: 1 files, 104 LoC, 5750 bytes
+deep_nesting_small: 1 files, 31 LoC, 610 bytes
+many_types_small: 1 files, 304 LoC, 6340 bytes
+large_literals_small: 1 files, 207 LoC, 8771 bytes
+many_storage_small: 1 files, 206 LoC, 3273 bytes
+many_events_small: 1 files, 26 LoC, 1032 bytes
+complex_inheritance_small: 1 files, 101 LoC, 2074 bytes
+many_mappings_small: 1 files, 26 LoC, 686 bytes
+many_modifiers_small: 1 files, 17 LoC, 635 bytes
+seaport-1.6: 386 files, 143458 LoC, 4987561 bytes
+openzeppelin-5.6.1: 390 files, 67133 LoC, 2530128 bytes
+solady-0.1.26: 208 files, 85366 LoC, 3573719 bytes
+v4-core-4.0.0: 159 files, 40466 LoC, 1565207 bytes
+morpho-blue-1.0.0: 69 files, 26903 LoC, 967892 bytes
+forge-std-1.16.1: 50 files, 27471 LoC, 1037375 bytes
+prb-math-4.1.1: 106 files, 15745 LoC, 659162 bytes
+solmate-6: 47 files, 7490 LoC, 250135 bytes
+solarray-a547630: 16 files, 7221 LoC, 280617 bytes
 
-Benchmarking parser/empty/solc/parse
-Benchmarking parser/empty/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/empty/solc/parse: Collecting 10 samples in estimated 10.028 s (7370 iterations)
-Benchmarking parser/empty/solc/parse: Analyzing
-parser/empty/solc/parse time:   [1.3447 ms 1.3510 ms 1.3578 ms]
-Benchmarking parser/empty/solar/lex
-Benchmarking parser/empty/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/empty/solar/lex: Collecting 10 samples in estimated 10.007 s (76k iterations)
-Benchmarking parser/empty/solar/lex: Analyzing
-parser/empty/solar/lex  time:   [224.57 ns 238.29 ns 261.10 ns]
-Benchmarking parser/empty/solar/parse
-Benchmarking parser/empty/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/empty/solar/parse: Collecting 10 samples in estimated 10.000 s (134k iterations)
-Benchmarking parser/empty/solar/parse: Analyzing
-parser/empty/solar/parse
-                        time:   [913.64 ns 979.37 ns 1.0197 µs]
-Benchmarking parser/empty/solar/lower
-Benchmarking parser/empty/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/empty/solar/lower: Collecting 10 samples in estimated 10.003 s (135k iterations)
-Benchmarking parser/empty/solar/lower: Analyzing
-parser/empty/solar/lower
-                        time:   [5.0649 µs 5.1668 µs 5.2449 µs]
-Benchmarking parser/empty/solang/lex
-Benchmarking parser/empty/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/empty/solang/lex: Collecting 10 samples in estimated 10.000 s (665M iterations)
-Benchmarking parser/empty/solang/lex: Analyzing
-parser/empty/solang/lex time:   [11.721 ns 11.732 ns 11.760 ns]
-Benchmarking parser/empty/solang/parse
-Benchmarking parser/empty/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/empty/solang/parse: Collecting 10 samples in estimated 10.000 s (96M iterations)
-Benchmarking parser/empty/solang/parse: Analyzing
-parser/empty/solang/parse
-                        time:   [104.25 ns 104.35 ns 104.62 ns]
-Benchmarking parser/empty/slang/parse
-Benchmarking parser/empty/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/empty/slang/parse: Collecting 10 samples in estimated 10.000 s (2.6M iterations)
-Benchmarking parser/empty/slang/parse: Analyzing
-parser/empty/slang/parse
-                        time:   [3.8305 µs 3.9255 µs 4.0342 µs]
-Benchmarking parser/empty/tree-sitter/parse
-Benchmarking parser/empty/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/empty/tree-sitter/parse: Collecting 10 samples in estimated 10.000 s (18M iterations)
-Benchmarking parser/empty/tree-sitter/parse: Analyzing
-parser/empty/tree-sitter/parse
-                        time:   [608.27 ns 617.88 ns 635.05 ns]
+Benchmarking compiler/empty/solc/parse
+Benchmarking compiler/empty/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/empty/solc/parse: Collecting 10 samples in estimated 10.068 s (5555 iterations)
+Benchmarking compiler/empty/solc/parse: Analyzing
+compiler/empty/solc/parse
+                        time:   [1.7664 ms 1.7730 ms 1.7849 ms]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/solar/lex
+Benchmarking compiler/empty/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/empty/solar/lex: Collecting 10 samples in estimated 10.005 s (40k iterations)
+Benchmarking compiler/empty/solar/lex: Analyzing
+compiler/empty/solar/lex
+                        time:   [168.48 ns 172.29 ns 175.26 ns]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/solar/parse
+Benchmarking compiler/empty/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/empty/solar/parse: Collecting 10 samples in estimated 10.005 s (107k iterations)
+Benchmarking compiler/empty/solar/parse: Analyzing
+compiler/empty/solar/parse
+                        time:   [2.2116 µs 2.2394 µs 2.2655 µs]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/solar/lower
+Benchmarking compiler/empty/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/empty/solar/lower: Collecting 10 samples in estimated 10.003 s (107k iterations)
+Benchmarking compiler/empty/solar/lower: Analyzing
+compiler/empty/solar/lower
+                        time:   [4.5232 µs 4.5753 µs 4.6013 µs]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/solang/lex
+Benchmarking compiler/empty/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/empty/solang/lex: Collecting 10 samples in estimated 10.000 s (703M iterations)
+Benchmarking compiler/empty/solang/lex: Analyzing
+compiler/empty/solang/lex
+                        time:   [12.514 ns 12.712 ns 12.811 ns]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/solang/parse
+Benchmarking compiler/empty/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/empty/solang/parse: Collecting 10 samples in estimated 10.000 s (123M iterations)
+Benchmarking compiler/empty/solang/parse: Analyzing
+compiler/empty/solang/parse
+                        time:   [79.641 ns 79.767 ns 79.903 ns]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/slang/parse
+Benchmarking compiler/empty/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/empty/slang/parse: Collecting 10 samples in estimated 10.000 s (3.0M iterations)
+Benchmarking compiler/empty/slang/parse: Analyzing
+compiler/empty/slang/parse
+                        time:   [3.3667 µs 3.3720 µs 3.3759 µs]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
+Benchmarking compiler/empty/tree-sitter/parse
+Benchmarking compiler/empty/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/empty/tree-sitter/parse: Collecting 10 samples in estimated 10.000 s (26M iterations)
+Benchmarking compiler/empty/tree-sitter/parse: Analyzing
+compiler/empty/tree-sitter/parse
+                        time:   [384.91 ns 385.36 ns 386.04 ns]
+                        thrpt:  [0.0000   B/s 0.0000   B/s 0.0000   B/s]
 
-Benchmarking parser/Counter/solc/parse
-Benchmarking parser/Counter/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/Counter/solc/parse: Collecting 10 samples in estimated 10.010 s (7205 iterations)
-Benchmarking parser/Counter/solc/parse: Analyzing
-parser/Counter/solc/parse
-                        time:   [1.3835 ms 1.3871 ms 1.3906 ms]
-Benchmarking parser/Counter/solar/lex
-Benchmarking parser/Counter/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Counter/solar/lex: Collecting 10 samples in estimated 10.003 s (137k iterations)
-Benchmarking parser/Counter/solar/lex: Analyzing
-parser/Counter/solar/lex
-                        time:   [4.0727 µs 4.1441 µs 4.1883 µs]
-Benchmarking parser/Counter/solar/parse
-Benchmarking parser/Counter/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Counter/solar/parse: Collecting 10 samples in estimated 10.002 s (136k iterations)
-Benchmarking parser/Counter/solar/parse: Analyzing
-parser/Counter/solar/parse
-                        time:   [6.0745 µs 6.2099 µs 6.2800 µs]
-Benchmarking parser/Counter/solar/lower
-Benchmarking parser/Counter/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/Counter/solar/lower: Collecting 10 samples in estimated 10.001 s (125k iterations)
-Benchmarking parser/Counter/solar/lower: Analyzing
-parser/Counter/solar/lower
-                        time:   [11.729 µs 11.964 µs 12.087 µs]
-Benchmarking parser/Counter/solang/lex
-Benchmarking parser/Counter/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Counter/solang/lex: Collecting 10 samples in estimated 10.000 s (5.7M iterations)
-Benchmarking parser/Counter/solang/lex: Analyzing
-parser/Counter/solang/lex
-                        time:   [1.7558 µs 1.7589 µs 1.7611 µs]
-Benchmarking parser/Counter/solang/parse
-Benchmarking parser/Counter/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/Counter/solang/parse: Collecting 10 samples in estimated 10.000 s (1.0M iterations)
-Benchmarking parser/Counter/solang/parse: Analyzing
-parser/Counter/solang/parse
-                        time:   [9.5174 µs 9.5290 µs 9.5422 µs]
-Benchmarking parser/Counter/slang/parse
-Benchmarking parser/Counter/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/Counter/slang/parse: Collecting 10 samples in estimated 10.001 s (49k iterations)
-Benchmarking parser/Counter/slang/parse: Analyzing
-parser/Counter/slang/parse
-                        time:   [203.96 µs 204.15 µs 204.41 µs]
-Benchmarking parser/Counter/tree-sitter/parse
-Benchmarking parser/Counter/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Counter/tree-sitter/parse: Collecting 10 samples in estimated 10.001 s (652k iterations)
-Benchmarking parser/Counter/tree-sitter/parse: Analyzing
-parser/Counter/tree-sitter/parse
-                        time:   [15.199 µs 15.225 µs 15.242 µs]
+Benchmarking compiler/Counter/solc/parse
+Benchmarking compiler/Counter/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solc/parse: Collecting 10 samples in estimated 10.029 s (5610 iterations)
+Benchmarking compiler/Counter/solc/parse: Analyzing
+compiler/Counter/solc/parse
+                        time:   [1.7874 ms 1.7959 ms 1.8023 ms]
+                        thrpt:  [139.80 KiB/s 140.30 KiB/s 140.96 KiB/s]
+Benchmarking compiler/Counter/solar/lex
+Benchmarking compiler/Counter/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solar/lex: Collecting 10 samples in estimated 10.003 s (109k iterations)
+Benchmarking compiler/Counter/solar/lex: Analyzing
+compiler/Counter/solar/lex
+                        time:   [4.2653 µs 4.3058 µs 4.3228 µs]
+                        thrpt:  [56.918 MiB/s 57.143 MiB/s 57.686 MiB/s]
+Benchmarking compiler/Counter/solar/parse
+Benchmarking compiler/Counter/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solar/parse: Collecting 10 samples in estimated 10.003 s (104k iterations)
+Benchmarking compiler/Counter/solar/parse: Analyzing
+compiler/Counter/solar/parse
+                        time:   [7.9371 µs 7.9791 µs 8.0062 µs]
+                        thrpt:  [30.732 MiB/s 30.837 MiB/s 31.000 MiB/s]
+Benchmarking compiler/Counter/solar/lower
+Benchmarking compiler/Counter/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solar/lower: Collecting 10 samples in estimated 10.005 s (105k iterations)
+Benchmarking compiler/Counter/solar/lower: Analyzing
+compiler/Counter/solar/lower
+                        time:   [11.367 µs 11.629 µs 11.939 µs]
+                        thrpt:  [20.608 MiB/s 21.159 MiB/s 21.645 MiB/s]
+Benchmarking compiler/Counter/solang/lex
+Benchmarking compiler/Counter/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solang/lex: Collecting 10 samples in estimated 10.000 s (6.8M iterations)
+Benchmarking compiler/Counter/solang/lex: Analyzing
+compiler/Counter/solang/lex
+                        time:   [1.4754 µs 1.4823 µs 1.4883 µs]
+                        thrpt:  [165.32 MiB/s 165.99 MiB/s 166.77 MiB/s]
+Benchmarking compiler/Counter/solang/parse
+Benchmarking compiler/Counter/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Counter/solang/parse: Collecting 10 samples in estimated 10.000 s (1.3M iterations)
+Benchmarking compiler/Counter/solang/parse: Analyzing
+compiler/Counter/solang/parse
+                        time:   [7.7637 µs 7.7718 µs 7.7772 µs]
+                        thrpt:  [31.637 MiB/s 31.659 MiB/s 31.692 MiB/s]
+Benchmarking compiler/Counter/slang/parse
+Benchmarking compiler/Counter/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Counter/slang/parse: Collecting 10 samples in estimated 10.002 s (56k iterations)
+Benchmarking compiler/Counter/slang/parse: Analyzing
+compiler/Counter/slang/parse
+                        time:   [178.53 µs 179.62 µs 180.69 µs]
+                        thrpt:  [1.3617 MiB/s 1.3698 MiB/s 1.3782 MiB/s]
+Benchmarking compiler/Counter/tree-sitter/parse
+Benchmarking compiler/Counter/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/Counter/tree-sitter/parse: Collecting 10 samples in estimated 10.000 s (899k iterations)
+Benchmarking compiler/Counter/tree-sitter/parse: Analyzing
+compiler/Counter/tree-sitter/parse
+                        time:   [11.156 µs 11.177 µs 11.192 µs]
+                        thrpt:  [21.985 MiB/s 22.015 MiB/s 22.055 MiB/s]
 
-Benchmarking parser/verifier/solc/parse
-Benchmarking parser/verifier/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/verifier/solc/parse: Collecting 10 samples in estimated 10.105 s (4785 iterations)
-Benchmarking parser/verifier/solc/parse: Analyzing
-parser/verifier/solc/parse
-                        time:   [2.1096 ms 2.1130 ms 2.1186 ms]
-Benchmarking parser/verifier/solar/lex
-Benchmarking parser/verifier/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/verifier/solar/lex: Collecting 10 samples in estimated 10.002 s (87k iterations)
-Benchmarking parser/verifier/solar/lex: Analyzing
-parser/verifier/solar/lex
-                        time:   [48.401 µs 49.728 µs 51.199 µs]
-Benchmarking parser/verifier/solar/parse
-Benchmarking parser/verifier/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/verifier/solar/parse: Collecting 10 samples in estimated 10.002 s (62k iterations)
-Benchmarking parser/verifier/solar/parse: Analyzing
-parser/verifier/solar/parse
-                        time:   [95.387 µs 96.278 µs 98.345 µs]
-Benchmarking parser/verifier/solar/lower
-Benchmarking parser/verifier/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/verifier/solar/lower: Collecting 10 samples in estimated 10.002 s (52k iterations)
-Benchmarking parser/verifier/solar/lower: Analyzing
-parser/verifier/solar/lower
-                        time:   [127.91 µs 128.68 µs 128.99 µs]
-Benchmarking parser/verifier/solang/lex
-Benchmarking parser/verifier/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/verifier/solang/lex: Collecting 10 samples in estimated 10.004 s (131k iterations)
-Benchmarking parser/verifier/solang/lex: Analyzing
-parser/verifier/solang/lex
-                        time:   [77.184 µs 77.362 µs 77.458 µs]
-Benchmarking parser/verifier/solang/parse
-Benchmarking parser/verifier/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/verifier/solang/parse: Collecting 10 samples in estimated 10.008 s (19k iterations)
-Benchmarking parser/verifier/solang/parse: Analyzing
-parser/verifier/solang/parse
-                        time:   [516.75 µs 517.15 µs 517.70 µs]
-Benchmarking parser/verifier/slang/parse
-Benchmarking parser/verifier/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/verifier/slang/parse: Collecting 10 samples in estimated 10.578 s (935 iterations)
-Benchmarking parser/verifier/slang/parse: Analyzing
-parser/verifier/slang/parse
-                        time:   [10.845 ms 10.889 ms 10.955 ms]
-Benchmarking parser/verifier/tree-sitter/parse
-Benchmarking parser/verifier/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/verifier/tree-sitter/parse: Collecting 10 samples in estimated 10.050 s (11k iterations)
-Benchmarking parser/verifier/tree-sitter/parse: Analyzing
-parser/verifier/tree-sitter/parse
-                        time:   [928.62 µs 929.05 µs 929.37 µs]
+Benchmarking compiler/verifier/solc/parse
+Benchmarking compiler/verifier/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solc/parse: Collecting 10 samples in estimated 10.030 s (4180 iterations)
+Benchmarking compiler/verifier/solc/parse: Analyzing
+compiler/verifier/solc/parse
+                        time:   [2.3975 ms 2.4037 ms 2.4094 ms]
+                        thrpt:  [4.3698 MiB/s 4.3802 MiB/s 4.3915 MiB/s]
+Benchmarking compiler/verifier/solar/lex
+Benchmarking compiler/verifier/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solar/lex: Collecting 10 samples in estimated 10.001 s (76k iterations)
+Benchmarking compiler/verifier/solar/lex: Analyzing
+compiler/verifier/solar/lex
+                        time:   [48.456 µs 48.674 µs 48.769 µs]
+                        thrpt:  [215.88 MiB/s 216.31 MiB/s 217.28 MiB/s]
+Benchmarking compiler/verifier/solar/parse
+Benchmarking compiler/verifier/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solar/parse: Collecting 10 samples in estimated 10.007 s (57k iterations)
+Benchmarking compiler/verifier/solar/parse: Analyzing
+compiler/verifier/solar/parse
+                        time:   [87.045 µs 87.455 µs 87.769 µs]
+                        thrpt:  [119.96 MiB/s 120.39 MiB/s 120.96 MiB/s]
+Benchmarking compiler/verifier/solar/lower
+Benchmarking compiler/verifier/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solar/lower: Collecting 10 samples in estimated 10.006 s (50k iterations)
+Benchmarking compiler/verifier/solar/lower: Analyzing
+compiler/verifier/solar/lower
+                        time:   [116.19 µs 116.58 µs 116.84 µs]
+                        thrpt:  [90.107 MiB/s 90.314 MiB/s 90.615 MiB/s]
+Benchmarking compiler/verifier/solang/lex
+Benchmarking compiler/verifier/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solang/lex: Collecting 10 samples in estimated 10.002 s (163k iterations)
+Benchmarking compiler/verifier/solang/lex: Analyzing
+compiler/verifier/solang/lex
+                        time:   [60.583 µs 60.727 µs 60.910 µs]
+                        thrpt:  [172.85 MiB/s 173.38 MiB/s 173.79 MiB/s]
+Benchmarking compiler/verifier/solang/parse
+Benchmarking compiler/verifier/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/verifier/solang/parse: Collecting 10 samples in estimated 10.013 s (25k iterations)
+Benchmarking compiler/verifier/solang/parse: Analyzing
+compiler/verifier/solang/parse
+                        time:   [394.19 µs 394.74 µs 395.52 µs]
+                        thrpt:  [26.619 MiB/s 26.672 MiB/s 26.709 MiB/s]
+Benchmarking compiler/verifier/slang/parse
+Benchmarking compiler/verifier/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/verifier/slang/parse: Collecting 10 samples in estimated 10.184 s (1100 iterations)
+Benchmarking compiler/verifier/slang/parse: Analyzing
+compiler/verifier/slang/parse
+                        time:   [9.2702 ms 9.3010 ms 9.3531 ms]
+                        thrpt:  [1.1257 MiB/s 1.1320 MiB/s 1.1357 MiB/s]
+Benchmarking compiler/verifier/tree-sitter/parse
+Benchmarking compiler/verifier/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/verifier/tree-sitter/parse: Collecting 10 samples in estimated 10.035 s (14k iterations)
+Benchmarking compiler/verifier/tree-sitter/parse: Analyzing
+compiler/verifier/tree-sitter/parse
+                        time:   [724.11 µs 725.56 µs 727.28 µs]
+                        thrpt:  [14.477 MiB/s 14.511 MiB/s 14.540 MiB/s]
 
-Benchmarking parser/OptimizorClub/solc/parse
-Benchmarking parser/OptimizorClub/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solc/parse: Collecting 10 samples in estimated 10.113 s (3190 iterations)
-Benchmarking parser/OptimizorClub/solc/parse: Analyzing
-parser/OptimizorClub/solc/parse
-                        time:   [3.1772 ms 3.1818 ms 3.1871 ms]
-Benchmarking parser/OptimizorClub/solar/lex
-Benchmarking parser/OptimizorClub/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solar/lex: Collecting 10 samples in estimated 10.006 s (53k iterations)
-Benchmarking parser/OptimizorClub/solar/lex: Analyzing
-parser/OptimizorClub/solar/lex
-                        time:   [118.54 µs 120.90 µs 124.34 µs]
-Benchmarking parser/OptimizorClub/solar/parse
-Benchmarking parser/OptimizorClub/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solar/parse: Collecting 10 samples in estimated 10.005 s (31k iterations)
-Benchmarking parser/OptimizorClub/solar/parse: Analyzing
-parser/OptimizorClub/solar/parse
-                        time:   [251.25 µs 257.49 µs 265.87 µs]
-Benchmarking parser/OptimizorClub/solar/lower
-Benchmarking parser/OptimizorClub/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solar/lower: Collecting 10 samples in estimated 10.006 s (24k iterations)
-Benchmarking parser/OptimizorClub/solar/lower: Analyzing
-parser/OptimizorClub/solar/lower
-                        time:   [352.74 µs 356.80 µs 364.07 µs]
-Benchmarking parser/OptimizorClub/solang/lex
-Benchmarking parser/OptimizorClub/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solang/lex: Collecting 10 samples in estimated 10.008 s (42k iterations)
-Benchmarking parser/OptimizorClub/solang/lex: Analyzing
-parser/OptimizorClub/solang/lex
-                        time:   [243.77 µs 244.33 µs 244.67 µs]
-Benchmarking parser/OptimizorClub/solang/parse
-Benchmarking parser/OptimizorClub/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/solang/parse: Collecting 10 samples in estimated 10.068 s (6710 iterations)
-Benchmarking parser/OptimizorClub/solang/parse: Analyzing
-parser/OptimizorClub/solang/parse
-                        time:   [1.4517 ms 1.4549 ms 1.4565 ms]
-Benchmarking parser/OptimizorClub/slang/parse
-Benchmarking parser/OptimizorClub/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/slang/parse: Collecting 10 samples in estimated 11.397 s (385 iterations)
-Benchmarking parser/OptimizorClub/slang/parse: Analyzing
-parser/OptimizorClub/slang/parse
-                        time:   [29.397 ms 29.429 ms 29.452 ms]
-Benchmarking parser/OptimizorClub/tree-sitter/parse
-Benchmarking parser/OptimizorClub/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/OptimizorClub/tree-sitter/parse: Collecting 10 samples in estimated 10.110 s (3905 iterations)
-Benchmarking parser/OptimizorClub/tree-sitter/parse: Analyzing
-parser/OptimizorClub/tree-sitter/parse
-                        time:   [2.5902 ms 2.5915 ms 2.5946 ms]
-
-Benchmarking parser/UniswapV3/solc/parse
-Benchmarking parser/UniswapV3/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solc/parse: Collecting 10 samples in estimated 10.132 s (1540 iterations)
-Benchmarking parser/UniswapV3/solc/parse: Analyzing
-parser/UniswapV3/solc/parse
-                        time:   [6.5547 ms 6.5630 ms 6.5798 ms]
-Benchmarking parser/UniswapV3/solar/lex
-Benchmarking parser/UniswapV3/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solar/lex: Collecting 10 samples in estimated 10.021 s (23k iterations)
-Benchmarking parser/UniswapV3/solar/lex: Analyzing
-parser/UniswapV3/solar/lex
-                        time:   [339.16 µs 343.15 µs 344.78 µs]
-Benchmarking parser/UniswapV3/solar/parse
-Benchmarking parser/UniswapV3/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solar/parse: Collecting 10 samples in estimated 10.029 s (14k iterations)
-Benchmarking parser/UniswapV3/solar/parse: Analyzing
-parser/UniswapV3/solar/parse
-                        time:   [628.96 µs 632.17 µs 633.57 µs]
-Benchmarking parser/UniswapV3/solar/lower
-Benchmarking parser/UniswapV3/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solar/lower: Collecting 10 samples in estimated 10.020 s (11k iterations)
-Benchmarking parser/UniswapV3/solar/lower: Analyzing
-parser/UniswapV3/solar/lower
-                        time:   [855.60 µs 859.45 µs 861.54 µs]
-Benchmarking parser/UniswapV3/solang/lex
-Benchmarking parser/UniswapV3/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solang/lex: Collecting 10 samples in estimated 10.023 s (13k iterations)
-Benchmarking parser/UniswapV3/solang/lex: Analyzing
-parser/UniswapV3/solang/lex
-                        time:   [768.62 µs 769.13 µs 769.44 µs]
-Benchmarking parser/UniswapV3/solang/parse
-Benchmarking parser/UniswapV3/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/solang/parse: Collecting 10 samples in estimated 10.050 s (2695 iterations)
-Benchmarking parser/UniswapV3/solang/parse: Analyzing
-parser/UniswapV3/solang/parse
-                        time:   [3.7156 ms 3.7254 ms 3.7324 ms]
-Benchmarking parser/UniswapV3/slang/parse
-Benchmarking parser/UniswapV3/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/slang/parse: Collecting 10 samples in estimated 13.108 s (165 iterations)
-Benchmarking parser/UniswapV3/slang/parse: Analyzing
-parser/UniswapV3/slang/parse
-                        time:   [79.661 ms 81.757 ms 83.918 ms]
-Benchmarking parser/UniswapV3/tree-sitter/parse
-Benchmarking parser/UniswapV3/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/UniswapV3/tree-sitter/parse: Collecting 10 samples in estimated 10.136 s (1430 iterations)
-Benchmarking parser/UniswapV3/tree-sitter/parse: Analyzing
-parser/UniswapV3/tree-sitter/parse
-                        time:   [7.1115 ms 7.1160 ms 7.1206 ms]
-
-Benchmarking parser/Solarray/solc/parse
-Benchmarking parser/Solarray/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solc/parse: Collecting 10 samples in estimated 10.216 s (2585 iterations)
-Benchmarking parser/Solarray/solc/parse: Analyzing
-parser/Solarray/solc/parse
-                        time:   [3.9195 ms 3.9377 ms 3.9560 ms]
-Benchmarking parser/Solarray/solar/lex
-Benchmarking parser/Solarray/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solar/lex: Collecting 10 samples in estimated 10.009 s (45k iterations)
-Benchmarking parser/Solarray/solar/lex: Analyzing
-parser/Solarray/solar/lex
-                        time:   [146.67 µs 147.69 µs 150.24 µs]
-Benchmarking parser/Solarray/solar/parse
-Benchmarking parser/Solarray/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solar/parse: Collecting 10 samples in estimated 10.021 s (22k iterations)
-Benchmarking parser/Solarray/solar/parse: Analyzing
-parser/Solarray/solar/parse
-                        time:   [401.65 µs 402.83 µs 403.39 µs]
-Benchmarking parser/Solarray/solar/lower
-Benchmarking parser/Solarray/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solar/lower: Collecting 10 samples in estimated 10.029 s (16k iterations)
-Benchmarking parser/Solarray/solar/lower: Analyzing
-parser/Solarray/solar/lower
-                        time:   [556.65 µs 557.44 µs 557.84 µs]
-Benchmarking parser/Solarray/solang/lex
-Benchmarking parser/Solarray/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solang/lex: Collecting 10 samples in estimated 10.017 s (29k iterations)
-Benchmarking parser/Solarray/solang/lex: Analyzing
-parser/Solarray/solang/lex
-                        time:   [342.60 µs 350.78 µs 361.71 µs]
-Benchmarking parser/Solarray/solang/parse
-Benchmarking parser/Solarray/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/Solarray/solang/parse: Collecting 10 samples in estimated 10.080 s (3300 iterations)
-Benchmarking parser/Solarray/solang/parse: Analyzing
-parser/Solarray/solang/parse
-                        time:   [3.1091 ms 3.1846 ms 3.2752 ms]
-Benchmarking parser/Solarray/slang/parse
-Benchmarking parser/Solarray/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/Solarray/slang/parse: Collecting 10 samples in estimated 12.211 s (165 iterations)
-Benchmarking parser/Solarray/slang/parse: Analyzing
-parser/Solarray/slang/parse
-                        time:   [74.548 ms 76.014 ms 78.210 ms]
-Benchmarking parser/Solarray/tree-sitter/parse
-Benchmarking parser/Solarray/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Solarray/tree-sitter/parse: Collecting 10 samples in estimated 10.294 s (1925 iterations)
-Benchmarking parser/Solarray/tree-sitter/parse: Analyzing
-parser/Solarray/tree-sitter/parse
-                        time:   [5.1570 ms 5.4070 ms 5.5728 ms]
-
-Benchmarking parser/console/solc/parse
-Benchmarking parser/console/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/console/solc/parse: Collecting 10 samples in estimated 10.227 s (1980 iterations)
-Benchmarking parser/console/solc/parse: Analyzing
-parser/console/solc/parse
-                        time:   [5.1419 ms 5.1549 ms 5.1670 ms]
-Benchmarking parser/console/solar/lex
-Benchmarking parser/console/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/console/solar/lex: Collecting 10 samples in estimated 10.001 s (31k iterations)
-Benchmarking parser/console/solar/lex: Analyzing
-parser/console/solar/lex
-                        time:   [231.76 µs 234.68 µs 236.31 µs]
-Benchmarking parser/console/solar/parse
-Benchmarking parser/console/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/console/solar/parse: Collecting 10 samples in estimated 10.022 s (17k iterations)
-Benchmarking parser/console/solar/parse: Analyzing
-parser/console/solar/parse
-                        time:   [523.92 µs 536.06 µs 556.99 µs]
-Benchmarking parser/console/solar/lower
-Benchmarking parser/console/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/console/solar/lower: Collecting 10 samples in estimated 10.011 s (12k iterations)
-Benchmarking parser/console/solar/lower: Analyzing
-parser/console/solar/lower
-                        time:   [781.36 µs 796.18 µs 818.72 µs]
-Benchmarking parser/console/solang/lex
-Benchmarking parser/console/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/console/solang/lex: Collecting 10 samples in estimated 10.006 s (19k iterations)
-Benchmarking parser/console/solang/lex: Analyzing
-parser/console/solang/lex
-                        time:   [521.15 µs 524.19 µs 531.26 µs]
-Benchmarking parser/console/solang/parse
-Benchmarking parser/console/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/console/solang/parse: Collecting 10 samples in estimated 10.158 s (2695 iterations)
-Benchmarking parser/console/solang/parse: Analyzing
-parser/console/solang/parse
-                        time:   [3.7842 ms 3.8689 ms 3.9956 ms]
-Benchmarking parser/console/slang/parse
-Benchmarking parser/console/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/console/slang/parse: Collecting 10 samples in estimated 13.560 s (165 iterations)
-Benchmarking parser/console/slang/parse: Analyzing
-parser/console/slang/parse
-                        time:   [79.477 ms 79.624 ms 79.717 ms]
-Benchmarking parser/console/tree-sitter/parse
-Benchmarking parser/console/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/console/tree-sitter/parse: Collecting 10 samples in estimated 10.146 s (1595 iterations)
-Benchmarking parser/console/tree-sitter/parse: Analyzing
-parser/console/tree-sitter/parse
-                        time:   [6.3194 ms 6.3248 ms 6.3358 ms]
-
-Benchmarking parser/Vm/solc/parse
-Benchmarking parser/Vm/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/Vm/solc/parse: Collecting 10 samples in estimated 10.126 s (2530 iterations)
-Benchmarking parser/Vm/solc/parse: Analyzing
-parser/Vm/solc/parse    time:   [4.0118 ms 4.0263 ms 4.0413 ms]
-Benchmarking parser/Vm/solar/lex
-Benchmarking parser/Vm/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Vm/solar/lex: Collecting 10 samples in estimated 10.000 s (36k iterations)
-Benchmarking parser/Vm/solar/lex: Analyzing
-parser/Vm/solar/lex     time:   [198.34 µs 201.36 µs 202.82 µs]
-Benchmarking parser/Vm/solar/parse
-Benchmarking parser/Vm/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Vm/solar/parse: Collecting 10 samples in estimated 10.009 s (25k iterations)
-Benchmarking parser/Vm/solar/parse: Analyzing
-parser/Vm/solar/parse   time:   [345.14 µs 349.68 µs 357.80 µs]
-Benchmarking parser/Vm/solar/lower
-Benchmarking parser/Vm/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/Vm/solar/lower: Collecting 10 samples in estimated 10.016 s (20k iterations)
-Benchmarking parser/Vm/solar/lower: Analyzing
-parser/Vm/solar/lower   time:   [434.08 µs 436.40 µs 437.74 µs]
-Benchmarking parser/Vm/solang/lex
-Benchmarking parser/Vm/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Vm/solang/lex: Collecting 10 samples in estimated 10.008 s (22k iterations)
-Benchmarking parser/Vm/solang/lex: Analyzing
-parser/Vm/solang/lex    time:   [473.43 µs 474.17 µs 474.43 µs]
-Benchmarking parser/Vm/solang/parse
-Benchmarking parser/Vm/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/Vm/solang/parse: Collecting 10 samples in estimated 10.075 s (6105 iterations)
-Benchmarking parser/Vm/solang/parse: Analyzing
-parser/Vm/solang/parse  time:   [1.5116 ms 1.5192 ms 1.5291 ms]
-Benchmarking parser/Vm/slang/parse
-Benchmarking parser/Vm/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/Vm/slang/parse: Collecting 10 samples in estimated 10.797 s (495 iterations)
-Benchmarking parser/Vm/slang/parse: Analyzing
-parser/Vm/slang/parse   time:   [21.753 ms 21.799 ms 21.841 ms]
-Benchmarking parser/Vm/tree-sitter/parse
-Benchmarking parser/Vm/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Vm/tree-sitter/parse: Collecting 10 samples in estimated 10.074 s (3410 iterations)
-Benchmarking parser/Vm/tree-sitter/parse: Analyzing
-parser/Vm/tree-sitter/parse
-                        time:   [2.9653 ms 2.9665 ms 2.9679 ms]
-
-Benchmarking parser/safeconsole/solc/parse
-Benchmarking parser/safeconsole/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solc/parse: Collecting 10 samples in estimated 11.137 s (440 iterations)
-Benchmarking parser/safeconsole/solc/parse: Analyzing
-parser/safeconsole/solc/parse
-                        time:   [25.032 ms 25.133 ms 25.251 ms]
-Benchmarking parser/safeconsole/solar/lex
-Benchmarking parser/safeconsole/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solar/lex: Collecting 10 samples in estimated 10.023 s (8030 iterations)
-Benchmarking parser/safeconsole/solar/lex: Analyzing
-parser/safeconsole/solar/lex
-                        time:   [1.0916 ms 1.1099 ms 1.1461 ms]
-Benchmarking parser/safeconsole/solar/parse
-Benchmarking parser/safeconsole/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solar/parse: Collecting 10 samples in estimated 10.014 s (3575 iterations)
-Benchmarking parser/safeconsole/solar/parse: Analyzing
-parser/safeconsole/solar/parse
-                        time:   [2.7286 ms 2.7348 ms 2.7375 ms]
-Benchmarking parser/safeconsole/solar/lower
-Benchmarking parser/safeconsole/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solar/lower: Collecting 10 samples in estimated 10.149 s (3135 iterations)
-Benchmarking parser/safeconsole/solar/lower: Analyzing
-parser/safeconsole/solar/lower
-                        time:   [3.1680 ms 3.2686 ms 3.3863 ms]
-Benchmarking parser/safeconsole/solang/lex
-Benchmarking parser/safeconsole/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solang/lex: Collecting 10 samples in estimated 10.100 s (3520 iterations)
-Benchmarking parser/safeconsole/solang/lex: Analyzing
-parser/safeconsole/solang/lex
-                        time:   [2.8036 ms 2.8629 ms 2.9597 ms]
-Benchmarking parser/safeconsole/solang/parse
-Benchmarking parser/safeconsole/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/solang/parse: Collecting 10 samples in estimated 10.477 s (660 iterations)
-Benchmarking parser/safeconsole/solang/parse: Analyzing
-parser/safeconsole/solang/parse
-                        time:   [15.926 ms 16.258 ms 16.880 ms]
-Benchmarking parser/safeconsole/slang/parse
-Benchmarking parser/safeconsole/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/slang/parse: Collecting 10 samples in estimated 12.904 s (30 iterations)
-Benchmarking parser/safeconsole/slang/parse: Analyzing
-parser/safeconsole/slang/parse
-                        time:   [432.25 ms 432.85 ms 433.47 ms]
-Benchmarking parser/safeconsole/tree-sitter/parse
-Benchmarking parser/safeconsole/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/safeconsole/tree-sitter/parse: Collecting 10 samples in estimated 11.098 s (440 iterations)
-Benchmarking parser/safeconsole/tree-sitter/parse: Analyzing
-parser/safeconsole/tree-sitter/parse
-                        time:   [25.176 ms 25.363 ms 25.573 ms]
-
-Benchmarking parser/Seaport/solc/parse
-Benchmarking parser/Seaport/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solc/parse: Collecting 10 samples in estimated 10.333 s (440 iterations)
-Benchmarking parser/Seaport/solc/parse: Analyzing
-parser/Seaport/solc/parse
-                        time:   [23.362 ms 23.469 ms 23.577 ms]
-Benchmarking parser/Seaport/solar/lex
-Benchmarking parser/Seaport/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solar/lex: Collecting 10 samples in estimated 10.040 s (7590 iterations)
-Benchmarking parser/Seaport/solar/lex: Analyzing
-parser/Seaport/solar/lex
-                        time:   [1.1739 ms 1.1841 ms 1.1881 ms]
-Benchmarking parser/Seaport/solar/parse
-Benchmarking parser/Seaport/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solar/parse: Collecting 10 samples in estimated 10.055 s (4675 iterations)
-Benchmarking parser/Seaport/solar/parse: Analyzing
-parser/Seaport/solar/parse
-                        time:   [2.0963 ms 2.1225 ms 2.1577 ms]
-Benchmarking parser/Seaport/solar/lower
-Benchmarking parser/Seaport/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solar/lower: Collecting 10 samples in estimated 10.134 s (3685 iterations)
-Benchmarking parser/Seaport/solar/lower: Analyzing
-parser/Seaport/solar/lower
-                        time:   [2.6630 ms 2.6639 ms 2.6648 ms]
-Benchmarking parser/Seaport/solang/lex
-Benchmarking parser/Seaport/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solang/lex: Collecting 10 samples in estimated 10.059 s (3025 iterations)
-Benchmarking parser/Seaport/solang/lex: Analyzing
-parser/Seaport/solang/lex
-                        time:   [3.3339 ms 3.3378 ms 3.3427 ms]
-Benchmarking parser/Seaport/solang/parse
-Benchmarking parser/Seaport/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/Seaport/solang/parse: Collecting 10 samples in estimated 10.540 s (935 iterations)
-Benchmarking parser/Seaport/solang/parse: Analyzing
-parser/Seaport/solang/parse
-                        time:   [11.176 ms 11.542 ms 11.815 ms]
-Benchmarking parser/Seaport/slang/parse
-Benchmarking parser/Seaport/slang/parse: Warming up for 3.0000 s
-
-Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 15.5s or enable flat sampling.
-Benchmarking parser/Seaport/slang/parse: Collecting 10 samples in estimated 15.455 s (55 iterations)
-Benchmarking parser/Seaport/slang/parse: Analyzing
-parser/Seaport/slang/parse
-                        time:   [272.37 ms 277.02 ms 282.83 ms]
-Benchmarking parser/Seaport/tree-sitter/parse
-Benchmarking parser/Seaport/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Seaport/tree-sitter/parse: Collecting 10 samples in estimated 11.078 s (495 iterations)
-Benchmarking parser/Seaport/tree-sitter/parse: Analyzing
-parser/Seaport/tree-sitter/parse
-                        time:   [21.777 ms 22.191 ms 22.969 ms]
-
-Benchmarking parser/Solady/solc/parse
-Benchmarking parser/Solady/solc/parse: Warming up for 3.0000 s
-Benchmarking parser/Solady/solc/parse: Collecting 10 samples in estimated 13.000 s (220 iterations)
-Benchmarking parser/Solady/solc/parse: Analyzing
-parser/Solady/solc/parse
-                        time:   [58.668 ms 58.948 ms 59.139 ms]
-Benchmarking parser/Solady/solar/lex
-Benchmarking parser/Solady/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Solady/solar/lex: Collecting 10 samples in estimated 10.073 s (2640 iterations)
-Benchmarking parser/Solady/solar/lex: Analyzing
-parser/Solady/solar/lex time:   [3.2804 ms 3.2973 ms 3.3057 ms]
-Benchmarking parser/Solady/solar/parse
-Benchmarking parser/Solady/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Solady/solar/parse: Collecting 10 samples in estimated 10.304 s (1485 iterations)
-Benchmarking parser/Solady/solar/parse: Analyzing
-parser/Solady/solar/parse
-                        time:   [6.7240 ms 6.9273 ms 7.1860 ms]
-Benchmarking parser/Solady/solar/lower
-Benchmarking parser/Solady/solar/lower: Warming up for 3.0000 s
-Benchmarking parser/Solady/solar/lower: Collecting 10 samples in estimated 10.374 s (1320 iterations)
-Benchmarking parser/Solady/solar/lower: Analyzing
-parser/Solady/solar/lower
-                        time:   [7.7480 ms 7.8862 ms 8.1167 ms]
-Benchmarking parser/Solady/solang/lex
-Benchmarking parser/Solady/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Solady/solang/lex: Collecting 10 samples in estimated 10.101 s (1265 iterations)
-Benchmarking parser/Solady/solang/lex: Analyzing
-parser/Solady/solang/lex
-                        time:   [7.9973 ms 8.0148 ms 8.0277 ms]
-Benchmarking parser/Solady/solang/parse
-Benchmarking parser/Solady/solang/parse: Warming up for 3.0000 s
-Benchmarking parser/Solady/solang/parse: Collecting 10 samples in estimated 10.351 s (275 iterations)
-Benchmarking parser/Solady/solang/parse: Analyzing
-parser/Solady/solang/parse
-                        time:   [37.287 ms 37.386 ms 37.436 ms]
-Benchmarking parser/Solady/slang/parse
-Benchmarking parser/Solady/slang/parse: Warming up for 3.0000 s
-Benchmarking parser/Solady/slang/parse: Collecting 10 samples in estimated 17.499 s (20 iterations)
-Benchmarking parser/Solady/slang/parse: Analyzing
-parser/Solady/slang/parse
-                        time:   [878.97 ms 884.65 ms 889.50 ms]
-Benchmarking parser/Solady/tree-sitter/parse
-Benchmarking parser/Solady/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Solady/tree-sitter/parse: Collecting 10 samples in estimated 10.014 s (165 iterations)
-Benchmarking parser/Solady/tree-sitter/parse: Analyzing
-parser/Solady/tree-sitter/parse
-                        time:   [60.749 ms 60.798 ms 60.921 ms]
-
-Benchmarking parser/Optimism/solc/parse
-Benchmarking parser/Optimism/solc/parse: Warming up for 3.0000 s
-
-Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 12.9s or enable flat sampling.
-Benchmarking parser/Optimism/solc/parse: Collecting 10 samples in estimated 12.906 s (55 iterations)
-Benchmarking parser/Optimism/solc/parse: Analyzing
-parser/Optimism/solc/parse
-                        time:   [236.18 ms 236.88 ms 237.46 ms]
-Benchmarking parser/Optimism/solar/lex
-Benchmarking parser/Optimism/solar/lex: Warming up for 3.0000 s
-Benchmarking parser/Optimism/solar/lex: Collecting 10 samples in estimated 10.036 s (715 iterations)
-Benchmarking parser/Optimism/solar/lex: Analyzing
-parser/Optimism/solar/lex
-                        time:   [13.041 ms 13.223 ms 13.437 ms]
-Benchmarking parser/Optimism/solar/parse
-Benchmarking parser/Optimism/solar/parse: Warming up for 3.0000 s
-Benchmarking parser/Optimism/solar/parse: Collecting 10 samples in estimated 11.382 s (385 iterations)
-Benchmarking parser/Optimism/solar/parse: Analyzing
-parser/Optimism/solar/parse
-                        time:   [27.863 ms 27.976 ms 28.051 ms]
-Benchmarking parser/Optimism/solang/lex
-Benchmarking parser/Optimism/solang/lex: Warming up for 3.0000 s
-Benchmarking parser/Optimism/solang/lex: Collecting 10 samples in estimated 10.994 s (330 iterations)
-Benchmarking parser/Optimism/solang/lex: Analyzing
-parser/Optimism/solang/lex
-                        time:   [32.921 ms 33.505 ms 33.841 ms]
-Benchmarking parser/Optimism/solang/parse
-Benchmarking parser/Optimism/solang/parse: Warming up for 3.0000 s
-
-Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 11.7s or enable flat sampling.
-Benchmarking parser/Optimism/solang/parse: Collecting 10 samples in estimated 11.705 s (55 iterations)
-Benchmarking parser/Optimism/solang/parse: Analyzing
-parser/Optimism/solang/parse
-                        time:   [197.28 ms 198.91 ms 201.09 ms]
-Benchmarking parser/Optimism/slang/parse
-Benchmarking parser/Optimism/slang/parse: Warming up for 3.0000 s
-
-Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 66.4s.
-Benchmarking parser/Optimism/slang/parse: Collecting 10 samples in estimated 66.409 s (10 iterations)
-Benchmarking parser/Optimism/slang/parse: Analyzing
-parser/Optimism/slang/parse
-                        time:   [6.7483 s 6.8191 s 6.8814 s]
-Benchmarking parser/Optimism/tree-sitter/parse
-Benchmarking parser/Optimism/tree-sitter/parse: Warming up for 3.0000 s
-Benchmarking parser/Optimism/tree-sitter/parse: Collecting 10 samples in estimated 12.067 s (30 iterations)
-Benchmarking parser/Optimism/tree-sitter/parse: Analyzing
-parser/Optimism/tree-sitter/parse
-                        time:   [425.24 ms 437.90 ms 449.39 ms]
+Benchmarking compiler/OptimizorClub/solc/parse
+Benchmarking compiler/OptimizorClub/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solc/parse: Collecting 10 samples in estimated 10.042 s (3135 iterations)
+Benchmarking compiler/OptimizorClub/solc/parse: Analyzing
+compiler/OptimizorClub/solc/parse
+                        time:   [3.1974 ms 3.2058 ms 3.2117 ms]
+                        thrpt:  [10.662 MiB/s 10.681 MiB/s 10.709 MiB/s]
+Benchmarking compiler/OptimizorClub/solar/lex
+Benchmarking compiler/OptimizorClub/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solar/lex: Collecting 10 samples in estimated 10.001 s (52k iterations)
+Benchmarking compiler/OptimizorClub/solar/lex: Analyzing
+compiler/OptimizorClub/solar/lex
+                        time:   [111.00 µs 111.43 µs 111.61 µs]
+                        thrpt:  [306.80 MiB/s 307.30 MiB/s 308.49 MiB/s]
+Benchmarking compiler/OptimizorClub/solar/parse
+Benchmarking compiler/OptimizorClub/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solar/parse: Collecting 10 samples in estimated 10.005 s (34k iterations)
+Benchmarking compiler/OptimizorClub/solar/parse: Analyzing
+compiler/OptimizorClub/solar/parse
+                        time:   [212.06 µs 213.47 µs 214.79 µs]
+                        thrpt:  [159.42 MiB/s 160.41 MiB/s 161.47 MiB/s]
+Benchmarking compiler/OptimizorClub/solar/lower
+Benchmarking compiler/OptimizorClub/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solar/lower: Collecting 10 samples in estimated 10.010 s (26k iterations)
+Benchmarking compiler/OptimizorClub/solar/lower: Analyzing
+compiler/OptimizorClub/solar/lower
+                        time:   [298.41 µs 299.03 µs 299.88 µs]
+                        thrpt:  [114.18 MiB/s 114.51 MiB/s 114.75 MiB/s]
+Benchmarking compiler/OptimizorClub/solang/lex
+Benchmarking compiler/OptimizorClub/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solang/lex: Collecting 10 samples in estimated 10.010 s (53k iterations)
+Benchmarking compiler/OptimizorClub/solang/lex: Analyzing
+compiler/OptimizorClub/solang/lex
+                        time:   [193.30 µs 196.96 µs 199.59 µs]
+                        thrpt:  [171.56 MiB/s 173.86 MiB/s 177.14 MiB/s]
+Benchmarking compiler/OptimizorClub/solang/parse
+Benchmarking compiler/OptimizorClub/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/solang/parse: Collecting 10 samples in estimated 10.045 s (8305 iterations)
+Benchmarking compiler/OptimizorClub/solang/parse: Analyzing
+compiler/OptimizorClub/solang/parse
+                        time:   [1.1649 ms 1.1714 ms 1.1859 ms]
+                        thrpt:  [28.873 MiB/s 29.231 MiB/s 29.395 MiB/s]
+Benchmarking compiler/OptimizorClub/slang/parse
+Benchmarking compiler/OptimizorClub/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/slang/parse: Collecting 10 samples in estimated 11.115 s (440 iterations)
+Benchmarking compiler/OptimizorClub/slang/parse: Analyzing
+compiler/OptimizorClub/slang/parse
+                        time:   [25.152 ms 25.203 ms 25.262 ms]
+                        thrpt:  [1.3554 MiB/s 1.3586 MiB/s 1.3614 MiB/s]
+Benchmarking compiler/OptimizorClub/tree-sitter/parse
+Benchmarking compiler/OptimizorClub/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/OptimizorClub/tree-sitter/parse: Collecting 10 samples in estimated 10.098 s (4895 iterations)
+Benchmarking compiler/OptimizorClub/tree-sitter/parse: Analyzing
+compiler/OptimizorClub/tree-sitter/parse
+                        time:   [2.0577 ms 2.0624 ms 2.0683 ms]
+                        thrpt:  [16.556 MiB/s 16.603 MiB/s 16.640 MiB/s]
 
 
+Benchmarking compiler/UniswapV3/solc/parse
+Benchmarking compiler/UniswapV3/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solc/parse: Collecting 10 samples in estimated 10.276 s (1760 iterations)
+Benchmarking compiler/UniswapV3/solc/parse: Analyzing
+compiler/UniswapV3/solc/parse
+                        time:   [5.8766 ms 5.9937 ms 6.0795 ms]
+                        thrpt:  [22.994 MiB/s 23.323 MiB/s 23.788 MiB/s]
+Benchmarking compiler/UniswapV3/solar/lex
+Benchmarking compiler/UniswapV3/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solar/lex: Collecting 10 samples in estimated 10.009 s (28k iterations)
+Benchmarking compiler/UniswapV3/solar/lex: Analyzing
+compiler/UniswapV3/solar/lex
+                        time:   [270.36 µs 272.56 µs 274.72 µs]
+                        thrpt:  [508.85 MiB/s 512.88 MiB/s 517.06 MiB/s]
+Benchmarking compiler/UniswapV3/solar/parse
+Benchmarking compiler/UniswapV3/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solar/parse: Collecting 10 samples in estimated 10.036 s (14k iterations)
+Benchmarking compiler/UniswapV3/solar/parse: Analyzing
+compiler/UniswapV3/solar/parse
+                        time:   [598.49 µs 604.31 µs 611.57 µs]
+                        thrpt:  [228.58 MiB/s 231.33 MiB/s 233.57 MiB/s]
+Benchmarking compiler/UniswapV3/solar/lower
+Benchmarking compiler/UniswapV3/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solar/lower: Collecting 10 samples in estimated 10.012 s (11k iterations)
+Benchmarking compiler/UniswapV3/solar/lower: Analyzing
+compiler/UniswapV3/solar/lower
+                        time:   [830.55 µs 834.90 µs 838.56 µs]
+                        thrpt:  [166.71 MiB/s 167.44 MiB/s 168.31 MiB/s]
+Benchmarking compiler/UniswapV3/solang/lex
+Benchmarking compiler/UniswapV3/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solang/lex: Collecting 10 samples in estimated 10.009 s (15k iterations)
+Benchmarking compiler/UniswapV3/solang/lex: Analyzing
+compiler/UniswapV3/solang/lex
+                        time:   [656.46 µs 661.67 µs 665.12 µs]
+                        thrpt:  [210.18 MiB/s 211.27 MiB/s 212.95 MiB/s]
+Benchmarking compiler/UniswapV3/solang/parse
+Benchmarking compiler/UniswapV3/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/solang/parse: Collecting 10 samples in estimated 10.005 s (3190 iterations)
+Benchmarking compiler/UniswapV3/solang/parse: Analyzing
+compiler/UniswapV3/solang/parse
+                        time:   [3.1303 ms 3.1516 ms 3.1699 ms]
+                        thrpt:  [44.100 MiB/s 44.356 MiB/s 44.658 MiB/s]
+Benchmarking compiler/UniswapV3/slang/parse
+Benchmarking compiler/UniswapV3/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/slang/parse: Collecting 10 samples in estimated 11.530 s (165 iterations)
+Benchmarking compiler/UniswapV3/slang/parse: Analyzing
+compiler/UniswapV3/slang/parse
+                        time:   [69.896 ms 70.484 ms 70.898 ms]
+                        thrpt:  [1.9717 MiB/s 1.9833 MiB/s 2.0000 MiB/s]
+Benchmarking compiler/UniswapV3/tree-sitter/parse
+Benchmarking compiler/UniswapV3/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/UniswapV3/tree-sitter/parse: Collecting 10 samples in estimated 10.223 s (1760 iterations)
+Benchmarking compiler/UniswapV3/tree-sitter/parse: Analyzing
+compiler/UniswapV3/tree-sitter/parse
+                        time:   [5.7958 ms 5.8477 ms 5.9012 ms]
+                        thrpt:  [23.689 MiB/s 23.905 MiB/s 24.120 MiB/s]
+
+Benchmarking compiler/Solarray/solc/parse
+Benchmarking compiler/Solarray/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solc/parse: Collecting 10 samples in estimated 10.035 s (2420 iterations)
+Benchmarking compiler/Solarray/solc/parse: Analyzing
+compiler/Solarray/solc/parse
+                        time:   [4.1595 ms 4.1696 ms 4.1796 ms]
+                        thrpt:  [8.1909 MiB/s 8.2105 MiB/s 8.2306 MiB/s]
+Benchmarking compiler/Solarray/solar/lex
+Benchmarking compiler/Solarray/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solar/lex: Collecting 10 samples in estimated 10.002 s (47k iterations)
+Benchmarking compiler/Solarray/solar/lex: Analyzing
+compiler/Solarray/solar/lex
+                        time:   [121.99 µs 122.60 µs 123.41 µs]
+                        thrpt:  [277.41 MiB/s 279.24 MiB/s 280.63 MiB/s]
+Benchmarking compiler/Solarray/solar/parse
+Benchmarking compiler/Solarray/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solar/parse: Collecting 10 samples in estimated 10.014 s (22k iterations)
+Benchmarking compiler/Solarray/solar/parse: Analyzing
+compiler/Solarray/solar/parse
+                        time:   [358.66 µs 359.61 µs 360.65 µs]
+                        thrpt:  [94.925 MiB/s 95.201 MiB/s 95.451 MiB/s]
+Benchmarking compiler/Solarray/solar/lower
+Benchmarking compiler/Solarray/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solar/lower: Collecting 10 samples in estimated 10.019 s (17k iterations)
+Benchmarking compiler/Solarray/solar/lower: Analyzing
+compiler/Solarray/solar/lower
+                        time:   [501.48 µs 506.47 µs 509.30 µs]
+                        thrpt:  [67.220 MiB/s 67.595 MiB/s 68.268 MiB/s]
+Benchmarking compiler/Solarray/solang/lex
+Benchmarking compiler/Solarray/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solang/lex: Collecting 10 samples in estimated 10.006 s (34k iterations)
+Benchmarking compiler/Solarray/solang/lex: Analyzing
+compiler/Solarray/solang/lex
+                        time:   [295.77 µs 298.16 µs 300.03 µs]
+                        thrpt:  [114.11 MiB/s 114.82 MiB/s 115.75 MiB/s]
+Benchmarking compiler/Solarray/solang/parse
+Benchmarking compiler/Solarray/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/solang/parse: Collecting 10 samples in estimated 10.029 s (3795 iterations)
+Benchmarking compiler/Solarray/solang/parse: Analyzing
+compiler/Solarray/solang/parse
+                        time:   [2.5706 ms 2.5860 ms 2.6073 ms]
+                        thrpt:  [13.130 MiB/s 13.238 MiB/s 13.318 MiB/s]
+Benchmarking compiler/Solarray/slang/parse
+Benchmarking compiler/Solarray/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/slang/parse: Collecting 10 samples in estimated 10.463 s (165 iterations)
+Benchmarking compiler/Solarray/slang/parse: Analyzing
+compiler/Solarray/slang/parse
+                        time:   [63.581 ms 63.697 ms 63.797 ms]
+                        thrpt:  [549.50 KiB/s 550.37 KiB/s 551.37 KiB/s]
+Benchmarking compiler/Solarray/tree-sitter/parse
+Benchmarking compiler/Solarray/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solarray/tree-sitter/parse: Collecting 10 samples in estimated 10.048 s (2475 iterations)
+Benchmarking compiler/Solarray/tree-sitter/parse: Analyzing
+compiler/Solarray/tree-sitter/parse
+                        time:   [4.0678 ms 4.1115 ms 4.1596 ms]
+                        thrpt:  [8.2304 MiB/s 8.3267 MiB/s 8.4162 MiB/s]
+
+Benchmarking compiler/console/solc/parse
+Benchmarking compiler/console/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/console/solc/parse: Collecting 10 samples in estimated 10.013 s (2035 iterations)
+Benchmarking compiler/console/solc/parse: Analyzing
+compiler/console/solc/parse
+                        time:   [5.3001 ms 5.3374 ms 5.3700 ms]
+                        thrpt:  [11.955 MiB/s 12.028 MiB/s 12.112 MiB/s]
+Benchmarking compiler/console/solar/lex
+Benchmarking compiler/console/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/console/solar/lex: Collecting 10 samples in estimated 10.016 s (32k iterations)
+Benchmarking compiler/console/solar/lex: Analyzing
+compiler/console/solar/lex
+                        time:   [216.81 µs 218.35 µs 220.48 µs]
+                        thrpt:  [291.17 MiB/s 294.01 MiB/s 296.09 MiB/s]
+Benchmarking compiler/console/solar/parse
+Benchmarking compiler/console/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/console/solar/parse: Collecting 10 samples in estimated 10.011 s (18k iterations)
+Benchmarking compiler/console/solar/parse: Analyzing
+compiler/console/solar/parse
+                        time:   [468.27 µs 474.82 µs 482.56 µs]
+                        thrpt:  [133.03 MiB/s 135.20 MiB/s 137.09 MiB/s]
+Benchmarking compiler/console/solar/lower
+Benchmarking compiler/console/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/console/solar/lower: Collecting 10 samples in estimated 10.044 s (12k iterations)
+Benchmarking compiler/console/solar/lower: Analyzing
+compiler/console/solar/lower
+                        time:   [711.66 µs 747.87 µs 775.01 µs]
+                        thrpt:  [82.833 MiB/s 85.839 MiB/s 90.206 MiB/s]
+Benchmarking compiler/console/solang/lex
+Benchmarking compiler/console/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/console/solang/lex: Collecting 10 samples in estimated 10.009 s (21k iterations)
+Benchmarking compiler/console/solang/lex: Analyzing
+compiler/console/solang/lex
+                        time:   [463.73 µs 584.42 µs 673.59 µs]
+                        thrpt:  [95.305 MiB/s 109.85 MiB/s 138.44 MiB/s]
+Benchmarking compiler/console/solang/parse
+Benchmarking compiler/console/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/console/solang/parse: Collecting 10 samples in estimated 10.170 s (1760 iterations)
+Benchmarking compiler/console/solang/parse: Analyzing
+compiler/console/solang/parse
+                        time:   [5.7519 ms 5.7985 ms 5.8640 ms]
+                        thrpt:  [10.948 MiB/s 11.071 MiB/s 11.161 MiB/s]
+Benchmarking compiler/console/slang/parse
+Benchmarking compiler/console/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/console/slang/parse: Collecting 10 samples in estimated 10.732 s (110 iterations)
+Benchmarking compiler/console/slang/parse: Analyzing
+compiler/console/slang/parse
+                        time:   [76.625 ms 79.728 ms 87.918 ms]
+                        thrpt:  [747.71 KiB/s 824.52 KiB/s 857.91 KiB/s]
+Benchmarking compiler/console/tree-sitter/parse
+Benchmarking compiler/console/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/console/tree-sitter/parse: Collecting 10 samples in estimated 10.174 s (1870 iterations)
+Benchmarking compiler/console/tree-sitter/parse: Analyzing
+compiler/console/tree-sitter/parse
+                        time:   [5.2407 ms 5.2723 ms 5.3234 ms]
+                        thrpt:  [12.059 MiB/s 12.176 MiB/s 12.250 MiB/s]
+
+Benchmarking compiler/Vm/solc/parse
+Benchmarking compiler/Vm/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solc/parse: Collecting 10 samples in estimated 10.161 s (2475 iterations)
+Benchmarking compiler/Vm/solc/parse: Analyzing
+compiler/Vm/solc/parse  time:   [4.1088 ms 4.1756 ms 4.2112 ms]
+                        thrpt:  [20.700 MiB/s 20.876 MiB/s 21.216 MiB/s]
+Benchmarking compiler/Vm/solar/lex
+Benchmarking compiler/Vm/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solar/lex: Collecting 10 samples in estimated 10.015 s (35k iterations)
+Benchmarking compiler/Vm/solar/lex: Analyzing
+compiler/Vm/solar/lex   time:   [188.34 µs 190.93 µs 195.18 µs]
+                        thrpt:  [446.61 MiB/s 456.56 MiB/s 462.84 MiB/s]
+Benchmarking compiler/Vm/solar/parse
+Benchmarking compiler/Vm/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solar/parse: Collecting 10 samples in estimated 10.020 s (23k iterations)
+Benchmarking compiler/Vm/solar/parse: Analyzing
+compiler/Vm/solar/parse time:   [326.23 µs 330.04 µs 335.67 µs]
+                        thrpt:  [259.69 MiB/s 264.12 MiB/s 267.20 MiB/s]
+Benchmarking compiler/Vm/solar/lower
+Benchmarking compiler/Vm/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solar/lower: Collecting 10 samples in estimated 10.020 s (19k iterations)
+Benchmarking compiler/Vm/solar/lower: Analyzing
+compiler/Vm/solar/lower time:   [416.88 µs 434.03 µs 443.38 µs]
+                        thrpt:  [196.61 MiB/s 200.84 MiB/s 209.10 MiB/s]
+Benchmarking compiler/Vm/solang/lex
+Benchmarking compiler/Vm/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solang/lex: Collecting 10 samples in estimated 10.003 s (25k iterations)
+Benchmarking compiler/Vm/solang/lex: Analyzing
+compiler/Vm/solang/lex  time:   [391.56 µs 394.84 µs 397.99 µs]
+                        thrpt:  [219.03 MiB/s 220.77 MiB/s 222.62 MiB/s]
+Benchmarking compiler/Vm/solang/parse
+Benchmarking compiler/Vm/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Vm/solang/parse: Collecting 10 samples in estimated 10.057 s (7425 iterations)
+Benchmarking compiler/Vm/solang/parse: Analyzing
+compiler/Vm/solang/parse
+                        time:   [1.3443 ms 1.3494 ms 1.3567 ms]
+                        thrpt:  [64.250 MiB/s 64.602 MiB/s 64.843 MiB/s]
+Benchmarking compiler/Vm/slang/parse
+Benchmarking compiler/Vm/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Vm/slang/parse: Collecting 10 samples in estimated 10.633 s (550 iterations)
+Benchmarking compiler/Vm/slang/parse: Analyzing
+compiler/Vm/slang/parse time:   [19.175 ms 19.569 ms 20.021 ms]
+                        thrpt:  [4.3539 MiB/s 4.4545 MiB/s 4.5460 MiB/s]
+Benchmarking compiler/Vm/tree-sitter/parse
+Benchmarking compiler/Vm/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/Vm/tree-sitter/parse: Collecting 10 samples in estimated 10.093 s (3905 iterations)
+Benchmarking compiler/Vm/tree-sitter/parse: Analyzing
+compiler/Vm/tree-sitter/parse
+                        time:   [2.4308 ms 2.4902 ms 2.6189 ms]
+                        thrpt:  [33.285 MiB/s 35.005 MiB/s 35.861 MiB/s]
+
+Benchmarking compiler/safeconsole/solc/parse
+Benchmarking compiler/safeconsole/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solc/parse: Collecting 10 samples in estimated 11.394 s (440 iterations)
+Benchmarking compiler/safeconsole/solc/parse: Analyzing
+compiler/safeconsole/solc/parse
+                        time:   [25.746 ms 28.101 ms 30.764 ms]
+                        thrpt:  [12.335 MiB/s 13.503 MiB/s 14.739 MiB/s]
+Benchmarking compiler/safeconsole/solar/lex
+Benchmarking compiler/safeconsole/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solar/lex: Collecting 10 samples in estimated 10.010 s (5665 iterations)
+Benchmarking compiler/safeconsole/solar/lex: Analyzing
+compiler/safeconsole/solar/lex
+                        time:   [1.4521 ms 1.6499 ms 1.8419 ms]
+                        thrpt:  [206.02 MiB/s 230.00 MiB/s 261.32 MiB/s]
+Benchmarking compiler/safeconsole/solar/parse
+Benchmarking compiler/safeconsole/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solar/parse: Collecting 10 samples in estimated 10.051 s (3685 iterations)
+Benchmarking compiler/safeconsole/solar/parse: Analyzing
+compiler/safeconsole/solar/parse
+                        time:   [2.5893 ms 2.6091 ms 2.6232 ms]
+                        thrpt:  [144.66 MiB/s 145.44 MiB/s 146.55 MiB/s]
+Benchmarking compiler/safeconsole/solar/lower
+Benchmarking compiler/safeconsole/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solar/lower: Collecting 10 samples in estimated 10.049 s (2475 iterations)
+Benchmarking compiler/safeconsole/solar/lower: Analyzing
+compiler/safeconsole/solar/lower
+                        time:   [3.9282 ms 3.9529 ms 3.9956 ms]
+                        thrpt:  [94.971 MiB/s 95.997 MiB/s 96.600 MiB/s]
+Benchmarking compiler/safeconsole/solang/lex
+Benchmarking compiler/safeconsole/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solang/lex: Collecting 10 samples in estimated 10.045 s (4125 iterations)
+Benchmarking compiler/safeconsole/solang/lex: Analyzing
+compiler/safeconsole/solang/lex
+                        time:   [2.4032 ms 2.4171 ms 2.4302 ms]
+                        thrpt:  [156.15 MiB/s 156.99 MiB/s 157.90 MiB/s]
+Benchmarking compiler/safeconsole/solang/parse
+Benchmarking compiler/safeconsole/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/solang/parse: Collecting 10 samples in estimated 10.206 s (605 iterations)
+Benchmarking compiler/safeconsole/solang/parse: Analyzing
+compiler/safeconsole/solang/parse
+                        time:   [16.891 ms 16.910 ms 16.927 ms]
+                        thrpt:  [22.417 MiB/s 22.440 MiB/s 22.465 MiB/s]
+Benchmarking compiler/safeconsole/slang/parse
+Benchmarking compiler/safeconsole/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/slang/parse: Collecting 10 samples in estimated 12.265 s (30 iterations)
+Benchmarking compiler/safeconsole/slang/parse: Analyzing
+compiler/safeconsole/slang/parse
+                        time:   [390.88 ms 399.14 ms 409.71 ms]
+                        thrpt:  [948.41 KiB/s 973.52 KiB/s 994.11 KiB/s]
+Benchmarking compiler/safeconsole/tree-sitter/parse
+Benchmarking compiler/safeconsole/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/safeconsole/tree-sitter/parse: Collecting 10 samples in estimated 11.047 s (495 iterations)
+Benchmarking compiler/safeconsole/tree-sitter/parse: Analyzing
+compiler/safeconsole/tree-sitter/parse
+                        time:   [22.358 ms 22.416 ms 22.528 ms]
+                        thrpt:  [16.844 MiB/s 16.928 MiB/s 16.972 MiB/s]
+
+Benchmarking compiler/Seaport/solc/parse
+Benchmarking compiler/Seaport/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solc/parse: Collecting 10 samples in estimated 10.592 s (495 iterations)
+Benchmarking compiler/Seaport/solc/parse: Analyzing
+compiler/Seaport/solc/parse
+                        time:   [21.400 ms 21.466 ms 21.513 ms]
+                        thrpt:  [34.159 MiB/s 34.234 MiB/s 34.339 MiB/s]
+Benchmarking compiler/Seaport/solar/lex
+Benchmarking compiler/Seaport/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solar/lex: Collecting 10 samples in estimated 10.021 s (9020 iterations)
+Benchmarking compiler/Seaport/solar/lex: Analyzing
+compiler/Seaport/solar/lex
+                        time:   [1.0041 ms 1.0143 ms 1.0269 ms]
+                        thrpt:  [715.61 MiB/s 724.52 MiB/s 731.87 MiB/s]
+Benchmarking compiler/Seaport/solar/parse
+Benchmarking compiler/Seaport/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solar/parse: Collecting 10 samples in estimated 10.028 s (4730 iterations)
+Benchmarking compiler/Seaport/solar/parse: Analyzing
+compiler/Seaport/solar/parse
+                        time:   [2.0219 ms 2.0293 ms 2.0374 ms]
+                        thrpt:  [360.69 MiB/s 362.12 MiB/s 363.45 MiB/s]
+Benchmarking compiler/Seaport/solar/lower
+Benchmarking compiler/Seaport/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solar/lower: Collecting 10 samples in estimated 10.043 s (3355 iterations)
+Benchmarking compiler/Seaport/solar/lower: Analyzing
+compiler/Seaport/solar/lower
+                        time:   [2.8674 ms 2.8922 ms 2.9121 ms]
+                        thrpt:  [252.34 MiB/s 254.08 MiB/s 256.27 MiB/s]
+Benchmarking compiler/Seaport/solang/lex
+Benchmarking compiler/Seaport/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solang/lex: Collecting 10 samples in estimated 10.071 s (3355 iterations)
+Benchmarking compiler/Seaport/solang/lex: Analyzing
+compiler/Seaport/solang/lex
+                        time:   [2.9741 ms 2.9882 ms 3.0046 ms]
+                        thrpt:  [244.58 MiB/s 245.92 MiB/s 247.08 MiB/s]
+Benchmarking compiler/Seaport/solang/parse
+Benchmarking compiler/Seaport/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/solang/parse: Collecting 10 samples in estimated 10.246 s (990 iterations)
+Benchmarking compiler/Seaport/solang/parse: Analyzing
+compiler/Seaport/solang/parse
+                        time:   [9.8219 ms 10.124 ms 10.626 ms]
+                        thrpt:  [69.158 MiB/s 72.588 MiB/s 74.818 MiB/s]
+Benchmarking compiler/Seaport/slang/parse
+Benchmarking compiler/Seaport/slang/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 13.0s or enable flat sampling.
+Benchmarking compiler/Seaport/slang/parse: Collecting 10 samples in estimated 13.035 s (55 iterations)
+Benchmarking compiler/Seaport/slang/parse: Analyzing
+compiler/Seaport/slang/parse
+                        time:   [232.55 ms 235.09 ms 238.08 ms]
+                        thrpt:  [3.0865 MiB/s 3.1258 MiB/s 3.1600 MiB/s]
+Benchmarking compiler/Seaport/tree-sitter/parse
+Benchmarking compiler/Seaport/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/Seaport/tree-sitter/parse: Collecting 10 samples in estimated 10.410 s (605 iterations)
+Benchmarking compiler/Seaport/tree-sitter/parse: Analyzing
+compiler/Seaport/tree-sitter/parse
+                        time:   [17.147 ms 17.184 ms 17.227 ms]
+                        thrpt:  [42.658 MiB/s 42.763 MiB/s 42.855 MiB/s]
+
+Benchmarking compiler/Solady/solc/parse
+Benchmarking compiler/Solady/solc/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solc/parse: Collecting 10 samples in estimated 10.767 s (220 iterations)
+Benchmarking compiler/Solady/solc/parse: Analyzing
+compiler/Solady/solc/parse
+                        time:   [48.904 ms 49.711 ms 50.721 ms]
+                        thrpt:  [25.970 MiB/s 26.498 MiB/s 26.936 MiB/s]
+Benchmarking compiler/Solady/solar/lex
+Benchmarking compiler/Solady/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solar/lex: Collecting 10 samples in estimated 10.116 s (2695 iterations)
+Benchmarking compiler/Solady/solar/lex: Analyzing
+compiler/Solady/solar/lex
+                        time:   [2.9444 ms 3.1982 ms 3.7656 ms]
+                        thrpt:  [349.82 MiB/s 411.87 MiB/s 447.37 MiB/s]
+Benchmarking compiler/Solady/solar/parse
+Benchmarking compiler/Solady/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solar/parse: Collecting 10 samples in estimated 10.034 s (1100 iterations)
+Benchmarking compiler/Solady/solar/parse: Analyzing
+compiler/Solady/solar/parse
+                        time:   [6.0423 ms 6.0668 ms 6.1307 ms]
+                        thrpt:  [214.86 MiB/s 217.12 MiB/s 218.01 MiB/s]
+Benchmarking compiler/Solady/solar/lower
+Benchmarking compiler/Solady/solar/lower: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solar/lower: Collecting 10 samples in estimated 10.193 s (1155 iterations)
+Benchmarking compiler/Solady/solar/lower: Analyzing
+compiler/Solady/solar/lower
+                        time:   [10.324 ms 11.751 ms 15.282 ms]
+                        thrpt:  [86.194 MiB/s 112.10 MiB/s 127.59 MiB/s]
+Benchmarking compiler/Solady/solang/lex
+Benchmarking compiler/Solady/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solang/lex: Collecting 10 samples in estimated 10.232 s (1430 iterations)
+Benchmarking compiler/Solady/solang/lex: Analyzing
+compiler/Solady/solang/lex
+                        time:   [7.0032 ms 7.6389 ms 9.1394 ms]
+                        thrpt:  [144.13 MiB/s 172.44 MiB/s 188.09 MiB/s]
+Benchmarking compiler/Solady/solang/parse
+Benchmarking compiler/Solady/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solady/solang/parse: Collecting 10 samples in estimated 11.852 s (330 iterations)
+Benchmarking compiler/Solady/solang/parse: Analyzing
+compiler/Solady/solang/parse
+                        time:   [35.780 ms 35.985 ms 36.144 ms]
+                        thrpt:  [36.444 MiB/s 36.605 MiB/s 36.815 MiB/s]
+Benchmarking compiler/Solady/slang/parse
+Benchmarking compiler/Solady/slang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solady/slang/parse: Collecting 10 samples in estimated 14.914 s (20 iterations)
+Benchmarking compiler/Solady/slang/parse: Analyzing
+compiler/Solady/slang/parse
+                        time:   [742.92 ms 744.44 ms 745.91 ms]
+                        thrpt:  [1.7660 MiB/s 1.7695 MiB/s 1.7731 MiB/s]
+Benchmarking compiler/Solady/tree-sitter/parse
+Benchmarking compiler/Solady/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking compiler/Solady/tree-sitter/parse: Collecting 10 samples in estimated 11.593 s (220 iterations)
+Benchmarking compiler/Solady/tree-sitter/parse: Analyzing
+compiler/Solady/tree-sitter/parse
+                        time:   [52.262 ms 52.433 ms 52.615 ms]
+                        thrpt:  [25.036 MiB/s 25.122 MiB/s 25.205 MiB/s]
+
+Benchmarking compiler/Optimism/solc/parse
+Benchmarking compiler/Optimism/solc/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 10.8s or enable flat sampling.
+Benchmarking compiler/Optimism/solc/parse: Collecting 10 samples in estimated 10.827 s (55 iterations)
+Benchmarking compiler/Optimism/solc/parse: Analyzing
+compiler/Optimism/solc/parse
+                        time:   [197.43 ms 200.18 ms 202.79 ms]
+                        thrpt:  [25.320 MiB/s 25.649 MiB/s 26.007 MiB/s]
+Benchmarking compiler/Optimism/solar/lex
+Benchmarking compiler/Optimism/solar/lex: Warming up for 3.0000 s
+Benchmarking compiler/Optimism/solar/lex: Collecting 10 samples in estimated 10.350 s (990 iterations)
+Benchmarking compiler/Optimism/solar/lex: Analyzing
+compiler/Optimism/solar/lex
+                        time:   [10.495 ms 10.565 ms 10.662 ms]
+                        thrpt:  [481.58 MiB/s 486.01 MiB/s 489.24 MiB/s]
+Benchmarking compiler/Optimism/solar/parse
+Benchmarking compiler/Optimism/solar/parse: Warming up for 3.0000 s
+Benchmarking compiler/Optimism/solar/parse: Collecting 10 samples in estimated 11.046 s (440 iterations)
+Benchmarking compiler/Optimism/solar/parse: Analyzing
+compiler/Optimism/solar/parse
+                        time:   [24.898 ms 25.027 ms 25.217 ms]
+                        thrpt:  [203.62 MiB/s 205.16 MiB/s 206.22 MiB/s]
+Benchmarking compiler/Optimism/solang/lex
+Benchmarking compiler/Optimism/solang/lex: Warming up for 3.0000 s
+Benchmarking compiler/Optimism/solang/lex: Collecting 10 samples in estimated 10.972 s (385 iterations)
+Benchmarking compiler/Optimism/solang/lex: Analyzing
+compiler/Optimism/solang/lex
+                        time:   [28.098 ms 28.242 ms 28.341 ms]
+                        thrpt:  [181.17 MiB/s 181.81 MiB/s 182.74 MiB/s]
+Benchmarking compiler/Optimism/solang/parse
+Benchmarking compiler/Optimism/solang/parse: Warming up for 3.0000 s
+Benchmarking compiler/Optimism/solang/parse: Collecting 10 samples in estimated 19.059 s (110 iterations)
+Benchmarking compiler/Optimism/solang/parse: Analyzing
+compiler/Optimism/solang/parse
+                        time:   [173.26 ms 175.06 ms 175.94 ms]
+                        thrpt:  [29.183 MiB/s 29.330 MiB/s 29.636 MiB/s]
+Benchmarking compiler/Optimism/slang/parse
+Benchmarking compiler/Optimism/slang/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 58.9s.
+Benchmarking compiler/Optimism/slang/parse: Collecting 10 samples in estimated 58.895 s (10 iterations)
+Benchmarking compiler/Optimism/slang/parse: Analyzing
+compiler/Optimism/slang/parse
+                        time:   [5.8385 s 5.8512 s 5.8643 s]
+                        thrpt:  [896.58 KiB/s 898.59 KiB/s 900.53 KiB/s]
+Benchmarking compiler/Optimism/tree-sitter/parse
+Benchmarking compiler/Optimism/tree-sitter/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 10 samples in 10.0s. You may wish to increase target time to 17.6s or enable flat sampling.
+Benchmarking compiler/Optimism/tree-sitter/parse: Collecting 10 samples in estimated 17.628 s (55 iterations)
+Benchmarking compiler/Optimism/tree-sitter/parse: Analyzing
+compiler/Optimism/tree-sitter/parse
+                        time:   [339.86 ms 357.24 ms 374.27 ms]
+                        thrpt:  [13.719 MiB/s 14.373 MiB/s 15.108 MiB/s]
