@@ -963,6 +963,18 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
+        // ABI-encode constructor arguments before laying out the creation
+        // payload. This matters for dynamic parameters: CREATE receives the
+        // full tuple head and tails, not one memory pointer per arg.
+        let encoded_args = if arg_exprs.is_empty() {
+            None
+        } else {
+            Some(match self.abi_encode_call_payload(builder, None, arg_exprs.iter().copied()) {
+                Ok(payload) => payload,
+                Err(guar) => return builder.error_value(guar),
+            })
+        };
+
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
@@ -978,18 +990,14 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val_id);
         }
 
-        // Append constructor arguments after bytecode
-        let mut args_offset = bytecode_len as u64;
-        for arg in arg_exprs {
-            let arg_val = self.lower_value_expr(builder, arg);
-            let arg_offset_imm = builder.imm_u64(args_offset);
-            let arg_dest = builder.add(mem_offset, arg_offset_imm);
-            builder.mstore(arg_dest, arg_val);
-            args_offset += 32; // Each arg is 32 bytes ABI encoded
-        }
-
-        // Total size = bytecode + args
-        let total_size = builder.imm_u64(args_offset);
+        let bytecode_len_value = builder.imm_u64(bytecode_len as u64);
+        let total_size = if let Some((encoded_args, encoded_args_size)) = encoded_args {
+            let args_dest = builder.add(mem_offset, bytecode_len_value);
+            builder.mcopy(args_dest, encoded_args, encoded_args_size);
+            builder.add(bytecode_len_value, encoded_args_size)
+        } else {
+            bytecode_len_value
+        };
 
         // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
         let thirty_one = builder.imm_u64(31);
@@ -1654,7 +1662,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Look up the function being called to get its selector and return count.
-        let resolved_func = self.resolved_function_callee(callee);
+        let resolved_func = self.resolved_function_callee(callee).or_else(|| {
+            // Member resolution on an external contract value records the
+            // receiver contract but not always a direct function resolution.
+            // Recover the declaration from that contract so its ABI return
+            // types are available for decoding.
+            self.find_member_function(base, member)
+        });
         if resolved_func.is_none() && self.gcx.has_typeck_results() {
             // The callee is unresolved: either a prior error left the receiver
             // untyped, or it is a member call on a receiver shape codegen does
@@ -1667,19 +1681,24 @@ impl<'gcx> Lowerer<'gcx> {
                 format!("codegen does not support this `.{member}` member call yet"),
             );
         }
-        let (selector, num_returns, struct_return_info) = if let Some(func_id) = resolved_func {
-            (
-                u32::from_be_bytes(self.gcx.function_selector(func_id).0),
-                self.function_return_slot_count(func_id),
-                self.function_struct_return(func_id),
-            )
-        } else {
-            (
-                self.compute_member_selector(base, member),
-                self.get_member_function_return_count(base, member),
-                None,
-            )
-        };
+        let (selector, num_returns, struct_return_info, return_tys) =
+            if let Some(func_id) = resolved_func {
+                (
+                    u32::from_be_bytes(self.gcx.function_selector(func_id).0),
+                    self.function_return_slot_count(func_id),
+                    self.function_struct_return(func_id),
+                    Some(self.function_return_tys(func_id)),
+                )
+            } else {
+                (
+                    self.compute_member_selector(base, member),
+                    self.get_member_function_return_count(base, member),
+                    None,
+                    None,
+                )
+            };
+        let dynamic_returns =
+            return_tys.as_ref().is_some_and(|tys| tys.iter().any(|&ty| self.abi_is_dynamic(ty)));
         // Use the recursive ABI encoder for every high-level call. The former
         // shallow struct loop copied nested memory pointers as calldata words
         // and treated dynamic bytes pointers as their encoded value.
@@ -1698,26 +1717,30 @@ impl<'gcx> Lowerer<'gcx> {
         let addr = self.lower_value_expr(builder, base);
 
         // Determine where to store return data and whether it's a struct
-        let (ret_offset, ret_size, struct_ptr_opt) =
-            if let Some((_struct_id, field_count)) = struct_return_info {
-                // For struct returns, reserve a separate output allocation.
-                let struct_size = (field_count as u64) * 32;
-                let struct_size_val = builder.imm_u64(struct_size);
-                let struct_ptr = builder.alloc_object(
-                    struct_size_val,
-                    crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
+        let (ret_offset, ret_size, struct_ptr_opt) = if dynamic_returns {
+            // Dynamic return values use ABI offsets and tails. Copy the full
+            // returndata below and decode it after the call instead of asking
+            // CALL to write only the first head words into memory.
+            (builder.imm_u64(0), builder.imm_u64(0), None)
+        } else if let Some((_struct_id, field_count)) = struct_return_info {
+            // For struct returns, reserve a separate output allocation.
+            let struct_size = (field_count as u64) * 32;
+            let struct_size_val = builder.imm_u64(struct_size);
+            let struct_ptr = builder.alloc_object(
+                struct_size_val,
+                crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
 
-                let ret_size = builder.imm_u64(struct_size);
-                (struct_ptr, ret_size, Some(struct_ptr))
-            } else {
-                // Reuse the unbumped calldata allocation for return data. CALL
-                // has consumed the input before writing output.
-                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
-                let ret_size = builder.imm_u64((num_returns * 32) as u64);
-                (ret_offset, ret_size, None)
-            };
+            let ret_size = builder.imm_u64(struct_size);
+            (struct_ptr, ret_size, Some(struct_ptr))
+        } else {
+            // Reuse the unbumped calldata allocation for return data. CALL
+            // has consumed the input before writing output.
+            let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
+            let ret_size = builder.imm_u64((num_returns * 32) as u64);
+            (ret_offset, ret_size, None)
+        };
 
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
@@ -1735,6 +1758,20 @@ impl<'gcx> Lowerer<'gcx> {
         );
 
         self.emit_forwarding_revert_unless(builder, success);
+
+        if dynamic_returns {
+            let ptr = self.materialize_returndata_bytes(builder);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let decoded = self.decode_abi_region(
+                builder,
+                data_start,
+                len,
+                return_tys.as_deref().unwrap_or_default(),
+            );
+            self.stage_multi_return_tail(builder, &decoded);
+            return decoded.first().copied();
+        }
 
         if num_returns > 1 {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
@@ -1773,6 +1810,16 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn function_return_slot_count(&self, func_id: hir::FunctionId) -> usize {
         self.return_slot_count(self.gcx.hir.function(func_id).returns)
+    }
+
+    fn function_return_tys(&self, func_id: hir::FunctionId) -> Vec<Ty<'gcx>> {
+        self.gcx
+            .hir
+            .function(func_id)
+            .returns
+            .iter()
+            .map(|&var_id| self.gcx.type_of_hir_ty(&self.gcx.hir.variable(var_id).ty))
+            .collect()
     }
 
     fn return_slot_count(&self, returns: &[hir::VariableId]) -> usize {
@@ -1874,7 +1921,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn member_contract(&self, base: &hir::Expr<'_>) -> Option<hir::ContractId> {
         if let Some(var_id) = self.gcx.resolved_variable(base) {
             let ty = self.gcx.type_of_item(var_id.into());
-            if let TyKind::Contract(contract_id) = ty.kind {
+            if let TyKind::Contract(contract_id) = ty.peel_refs().kind {
                 return Some(contract_id);
             }
         }
