@@ -42,3 +42,16 @@ fn @forward_fresh_array_length() -> u256 {
     v3 = mload v0
     ret v3
 }
+
+// A call's return copy can be shorter than the requested output range, so the
+// sentinel must survive when a failed call returns no data.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_before_partial_call_output{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 32, arg0
+// CHECK: {{^[ +].*}}staticcall 0x3e8, 0xbeef, 0, 0, 32, 32
+fn @keep_store_before_partial_call_output(arg0: u256) -> u256 {
+  bb0:
+    mstore 32, arg0
+    v1 = staticcall 1000, 0xbeef, 0, 0, 32, 32
+    v2 = mload 32
+    ret v2
+}
