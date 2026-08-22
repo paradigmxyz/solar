@@ -109,8 +109,7 @@ impl StorageScalarPromoter {
         loop {
             let mut analyzer = LoopAnalyzer::new();
             let loop_info = analyzer.analyze(func);
-            let mut loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
-            loops.sort_by_key(|loop_data| loop_data.header.index());
+            let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
 
             let mut promoted = false;
             for loop_data in loops {
@@ -254,7 +253,7 @@ impl StorageScalarPromoter {
                 needs_initial_load: false,
             });
         }
-        candidates.sort_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
+        candidates.sort_unstable_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
 
         let rewrite_blocks = self.promotion_block_ids(func, loop_data);
         if !self.loop_storage_accesses_are_safe_for_candidates(func, &rewrite_blocks, &candidates) {

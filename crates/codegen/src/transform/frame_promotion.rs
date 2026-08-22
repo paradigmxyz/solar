@@ -297,7 +297,7 @@ impl FrameSlotPromoter {
                 }
             })
             .collect();
-        slots.sort_by_key(|info| info.slot);
+        slots.sort_unstable_by_key(|info| info.slot);
         slots
     }
 
@@ -681,7 +681,7 @@ impl<'a> SlotSsaBuilder<'a> {
         phi_blocks.retain(|block| self.phis.contains_key(block));
 
         let mut phi_values: Vec<_> = self.phis.values().map(|phi| phi.value).collect();
-        phi_values.sort_by_key(|value| value.index());
+        phi_values.sort_unstable_by_key(|value| value.index());
 
         PromotedSlotSummary {
             slot: self.info.slot.into(),
@@ -804,9 +804,6 @@ impl<'a> SlotSsaBuilder<'a> {
             }
         }
 
-        for frontier in &mut frontiers {
-            frontier.sort_by_key(|block| block.index());
-        }
         frontiers
     }
 

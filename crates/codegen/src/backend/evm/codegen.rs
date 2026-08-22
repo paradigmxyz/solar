@@ -382,7 +382,7 @@ impl GlobalStackPlan {
                         common.push(value);
                     }
                 }
-                common.sort_by_key(|value| value.index());
+                common.sort_unstable_by_key(|value| value.index());
                 changed |= Self::set_entry(&mut entries, *then_block, &common);
                 changed |= Self::set_entry(&mut entries, *else_block, &common);
             }
@@ -793,8 +793,7 @@ impl<'a> StackPhiPlanner<'a> {
     fn new(func: &'a Function) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
-        let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
-        loops.sort_by_key(|loop_info| loop_info.header.index());
+        let loops = loop_info.all_loops().cloned().collect();
 
         let mut planner = Self { func, loops, header_results: FxHashMap::default() };
         planner.collect_header_results();
@@ -5745,7 +5744,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             ranked.push((value, use_blocks.len(), use_count));
         }
-        ranked.sort_by_key(|&(value, blocks, uses)| {
+        ranked.sort_unstable_by_key(|&(value, blocks, uses)| {
             (std::cmp::Reverse(blocks), std::cmp::Reverse(uses), value.index())
         });
         let values = ranked
@@ -7085,7 +7084,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let mut slots: Vec<(u64, (DeferredConst, usize))> =
             self.spill_addr_consts.drain().collect();
-        slots.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
+        slots.sort_unstable_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
         self.external_spill_addr_consts
             .insert(func_id, slots.into_iter().map(|(_, deferred)| deferred).collect());
     }
