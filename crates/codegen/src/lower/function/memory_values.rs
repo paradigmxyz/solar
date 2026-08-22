@@ -2,6 +2,12 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+enum DefaultObjectMode {
+    Value,
+    Binding,
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
@@ -244,22 +250,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
         }
-        self.default_value(ty)
+        self.default_object_with_mode(ty, DefaultObjectMode::Binding)
+            .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+    }
+
+    pub(super) fn deferred_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
+        if ty.is_ref_at(DataLocation::Memory) {
+            self.default_binding_value(ty)
+        } else {
+            self.default_value(ty)
+        }
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
-        self.default_object_with_semantics(ty, AllocationSemantics::INTERNAL)
+        self.default_object_with_mode(ty, DefaultObjectMode::Value)
     }
 
-    fn default_object_with_semantics(
+    fn default_object_with_mode(
         &mut self,
         ty: Ty<'gcx>,
-        semantics: AllocationSemantics,
+        mode: DefaultObjectMode,
     ) -> Option<ValueId> {
         let layout = self.types.memory_layout(ty)?;
+        if matches!(mode, DefaultObjectMode::Binding)
+            && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
+        {
+            return Some(self.builder.imm_u64(EvmMemoryLayout::ZERO_SLOT));
+        }
         let size = Self::default_object_size(layout)?;
         let size = self.builder.imm_u64(size);
-        let object = self.builder.alloc_object(size, layout, semantics);
+        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        if matches!(mode, DefaultObjectMode::Binding) {
+            let Value::Inst(alloc) = *self.builder.func().value(object) else {
+                unreachable!("allocation result must reference its instruction")
+            };
+            self.builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        }
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             | TyKind::DynArray(_) => {
@@ -270,8 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 for (index, &field) in self.context.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.context.gcx.type_of_item(field.into());
-                    let value =
-                        self.default_object_with_semantics(field_ty, semantics).unwrap_or(zero);
+                    let value = self.default_object_with_mode(field_ty, mode).unwrap_or(zero);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
             }
@@ -282,8 +307,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
                     for index in 0..len {
-                        let Some(value) = self.default_object_with_semantics(element, semantics)
-                        else {
+                        let Some(value) = self.default_object_with_mode(element, mode) else {
                             continue;
                         };
                         let index = self.builder.imm_u64(index);

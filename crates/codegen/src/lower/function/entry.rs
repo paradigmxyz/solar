@@ -212,10 +212,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if ty.is_ref_at(DataLocation::Storage) {
                     self.storage_refs.get(&id).copied()?.slot
                 } else {
-                    self.values
-                        .get(&id)
-                        .copied()
-                        .or_else(|| Some(self.default_binding_value(ty)))?
+                    self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
                 values.push(self.materialize_memory_argument(
                     ty,
@@ -249,7 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = if self.default_bindings.contains(&id) {
                 self.default_binding_value(ty)
             } else {
-                self.default_value(ty)
+                self.deferred_binding_value(ty)
             };
             self.values.insert(id, value);
         }

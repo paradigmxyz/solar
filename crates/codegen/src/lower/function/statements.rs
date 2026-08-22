@@ -20,7 +20,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.storage_refs.insert(*id, access);
                     return Some(());
                 }
-                if initializer.is_none() && self.types.memory_layout(ty).is_some() {
+                if initializer.is_none()
+                    && let Some(layout) = self.types.memory_layout(ty)
+                    && (!ty.is_ref_at(DataLocation::Memory)
+                        || matches!(
+                            layout,
+                            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                        ))
+                {
                     self.deferred_bindings.insert(*id);
                     return Some(());
                 }
@@ -30,10 +37,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     } else {
                         self.lower_typed_expr(expr, ty)?
                     }
-                } else if let Some(value) = self.default_object(ty) {
-                    value
                 } else {
-                    self.builder.imm_u256(U256::ZERO)
+                    self.default_binding_value(ty)
                 };
                 let value = self.materialize_call_argument(
                     ty,

@@ -377,10 +377,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if matches!(
             self.builder.func().value_ty(value),
             Some(MirType::MemoryObject(_)) | Some(MirType::Slice(SliceLocation::Memory))
-        ) || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
-            &self.builder.func().inst(*inst).kind,
-            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-        )) {
+        ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })
+            && self.builder.func().value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT))
+            || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
+                &self.builder.func().inst(*inst).kind,
+                InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
+            ))
+        {
             Self::memory_abi_type(ty)
         } else {
             ty

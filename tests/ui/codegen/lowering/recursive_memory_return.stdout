@@ -84,30 +84,28 @@ fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_args=lazy, 
   bb6:
     v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
     set_memory_object_len memoryarray, v14, arg0
-    v15 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v15, 0
     jump bb7
   bb7:
-    v16 = phi [bb6: arg0], [bb18: v16]
-    v17 = phi [bb6: v14], [bb18: v17]
-    v18 = phi [bb6: v15], [bb18: v18]
-    v19 = phi [bb6: 0], [bb18: v30]
-    v20 = lt v19, v16
-    jumpi v20, bb10, bb11
+    v15 = phi [bb6: arg0], [bb18: v15]
+    v16 = phi [bb6: v14], [bb18: v16]
+    v17 = phi [bb6: 96], [bb18: v17]
+    v18 = phi [bb6: 0], [bb18: v29]
+    v19 = lt v18, v15
+    jumpi v19, bb10, bb11
   bb8:
-    ret v17
+    ret v16
   bb9:
-    v30 = add v19, 1
-    v31 = lt v30, v19
-    jumpi v31, bb17, bb18
+    v29 = add v18, 1
+    v30 = lt v29, v18
+    jumpi v30, bb17, bb18
   bb10:
-    v21 = mul v19, 10
-    v22 = iszero 10
-    v23 = div v21, 10
-    v24 = eq v23, v19
-    v25 = or v22, v24
-    v26 = iszero v25
-    jumpi v26, bb13, bb14
+    v20 = mul v18, 10
+    v21 = iszero 10
+    v22 = div v20, 10
+    v23 = eq v22, v18
+    v24 = or v21, v23
+    v25 = iszero v24
+    jumpi v25, bb13, bb14
   bb11:
     jump bb8
   bb12:
@@ -117,16 +115,16 @@ fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_args=lazy, 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v27 = memory_object_len memoryarray, v17
-    v28 = lt v19, v27
-    v29 = iszero v28
-    jumpi v29, bb15, bb16
+    v26 = memory_object_len memoryarray, v16
+    v27 = lt v18, v26
+    v28 = iszero v27
+    jumpi v28, bb15, bb16
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb16:
-    memory_object_store_element memoryarray<1>, v17, v19, v21
+    memory_object_store_element memoryarray<1>, v16, v18, v20
     jump bb12
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -140,46 +138,44 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = eq arg1, v0
-    v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v2, 0
     jumpi v1, bb1, bb2
   bb1:
     ret arg0
   bb2:
     jump bb3
   bb3:
-    v3 = mul arg1, arg1
-    v4 = iszero arg1
-    v5 = div v3, arg1
-    v6 = eq v5, arg1
-    v7 = or v4, v6
-    v8 = iszero v7
-    jumpi v8, bb4, bb5
+    v2 = mul arg1, arg1
+    v3 = iszero arg1
+    v4 = div v2, arg1
+    v5 = eq v4, arg1
+    v6 = or v3, v5
+    v7 = iszero v6
+    jumpi v7, bb4, bb5
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v9 = memory_object_len memoryarray, arg0
-    v10 = lt arg1, v9
-    v11 = iszero v10
-    jumpi v11, bb6, bb7
+    v8 = memory_object_len memoryarray, arg0
+    v9 = lt arg1, v8
+    v10 = iszero v9
+    jumpi v10, bb6, bb7
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    memory_object_store_element memoryarray<1>, arg0, arg1, v3
-    v12 = add arg1, 1
-    v13 = lt v12, arg1
-    jumpi v13, bb8, bb9
+    memory_object_store_element memoryarray<1>, arg0, arg1, v2
+    v11 = add arg1, 1
+    v12 = lt v11, arg1
+    jumpi v12, bb8, bb9
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    v14 = internal_call @fillImpl, 1, arg0, v12
-    ret v14
+    v13 = internal_call @fillImpl, 1, arg0, v11
+    ret v13
 }
 
 fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, pure, abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<word>]] {

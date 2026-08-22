@@ -182,7 +182,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.deferred_bindings.contains(&id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            let value = self.default_value(ty);
+            let value = self.deferred_binding_value(ty);
             self.values.insert(id, value);
             return Some(value);
         }
