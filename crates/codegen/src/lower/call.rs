@@ -518,6 +518,10 @@ impl<'gcx> Lowerer<'gcx> {
                 }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
                 {
                     slot
+                } else if let Some(value) = parameter.and_then(|parameter| {
+                    self.materialize_storage_arg_for_param(builder, arg, parameter)
+                }) {
+                    value
                 } else {
                     let value = self.lower_value_expr(builder, arg);
                     self.coerce_memory_slice_value(builder, value)
@@ -2130,6 +2134,37 @@ impl<'gcx> Lowerer<'gcx> {
             || var.data_location == Some(solar_ast::DataLocation::Storage)
     }
 
+    /// Materializes a storage aggregate when a by-value parameter expects a
+    /// memory object. Member expressions such as `heap.data` lower to their
+    /// storage contents when read normally, so the conversion must start from
+    /// the lvalue slot rather than reinterpret that first word as a pointer.
+    fn materialize_storage_arg_for_param(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg: &hir::Expr<'_>,
+        param_ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
+        if matches!(
+            param_ty.kind,
+            TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage | DataLocation::Calldata)
+        ) {
+            return None;
+        }
+        let arg_ty = self.get_expr_type(arg)?;
+        let TyKind::Ref(inner, DataLocation::Storage) = arg_ty.kind else { return None };
+        if !matches!(
+            inner.kind,
+            TyKind::Struct(_)
+                | TyKind::DynArray(_)
+                | TyKind::Array(..)
+                | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            return None;
+        }
+        let slot = self.lower_lvalue_slot(builder, arg)?;
+        Some(self.materialize_storage_ref_value(builder, arg_ty, slot, arg.span))
+    }
+
     /// Lowers an internal function call.
     fn lower_internal_call(
         &mut self,
@@ -2167,6 +2202,11 @@ impl<'gcx> Lowerer<'gcx> {
                 && let Some(slot) = this.lower_lvalue_slot(builder, arg)
             {
                 slot
+            } else if let Some(value) = params.get(i).and_then(|&param_id| {
+                let param_ty = this.gcx.type_of_item(param_id.into());
+                this.materialize_storage_arg_for_param(builder, arg, param_ty)
+            }) {
+                value
             } else {
                 // A memory parameter receives one word; a logical slice
                 // materializes into the memory object the parameter expects.
