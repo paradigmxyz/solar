@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: makeBytes 0 => 0
 //@ run-call: makeBytes 31 => 31
 //@ run-call: makeArray 0 => 0

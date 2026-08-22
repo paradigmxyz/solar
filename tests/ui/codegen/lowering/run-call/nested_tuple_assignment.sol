@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 // ported-from: tests/libsolidity/semanticTests/types/tuple_assign_multi_slot_grow.sol
 //@ run-call: assign() => 0x30, 0x31, 0x32
 //@ run-call: swap() => 2, 1, 4, 3

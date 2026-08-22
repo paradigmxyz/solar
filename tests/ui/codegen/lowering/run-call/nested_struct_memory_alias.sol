@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: check => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_of_structs_memory_to_memory.sol
 

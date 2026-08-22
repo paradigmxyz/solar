@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: sliceLength [1, 2, 3, 4, 5], 2, 4 => 2
 //@ run-call: sliceIndex [1, 2, 3, 4, 5], 2, 4, 1 => 4
 //@ run-call: chainedIndex [1, 2, 3, 4, 5] => 3

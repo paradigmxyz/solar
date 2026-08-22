@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: allocate => 7
 // ported-from: test/libsolidity/semanticTests/array/create_multiple_dynamic_arrays.sol
 

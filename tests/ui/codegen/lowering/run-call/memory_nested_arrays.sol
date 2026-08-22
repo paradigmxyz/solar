@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: assignment 42 => 42
 //@ run-call: newValue 42 => 42
 // ported-from: test/libsolidity/semanticTests/array/array_3d_assignment.sol

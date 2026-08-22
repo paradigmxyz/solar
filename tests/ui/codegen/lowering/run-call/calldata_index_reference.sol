@@ -1,7 +1,9 @@
+//@ filecheck:
+// CHECK: @module
 //@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
 //@ run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
 //@ run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3

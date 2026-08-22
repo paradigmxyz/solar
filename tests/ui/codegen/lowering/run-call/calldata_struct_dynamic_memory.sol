@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_calldata_to_memory.sol
 

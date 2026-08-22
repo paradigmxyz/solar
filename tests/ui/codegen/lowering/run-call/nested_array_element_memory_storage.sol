@@ -1,3 +1,9 @@
+//@ filecheck:
+// CHECK: @module
+//@ revisions: none gas size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: test [[[1, 2], [3, 4]], [[5, 6], [7, 8]]] => 10
 //@ run-call: test2 [[1, 2], [3, 4]] => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_memory_to_storage.sol

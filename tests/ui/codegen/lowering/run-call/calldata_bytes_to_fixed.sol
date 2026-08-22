@@ -1,7 +1,9 @@
+//@ filecheck:
+// CHECK: @module
 //@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
+//@[size] compile-flags: -O size -Zdump=mir
 //@ run-call: first(bytes) 0x0102 => 0x01
 //@ run-call: half(bytes) 0x010203 => 0x01020300000000000000000000000000
 //@ run-call: word(bytes) 0x => 0x0000000000000000000000000000000000000000000000000000000000000000
