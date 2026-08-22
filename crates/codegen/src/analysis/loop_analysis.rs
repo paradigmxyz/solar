@@ -485,4 +485,51 @@ mod tests {
         assert!(loop_info.blocks.contains(body));
         assert!(!loop_info.blocks.contains(exit));
     }
+
+    #[test]
+    fn test_loop_order_is_by_header() {
+        let mut func = make_test_func();
+
+        let entry = BlockId::ENTRY;
+        let first_header = func.alloc_block();
+        let first_body = func.alloc_block();
+        let second_header = func.alloc_block();
+        let second_body = func.alloc_block();
+        let exit = func.alloc_block();
+
+        let first_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let second_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+
+        func.blocks[entry].terminator = Some(Terminator::Jump(first_header));
+        func.blocks[first_header].predecessors.push(entry);
+
+        func.blocks[first_header].terminator = Some(Terminator::Branch {
+            condition: first_condition,
+            then_block: first_body,
+            else_block: second_header,
+        });
+        func.blocks[first_body].predecessors.push(first_header);
+        func.blocks[second_header].predecessors.push(first_header);
+
+        func.blocks[first_body].terminator = Some(Terminator::Jump(first_header));
+        func.blocks[first_header].predecessors.push(first_body);
+
+        func.blocks[second_header].terminator = Some(Terminator::Branch {
+            condition: second_condition,
+            then_block: second_body,
+            else_block: exit,
+        });
+        func.blocks[second_body].predecessors.push(second_header);
+        func.blocks[exit].predecessors.push(second_header);
+
+        func.blocks[second_body].terminator = Some(Terminator::Jump(second_header));
+        func.blocks[second_header].predecessors.push(second_body);
+        func.blocks[exit].terminator = Some(Terminator::Stop);
+
+        let mut analyzer = LoopAnalyzer::new();
+        let info = analyzer.analyze(&func);
+        let headers: Vec<_> = info.all_loops().map(|loop_info| loop_info.header).collect();
+
+        assert_eq!(headers, [first_header, second_header]);
+    }
 }
