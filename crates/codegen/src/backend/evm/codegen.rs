@@ -2358,11 +2358,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        let mut global_stack_plan = resident_stack_plan
-            .clone()
-            .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
+        let hazard_stack_layout = resident_stack_plan
+            .is_none()
+            .then(|| self.compute_spill_hazard_stack_layout(func, liveness, &stack_phi_plan))
+            .flatten();
+        let hazard_stack_values = hazard_stack_layout.as_ref().map(|(values, _)| values.as_slice());
+        let hazard_stack_plan = hazard_stack_layout.as_ref().map(|(_, plan)| plan.clone());
+        let has_hazard_stack_plan = hazard_stack_plan.is_some();
+        let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
+        let mut global_stack_plan = resident_stack_plan.clone().unwrap_or_else(|| {
+            hazard_stack_plan
+                .clone()
+                .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan))
+        });
         let mut stack_phi_sources = stack_phi_plan.edge_sources.clone();
-        if resident_stack_plan.is_some() {
+        if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
                 // Selection preflights this exact composition. If a future transform invalidates
                 // that proof, regenerate the runtime with the ordinary frame-backed convention
@@ -2445,6 +2455,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 })
             });
         }
+        if has_hazard_stack_plan {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let Some(term) = block.terminator.as_ref() else { continue };
+                let sources = stack_phi_sources.entry(block_id).or_default();
+                for successor in term.successors() {
+                    for &value in global_stack_plan.entry(successor).into_iter().flatten() {
+                        if !sources.contains(&value) {
+                            sources.push(value);
+                        }
+                    }
+                }
+            }
+        }
         self.stack_phi_sources = stack_phi_sources;
         self.global_stack_active = !global_stack_plan.is_empty();
         self.global_stack_aliases = global_stack_plan.aliases.clone();
@@ -2456,10 +2479,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Cross-block rematerialization is selected during spill preallocation. Record every
         // argument without a frame home before that analysis so an expression depending on one is
         // stored instead of later being rebuilt after its only physical copy was consumed.
-        let initial_stack_only_values = self.stack_only_values(func_id, true);
+        let mut initial_stack_only_values = self.stack_only_values(func_id, true);
+        initial_stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
         self.scheduler.set_stack_only_values(func.num_values(), initial_stack_only_values);
 
         self.preallocate_cross_block_spills(func, liveness);
+        if has_hazard_stack_plan {
+            for value in global_stack_plan.entries.values().flatten() {
+                self.scheduler.spills.clear_store_requirement(*value);
+            }
+        }
 
         self.cold_blocks = self.collect_cold_blocks(func);
 
@@ -2567,7 +2596,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.set_stack_to_values(&plan.values().collect::<Vec<_>>());
             }
             // Resident and direct arguments have no frame fallback.
-            let stack_only_values = self.stack_only_values(func_id, block_id == BlockId::ENTRY);
+            let mut stack_only_values = self.stack_only_values(func_id, block_id == BlockId::ENTRY);
+            stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
             if block_id != BlockId::ENTRY
                 && self.resident_stack_args(func_id).is_some()
@@ -2668,8 +2698,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             // stack-resident and need no memory home, so drop their obligation.
             if !pinned_hazard_values.is_empty() {
                 let live_out = liveness.live_out(block_id);
+                let hazard_carried = block.terminator.as_ref().map_or_else(Vec::new, |term| {
+                    hazard_stack_plan
+                        .as_ref()
+                        .map_or_else(Vec::new, |plan| plan.uniformly_carried_values(func, term))
+                });
                 for value in std::mem::take(&mut pinned_hazard_values) {
-                    if live_out.contains(value) {
+                    if live_out.contains(value) && !hazard_carried.contains(&value) {
                         self.spill_value_if_needed(func, value);
                     } else {
                         self.scheduler.spills.clear_store_requirement(value);
@@ -4114,7 +4149,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Spills an instruction result if it is on the stack and not already stored.
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
-        if !Self::can_own_spill_slot(func, val) {
+        if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
             return;
         }
 
@@ -4141,7 +4176,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn spill_value_to_reserved_slot(&mut self, func: &Function, val: ValueId) -> bool {
-        if Self::is_rematerializable_value(func, val) || self.scheduler.spills.get(val).is_none() {
+        if self.scheduler.is_stack_only_value(val)
+            || Self::is_rematerializable_value(func, val)
+            || self.scheduler.spills.get(val).is_none()
+        {
             return false;
         }
 
@@ -4345,7 +4383,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         value: ValueId,
     ) {
-        if Self::is_rematerializable_value(func, value) {
+        if self.scheduler.is_stack_only_value(value) || Self::is_rematerializable_value(func, value)
+        {
             return;
         }
 
@@ -6087,6 +6126,78 @@ impl<'gcx> EvmCodegen<'gcx> {
             .map(|(value, _, _)| value)
             .collect::<Vec<_>>();
         self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+    }
+
+    /// Keeps values that survive a low-memory calldata copy in a canonical
+    /// stack layout until their uses are complete. The copied range is
+    /// dynamic, so no fixed spill address is safe: a decompressor can grow its
+    /// output through every compiler-owned low-memory slot before forwarding
+    /// that output to a call.
+    fn compute_spill_hazard_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        stack_phi_plan: &StackPhiPlan,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if self.spill_hazard_insts.is_empty() {
+            return None;
+        }
+
+        let inst_blocks = func.inst_blocks();
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let hazard_is_repeated = loop_info.all_loops().any(|loop_info| {
+            self.spill_hazard_insts.iter().any(|inst| {
+                inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
+                    && matches!(
+                        func.inst(*inst).kind,
+                        InstKind::CalldataCopy(dest, _, _)
+                            if matches!(func.value(dest), crate::mir::Value::Inst(definition)
+                                if matches!(&func.inst(*definition).kind, InstKind::Phi(incoming)
+                                    if incoming.iter().any(|&(_, value)| {
+                                        func.value_u64(value).is_some_and(|address| {
+                                            address < EvmMemoryLayout::HEAP_START
+                                        })
+                                    })))
+                    )
+            })
+        });
+        if !hazard_is_repeated {
+            return None;
+        }
+
+        let cross_block = Self::cross_block_live_values(func, liveness);
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        for value in &cross_block {
+            if Self::can_own_spill_slot(func, value) {
+                values.insert(value);
+            }
+        }
+        if values.is_empty() || values.count() > GLOBAL_STACK_LAYOUT_LIMIT {
+            return None;
+        }
+
+        let values = values.iter().collect::<Vec<_>>();
+        let mut plan = GlobalStackPlan::analyze_resident_args(
+            func,
+            liveness,
+            &values,
+            self.preserve_caller_stack,
+        )?;
+        // Phi operands are edge uses, not unchanged target live-ins. Full
+        // liveness conservatively includes them at the header; remove those
+        // incoming identities from the resident prefix so the phi edge can
+        // replace each source with its result instead of trying to carry both.
+        for (&pred, edge) in &stack_phi_plan.edges {
+            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
+                continue;
+            };
+            if let Some(entry) = plan.entries.get_mut(target) {
+                entry.retain(|value| !edge.sources.contains(value));
+            }
+        }
+        plan.entries.retain(|_, entry| !entry.is_empty());
+        Some((values, plan))
     }
 
     fn select_cross_block_stack_layout(
@@ -8400,7 +8511,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         value: ValueId,
     ) {
-        if Self::is_rematerializable_value(func, value) {
+        if self.scheduler.is_stack_only_value(value) || Self::is_rematerializable_value(func, value)
+        {
             return;
         }
         let has_reserved_cross_block_slot = self.scheduler.spills.get(value).is_some();
