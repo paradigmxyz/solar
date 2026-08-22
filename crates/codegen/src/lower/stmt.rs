@@ -377,7 +377,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn zero_initialize_memory_struct(
+    pub(super) fn zero_initialize_memory_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
