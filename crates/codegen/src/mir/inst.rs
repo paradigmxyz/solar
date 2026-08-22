@@ -128,6 +128,17 @@ impl InstructionMetadata {
     pub(crate) fn set_abi_validation(&mut self, value: bool) {
         self.flags.set_abi_validation(value);
     }
+
+    /// Returns whether removing this allocation's FMP bump would change Solidity-visible state.
+    #[must_use]
+    pub(crate) fn preserves_fmp(&self) -> bool {
+        self.flags.preserves_fmp()
+    }
+
+    /// Marks an allocation whose FMP bump is observable by Solidity source semantics.
+    pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
+        self.flags.set_preserves_fmp(value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -141,6 +152,7 @@ impl MetadataFlags {
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
     const ABI_VALIDATION: u16 = 0b10_0000_0000;
+    const PRESERVES_FMP: u16 = 0b100_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -199,6 +211,18 @@ impl MetadataFlags {
             self.0 |= Self::ABI_VALIDATION;
         } else {
             self.0 &= !Self::ABI_VALIDATION;
+        }
+    }
+
+    fn preserves_fmp(self) -> bool {
+        self.0 & Self::PRESERVES_FMP != 0
+    }
+
+    fn set_preserves_fmp(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::PRESERVES_FMP;
+        } else {
+            self.0 &= !Self::PRESERVES_FMP;
         }
     }
 

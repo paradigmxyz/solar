@@ -100,15 +100,13 @@ contract NamedReturnAndDelete {
         m = uint8(b[0]);
     }
 
-    // Uninitialized memory references point at real empty objects, not scratch.
+    // Uninitialized dynamic references use Solidity's zero slot.
     // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: alloc memoryarray<1>
-    // CHECK: alloc memorybytes
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
+    // CHECK: memory_object_len memoryarray, 96
+    // CHECK: memory_object_len memorybytes, 96
     function emptyMemoryReferences() public pure returns (uint256) {
         uint256[] memory values;
         bytes memory data;
@@ -116,12 +114,9 @@ contract NamedReturnAndDelete {
         return values.length + data.length + holder.values.length + holder.data.length;
     }
 
-    // Named dynamic returns also start as real empty memory objects.
+    // Named dynamic returns also start at the zero slot.
     // CHECK-LABEL: fn @emptyNamedReturns{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
+    // CHECK: ret 96, 96
     function emptyNamedReturns()
         public
         pure
@@ -132,9 +127,7 @@ contract NamedReturnAndDelete {
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 0, 0
-    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 32
-    // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, [[EMPTY]]
+    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, 96
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 2, 0
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 3, 0
     // CHECK: ret [[WIDE]]
@@ -144,10 +137,8 @@ contract NamedReturnAndDelete {
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: alloc memoryarray<1>
-    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
-    // CHECK: alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
         public

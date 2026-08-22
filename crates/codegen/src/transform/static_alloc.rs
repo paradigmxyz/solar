@@ -15,6 +15,7 @@
 //!   their interprocedural summaries prove that the pointer is not captured or used to reset the
 //!   free-memory pointer;
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
+//! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::{
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
@@ -237,7 +238,9 @@ fn eligible_static_allocations(
             let InstKind::Alloc { size, semantics, .. } = func.inst(alloc).kind else {
                 continue;
             };
-            if semantics != crate::mir::AllocationSemantics::INTERNAL {
+            if semantics != crate::mir::AllocationSemantics::INTERNAL
+                || func.inst(alloc).metadata.preserves_fmp()
+            {
                 continue;
             }
             let Some(size) = func.value_u64(size) else { continue };
