@@ -521,6 +521,7 @@ impl<'gcx> Lowerer<'gcx> {
         if contract.kind == hir::ContractKind::Interface {
             self.module.is_interface = true;
         }
+        self.module.is_library = contract.kind.is_library();
 
         self.allocate_storage(contract_id);
 
