@@ -2183,8 +2183,8 @@ impl<'gcx> Lowerer<'gcx> {
                 // which is already left-aligned like every fixed-bytes value.
                 // Without this the slice value itself would be shifted as if it
                 // were a number, and the slice would survive to the backend.
-                if let Some(word) = self.slice_leading_word(builder, value) {
-                    return self.clean_fixed_bytes(builder, word, *size);
+                if let Some((word, len)) = self.slice_leading_word(builder, value) {
+                    return self.clean_dynamic_fixed_bytes(builder, word, len, *size);
                 }
                 // A `bytes memory` value is a `[length][data...]` object rather
                 // than a MIR slice. The conversion takes its first data word,
@@ -2193,9 +2193,10 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.func().value_ty(value),
                     Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
                 ) {
+                    let len = builder.memory_object_len(value, MemoryObjectKind::Bytes);
                     let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
                     let word = builder.mload(data);
-                    return self.clean_fixed_bytes(builder, word, *size);
+                    return self.clean_dynamic_fixed_bytes(builder, word, len, *size);
                 }
                 if self.expr_is_fixed_bytes(source) {
                     self.clean_fixed_bytes(builder, value, *size)
@@ -2216,13 +2217,36 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, ValueId)> {
         let calldata = Self::value_is_calldata_slice(builder, value);
         if !calldata && !Self::value_is_memory_slice(builder, value) {
             return None;
         }
         let ptr = builder.slice_ptr(value);
-        Some(if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) })
+        let word = if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) };
+        Some((word, builder.slice_len(value)))
+    }
+
+    /// Converts the leading word of dynamic bytes to `bytesN`, masking at
+    /// both the target width and the runtime source length. A short source is
+    /// right-padded with zeroes rather than exposing bytes after the slice.
+    fn clean_dynamic_fixed_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        len: ValueId,
+        size: TypeSize,
+    ) -> ValueId {
+        let target_bytes = builder.imm_u64(u64::from(size.bytes()));
+        let source_is_shorter = builder.lt(len, target_bytes);
+        let used_bytes = builder.select(source_is_shorter, len, target_bytes);
+        let word_bytes = builder.imm_u64(32);
+        let unused_bytes = builder.sub(word_bytes, used_bytes);
+        let bits_per_byte = builder.imm_u64(8);
+        let unused_bits = builder.mul(unused_bytes, bits_per_byte);
+        let all_bits = builder.imm_u256(U256::MAX);
+        let mask = builder.shl(unused_bits, all_bits);
+        builder.and(word, mask)
     }
 
     fn shift_numeric_to_fixed_bytes(

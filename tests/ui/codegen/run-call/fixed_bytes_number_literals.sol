@@ -7,6 +7,7 @@
 //@ run-call: FixedBytesLiterals::mapKeyCross() => 5
 //@ run-call: FixedBytesLiterals::compareControl() => true
 //@ run-call: FixedBytesLiterals::bytesObjectCast() => 0x93dafdf1
+//@ run-call: FixedBytesLiterals::calldataSliceCast() => 0x1122334455000000000000000000000000000000000000000000000000000000
 
 // A bare numeric literal used where `bytesN` is expected keeps its numeric
 // sema type, so plain lowering yields the right-aligned integer word; every
@@ -76,5 +77,13 @@ contract FixedBytesLiterals {
     function bytesObjectCast() public pure returns (bytes4) {
         bytes memory data = hex"93dafdf1aabb";
         return bytes4(data);
+    }
+
+    function takeSlice(bytes calldata data) external pure returns (bytes32) {
+        return bytes32(data[:5]);
+    }
+
+    function calldataSliceCast() public view returns (bytes32) {
+        return this.takeSlice(hex"112233445566778899");
     }
 }
