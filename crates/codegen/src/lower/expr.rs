@@ -2338,7 +2338,8 @@ impl<'gcx> Lowerer<'gcx> {
                 if matches!(
                     builder.func().value_ty(value),
                     Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                ) {
+                ) || self.expr_yields_memory_bytes(source)
+                {
                     let len = builder.memory_object_len(value, MemoryObjectKind::Bytes);
                     let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
                     let word = builder.mload(data);
