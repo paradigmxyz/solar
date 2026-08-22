@@ -850,6 +850,21 @@ impl<'gcx> Lowerer<'gcx> {
             .then(|| (elem, len.to::<u64>()))
     }
 
+    /// Returns the element type of a memory-located dynamic-array parameter
+    /// whose elements need recursive ABI materialization.
+    fn memory_nested_dyn_array_param(&self, param_id: VariableId) -> Option<Ty<'gcx>> {
+        let param = self.gcx.hir.variable(param_id);
+        if param.data_location != Some(solar_ast::DataLocation::Memory) {
+            return None;
+        }
+        match self.gcx.type_of_item(param_id.into()).peel_refs().kind {
+            TyKind::DynArray(elem) | TyKind::Slice(elem) if !self.abi_is_word_element(elem) => {
+                Some(elem)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether a parameter is a memory-located dynamic array of single-word elements, which
     /// the prologue decodes from calldata into Solidity's `[length][data...]` memory layout.
     fn is_dyn_word_array_memory_param(&self, param_id: VariableId) -> bool {
@@ -1510,6 +1525,27 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                         builder.mstore(elem_addr, elem_val);
                     }
+                    self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
+                } else if decodes_abi_params
+                    && let Some(elem_ty) = self.memory_nested_dyn_array_param(param_id)
+                {
+                    // A dynamic memory array's ABI head is an offset to its
+                    // `[length][elements...]` tail. Rebuild the ordinary
+                    // memory object here; nested reference elements need
+                    // recursive materialization rather than a bulk copy.
+                    let head = builder.add_param(ty);
+                    let (source, abi_base) = if self.lowering_constructor {
+                        (bytes::AbiSource::Memory, self.constructor_args_base(&mut builder))
+                    } else {
+                        (bytes::AbiSource::Calldata, builder.imm_u64(4))
+                    };
+                    let len_pos = builder.add(abi_base, head);
+                    let array_ptr = self.materialize_calldata_dynamic_array_at(
+                        &mut builder,
+                        source,
+                        elem_ty,
+                        len_pos,
+                    );
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
                     // Dynamic array of word elements in memory: the ABI head is
