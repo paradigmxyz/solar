@@ -325,8 +325,9 @@ impl<'gcx> Lowerer<'gcx> {
     /// Stores a struct field value at its resolved slot, read-modify-writing
     /// packed fields.
     pub(crate) fn store_struct_field_at(
-        &self,
+        &mut self,
         builder: &mut FunctionBuilder<'_>,
+        field_ty: Option<Ty<'gcx>>,
         placement: &StructField,
         slot: ValueId,
         value_id: ValueId,
@@ -335,7 +336,13 @@ impl<'gcx> Lowerer<'gcx> {
             StorageField::Packed(value) => {
                 builder.store_packed(slot, placement.offset, value, value_id);
             }
-            _ => builder.sstore(slot, value_id),
+            _ => {
+                if let Some(field_ty) = field_ty {
+                    self.copy_memory_field_to_storage(builder, field_ty, slot, value_id);
+                } else {
+                    builder.sstore(slot, value_id);
+                }
+            }
         }
     }
 

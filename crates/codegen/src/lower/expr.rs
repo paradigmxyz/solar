@@ -2039,6 +2039,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_assign(builder, lhs, base, index.as_deref(), rhs);
             }
             ExprKind::Member(base, member) => {
+                let field_ty = self.get_expr_type(lhs);
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
                     && let Some((slot, placement)) = self.lower_storage_struct_field_slot_by_index(
@@ -2048,7 +2049,7 @@ impl<'gcx> Lowerer<'gcx> {
                         field_index,
                     )
                 {
-                    self.store_struct_field_at(builder, &placement, slot, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot, rhs);
                     return;
                 }
 
@@ -2058,7 +2059,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let placement = self.struct_field_placement(struct_id, field_index);
                     let slot = base_slot + U256::from(placement.slot);
                     let slot_val = builder.imm_u256(slot);
-                    self.store_struct_field_at(builder, &placement, slot_val, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot_val, rhs);
                     return;
                 }
 
@@ -2066,7 +2067,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // value)
                 if let Some((slot, placement)) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u256(slot);
-                    self.store_struct_field_at(builder, &placement, slot_val, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot_val, rhs);
                     return;
                 }
 
@@ -2076,7 +2077,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((slot, placement)) =
                     self.lower_storage_struct_field_slot(builder, base, *member)
                 {
-                    self.store_struct_field_at(builder, &placement, slot, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot, rhs);
                     return;
                 }
 
