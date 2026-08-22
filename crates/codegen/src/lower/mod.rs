@@ -1952,11 +1952,18 @@ impl<'gcx> Lowerer<'gcx> {
                     && !var.is_constant()
                     && let Some(init) = var.initializer
                 {
-                    let init_val = self.lower_value_expr(builder, init);
+                    let var_ty = self.gcx.type_of_item(var_id.into());
+                    let init_val = if matches!(
+                        var_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    ) {
+                        self.lower_expr_as_memory_bytes(builder, init)
+                    } else {
+                        self.lower_value_expr(builder, init)
+                    };
                     if let Some(&id) = self.immutable_ids.get(&var_id) {
                         builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
-                        let var_ty = self.gcx.type_of_item(var_id.into());
                         if var_ty.peel_refs().is_value_type() {
                             self.store_storage_location(builder, location, init_val);
                         } else {
