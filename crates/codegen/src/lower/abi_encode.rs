@@ -325,6 +325,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
         for (i, (arg, ty)) in arg_exprs.zip(tys).enumerate() {
+            let target_ty = param_tys.as_ref().and_then(|tys| tys.get(i)).copied().unwrap_or(ty);
             let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
@@ -351,16 +352,13 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     value
                 };
-                match param_tys.as_ref().and_then(|tys| tys.get(i)) {
-                    Some(&param_ty) => self.coerce_literal_for_ty(builder, arg, param_ty, value),
-                    None => value,
-                }
+                self.coerce_literal_for_ty(builder, arg, target_ty, value)
             };
             // Encoded value words must be canonical like solc's: a consumer's
             // strict decode rejects dirty upper bits, and callers like
             // solady's tests hand over deliberately dirtied values.
-            let value = self.abi_clean_value(builder, value, ty);
-            items.push((value, ty));
+            let value = self.abi_clean_value(builder, value, target_ty);
+            items.push((value, target_ty));
         }
         Ok(LoweredAbiItems { items, calldata_slices })
     }
