@@ -6,7 +6,7 @@
 @module PreCancunMCopy
 
 // `mcopy` lowers to an ascending word-copy loop over the full words plus a
-// byte-masked tail merge, so exactly `len` bytes change. The identity
+// conditional byte-masked tail merge, so exactly `len` bytes change. The identity
 // precompile would be smaller, but a precompile call is observable by tooling
 // that keys behavior on "the next call" (Foundry's `vm.prank` and
 // `vm.expectRevert`), and a whole-word tail would clobber bytes past the copy.

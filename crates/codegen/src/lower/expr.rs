@@ -1471,17 +1471,23 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
     ) {
         let selector = U256::from(0x08c3_79a0u64) << 224;
-        let zero = builder.imm_u64(0);
+        // Build the payload at the heap frontier. The dynamic message copy is
+        // lowered to a loop before Cancun, and values carried around that loop
+        // can occupy backend spill slots. A fixed `[0, size)` payload would
+        // overwrite those slots before the loop consumes them.
+        let buf = builder.fmp();
         let selector = builder.imm_u256(selector);
-        builder.mstore(zero, selector);
+        builder.mstore(buf, selector);
 
         let selector_size = builder.imm_u64(4);
         let head_offset = builder.imm_u64(32);
-        builder.mstore(selector_size, head_offset);
+        let head_pos = builder.add(buf, selector_size);
+        builder.mstore(head_pos, head_offset);
 
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let len_offset = builder.imm_u64(36);
-        builder.mstore(len_offset, len);
+        let len_pos = builder.add(buf, len_offset);
+        builder.mstore(len_pos, len);
 
         let thirty_one = builder.imm_u64(31);
         let padded = builder.add(len, thirty_one);
@@ -1489,6 +1495,7 @@ impl<'gcx> Lowerer<'gcx> {
         let padded = builder.and(padded, mask);
 
         let data_offset = builder.imm_u64(68);
+        let data = builder.add(buf, data_offset);
         let no_data = builder.iszero(padded);
         let has_data = builder.iszero(no_data);
         let zero_final_word = builder.create_block();
@@ -1498,15 +1505,16 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(zero_final_word);
         let word = builder.imm_u64(32);
         let final_word_offset = builder.sub(padded, word);
-        let final_word = builder.add(data_offset, final_word_offset);
+        let final_word = builder.add(data, final_word_offset);
+        let zero = builder.imm_u64(0);
         builder.mstore(final_word, zero);
         builder.jump(copy_data);
 
         builder.switch_to_block(copy_data);
         let src = builder.add(ptr, head_offset);
-        builder.mcopy(data_offset, src, len);
+        builder.mcopy(data, src, len);
         let size = builder.add(data_offset, padded);
-        builder.revert(zero, size);
+        builder.revert(buf, size);
     }
 
     fn lower_array_length_member(

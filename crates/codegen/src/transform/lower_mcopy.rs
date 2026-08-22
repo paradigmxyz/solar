@@ -86,6 +86,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
 
     let loop_head = func.alloc_block();
     let loop_body = func.alloc_block();
+    let tail_check = func.alloc_block();
     let tail_block = func.alloc_block();
     let mut builder = FunctionBuilder::new(func);
 
@@ -103,7 +104,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     builder.switch_to_block(loop_head);
     let offset = builder.phi(vec![(entry, zero)]);
     let remaining = builder.lt(offset, full);
-    builder.branch(remaining, loop_body, tail_block);
+    builder.branch(remaining, loop_body, tail_check);
 
     builder.switch_to_block(loop_body);
     let src_ptr = builder.add(src, offset);
@@ -114,9 +115,15 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     builder.add_phi_incoming(offset, loop_body, next);
     builder.jump(loop_head);
 
-    // Unconditional tail merge: for a word-multiple length the shift is 256,
-    // every EVM shift by >= 256 yields zero, and the store writes the
-    // destination word back unchanged.
+    // A word-multiple length has no tail. Besides avoiding a redundant store,
+    // skipping it keeps the mask calculation away from its 256-bit shift
+    // boundary on pre-Cancun targets.
+    builder.switch_to_block(tail_check);
+    let has_partial = builder.lt(full, len);
+    builder.branch(has_partial, tail_block, continuation);
+
+    // Merge the partial source word with the bytes beyond `len` already at
+    // the destination.
     builder.switch_to_block(tail_block);
     let partial = builder.and(len, thirty_one);
     let gap = builder.sub(word_size, partial);
