@@ -1029,6 +1029,10 @@ pub struct EvmCodegen<'gcx> {
     /// nested activation reuses their static scratch frame only after the
     /// suspended activation's live words have moved to the EVM stack.
     recursive_frame_functions: DenseBitSet<FunctionId>,
+    /// Call edges within a recursive static-frame component. The caller state
+    /// must survive the entire callee activation because it can re-enter and
+    /// overwrite the caller's fixed frame.
+    recursive_frame_edges: FxHashSet<(FunctionId, FunctionId)>,
     /// Functions that are recursive or can reach recursion. A preserved
     /// prefix must not be carried into an unbounded descendant.
     recursion_reaching_functions: DenseBitSet<FunctionId>,
@@ -1144,6 +1148,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
             recursive_frame_functions: DenseBitSet::new_empty(0),
+            recursive_frame_edges: FxHashSet::default(),
             recursion_reaching_functions: DenseBitSet::new_empty(0),
             function_stack_peaks: FxHashMap::default(),
             internal_call_stack_edges: Vec::new(),
@@ -1937,6 +1942,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.static_call_abis.clear();
         self.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
         self.recursive_frame_functions = DenseBitSet::new_empty(module.functions.len());
+        self.recursive_frame_edges.clear();
         self.recursion_reaching_functions = DenseBitSet::new_empty(module.functions.len());
         self.function_stack_peaks.clear();
         self.internal_call_stack_edges.clear();
@@ -2062,6 +2068,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         };
 
+        let mut classified_recursive_frames = DenseBitSet::new_empty(module.functions.len());
+        for (root, _) in module.functions.iter_enumerated() {
+            if !call_graph.is_recursive(root) || classified_recursive_frames.contains(root) {
+                continue;
+            }
+            let component = call_graph.recursive_component(root);
+            classified_recursive_frames.union(&component);
+            let supported = if component.count() == 1 {
+                Self::uses_reentrant_static_frame(root, &module.functions[root])
+            } else {
+                // The validated mutual-recursion shape is JSON-style Yul:
+                // each helper returns a two-word tuple and recursive edges go
+                // through another component member. A direct multi-return
+                // self edge could overwrite child results while restoring the
+                // suspended copy of that same frame, so keep it dynamic.
+                component.iter().all(|func_id| {
+                    let func = &module.functions[func_id];
+                    func.attributes.is_yul
+                        && func.returns.len() == 2
+                        && Self::static_frame_offsets_are_local(func)
+                        && !Self::has_direct_self_call(func_id, func)
+                })
+            };
+            if supported {
+                self.recursive_frame_functions.union(&component);
+                for caller in component.iter() {
+                    for callee in component.iter() {
+                        self.recursive_frame_edges.insert((caller, callee));
+                    }
+                }
+            }
+        }
+
         for (func_id, func) in module.functions.iter_enumerated() {
             if func.blocks.len() == 1
                 && func.blocks[BlockId::ENTRY].instructions.is_empty()
@@ -2070,9 +2109,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.empty_stop_functions.insert(func_id);
             }
             if call_graph.is_recursive(func_id) {
-                if Self::uses_reentrant_static_frame(func_id, func) {
-                    self.recursive_frame_functions.insert(func_id);
-                }
                 self.recursive_stack_functions.insert(func_id);
                 self.recursive_stack_functions.union(&call_graph.reachable_callees_from([func_id]));
             }
@@ -2104,7 +2140,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && !Self::is_external_entry(func)
                 && Self::is_runtime_function(func)
                 && (!call_graph.is_recursive(func_id)
-                    || Self::uses_reentrant_static_frame(func_id, func))
+                    || self.recursive_frame_functions.contains(func_id))
                 && Self::static_frame_offsets_are_local(func)
             {
                 self.static_frame_functions.insert(func_id);
@@ -2205,18 +2241,21 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Whether a directly self-recursive Yul helper can reuse one static
     /// scratch frame while suspended activations carry their live state on the
-    /// EVM stack. Multi-return and mutually recursive functions retain the
-    /// ordinary dynamic-frame convention.
+    /// EVM stack.
     fn uses_reentrant_static_frame(func_id: FunctionId, func: &Function) -> bool {
         func.attributes.is_yul
             && func.returns.len() == 1
-            && (func.instructions().any(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. }
-                    if function == func_id)
-            }) || func.blocks.iter().any(|block| {
-                matches!(block.terminator, Some(Terminator::TailCall { function, .. })
-                    if function == func_id)
-            }))
+            && Self::has_direct_self_call(func_id, func)
+    }
+
+    fn has_direct_self_call(func_id: FunctionId, func: &Function) -> bool {
+        func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. }
+                if function == func_id)
+        }) || func.blocks.iter().any(|block| {
+            matches!(block.terminator, Some(Terminator::TailCall { function, .. })
+                if function == func_id)
+        })
     }
 
     fn is_external_entry(func: &Function) -> bool {
@@ -7129,9 +7168,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// `depth(f)` is the longest chain of static frames that can be live below
     /// an activation of `f`. Depth propagates along every call edge — a static
     /// caller contributes its frame size, while an external entry whose locals
-    /// live below the region only forwards its depth. A supported directly
-    /// recursive Yul helper reuses its own frame, so that self-edge is also
-    /// weight-zero. Every remaining cycle is weight-zero and the relaxation
+    /// live below the region only forwards its depth. Supported recursive Yul
+    /// components occupy a disjoint prefix with one frame per function; their
+    /// call edges are weight-zero because a nested activation reuses the same
+    /// function frame after carrying its suspended state on the EVM stack.
+    /// Every remaining cycle is therefore weight-zero and the relaxation
     /// converges. Functions that can never be simultaneously live end up
     /// sharing addresses; that is the point of the overlay.
     ///
@@ -7211,7 +7252,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &(caller, callee) in &edges {
                 let mut contribution = depth.get(&caller).copied().unwrap_or(0);
                 if self.static_frame_functions.contains(caller)
-                    && !(caller == callee && self.recursive_frame_functions.contains(caller))
+                    && !self.recursive_frame_functions.contains(caller)
                 {
                     contribution += self.emitted_frame_size(module, caller);
                 }
@@ -7227,7 +7268,20 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let placed: FxHashSet<FunctionId> =
             self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
-        let mut static_span = 0;
+        let mut recursive_placed: Vec<_> = placed
+            .iter()
+            .copied()
+            .filter(|&func_id| self.recursive_frame_functions.contains(func_id))
+            .collect();
+        recursive_placed.sort_unstable();
+        let mut frame_relative = FxHashMap::default();
+        let mut recursive_span = 0;
+        for func_id in recursive_placed {
+            frame_relative.insert(func_id, recursive_span);
+            recursive_span += self.emitted_frame_size(module, func_id);
+        }
+
+        let mut static_span = recursive_span;
         for &func_id in &placed {
             let frame_size = self.emitted_frame_size(module, func_id);
             assert!(
@@ -7240,7 +7294,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 "static frame reference exceeds emitted frame size for `{}`",
                 module.functions[func_id].name
             );
-            let relative = depth.get(&func_id).copied().unwrap_or(0);
+            let relative = *frame_relative
+                .entry(func_id)
+                .or_insert_with(|| recursive_span + depth.get(&func_id).copied().unwrap_or(0));
             static_span = static_span.max(relative + frame_size);
         }
 
@@ -7261,8 +7317,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .copied()
                     .filter(|&func_id| reachable.contains(func_id))
                     .map(|func_id| {
-                        depth.get(&func_id).copied().unwrap_or(0)
-                            + self.emitted_frame_size(module, func_id)
+                        frame_relative[&func_id] + self.emitted_frame_size(module, func_id)
                     })
                     .max()
                     .unwrap_or(0);
@@ -7314,7 +7369,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 addresses.extend(self.static_frame_addr_consts.iter().map(
                     |(&(static_func, offset), &(_, references))| {
-                        let relative = depth.get(&static_func).copied().unwrap_or(0) + offset;
+                        let relative = frame_relative[&static_func] + offset;
                         RelayoutAddress {
                             before: before_start + relative,
                             after: after_start + relative,
@@ -7381,7 +7436,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let max_entry_end = entry_ends.values().copied().max().unwrap_or(0);
         let (region_start, _) = layout(max_entry_end);
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
-            let relative = depth.get(&func_id).copied().unwrap_or(0) + offset;
+            let relative = frame_relative[&func_id] + offset;
             self.asm.set_deferred_const(id, U256::from(region_start + relative));
         }
         let free_memory_floors: FxHashMap<FunctionId, u64> = self
@@ -8144,8 +8199,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stack_mask =
             if self.runtime_stack_args { self.stack_arg_mask(callee).cloned() } else { None };
         let argument_words = stack_mask.as_ref().map_or(0, DenseBitSet::count);
-        let recursive_reentry = self.recursive_frame_functions.contains(func_id)
-            && self.recursive_frame_functions.contains(callee);
+        let recursive_reentry = self.recursive_frame_edges.contains(&(func_id, callee));
         let mut recursive_call_values = Vec::new();
         if recursive_reentry {
             // The callee is about to reuse a scratch frame that may belong to
