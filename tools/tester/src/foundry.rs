@@ -8,7 +8,7 @@
 
 use regex::Regex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
@@ -129,6 +129,14 @@ struct CompilerRun {
     total_passed: usize,
     total_failed: usize,
     bytecode_sizes: HashMap<String, usize>,
+    internal_only_library_stubs: HashSet<String>,
+}
+
+/// Data extracted from a compiler's Foundry artifacts.
+#[derive(Debug, Default)]
+struct ArtifactData {
+    bytecode_sizes: HashMap<String, usize>,
+    internal_only_library_stubs: HashSet<String>,
 }
 
 struct FoundrySolc {
@@ -367,9 +375,39 @@ fn parse_test_results(stdout: &str) -> Vec<TestResult> {
     tests
 }
 
-/// Extracts bytecode sizes from forge output directory.
-fn extract_bytecode_sizes(out_path: &Path) -> HashMap<String, usize> {
-    let mut sizes = HashMap::new();
+/// Returns whether an artifact contains only solc's library call-protection
+/// stub. Internal-only libraries have no callable ABI and revert immediately
+/// after checking their deployment address; the remaining bytes are metadata.
+fn is_internal_only_library_stub(json: &serde_json::Value, bytecode: &str) -> bool {
+    let abi_has_callable_entry =
+        json.get("abi").and_then(serde_json::Value::as_array).is_none_or(|abi| {
+            abi.iter().any(|entry| {
+                entry
+                    .get("type")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|kind| matches!(kind, "function" | "fallback" | "receive"))
+            })
+        });
+    let methods_are_empty = json
+        .get("methodIdentifiers")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(serde_json::Map::is_empty);
+    if abi_has_callable_entry || !methods_are_empty {
+        return false;
+    }
+
+    let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
+    const ADDRESS_GUARD: &str = "7300000000000000000000000000000000000000003014";
+    const PUSH0_REVERT: &str = "60806040525f80fdfe";
+    const PUSH1_REVERT: &str = "6080604052600080fdfe";
+    bytecode
+        .strip_prefix(ADDRESS_GUARD)
+        .is_some_and(|rest| rest.starts_with(PUSH0_REVERT) || rest.starts_with(PUSH1_REVERT))
+}
+
+/// Extracts deployed artifact data from a forge output directory.
+fn extract_artifact_data(out_path: &Path) -> ArtifactData {
+    let mut artifacts = ArtifactData::default();
 
     if let Ok(entries) = std::fs::read_dir(out_path) {
         for entry in entries.flatten() {
@@ -402,7 +440,12 @@ fn extract_bytecode_sizes(out_path: &Path) -> HashMap<String, usize> {
                                                 .unwrap()
                                                 .to_string_lossy()
                                                 .to_string();
-                                            sizes.insert(name, size);
+                                            if is_internal_only_library_stub(&json, bytecode) {
+                                                artifacts
+                                                    .internal_only_library_stubs
+                                                    .insert(name.clone());
+                                            }
+                                            artifacts.bytecode_sizes.insert(name, size);
                                         }
                                     }
                                 }
@@ -414,7 +457,7 @@ fn extract_bytecode_sizes(out_path: &Path) -> HashMap<String, usize> {
         }
     }
 
-    sizes
+    artifacts
 }
 
 fn duration_millis(duration: Duration) -> u128 {
@@ -505,7 +548,7 @@ fn run_forge_test(
     label: &str,
     config: &TestConfig,
     compiler: ForgeCompiler,
-) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
+) -> (Duration, Vec<TestResult>, ArtifactData) {
     let cache_dir = tempfile::Builder::new()
         .prefix(compiler.cache_prefix())
         .tempdir()
@@ -580,9 +623,9 @@ fn run_forge_test(
     }
 
     let tests = if config.build_only { Vec::new() } else { parse_test_results(&stdout) };
-    let sizes = extract_bytecode_sizes(out_dir.path());
+    let artifacts = extract_artifact_data(out_dir.path());
 
-    (test_time, tests, sizes)
+    (test_time, tests, artifacts)
 }
 
 // ============================================================================
@@ -655,7 +698,7 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
     let project_dir = &config.path;
 
     // Step 1: Run tests with Solar
-    let (solar_test_time, solar_tests, solar_sizes) = run_forge_test(
+    let (solar_test_time, solar_tests, solar_artifacts) = run_forge_test(
         project_dir,
         &format!("{}-solar", config.name),
         config,
@@ -671,11 +714,12 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
         tests: solar_tests,
         total_passed: solar_passed,
         total_failed: solar_failed,
-        bytecode_sizes: solar_sizes,
+        bytecode_sizes: solar_artifacts.bytecode_sizes,
+        internal_only_library_stubs: solar_artifacts.internal_only_library_stubs,
     };
 
     // Step 2: Run tests with solc
-    let (solc_test_time, solc_tests, solc_sizes) =
+    let (solc_test_time, solc_tests, solc_artifacts) =
         run_forge_test(project_dir, &format!("{}-solc", config.name), config, ForgeCompiler::Solc);
     let solc_tests = filter_tests(solc_tests, config);
     let solc_passed = solc_tests.iter().filter(|t| t.passed).count();
@@ -687,7 +731,8 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
         tests: solc_tests,
         total_passed: solc_passed,
         total_failed: solc_failed,
-        bytecode_sizes: solc_sizes,
+        bytecode_sizes: solc_artifacts.bytecode_sizes,
+        internal_only_library_stubs: solc_artifacts.internal_only_library_stubs,
     };
 
     // Print diff summary if there are regressions
@@ -828,7 +873,7 @@ fn run_test_with_config(config: &TestConfig) {
 /// Runs test with Solar only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
     let project_dir = &config.path;
-    let (test_time, tests, bytecode_sizes) =
+    let (test_time, tests, artifacts) =
         run_forge_test(project_dir, &config.name, config, ForgeCompiler::Solar);
     let tests = filter_tests(tests, config);
 
@@ -841,7 +886,8 @@ fn run_test_solar_only(config: &TestConfig) {
         tests,
         total_passed,
         total_failed,
-        bytecode_sizes,
+        bytecode_sizes: artifacts.bytecode_sizes,
+        internal_only_library_stubs: artifacts.internal_only_library_stubs,
     };
     write_runtime_report(config, &solar_run, None);
 
@@ -989,9 +1035,9 @@ fn audit_artifacts(
         }
         let solc_size = solc_run.bytecode_sizes[name];
         match solar_run.bytecode_sizes.get(name) {
-            // Internal-only libraries get a tiny call-protection stub from
-            // solc and no artifact from Solar; nothing can call either.
-            None if solc_size <= 32 => {
+            // Internal-only libraries get a call-protection stub from solc
+            // and no artifact from Solar; nothing can call either.
+            None if solc_run.internal_only_library_stubs.contains(name) => {
                 eprintln!(
                     "[audit] `{name}`: {solc_size}B solc stub with no Solar artifact (internal-only library)"
                 );
@@ -1033,6 +1079,44 @@ pub(super) fn run_default_suite(solar: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn identifies_internal_only_library_stubs() {
+        let push0 = json!({
+            "abi": [
+                {"type": "event", "name": "Used", "inputs": []},
+                {"type": "error", "name": "Failed", "inputs": []},
+            ],
+            "methodIdentifiers": {},
+        });
+        let push0_bytecode = concat!(
+            "0x7300000000000000000000000000000000000000003014",
+            "60806040525f80fdfe",
+            "a26469706673582212200033",
+        );
+        assert!(is_internal_only_library_stub(&push0, push0_bytecode));
+
+        let push1_bytecode =
+            concat!("7300000000000000000000000000000000000000003014", "6080604052600080fdfe",);
+        assert!(is_internal_only_library_stub(&push0, push1_bytecode));
+    }
+
+    #[test]
+    fn rejects_callable_or_non_library_artifacts() {
+        let callable = json!({
+            "abi": [{"type": "function", "name": "f", "inputs": [], "outputs": []}],
+            "methodIdentifiers": {"f()": "26121ff0"},
+        });
+        let stub = concat!("7300000000000000000000000000000000000000003014", "60806040525f80fdfe",);
+        assert!(!is_internal_only_library_stub(&callable, stub));
+
+        let empty_contract = json!({
+            "abi": [],
+            "methodIdentifiers": {},
+        });
+        assert!(!is_internal_only_library_stub(&empty_contract, "60806040525f80fdfea26469706673",));
+    }
 
     #[test]
     fn foundry() {
