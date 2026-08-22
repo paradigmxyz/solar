@@ -2,6 +2,7 @@
 //@ run-call: sumIndexed() => 31
 //@ run-call: multiDecl() => 7
 //@ run-call: asmUse() => 12
+//@ run-call: lhsIndexMutation() => 410
 
 // Side effects inside a variable declaration's initializer must mark the
 // mutated locals as assigned: `uint256 x = xs[i++];` otherwise leaves `i` as
@@ -39,5 +40,15 @@ contract DeclInitializerMutation {
                 r := add(r, mul(j, 2))
             }
         }
+    }
+
+    function lhsIndexMutation() external pure returns (uint256 r) {
+        uint256[] memory a = new uint256[](4);
+        uint256 i;
+        while (i < a.length) {
+            uint256 value = i + 1;
+            a[i++] = value;
+        }
+        r = i * 100 + a[0] + a[1] + a[2] + a[3];
     }
 }
