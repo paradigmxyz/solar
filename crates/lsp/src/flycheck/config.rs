@@ -107,11 +107,11 @@ fn default_flychecks(
         .iter()
         .filter(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         .filter_map(workspace_root)
-        .filter(|root| forge_lint_available(&forge_path, root, selected_profile))
+        .filter(|root| forge_lint_available(&forge_path, root))
         .map(|workspace_root| FlycheckConfig {
             id: "forge-lint".into(),
             command: forge_path.clone(),
-            args: forge_lint_args("--json", selected_profile),
+            args: forge_lint_args(selected_profile),
             cwd: workspace_root.clone(),
             workspace_root,
             output: FlycheckOutput::ForgeLintJson,
@@ -127,17 +127,17 @@ fn resolve_workspace_path(workspace_root: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() { path.to_path_buf() } else { workspace_root.join(path) }
 }
 
-fn forge_lint_args(output: &str, selected_profile: Option<&str>) -> Vec<String> {
-    let mut args = vec!["lint".into(), output.into()];
+fn forge_lint_args(selected_profile: Option<&str>) -> Vec<String> {
+    let mut args = vec!["lint".into(), "--json".into()];
     if let Some(profile) = selected_profile {
         args.extend(["--profile".into(), profile.into()]);
     }
     args
 }
 
-fn forge_lint_available(command: &Path, cwd: &Path, selected_profile: Option<&str>) -> bool {
+fn forge_lint_available(command: &Path, cwd: &Path) -> bool {
     Command::new(command)
-        .args(forge_lint_args("--help", selected_profile))
+        .args(["lint", "--help"])
         .current_dir(cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -170,8 +170,7 @@ mod tests {
             }]),
         };
 
-        let configs =
-            options.configs(project.config().workspaces(), Path::new("forge"), Some("custom"));
+        let configs = options.configs(project.config().workspaces(), Path::new("forge"), None);
 
         assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].id, "custom");
@@ -199,7 +198,6 @@ mod tests {
 
     #[test]
     fn default_forge_lint_args_omit_unselected_profile() {
-        assert_eq!(forge_lint_args("--help", None), ["lint", "--help"]);
-        assert_eq!(forge_lint_args("--json", None), ["lint", "--json"]);
+        assert_eq!(forge_lint_args(None), ["lint", "--json"]);
     }
 }

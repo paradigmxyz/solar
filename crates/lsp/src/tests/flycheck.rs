@@ -20,7 +20,7 @@ const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn default_forge_flycheck_passes_selected_profile_to_probe_and_run() {
+async fn default_forge_flycheck_passes_selected_profile_to_run() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -51,7 +51,7 @@ async fn default_forge_flycheck_passes_selected_profile_to_probe_and_run() {
 
     assert_eq!(
         project.read_file("/fake-forge.args"),
-        "lint\n--help\n--profile\ncustom\nlint\n--json\n--profile\ncustom\n"
+        "lint\n--help\nlint\n--json\n--profile\ncustom\n"
     );
 }
 
