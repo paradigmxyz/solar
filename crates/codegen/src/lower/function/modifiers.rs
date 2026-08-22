@@ -69,15 +69,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if modifier.id.as_contract().is_some() {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
-        let hir::ItemId::Function(modifier_id) = modifier.id else {
+        let Some(modifier_id) =
+            self.context.gcx.resolve_modifier_target(self.context.contract_id, modifier)
+        else {
             return report_unsupported(
                 self.context.gcx,
                 modifier.span,
                 "base constructor modifier",
             );
         };
-        let modifier_id =
-            self.context.gcx.resolve_virtual_function(self.context.contract_id, modifier_id);
         let modifier_function = self.context.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
             return self.lower_modifier_at(modifiers, body, index + 1);

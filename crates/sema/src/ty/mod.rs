@@ -1339,6 +1339,22 @@ impl<'gcx> Gcx<'gcx> {
         self.virtual_function_target((contract, function))
     }
 
+    /// Resolves virtual dispatch for an unqualified modifier while preserving an explicitly
+    /// qualified target.
+    pub fn resolve_modifier_target(
+        self,
+        contract: hir::ContractId,
+        modifier: &hir::Modifier<'_>,
+    ) -> Option<hir::FunctionId> {
+        let hir::ItemId::Function(function) = modifier.id else {
+            return None;
+        };
+        if modifier.span.lo() != modifier.name_span.lo() {
+            return Some(function);
+        }
+        Some(self.resolve_virtual_function(contract, function))
+    }
+
     /// Resolves a `super` function call in the context of the most-derived contract.
     pub fn resolve_super_function(
         self,

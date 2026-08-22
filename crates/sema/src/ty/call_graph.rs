@@ -293,8 +293,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let hir::ItemId::Function(function) = modifier.id {
-            let function = self.gcx.resolve_virtual_function(self.contract, function);
+        if let Some(function) = self.gcx.resolve_modifier_target(self.contract, modifier) {
             self.enqueue(function);
         }
         self.walk_modifier(modifier)
