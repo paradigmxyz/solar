@@ -8,53 +8,64 @@ import fnmatch
 import json
 import re
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
-PATTERNS = {
-    "raw_ops": re.compile(
-        r"builder\.(?:mload|mstore|mstore8|calldataload|calldatacopy|"
-        r"returndatacopy|sload|sstore)\b"
+PATTERNS = (
+    (
+        "raw_ops",
+        re.compile(
+            r"builder\.(?:mload|mstore|mstore8|calldataload|calldatacopy|"
+            r"returndatacopy|sload|sstore)\b"
+        ),
     ),
-    "semantic_ops": re.compile(
-        r"builder\.(?:abi_decode|memory_object_|slice_|storage_|frame_|"
-        r"alloc_|returndata_|revert_returndata)"
+    (
+        "semantic_ops",
+        re.compile(
+            r"builder\.(?:abi_decode|memory_object_|slice_|storage_|frame_|"
+            r"alloc_|returndata_|revert_returndata)"
+        ),
     ),
-    "match": re.compile(r"\bmatch\b"),
-    "if_": re.compile(r"\bif\b"),
-    "if_let": re.compile(r"\bif\s+let\b"),
-    "else_if": re.compile(r"\belse\s+if\b"),
-    "unsupported": re.compile(r"report_unsupported|unsupported!"),
-    "unreachable": re.compile(r"unreachable!"),
-    "memory_kind_layout": re.compile(r"MemoryObject(?:Kind|Layout)"),
-    "slice_types": re.compile(r"MirType::Slice"),
-    "error_selectors": re.compile(r'keccak256\("(?:Error\(string\)|Panic\(uint256\))"\)'),
-}
+    ("match", re.compile(r"\bmatch\b")),
+    ("if_", re.compile(r"\bif\b")),
+    ("if_let", re.compile(r"\bif\s+let\b")),
+    ("else_if", re.compile(r"\belse\s+if\b")),
+    ("unsupported", re.compile(r"report_unsupported|unsupported!")),
+    ("unreachable", re.compile(r"unreachable!")),
+    ("memory_kind_layout", re.compile(r"MemoryObject(?:Kind|Layout)")),
+    ("slice_types", re.compile(r"MirType::Slice")),
+    (
+        "error_selectors",
+        re.compile(r'keccak256\("(?:Error\(string\)|Panic\(uint256\))"\)'),
+    ),
+)
 
-METRIC_NAMES = ("files", "lines", *PATTERNS)
+METRIC_NAMES = ("files", "lines", *(name for name, _ in PATTERNS))
 
 
 @dataclass
 class Metrics:
     files: int = 0
     lines: int = 0
-    raw_ops: int = 0
-    semantic_ops: int = 0
-    match: int = 0
-    if_: int = 0
-    if_let: int = 0
-    else_if: int = 0
-    unsupported: int = 0
-    unreachable: int = 0
-    memory_kind_layout: int = 0
-    slice_types: int = 0
-    error_selectors: int = 0
+    counts: dict[str, int] = field(
+        default_factory=lambda: {name: 0 for name, _ in PATTERNS}
+    )
 
     def add(self, text: str) -> None:
         self.lines += len(text.splitlines())
-        for name, pattern in PATTERNS.items():
-            setattr(self, name, getattr(self, name) + len(pattern.findall(text)))
+        for name, pattern in PATTERNS:
+            self.counts[name] += len(pattern.findall(text))
+
+    def value(self, name: str) -> int:
+        if name == "files":
+            return self.files
+        if name == "lines":
+            return self.lines
+        return self.counts[name]
+
+    def as_dict(self) -> dict[str, int]:
+        return {"files": self.files, "lines": self.lines, **self.counts}
 
 
 def git(root: Path, *args: str) -> str:
@@ -108,10 +119,7 @@ def measure_base(root: Path, ref: str, path: str) -> Metrics:
 
 
 def delta(current: Metrics, base: Metrics) -> dict[str, int]:
-    return {
-        name: getattr(current, name) - getattr(base, name)
-        for name in METRIC_NAMES
-    }
+    return {name: current.value(name) - base.value(name) for name in METRIC_NAMES}
 
 
 def signed(value: int) -> str:
@@ -138,9 +146,9 @@ def print_report(base_ref: str, base: dict[str, Metrics], current: dict[str, Met
     for scope in current:
         values = current[scope]
         print(
-            f"{scope:<8}"
+                f"{scope:<8}"
             + " ".join(
-                f"{getattr(values, names.get(column, column)):>13}" for column in columns
+                f"{values.value(names.get(column, column)):>13}" for column in columns
             )
         )
         changes = delta(values, base[scope])
@@ -180,8 +188,8 @@ def main() -> None:
             "base": args.base,
             "scopes": {
                 scope: {
-                    "base": asdict(base[scope]),
-                    "current": asdict(current[scope]),
+                    "base": base[scope].as_dict(),
+                    "current": current[scope].as_dict(),
                     "delta": delta(current[scope], base[scope]),
                 }
                 for scope in scopes
