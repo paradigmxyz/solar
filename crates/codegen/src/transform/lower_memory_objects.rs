@@ -595,12 +595,10 @@ fn coalesce_constant_allocations(func: &mut Function) {
                         stored[owner] = true;
                     }
                     if let Some(result) = result
-                        && matches!(func.inst(next_id).kind, InstKind::Add(..))
+                        && let InstKind::Add(lhs, rhs) = kind
                     {
-                        if let InstKind::Add(lhs, rhs) = kind {
-                            let source = if derived.contains(lhs) { lhs } else { rhs };
-                            owners[result] = owners[source];
-                        }
+                        let source = if derived.contains(lhs) { lhs } else { rhs };
+                        owners[result] = owners[source];
                         derived.insert(result);
                     }
                     scan += 1;
