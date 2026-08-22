@@ -1544,6 +1544,8 @@ pub struct TryCatchClause<'hir> {
 pub enum LoopSource {
     /// A `for (...) { ... }` loop.
     For,
+    /// A `for (...) { ... }` loop with a non-empty update block.
+    ForWithUpdate,
     /// A `while (...) { ... }` loop.
     While,
     /// A `do { ... } while (...);` loop.
@@ -1554,7 +1556,7 @@ impl LoopSource {
     /// Returns the name of the loop source.
     pub fn name(self) -> &'static str {
         match self {
-            Self::For => "for",
+            Self::For | Self::ForWithUpdate => "for",
             Self::While => "while",
             Self::DoWhile => "do while",
         }
