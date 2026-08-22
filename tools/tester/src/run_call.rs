@@ -72,17 +72,22 @@ struct ParsedCall<'a> {
     settings: CallSettings,
 }
 
-pub(crate) fn is_directive(line: &str) -> bool {
-    let Some(mut directive) = line.trim_start().strip_prefix("//@") else {
-        return false;
-    };
-    directive = directive.trim_start();
-    if let Some(revision) = directive.strip_prefix('[')
-        && let Some((_, rest)) = revision.split_once(']')
-    {
+pub(crate) fn parse_directive(line: &str) -> Option<(&str, Option<&str>)> {
+    let mut directive = line.trim_start().strip_prefix("//@")?.trim_start();
+    let revisions = if let Some(scoped) = directive.strip_prefix('[') {
+        let (revisions, rest) = scoped.split_once(']')?;
         directive = rest.trim_start();
-    }
-    directive.starts_with("run-call:") || directive.starts_with("run-call-fail:")
+        Some(revisions)
+    } else {
+        None
+    };
+    Some((directive, revisions))
+}
+
+pub(crate) fn is_directive(line: &str) -> bool {
+    parse_directive(line).is_some_and(|(directive, _)| {
+        directive.starts_with("run-call:") || directive.starts_with("run-call-fail:")
+    })
 }
 
 impl RunCall {

@@ -25,6 +25,8 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
+
 mod errors;
 #[cfg(test)]
 mod foundry;
@@ -347,7 +349,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             configure_run_call_stdout(config, src);
         } else {
             config.program.args.push("--emit=abi,bin".into());
-            config.stdout_filter(r"(?s).+", "");
+            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
         }
     }
     if src.lines().any(|line| {
@@ -361,38 +363,45 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 }
 
 fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
-    let mut revisions = Vec::new();
+    let mut declared_revisions = Vec::new();
     let mut mir_revisions = Vec::new();
-    let mut runtime_revisions = Vec::new();
+    let mut scoped_runtime_revisions = Vec::new();
     let mut emitted_revisions = Vec::new();
     for line in src.lines() {
-        let line = line.trim_start();
-        if let Some(revision_list) = line.strip_prefix("//@ revisions:") {
-            revisions.extend(revision_list.split_whitespace().map(str::to_owned));
+        let Some((directive, revisions)) = run_call::parse_directive(line) else {
+            continue;
+        };
+        if let Some(revision_list) = directive.strip_prefix("revisions:") {
+            declared_revisions.extend(revision_list.split_whitespace().map(str::to_owned));
             continue;
         }
-        let Some(line) = line.strip_prefix("//@[") else {
+
+        let Some(revisions) = revisions else { continue };
+        if !directive.contains("compile-flags") {
             continue;
-        };
-        let Some((revisions, directive)) = line.split_once(']') else {
-            continue;
-        };
-        if directive.contains("compile-flags") && !directive.contains("-Zdump=mir") {
-            let labels = revisions.split(',').map(|revision| revision.trim().to_owned());
-            runtime_revisions.extend(labels.clone());
-            if directive.split_whitespace().any(|arg| arg == "--emit=abi,bin") {
-                emitted_revisions.extend(labels);
+        }
+        let is_mir = directive.contains("-Zdump=mir");
+        let emits_artifacts = directive.split_whitespace().any(|arg| arg == "--emit=abi,bin");
+        for revision in revisions.split(',').map(|revision| revision.trim().to_owned()) {
+            if is_mir {
+                mir_revisions.push(revision);
+            } else {
+                if emits_artifacts {
+                    emitted_revisions.push(revision.clone());
+                }
+                scoped_runtime_revisions.push(revision);
             }
-        } else if directive.contains("compile-flags") {
-            mir_revisions.extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
         }
     }
-    if !revisions.is_empty() {
-        runtime_revisions = revisions
+
+    let mut runtime_revisions = if declared_revisions.is_empty() {
+        scoped_runtime_revisions
+    } else {
+        declared_revisions
             .into_iter()
             .filter(|revision| !mir_revisions.iter().any(|mir| mir == revision))
-            .collect();
-    }
+            .collect()
+    };
     runtime_revisions.sort_unstable();
     runtime_revisions.dedup();
     if runtime_revisions.is_empty() {
@@ -422,7 +431,12 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
         .entry(runtime_revisions)
         .or_default()
         .normalize_stdout
-        .push((Regex::new(r"(?s).+").unwrap().into(), vec![]));
+        .push((run_call_stdout_regex().clone().into(), vec![]));
+}
+
+fn run_call_stdout_regex() -> &'static Regex {
+    static FILTER: OnceLock<Regex> = OnceLock::new();
+    FILTER.get_or_init(|| Regex::new(RUN_CALL_STDOUT_FILTER_PATTERN).unwrap())
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.

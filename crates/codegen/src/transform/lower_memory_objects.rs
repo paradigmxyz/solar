@@ -580,13 +580,18 @@ fn coalesce_constant_allocations(func: &mut Function) {
                             if (derived.contains(lhs) && func.value_u64(rhs).is_some())
                                 || (derived.contains(rhs) && func.value_u64(lhs).is_some()))
                 });
-                let is_initial_store = matches!(
-                    kind,
+                let initial_store_address = match &kind {
                     InstKind::MStore(address, _) | InstKind::MStore8(address, _)
-                        if derived.contains(address)
-                );
-                if is_initial_store || is_derived_address {
-                    if is_initial_store && let Some(owner) = owners[address_owner(&kind)] {
+                        if derived.contains(*address) =>
+                    {
+                        Some(*address)
+                    }
+                    _ => None,
+                };
+                if initial_store_address.is_some() || is_derived_address {
+                    if let Some(address) = initial_store_address
+                        && let Some(owner) = owners[address]
+                    {
                         stored[owner] = true;
                     }
                     if let Some(result) = result
@@ -641,13 +646,6 @@ fn coalesce_constant_allocations(func: &mut Function) {
             }
             position = scan;
         }
-    }
-}
-
-fn address_owner(kind: &InstKind) -> crate::mir::ValueId {
-    match *kind {
-        InstKind::MStore(address, _) | InstKind::MStore8(address, _) => address,
-        _ => unreachable!("initial store expected"),
     }
 }
 
