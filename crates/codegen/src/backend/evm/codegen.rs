@@ -7251,7 +7251,75 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             EvmMemoryLayout::HEAP_START
         };
-        low_memory_start + func.internal_frame_size.max(func.external_static_return_size)
+        let base =
+            low_memory_start + func.internal_frame_size.max(func.external_static_return_size);
+        // Hand-written assembly may own low memory above the compiler's own
+        // frame through constant addresses; spill only above everything it
+        // names, so a reload never reads a byte of the user's image and a
+        // store never lands inside it.
+        let mark = Self::constant_memory_high_water_mark(func);
+        base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
+    }
+
+    /// Returns the highest end address of any memory access in `func` whose
+    /// offset and size are both compile-time constants, or zero without one.
+    ///
+    /// A routine that assembles an image at fixed low addresses legally uses
+    /// the memory the spill area would otherwise occupy: the ERC-6551 registry
+    /// lays its proxy initcode out at `[0x55, 0x10c)` with
+    /// `calldatacopy(0x8c, 0x24, 0x80)` and reads it back through
+    /// `create2(0, 0x55, 0xb7, salt)`, so a spill slot at `0xa0` ends up in
+    /// the deployed footer. Reads count as well as writes. The compiler's own
+    /// absolute accesses (the external return buffer, frame locals) never
+    /// exceed the base they are placed under, so they never raise it. Ranges
+    /// ending past `SPILL_HAZARD_BOUND` above `HEAP_START` are not low memory
+    /// and are ignored.
+    fn constant_memory_high_water_mark(func: &Function) -> u64 {
+        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+        let end_of = |offset: ValueId, size: u64| -> Option<u64> {
+            let end = func.value_u64(offset)?.checked_add(size)?;
+            (end <= bound).then_some(end)
+        };
+        let sized_end = |offset: ValueId, size: ValueId| end_of(offset, func.value_u64(size)?);
+        let mut mark = 0;
+        for inst_id in func.instructions() {
+            let end = match func.inst(inst_id).kind {
+                InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
+                    end_of(addr, EvmMemoryLayout::WORD_SIZE)
+                }
+                InstKind::MStore8(addr, _) => end_of(addr, 1),
+                InstKind::MCopy(dest, src, size) => sized_end(dest, size).max(sized_end(src, size)),
+                InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::ReturnDataCopy(dest, _, size)
+                | InstKind::ExtCodeCopy(_, dest, _, size)
+                | InstKind::Keccak256(dest, size)
+                | InstKind::Log0(dest, size)
+                | InstKind::Log1(dest, size, _)
+                | InstKind::Log2(dest, size, _, _)
+                | InstKind::Log3(dest, size, _, _, _)
+                | InstKind::Log4(dest, size, _, _, _, _)
+                | InstKind::Create(_, dest, size)
+                | InstKind::Create2(_, dest, size, _) => sized_end(dest, size),
+                InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+                | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
+                | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+                | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+                    sized_end(args_offset, args_size).max(sized_end(ret_offset, ret_size))
+                }
+                _ => None,
+            };
+            mark = mark.max(end.unwrap_or(0));
+        }
+        for block in func.blocks.iter() {
+            if let Some(
+                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
+            ) = &block.terminator
+            {
+                mark = mark.max(sized_end(*offset, *size).unwrap_or(0));
+            }
+        }
+        mark
     }
 
     fn constructor_spill_base(&self, immutable_count: usize) -> u64 {
