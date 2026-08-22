@@ -176,13 +176,9 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     let source = builder.slice_ptr(object);
-                    let kind = match location {
-                        SliceLocation::Calldata => InstKind::CalldataLoad(source),
-                        SliceLocation::Memory => InstKind::MLoad(source),
-                        SliceLocation::Returndata => {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
-                        }
+                    let Some(kind) = slice_load_kind(location, source) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
                     };
                     builder.func_mut().inst_mut(inst).kind = kind;
                     stats.accesses += 1;
@@ -315,13 +311,9 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         };
                         let base = builder.slice_ptr(object);
                         let address = offset_address(&mut builder, base, offset);
-                        let kind = match location {
-                            SliceLocation::Calldata => InstKind::CalldataLoad(address),
-                            SliceLocation::Memory => InstKind::MLoad(address),
-                            SliceLocation::Returndata => {
-                                builder.func_mut().blocks[block].instructions.push(inst);
-                                continue;
-                            }
+                        let Some(kind) = slice_load_kind(location, address) else {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
                         stats.accesses += 1;
@@ -369,13 +361,9 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             let offset = builder.mul(index, stride);
                             builder.add(base, offset)
                         };
-                        let kind = match location {
-                            crate::mir::SliceLocation::Calldata => InstKind::CalldataLoad(address),
-                            crate::mir::SliceLocation::Memory => InstKind::MLoad(address),
-                            crate::mir::SliceLocation::Returndata => {
-                                builder.func_mut().blocks[block].instructions.push(inst);
-                                continue;
-                            }
+                        let Some(kind) = slice_load_kind(location, address) else {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
                         stats.accesses += 1;
@@ -690,6 +678,14 @@ fn slice_location(func: &Function, object: crate::mir::ValueId) -> Option<SliceL
     match func.value_ty(object) {
         Some(MirType::Slice(location)) => Some(location),
         _ => None,
+    }
+}
+
+fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Option<InstKind> {
+    match location {
+        SliceLocation::Calldata => Some(InstKind::CalldataLoad(address)),
+        SliceLocation::Memory => Some(InstKind::MLoad(address)),
+        SliceLocation::Returndata => None,
     }
 }
 
