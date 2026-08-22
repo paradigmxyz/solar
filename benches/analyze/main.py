@@ -24,6 +24,9 @@ BENCHMARKS = {
     "console",
     "Vm",
     "safeconsole",
+    "Seaport",
+    "Solady",
+    "Optimism",
 }
 
 
