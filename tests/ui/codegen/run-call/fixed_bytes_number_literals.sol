@@ -7,6 +7,7 @@
 //@ run-call: FixedBytesLiterals::mapKeyCross() => 5
 //@ run-call: FixedBytesLiterals::compareControl() => true
 //@ run-call: FixedBytesLiterals::bytesObjectCast() => 0x93dafdf1
+//@ run-call: FixedBytesLiterals::returnedBytesObjectCast() => 14
 //@ run-call: FixedBytesLiterals::calldataSliceCast() => 0x1122334455000000000000000000000000000000000000000000000000000000
 //@ run-call: FixedBytesLiterals::stringAddressCast() => 0x6d696c6164790000000000000000000000000000
 
@@ -78,6 +79,15 @@ contract FixedBytesLiterals {
     function bytesObjectCast() public pure returns (bytes4) {
         bytes memory data = hex"93dafdf1aabb";
         return bytes4(data);
+    }
+
+    function returnedBytesObjectCast() public pure returns (uint256) {
+        (, bytes memory data) = returnBytes();
+        return uint256(bytes32(data)) >> 248;
+    }
+
+    function returnBytes() internal pure returns (bool, bytes memory) {
+        return (true, hex"0e");
     }
 
     function takeSlice(bytes calldata data) external pure returns (bytes32) {
