@@ -113,6 +113,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if self.returns.len() == 1 {
+            let ty = self.context.gcx.type_of_item(self.returns[0].into());
+            return Some(vec![self.lower_typed_expr(expr, ty)?]);
+        }
         if self.returns.len() > 1
             && let ExprKind::Tuple(values) = &expr.peel_parens().kind
             && values.len() == self.returns.len()

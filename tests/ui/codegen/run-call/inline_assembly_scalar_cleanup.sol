@@ -8,6 +8,7 @@
 //@ run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: wideningConversions() => 0x78, 0x78
+//@ run-call: explicitWideningReturn() => 0x78
 //@ run-call: implicitReturn() => 0x78
 //@ run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call: assemblyRead() => 0x0101
@@ -81,6 +82,14 @@ contract InlineAssemblyScalarCleanup {
         }
         assigned = value;
         called = widen(value);
+    }
+
+    function explicitWideningReturn() external pure returns (uint256) {
+        uint8 value;
+        assembly {
+            value := 0x12345678
+        }
+        return value;
     }
 
     function implicitReturn() external pure returns (uint8 value) {
