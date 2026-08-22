@@ -460,8 +460,17 @@ impl<'gcx> Lowerer<'gcx> {
             let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
             values
         };
+        let clean_call_result = !self.in_assembly_block && self.call_result_may_be_dirty(rhs);
         for (&element, value) in elements.iter().zip(values) {
             if let (Some(element), Some(value)) = (element, value) {
+                let value = if clean_call_result
+                    && !matches!(element.kind, hir::ExprKind::Ident(_))
+                    && let Some(ty) = self.get_expr_type(element)
+                {
+                    self.abi_clean_value(builder, value, ty)
+                } else {
+                    value
+                };
                 self.lower_assign(builder, element, value);
             }
         }
@@ -896,7 +905,9 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Vec<(ValueId, Ty<'gcx>)> {
         let return_vars = self.current_return_vars.clone();
         let mut items = Vec::with_capacity(return_vars.len());
+        let external = builder.func().is_public() && !self.lowering_internal_function;
         for ret_id in return_vars {
+            let clean = external || !self.asm_assigned_vars.contains(ret_id);
             let ty = self.gcx.type_of_item(ret_id.into());
             let val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
                 if self.is_slice_slot_local(&ret_id) {
@@ -904,10 +915,10 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     let addr = self.local_memory_addr(builder, offset);
                     let val = builder.mload(addr);
-                    self.clean_asm_dirty_read(builder, ret_id, val)
+                    if clean { self.clean_asm_dirty_read(builder, ret_id, val) } else { val }
                 }
             } else if let Some(&val) = self.locals.get(&ret_id) {
-                self.clean_asm_dirty_read(builder, ret_id, val)
+                if clean { self.clean_asm_dirty_read(builder, ret_id, val) } else { val }
             } else if let Some(val) = self.lower_default_variable_value(builder, ret_id) {
                 val
             } else {
