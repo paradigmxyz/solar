@@ -12,7 +12,7 @@ cargo bench -p solar-bench --bench criterion -- --quiet --format terse 'compiler
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 ```
 
-This takes around 30 minutes to complete: `sources (12) * parsers (5) * 15s`.
+This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 15s`.
 
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
 invoking other commands such as `cargo test`.
