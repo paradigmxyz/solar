@@ -1036,7 +1036,13 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // First check if it's a function parameter (SSA value)
                     if let Some(&val) = self.locals.get(var_id) {
-                        return self.clean_asm_dirty_read(builder, *var_id, val);
+                        let val = self.clean_asm_dirty_read(builder, *var_id, val);
+                        if self.storage_ref_locals.contains(*var_id)
+                            && Self::is_dynamic_mapping_key(&var.ty.kind)
+                        {
+                            return self.materialize_storage_bytes(builder, val);
+                        }
+                        return val;
                     }
 
                     // Check if it's a local variable stored in memory
@@ -1050,7 +1056,13 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                         let offset_val = self.local_memory_addr(builder, offset);
                         let val = builder.mload(offset_val);
-                        return self.clean_asm_dirty_read(builder, *var_id, val);
+                        let val = self.clean_asm_dirty_read(builder, *var_id, val);
+                        if self.storage_ref_locals.contains(*var_id)
+                            && Self::is_dynamic_mapping_key(&var.ty.kind)
+                        {
+                            return self.materialize_storage_bytes(builder, val);
+                        }
+                        return val;
                     }
 
                     // Check if it's a constant - inline its value
