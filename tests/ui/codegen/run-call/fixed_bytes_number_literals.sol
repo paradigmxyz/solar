@@ -6,6 +6,7 @@
 //@ run-call: FixedBytesLiterals::assignLit() => 0x66778899
 //@ run-call: FixedBytesLiterals::mapKeyCross() => 5
 //@ run-call: FixedBytesLiterals::compareControl() => true
+//@ run-call: FixedBytesLiterals::bytesObjectCast() => 0x93dafdf1
 
 // A bare numeric literal used where `bytesN` is expected keeps its numeric
 // sema type, so plain lowering yields the right-aligned integer word; every
@@ -70,5 +71,10 @@ contract FixedBytesLiterals {
     function compareControl() public pure returns (bool) {
         bytes4 x = bytes4(uint32(0x41424344));
         return x == 0x41424344;
+    }
+
+    function bytesObjectCast() public pure returns (bytes4) {
+        bytes memory data = hex"93dafdf1aabb";
+        return bytes4(data);
     }
 }
