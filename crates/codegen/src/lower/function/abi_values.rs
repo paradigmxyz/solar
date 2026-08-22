@@ -62,24 +62,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for expr in exprs {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
-            let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            let mut abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
+            let value = self.lower_typed_expr(expr, memory_ty)?;
+            let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                 AbiType::Bytes(SliceLocation::Memory)
             } else {
                 self.types.abi_type(ty)?
             };
-            abi_type = self.abi_type_for_value(value, abi_type);
+            let abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
-            let validated_static = self.validate_calldata_static_argument(value, ty);
-            if self.needs_validated_calldata_materialization(value, &abi_type, ty)
-                && !validated_static
-            {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            } else {
-                value = self.canonicalize_abi_value(ty, value);
-            }
+            let (value, abi_type) = self.prepare_abi_argument(expr, ty, value, abi_type)?;
             values.push(value);
             types.push(abi_type);
         }
@@ -212,20 +204,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
-            let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            let mut abi_type = self.types.abi_type(ty)?;
-            abi_type = self.abi_type_for_value(value, abi_type);
+            let value = self.lower_typed_expr(expr, memory_ty)?;
+            let abi_type = self.types.abi_type(ty)?;
+            let abi_type = self.abi_type_for_value(value, abi_type);
             self.validate_calldata_bytes_argument(value, &abi_type);
             self.validate_calldata_array_head(value, ty, &abi_type);
-            let validated_static = self.validate_calldata_static_argument(value, ty);
-            if self.needs_validated_calldata_materialization(value, &abi_type, ty)
-                && !validated_static
-            {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
-                abi_type = Self::memory_abi_type(abi_type);
-            } else {
-                value = self.canonicalize_abi_value(ty, value);
-            }
+            let (value, abi_type) = self.prepare_abi_argument(expr, ty, value, abi_type)?;
             values.push(value);
             types.push(abi_type);
         }

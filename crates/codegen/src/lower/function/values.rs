@@ -32,25 +32,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let first = self.lower_expr(expr)?;
                 let base = self.multi_return_buffer_base();
-                let mut values = Vec::with_capacity(elements.len());
-                values.push(first);
-                for index in 1..elements.len() {
-                    let ty = elements[index].and_then(|element| {
-                        let TyKind::Type(ty) = self.context.gcx.type_of_expr(element.id)?.kind
-                        else {
-                            return None;
-                        };
-                        Some(ty)
-                    });
-                    let value = match ty {
-                        Some(ty) => {
-                            self.load_multi_return_value_as(base, index, elements.len(), ty)
-                        }
-                        None => self.load_multi_return_value(base, index, elements.len()),
-                    };
-                    values.push(value);
-                }
-                return Some(values);
+                let gcx = self.context.gcx;
+                let return_types = elements.iter().skip(1).copied().map(move |element| {
+                    element.and_then(|element| match gcx.type_of_expr(element.id)?.kind {
+                        TyKind::Type(ty) => Some(ty),
+                        _ => None,
+                    })
+                });
+                return Some(self.load_multi_return_values(
+                    first,
+                    base,
+                    elements.len(),
+                    return_types,
+                ));
             }
             let returns = self
                 .context
@@ -82,35 +76,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let first = self.lower_expr(expr)?;
                 let base = self.multi_return_buffer_base();
-                let mut values = Vec::with_capacity(returns);
-                values.push(first);
-                for index in 1..returns {
-                    let ty = self
-                        .context
-                        .gcx
-                        .resolved_function(callee)
+                let gcx = self.context.gcx;
+                let resolved_function = gcx.resolved_function(callee);
+                let pointer_returns = gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                    TyKind::Fn(function) => Some(function.returns),
+                    _ => None,
+                });
+                let return_types = (1..returns).map(move |index| {
+                    resolved_function
                         .and_then(|function_id| {
-                            self.context
-                                .gcx
-                                .hir
+                            gcx.hir
                                 .function(function_id)
                                 .returns
                                 .get(index)
-                                .map(|&id| self.context.gcx.type_of_item(id.into()))
+                                .map(|&id| gcx.type_of_item(id.into()))
                         })
-                        .or_else(|| {
-                            self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
-                                TyKind::Fn(function) => function.returns.get(index).copied(),
-                                _ => None,
-                            })
-                        });
-                    let value = match ty {
-                        Some(ty) => self.load_multi_return_value_as(base, index, returns, ty),
-                        None => self.load_multi_return_value(base, index, returns),
-                    };
-                    values.push(value);
-                }
-                return Some(values);
+                        .or_else(|| pointer_returns.and_then(|returns| returns.get(index).copied()))
+                });
+                return Some(self.load_multi_return_values(first, base, returns, return_types));
             }
             let returns_empty = returns.is_some_and(|returns| returns == 0)
                 || self.context.gcx.resolved_builtin(callee).is_some_and(|builtin| {
@@ -393,6 +376,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         (object, base, layout)
     }
 
+    pub(super) fn store_multi_return_values(&mut self, values: &[ValueId]) {
+        if values.len() <= 1 {
+            return;
+        }
+        let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
+        for (index, value) in values.iter().copied().enumerate().skip(1) {
+            let index = self.builder.imm_u64(index as u64);
+            self.builder.memory_object_store_element(object, layout, index, value);
+        }
+    }
+
     pub(super) fn load_multi_return_value(
         &mut self,
         base: ValueId,
@@ -424,5 +418,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             index,
             kind,
         )
+    }
+
+    fn load_multi_return_values(
+        &mut self,
+        first: ValueId,
+        base: ValueId,
+        returns: usize,
+        return_types: impl IntoIterator<Item = Option<Ty<'gcx>>>,
+    ) -> Vec<ValueId> {
+        let mut values = Vec::with_capacity(returns);
+        values.push(first);
+        for (index, ty) in return_types.into_iter().enumerate() {
+            let index = index + 1;
+            values.push(match ty {
+                Some(ty) => self.load_multi_return_value_as(base, index, returns, ty),
+                None => self.load_multi_return_value(base, index, returns),
+            });
+        }
+        values
     }
 }

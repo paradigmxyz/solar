@@ -2913,17 +2913,13 @@ impl LowerAbiCx {
             Self::guard_calldata_range(builder, position, 32, current);
         }
         let value = Self::load_calldata_word(builder, position);
-        if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition(builder, value, has_bitwise_shifting);
-            let next = builder.create_block();
-            let revert = builder.create_block();
-            builder.branch(valid, next, revert);
-            builder.switch_to_block(revert);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-            builder.switch_to_block(next);
-            *current = next;
-        }
+        Self::validate_decoded_word(
+            builder,
+            value,
+            AbiWordValidator::from_mir_type(scalar),
+            current,
+            has_bitwise_shifting,
+        );
         if scalar == MirType::Function {
             let shift = builder.imm_u64(64);
             return builder.shr(shift, value);
@@ -2944,16 +2940,13 @@ impl LowerAbiCx {
             Self::guard_calldata_range(builder, position, 32, current);
         }
         let value = Self::load_calldata_word(builder, position);
-        let valid =
-            AbiWordValidator::EnumRange(variants).condition(builder, value, has_bitwise_shifting);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(valid, next, revert);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        Self::validate_decoded_word(
+            builder,
+            value,
+            Some(AbiWordValidator::EnumRange(variants)),
+            current,
+            has_bitwise_shifting,
+        );
         value
     }
 
@@ -3067,22 +3060,15 @@ impl LowerAbiCx {
         head_checked: bool,
         has_bitwise_shifting: bool,
     ) -> ValueId {
-        builder.switch_to_block(*current);
-        if !head_checked {
-            Self::guard_input_range(builder, position, 32, input_end, current);
-        }
-        let value = builder.mload(position);
-        if let Some(validator) = AbiWordValidator::from_mir_type(scalar) {
-            let valid = validator.condition(builder, value, has_bitwise_shifting);
-            let next = builder.create_block();
-            let revert = builder.create_block();
-            builder.branch(valid, next, revert);
-            builder.switch_to_block(revert);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-            builder.switch_to_block(next);
-            *current = next;
-        }
+        let value = Self::decode_input_word(
+            builder,
+            AbiWordValidator::from_mir_type(scalar),
+            position,
+            input_end,
+            current,
+            head_checked,
+            has_bitwise_shifting,
+        );
         if scalar == MirType::Function {
             let shift = builder.imm_u64(64);
             return builder.shr(shift, value);
@@ -3090,9 +3076,9 @@ impl LowerAbiCx {
         value
     }
 
-    fn decode_input_enum(
+    fn decode_input_word(
         builder: &mut FunctionBuilder<'_>,
-        variants: u64,
+        validator: Option<AbiWordValidator>,
         position: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
@@ -3104,8 +3090,19 @@ impl LowerAbiCx {
             Self::guard_input_range(builder, position, 32, input_end, current);
         }
         let value = builder.mload(position);
-        let valid =
-            AbiWordValidator::EnumRange(variants).condition(builder, value, has_bitwise_shifting);
+        Self::validate_decoded_word(builder, value, validator, current, has_bitwise_shifting);
+        value
+    }
+
+    fn validate_decoded_word(
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        validator: Option<AbiWordValidator>,
+        current: &mut BlockId,
+        has_bitwise_shifting: bool,
+    ) {
+        let Some(validator) = validator else { return };
+        let valid = validator.condition(builder, value, has_bitwise_shifting);
         let next = builder.create_block();
         let revert = builder.create_block();
         builder.branch(valid, next, revert);
@@ -3114,7 +3111,26 @@ impl LowerAbiCx {
         builder.revert(zero, zero);
         builder.switch_to_block(next);
         *current = next;
-        value
+    }
+
+    fn decode_input_enum(
+        builder: &mut FunctionBuilder<'_>,
+        variants: u64,
+        position: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+        head_checked: bool,
+        has_bitwise_shifting: bool,
+    ) -> ValueId {
+        Self::decode_input_word(
+            builder,
+            Some(AbiWordValidator::EnumRange(variants)),
+            position,
+            input_end,
+            current,
+            head_checked,
+            has_bitwise_shifting,
+        )
     }
 
     fn guard_source_range(

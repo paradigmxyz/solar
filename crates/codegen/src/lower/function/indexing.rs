@@ -3,6 +3,20 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    pub(super) fn memory_object_length(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+    ) -> ValueId {
+        match layout {
+            MemoryObjectLayout::DynamicArray { .. } => {
+                self.builder.memory_object_len(object, layout.kind())
+            }
+            MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm_u64(len),
+            _ => unreachable!("array layout expected"),
+        }
+    }
+
     pub(super) fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
@@ -98,23 +112,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
-            MemoryObjectLayout::DynamicArray { .. } => {
-                let TyKind::DynArray(element) = receiver_ty.peel_refs().kind else {
-                    return report_unsupported(self.context.gcx, expr.span, "array index");
+            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
+                let (element, length) = match (receiver_ty.peel_refs().kind, layout) {
+                    (TyKind::DynArray(element), MemoryObjectLayout::DynamicArray { .. }) => {
+                        (element, self.memory_object_length(object, layout))
+                    }
+                    (TyKind::Array(element, _), MemoryObjectLayout::FixedArray { .. }) => {
+                        (element, self.memory_object_length(object, layout))
+                    }
+                    _ => return report_unsupported(self.context.gcx, expr.span, "array index"),
                 };
-                let length = self.builder.memory_object_len(object, layout.kind());
-                self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_element(object, layout, index);
-                if self.types.memory_layout(element).is_some() {
-                    return self.materialize_array_element(object, layout, index, element, value);
-                }
-                Some(self.normalize_memory_scalar(element, value))
-            }
-            MemoryObjectLayout::FixedArray { len, .. } => {
-                let TyKind::Array(element, _) = receiver_ty.peel_refs().kind else {
-                    return report_unsupported(self.context.gcx, expr.span, "array index");
-                };
-                let length = self.builder.imm_u64(len);
                 self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {

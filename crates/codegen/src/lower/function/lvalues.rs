@@ -65,27 +65,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
-                    MemoryObjectLayout::DynamicArray { .. } => {
-                        let TyKind::DynArray(ty) = receiver_ty.peel_refs().kind else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
-                                "index l-value",
-                            );
+                    MemoryObjectLayout::DynamicArray { .. }
+                    | MemoryObjectLayout::FixedArray { .. } => {
+                        let (ty, length) = match (receiver_ty.peel_refs().kind, layout) {
+                            (TyKind::DynArray(ty), MemoryObjectLayout::DynamicArray { .. }) => {
+                                (ty, self.memory_object_length(object, layout))
+                            }
+                            (TyKind::Array(ty, _), MemoryObjectLayout::FixedArray { .. }) => {
+                                (ty, self.memory_object_length(object, layout))
+                            }
+                            _ => {
+                                return report_unsupported(
+                                    self.context.gcx,
+                                    expr.span,
+                                    "index l-value",
+                                );
+                            }
                         };
-                        let length = self.builder.memory_object_len(object, layout.kind());
-                        self.builder.bounds_check(index, length);
-                        Some(LValuePlace::MemoryElement { object, layout, index, ty })
-                    }
-                    MemoryObjectLayout::FixedArray { len, .. } => {
-                        let TyKind::Array(ty, _) = receiver_ty.peel_refs().kind else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
-                                "index l-value",
-                            );
-                        };
-                        let length = self.builder.imm_u64(len);
                         self.builder.bounds_check(index, length);
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
@@ -116,11 +112,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 Some(self.normalize_memory_scalar(ty, value))
             }
-            LValuePlace::MemoryByte { object, index, ty } => {
-                let value = self.builder.memory_object_load_byte(object, index);
-                Some(self.normalize_byte_type(ty, value))
-            }
-            LValuePlace::StorageByte { object, index, ty, .. } => {
+            LValuePlace::MemoryByte { object, index, ty }
+            | LValuePlace::StorageByte { object, index, ty, .. } => {
                 let value = self.builder.memory_object_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
@@ -414,14 +407,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
-                    MemoryObjectLayout::DynamicArray { .. } => {
-                        let length = self.builder.memory_object_len(object, layout.kind());
-                        self.builder.bounds_check(index, length);
-                        self.builder.memory_object_store_element(object, layout, index, value);
-                        Some(())
-                    }
-                    MemoryObjectLayout::FixedArray { len, .. } => {
-                        let length = self.builder.imm_u64(len);
+                    MemoryObjectLayout::DynamicArray { .. }
+                    | MemoryObjectLayout::FixedArray { .. } => {
+                        let length = self.memory_object_length(object, layout);
                         self.builder.bounds_check(index, length);
                         self.builder.memory_object_store_element(object, layout, index, value);
                         Some(())
@@ -520,25 +508,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return self.clear_storage_access(ty, access, expr.span);
         }
-        let Some(layout) = self.types.memory_layout(ty) else {
+        if self.types.memory_layout(ty).is_none() {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.store_lvalue(expr, zero);
-        };
-        let place = self.resolve_lvalue_place(expr)?;
-        match layout {
-            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => {
-                let object = self.default_object(ty)?;
-                self.store_lvalue_place(&place, object)?;
-            }
-            MemoryObjectLayout::FixedArray { .. } => {
-                let object = self.default_object(ty)?;
-                self.store_lvalue_place(&place, object)?;
-            }
-            MemoryObjectLayout::Struct { fields: _ } => {
-                let object = self.default_object(ty)?;
-                self.store_lvalue_place(&place, object)?;
-            }
         }
+        let place = self.resolve_lvalue_place(expr)?;
+        let object = self.default_object(ty)?;
+        self.store_lvalue_place(&place, object)?;
         Some(())
     }
 }

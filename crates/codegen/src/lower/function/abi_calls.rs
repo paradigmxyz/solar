@@ -26,17 +26,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn needs_validated_calldata_materialization(
-        &self,
-        value: ValueId,
-        abi_type: &AbiType,
-        ty: Ty<'gcx>,
-    ) -> bool {
-        self.needs_calldata_materialization(value, abi_type)
-            || (self.needs_calldata_aggregate_validation(value, ty)
-                && !self.can_defer_calldata_validation(value, abi_type))
-    }
-
     fn can_defer_calldata_validation(&self, value: ValueId, abi_type: &AbiType) -> bool {
         self.is_external_abi_argument(value)
             && matches!(
@@ -60,9 +49,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         ty: Ty<'gcx>,
     ) -> bool {
-        if self.is_external_abi_argument(value)
-            || !self.needs_calldata_aggregate_validation(value, ty)
-        {
+        let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
+        self.validate_calldata_static_argument_inner(value, ty, needs_validation)
+    }
+
+    fn validate_calldata_static_argument_inner(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        needs_validation: bool,
+    ) -> bool {
+        if self.is_external_abi_argument(value) || !needs_validation {
             return false;
         }
         let Some(abi_type) = self.types.abi_type(ty) else { return false };
@@ -101,45 +98,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             TyKind::Struct(id) => {
-                let mut offset = 0;
-                for &field in self.context.gcx.hir.strukt(id).fields {
-                    let field_ty = self.context.gcx.type_of_item(field.into());
-                    let position = if offset == 0 {
-                        base
-                    } else {
-                        let offset_value = self.builder.imm_u64(offset);
-                        self.builder.add(base, offset_value)
-                    };
-                    self.validate_calldata_static_value(field_ty, position);
-                    let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size())
-                    else {
-                        return;
-                    };
-                    offset = offset.saturating_add(field_size);
-                }
+                let gcx = self.context.gcx;
+                let fields = gcx.hir.strukt(id).fields;
+                self.validate_calldata_static_fields(
+                    fields.iter().map(move |&field| gcx.type_of_item(field.into())),
+                    base,
+                );
             }
             TyKind::Tuple(fields) => {
-                let mut offset = 0;
-                for &field_ty in fields {
-                    let position = if offset == 0 {
-                        base
-                    } else {
-                        let offset_value = self.builder.imm_u64(offset);
-                        self.builder.add(base, offset_value)
-                    };
-                    self.validate_calldata_static_value(field_ty, position);
-                    let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size())
-                    else {
-                        return;
-                    };
-                    offset = offset.saturating_add(field_size);
-                }
+                self.validate_calldata_static_fields(fields.iter().copied(), base)
             }
             _ => {
                 if !Self::calldata_word_is_full_width(ty) {
                     let _ = self.decode_calldata_word(ty, base, false);
                 }
             }
+        }
+    }
+
+    fn validate_calldata_static_fields(
+        &mut self,
+        fields: impl IntoIterator<Item = Ty<'gcx>>,
+        base: ValueId,
+    ) {
+        let mut offset = 0;
+        for field_ty in fields {
+            let position = if offset == 0 {
+                base
+            } else {
+                let offset_value = self.builder.imm_u64(offset);
+                self.builder.add(base, offset_value)
+            };
+            self.validate_calldata_static_value(field_ty, position);
+            let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size()) else {
+                return;
+            };
+            offset = offset.saturating_add(field_size);
         }
     }
 
@@ -299,18 +293,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
-        let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-        let mut abi_type = self.types.abi_type(parameter_ty)?;
-        abi_type = self.abi_type_for_value(value, abi_type);
+        let value = self.lower_typed_expr(argument, parameter_ty)?;
+        let abi_type = self.types.abi_type(parameter_ty)?;
+        let abi_type = self.abi_type_for_value(value, abi_type);
         self.validate_calldata_bytes_argument(value, &abi_type);
-        let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
-        if self.needs_validated_calldata_materialization(value, &abi_type, parameter_ty)
-            && !validated_static
-        {
-            value = self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
+        self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
+    }
+
+    pub(super) fn prepare_abi_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        mut value: ValueId,
+        mut abi_type: AbiType,
+    ) -> Option<(ValueId, AbiType)> {
+        let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
+        let validated_static =
+            self.validate_calldata_static_argument_inner(value, ty, needs_validation);
+        let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
+            || (needs_validation && !self.can_defer_calldata_validation(value, &abi_type));
+        if needs_materialization && !validated_static {
+            value = self.materialize_calldata_argument(ty, value, argument.span)?;
             abi_type = Self::memory_abi_type(abi_type);
         } else {
-            value = self.canonicalize_abi_value(parameter_ty, value);
+            value = self.canonicalize_abi_value(ty, value);
         }
         Some((value, abi_type))
     }
