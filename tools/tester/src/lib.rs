@@ -361,9 +361,16 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 }
 
 fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
+    let mut revisions = Vec::new();
+    let mut mir_revisions = Vec::new();
     let mut runtime_revisions = Vec::new();
+    let mut emitted_revisions = Vec::new();
     for line in src.lines() {
         let line = line.trim_start();
+        if let Some(revision_list) = line.strip_prefix("//@ revisions:") {
+            revisions.extend(revision_list.split_whitespace().map(str::to_owned));
+            continue;
+        }
         let Some(line) = line.strip_prefix("//@[") else {
             continue;
         };
@@ -371,14 +378,42 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             continue;
         };
         if directive.contains("compile-flags") && !directive.contains("-Zdump=mir") {
-            runtime_revisions
-                .extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
+            let labels = revisions.split(',').map(|revision| revision.trim().to_owned());
+            runtime_revisions.extend(labels.clone());
+            if directive.split_whitespace().any(|arg| arg == "--emit=abi,bin") {
+                emitted_revisions.extend(labels);
+            }
+        } else if directive.contains("compile-flags") {
+            mir_revisions.extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
         }
+    }
+    if !revisions.is_empty() {
+        runtime_revisions = revisions
+            .into_iter()
+            .filter(|revision| !mir_revisions.iter().any(|mir| mir == revision))
+            .collect();
     }
     runtime_revisions.sort_unstable();
     runtime_revisions.dedup();
     if runtime_revisions.is_empty() {
         return;
+    }
+
+    emitted_revisions.sort_unstable();
+    emitted_revisions.dedup();
+    let missing_emit = runtime_revisions
+        .iter()
+        .filter(|revision| !emitted_revisions.iter().any(|emitted| emitted == *revision))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !missing_emit.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(missing_emit)
+            .or_default()
+            .compile_flags
+            .push("--emit=abi,bin".into());
     }
 
     config

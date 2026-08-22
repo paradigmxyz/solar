@@ -1,0 +1,52 @@
+// === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/public_body.sol:PublicBody ===
+@module PublicBody
+@phase evm-shaped
+immutables:
+  _start: u256
+
+fn @_anonymous(arg0: u256) [constructor] {
+  bb0:
+    v0 = constructor_args_base
+    v1 = constructor_args_end
+    v2 = add v0, 32
+    v3 = lt v2, v0
+    v4 = gt v2, v1
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 192, arg0
+    stop
+}
+
+fn @start() [selector=0xbe9a6555, view] {
+  bb0:
+    v4 = loadimmutable _start
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @vested() [selector=0xfea5657c, view] {
+  bb0:
+    v3 = loadimmutable _start
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
+  bb2:
+    tail_call @start
+  bb3:
+    tail_call @vested
+  bb4:
+    revert 0, 0
+}
+

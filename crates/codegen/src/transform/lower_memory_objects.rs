@@ -580,9 +580,11 @@ fn coalesce_constant_allocations(func: &mut Function) {
                             if (derived.contains(lhs) && func.value_u64(rhs).is_some())
                                 || (derived.contains(rhs) && func.value_u64(lhs).is_some()))
                 });
-                let is_initial_store = matches!(kind, InstKind::MStore(address, value)
-                    | InstKind::MStore8(address, value)
-                    if derived.contains(address) && !derived.contains(value));
+                let is_initial_store = matches!(
+                    kind,
+                    InstKind::MStore(address, _) | InstKind::MStore8(address, _)
+                        if derived.contains(address)
+                );
                 if is_initial_store || is_derived_address {
                     if is_initial_store && let Some(owner) = owners[address_owner(&kind)] {
                         stored[owner] = true;
