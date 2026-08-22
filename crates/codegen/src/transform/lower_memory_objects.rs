@@ -170,6 +170,23 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     }
                     stats.accesses += 1;
                 }
+                InstKind::MLoad(object) => {
+                    let Some(location) = slice_location(builder.func(), object) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    let source = builder.slice_ptr(object);
+                    let kind = match location {
+                        SliceLocation::Calldata => InstKind::CalldataLoad(source),
+                        SliceLocation::Memory => InstKind::MLoad(source),
+                        SliceLocation::Returndata => {
+                            builder.func_mut().blocks[block].instructions.push(inst);
+                            continue;
+                        }
+                    };
+                    builder.func_mut().inst_mut(inst).kind = kind;
+                    stats.accesses += 1;
+                }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
                     if let Some(location) = slice_location(builder.func(), object) {
                         let Some(offset) = P::field_offset(layout, field) else {
