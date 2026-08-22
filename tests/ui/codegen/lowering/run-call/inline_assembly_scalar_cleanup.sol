@@ -1,21 +1,49 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: arithmetic() => 1, 1, 1, 1, 1, 0
-//@ run-call: comparisons() => true, false, true, false, true, false
-//@ run-call: increments() => 1, 0
-//@ run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call: wideningConversions() => 0x78, 0x78
-//@ run-call: explicitWideningReturn() => 0x78
-//@ run-call: implicitReturn() => 0x78
-//@ run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call: assemblyRead() => 0x0101
-//@ run-call: internalArguments() => 0x42, 0x42
-//@ run-call: storageAssignment() => 1
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
+//@[gas] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
+//@[size] run-call: arithmetic() => 1, 1, 1, 1, 1, 0
+//@[none] run-call: comparisons() => true, false, true, false, true, false
+//@[gas] run-call: comparisons() => true, false, true, false, true, false
+//@[size] run-call: comparisons() => true, false, true, false, true, false
+//@[none] run-call: increments() => 1, 0
+//@[gas] run-call: increments() => 1, 0
+//@[size] run-call: increments() => 1, 0
+//@[none] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[gas] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[size] run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[none] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[gas] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[size] run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[none] run-call: wideningConversions() => 0x78, 0x78
+//@[gas] run-call: wideningConversions() => 0x78, 0x78
+//@[size] run-call: wideningConversions() => 0x78, 0x78
+//@[none] run-call: explicitWideningReturn() => 0x78
+//@[gas] run-call: explicitWideningReturn() => 0x78
+//@[size] run-call: explicitWideningReturn() => 0x78
+//@[none] run-call: implicitReturn() => 0x78
+//@[gas] run-call: implicitReturn() => 0x78
+//@[size] run-call: implicitReturn() => 0x78
+//@[none] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[gas] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[size] run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@[none] run-call: assemblyRead() => 0x0101
+//@[gas] run-call: assemblyRead() => 0x0101
+//@[size] run-call: assemblyRead() => 0x0101
+//@[none] run-call: internalArguments() => 0x42, 0x42
+//@[gas] run-call: internalArguments() => 0x42, 0x42
+//@[size] run-call: internalArguments() => 0x42, 0x42
+//@[none] run-call: storageAssignment() => 1
+//@[gas] run-call: storageAssignment() => 1
+//@[size] run-call: storageAssignment() => 1
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol

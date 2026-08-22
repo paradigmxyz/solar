@@ -1,21 +1,49 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: makeBytes 0 => 0
-//@ run-call: makeBytes 31 => 31
-//@ run-call: makeArray 0 => 0
-//@ run-call: makeArray 1 => 1
-//@ run-call: makeNestedArray 0 => 0
-//@ run-call: makeNestedArray 2 => 2
-//@ run-call: makeStructArray 0 => 0
-//@ run-call: makeStructArray 1 => 1
-//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: makeBytes 0 => 0
+//@[gas] run-call: makeBytes 0 => 0
+//@[size] run-call: makeBytes 0 => 0
+//@[none] run-call: makeBytes 31 => 31
+//@[gas] run-call: makeBytes 31 => 31
+//@[size] run-call: makeBytes 31 => 31
+//@[none] run-call: makeArray 0 => 0
+//@[gas] run-call: makeArray 0 => 0
+//@[size] run-call: makeArray 0 => 0
+//@[none] run-call: makeArray 1 => 1
+//@[gas] run-call: makeArray 1 => 1
+//@[size] run-call: makeArray 1 => 1
+//@[none] run-call: makeNestedArray 0 => 0
+//@[gas] run-call: makeNestedArray 0 => 0
+//@[size] run-call: makeNestedArray 0 => 0
+//@[none] run-call: makeNestedArray 2 => 2
+//@[gas] run-call: makeNestedArray 2 => 2
+//@[size] run-call: makeNestedArray 2 => 2
+//@[none] run-call: makeStructArray 0 => 0
+//@[gas] run-call: makeStructArray 0 => 0
+//@[size] run-call: makeStructArray 0 => 0
+//@[none] run-call: makeStructArray 1 => 1
+//@[gas] run-call: makeStructArray 1 => 1
+//@[size] run-call: makeStructArray 1 => 1
+//@[none] run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[gas] run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[size] run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[none] run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[gas] run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[size] run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[none] run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[gas] run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[size] run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[none] run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[gas] run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@[size] run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 contract MemoryAllocationPanicRuntime {
     struct Pair {

@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: f() => 0
-//@ run-call: g() => 0
-//@ run-call: h() => 0
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: f() => 0
+//@[gas] run-call: f() => 0
+//@[size] run-call: f() => 0
+//@[none] run-call: g() => 0
+//@[gas] run-call: g() => 0
+//@[size] run-call: g() => 0
+//@[none] run-call: h() => 0
+//@[gas] run-call: h() => 0
+//@[size] run-call: h() => 0
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_clear_storage_packed.sol
 
 contract ArrayCopyClearStoragePacked {

@@ -1,10 +1,16 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
+//@[gas] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
+//@[size] run-call-fail: test() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
 // ported-from: test/libsolidity/semanticTests/array/pop/array_pop_empty_exception.sol
 
 contract StorageArrayPopEmpty {

@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: declared() => 7132
-//@ run-call: assigned() => 71122
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: declared() => 7132
+//@[gas] run-call: declared() => 7132
+//@[size] run-call: declared() => 7132
+//@[none] run-call: assigned() => 71122
+//@[gas] run-call: assigned() => 71122
+//@[size] run-call: assigned() => 71122
 
 contract MixedMemoryTuple {
     struct S {

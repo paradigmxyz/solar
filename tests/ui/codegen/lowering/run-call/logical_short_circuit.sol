@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: andSkipsRhs() => 0, false
-//@ run-call: orSkipsRhs() => 0, true
-//@ run-call: andRunsRhs() => 1, true
-//@ run-call: orRunsRhs() => 1, true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: andSkipsRhs() => 0, false
+//@[gas] run-call: andSkipsRhs() => 0, false
+//@[size] run-call: andSkipsRhs() => 0, false
+//@[none] run-call: orSkipsRhs() => 0, true
+//@[gas] run-call: orSkipsRhs() => 0, true
+//@[size] run-call: orSkipsRhs() => 0, true
+//@[none] run-call: andRunsRhs() => 1, true
+//@[gas] run-call: andRunsRhs() => 1, true
+//@[size] run-call: andRunsRhs() => 1, true
+//@[none] run-call: orRunsRhs() => 1, true
+//@[gas] run-call: orRunsRhs() => 1, true
+//@[size] run-call: orRunsRhs() => 1, true
 
 contract LogicalShortCircuit {
     uint256 calls;

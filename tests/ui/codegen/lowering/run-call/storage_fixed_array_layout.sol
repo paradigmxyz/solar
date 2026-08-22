@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: slots() => 0, 3, 4, 7, 8, 10
-//@ run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
-//@ run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: slots() => 0, 3, 4, 7, 8, 10
+//@[gas] run-call: slots() => 0, 3, 4, 7, 8, 10
+//@[size] run-call: slots() => 0, 3, 4, 7, 8, 10
+//@[none] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
+//@[gas] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
+//@[size] run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
+//@[none] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[gas] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[size] run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
 
 contract StorageFixedArrayLayout {
     bytes9[7] private bytes9Values;

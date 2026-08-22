@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: add_(uint256,uint256) 3, 4 => 7
-//@ run-call: mul_(uint256,uint256) 3, 4 => 12
-//@ run-call: eq_(uint256,uint256) 3, 4 => false
-//@ run-call: eq_(uint256,uint256) 4, 4 => true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: add_(uint256,uint256) 3, 4 => 7
+//@[gas] run-call: add_(uint256,uint256) 3, 4 => 7
+//@[size] run-call: add_(uint256,uint256) 3, 4 => 7
+//@[none] run-call: mul_(uint256,uint256) 3, 4 => 12
+//@[gas] run-call: mul_(uint256,uint256) 3, 4 => 12
+//@[size] run-call: mul_(uint256,uint256) 3, 4 => 12
+//@[none] run-call: eq_(uint256,uint256) 3, 4 => false
+//@[gas] run-call: eq_(uint256,uint256) 3, 4 => false
+//@[size] run-call: eq_(uint256,uint256) 3, 4 => false
+//@[none] run-call: eq_(uint256,uint256) 4, 4 => true
+//@[gas] run-call: eq_(uint256,uint256) 4, 4 => true
+//@[size] run-call: eq_(uint256,uint256) 4, 4 => true
 
 type Balance is uint256;
 

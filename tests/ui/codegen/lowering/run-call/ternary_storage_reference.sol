@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: choose(bool) true => 7, 0
-//@ run-call: choose(bool) false => 0, 7
-//@ run-call: chooseArray(bool) true => 11
-//@ run-call: chooseArray(bool) false => 22
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: choose(bool) true => 7, 0
+//@[gas] run-call: choose(bool) true => 7, 0
+//@[size] run-call: choose(bool) true => 7, 0
+//@[none] run-call: choose(bool) false => 0, 7
+//@[gas] run-call: choose(bool) false => 0, 7
+//@[size] run-call: choose(bool) false => 0, 7
+//@[none] run-call: chooseArray(bool) true => 11
+//@[gas] run-call: chooseArray(bool) true => 11
+//@[size] run-call: chooseArray(bool) true => 11
+//@[none] run-call: chooseArray(bool) false => 22
+//@[gas] run-call: chooseArray(bool) false => 22
+//@[size] run-call: chooseArray(bool) false => 22
 
 contract TernaryStorageReference {
     struct S {

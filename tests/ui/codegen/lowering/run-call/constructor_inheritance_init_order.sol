@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: ConstructorInitOrderDerived::y() => 42
-//@ run-call: NoCtorDerived::y() => 42
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: ConstructorInitOrderDerived::y() => 42
+//@[gas] run-call: ConstructorInitOrderDerived::y() => 42
+//@[size] run-call: ConstructorInitOrderDerived::y() => 42
+//@[none] run-call: NoCtorDerived::y() => 42
+//@[gas] run-call: NoCtorDerived::y() => 42
+//@[size] run-call: NoCtorDerived::y() => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order.sol
 
 contract ConstructorInitOrderBase {

@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: trySuccess() => 7
-//@ run-call: tryFailure() => 100
-//@ run-call: tryPair() => 7, "ok"
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: trySuccess() => 7
+//@[gas] run-call: trySuccess() => 7
+//@[size] run-call: trySuccess() => 7
+//@[none] run-call: tryFailure() => 100
+//@[gas] run-call: tryFailure() => 100
+//@[size] run-call: tryFailure() => 100
+//@[none] run-call: tryPair() => 7, "ok"
+//@[gas] run-call: tryPair() => 7, "ok"
+//@[size] run-call: tryPair() => 7, "ok"
 
 contract ExternalFunctionPointerTry {
     struct Context {

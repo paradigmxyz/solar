@@ -1,31 +1,79 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: negativeRemainder() => -5
-//@ run-call: mixedRemainder() => -5
-//@ run-call: negativeDivisorRemainder() => 5
-//@ run-call: negativeDivision() => 2
-//@ run-call: mixedDivision() => -2
-//@ run-call: rightShift(uint256) 0 => -16
-//@ run-call: rightShift(uint256) 1 => -8
-//@ run-call: rightShift(uint256) 255 => -1
-//@ run-call: rightShift(uint256) 256 => -1
-//@ run-call: leftShift(uint256) 1 => -2
-//@ run-call: leftShift(uint256) 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: leftShift(uint256) 256 => 0
-//@ run-call: lessThan() => true
-//@ run-call: greaterThan() => false
-//@ run-call: literalLessThan(int256) -10 => true
-//@ run-call: literalLessThan(int256) -20 => false
-//@ run-call: parameterLessThan(int256) -20 => true
-//@ run-call: parameterLessThan(int256) -10 => false
-//@ run-call: positiveRemainder() => 5
-//@ run-call: largePositiveDivision() => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@ run-call: largePositiveRightShift(uint256) 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: largePositiveGreaterThan() => true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: negativeRemainder() => -5
+//@[gas] run-call: negativeRemainder() => -5
+//@[size] run-call: negativeRemainder() => -5
+//@[none] run-call: mixedRemainder() => -5
+//@[gas] run-call: mixedRemainder() => -5
+//@[size] run-call: mixedRemainder() => -5
+//@[none] run-call: negativeDivisorRemainder() => 5
+//@[gas] run-call: negativeDivisorRemainder() => 5
+//@[size] run-call: negativeDivisorRemainder() => 5
+//@[none] run-call: negativeDivision() => 2
+//@[gas] run-call: negativeDivision() => 2
+//@[size] run-call: negativeDivision() => 2
+//@[none] run-call: mixedDivision() => -2
+//@[gas] run-call: mixedDivision() => -2
+//@[size] run-call: mixedDivision() => -2
+//@[none] run-call: rightShift(uint256) 0 => -16
+//@[gas] run-call: rightShift(uint256) 0 => -16
+//@[size] run-call: rightShift(uint256) 0 => -16
+//@[none] run-call: rightShift(uint256) 1 => -8
+//@[gas] run-call: rightShift(uint256) 1 => -8
+//@[size] run-call: rightShift(uint256) 1 => -8
+//@[none] run-call: rightShift(uint256) 255 => -1
+//@[gas] run-call: rightShift(uint256) 255 => -1
+//@[size] run-call: rightShift(uint256) 255 => -1
+//@[none] run-call: rightShift(uint256) 256 => -1
+//@[gas] run-call: rightShift(uint256) 256 => -1
+//@[size] run-call: rightShift(uint256) 256 => -1
+//@[none] run-call: leftShift(uint256) 1 => -2
+//@[gas] run-call: leftShift(uint256) 1 => -2
+//@[size] run-call: leftShift(uint256) 1 => -2
+//@[none] run-call: leftShift(uint256) 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
+//@[gas] run-call: leftShift(uint256) 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
+//@[size] run-call: leftShift(uint256) 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
+//@[none] run-call: leftShift(uint256) 256 => 0
+//@[gas] run-call: leftShift(uint256) 256 => 0
+//@[size] run-call: leftShift(uint256) 256 => 0
+//@[none] run-call: lessThan() => true
+//@[gas] run-call: lessThan() => true
+//@[size] run-call: lessThan() => true
+//@[none] run-call: greaterThan() => false
+//@[gas] run-call: greaterThan() => false
+//@[size] run-call: greaterThan() => false
+//@[none] run-call: literalLessThan(int256) -10 => true
+//@[gas] run-call: literalLessThan(int256) -10 => true
+//@[size] run-call: literalLessThan(int256) -10 => true
+//@[none] run-call: literalLessThan(int256) -20 => false
+//@[gas] run-call: literalLessThan(int256) -20 => false
+//@[size] run-call: literalLessThan(int256) -20 => false
+//@[none] run-call: parameterLessThan(int256) -20 => true
+//@[gas] run-call: parameterLessThan(int256) -20 => true
+//@[size] run-call: parameterLessThan(int256) -20 => true
+//@[none] run-call: parameterLessThan(int256) -10 => false
+//@[gas] run-call: parameterLessThan(int256) -10 => false
+//@[size] run-call: parameterLessThan(int256) -10 => false
+//@[none] run-call: positiveRemainder() => 5
+//@[gas] run-call: positiveRemainder() => 5
+//@[size] run-call: positiveRemainder() => 5
+//@[none] run-call: largePositiveDivision() => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[gas] run-call: largePositiveDivision() => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[size] run-call: largePositiveDivision() => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[none] run-call: largePositiveRightShift(uint256) 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
+//@[gas] run-call: largePositiveRightShift(uint256) 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
+//@[size] run-call: largePositiveRightShift(uint256) 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
+//@[none] run-call: largePositiveGreaterThan() => true
+//@[gas] run-call: largePositiveGreaterThan() => true
+//@[size] run-call: largePositiveGreaterThan() => true
 
 // Adapted from
 // https://github.com/ethereum/solidity/blob/develop/test/libsolidity/semanticTests/operators/userDefined/operator_precendence.sol

@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: readLength; constructor=["hello"] => 5
-//@ run-call: readBytes; constructor=["hello"] => 0x68656c6c6f
-//@ run-call: readBytes; constructor=["abcdefghijklmnopqrstuvwxyz0123456789"] => 0x6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: readLength; constructor=["hello"] => 5
+//@[gas] run-call: readLength; constructor=["hello"] => 5
+//@[size] run-call: readLength; constructor=["hello"] => 5
+//@[none] run-call: readBytes; constructor=["hello"] => 0x68656c6c6f
+//@[gas] run-call: readBytes; constructor=["hello"] => 0x68656c6c6f
+//@[size] run-call: readBytes; constructor=["hello"] => 0x68656c6c6f
+//@[none] run-call: readBytes; constructor=["abcdefghijklmnopqrstuvwxyz0123456789"] => 0x6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839
+//@[gas] run-call: readBytes; constructor=["abcdefghijklmnopqrstuvwxyz0123456789"] => 0x6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839
+//@[size] run-call: readBytes; constructor=["abcdefghijklmnopqrstuvwxyz0123456789"] => 0x6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839
 contract StorageStringBytesConversion {
     string private stored;
 

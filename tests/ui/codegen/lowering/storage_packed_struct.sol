@@ -1,22 +1,52 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: read => 1, 2, 3
-//@ run-call: copyValues => 1, 2, 3
-//@ run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
-//@ run-call: write 7, 9, 11 => 7, 9, 11
-//@ run-call: replace 8, 10, 12 => 8, 10, 12
-//@ run-call: replaceArray => 5, 6, 7, 8
-//@ run-call: arrayRead 3 => 4
-//@ run-call: arrayWrite 2, 9 => 9
-//@ run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
-//@ run-call: encodedRead => 0x11223344, -7
-//@ run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
-//@ run-call: encodedArrayRead 1 => 0x55667788, -8
-//@ run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: read => 1, 2, 3
+//@[gas] run-call: read => 1, 2, 3
+//@[size] run-call: read => 1, 2, 3
+//@[none] run-call: copyValues => 1, 2, 3
+//@[gas] run-call: copyValues => 1, 2, 3
+//@[size] run-call: copyValues => 1, 2, 3
+//@[none] run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
+//@[gas] run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
+//@[size] run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
+//@[none] run-call: write 7, 9, 11 => 7, 9, 11
+//@[gas] run-call: write 7, 9, 11 => 7, 9, 11
+//@[size] run-call: write 7, 9, 11 => 7, 9, 11
+//@[none] run-call: replace 8, 10, 12 => 8, 10, 12
+//@[gas] run-call: replace 8, 10, 12 => 8, 10, 12
+//@[size] run-call: replace 8, 10, 12 => 8, 10, 12
+//@[none] run-call: replaceArray => 5, 6, 7, 8
+//@[gas] run-call: replaceArray => 5, 6, 7, 8
+//@[size] run-call: replaceArray => 5, 6, 7, 8
+//@[none] run-call: arrayRead 3 => 4
+//@[gas] run-call: arrayRead 3 => 4
+//@[size] run-call: arrayRead 3 => 4
+//@[none] run-call: arrayWrite 2, 9 => 9
+//@[gas] run-call: arrayWrite 2, 9 => 9
+//@[size] run-call: arrayWrite 2, 9 => 9
+//@[none] run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
+//@[gas] run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
+//@[size] run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
+//@[none] run-call: encodedRead => 0x11223344, -7
+//@[gas] run-call: encodedRead => 0x11223344, -7
+//@[size] run-call: encodedRead => 0x11223344, -7
+//@[none] run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@[gas] run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@[size] run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@[none] run-call: encodedArrayRead 1 => 0x55667788, -8
+//@[gas] run-call: encodedArrayRead 1 => 0x55667788, -8
+//@[size] run-call: encodedArrayRead 1 => 0x55667788, -8
+//@[none] run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@[gas] run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@[size] run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
 
 contract PackedStruct {
     struct S {

@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: g false => 23, 37, 71
-//@ run-call: g true => 23, 37, 71
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: g false => 23, 37, 71
+//@[gas] run-call: g false => 23, 37, 71
+//@[size] run-call: g false => 23, 37, 71
+//@[none] run-call: g true => 23, 37, 71
+//@[gas] run-call: g true => 23, 37, 71
+//@[size] run-call: g true => 23, 37, 71
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_function_types_v2.sol
 
 contract ExternalFunctionPointerCalldataArray {

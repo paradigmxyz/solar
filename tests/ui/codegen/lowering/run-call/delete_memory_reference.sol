@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: array() => 0, 1, 7
-//@ run-call: bytesValue() => 0, 2, 0xabcd
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: array() => 0, 1, 7
+//@[gas] run-call: array() => 0, 1, 7
+//@[size] run-call: array() => 0, 1, 7
+//@[none] run-call: bytesValue() => 0, 2, 0xabcd
+//@[gas] run-call: bytesValue() => 0, 2, 0xabcd
+//@[size] run-call: bytesValue() => 0, 2, 0xabcd
 
 contract DeleteMemoryReference {
     function array() external pure returns (uint256, uint256, uint256) {

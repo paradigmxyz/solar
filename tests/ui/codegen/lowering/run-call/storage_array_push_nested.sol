@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: pushEmpty => 0
-//@ run-call: pushMemory => 1
-//@ run-call: pushStruct => 2345
-//@ run-call: pushBytes => 97
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: pushEmpty => 0
+//@[gas] run-call: pushEmpty => 0
+//@[size] run-call: pushEmpty => 0
+//@[none] run-call: pushMemory => 1
+//@[gas] run-call: pushMemory => 1
+//@[size] run-call: pushMemory => 1
+//@[none] run-call: pushStruct => 2345
+//@[gas] run-call: pushStruct => 2345
+//@[size] run-call: pushStruct => 2345
+//@[none] run-call: pushBytes => 97
+//@[gas] run-call: pushBytes => 97
+//@[size] run-call: pushBytes => 97
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested_from_memory.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_struct.sol

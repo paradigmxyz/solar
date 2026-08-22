@@ -337,7 +337,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if is_codegen_test {
         config.program.args.push("--allow=2264".into());
     }
-    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+    let has_mir_dump = src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("-Zdump=mir")
+    });
+    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) && !has_mir_dump {
         config.program.args.push("--emit=abi,bin".into());
         config.stdout_filter(r"(?s).+", "");
     }

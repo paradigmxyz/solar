@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: copyState => 1, 3
-//@ run-call: copyReference => 4, 2
-//@ run-call: copyAggregate => 7, 9, 1
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: copyState => 1, 3
+//@[gas] run-call: copyState => 1, 3
+//@[size] run-call: copyState => 1, 3
+//@[none] run-call: copyReference => 4, 2
+//@[gas] run-call: copyReference => 4, 2
+//@[size] run-call: copyReference => 4, 2
+//@[none] run-call: copyAggregate => 7, 9, 1
+//@[gas] run-call: copyAggregate => 7, 9, 1
+//@[size] run-call: copyAggregate => 7, 9, 1
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_to_memory.sol
 
 contract C {

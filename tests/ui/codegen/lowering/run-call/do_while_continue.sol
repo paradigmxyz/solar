@@ -1,17 +1,37 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: falseCondition() => 42
-//@ run-call: countToThree() => 3
-//@ run-call: conditionSideEffect() => 2, 2
-//@ run-call: skipRemainder() => 20
-//@ run-call: nested() => 6
-//@ run-call: whileControl() => 3
-//@ run-call: whileConditionalContinue() => 22
-//@ run-call: exitUsesPreviousLoopValue() => 5
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: falseCondition() => 42
+//@[gas] run-call: falseCondition() => 42
+//@[size] run-call: falseCondition() => 42
+//@[none] run-call: countToThree() => 3
+//@[gas] run-call: countToThree() => 3
+//@[size] run-call: countToThree() => 3
+//@[none] run-call: conditionSideEffect() => 2, 2
+//@[gas] run-call: conditionSideEffect() => 2, 2
+//@[size] run-call: conditionSideEffect() => 2, 2
+//@[none] run-call: skipRemainder() => 20
+//@[gas] run-call: skipRemainder() => 20
+//@[size] run-call: skipRemainder() => 20
+//@[none] run-call: nested() => 6
+//@[gas] run-call: nested() => 6
+//@[size] run-call: nested() => 6
+//@[none] run-call: whileControl() => 3
+//@[gas] run-call: whileControl() => 3
+//@[size] run-call: whileControl() => 3
+//@[none] run-call: whileConditionalContinue() => 22
+//@[gas] run-call: whileConditionalContinue() => 22
+//@[size] run-call: whileConditionalContinue() => 22
+//@[none] run-call: exitUsesPreviousLoopValue() => 5
+//@[gas] run-call: exitUsesPreviousLoopValue() => 5
+//@[size] run-call: exitUsesPreviousLoopValue() => 5
 // ported-from: test/libsolidity/semanticTests/statements/do_while_loop_continue.sol
 
 contract DoWhileContinue {

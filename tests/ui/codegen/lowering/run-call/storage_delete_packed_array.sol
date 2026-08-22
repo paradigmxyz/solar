@@ -1,15 +1,31 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: clear() => 1, 0, 3
-//@ run-call: clearReference() => 0, 0, 0
-//@ run-call: clearFixed() => 0, 0, 0
-//@ run-call: clearDynamicDirtyWord() => 0
-//@ run-call: clearFixedDirtyWord() => 0
-//@ run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: clear() => 1, 0, 3
+//@[gas] run-call: clear() => 1, 0, 3
+//@[size] run-call: clear() => 1, 0, 3
+//@[none] run-call: clearReference() => 0, 0, 0
+//@[gas] run-call: clearReference() => 0, 0, 0
+//@[size] run-call: clearReference() => 0, 0, 0
+//@[none] run-call: clearFixed() => 0, 0, 0
+//@[gas] run-call: clearFixed() => 0, 0, 0
+//@[size] run-call: clearFixed() => 0, 0, 0
+//@[none] run-call: clearDynamicDirtyWord() => 0
+//@[gas] run-call: clearDynamicDirtyWord() => 0
+//@[size] run-call: clearDynamicDirtyWord() => 0
+//@[none] run-call: clearFixedDirtyWord() => 0
+//@[gas] run-call: clearFixedDirtyWord() => 0
+//@[size] run-call: clearFixedDirtyWord() => 0
+//@[none] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@[gas] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@[size] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
 
 contract StorageDeletePackedArray {
     uint8[] private values;

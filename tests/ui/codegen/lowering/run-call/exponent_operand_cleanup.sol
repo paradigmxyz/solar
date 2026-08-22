@@ -1,15 +1,31 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: checkedDirtyOperands() => 9, -27
-//@ run-call: uncheckedDirtyOperands() => 4
-//@ run-call: copiedDirtyOperand() => 9
-//@ run-call: branchedDirtyOperand(bool) true => -27
-//@ run-call: branchedDirtyOperand(bool) false => 9
-//@ run-call: fullWidthOperands() => 16
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: checkedDirtyOperands() => 9, -27
+//@[gas] run-call: checkedDirtyOperands() => 9, -27
+//@[size] run-call: checkedDirtyOperands() => 9, -27
+//@[none] run-call: uncheckedDirtyOperands() => 4
+//@[gas] run-call: uncheckedDirtyOperands() => 4
+//@[size] run-call: uncheckedDirtyOperands() => 4
+//@[none] run-call: copiedDirtyOperand() => 9
+//@[gas] run-call: copiedDirtyOperand() => 9
+//@[size] run-call: copiedDirtyOperand() => 9
+//@[none] run-call: branchedDirtyOperand(bool) true => -27
+//@[gas] run-call: branchedDirtyOperand(bool) true => -27
+//@[size] run-call: branchedDirtyOperand(bool) true => -27
+//@[none] run-call: branchedDirtyOperand(bool) false => 9
+//@[gas] run-call: branchedDirtyOperand(bool) false => 9
+//@[size] run-call: branchedDirtyOperand(bool) false => 9
+//@[none] run-call: fullWidthOperands() => 16
+//@[gas] run-call: fullWidthOperands() => 16
+//@[size] run-call: fullWidthOperands() => 16
 // ported-from: test/libsolidity/semanticTests/exponentiation/signed_base.sol
 // ported-from: test/libsolidity/semanticTests/exponentiation/small_exp.sol
 

@@ -1,15 +1,31 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@ run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@ run-call: clearMapping() => 0, 0, 0
-//@ run-call: assign() => 4, 21862, 7
-//@ run-call: clearDirtyWord() => 0
-//@ run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: clearArray() => 1, 2, 3, 0, 0, 0
+//@[gas] run-call: clearArray() => 1, 2, 3, 0, 0, 0
+//@[size] run-call: clearArray() => 1, 2, 3, 0, 0, 0
+//@[none] run-call: clearReference() => 1, 2, 3, 0, 0, 0
+//@[gas] run-call: clearReference() => 1, 2, 3, 0, 0, 0
+//@[size] run-call: clearReference() => 1, 2, 3, 0, 0, 0
+//@[none] run-call: clearMapping() => 0, 0, 0
+//@[gas] run-call: clearMapping() => 0, 0, 0
+//@[size] run-call: clearMapping() => 0, 0, 0
+//@[none] run-call: assign() => 4, 21862, 7
+//@[gas] run-call: assign() => 4, 21862, 7
+//@[size] run-call: assign() => 4, 21862, 7
+//@[none] run-call: clearDirtyWord() => 0
+//@[gas] run-call: clearDirtyWord() => 0
+//@[size] run-call: clearDirtyWord() => 0
+//@[none] run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@[gas] run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@[size] run-call: clearStructWithMapping() => 0, 0, 17, 23
 
 contract StorageDeletePackedStruct {
     struct Pair {

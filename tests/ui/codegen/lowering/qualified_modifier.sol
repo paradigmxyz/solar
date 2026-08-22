@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: Derived::qualified() => 9, 2
-//@ run-call: Derived::virtualDispatch() => 10, 1
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: Derived::qualified() => 9, 2
+//@[gas] run-call: Derived::qualified() => 9, 2
+//@[size] run-call: Derived::qualified() => 9, 2
+//@[none] run-call: Derived::virtualDispatch() => 10, 1
+//@[gas] run-call: Derived::virtualDispatch() => 10, 1
+//@[size] run-call: Derived::virtualDispatch() => 10, 1
 // ported-from: test/libsolidity/semanticTests/modifiers/access_through_contract_name.sol
 
 contract Base {

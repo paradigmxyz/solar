@@ -1,16 +1,34 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: read() => 7, "ok"
-//@ run-call: readArguments() => 7, "ok"
-//@ run-call: pointerArgumentRoundtrip() => 8
-//@ run-call: pointerReturnRoundtrip() => 9
-//@ run-call: pointerStructRoundtrip() => 9
-//@ run-call: pointerArrayRoundtrip() => 9
-//@ run-call: calldataPointerRoundtrip() => true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: read() => 7, "ok"
+//@[gas] run-call: read() => 7, "ok"
+//@[size] run-call: read() => 7, "ok"
+//@[none] run-call: readArguments() => 7, "ok"
+//@[gas] run-call: readArguments() => 7, "ok"
+//@[size] run-call: readArguments() => 7, "ok"
+//@[none] run-call: pointerArgumentRoundtrip() => 8
+//@[gas] run-call: pointerArgumentRoundtrip() => 8
+//@[size] run-call: pointerArgumentRoundtrip() => 8
+//@[none] run-call: pointerReturnRoundtrip() => 9
+//@[gas] run-call: pointerReturnRoundtrip() => 9
+//@[size] run-call: pointerReturnRoundtrip() => 9
+//@[none] run-call: pointerStructRoundtrip() => 9
+//@[gas] run-call: pointerStructRoundtrip() => 9
+//@[size] run-call: pointerStructRoundtrip() => 9
+//@[none] run-call: pointerArrayRoundtrip() => 9
+//@[gas] run-call: pointerArrayRoundtrip() => 9
+//@[size] run-call: pointerArrayRoundtrip() => 9
+//@[none] run-call: calldataPointerRoundtrip() => true
+//@[gas] run-call: calldataPointerRoundtrip() => true
+//@[size] run-call: calldataPointerRoundtrip() => true
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {

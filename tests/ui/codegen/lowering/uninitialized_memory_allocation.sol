@@ -1,18 +1,40 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: fixedArray() => 96
-//@ run-call: structure() => 64
-//@ run-call: aliasDoesNotAllocate() => 0
-//@ run-call: dynamicDefaults() => 0, 96, 96, 0
-//@ run-call: nestedDynamicDefaults() => 96, 96, 96, true
-//@ run-call: defaultBytesReturn() => 0x
-//@ run-call: defaultThroughInternalCall() => true
-//@ run-call: fixedArrayDynamicDefaults() => 64, 96, 96
-//@ run-call: nestedStaticDefaults() => 192
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: fixedArray() => 96
+//@[gas] run-call: fixedArray() => 96
+//@[size] run-call: fixedArray() => 96
+//@[none] run-call: structure() => 64
+//@[gas] run-call: structure() => 64
+//@[size] run-call: structure() => 64
+//@[none] run-call: aliasDoesNotAllocate() => 0
+//@[gas] run-call: aliasDoesNotAllocate() => 0
+//@[size] run-call: aliasDoesNotAllocate() => 0
+//@[none] run-call: dynamicDefaults() => 0, 96, 96, 0
+//@[gas] run-call: dynamicDefaults() => 0, 96, 96, 0
+//@[size] run-call: dynamicDefaults() => 0, 96, 96, 0
+//@[none] run-call: nestedDynamicDefaults() => 96, 96, 96, true
+//@[gas] run-call: nestedDynamicDefaults() => 96, 96, 96, true
+//@[size] run-call: nestedDynamicDefaults() => 96, 96, 96, true
+//@[none] run-call: defaultBytesReturn() => 0x
+//@[gas] run-call: defaultBytesReturn() => 0x
+//@[size] run-call: defaultBytesReturn() => 0x
+//@[none] run-call: defaultThroughInternalCall() => true
+//@[gas] run-call: defaultThroughInternalCall() => true
+//@[size] run-call: defaultThroughInternalCall() => true
+//@[none] run-call: fixedArrayDynamicDefaults() => 64, 96, 96
+//@[gas] run-call: fixedArrayDynamicDefaults() => 64, 96, 96
+//@[size] run-call: fixedArrayDynamicDefaults() => 64, 96, 96
+//@[none] run-call: nestedStaticDefaults() => 192
+//@[gas] run-call: nestedStaticDefaults() => 192
+//@[size] run-call: nestedStaticDefaults() => 192
 
 contract UninitializedMemoryAllocation {
     struct Pair {

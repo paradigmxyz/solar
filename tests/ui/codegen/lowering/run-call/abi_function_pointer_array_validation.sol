@@ -1,15 +1,31 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: checkG false => 2
-//@ run-call: checkG true => 2
-//@ run-call: checkH false => 3
-//@ run-call-fail: checkH true
-//@ run-call: checkM false => 4
-//@ run-call-fail: checkM true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: checkG false => 2
+//@[gas] run-call: checkG false => 2
+//@[size] run-call: checkG false => 2
+//@[none] run-call: checkG true => 2
+//@[gas] run-call: checkG true => 2
+//@[size] run-call: checkG true => 2
+//@[none] run-call: checkH false => 3
+//@[gas] run-call: checkH false => 3
+//@[size] run-call: checkH false => 3
+//@[none] run-call-fail: checkH true
+//@[gas] run-call-fail: checkH true
+//@[size] run-call-fail: checkH true
+//@[none] run-call: checkM false => 4
+//@[gas] run-call: checkM false => 4
+//@[size] run-call: checkM false => 4
+//@[none] run-call-fail: checkM true
+//@[gas] run-call-fail: checkM true
+//@[size] run-call-fail: checkM true
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_function_types_v2.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/validation/external_function_type_inside_struct_v2.sol
 

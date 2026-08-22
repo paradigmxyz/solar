@@ -1,15 +1,31 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: readCalldata(string) "abc" => 7
-//@ run-call: readMemory(string) "abc" => 7
-//@ run-call: callReadMemory(string) "abc" => 7
-//@ run-call: readStorage() => 7
-//@ run-call: readLongLiteral() => 11
-//@ run-call: overwriteShort() => 13
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: readCalldata(string) "abc" => 7
+//@[gas] run-call: readCalldata(string) "abc" => 7
+//@[size] run-call: readCalldata(string) "abc" => 7
+//@[none] run-call: readMemory(string) "abc" => 7
+//@[gas] run-call: readMemory(string) "abc" => 7
+//@[size] run-call: readMemory(string) "abc" => 7
+//@[none] run-call: callReadMemory(string) "abc" => 7
+//@[gas] run-call: callReadMemory(string) "abc" => 7
+//@[size] run-call: callReadMemory(string) "abc" => 7
+//@[none] run-call: readStorage() => 7
+//@[gas] run-call: readStorage() => 7
+//@[size] run-call: readStorage() => 7
+//@[none] run-call: readLongLiteral() => 11
+//@[gas] run-call: readLongLiteral() => 11
+//@[size] run-call: readLongLiteral() => 11
+//@[none] run-call: overwriteShort() => 13
+//@[gas] run-call: overwriteShort() => 13
+//@[size] run-call: overwriteShort() => 13
 
 contract MappingDynamicLiteral {
     string private key;

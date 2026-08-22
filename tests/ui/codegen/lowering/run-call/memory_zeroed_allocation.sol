@@ -1,18 +1,40 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: readDynamic(uint256,uint256) 5, 0 => 0
-//@ run-call: readDynamic(uint256,uint256) 5, 4 => 0
-//@ run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
-//@ run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readFixed(uint256) 2 => 0
-//@ run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readStatic(uint256,uint256) 2, 1 => 0
-//@ run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: readDynamic(uint256,uint256) 5, 0 => 0
+//@[gas] run-call: readDynamic(uint256,uint256) 5, 0 => 0
+//@[size] run-call: readDynamic(uint256,uint256) 5, 0 => 0
+//@[none] run-call: readDynamic(uint256,uint256) 5, 4 => 0
+//@[gas] run-call: readDynamic(uint256,uint256) 5, 4 => 0
+//@[size] run-call: readDynamic(uint256,uint256) 5, 4 => 0
+//@[none] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
+//@[gas] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
+//@[size] run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
+//@[none] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none] run-call: readFixed(uint256) 2 => 0
+//@[gas] run-call: readFixed(uint256) 2 => 0
+//@[size] run-call: readFixed(uint256) 2 => 0
+//@[none] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none] run-call: readStatic(uint256,uint256) 2, 1 => 0
+//@[gas] run-call: readStatic(uint256,uint256) 2, 1 => 0
+//@[size] run-call: readStatic(uint256,uint256) 2, 1 => 0
+//@[none] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_2d_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_static_zeroed_memory_index_access.sol

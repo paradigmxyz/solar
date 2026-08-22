@@ -1,16 +1,34 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: roundtrip 7 => 7
-//@ run-call: bytesRoundtrip 0x010203 => 0x010203
-//@ run-call: wordsRoundtrip [1, 2, 3] => 6
-//@ run-call: nestedWordsRoundtrip [[1, 2], [3]] => 3
-//@ run-call: mixedRoundtrip() => 9, 3, 3
-//@ run-call: nestedMixedRoundtrip() => 2, 8, 3, 4
-//@ run-call: hash 7 => 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: roundtrip 7 => 7
+//@[gas] run-call: roundtrip 7 => 7
+//@[size] run-call: roundtrip 7 => 7
+//@[none] run-call: bytesRoundtrip 0x010203 => 0x010203
+//@[gas] run-call: bytesRoundtrip 0x010203 => 0x010203
+//@[size] run-call: bytesRoundtrip 0x010203 => 0x010203
+//@[none] run-call: wordsRoundtrip [1, 2, 3] => 6
+//@[gas] run-call: wordsRoundtrip [1, 2, 3] => 6
+//@[size] run-call: wordsRoundtrip [1, 2, 3] => 6
+//@[none] run-call: nestedWordsRoundtrip [[1, 2], [3]] => 3
+//@[gas] run-call: nestedWordsRoundtrip [[1, 2], [3]] => 3
+//@[size] run-call: nestedWordsRoundtrip [[1, 2], [3]] => 3
+//@[none] run-call: mixedRoundtrip() => 9, 3, 3
+//@[gas] run-call: mixedRoundtrip() => 9, 3, 3
+//@[size] run-call: mixedRoundtrip() => 9, 3, 3
+//@[none] run-call: nestedMixedRoundtrip() => 2, 8, 3, 4
+//@[gas] run-call: nestedMixedRoundtrip() => 2, 8, 3, 4
+//@[size] run-call: nestedMixedRoundtrip() => 2, 8, 3, 4
+//@[none] run-call: hash 7 => 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
+//@[gas] run-call: hash 7 => 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
+//@[size] run-call: hash 7 => 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
 
 contract AbiEncodeRoundtrip {
     function roundtrip(uint256 value) external pure returns (uint256) {

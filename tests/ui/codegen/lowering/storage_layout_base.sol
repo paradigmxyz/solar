@@ -1,14 +1,28 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@ run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@ run-call: LayoutDerived::slots() => 2, 3, 4
-//@ run-call: LayoutTransient::slots() => 0, 7
-//@ run-call: LayoutErc7201::matchesReference() => true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
+//@[gas] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
+//@[size] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
+//@[none] run-call: LayoutStorage::store(uint256) 99 => 99, 99
+//@[gas] run-call: LayoutStorage::store(uint256) 99 => 99, 99
+//@[size] run-call: LayoutStorage::store(uint256) 99 => 99, 99
+//@[none] run-call: LayoutDerived::slots() => 2, 3, 4
+//@[gas] run-call: LayoutDerived::slots() => 2, 3, 4
+//@[size] run-call: LayoutDerived::slots() => 2, 3, 4
+//@[none] run-call: LayoutTransient::slots() => 0, 7
+//@[gas] run-call: LayoutTransient::slots() => 0, 7
+//@[size] run-call: LayoutTransient::slots() => 0, 7
+//@[none] run-call: LayoutErc7201::matchesReference() => true
+//@[gas] run-call: LayoutErc7201::matchesReference() => true
+//@[size] run-call: LayoutErc7201::matchesReference() => true
 
 function erc7201Reference(string memory namespace) pure returns (uint256) {
     return uint256(

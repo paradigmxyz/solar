@@ -1,14 +1,28 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: read(uint256,uint256) 10, 9 => 0
-//@ run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: read(uint256,uint256) 256, 255 => 0
-//@ run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: read(uint256,uint256) 10, 9 => 0
+//@[gas] run-call: read(uint256,uint256) 10, 9 => 0
+//@[size] run-call: read(uint256,uint256) 10, 9 => 0
+//@[none] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[none] run-call: read(uint256,uint256) 256, 255 => 0
+//@[gas] run-call: read(uint256,uint256) 256, 255 => 0
+//@[size] run-call: read(uint256,uint256) 256, 255 => 0
+//@[none] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[gas] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@[size] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/array_storage_index_boundary_test.sol
 
 contract StorageArrayIndexBoundary {

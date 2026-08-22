@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
-//@ run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
-//@ run-call: testOnePop => 3
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
+//@[gas] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
+//@[size] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
+//@[none] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
+//@[gas] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
+//@[size] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
+//@[none] run-call: testOnePop => 3
+//@[gas] run-call: testOnePop => 3
+//@[size] run-call: testOnePop => 3
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop_copy_long.sol
 
 contract StorageBytesPopCopyLong {

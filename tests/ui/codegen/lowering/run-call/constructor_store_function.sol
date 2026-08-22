@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: result() => 4
-//@ run-call: use(uint256) 3 => 6
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: result() => 4
+//@[gas] run-call: result() => 4
+//@[size] run-call: result() => 4
+//@[none] run-call: use(uint256) 3 => 6
+//@[gas] run-call: use(uint256) 3 => 6
+//@[size] run-call: use(uint256) 3 => 6
 // ported-from: test/libsolidity/semanticTests/constructor/store_function_in_constructor.sol
 
 contract ConstructorStoreFunction {

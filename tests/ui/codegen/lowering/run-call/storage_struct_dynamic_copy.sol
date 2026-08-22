@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: copy => 2550103
-//@ run-call: arrayCopy => 103
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: copy => 2550103
+//@[gas] run-call: copy => 2550103
+//@[size] run-call: copy => 2550103
+//@[none] run-call: arrayCopy => 103
+//@[gas] run-call: arrayCopy => 103
+//@[size] run-call: arrayCopy => 103
 // ported-from: test/libsolidity/semanticTests/structs/struct_containing_bytes_copy_and_delete.sol
 
 contract StorageStructDynamicCopy {

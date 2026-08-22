@@ -1,14 +1,28 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: simple() => 2
-//@ run-call: conditional(uint256) 0 => 9
-//@ run-call: conditional(uint256) 1 => 2
-//@ run-call: multiple() => 2, 3
-//@ run-call: fallthrough() => 9
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: simple() => 2
+//@[gas] run-call: simple() => 2
+//@[size] run-call: simple() => 2
+//@[none] run-call: conditional(uint256) 0 => 9
+//@[gas] run-call: conditional(uint256) 0 => 9
+//@[size] run-call: conditional(uint256) 0 => 9
+//@[none] run-call: conditional(uint256) 1 => 2
+//@[gas] run-call: conditional(uint256) 1 => 2
+//@[size] run-call: conditional(uint256) 1 => 2
+//@[none] run-call: multiple() => 2, 3
+//@[gas] run-call: multiple() => 2, 3
+//@[size] run-call: multiple() => 2, 3
+//@[none] run-call: fallthrough() => 9
+//@[gas] run-call: fallthrough() => 9
+//@[size] run-call: fallthrough() => 9
 
 contract YulLeave {
     function simple() external pure returns (uint256 result) {

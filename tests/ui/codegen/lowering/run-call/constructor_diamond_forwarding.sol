@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: DiamondDerived::i(); constructor=[2, 0] => 2
-//@ run-call: DiamondDerived::j(); constructor=[2, 0] => 2
-//@ run-call: DiamondDerived::k(); constructor=[2, 0] => 1
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
+//@[gas] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
+//@[size] run-call: DiamondDerived::i(); constructor=[2, 0] => 2
+//@[none] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
+//@[gas] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
+//@[size] run-call: DiamondDerived::j(); constructor=[2, 0] => 2
+//@[none] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
+//@[gas] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
+//@[size] run-call: DiamondDerived::k(); constructor=[2, 0] => 1
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_with_params_diamond_inheritance.sol
 
 contract DiamondBase {

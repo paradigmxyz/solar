@@ -1,11 +1,19 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: one() => 3
-//@ run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: one() => 3
+//@[gas] run-call: one() => 3
+//@[size] run-call: one() => 3
+//@[none] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@[gas] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@[size] run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_internal_function_array_to_storage.sol
 
 contract InternalFunctionPointerStorageCopy {

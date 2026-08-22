@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: sameShortLiteralSalt() => true
-//@ run-call: sameEmptyLiteralSalt() => true
-//@ run-call: sameFullLiteralSalt() => true
-//@ run-call: differentLiteralSalts() => true
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: sameShortLiteralSalt() => true
+//@[gas] run-call: sameShortLiteralSalt() => true
+//@[size] run-call: sameShortLiteralSalt() => true
+//@[none] run-call: sameEmptyLiteralSalt() => true
+//@[gas] run-call: sameEmptyLiteralSalt() => true
+//@[size] run-call: sameEmptyLiteralSalt() => true
+//@[none] run-call: sameFullLiteralSalt() => true
+//@[gas] run-call: sameFullLiteralSalt() => true
+//@[size] run-call: sameFullLiteralSalt() => true
+//@[none] run-call: differentLiteralSalts() => true
+//@[gas] run-call: differentLiteralSalts() => true
+//@[size] run-call: differentLiteralSalts() => true
 
 contract CreationOptionsChild {}
 

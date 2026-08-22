@@ -1,18 +1,40 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: BaseConstructorArgs::value(); constructor=[5] => 11
-//@ run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
-//@ run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
-//@ run-call: ConstructorInitializationOrder::x() => 2
-//@ run-call: NamedDerived::value() => 12
-//@ run-call: BaseConstructorReturn::value() => 2
-//@ run-call: FunctionUsageDerived::getA() => 2
-//@ run-call: VirtualFunctionUsageDerived::getA() => 2
-//@ run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: BaseConstructorArgs::value(); constructor=[5] => 11
+//@[gas] run-call: BaseConstructorArgs::value(); constructor=[5] => 11
+//@[size] run-call: BaseConstructorArgs::value(); constructor=[5] => 11
+//@[none] run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
+//@[gas] run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
+//@[size] run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
+//@[none] run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
+//@[gas] run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
+//@[size] run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
+//@[none] run-call: ConstructorInitializationOrder::x() => 2
+//@[gas] run-call: ConstructorInitializationOrder::x() => 2
+//@[size] run-call: ConstructorInitializationOrder::x() => 2
+//@[none] run-call: NamedDerived::value() => 12
+//@[gas] run-call: NamedDerived::value() => 12
+//@[size] run-call: NamedDerived::value() => 12
+//@[none] run-call: BaseConstructorReturn::value() => 2
+//@[gas] run-call: BaseConstructorReturn::value() => 2
+//@[size] run-call: BaseConstructorReturn::value() => 2
+//@[none] run-call: FunctionUsageDerived::getA() => 2
+//@[gas] run-call: FunctionUsageDerived::getA() => 2
+//@[size] run-call: FunctionUsageDerived::getA() => 2
+//@[none] run-call: VirtualFunctionUsageDerived::getA() => 2
+//@[gas] run-call: VirtualFunctionUsageDerived::getA() => 2
+//@[size] run-call: VirtualFunctionUsageDerived::getA() => 2
+//@[none] run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
+//@[gas] run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
+//@[size] run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol

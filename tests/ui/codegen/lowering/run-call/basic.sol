@@ -1,23 +1,52 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: add 2 => 42
-//@ run-call: negate(bool) true => false
-//@ run-call: pair 41, true => 42, false
-//@ run-call: sum(uint256[]) [1, 2, 3] => 6
-//@ run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
-//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@ run-call: increment => 41
-//@ run-call: increment => 41
-//@ run-call: testInline()
-//@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@ run-call: reservedSpillFreshness(bool) true => 83
-//@ run-call: reservedSpillFreshness(bool) false => 137
-//@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: add 2 => 42
+//@[gas] run-call: add 2 => 42
+//@[size] run-call: add 2 => 42
+//@[none] run-call: negate(bool) true => false
+//@[gas] run-call: negate(bool) true => false
+//@[size] run-call: negate(bool) true => false
+//@[none] run-call: pair 41, true => 42, false
+//@[gas] run-call: pair 41, true => 42, false
+//@[size] run-call: pair 41, true => 42, false
+//@[none] run-call: sum(uint256[]) [1, 2, 3] => 6
+//@[gas] run-call: sum(uint256[]) [1, 2, 3] => 6
+//@[size] run-call: sum(uint256[]) [1, 2, 3] => 6
+//@[none] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[gas] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[size] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@[none] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@[gas] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@[size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@[none] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[gas] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[none] run-call: increment => 41
+//@[gas] run-call: increment => 41
+//@[size] run-call: increment => 41
+//@[none] run-call: testInline()
+//@[gas] run-call: testInline()
+//@[size] run-call: testInline()
+//@[none] run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@[gas] run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@[size] run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@[none] run-call: reservedSpillFreshness(bool) true => 83
+//@[gas] run-call: reservedSpillFreshness(bool) true => 83
+//@[size] run-call: reservedSpillFreshness(bool) true => 83
+//@[none] run-call: reservedSpillFreshness(bool) false => 137
+//@[gas] run-call: reservedSpillFreshness(bool) false => 137
+//@[size] run-call: reservedSpillFreshness(bool) false => 137
+//@[none] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
+//@[gas] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
+//@[size] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
     struct DynamicHolder {

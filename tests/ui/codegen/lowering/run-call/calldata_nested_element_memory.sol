@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
-//@ run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
-//@ run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
+//@[gas] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
+//@[size] run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
+//@[none] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
+//@[gas] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
+//@[size] run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
+//@[none] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
+//@[gas] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
+//@[size] run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_calldata_to_memory.sol
 
 pragma abicoder v2;

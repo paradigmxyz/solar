@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: from_storage() => [[10, 11], [12, 13, 14]]
-//@ run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
-//@ run-call: from_memory() => [[10, 11], [12, 13, 14]]
-//@ run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: from_storage() => [[10, 11], [12, 13, 14]]
+//@[gas] run-call: from_storage() => [[10, 11], [12, 13, 14]]
+//@[size] run-call: from_storage() => [[10, 11], [12, 13, 14]]
+//@[none] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
+//@[gas] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
+//@[size] run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
+//@[none] run-call: from_memory() => [[10, 11], [12, 13, 14]]
+//@[gas] run-call: from_memory() => [[10, 11], [12, 13, 14]]
+//@[size] run-call: from_memory() => [[10, 11], [12, 13, 14]]
+//@[none] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
+//@[gas] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
+//@[size] run-call: from_calldata(uint8[][]) [[10, 11], [12, 13, 14]] => [[10, 11], [12, 13, 14]]
 // ported-from: test/libsolidity/semanticTests/array/copying/array_to_mapping.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/calldata_array_to_mapping.sol
 

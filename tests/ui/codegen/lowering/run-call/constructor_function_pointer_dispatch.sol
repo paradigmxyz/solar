@@ -1,10 +1,16 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
+//@[gas] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
+//@[size] run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
 // ported-from: test/libsolidity/semanticTests/constructor/functions_called_by_constructor_through_dispatch.sol
 
 contract ConstructorFunctionPointerDispatch {

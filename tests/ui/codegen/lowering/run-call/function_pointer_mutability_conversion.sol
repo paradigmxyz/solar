@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: testViewToDefault => 12, 22
-//@ run-call: testPureToDefault => 13, 23
-//@ run-call: testPureToView => 13, 23
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: testViewToDefault => 12, 22
+//@[gas] run-call: testViewToDefault => 12, 22
+//@[size] run-call: testViewToDefault => 12, 22
+//@[none] run-call: testPureToDefault => 13, 23
+//@[gas] run-call: testPureToDefault => 13, 23
+//@[size] run-call: testPureToDefault => 13, 23
+//@[none] run-call: testPureToView => 13, 23
+//@[gas] run-call: testPureToView => 13, 23
+//@[size] run-call: testPureToView => 13, 23
 // ported-from: test/libsolidity/semanticTests/conversions/function_type_array_to_storage.sol
 
 contract FunctionPointerMutabilityConversion {

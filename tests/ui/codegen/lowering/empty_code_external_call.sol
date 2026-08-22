@@ -1,15 +1,29 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
+//@ revisions: none gas size mir
 //@ compile-flags: --libraries EmptyCodeLibrary=0x1111111111111111111111111111111111111111
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call-fail: EmptyCodeCalls::direct() => 0x
-//@ run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@ run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@ run-call: EmptyCodeCalls::lowLevel() => true
-//@ run-call: EmptyCodeCalls::selfCall() => true
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call-fail: EmptyCodeCalls::direct() => 0x
+//@[gas] run-call-fail: EmptyCodeCalls::direct() => 0x
+//@[size] run-call-fail: EmptyCodeCalls::direct() => 0x
+//@[none] run-call-fail: EmptyCodeCalls::pointer() => 0x
+//@[gas] run-call-fail: EmptyCodeCalls::pointer() => 0x
+//@[size] run-call-fail: EmptyCodeCalls::pointer() => 0x
+//@[none] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
+//@[gas] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
+//@[size] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
+//@[none] run-call: EmptyCodeCalls::lowLevel() => true
+//@[gas] run-call: EmptyCodeCalls::lowLevel() => true
+//@[size] run-call: EmptyCodeCalls::lowLevel() => true
+//@[none] run-call: EmptyCodeCalls::selfCall() => true
+//@[gas] run-call: EmptyCodeCalls::selfCall() => true
+//@[size] run-call: EmptyCodeCalls::selfCall() => true
 
 contract EmptyCodeTarget {
     function noop() external {}

@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: ConstructorMemoryReturn::value() => "1"
-//@ run-call: ConstructorMemoryReturn::direct() => 5
-//@ run-call: ConstructorMemoryReturn::pairValue() => 3
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: ConstructorMemoryReturn::value() => "1"
+//@[gas] run-call: ConstructorMemoryReturn::value() => "1"
+//@[size] run-call: ConstructorMemoryReturn::value() => "1"
+//@[none] run-call: ConstructorMemoryReturn::direct() => 5
+//@[gas] run-call: ConstructorMemoryReturn::direct() => 5
+//@[size] run-call: ConstructorMemoryReturn::direct() => 5
+//@[none] run-call: ConstructorMemoryReturn::pairValue() => 3
+//@[gas] run-call: ConstructorMemoryReturn::pairValue() => 3
+//@[size] run-call: ConstructorMemoryReturn::pairValue() => 3
 
 contract ConstructorMemoryReturn {
     string public value;

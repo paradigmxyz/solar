@@ -1,10 +1,16 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: ShortCallOutput::shortOutput() => true, 7
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: ShortCallOutput::shortOutput() => true, 7
+//@[gas] run-call: ShortCallOutput::shortOutput() => true, 7
+//@[size] run-call: ShortCallOutput::shortOutput() => true, 7
 
 // EVM calls only copy the bytes that the callee returned. Bytes after that
 // remain unchanged, even when the requested output area is larger.

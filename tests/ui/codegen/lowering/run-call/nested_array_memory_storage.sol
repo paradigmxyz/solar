@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: test => 24
-//@ run-call: test1 => 3
-//@ run-call: test2 => 6
-//@ run-call: test3 => 24
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: test => 24
+//@[gas] run-call: test => 24
+//@[size] run-call: test => 24
+//@[none] run-call: test1 => 3
+//@[gas] run-call: test1 => 3
+//@[size] run-call: test1 => 3
+//@[none] run-call: test2 => 6
+//@[gas] run-call: test2 => 6
+//@[size] run-call: test2 => 6
+//@[none] run-call: test3 => 24
+//@[gas] run-call: test3 => 24
+//@[size] run-call: test3 => 24
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_memory_to_storage.sol
 
 contract NestedArrayMemoryStorage {

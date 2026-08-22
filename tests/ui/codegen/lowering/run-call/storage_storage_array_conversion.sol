@@ -1,12 +1,22 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: dynamic => 9
-//@ run-call: nested => 7
-//@ run-call: fixedToDynamic => 13
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: dynamic => 9
+//@[gas] run-call: dynamic => 9
+//@[size] run-call: dynamic => 9
+//@[none] run-call: nested => 7
+//@[gas] run-call: nested => 7
+//@[size] run-call: nested => 7
+//@[none] run-call: fixedToDynamic => 13
+//@[gas] run-call: fixedToDynamic => 13
+//@[size] run-call: fixedToDynamic => 13
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base_nested.sol
 

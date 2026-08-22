@@ -1,13 +1,25 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size
-//@[none] compile-flags: -O none -Zdump=mir
-//@[gas] compile-flags: -O gas -Zdump=mir
-//@[size] compile-flags: -O size -Zdump=mir
-//@ run-call: chain 12, 3 => 15
-//@ run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@ run-call-fail: chain 11, 3
-//@ run-call: chain 0, 1 => 1
+//@ revisions: none gas size mir
+//@[none] compile-flags: -O none --emit=abi,bin
+//@[gas] compile-flags: -O gas --emit=abi,bin
+//@[size] compile-flags: -O size --emit=abi,bin
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none] normalize-stdout-test: "(?s).+" -> ""
+//@[gas] normalize-stdout-test: "(?s).+" -> ""
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//@[none] run-call: chain 12, 3 => 15
+//@[gas] run-call: chain 12, 3 => 15
+//@[size] run-call: chain 12, 3 => 15
+//@[none] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@[gas] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@[size] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@[none] run-call-fail: chain 11, 3
+//@[gas] run-call-fail: chain 11, 3
+//@[size] run-call-fail: chain 11, 3
+//@[none] run-call: chain 0, 1 => 1
+//@[gas] run-call: chain 0, 1 => 1
+//@[size] run-call: chain 0, 1 => 1
 
 contract RequireModuloCases {
     function chain(uint256 a, uint256 b) external pure returns (uint256) {
