@@ -80,10 +80,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let ExprKind::Lit(lit) = &expr.kind
-            && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
-        {
-            return ptr;
+        if let Some(bytes) = self.constant_string_bytes(expr) {
+            return self.lower_string_bytes_to_memory(builder, &bytes);
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let value = self.lower_value_expr(builder, expr);
