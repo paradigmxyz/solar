@@ -4,10 +4,11 @@ use std::{
 };
 
 use super::{
-    SourceWatchRoot,
+    SourceWatchRoot, foundry_workspace_config_for_root,
     index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
     is_approved_index_root, is_import_only_path, load_foundry_document,
 };
+use crate::FoundryWorkspaceConfig;
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::rustc_hash::FxHashSet;
 use tokio::io;
@@ -32,6 +33,7 @@ impl ProjectManifest {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
         selected_profile: Option<&str>,
+        foundry_workspace_configs: &[FoundryWorkspaceConfig],
     ) -> io::Result<Option<ManifestDiscoveryResult>> {
         // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
         let mut manifests = Vec::new();
@@ -39,8 +41,12 @@ impl ProjectManifest {
         let mut marker_watch_roots = Vec::new();
         if let Some(manifest) = find_in_parent_dirs(path, "foundry.toml") {
             let workspace_root = manifest.parent().unwrap_or(path).to_path_buf();
-            let (source_roots, import_only_roots) =
-                foundry_index_roots(&manifest, approved_roots, selected_profile);
+            let (source_roots, import_only_roots) = foundry_index_roots(
+                &manifest,
+                approved_roots,
+                selected_profile,
+                foundry_workspace_configs,
+            );
             manifests.push(manifest);
             if let Ok(entries) = read_dir(path)
                 && matches!(
@@ -53,6 +59,7 @@ impl ProjectManifest {
                         cancellation,
                         metrics,
                         selected_profile,
+                        foundry_workspace_configs,
                     })
                     .find_in_child_dirs(
                         entries,
@@ -82,6 +89,7 @@ impl ProjectManifest {
                     cancellation,
                     metrics,
                     selected_profile,
+                    foundry_workspace_configs,
                 })
                 .find_in_child_dirs(
                     read_dir(path)?,
@@ -118,7 +126,7 @@ impl ProjectManifest {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
     ) -> Option<Vec<Self>> {
-        Self::discover_all_with_watch_roots(paths, paths, policy, cancellation, metrics, None)
+        Self::discover_all_with_watch_roots(paths, paths, policy, cancellation, metrics, None, &[])
             .map(|(manifests, _, _)| manifests)
     }
 
@@ -129,6 +137,7 @@ impl ProjectManifest {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
         selected_profile: Option<&str>,
+        foundry_workspace_configs: &[FoundryWorkspaceConfig],
     ) -> Option<ManifestDiscoveryResult> {
         let mut discovered = FxHashSet::default();
         let mut watch_roots = Vec::new();
@@ -144,6 +153,7 @@ impl ProjectManifest {
                 cancellation,
                 metrics,
                 selected_profile,
+                foundry_workspace_configs,
             ) {
                 let (manifests, mut roots, mut marker_roots) = result?;
                 discovered.extend(manifests);
@@ -243,6 +253,7 @@ struct ManifestDiscovery<'a> {
     cancellation: &'a IndexingCancellation,
     metrics: &'a mut WorkspaceIndexMetrics,
     selected_profile: Option<&'a str>,
+    foundry_workspace_configs: &'a [FoundryWorkspaceConfig],
 }
 
 #[derive(Clone, Copy)]
@@ -329,7 +340,12 @@ impl ManifestDiscovery<'_> {
                 && let Ok(children) = read_dir(&path)
             {
                 let nested_index_roots = if is_project {
-                    foundry_index_roots(&manifest, self.approved_roots, self.selected_profile)
+                    foundry_index_roots(
+                        &manifest,
+                        self.approved_roots,
+                        self.selected_profile,
+                        self.foundry_workspace_configs,
+                    )
                 } else {
                     Default::default()
                 };
@@ -390,8 +406,24 @@ fn foundry_index_roots(
     manifest: &Path,
     approved_roots: &[PathBuf],
     selected_profile: Option<&str>,
+    foundry_workspace_configs: &[FoundryWorkspaceConfig],
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let Some(root) = manifest.parent() else { return Default::default() };
+    if let Some(config) = foundry_workspace_config_for_root(foundry_workspace_configs, root) {
+        let source_roots = config
+            .source_roots()
+            .iter()
+            .map(|path| path.normalize())
+            .filter(|path| is_approved_index_root(path, root, approved_roots))
+            .collect();
+        let import_only_roots = config
+            .include_paths()
+            .iter()
+            .map(|path| path.normalize())
+            .filter(|path| is_approved_index_root(path, root, approved_roots))
+            .collect();
+        return (source_roots, import_only_roots);
+    }
     load_foundry_document(manifest)
         .map(|document| {
             let profile = document.profile_for(selected_profile);
@@ -626,6 +658,7 @@ mod tests {
                 &project.path("/foundry.toml"),
                 &[project.root().to_path_buf()],
                 Some("custom"),
+                &[],
             )
             .0,
             [project.path("/.hidden/custom-src")]
@@ -641,6 +674,7 @@ mod tests {
             &IndexingCancellation::default(),
             &mut WorkspaceIndexMetrics::default(),
             Some("custom"),
+            &[],
         )
         .unwrap()
         .0;

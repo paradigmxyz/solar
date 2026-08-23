@@ -9,9 +9,12 @@
 //! Once a project type is identified, the configuration for that project model is merged into the
 //! overall LSP config.
 
-use crate::workspace::{
-    foundry::FoundryDocument,
-    index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
+use crate::{
+    FoundryWorkspaceConfig,
+    workspace::{
+        foundry::FoundryDocument,
+        index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
+    },
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
@@ -477,50 +480,76 @@ impl Workspace {
 
     #[cfg(any(test, feature = "bench"))]
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, None, None)
+        Self::load_foundry_inner(path, None, None, &[])
     }
 
     pub(crate) fn load_foundry_bounded(
         path: PathBuf,
         workspace_roots: &[PathBuf],
         selected_profile: Option<&str>,
+        foundry_workspace_configs: &[FoundryWorkspaceConfig],
     ) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, Some(workspace_roots), selected_profile)
+        Self::load_foundry_inner(
+            path,
+            Some(workspace_roots),
+            selected_profile,
+            foundry_workspace_configs,
+        )
     }
 
     fn load_foundry_inner(
         path: PathBuf,
         workspace_roots: Option<&[PathBuf]>,
         selected_profile: Option<&str>,
+        foundry_workspace_configs: &[FoundryWorkspaceConfig],
     ) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?.normalize();
-        let profile = load_foundry_document(&path)?.profile_for(selected_profile);
         let approved = |path: &Path| {
             workspace_roots
                 .is_none_or(|workspace_roots| is_approved_index_root(path, &root, workspace_roots))
         };
-        let source_roots = profile
-            .source_roots(&root)
+        let (source_roots, flycheck_source_roots, include_paths, import_remappings, evm_version) =
+            if let Some(config) =
+                foundry_workspace_config_for_root(foundry_workspace_configs, &root)
+            {
+                (
+                    config.source_roots().iter().map(|path| path.normalize()).collect(),
+                    config.flycheck_source_roots().iter().map(|path| path.normalize()).collect(),
+                    config.include_paths().iter().map(|path| path.normalize()).collect(),
+                    config.import_remappings().to_vec(),
+                    config.evm_version(),
+                )
+            } else {
+                let profile = load_foundry_document(&path)?.profile_for(selected_profile);
+                let include_paths = profile
+                    .include_paths(&root)
+                    .into_iter()
+                    .map(|path| path.normalize())
+                    .collect::<Vec<_>>();
+                let import_remappings =
+                    profile.remappings_with_include_paths(&root, &include_paths);
+                (
+                    profile.source_roots(&root),
+                    profile.flycheck_source_roots(&root),
+                    include_paths,
+                    import_remappings,
+                    profile.evm_version(),
+                )
+            };
+        let source_roots = source_roots
             .into_iter()
             .map(|path| path.normalize())
             .filter(|path| approved(path))
             .collect();
-        let flycheck_source_roots = profile
-            .flycheck_source_roots(&root)
+        let flycheck_source_roots = flycheck_source_roots
             .into_iter()
             .map(|path| path.normalize())
             .filter(|path| approved(path))
             .collect();
-        let include_paths = profile
-            .include_paths(&root)
-            .into_iter()
-            .map(|path| path.normalize())
-            .collect::<Vec<_>>();
         let index_import_only_roots =
             include_paths.iter().filter(|path| approved(path)).cloned().collect::<Vec<_>>();
-        let import_remappings = profile.remappings_with_include_paths(&root, &include_paths);
         let compile_opts =
-            compile_opts(root.clone(), include_paths, import_remappings, profile.evm_version());
+            compile_opts(root.clone(), include_paths, import_remappings, evm_version);
 
         Ok(Self {
             kind: WorkspaceKind::Foundry,
@@ -546,6 +575,14 @@ pub(crate) fn is_approved_index_root(
     let path = path.normalize();
     path.starts_with(manifest_root.normalize())
         || workspace_roots.iter().any(|root| path.starts_with(root.normalize()))
+}
+
+pub(crate) fn foundry_workspace_config_for_root<'a>(
+    configs: &'a [FoundryWorkspaceConfig],
+    root: &Path,
+) -> Option<&'a FoundryWorkspaceConfig> {
+    let root = root.normalize();
+    configs.iter().find(|config| config.workspace_root().normalize() == root)
 }
 
 fn insert_sorted(files: &mut Vec<PathBuf>, path: PathBuf) {
@@ -1079,6 +1116,7 @@ mod tests {
             project.path("/foundry.toml"),
             &[project.root().to_path_buf()],
             Some("custom"),
+            &[],
         )
         .unwrap();
 
@@ -1093,6 +1131,59 @@ mod tests {
         );
         assert_eq!(workspace.compile_opts().include_paths, [project.path("/custom-libs")]);
         assert_eq!(workspace.compile_opts().evm_version, EvmVersion::Cancun);
+    }
+
+    #[test]
+    fn foundry_workspace_config_matches_only_the_exact_normalized_root() {
+        let project = TestProject::new();
+        let outer = FoundryWorkspaceConfig::new(project.path("/outer"));
+        let nested = FoundryWorkspaceConfig::new(project.path("/outer/nested"));
+        let configs = [outer, nested];
+
+        assert!(
+            foundry_workspace_config_for_root(&configs, &project.path("/outer"))
+                .is_some_and(|config| config.workspace_root() == project.path("/outer"))
+        );
+        assert!(foundry_workspace_config_for_root(
+            &configs,
+            &project.path("/outer/./nested/../nested"),
+        )
+        .is_some_and(|config| config.workspace_root() == project.path("/outer/nested")));
+        assert!(
+            foundry_workspace_config_for_root(&configs, &project.path("/outer/other")).is_none()
+        );
+    }
+
+    #[test]
+    fn host_foundry_workspace_paths_keep_approved_index_boundaries() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /external/src/Outside.sol
+            contract Outside {}
+            "#,
+        );
+        let external = project.path("/external/src");
+        let config = FoundryWorkspaceConfig::new(project.path("/workspace"))
+            .with_source_roots([external.clone()])
+            .with_flycheck_source_roots([external.clone()])
+            .with_include_paths([external.clone()]);
+
+        let workspace = Workspace::load_foundry_bounded(
+            project.path("/workspace/foundry.toml"),
+            &[project.path("/workspace")],
+            None,
+            &[config],
+        )
+        .unwrap();
+
+        assert!(workspace.source_roots().is_empty());
+        assert!(workspace.import_source_roots().is_empty());
+        assert_eq!(workspace.compile_opts().include_paths, [external]);
+        assert!(workspace.index_import_only_roots().is_empty());
     }
 
     #[test]
@@ -1113,6 +1204,7 @@ mod tests {
             project.path("/workspace/foundry.toml"),
             &[project.path("/workspace")],
             None,
+            &[],
         )
         .unwrap();
         let opts = workspace.compile_opts();

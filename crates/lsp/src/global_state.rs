@@ -627,6 +627,7 @@ impl GlobalState {
             pull_diagnostic_data_support,
             self.launch_config.default_forge_path(),
             self.launch_config.selected_profile(),
+            self.launch_config.foundry_workspace_configs(),
         );
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());

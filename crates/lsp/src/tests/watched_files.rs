@@ -667,6 +667,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
                 project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
                 None,
+                &[],
             )
             .unwrap(),
         ],

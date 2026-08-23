@@ -1267,6 +1267,7 @@ fn state_with_diagnostic_capabilities(
         pull_diagnostic_data,
         None,
         None,
+        &[],
     )
     .1;
     state.config = Arc::new(config);
