@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test => 2, 1, 1
+//@ run-call: test => 2, 1, 1
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop.sol
 
 contract StorageBytesPop {

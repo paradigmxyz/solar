@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: DeleteMemoryStructReference::f() => 0, 7
-//@[none, gas, size] run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
+//@ run-call: DeleteMemoryStructReference::f() => 0, 7
+//@ run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
 
 contract DeleteMemoryStructReference {
     struct S {

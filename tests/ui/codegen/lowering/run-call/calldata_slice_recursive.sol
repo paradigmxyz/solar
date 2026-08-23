@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: use(bytes) 0x010203 => 1
-//@[none, gas, size] run-call: use(bytes) 0x01 => 1
+//@ run-call: use(bytes) 0x010203 => 1
+//@ run-call: use(bytes) 0x01 => 1
 
 contract CalldataSliceRecursive {
     function peel(bytes calldata data)

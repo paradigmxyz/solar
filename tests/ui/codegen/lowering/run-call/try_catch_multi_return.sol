@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: success() => 15
-//@[none, gas, size] run-call: failure() => 9
+//@ run-call: success() => 15
+//@ run-call: failure() => 9
 
 contract TryMultiReturnTarget {
     function value(bool ok) external pure returns (uint256, string memory) {

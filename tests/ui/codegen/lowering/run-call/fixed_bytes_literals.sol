@@ -5,14 +5,14 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: equal(bytes1) 0x01 => true
-//@[none, gas, size] run-call: equal(bytes1) 0x02 => false
-//@[none, gas, size] run-call: notEqual(bytes1) 0x01 => false
-//@[none, gas, size] run-call: notEqual(bytes1) 0x02 => true
-//@[none, gas, size] run-call: lessThan(bytes1) 0x7f => true
-//@[none, gas, size] run-call: lessThan(bytes1) 0x80 => false
-//@[none, gas, size] run-call: bitwiseOr(bytes1) 0x80 => 0x81
-//@[none, gas, size] run-call: wide(bytes10) 0x0102030405060708090a => true
+//@ run-call: equal(bytes1) 0x01 => true
+//@ run-call: equal(bytes1) 0x02 => false
+//@ run-call: notEqual(bytes1) 0x01 => false
+//@ run-call: notEqual(bytes1) 0x02 => true
+//@ run-call: lessThan(bytes1) 0x7f => true
+//@ run-call: lessThan(bytes1) 0x80 => false
+//@ run-call: bitwiseOr(bytes1) 0x80 => 0x81
+//@ run-call: wide(bytes10) 0x0102030405060708090a => true
 
 contract FixedBytesLiterals {
     function equal(bytes1 value) external pure returns (bool) {

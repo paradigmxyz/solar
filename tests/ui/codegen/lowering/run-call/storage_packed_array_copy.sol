@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 36, 36
+//@ run-call: test() => 36, 36
 // ported-from: test/libsolidity/semanticTests/storage/storage_packed_array_copy.sol
 
 contract StoragePackedArrayCopy {

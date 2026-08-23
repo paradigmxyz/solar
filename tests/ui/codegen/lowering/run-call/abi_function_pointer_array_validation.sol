@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: checkG false => 2
-//@[none, gas, size] run-call: checkG true => 2
-//@[none, gas, size] run-call: checkH false => 3
-//@[none, gas, size] run-call-fail: checkH true
-//@[none, gas, size] run-call: checkM false => 4
-//@[none, gas, size] run-call-fail: checkM true
+//@ run-call: checkG false => 2
+//@ run-call: checkG true => 2
+//@ run-call: checkH false => 3
+//@ run-call-fail: checkH true
+//@ run-call: checkM false => 4
+//@ run-call-fail: checkM true
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_function_types_v2.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/validation/external_function_type_inside_struct_v2.sol
 

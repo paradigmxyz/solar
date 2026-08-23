@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read() => 1, 2
+//@ run-call: read() => 1, 2
 // ported-from: test/libsolidity/semanticTests/functionTypes/struct_with_functions.sol
 
 contract InternalFunctionPointerStorageStruct {

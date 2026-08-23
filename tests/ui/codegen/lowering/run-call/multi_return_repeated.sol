@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 1
+//@ run-call: test() => 1
 
 library MultiReturnRepeatedLib {
     function sort(uint256 a, uint256 b) internal pure returns (uint256, uint256) {

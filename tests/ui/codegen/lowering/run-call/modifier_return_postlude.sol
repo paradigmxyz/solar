@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 2
-//@[none, gas, size] run-call: fThenRead() => 9
+//@ run-call: f() => 2
+//@ run-call: fThenRead() => 9
 // ported-from: test/libsolidity/semanticTests/modifiers/return_does_not_skip_modifier.sol
 
 contract ModifierReturnPostlude {

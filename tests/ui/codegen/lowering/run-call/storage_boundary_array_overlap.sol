@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 42, 5, 0
+//@ run-call: test() => 42, 5, 0
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_delete_overlapping_variable.sol
 
 contract StorageBoundaryArrayOverlap {

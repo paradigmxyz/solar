@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => true
+//@ run-call: test() => true
 // ported-from: test/libsolidity/semanticTests/structs/function_type_copy.sol
 
 pragma abicoder v2;

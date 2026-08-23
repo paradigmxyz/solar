@@ -373,8 +373,18 @@ fn display_call(call: &str, function: Option<&Function>) -> String {
 }
 
 fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
-    let output: Value = serde_json::from_slice(output)
-        .map_err(|err| format!("failed to parse compiler output: {err}"))?;
+    let output: Value = match serde_json::from_slice(output) {
+        Ok(output) => output,
+        Err(err) => {
+            let marker = br#"{"contracts""#;
+            let Some(start) = output.windows(marker.len()).rposition(|window| window == marker)
+            else {
+                return Err(format!("failed to parse compiler output: {err}"));
+            };
+            serde_json::from_slice(&output[start..])
+                .map_err(|_| format!("failed to parse compiler output: {err}"))?
+        }
+    };
     let contracts = output
         .get("contracts")
         .and_then(Value::as_object)
@@ -757,6 +767,16 @@ mod tests {
                 },
             })
         );
+    }
+
+    #[test]
+    fn parses_artifacts_after_mir_dump() {
+        let output = br#"@module Test
+
+{"contracts":{"source.sol:Test":{"abi":[],"bin":"00"}}}"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
     }
 
     #[test]

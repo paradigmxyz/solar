@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: array() => 0, 1, 7
-//@[none, gas, size] run-call: bytesValue() => 0, 2, 0xabcd
+//@ run-call: array() => 0, 1, 7
+//@ run-call: bytesValue() => 0, 2, 0xabcd
 
 contract DeleteMemoryReference {
     function array() external pure returns (uint256, uint256, uint256) {

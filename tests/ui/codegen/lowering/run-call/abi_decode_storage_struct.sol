@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 8, 3, 9, 11
+//@ run-call: f() => 8, 3, 9, 11
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_from_storage_struct_v2.sol
 
 contract AbiDecodeStorageStruct {

@@ -5,35 +5,35 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read(uint256[3],uint256) [1, 2, 3], 1 => 2
-//@[none, gas, size] run-call-fail: read(uint256[3],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none, gas, size] run-call: readDynamic(uint256[],uint256) [1, 2, 3], 1 => 2
-//@[none, gas, size] run-call-fail: readDynamic(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none, gas, size] run-call: readBytes(bytes) 0x010203 => 0x02
-//@[none, gas, size] run-call: readPair((uint8,uint8)) (7, 9) => 7
-//@[none, gas, size] run-call: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 1 => 2
-//@[none, gas, size] run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none, gas, size] run-call: readBytesCalldata(bytes) 0x010203 => 0x02
-//@[none, gas, size] run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
-//@[none, gas, size] run-call: readWordList((uint256[],uint256)) ([1, 2, 3], 7) => 10
-//@[none, gas, size] run-call: readWordList((uint256[],uint256)) ([], 7) => 7
-//@[none, gas, size] run-call: readSignedList((int256[],uint256)) ([1, 2], 7) => 9
-//@[none, gas, size] run-call: readNestedList((uint256[][])) ([[1, 2], [3]]) => 4
-//@[none, gas, size] run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
-//@[none, gas, size] run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
-//@[none, gas, size] run-call: readEnumArray(uint8[2]) [1, 0] => 1
-//@[none, gas, size] run-call-fail: readEnumArray(uint8[2]) [2, 0]
-//@[none, gas, size] run-call: readMode(uint8) 1 => 1
-//@[none, gas, size] run-call-fail: readMode(uint8) 2
-//@[none, gas, size] run-call: readNestedArray((uint256[2],uint8)) ([7, 8], 1) => 9
-//@[none, gas, size] run-call: readNestedBytes((bytes[2])) ([0x0102, 0x030405]) => 5
-//@[none, gas, size] run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
-//@[none, gas, size] run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
-//@[none, gas, size] run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
-//@[none, gas, size] run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
-//@[none, gas, size] run-call: ConstructorAbiBytes::result(); constructor=[0x010203] => 3
-//@[none, gas, size] run-call: ConstructorAbiStruct::result(); constructor=[(7, 0x010203)] => 10
-//@[none, gas, size] run-call: fixedArrayLengthSideEffect() => 2, 1
+//@ run-call: read(uint256[3],uint256) [1, 2, 3], 1 => 2
+//@ run-call-fail: read(uint256[3],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readDynamic(uint256[],uint256) [1, 2, 3], 1 => 2
+//@ run-call-fail: readDynamic(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readBytes(bytes) 0x010203 => 0x02
+//@ run-call: readPair((uint8,uint8)) (7, 9) => 7
+//@ run-call: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 1 => 2
+//@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
+//@ run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
+//@ run-call: readWordList((uint256[],uint256)) ([1, 2, 3], 7) => 10
+//@ run-call: readWordList((uint256[],uint256)) ([], 7) => 7
+//@ run-call: readSignedList((int256[],uint256)) ([1, 2], 7) => 9
+//@ run-call: readNestedList((uint256[][])) ([[1, 2], [3]]) => 4
+//@ run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
+//@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
+//@ run-call: readEnumArray(uint8[2]) [1, 0] => 1
+//@ run-call-fail: readEnumArray(uint8[2]) [2, 0]
+//@ run-call: readMode(uint8) 1 => 1
+//@ run-call-fail: readMode(uint8) 2
+//@ run-call: readNestedArray((uint256[2],uint8)) ([7, 8], 1) => 9
+//@ run-call: readNestedBytes((bytes[2])) ([0x0102, 0x030405]) => 5
+//@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
+//@ run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
+//@ run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
+//@ run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
+//@ run-call: ConstructorAbiBytes::result(); constructor=[0x010203] => 3
+//@ run-call: ConstructorAbiStruct::result(); constructor=[(7, 0x010203)] => 10
+//@ run-call: fixedArrayLengthSideEffect() => 2, 1
 
 contract AbiFixedArray {
     uint256 private fixedArrayLengthCalls;

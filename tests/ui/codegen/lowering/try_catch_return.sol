@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: TryCatchReturn::success() => 13
-//@[none, gas, size] run-call: TryCatchReturn::failure() => 9
-//@[none, gas, size] run-call: TryCatchReturn::ignored() => 13
+//@ run-call: TryCatchReturn::success() => 13
+//@ run-call: TryCatchReturn::failure() => 9
+//@ run-call: TryCatchReturn::ignored() => 13
 
 contract TryCatchReturnTarget {
     function value(bool ok) external pure returns (uint256) {

@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 0
+//@ run-call: f() => 0
 // Solc's via-IR modifier frame semantics preserve the incoming return value
 // when a modifier skips its placeholder.
 

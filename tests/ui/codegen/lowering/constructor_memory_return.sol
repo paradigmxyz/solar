@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorMemoryReturn::value() => "1"
-//@[none, gas, size] run-call: ConstructorMemoryReturn::direct() => 5
-//@[none, gas, size] run-call: ConstructorMemoryReturn::pairValue() => 3
+//@ run-call: ConstructorMemoryReturn::value() => "1"
+//@ run-call: ConstructorMemoryReturn::direct() => 5
+//@ run-call: ConstructorMemoryReturn::pairValue() => 3
 
 contract ConstructorMemoryReturn {
     string public value;

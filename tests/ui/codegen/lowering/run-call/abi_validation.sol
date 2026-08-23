@@ -5,11 +5,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: vBool false => false
-//@[none, gas, size] run-call: vUint8 7 => 7
-//@[none, gas, size] run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
-//@[none, gas, size] run-call-fail: 0x18a11c47
-//@[none, gas, size] run-call-fail: 0xd5f6949e
+//@ run-call: vBool false => false
+//@ run-call: vUint8 7 => 7
+//@ run-call-fail: 0x18a11c470000000000000000000000000000000000000000000000000000000000000002
+//@ run-call-fail: 0x18a11c47
+//@ run-call-fail: 0xd5f6949e
 
 contract AbiValidation {
     function vBool(bool value) external pure returns (bool) {

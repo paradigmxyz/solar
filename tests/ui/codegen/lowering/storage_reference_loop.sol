@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: rebindLoop false, 3, 5, 17 => 17, 0
-//@[none, gas, size] run-call: rebindLoop true, 3, 5, 17 => 0, 17
+//@ run-call: rebindLoop false, 3, 5, 17 => 17, 0
+//@ run-call: rebindLoop true, 3, 5, 17 => 0, 17
 
 contract StorageReferenceLoop {
     struct Item {

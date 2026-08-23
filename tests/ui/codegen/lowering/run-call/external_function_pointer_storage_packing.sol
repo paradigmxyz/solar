@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: high() => 0x0000000000000000000000000000000000000000000000001122334455667788
-//@[none, gas, size] run-call: nextSlot() => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: high() => 0x0000000000000000000000000000000000000000000000001122334455667788
+//@ run-call: nextSlot() => 0x0000000000000000000000000000000000000000000000000000000000000000
 
 contract ExternalFunctionPointerStoragePacking {
     function() external fp;

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f => 16, 32, 64
-//@[none, gas, size] run-call: g => 4
+//@ run-call: f => 16, 32, 64
+//@ run-call: g => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/function_return_parameter_complex.sol
 
 contract ModifierReturnParameterComplex {

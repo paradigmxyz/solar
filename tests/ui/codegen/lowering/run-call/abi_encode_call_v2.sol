@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: callExternal() => true
+//@ run-call: callExternal() => true
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_v2.sol
 
 contract AbiEncodeCallV2 {

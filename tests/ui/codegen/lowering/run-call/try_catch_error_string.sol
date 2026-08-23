@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: reasonLength() => 5
+//@ run-call: reasonLength() => 5
 
 contract TryErrorTarget {
     function fail() external pure {

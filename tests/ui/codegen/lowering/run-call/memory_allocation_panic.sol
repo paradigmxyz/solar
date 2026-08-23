@@ -5,18 +5,18 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: makeBytes 0 => 0
-//@[none, gas, size] run-call: makeBytes 31 => 31
-//@[none, gas, size] run-call: makeArray 0 => 0
-//@[none, gas, size] run-call: makeArray 1 => 1
-//@[none, gas, size] run-call: makeNestedArray 0 => 0
-//@[none, gas, size] run-call: makeNestedArray 2 => 2
-//@[none, gas, size] run-call: makeStructArray 0 => 0
-//@[none, gas, size] run-call: makeStructArray 1 => 1
-//@[none, gas, size] run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@[none, gas, size] run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@[none, gas, size] run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@[none, gas, size] run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call: makeBytes 0 => 0
+//@ run-call: makeBytes 31 => 31
+//@ run-call: makeArray 0 => 0
+//@ run-call: makeArray 1 => 1
+//@ run-call: makeNestedArray 0 => 0
+//@ run-call: makeNestedArray 2 => 2
+//@ run-call: makeStructArray 0 => 0
+//@ run-call: makeStructArray 1 => 1
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 contract MemoryAllocationPanicRuntime {
     struct Pair {

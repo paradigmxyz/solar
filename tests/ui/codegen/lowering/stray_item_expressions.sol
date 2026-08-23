@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f 33 => 42
+//@ run-call: f 33 => 42
 // ported-from: test/libsolidity/semanticTests/libraries/library_enum_as_an_expression.sol
 // ported-from: test/libsolidity/semanticTests/libraries/library_stray_values.sol
 // ported-from: test/libsolidity/semanticTests/libraries/library_struct_as_an_expression.sol

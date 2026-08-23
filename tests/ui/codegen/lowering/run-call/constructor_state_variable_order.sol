@@ -5,14 +5,14 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::a() => 17
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::b() => 42
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::c() => 51
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::bA() => 17
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::bB() => 42
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::bC() => 51
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::d() => 23
-//@[none, gas, size] run-call: ConstructorStateOrderDerived::e() => 42
+//@ run-call: ConstructorStateOrderDerived::a() => 17
+//@ run-call: ConstructorStateOrderDerived::b() => 42
+//@ run-call: ConstructorStateOrderDerived::c() => 51
+//@ run-call: ConstructorStateOrderDerived::bA() => 17
+//@ run-call: ConstructorStateOrderDerived::bB() => 42
+//@ run-call: ConstructorStateOrderDerived::bC() => 51
+//@ run-call: ConstructorStateOrderDerived::d() => 23
+//@ run-call: ConstructorStateOrderDerived::e() => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/state_variables_init_order_3.sol
 
 contract ConstructorStateOrderBase {

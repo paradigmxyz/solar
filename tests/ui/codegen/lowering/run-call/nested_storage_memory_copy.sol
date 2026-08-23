@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copy => 28
+//@ run-call: copy => 28
 // ported-from: test/libsolidity/semanticTests/array/copying/storage_memory_nested.sol
 
 contract NestedStorageMemoryCopy {

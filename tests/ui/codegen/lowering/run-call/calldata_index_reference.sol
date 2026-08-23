@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
-//@[none, gas, size] run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
-//@[none, gas, size] run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
-//@[none, gas, size] run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
+//@ run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
+//@ run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
+//@ run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3
+//@ run-call: dynamicBytes(bytes[]) [0x01, 0x0203] => 0xe4, 2, 3
 // ported-from: test/libsolidity/semanticTests/inlineAssembly/calldata_array_read.sol
 
 contract CalldataIndexReference {

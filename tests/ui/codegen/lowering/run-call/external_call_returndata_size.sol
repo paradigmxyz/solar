@@ -5,14 +5,14 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: directOne => 32, 42
-//@[none, gas, size] run-call: pointerOne => 32, 42
-//@[none, gas, size] run-call: directTwo => 32, 42, 43
-//@[none, gas, size] run-call: pointerTwo => 32, 42, 43
-//@[none, gas, size] run-call-fail: directShort()
-//@[none, gas, size] run-call-fail: pointerShort()
-//@[none, gas, size] run-call-fail: directInvalidBool()
-//@[none, gas, size] run-call-fail: pointerInvalidBool()
+//@ run-call: directOne => 32, 42
+//@ run-call: pointerOne => 32, 42
+//@ run-call: directTwo => 32, 42, 43
+//@ run-call: pointerTwo => 32, 42, 43
+//@ run-call-fail: directShort()
+//@ run-call-fail: pointerShort()
+//@ run-call-fail: directInvalidBool()
+//@ run-call-fail: pointerInvalidBool()
 
 interface OneReturn {
     function f() external pure returns (uint256);

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: declared() => 7132
-//@[none, gas, size] run-call: assigned() => 71122
+//@ run-call: declared() => 7132
+//@ run-call: assigned() => 71122
 
 contract MixedMemoryTuple {
     struct S {

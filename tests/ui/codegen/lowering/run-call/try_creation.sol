@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f(bool) false => true
-//@[none, gas, size] run-call: f(bool) true => false
+//@ run-call: f(bool) false => true
+//@ run-call: f(bool) true => false
 
 contract TryCreationChild {
     constructor(bool fail) {

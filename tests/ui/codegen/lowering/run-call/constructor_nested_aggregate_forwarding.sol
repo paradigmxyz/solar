@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: Creator::f() => 23
+//@ run-call: Creator::f() => 23
 
 contract ConstructorAggregateBase {
     struct Entry {

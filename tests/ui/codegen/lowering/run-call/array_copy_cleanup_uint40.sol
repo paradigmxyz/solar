@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => true
+//@ run-call: f() => true
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_cleanup_uint40.sol
 
 contract ArrayCopyCleanupUint40 {

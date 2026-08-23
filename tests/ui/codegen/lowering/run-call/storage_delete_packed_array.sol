@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: clear() => 1, 0, 3
-//@[none, gas, size] run-call: clearReference() => 0, 0, 0
-//@[none, gas, size] run-call: clearFixed() => 0, 0, 0
-//@[none, gas, size] run-call: clearDynamicDirtyWord() => 0
-//@[none, gas, size] run-call: clearFixedDirtyWord() => 0
-//@[none, gas, size] run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@ run-call: clear() => 1, 0, 3
+//@ run-call: clearReference() => 0, 0, 0
+//@ run-call: clearFixed() => 0, 0, 0
+//@ run-call: clearDynamicDirtyWord() => 0
+//@ run-call: clearFixedDirtyWord() => 0
+//@ run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
 
 contract StorageDeletePackedArray {
     uint8[] private values;

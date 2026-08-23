@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorModifierVirtualInitializer::observed() => 0
+//@ run-call: ConstructorModifierVirtualInitializer::observed() => 0
 
 contract ConstructorModifierVirtualInitializerBase {
     uint256 public observed;

@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 12
+//@ run-call: test() => 12
 // ported-from: test/libsolidity/semanticTests/functionCall/call_internal_function_with_multislot_arguments_via_pointer.sol
 
 contract InternalFunctionPointerMultislot {

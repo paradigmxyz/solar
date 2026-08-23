@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test_try() => 1042
+//@ run-call: test_try() => 1042
 
 contract Callee {
     function f(uint x) external pure returns (uint) {

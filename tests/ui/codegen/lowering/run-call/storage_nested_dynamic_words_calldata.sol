@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copyDynamic(uint256[][]) [[10, 11], [20, 21, 22]] => 33
-//@[none, gas, size] run-call: copyFixedDynamic(uint256[][2]) [[10, 11], [20, 21]] => 33
-//@[none, gas, size] run-call: copyDynamicFixed(uint256[2][]) [[10, 11], [20, 21]] => 33
-//@[none, gas, size] run-call: copyFixed(uint256[2][2]) [[10, 11], [20, 21]] => 31
+//@ run-call: copyDynamic(uint256[][]) [[10, 11], [20, 21, 22]] => 33
+//@ run-call: copyFixedDynamic(uint256[][2]) [[10, 11], [20, 21]] => 33
+//@ run-call: copyDynamicFixed(uint256[2][]) [[10, 11], [20, 21]] => 33
+//@ run-call: copyFixed(uint256[2][2]) [[10, 11], [20, 21]] => 31
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_calldata_to_storage.sol
 
 pragma abicoder v2;

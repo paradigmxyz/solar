@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f 3 => 10
+//@ run-call: f 3 => 10
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_multiple_times_local_vars.sol
 
 contract ModifierMultipleInvocations {

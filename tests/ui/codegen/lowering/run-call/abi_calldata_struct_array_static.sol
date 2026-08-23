@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
+//@ run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_struct_static_v2.sol
 
 struct StaticPair {

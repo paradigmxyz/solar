@@ -5,13 +5,13 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: value() => 1
-//@[none, gas, size] run-call: valueWithArg() => 2
-//@[none, gas, size] run-call: valueWithTwo() => 2
-//@[none, gas, size] run-call: valueWithTwoPlaceholders() => 2
-//@[none, gas, size] run-call: repeatFalse() => 1
-//@[none, gas, size] run-call: repeatTrue() => 2
-//@[none, gas, size] run-call: modifierMutates 1 => 1
+//@ run-call: value() => 1
+//@ run-call: valueWithArg() => 2
+//@ run-call: valueWithTwo() => 2
+//@ run-call: valueWithTwoPlaceholders() => 2
+//@ run-call: repeatFalse() => 1
+//@ run-call: repeatTrue() => 2
+//@ run-call: modifierMutates 1 => 1
 
 contract ModifierExpansion {
     uint256 private count;

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: externalReceiver() => 14
-//@[none, gas, size] run-call: callOptions() => 234
+//@ run-call: externalReceiver() => 14
+//@ run-call: callOptions() => 234
 
 contract ExternalCallEvaluationOrder {
     uint256 marker;

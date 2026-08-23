@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: andSkipsRhs() => 0, false
-//@[none, gas, size] run-call: orSkipsRhs() => 0, true
-//@[none, gas, size] run-call: andRunsRhs() => 1, true
-//@[none, gas, size] run-call: orRunsRhs() => 1, true
+//@ run-call: andSkipsRhs() => 0, false
+//@ run-call: orSkipsRhs() => 0, true
+//@ run-call: andRunsRhs() => 1, true
+//@ run-call: orRunsRhs() => 1, true
 
 contract LogicalShortCircuit {
     uint256 calls;

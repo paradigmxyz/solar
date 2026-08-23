@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f 42, 23 => 42, 23, 42, 23
+//@ run-call: f 42, 23 => 42, 23, 42, 23
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_slice.sol
 
 contract AbiDecodeCalldataSlice {

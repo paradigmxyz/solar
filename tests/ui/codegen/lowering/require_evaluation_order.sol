@@ -5,11 +5,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: RequireEvaluationOrder::customError() => 1
-//@[none, gas, size] run-call: RequireEvaluationOrder::stringError() => 1
-//@[none, gas, size] run-call: RequireEvaluationOrder::earlyReturn() => 7
-//@[none, gas, size] run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
-//@[none, gas, size] run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
+//@ run-call: RequireEvaluationOrder::customError() => 1
+//@ run-call: RequireEvaluationOrder::stringError() => 1
+//@ run-call: RequireEvaluationOrder::earlyReturn() => 7
+//@ run-call-fail: RequireEvaluationOrder::customFailure() => 0x002ff0670000000000000000000000000000000000000000000000000000000000000001
+//@ run-call-fail: RequireEvaluationOrder::stringFailure() => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000017800000000000000000000000000000000000000000000000000000000000000
 
 contract RequireEvaluationOrder {
     error E(uint256);

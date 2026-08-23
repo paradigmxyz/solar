@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: sameShortLiteralSalt() => true
-//@[none, gas, size] run-call: sameEmptyLiteralSalt() => true
-//@[none, gas, size] run-call: sameFullLiteralSalt() => true
-//@[none, gas, size] run-call: differentLiteralSalts() => true
+//@ run-call: sameShortLiteralSalt() => true
+//@ run-call: sameEmptyLiteralSalt() => true
+//@ run-call: sameFullLiteralSalt() => true
+//@ run-call: differentLiteralSalts() => true
 
 contract CreationOptionsChild {}
 

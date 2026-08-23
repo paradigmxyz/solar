@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: Test::f() => 0x202
+//@ run-call: Test::f() => 0x202
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_library_inheritance.sol
 
 library L {

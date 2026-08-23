@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 7
+//@ run-call: f() => 7
 
 contract ModifierNamedArguments {
     modifier check(uint256 expected) {

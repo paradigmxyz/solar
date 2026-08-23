@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: testViewToDefault => 12, 22
-//@[none, gas, size] run-call: testPureToDefault => 13, 23
-//@[none, gas, size] run-call: testPureToView => 13, 23
+//@ run-call: testViewToDefault => 12, 22
+//@ run-call: testPureToDefault => 13, 23
+//@ run-call: testPureToView => 13, 23
 // ported-from: test/libsolidity/semanticTests/conversions/function_type_array_to_storage.sol
 
 contract FunctionPointerMutabilityConversion {

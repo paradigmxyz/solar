@@ -26,6 +26,7 @@ use ui_test::{
 };
 
 const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
+const RUN_CALL_MIR_STDOUT_FILTER_PATTERN: &str = r#"(?s)\{"contracts".*\}\n?$"#;
 
 mod errors;
 #[cfg(test)]
@@ -367,6 +368,8 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     let mut mir_revisions = Vec::new();
     let mut scoped_runtime_revisions = Vec::new();
     let mut emitted_revisions = Vec::new();
+    let mut unscoped_run_call = false;
+    let mut base_mir_dump = false;
     for line in src.lines() {
         let Some((directive, revisions)) = run_call::parse_directive(line) else {
             continue;
@@ -376,6 +379,14 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             continue;
         }
 
+        if revisions.is_none() {
+            if run_call::is_directive(line) {
+                unscoped_run_call = true;
+            } else if directive.contains("compile-flags") && directive.contains("-Zdump=mir") {
+                base_mir_dump = true;
+            }
+            continue;
+        }
         let Some(revisions) = revisions else { continue };
         if !directive.contains("compile-flags") {
             continue;
@@ -383,12 +394,12 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
         let is_mir = directive.contains("-Zdump=mir");
         let emits_artifacts = directive.split_whitespace().any(|arg| arg == "--emit=abi,bin");
         for revision in revisions.split(',').map(|revision| revision.trim().to_owned()) {
+            if emits_artifacts {
+                emitted_revisions.push(revision.clone());
+            }
             if is_mir {
                 mir_revisions.push(revision);
             } else {
-                if emits_artifacts {
-                    emitted_revisions.push(revision.clone());
-                }
                 scoped_runtime_revisions.push(revision);
             }
         }
@@ -398,19 +409,32 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
         scoped_runtime_revisions
     } else {
         declared_revisions
-            .into_iter()
-            .filter(|revision| !mir_revisions.iter().any(|mir| mir == revision))
+            .iter()
+            .filter(|revision| !mir_revisions.iter().any(|mir| mir == *revision))
+            .cloned()
             .collect()
     };
     runtime_revisions.sort_unstable();
     runtime_revisions.dedup();
-    if runtime_revisions.is_empty() {
+    if runtime_revisions.is_empty() && (!unscoped_run_call || !base_mir_dump) {
         return;
     }
 
     emitted_revisions.sort_unstable();
     emitted_revisions.dedup();
-    let missing_emit = runtime_revisions
+    let mut artifact_revisions = runtime_revisions.clone();
+    if unscoped_run_call {
+        if declared_revisions.is_empty() {
+            if base_mir_dump {
+                config.comment_defaults.base().compile_flags.push("--emit=abi,bin".into());
+            }
+        } else {
+            artifact_revisions = declared_revisions.clone();
+        }
+    }
+    artifact_revisions.sort_unstable();
+    artifact_revisions.dedup();
+    let missing_emit = artifact_revisions
         .iter()
         .filter(|revision| !emitted_revisions.iter().any(|emitted| emitted == *revision))
         .cloned()
@@ -425,18 +449,43 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             .push("--emit=abi,bin".into());
     }
 
-    config
-        .comment_defaults
-        .revisioned
-        .entry(runtime_revisions)
-        .or_default()
-        .normalize_stdout
-        .push((run_call_stdout_regex().clone().into(), vec![]));
+    if !runtime_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(runtime_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_stdout_regex().clone().into(), vec![]));
+    }
+    if unscoped_run_call {
+        if !mir_revisions.is_empty() {
+            config
+                .comment_defaults
+                .revisioned
+                .entry(mir_revisions)
+                .or_default()
+                .normalize_stdout
+                .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+        }
+        if base_mir_dump {
+            config
+                .comment_defaults
+                .base()
+                .normalize_stdout
+                .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+        }
+    }
 }
 
 fn run_call_stdout_regex() -> &'static Regex {
     static FILTER: OnceLock<Regex> = OnceLock::new();
     FILTER.get_or_init(|| Regex::new(RUN_CALL_STDOUT_FILTER_PATTERN).unwrap())
+}
+
+fn run_call_mir_stdout_regex() -> &'static Regex {
+    static FILTER: OnceLock<Regex> = OnceLock::new();
+    FILTER.get_or_init(|| Regex::new(RUN_CALL_MIR_STDOUT_FILTER_PATTERN).unwrap())
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.

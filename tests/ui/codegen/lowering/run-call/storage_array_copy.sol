@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copyState => 1, 3
-//@[none, gas, size] run-call: copyReference => 4, 2
-//@[none, gas, size] run-call: copyAggregate => 7, 9, 1
+//@ run-call: copyState => 1, 3
+//@ run-call: copyReference => 4, 2
+//@ run-call: copyAggregate => 7, 9, 1
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_to_memory.sol
 
 contract C {

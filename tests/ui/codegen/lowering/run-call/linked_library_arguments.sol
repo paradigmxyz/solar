@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test_value() => 42
-//@[none, gas, size] run-call: test_storage_view() => 0
-//@[none, gas, size] run-call: test_storage_write() => 1
-//@[none, gas, size] run-call: test_multi() => 7, 8
-//@[none, gas, size] run-call: test_calldata [1, 2, 3] => 1
-//@[none, gas, size] run-call: test_using() => 15
+//@ run-call: test_value() => 42
+//@ run-call: test_storage_view() => 0
+//@ run-call: test_storage_write() => 1
+//@ run-call: test_multi() => 7, 8
+//@ run-call: test_calldata [1, 2, 3] => 1
+//@ run-call: test_using() => 15
 
 library Lib {
     struct S {

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorInternalArguments::getFlag() => true
-//@[none, gas, size] run-call: ConstructorInternalArguments::getName() => 0x616263
+//@ run-call: ConstructorInternalArguments::getFlag() => true
+//@ run-call: ConstructorInternalArguments::getName() => 0x616263
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_arguments_internal.sol
 
 contract ConstructorInternalArgumentsHelper {

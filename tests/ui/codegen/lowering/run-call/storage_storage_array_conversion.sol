@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: dynamic => 9
-//@[none, gas, size] run-call: nested => 7
-//@[none, gas, size] run-call: fixedToDynamic => 13
+//@ run-call: dynamic => 9
+//@ run-call: nested => 7
+//@ run-call: fixedToDynamic => 13
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_storage_different_base_nested.sol
 

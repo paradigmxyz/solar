@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
-//@[none, gas, size] run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
-//@[none, gas, size] run-call: testOnePop => 3
+//@ run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
+//@ run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
+//@ run-call: testOnePop => 3
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop_copy_long.sol
 
 contract StorageBytesPopCopyLong {

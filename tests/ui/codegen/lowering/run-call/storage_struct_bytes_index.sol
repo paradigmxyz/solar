@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 255, 3
-//@[none, gas, size] run-call: g() => 2
+//@ run-call: f() => 255, 3
+//@ run-call: g() => 2
 
 contract StorageStructBytesIndex {
     struct S {

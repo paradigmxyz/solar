@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: TryCatchError::success() => 7
-//@[none, gas, size] run-call: TryCatchError::failure() => 2
+//@ run-call: TryCatchError::success() => 7
+//@ run-call: TryCatchError::failure() => 2
 
 contract TryCatchErrorTarget {
     function ok() external pure {}

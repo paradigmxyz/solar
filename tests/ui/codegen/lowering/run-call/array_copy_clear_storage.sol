@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 0
+//@ run-call: f() => 0
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_clear_storage.sol
 
 contract ArrayCopyClearStorage {

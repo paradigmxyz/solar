@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copy => 101
-//@[none, gas, size] run-call: dirty => 513
+//@ run-call: copy => 101
+//@ run-call: dirty => 513
 // ported-from: test/libsolidity/semanticTests/array/copying/bytes_memory_to_storage.sol
 // ported-from: test/libsolidity/semanticTests/array/copying/dirty_memory_bytes_to_storage_copy.sol
 

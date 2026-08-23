@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 7
+//@ run-call: test() => 7
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_function_internal_storage_array.sol
 
 contract InternalFunctionPointerDynamicStorageCopy {

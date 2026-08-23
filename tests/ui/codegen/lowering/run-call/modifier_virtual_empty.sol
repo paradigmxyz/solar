@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => false
+//@ run-call: f() => false
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_empty.sol
 
 abstract contract ModifierVirtualEmptyBase {

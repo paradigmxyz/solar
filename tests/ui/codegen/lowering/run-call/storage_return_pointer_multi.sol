@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test() => 3
+//@ run-call: test() => 3
 // ported-from: test/libsolidity/semanticTests/viaYul/return_storage_pointers.sol
 
 contract StorageReturnPointerMulti {

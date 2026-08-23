@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorInitOrderDerived::y() => 42
-//@[none, gas, size] run-call: NoCtorDerived::y() => 42
+//@ run-call: ConstructorInitOrderDerived::y() => 42
+//@ run-call: NoCtorDerived::y() => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order.sol
 
 contract ConstructorInitOrderBase {

@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: t() => 9
+//@ run-call: t() => 9
 // ported-from: test/libsolidity/semanticTests/functionTypes/store_function.sol
 
 contract ExternalFunctionPointerHigherOrderTarget {

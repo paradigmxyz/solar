@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read() => 1, 2, 3
+//@ run-call: read() => 1, 2, 3
 // ported-from: test/libsolidity/semanticTests/array/copying/array_storage_multi_items_per_slot.sol
 
 contract StoragePackedArrayElements {

@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
+//@ run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
 // ported-from: test/libsolidity/semanticTests/array/copying/function_type_array_to_storage.sol
 
 contract ExternalFunctionPointerStorageArray {

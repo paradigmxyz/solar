@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: b() => 123
-//@[none, gas, size] run-call: c() => 123
-//@[none, gas, size] run-call: d() => 7
+//@ run-call: b() => 123
+//@ run-call: c() => 123
+//@ run-call: d() => 7
 // ported-from: test/libsolidity/semanticTests/functionCall/named_args.sol
 
 contract NamedArguments {

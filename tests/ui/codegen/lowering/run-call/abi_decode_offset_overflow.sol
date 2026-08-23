@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call-fail: test()
-//@[none, gas, size] run-call-fail: withinArray()
+//@ run-call-fail: test()
+//@ run-call-fail: withinArray()
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_3.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_2.sol
 

@@ -5,11 +5,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@[none, gas, size] run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@[none, gas, size] run-call: LayoutDerived::slots() => 2, 3, 4
-//@[none, gas, size] run-call: LayoutTransient::slots() => 0, 7
-//@[none, gas, size] run-call: LayoutErc7201::matchesReference() => true
+//@ run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
+//@ run-call: LayoutStorage::store(uint256) 99 => 99, 99
+//@ run-call: LayoutDerived::slots() => 2, 3, 4
+//@ run-call: LayoutTransient::slots() => 0, 7
+//@ run-call: LayoutErc7201::matchesReference() => true
 
 function erc7201Reference(string memory namespace) pure returns (uint256) {
     return uint256(

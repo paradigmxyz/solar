@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: choose(bool) true => 7, 0
-//@[none, gas, size] run-call: choose(bool) false => 0, 7
-//@[none, gas, size] run-call: chooseArray(bool) true => 11
-//@[none, gas, size] run-call: chooseArray(bool) false => 22
+//@ run-call: choose(bool) true => 7, 0
+//@ run-call: choose(bool) false => 0, 7
+//@ run-call: chooseArray(bool) true => 11
+//@ run-call: chooseArray(bool) false => 22
 
 contract TernaryStorageReference {
     struct S {

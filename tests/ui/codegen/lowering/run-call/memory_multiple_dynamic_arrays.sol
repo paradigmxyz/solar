@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: allocate => 7
+//@ run-call: allocate => 7
 // ported-from: test/libsolidity/semanticTests/array/create_multiple_dynamic_arrays.sol
 
 contract MemoryMultipleDynamicArrays {

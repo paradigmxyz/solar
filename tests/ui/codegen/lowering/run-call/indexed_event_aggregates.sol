@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test_nested() => 2, 0x68656c6c6f
-//@[none, gas, size] run-call: test_strings() => 0x776f726c64
+//@ run-call: test_nested() => 2, 0x68656c6c6f
+//@ run-call: test_strings() => 0x776f726c64
 
 contract IndexedAggregates {
     struct Payload {

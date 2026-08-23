@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: TryCatchPanic::success() => 7
-//@[none, gas, size] run-call: TryCatchPanic::failure() => 1
+//@ run-call: TryCatchPanic::success() => 7
+//@ run-call: TryCatchPanic::failure() => 1
 
 contract TryCatchPanicTarget {
     function ok() external pure {}

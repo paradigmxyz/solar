@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: run() => 7
+//@ run-call: run() => 7
 // ported-from: test/libsolidity/semanticTests/functionTypes/internal_function_pointer_with_calldata_args.sol
 
 contract InternalFunctionPointerCalldata {

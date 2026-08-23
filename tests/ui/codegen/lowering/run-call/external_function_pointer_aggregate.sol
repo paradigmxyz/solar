@@ -5,13 +5,13 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read() => 7, "ok"
-//@[none, gas, size] run-call: readArguments() => 7, "ok"
-//@[none, gas, size] run-call: pointerArgumentRoundtrip() => 8
-//@[none, gas, size] run-call: pointerReturnRoundtrip() => 9
-//@[none, gas, size] run-call: pointerStructRoundtrip() => 9
-//@[none, gas, size] run-call: pointerArrayRoundtrip() => 9
-//@[none, gas, size] run-call: calldataPointerRoundtrip() => true
+//@ run-call: read() => 7, "ok"
+//@ run-call: readArguments() => 7, "ok"
+//@ run-call: pointerArgumentRoundtrip() => 8
+//@ run-call: pointerReturnRoundtrip() => 9
+//@ run-call: pointerStructRoundtrip() => 9
+//@ run-call: pointerArrayRoundtrip() => 9
+//@ run-call: calldataPointerRoundtrip() => true
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f false => 1
-//@[none, gas, size] run-call: f true => 1
+//@ run-call: f false => 1
+//@ run-call: f true => 1
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_multi_invocation_viair.sol
 
 contract ModifierRepeatedPlaceholder {

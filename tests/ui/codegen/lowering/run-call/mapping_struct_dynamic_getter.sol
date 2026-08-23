@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: MappingDynamicGetter::read() => 7, 0x616263
-//@[none, gas, size] run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
+//@ run-call: MappingDynamicGetter::read() => 7, 0x616263
+//@ run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
 
 contract MappingDynamicGetter {
     struct Entry {

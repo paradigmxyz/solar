@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: tupleLiteral() => true
-//@[none, gas, size] run-call: tupleTernary() => true, 2
+//@ run-call: tupleLiteral() => true
+//@ run-call: tupleTernary() => true, 2
 // ported-from: test/libsolidity/semanticTests/expressions/tuple_from_ternary_expression.sol
 contract C {
     function tupleLiteral() external pure returns (bool) {

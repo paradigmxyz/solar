@@ -5,15 +5,15 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: BaseConstructorArgs::value(); constructor=[5] => 11
-//@[none, gas, size] run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
-//@[none, gas, size] run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
-//@[none, gas, size] run-call: ConstructorInitializationOrder::x() => 2
-//@[none, gas, size] run-call: NamedDerived::value() => 12
-//@[none, gas, size] run-call: BaseConstructorReturn::value() => 2
-//@[none, gas, size] run-call: FunctionUsageDerived::getA() => 2
-//@[none, gas, size] run-call: VirtualFunctionUsageDerived::getA() => 2
-//@[none, gas, size] run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
+//@ run-call: BaseConstructorArgs::value(); constructor=[5] => 11
+//@ run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
+//@ run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
+//@ run-call: ConstructorInitializationOrder::x() => 2
+//@ run-call: NamedDerived::value() => 12
+//@ run-call: BaseConstructorReturn::value() => 2
+//@ run-call: FunctionUsageDerived::getA() => 2
+//@ run-call: VirtualFunctionUsageDerived::getA() => 2
+//@ run-call: EmptyBaseArgumentMask::domain() => "Token", "1"
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol

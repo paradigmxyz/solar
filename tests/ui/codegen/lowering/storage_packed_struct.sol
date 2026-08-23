@@ -5,19 +5,19 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read => 1, 2, 3
-//@[none, gas, size] run-call: copyValues => 1, 2, 3
-//@[none, gas, size] run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
-//@[none, gas, size] run-call: write 7, 9, 11 => 7, 9, 11
-//@[none, gas, size] run-call: replace 8, 10, 12 => 8, 10, 12
-//@[none, gas, size] run-call: replaceArray => 5, 6, 7, 8
-//@[none, gas, size] run-call: arrayRead 3 => 4
-//@[none, gas, size] run-call: arrayWrite 2, 9 => 9
-//@[none, gas, size] run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
-//@[none, gas, size] run-call: encodedRead => 0x11223344, -7
-//@[none, gas, size] run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
-//@[none, gas, size] run-call: encodedArrayRead 1 => 0x55667788, -8
-//@[none, gas, size] run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@ run-call: read => 1, 2, 3
+//@ run-call: copyValues => 1, 2, 3
+//@ run-call: raw => 0x0000000000000000000000000000000000000000000000000000000000000201
+//@ run-call: write 7, 9, 11 => 7, 9, 11
+//@ run-call: replace 8, 10, 12 => 8, 10, 12
+//@ run-call: replaceArray => 5, 6, 7, 8
+//@ run-call: arrayRead 3 => 4
+//@ run-call: arrayWrite 2, 9 => 9
+//@ run-call: mixedRead => 0x0000000000000000000000000000000000001234, true, 4660
+//@ run-call: encodedRead => 0x11223344, -7
+//@ run-call: encodedWrite 0xaabbccdd, -9 => 0xaabbccdd, -9
+//@ run-call: encodedArrayRead 1 => 0x55667788, -8
+//@ run-call: encodedArrayWrite 1, 0xaabbccdd, -9 => 0xaabbccdd, -9
 
 contract PackedStruct {
     struct S {

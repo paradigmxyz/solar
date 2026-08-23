@@ -5,18 +5,18 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: bindAfterDeclaration 7, 11 => 11, 12
-//@[none, gas, size] run-call: rebind true, 3, 5, 17 => 0, 17
-//@[none, gas, size] run-call: rebind false, 3, 5, 17 => 17, 0
-//@[none, gas, size] run-call: rebindParameter 3, 5, 19 => 0, 19
-//@[none, gas, size] run-call: swap 3, 5, 23, 29 => 29, 23
-//@[none, gas, size] run-call: packedRebind false, 3, 5, 17 => 17, 0
-//@[none, gas, size] run-call: packedRebind true, 3, 5, 17 => 0, 17
-//@[none, gas, size] run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
-//@[none, gas, size] run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
-//@[none, gas, size] run-call: yulPackedOffset 17 => 1
-//@[none, gas, size] run-call: assignmentExpression 3, 5, 17 => 0, 17
-//@[none, gas, size] run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
+//@ run-call: bindAfterDeclaration 7, 11 => 11, 12
+//@ run-call: rebind true, 3, 5, 17 => 0, 17
+//@ run-call: rebind false, 3, 5, 17 => 17, 0
+//@ run-call: rebindParameter 3, 5, 19 => 0, 19
+//@ run-call: swap 3, 5, 23, 29 => 29, 23
+//@ run-call: packedRebind false, 3, 5, 17 => 17, 0
+//@ run-call: packedRebind true, 3, 5, 17 => 0, 17
+//@ run-call: packedYulRebind false, 3, 5, 17 => 17, 0, 0
+//@ run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
+//@ run-call: yulPackedOffset 17 => 1
+//@ run-call: assignmentExpression 3, 5, 17 => 0, 17
+//@ run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
 contract StorageReferenceReassignment {
     struct Item {

@@ -6,8 +6,8 @@
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
 // ported-from: tests/libsolidity/semanticTests/types/tuple_assign_multi_slot_grow.sol
-//@[none, gas, size] run-call: assign() => 0x30, 0x31, 0x32
-//@[none, gas, size] run-call: swap() => 2, 1, 4, 3
+//@ run-call: assign() => 0x30, 0x31, 0x32
+//@ run-call: swap() => 2, 1, 4, 3
 
 contract NestedTupleAssignment {
     function assign() external pure returns (uint256, uint256, uint256) {

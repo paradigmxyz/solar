@@ -5,11 +5,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: references 42 => 42, 84, 4096
-//@[none, gas, size] run-call: nestedPush 2, 64 => 64
-//@[none, gas, size] run-call: bytesPush => 71, 0x00
-//@[none, gas, size] run-call: bytesTransition => 0
-//@[none, gas, size] run-call: pushPreservesStorage => 42
+//@ run-call: references 42 => 42, 84, 4096
+//@ run-call: nestedPush 2, 64 => 64
+//@ run-call: bytesPush => 71, 0x00
+//@ run-call: bytesTransition => 0
+//@ run-call: pushPreservesStorage => 42
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_struct.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_2d.sol
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_bytes.sol

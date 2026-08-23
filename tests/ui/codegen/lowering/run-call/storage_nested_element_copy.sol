@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copyDynamic => 18
-//@[none, gas, size] run-call: copyFixed => 30
-//@[none, gas, size] run-call: copyMixed => 18
+//@ run-call: copyDynamic => 18
+//@ run-call: copyFixed => 30
+//@ run-call: copyMixed => 18
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_element_storage_to_storage.sol
 
 pragma abicoder v2;

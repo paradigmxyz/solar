@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: clearNested() => 0, 0, 0, 0, 0, 0
-//@[none, gas, size] run-call: clearMutual() => 0, 0, 0, 0, 0, 0
+//@ run-call: clearNested() => 0, 0, 0, 0, 0, 0
+//@ run-call: clearMutual() => 0, 0, 0, 0, 0, 0
 
 contract StorageDeleteRecursiveStruct {
     struct Node {

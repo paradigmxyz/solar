@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ShortCallOutput::shortOutput() => true, 7
+//@ run-call: ShortCallOutput::shortOutput() => true, 7
 
 // EVM calls only copy the bytes that the callee returned. Bytes after that
 // remain unchanged, even when the requested output area is larger.

@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: pushEmpty => 0
-//@[none, gas, size] run-call: pushMemory => 1
-//@[none, gas, size] run-call: pushStruct => 2345
-//@[none, gas, size] run-call: pushBytes => 97
+//@ run-call: pushEmpty => 0
+//@ run-call: pushMemory => 1
+//@ run-call: pushStruct => 2345
+//@ run-call: pushBytes => 97
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested_from_memory.sol
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_struct.sol

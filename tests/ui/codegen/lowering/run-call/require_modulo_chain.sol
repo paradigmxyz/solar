@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: chain 12, 3 => 15
-//@[none, gas, size] run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@[none, gas, size] run-call-fail: chain 11, 3
-//@[none, gas, size] run-call: chain 0, 1 => 1
+//@ run-call: chain 12, 3 => 15
+//@ run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: chain 11, 3
+//@ run-call: chain 0, 1 => 1
 
 contract RequireModuloCases {
     function chain(uint256 a, uint256 b) external pure returns (uint256) {

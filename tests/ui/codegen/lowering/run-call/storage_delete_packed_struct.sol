@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@[none, gas, size] run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@[none, gas, size] run-call: clearMapping() => 0, 0, 0
-//@[none, gas, size] run-call: assign() => 4, 21862, 7
-//@[none, gas, size] run-call: clearDirtyWord() => 0
-//@[none, gas, size] run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@ run-call: clearArray() => 1, 2, 3, 0, 0, 0
+//@ run-call: clearReference() => 1, 2, 3, 0, 0, 0
+//@ run-call: clearMapping() => 0, 0, 0
+//@ run-call: assign() => 4, 21862, 7
+//@ run-call: clearDirtyWord() => 0
+//@ run-call: clearStructWithMapping() => 0, 0, 17, 23
 
 contract StorageDeletePackedStruct {
     struct Pair {

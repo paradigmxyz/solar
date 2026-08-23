@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
+//@ run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
 
 contract ConstructorArgumentInitializationA {
     uint256 public x = 2;

@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: trySuccess() => 7
-//@[none, gas, size] run-call: tryFailure() => 100
-//@[none, gas, size] run-call: tryPair() => 7, "ok"
+//@ run-call: trySuccess() => 7
+//@ run-call: tryFailure() => 100
+//@ run-call: tryPair() => 7, "ok"
 
 contract ExternalFunctionPointerTry {
     struct Context {

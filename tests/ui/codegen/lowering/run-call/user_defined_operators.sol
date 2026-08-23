@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: add_(uint256,uint256) 3, 4 => 7
-//@[none, gas, size] run-call: mul_(uint256,uint256) 3, 4 => 12
-//@[none, gas, size] run-call: eq_(uint256,uint256) 3, 4 => false
-//@[none, gas, size] run-call: eq_(uint256,uint256) 4, 4 => true
+//@ run-call: add_(uint256,uint256) 3, 4 => 7
+//@ run-call: mul_(uint256,uint256) 3, 4 => 12
+//@ run-call: eq_(uint256,uint256) 3, 4 => false
+//@ run-call: eq_(uint256,uint256) 4, 4 => true
 
 type Balance is uint256;
 

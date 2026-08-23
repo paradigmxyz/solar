@@ -5,14 +5,14 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: falseCondition() => 42
-//@[none, gas, size] run-call: countToThree() => 3
-//@[none, gas, size] run-call: conditionSideEffect() => 2, 2
-//@[none, gas, size] run-call: skipRemainder() => 20
-//@[none, gas, size] run-call: nested() => 6
-//@[none, gas, size] run-call: whileControl() => 3
-//@[none, gas, size] run-call: whileConditionalContinue() => 22
-//@[none, gas, size] run-call: exitUsesPreviousLoopValue() => 5
+//@ run-call: falseCondition() => 42
+//@ run-call: countToThree() => 3
+//@ run-call: conditionSideEffect() => 2, 2
+//@ run-call: skipRemainder() => 20
+//@ run-call: nested() => 6
+//@ run-call: whileControl() => 3
+//@ run-call: whileConditionalContinue() => 22
+//@ run-call: exitUsesPreviousLoopValue() => 5
 // ported-from: test/libsolidity/semanticTests/statements/do_while_loop_continue.sol
 
 contract DoWhileContinue {

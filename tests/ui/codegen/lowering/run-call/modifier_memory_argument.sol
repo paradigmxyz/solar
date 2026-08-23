@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f(uint256[]) [7] => 7
-//@[none, gas, size] run-call: f(uint256[]) [1, 2] => 1
+//@ run-call: f(uint256[]) [7] => 7
+//@ run-call: f(uint256[]) [1, 2] => 1
 
 contract ModifierMemoryArgument {
     modifier rewrite(uint256[] memory values) {

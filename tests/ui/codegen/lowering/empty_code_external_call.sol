@@ -6,11 +6,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call-fail: EmptyCodeCalls::direct() => 0x
-//@[none, gas, size] run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@[none, gas, size] run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@[none, gas, size] run-call: EmptyCodeCalls::lowLevel() => true
-//@[none, gas, size] run-call: EmptyCodeCalls::selfCall() => true
+//@ run-call-fail: EmptyCodeCalls::direct() => 0x
+//@ run-call-fail: EmptyCodeCalls::pointer() => 0x
+//@ run-call-fail: EmptyCodeCalls::libraryCall() => 0x
+//@ run-call: EmptyCodeCalls::lowLevel() => true
+//@ run-call: EmptyCodeCalls::selfCall() => true
 
 contract EmptyCodeTarget {
     function noop() external {}

@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: fAndRead() => 4
+//@ run-call: fAndRead() => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/return_in_modifier.sol
 
 contract ModifierReturnInLoop {

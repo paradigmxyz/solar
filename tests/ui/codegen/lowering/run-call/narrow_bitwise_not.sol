@@ -5,22 +5,22 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: notUint8(uint8) 0 => 255
-//@[none, gas, size] run-call: notUint8(uint8) 0xa5 => 90
-//@[none, gas, size] run-call: notUint16(uint16) 0 => 65535
-//@[none, gas, size] run-call: notUint16(uint16) 0xa55a => 23205
-//@[none, gas, size] run-call: notUint256(uint256) 0 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[none, gas, size] run-call: notInt8(int8) 0 => -1
-//@[none, gas, size] run-call: notInt8(int8) -128 => 127
-//@[none, gas, size] run-call: notInt16(int16) 4660 => -4661
-//@[none, gas, size] run-call: notBytes1(bytes1) 0x00 => 0xff
-//@[none, gas, size] run-call: notBytes1(bytes1) 0xa5 => 0x5a
-//@[none, gas, size] run-call: notBytes2(bytes2) 0x0000 => 0xffff
-//@[none, gas, size] run-call: notBytes2(bytes2) 0xa55a => 0x5aa5
-//@[none, gas, size] run-call: compareBytes1(bytes1) 0xff => true
-//@[none, gas, size] run-call: notBytes32(bytes32) 0x0000000000000000000000000000000000000000000000000000000000000000 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[none, gas, size] run-call: notLiteral() => -1
-//@[none, gas, size] run-call: notLiteralEqualsNegativeOne() => true
+//@ run-call: notUint8(uint8) 0 => 255
+//@ run-call: notUint8(uint8) 0xa5 => 90
+//@ run-call: notUint16(uint16) 0 => 65535
+//@ run-call: notUint16(uint16) 0xa55a => 23205
+//@ run-call: notUint256(uint256) 0 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: notInt8(int8) 0 => -1
+//@ run-call: notInt8(int8) -128 => 127
+//@ run-call: notInt16(int16) 4660 => -4661
+//@ run-call: notBytes1(bytes1) 0x00 => 0xff
+//@ run-call: notBytes1(bytes1) 0xa5 => 0x5a
+//@ run-call: notBytes2(bytes2) 0x0000 => 0xffff
+//@ run-call: notBytes2(bytes2) 0xa55a => 0x5aa5
+//@ run-call: compareBytes1(bytes1) 0xff => true
+//@ run-call: notBytes32(bytes32) 0x0000000000000000000000000000000000000000000000000000000000000000 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: notLiteral() => -1
+//@ run-call: notLiteralEqualsNegativeOne() => true
 
 contract NarrowBitwiseNot {
     function notUint8(uint8 value) external pure returns (uint8) {

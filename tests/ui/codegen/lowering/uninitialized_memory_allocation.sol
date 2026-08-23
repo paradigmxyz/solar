@@ -5,15 +5,15 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: fixedArray() => 96
-//@[none, gas, size] run-call: structure() => 64
-//@[none, gas, size] run-call: aliasDoesNotAllocate() => 0
-//@[none, gas, size] run-call: dynamicDefaults() => 0, 96, 96, 0
-//@[none, gas, size] run-call: nestedDynamicDefaults() => 96, 96, 96, true
-//@[none, gas, size] run-call: defaultBytesReturn() => 0x
-//@[none, gas, size] run-call: defaultThroughInternalCall() => true
-//@[none, gas, size] run-call: fixedArrayDynamicDefaults() => 64, 96, 96
-//@[none, gas, size] run-call: nestedStaticDefaults() => 192
+//@ run-call: fixedArray() => 96
+//@ run-call: structure() => 64
+//@ run-call: aliasDoesNotAllocate() => 0
+//@ run-call: dynamicDefaults() => 0, 96, 96, 0
+//@ run-call: nestedDynamicDefaults() => 96, 96, 96, true
+//@ run-call: defaultBytesReturn() => 0x
+//@ run-call: defaultThroughInternalCall() => true
+//@ run-call: fixedArrayDynamicDefaults() => 64, 96, 96
+//@ run-call: nestedStaticDefaults() => 192
 
 contract UninitializedMemoryAllocation {
     struct Pair {

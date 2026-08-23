@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copy => 10
+//@ run-call: copy => 10
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_memory_to_storage.sol
 
 contract ArrayStructMemoryStorage {

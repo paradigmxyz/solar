@@ -5,9 +5,9 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: compound() => 1, 17, 20
-//@[none, gas, size] run-call: postIncrement() => 1, 11, 20
-//@[none, gas, size] run-call: pushSideEffect() => 2, 9, 7
+//@ run-call: compound() => 1, 17, 20
+//@ run-call: postIncrement() => 1, 11, 20
+//@ run-call: pushSideEffect() => 2, 9, 7
 
 contract LValueEvaluationOrder {
     uint256[] values;

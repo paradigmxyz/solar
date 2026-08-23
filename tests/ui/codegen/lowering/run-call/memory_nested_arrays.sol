@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: assignment 42 => 42
-//@[none, gas, size] run-call: newValue 42 => 42
+//@ run-call: assignment 42 => 42
+//@ run-call: newValue 42 => 42
 // ported-from: test/libsolidity/semanticTests/array/array_3d_assignment.sol
 // ported-from: test/libsolidity/semanticTests/array/array_3d_new.sol
 

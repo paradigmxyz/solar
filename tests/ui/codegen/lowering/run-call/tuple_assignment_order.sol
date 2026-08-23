@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: swap() => 2, 1
+//@ run-call: swap() => 2, 1
 
 contract TupleAssignmentOrder {
     function swap() external pure returns (uint256, uint256) {

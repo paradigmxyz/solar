@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: checkedDirtyOperands() => 9, -27
-//@[none, gas, size] run-call: uncheckedDirtyOperands() => 4
-//@[none, gas, size] run-call: copiedDirtyOperand() => 9
-//@[none, gas, size] run-call: branchedDirtyOperand(bool) true => -27
-//@[none, gas, size] run-call: branchedDirtyOperand(bool) false => 9
-//@[none, gas, size] run-call: fullWidthOperands() => 16
+//@ run-call: checkedDirtyOperands() => 9, -27
+//@ run-call: uncheckedDirtyOperands() => 4
+//@ run-call: copiedDirtyOperand() => 9
+//@ run-call: branchedDirtyOperand(bool) true => -27
+//@ run-call: branchedDirtyOperand(bool) false => 9
+//@ run-call: fullWidthOperands() => 16
 // ported-from: test/libsolidity/semanticTests/exponentiation/signed_base.sol
 // ported-from: test/libsolidity/semanticTests/exponentiation/small_exp.sol
 

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: raw() => 0x0000000000000000000000000000000000000000000000000000000000003412
-//@[none, gas, size] run-call: packed 171, 52719 => 0x0000000000000000000000000000000000000000000000000000000000cdefab
+//@ run-call: raw() => 0x0000000000000000000000000000000000000000000000000000000000003412
+//@ run-call: packed 171, 52719 => 0x0000000000000000000000000000000000000000000000000000000000cdefab
 
 contract PackedUint {
     uint8 public a = 0x12;

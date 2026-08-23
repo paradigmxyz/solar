@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
-//@[none, gas, size] run-call: test2(uint8[][]) [[7], [8, 9]]
+//@ run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
+//@ run-call: test2(uint8[][]) [[7], [8, 9]]
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_dynamic_array_element_calldata_to_storage.sol
 
 contract StorageNestedDynamicCalldataToStorage {

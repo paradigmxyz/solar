@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test(bool,uint256) false, 17 => 17, 0
-//@[none, gas, size] run-call: test(bool,uint256) true, 19 => 0, 19
+//@ run-call: test(bool,uint256) false, 17 => 17, 0
+//@ run-call: test(bool,uint256) true, 19 => 0, 19
 
 contract StorageReturnPointerDirect {
     struct S {

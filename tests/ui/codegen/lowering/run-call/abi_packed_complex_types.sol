@@ -5,12 +5,12 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f() => 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae, 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
-//@[none, gas, size] run-call: hashAbi() => 0x6758b4e9d54934cf885d10dfefcaa5d32df1735663c7bc76ede308ee24c8176d
-//@[none, gas, size] run-call: hashNestedAbi() => 0x73e4b829b5f2f329d3f30cdff339d9767485f927c5af72e41bc3870e933743a4
-//@[none, gas, size] run-call: hashStructAbi() => 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae
-//@[none, gas, size] run-call: hashScalarAbi() => 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
-//@[none, gas, size] run-call: scalarCall() => 2
+//@ run-call: f() => 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae, 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
+//@ run-call: hashAbi() => 0x6758b4e9d54934cf885d10dfefcaa5d32df1735663c7bc76ede308ee24c8176d
+//@ run-call: hashNestedAbi() => 0x73e4b829b5f2f329d3f30cdff339d9767485f927c5af72e41bc3870e933743a4
+//@ run-call: hashStructAbi() => 0xba4f20407251e4607cd66b90bfea19ec6971699c03e4a4f3ea737d5818ac27ae
+//@ run-call: hashScalarAbi() => 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
+//@ run-call: scalarCall() => 2
 // ported-from: test/libsolidity/semanticTests/builtinFunctions/keccak256_packed_complex_types.sol
 
 contract AbiPackedComplexTypes {

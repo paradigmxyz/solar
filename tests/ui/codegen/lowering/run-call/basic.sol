@@ -5,19 +5,19 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: add 2 => 42
-//@[none, gas, size] run-call: negate(bool) true => false
-//@[none, gas, size] run-call: pair 41, true => 42, false
-//@[none, gas, size] run-call: sum(uint256[]) [1, 2, 3] => 6
-//@[none, gas, size] run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@[none, gas, size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
-//@[none, gas, size] run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@[none, gas, size] run-call: increment => 41
-//@[none, gas, size] run-call: testInline()
-//@[none, gas, size] run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@[none, gas, size] run-call: reservedSpillFreshness(bool) true => 83
-//@[none, gas, size] run-call: reservedSpillFreshness(bool) false => 137
-//@[none, gas, size] run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
+//@ run-call: add 2 => 42
+//@ run-call: negate(bool) true => false
+//@ run-call: pair 41, true => 42, false
+//@ run-call: sum(uint256[]) [1, 2, 3] => 6
+//@ run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
+//@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: increment => 41
+//@ run-call: testInline()
+//@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
+//@ run-call: reservedSpillFreshness(bool) true => 83
+//@ run-call: reservedSpillFreshness(bool) false => 137
+//@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
     struct DynamicHolder {

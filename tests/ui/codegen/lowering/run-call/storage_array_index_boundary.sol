@@ -5,11 +5,11 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: read(uint256,uint256) 10, 9 => 0
-//@[none, gas, size] run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none, gas, size] run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@[none, gas, size] run-call: read(uint256,uint256) 256, 255 => 0
-//@[none, gas, size] run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: read(uint256,uint256) 10, 9 => 0
+//@ run-call-fail: read(uint256,uint256) 10, 10 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: read(uint256,uint256) 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: read(uint256,uint256) 256, 255 => 0
+//@ run-call-fail: read(uint256,uint256) 256, 256 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/array_storage_index_boundary_test.sol
 
 contract StorageArrayIndexBoundary {

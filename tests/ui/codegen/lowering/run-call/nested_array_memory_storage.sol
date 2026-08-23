@@ -5,10 +5,10 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test => 24
-//@[none, gas, size] run-call: test1 => 3
-//@[none, gas, size] run-call: test2 => 6
-//@[none, gas, size] run-call: test3 => 24
+//@ run-call: test => 24
+//@ run-call: test1 => 3
+//@ run-call: test2 => 6
+//@ run-call: test3 => 24
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_memory_to_storage.sol
 
 contract NestedArrayMemoryStorage {

@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: test_g() => 1, 7
-//@[none, gas, size] run-call: test_h() => 43
+//@ run-call: test_g() => 1, 7
+//@ run-call: test_h() => 43
 
 contract C {
     struct S {

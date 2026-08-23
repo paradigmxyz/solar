@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
+//@ run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_calldata_to_memory.sol
 
 pragma abicoder v2;

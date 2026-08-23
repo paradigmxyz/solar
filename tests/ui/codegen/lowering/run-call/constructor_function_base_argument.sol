@@ -5,7 +5,7 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: ConstructorFunctionBaseDerived::getA() => 2
+//@ run-call: ConstructorFunctionBaseDerived::getA() => 2
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
 
 contract ConstructorFunctionBaseBase {

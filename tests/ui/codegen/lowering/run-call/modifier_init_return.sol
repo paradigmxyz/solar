@@ -5,8 +5,8 @@
 //@[gas] compile-flags: -O gas --emit=abi,bin
 //@[size] compile-flags: -O size --emit=abi,bin
 //@[mir] compile-flags: -O none -Zdump=mir
-//@[none, gas, size] run-call: f 9 => [0, 0, 0, 0, 0]
-//@[none, gas, size] run-call: f 10 => [0, 0, 3, 0, 0]
+//@ run-call: f 9 => [0, 0, 0, 0, 0]
+//@ run-call: f 10 => [0, 0, 3, 0, 0]
 // ported-from: test/libsolidity/semanticTests/modifiers/modifier_init_return.sol
 
 contract ModifierInitReturn {
