@@ -335,13 +335,33 @@ impl<'gcx> Lowerer<'gcx> {
                             if let Some(selector) = self.lower_resolved_function_selector(base) {
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
-                            if let ExprKind::Member(receiver, function_name) = &base.kind {
+                            if let Some(function_id) = self.gcx.resolved_function(base) {
                                 let selector =
-                                    self.compute_member_selector(receiver, *function_name);
+                                    u32::from_be_bytes(self.gcx.function_selector(function_id).0);
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
                             if let Some(selector) = self.ident_function_selector(base) {
                                 return builder.imm_u256(U256::from(selector) << 224);
+                            }
+                            if matches!(
+                                self.get_expr_type(base).map(|ty| ty.peel_refs().kind),
+                                Some(TyKind::Fn(function)) if function.is_external()
+                            ) {
+                                let value = self.lower_value_expr(builder, base);
+                                let mask = builder.imm_u64(u32::MAX as u64);
+                                let selector = builder.and(value, mask);
+                                let shift = builder.imm_u64(224);
+                                return builder.shl(shift, selector);
+                            }
+                        }
+                        Builtin::FunctionAddress => {
+                            if matches!(
+                                self.get_expr_type(base).map(|ty| ty.peel_refs().kind),
+                                Some(TyKind::Fn(function)) if function.is_external()
+                            ) {
+                                let value = self.lower_value_expr(builder, base);
+                                let shift = builder.imm_u64(32);
+                                return builder.shr(shift, value);
                             }
                         }
                         Builtin::EventSelector => {
@@ -874,18 +894,10 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(ty) = self.get_expr_type(target)
             && matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
+            && !ty.peel_refs().is_value_type()
         {
-            match ty.peel_refs().kind {
-                TyKind::Struct(struct_id) => {
-                    self.clear_storage_struct_at(builder, struct_id, slot);
-                    return;
-                }
-                _ if !ty.peel_refs().is_value_type() => {
-                    self.clear_storage_value_at(builder, ty, slot);
-                    return;
-                }
-                _ => {}
-            }
+            self.clear_storage_value_at(builder, ty, slot);
+            return;
         }
 
         // Deleting a memory fixed-size array zeroes its elements in place;
@@ -2568,10 +2580,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Materializes a storage array used as a memory value into a fresh
-    /// `[length][elements...]` copy, or `None` for non-array types. Only
-    /// one-slot elements are supported, consistent with storage-array
-    /// indexing; unsupported element layouts report an error instead of
-    /// miscompiling the raw slot value into a pointer.
+    /// `[length][elements...]` copy, or `None` for non-array types. Nested
+    /// aggregates are recursively materialized at their full storage stride.
     pub(super) fn materialize_storage_array_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -2604,9 +2614,6 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         }
         let elem_slots = self.calculate_storage_slots_for_ty(elem, span);
-        if !elem_is_struct && elem_slots != 1 {
-            return None;
-        }
 
         let packed_elem = self.packed_value_of_ty(elem);
 
@@ -3042,6 +3049,9 @@ impl<'gcx> Lowerer<'gcx> {
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
+        let end = builder.add(data_start, len);
+        let end_overflow = builder.lt(end, data_start);
+        self.emit_abi_decode_revert_if(builder, end_overflow);
 
         let head_size_val = builder.imm_u64(head_size);
         let mut out = Vec::with_capacity(tys.len());
@@ -3053,6 +3063,9 @@ impl<'gcx> Lowerer<'gcx> {
                 let err = builder.error_value(guar);
                 return vec![err; tys.len()];
             };
+            let pos =
+                self.resolve_memory_abi_body(builder, ty, head_pos, data_start, head_size_val, end);
+            self.validate_memory_abi_value(builder, ty, pos, end);
             let decoded = match strategy {
                 DecodeStrategy::Word(elem) => {
                     let word = builder.mload(head_pos);
@@ -3074,31 +3087,12 @@ impl<'gcx> Lowerer<'gcx> {
                         builder, data_start, len, head_size, &elem, head,
                     )
                 }
-                DecodeStrategy::General(ty) => {
-                    // Resolve the member's body position, then decode it with
-                    // the same recursive materializer that decodes calldata
-                    // struct-array parameters.
-                    let pos = if self.abi_is_dynamic(ty) {
-                        let offset = builder.mload(head_pos);
-                        let before_tail = builder.lt(offset, head_size_val);
-                        self.emit_abi_decode_revert_if(builder, before_tail);
-                        let word = builder.imm_u64(32);
-                        let body_head_end = builder.add(offset, word);
-                        let head_overflow = builder.lt(body_head_end, offset);
-                        self.emit_abi_decode_revert_if(builder, head_overflow);
-                        let head_oob = builder.gt(body_head_end, len);
-                        self.emit_abi_decode_revert_if(builder, head_oob);
-                        builder.add(data_start, offset)
-                    } else {
-                        head_pos
-                    };
-                    self.materialize_calldata_value_at(
-                        builder,
-                        super::bytes::AbiSource::Memory,
-                        ty,
-                        pos,
-                    )
-                }
+                DecodeStrategy::General(ty) => self.materialize_calldata_value_at(
+                    builder,
+                    super::bytes::AbiSource::Memory,
+                    ty,
+                    pos,
+                ),
             };
             out.push(decoded);
             let ty_size = match self.abi_head_size(ty) {

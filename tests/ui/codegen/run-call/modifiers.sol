@@ -8,6 +8,7 @@
 //@ run-call: Modifiers::lazy(bool) true => 0
 //@ run-call: Modifiers::clamped(uint256) 9 => 5
 //@ run-call: Modifiers::clamped(uint256) 2 => 2
+//@ run-call: Modifiers::repeated() => 212111
 //@ run-call: ModBase::guardedV() => 1
 //@ run-call: ModDerived::guardedV() => 100
 //@ run-call: CtorMod::v() => 50
@@ -120,6 +121,24 @@ contract Modifiers {
 
     // A reassigned modifier parameter lives in a frame slot.
     function clamped(uint256 x) public clamp(x) returns (uint256) {
+        return t;
+    }
+
+    modifier remember(uint256 x) {
+        uint256 local = x;
+        x += 10;
+        _;
+        t = t * 1000 + local * 100 + x;
+    }
+
+    // Re-entering the same HIR modifier body must allocate a distinct `x`
+    // and `local` activation for the inner application.
+    function repeatedInner() internal remember(1) remember(2) {
+        t = 0;
+    }
+
+    function repeated() public returns (uint256) {
+        repeatedInner();
         return t;
     }
 }

@@ -139,6 +139,9 @@ impl<'gcx> Lowerer<'gcx> {
                     self.clear_storage_value_at(builder, element_ty, element_slot);
                 }
             }
+            TyKind::DynArray(element_ty) => {
+                self.clear_dynamic_storage_array(builder, slot, element_ty);
+            }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 let empty = self.allocate_memory_object(builder, 32, MemoryObjectKind::Bytes);
                 let zero = builder.imm_u64(0);
@@ -147,7 +150,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             TyKind::Mapping(..) => {}
             TyKind::Err(_) => {}
-            _ if matches!(ty.kind, TyKind::DynArray(_)) || ty.is_value_type() => {
+            _ if ty.is_value_type() => {
                 let zero = builder.imm_u64(0);
                 builder.sstore(slot, zero);
             }
@@ -155,6 +158,70 @@ impl<'gcx> Lowerer<'gcx> {
                 self.gcx.dcx().err("codegen cannot clear this storage value").emit();
             }
         }
+    }
+
+    /// Clears every element owned by a dynamic storage array, then its length.
+    fn clear_dynamic_storage_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+    ) {
+        let len = builder.sload(slot);
+        let zero = builder.imm_u64(0);
+        let word = builder.imm_u64(32);
+        builder.mstore(zero, slot);
+        let data = builder.keccak256(zero, word);
+        let packed = self.packed_value_of_ty(element_ty);
+
+        let entry = builder.current_block();
+        let head = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(head);
+
+        builder.switch_to_block(head);
+        let index = builder.phi(vec![(entry, zero)]);
+        let limit = if let Some(packed) = packed {
+            let per_slot = u64::from(packed.per_slot());
+            let divisor = builder.imm_u64(per_slot);
+            let full_slots = builder.div(len, divisor);
+            let remainder = builder.mod_(len, divisor);
+            let no_tail = builder.iszero(remainder);
+            let has_tail = builder.iszero(no_tail);
+            builder.add(full_slots, has_tail)
+        } else {
+            len
+        };
+        let more = builder.lt(index, limit);
+        builder.branch(more, body, exit);
+
+        builder.switch_to_block(body);
+        let element_slot = if packed.is_some() {
+            builder.add(data, index)
+        } else {
+            let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+            let offset = if element_slots == 1 {
+                index
+            } else {
+                let stride = builder.imm_u64(element_slots);
+                builder.mul(index, stride)
+            };
+            builder.add(data, offset)
+        };
+        if packed.is_some() {
+            builder.sstore(element_slot, zero);
+        } else {
+            self.clear_storage_value_at(builder, element_ty, element_slot);
+        }
+        let one = builder.imm_u64(1);
+        let next = builder.add(index, one);
+        let latch = builder.current_block();
+        builder.add_phi_incoming(index, latch, next);
+        builder.jump(head);
+
+        builder.switch_to_block(exit);
+        builder.sstore(slot, zero);
     }
 
     fn offset_storage_slot(
@@ -509,17 +576,6 @@ impl<'gcx> Lowerer<'gcx> {
             };
             builder.mstore(dest, value);
         }
-    }
-
-    /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
-    pub(crate) fn clear_storage_struct_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: ValueId,
-    ) {
-        let layout = self.storage_layout_for_struct(struct_id);
-        builder.clear_storage(layout, base_slot);
     }
 
     /// Recursively copies a struct from memory to storage.

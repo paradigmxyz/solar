@@ -189,11 +189,30 @@ fn @pop() {
     revert 0, 36
   bb2:
     v1 = sub v0, 1
-    mstore 0, 2 !metadata(memory=scratch)
     v3 = shl 1, v1
     v4 = add v3, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     sstore v4, 0 !metadata(storage=symbolic(v4))
     v5 = add v3, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf
+    v6 = sload v5 !metadata(storage=offset(v4, 1))
+    mstore 0, v5 !metadata(memory=scratch)
+    v7 = keccak256 0, 32 !metadata(memory=scratch)
+    v17 = shr 3, v6
+    v19 = and v6, 7
+    v21 = iszero v19
+    v23 = iszero v21
+    v25 = add v17, v23
+    jump bb3
+  bb3:
+    v8 = phi [bb2: 0], [bb4: v16]
+    v27 = phi [bb2: v7], [bb4: v28]
+    v14 = lt v8, v25
+    jumpi v14, bb4, bb5
+  bb4:
+    sstore v27, 0 !metadata(storage=symbolic(v27))
+    v16 = add v8, 1
+    v28 = add v27, 1
+    jump bb3
+  bb5:
     sstore v5, 0 !metadata(storage=offset(v4, 1))
     sstore 2, v1 !metadata(storage=slot(2))
     stop

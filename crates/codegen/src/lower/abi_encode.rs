@@ -48,6 +48,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let location = if calldata { SliceLocation::Calldata } else { SliceLocation::Memory };
         Some(match ty.peel_refs().kind {
+            TyKind::Fn(function) if function.is_external() => AbiType::ExternalFunction,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 AbiType::Bytes(location)
             }
@@ -138,12 +139,12 @@ impl<'gcx> Lowerer<'gcx> {
         match ty.kind {
             TyKind::Array(elem, n) => {
                 let len = u64::try_from(n).map_err(|_| self.abi_head_size_overflow())?;
-                len.checked_mul(self.abi_head_size(elem)?)
+                len.checked_mul(self.abi_head_size(elem.peel_refs())?)
                     .ok_or_else(|| self.abi_head_size_overflow())
             }
-            TyKind::Struct(id) => {
-                self.abi_head_size_sum(self.gcx.struct_field_types(id).iter().copied())
-            }
+            TyKind::Struct(id) => self.abi_head_size_sum(
+                self.gcx.struct_field_types(id).iter().map(|&field| field.peel_refs()),
+            ),
             _ => Ok(32),
         }
     }
@@ -392,6 +393,37 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             },
             None => value,
+        }
+    }
+
+    /// Converts the compiler's internal value representation to its ABI word.
+    pub(super) fn abi_encode_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        let value = self.abi_clean_value(builder, value, ty);
+        if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
+            let shift = builder.imm_u64(64);
+            builder.shl(shift, value)
+        } else {
+            value
+        }
+    }
+
+    /// Converts a validated ABI word to the compiler's internal representation.
+    pub(super) fn abi_decode_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
+            let shift = builder.imm_u64(64);
+            builder.shr(shift, value)
+        } else {
+            value
         }
     }
 

@@ -32,6 +32,13 @@ impl<'gcx> Lowerer<'gcx> {
                 array.elem_slots,
             );
             if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Array(..))
+                && let Some(value) =
+                    self.materialize_storage_array_value(builder, ty, element_slot, expr.span)
+            {
+                return value;
+            }
+            if let Some(ty) = self.get_expr_type(expr)
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             {
                 let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
@@ -49,6 +56,13 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
             if mapping.value_is_mapping {
                 return mapping.slot;
+            }
+            if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Array(..))
+                && let Some(value) =
+                    self.materialize_storage_array_value(builder, ty, mapping.slot, expr.span)
+            {
+                return value;
             }
             if let Some(ty) = self.get_expr_type(expr)
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
@@ -234,24 +248,17 @@ impl<'gcx> Lowerer<'gcx> {
                 index_val,
                 array.elem_slots,
             );
-            builder.sstore(element_slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_at(builder, ty, element_slot, rhs);
+            } else {
+                builder.sstore(element_slot, rhs);
+            }
             return;
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if let Some(ty) = self.get_expr_type(lhs)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
-            } else if self.expr_has_bytes_or_string_type(lhs) {
-                self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
-            } else if let Some(packed) =
-                self.get_expr_type(lhs).and_then(|ty| self.packed_value_of_ty(ty))
-            {
-                // A narrow mapping value owns its slot: store solc's
-                // low-aligned masked form without a read-modify-write.
-                let prepared = builder.prepare_packed(rhs, packed);
-                builder.sstore(mapping.slot, prepared);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_at(builder, ty, mapping.slot, rhs);
             } else {
                 builder.sstore(mapping.slot, rhs);
             }

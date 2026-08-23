@@ -40,7 +40,7 @@ contract MappingNestedStructCopy {
 
     // CHECK-LABEL: fn @clear{{[( ]}}
     // CHECK: = mapping_slot
-    // CHECK: clear_storage struct<0:word, 1:struct<0:word, 1:word>, 3:word>
+    // CHECK-COUNT-4: sstore
     function clear(uint256 key) external {
         delete values[key];
     }

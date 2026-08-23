@@ -6,6 +6,8 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -25,42 +27,113 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v13 = memory_object_data memorybytes, v9
     v14 = lt v12, 96
     jumpi v14, bb3, bb4
-  bb4:
-    v15 = mload v13
-    v16 = add v13, 32
-    v17 = mload v16
-    v18 = iszero v17
-    v19 = iszero v18
-    v20 = eq v17, v19
-    v21 = iszero v20
-    jumpi v21, bb5, bb6
-  bb6:
-    v22 = add v13, 64
-    v23 = mload v22
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = eq v23, v24
-    v26 = iszero v25
-    jumpi v26, bb7, bb8
-  bb8:
-    v27 = fmp
-    v28 = add v27, 32
-    mstore v28, v19
-    v29 = add v27, 64
-    mstore v29, v24
-    mstore 32, v27 !metadata(memory=scratch)
-    v30 = mload 32 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    v33 = add v30, 64
-    v34 = mload v33
-    ret v15, v32, v34
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
+  bb4:
+    v15 = add v13, v12
+    v16 = lt v15, v13
+    jumpi v16, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    internal_call @__abi_validate_memory_0, 0, v13, v15
+    v17 = mload v13
+    v18 = add v13, 32
+    internal_call @__abi_validate_memory_1, 0, v18, v15
+    v19 = mload v18
+    v20 = iszero v19
+    v21 = iszero v20
+    v22 = eq v19, v21
+    v23 = iszero v22
+    jumpi v23, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v24 = add v13, 64
+    internal_call @__abi_validate_memory_2, 0, v24, v15
+    v25 = mload v24
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = eq v25, v26
+    v28 = iszero v27
+    jumpi v28, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v29 = fmp
+    v30 = add v29, 32
+    mstore v30, v21
+    v31 = add v29, 64
+    mstore v31, v26
+    mstore 32, v29 !metadata(memory=scratch)
+    v32 = mload 32 !metadata(memory=scratch)
+    v33 = add v32, 32
+    v34 = mload v33
+    v35 = add v32, 64
+    v36 = mload v35
+    ret v17, v34, v36
+}
+
+fn @__abi_validate_memory_0(arg0: memptr, arg1: memptr) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
   bb1:
     revert 0, 0
+  bb2:
+    v2 = gt v0, arg1
+    jumpi v2, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v3 = mload arg0
+    ret
+}
+
+fn @__abi_validate_memory_1(arg0: memptr, arg1: memptr) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v2 = gt v0, arg1
+    jumpi v2, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v3 = mload arg0
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    ret
+}
+
+fn @__abi_validate_memory_2(arg0: memptr, arg1: memptr) {
+  bb0:
+    v0 = add arg0, 32
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v2 = gt v0, arg1
+    jumpi v2, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v3 = mload arg0
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    jumpi v5, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    ret
 }
 

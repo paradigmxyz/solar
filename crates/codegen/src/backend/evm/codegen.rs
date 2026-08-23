@@ -2462,12 +2462,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
+        let hazard_cross_block_values = self.spill_hazard_cross_block_values(func, liveness);
+        let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
+            self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
+        });
         let hazard_stack_layout = resident_stack_plan
             .is_none()
             .then(|| self.compute_spill_hazard_stack_layout(func, liveness, &stack_phi_plan))
             .flatten();
+        if !hazard_cross_block_values.is_empty()
+            && hazard_stack_layout.is_none()
+            && !resident_carries_hazards
+        {
+            self.gcx
+                .dcx()
+                .err("codegen cannot preserve values across a low-memory forwarding buffer")
+                .emit();
+            return;
+        }
         let hazard_stack_values = hazard_stack_layout.as_ref().map(|(values, _)| values.as_slice());
-        let hazard_stack_plan = hazard_stack_layout.as_ref().map(|(_, plan)| plan.clone());
+        let hazard_stack_plan =
+            hazard_stack_layout.as_ref().map(|(_, plan)| plan.clone()).or_else(|| {
+                if resident_carries_hazards { resident_stack_plan.clone() } else { None }
+            });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
         let mut global_stack_plan = resident_stack_plan.unwrap_or_else(|| {
@@ -6279,41 +6296,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let inst_blocks = func.inst_blocks();
-        let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
-        let hazard_is_repeated = loop_info.all_loops().any(|loop_info| {
-            self.spill_hazard_insts.iter().any(|inst| {
-                inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
-                    && matches!(
-                        func.inst(*inst).kind,
-                        InstKind::CalldataCopy(dest, _, _)
-                            if matches!(func.value(dest), crate::mir::Value::Inst(definition)
-                                if matches!(&func.inst(*definition).kind, InstKind::Phi(incoming)
-                                    if incoming.iter().any(|&(_, value)| {
-                                        func.value_u64(value).is_some_and(|address| {
-                                            address < EvmMemoryLayout::HEAP_START
-                                        })
-                                    })))
-                    )
-            })
-        });
-        if !hazard_is_repeated {
+        let values = self.spill_hazard_cross_block_values(func, liveness);
+        if values.is_empty() || values.len() > GLOBAL_STACK_LAYOUT_LIMIT {
             return None;
         }
 
-        let cross_block = Self::cross_block_live_values(func, liveness);
-        let mut values = DenseBitSet::new_empty(func.num_values());
-        for value in &cross_block {
-            if Self::can_own_spill_slot(func, value) {
-                values.insert(value);
-            }
-        }
-        if values.is_empty() || values.count() > GLOBAL_STACK_LAYOUT_LIMIT {
-            return None;
-        }
-
-        let values = values.iter().collect::<Vec<_>>();
         let mut plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
@@ -6334,6 +6321,45 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         plan.entries.retain(|_, entry| !entry.is_empty());
         Some((values, plan))
+    }
+
+    /// Values that need a successor after a forwarding-buffer clobber.
+    fn spill_hazard_cross_block_values(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+    ) -> Vec<ValueId> {
+        let inst_blocks = func.inst_blocks();
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        for inst in &self.spill_hazard_insts {
+            let Some(&block) = inst_blocks.get(inst) else { continue };
+            for value in liveness.live_out(block) {
+                if Self::can_own_spill_slot(func, value) {
+                    values.insert(value);
+                }
+            }
+        }
+        values.iter().collect()
+    }
+
+    /// Whether an existing resident plan carries every at-risk live-out.
+    fn stack_plan_carries_spill_hazards(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        plan: &GlobalStackPlan,
+        hazard_values: &[ValueId],
+    ) -> bool {
+        let inst_blocks = func.inst_blocks();
+        self.spill_hazard_insts.iter().all(|inst| {
+            let Some(&block_id) = inst_blocks.get(inst) else { return false };
+            let Some(term) = func.blocks[block_id].terminator.as_ref() else { return false };
+            let carried = plan.uniformly_carried_values(func, term);
+            hazard_values
+                .iter()
+                .filter(|&&value| liveness.live_out(block_id).contains(value))
+                .all(|value| carried.contains(value))
+        })
     }
 
     fn select_cross_block_stack_layout(
@@ -7271,6 +7297,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             EvmMemoryLayout::HEAP_START
         };
         let runtime_entries = std::mem::take(&mut self.runtime_entry_funcs);
+        let reachable_memory_marks = runtime_entries
+            .iter()
+            .copied()
+            .map(|entry| {
+                let mark = self
+                    .runtime_entry_reachability
+                    .get(&entry)
+                    .into_iter()
+                    .flat_map(|reachable| reachable.iter())
+                    .map(|func_id| {
+                        Self::constant_memory_high_water_mark(&module.functions[func_id])
+                    })
+                    .max()
+                    .unwrap_or_else(|| {
+                        Self::constant_memory_high_water_mark(&module.functions[entry])
+                    });
+                (entry, mark)
+            })
+            .collect::<FxHashMap<_, _>>();
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
@@ -7280,6 +7325,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Self::external_spill_base(
                         &module.functions[func_id],
                         uses_dynamic_internal_frames,
+                        reachable_memory_marks[&func_id],
                     ),
                 )
             })
@@ -7505,8 +7551,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
             let base =
-                Self::external_spill_base(&module.functions[func_id], uses_dynamic_internal_frames)
-                    + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+                entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
             }
@@ -7531,7 +7576,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_entry_reachability.clear();
     }
 
-    fn external_spill_base(func: &Function, dynamic_frames_enabled: bool) -> u64 {
+    fn external_spill_base(
+        func: &Function,
+        dynamic_frames_enabled: bool,
+        reachable_memory_mark: u64,
+    ) -> u64 {
         let low_memory_start = if dynamic_frames_enabled && Self::uses_internal_frame_slot(func) {
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
         } else {
@@ -7543,7 +7592,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // frame through constant addresses; spill only above everything it
         // names, so a reload never reads a byte of the user's image and a
         // store never lands inside it.
-        let mark = Self::constant_memory_high_water_mark(func);
+        let mark = Self::constant_memory_high_water_mark(func).max(reachable_memory_mark);
         base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
     }
 
@@ -7605,13 +7654,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// the deployed footer. Reads count as well as writes. The compiler's own
     /// absolute accesses (the external return buffer, frame locals) never
     /// exceed the base they are placed under, so they never raise it. Ranges
-    /// ending past `SPILL_HAZARD_BOUND` above `HEAP_START` are not low memory
-    /// and are ignored.
+    /// starting at or above `SPILL_HAZARD_BOUND` above `HEAP_START` are not low
+    /// memory and are ignored. A range that starts below the bound still owns
+    /// its complete extent, even when its end lies above the bound.
     fn constant_memory_high_water_mark(func: &Function) -> u64 {
         let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         let end_of = |offset: ValueId, size: u64| -> Option<u64> {
-            let end = func.value_u64(offset)?.checked_add(size)?;
-            (end <= bound).then_some(end)
+            let start = func.value_u64(offset)?;
+            let end = start.checked_add(size)?;
+            (start < bound).then_some(end)
         };
         let sized_end = |offset: ValueId, size: ValueId| end_of(offset, func.value_u64(size)?);
         let mut mark = 0;
@@ -7678,6 +7729,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let mut reachable = call_graph.reachable_callees_from([entry]);
         reachable.insert(entry);
+        self.runtime_entry_reachability.insert(entry, reachable.clone());
         let needs_free_memory = reachable.iter().any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
@@ -7698,12 +7750,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
-        self.runtime_entry_reachability.insert(entry, reachable);
     }
 
-    /// Collects whole-calldata-forwarding clobbers that overwrite the spill
-    /// area. Only a `calldatacopy` with a dynamic length into low, unowned
-    /// memory qualifies — a `delegatecall` proxy trashing `[0, calldatasize())`.
+    /// Collects calldata-forwarding clobbers that can overwrite the spill
+    /// area. A copy with a symbolic destination or length into low, unowned
+    /// memory qualifies — for example a proxy trashing `[0, calldatasize())`.
     /// Alias analysis is built only when the function has such a copy, and
     /// destinations resolved to the free-memory pointer, an allocation, or the
     /// internal frame (ordinary high memory, including hand-written
@@ -7711,25 +7762,24 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// perturbs normal or assembly-heavy code that stays above the spill area.
     fn compute_spill_hazard_insts(func: &Function) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
-        let has_dynamic_calldatacopy = func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::CalldataCopy(_, _, size)
-                if func.value_u64(size).is_none())
+        let has_symbolic_calldatacopy = func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::CalldataCopy(dest, _, size)
+                if func.value_u64(dest).is_none() || func.value_u64(size).is_none())
         });
         // The clobber only matters when the copied low memory is then forwarded
-        // to a call: a proxy `delegatecall`/`call` whose argument length is
-        // dynamic. Pure calldata manipulation (a decompressor writing scratch)
-        // never reads a spilled value back from the overwritten region, so it
-        // must not be perturbed.
-        let has_dynamic_forwarding_call = func.instructions().any(|inst_id| {
+        // to a call. Pure calldata manipulation (a decompressor writing
+        // scratch) never reads a spilled value back from the overwritten
+        // region, so it must not be perturbed.
+        let has_forwarding_call = func.instructions().any(|inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::Call { args_size, .. }
-                    | InstKind::CallCode { args_size, .. }
-                    | InstKind::StaticCall { args_size, .. }
-                    | InstKind::DelegateCall { args_size, .. }
-                if func.value_u64(args_size).is_none())
+                InstKind::Call { .. }
+                    | InstKind::CallCode { .. }
+                    | InstKind::StaticCall { .. }
+                    | InstKind::DelegateCall { .. }
+            )
         });
-        if !has_dynamic_calldatacopy || !has_dynamic_forwarding_call {
+        if !has_symbolic_calldatacopy || !has_forwarding_call {
             return hazards;
         }
         let aa = AliasAnalysis::new(func);
@@ -7737,7 +7787,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let InstKind::CalldataCopy(dest, _, size) = func.inst(inst_id).kind else {
                 continue;
             };
-            if func.value_u64(size).is_some() {
+            if func.value_u64(dest).is_some() && func.value_u64(size).is_some() {
                 continue;
             }
             if Self::write_dest_may_reach_spills(func, &aa, dest) {

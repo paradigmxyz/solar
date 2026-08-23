@@ -77,7 +77,7 @@ fn count_helper_type(
     counts: &mut FxHashMap<AbiType, u64>,
     order: &mut Vec<AbiType>,
 ) {
-    if matches!(ty, AbiType::Word) {
+    if matches!(ty, AbiType::Word | AbiType::ExternalFunction) {
         return;
     }
     if !counts.contains_key(ty) {
@@ -97,7 +97,7 @@ fn count_helper_type(
                 count_helper_type(field, occurrences, counts, order);
             }
         }
-        AbiType::Word | AbiType::Bytes(_) => {}
+        AbiType::Word | AbiType::ExternalFunction | AbiType::Bytes(_) => {}
     }
 }
 
@@ -125,7 +125,7 @@ fn build_helper(name: Symbol, ty: &AbiType, helpers: &FxHashMap<AbiType, Functio
 
 fn abi_value_type(ty: &AbiType) -> MirType {
     match ty {
-        AbiType::Word => MirType::uint256(),
+        AbiType::Word | AbiType::ExternalFunction => MirType::uint256(),
         AbiType::Bytes(SliceLocation::Memory) => MirType::MemoryObject(MemoryObjectKind::Bytes),
         AbiType::Bytes(location) => MirType::Slice(*location),
         AbiType::DynamicArray { location: SliceLocation::Memory, .. } => {
@@ -383,7 +383,9 @@ fn encode_body(
     match ty {
         AbiType::Bytes(location) => encode_bytes(builder, value, dest, *location),
         AbiType::DynamicArray { element, location }
-            if matches!(element.as_ref(), AbiType::Word) =>
+            if matches!(element.as_ref(), AbiType::Word)
+                || (matches!(element.as_ref(), AbiType::ExternalFunction)
+                    && *location != SliceLocation::Memory) =>
         {
             encode_word_array(builder, value, dest, *location)
         }
@@ -422,7 +424,9 @@ fn encode_body(
             location: SliceLocation::Calldata | SliceLocation::Returndata,
             ..
         } => unreachable!("non-word calldata arrays are materialized before ABI encoding"),
-        AbiType::Word => unreachable!("word ABI values are static"),
+        AbiType::Word | AbiType::ExternalFunction => {
+            unreachable!("word ABI values are static")
+        }
     }
 }
 
@@ -461,6 +465,11 @@ fn encode_static_body(
                 encode_static(builder, element, element_value, element_head, scratch, helpers);
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
+        }
+        AbiType::ExternalFunction => {
+            let shift = builder.imm_u64(64);
+            let value = builder.shl(shift, value);
+            builder.mstore(dest, value);
         }
         _ => builder.mstore(dest, value),
     }

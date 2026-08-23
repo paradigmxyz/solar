@@ -678,10 +678,18 @@ impl<'gcx> Lowerer<'gcx> {
         call_opts: Option<&[hir::NamedArg<'_>]>,
         function: &'gcx TyFn<'gcx>,
     ) -> Option<ValueId> {
-        let (success, ret_offset) =
+        let (success, _) =
             self.emit_external_function_pointer_call(builder, callee, args, call_opts, function);
         self.emit_forwarding_revert_unless(builder, success);
-        (!function.returns.is_empty()).then(|| builder.mload(ret_offset))
+        if function.returns.is_empty() {
+            return None;
+        }
+        let ptr = self.materialize_returndata_bytes(builder);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let values = self.decode_abi_region(builder, data, len, function.returns);
+        self.stage_multi_return_tail(builder, &values);
+        values.first().copied()
     }
 
     pub(super) fn emit_external_function_pointer_call(
@@ -719,9 +727,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
         };
 
-        let ret_offset =
-            if function.returns.len() > 1 { calldata_start } else { builder.imm_u64(0) };
-        let ret_size = builder.imm_u64((function.returns.len() * 32) as u64);
+        let ret_offset = builder.imm_u64(0);
+        let ret_size = builder.imm_u64(0);
         let kind = ExternalCallKind::from_state_mutability(
             function.state_mutability,
             self.gcx.sess.opts.evm_version.has_static_call(),
@@ -739,10 +746,6 @@ impl<'gcx> Lowerer<'gcx> {
             ret_offset,
             ret_size,
         );
-        if function.returns.len() > 1 {
-            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            builder.mstore(ptr_slot, ret_offset);
-        }
         (success, ret_offset)
     }
 
@@ -1714,12 +1717,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         let addr = self.lower_value_expr(builder, base);
 
-        // Returns containing dynamic types need real ABI decoding: their raw
-        // head words are payload-relative offsets, not memory pointers. Fixed
-        // arrays are static but span several head words, so they need the
-        // decode too; the legacy word buffer would truncate them. Only a
-        // resolved callee carries the return types.
-        let dynamic_return_tys = resolved_func
+        // Every typed external return goes through the recursive bounded ABI
+        // decoder. Static aggregates need materialization just as dynamic
+        // ones do, and even one-word returns must reject short returndata.
+        let return_tys = resolved_func
             .map(|func_id| {
                 self.gcx
                     .hir
@@ -1729,17 +1730,12 @@ impl<'gcx> Lowerer<'gcx> {
                     .map(|&id| self.gcx.type_of_item(id.into()))
                     .collect::<Vec<_>>()
             })
-            .filter(|tys| {
-                tys.iter().any(|&ty| {
-                    let ty = ty.peel_refs();
-                    self.abi_is_dynamic(ty) || matches!(ty.kind, TyKind::Array(..))
-                })
-            });
-        if let Some(return_tys) = dynamic_return_tys {
+            .filter(|tys| !tys.is_empty());
+        if let Some(return_tys) = return_tys {
             let kind = self.external_function_call_kind(resolved_func);
             let (gas, value) =
                 self.lower_external_call_options(builder, call_opts, kind.accepts_value());
-            return self.lower_external_call_dynamic_returns(
+            return self.lower_external_call_typed_returns(
                 builder,
                 kind,
                 gas,
@@ -1811,12 +1807,9 @@ impl<'gcx> Lowerer<'gcx> {
         Some(builder.mload(ret_offset))
     }
 
-    /// Performs an external call whose declared returns contain dynamic types
-    /// and ABI-decodes them from the return data. The payload is copied into
-    /// fresh memory and decoded like any other ABI blob, with the head-size
-    /// and offset checks solc performs.
+    /// Performs an external call and bounded-decodes all declared return types.
     #[allow(clippy::too_many_arguments)]
-    fn lower_external_call_dynamic_returns(
+    fn lower_external_call_typed_returns(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         kind: ExternalCallKind,
@@ -1841,74 +1834,11 @@ impl<'gcx> Lowerer<'gcx> {
         );
         self.emit_forwarding_revert_unless(builder, success);
 
-        let head_size = match self.abi_head_size_sum(return_tys.iter().copied()) {
-            Ok(size) => size,
-            Err(guar) => return Some(builder.error_value(guar)),
-        };
-        let payload_size = builder.returndatasize();
-        let head_size_val = builder.imm_u64(head_size);
-        let too_short = builder.lt(payload_size, head_size_val);
-        self.emit_abi_decode_revert_if(builder, too_short);
-
-        let base = self.allocate_memory_object_dynamic(
-            builder,
-            payload_size,
-            crate::mir::MemoryObjectKind::Bytes,
-        );
-        builder.returndatacopy(base, zero, payload_size);
-
-        let mut values = Vec::with_capacity(return_tys.len());
-        let mut head_offset = 0u64;
-        for &ty in return_tys {
-            let item_pos = self.offset_ptr(builder, base, head_offset);
-            let value = if self.abi_is_dynamic(ty.peel_refs()) {
-                let offset = builder.mload(item_pos);
-                let out_of_range = builder.gt(offset, payload_size);
-                self.emit_abi_decode_revert_if(builder, out_of_range);
-                let pos = builder.add(base, offset);
-                self.materialize_calldata_value_at(
-                    builder,
-                    super::bytes::AbiSource::Memory,
-                    ty,
-                    pos,
-                )
-            } else {
-                self.materialize_calldata_value_at(
-                    builder,
-                    super::bytes::AbiSource::Memory,
-                    ty,
-                    item_pos,
-                )
-            };
-            values.push(value);
-            head_offset += match self.abi_head_size(ty) {
-                Ok(size) => size,
-                Err(guar) => return Some(builder.error_value(guar)),
-            };
-        }
-
-        if values.len() > 1 {
-            // Publish the decoded values through the one-word-per-value
-            // multi-return buffer the tuple consumers snapshot: reference
-            // types travel as their fresh memory pointers.
-            let count = values.len() as u64;
-            let size = builder.imm_u64(count * 32);
-            let buffer = builder.alloc_object(
-                size,
-                crate::mir::MemoryObjectLayout::structure(count),
-                crate::mir::AllocationSemantics::INTERNAL,
-            );
-            for (index, &value) in values.iter().enumerate() {
-                let addr = builder.memory_object_field_addr(
-                    buffer,
-                    crate::mir::MemoryObjectLayout::structure(count),
-                    index as u64,
-                );
-                builder.mstore(addr, value);
-            }
-            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-            builder.mstore(ptr_slot, buffer);
-        }
+        let ptr = self.materialize_returndata_bytes(builder);
+        let payload_size = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let base = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let values = self.decode_abi_region(builder, base, payload_size, return_tys);
+        self.stage_multi_return_tail(builder, &values);
         Some(values[0])
     }
 

@@ -65,7 +65,13 @@ fn @clear(arg0: u256) {
     jumpi v2, bb1, bb2
   bb2:
     v3 = mapping_slot arg0, 0
-    clear_storage struct<0:word, 1:struct<0:word, 1:word>, 3:word>, v3
+    sstore v3, 0 !metadata(storage=symbolic(v3))
+    v4 = add v3, 1
+    sstore v4, 0 !metadata(storage=offset(v3, 1))
+    v5 = add v4, 1
+    sstore v5, 0 !metadata(storage=offset(v3, 2))
+    v6 = add v3, 3
+    sstore v6, 0 !metadata(storage=offset(v3, 3))
     stop
   bb1:
     revert 0, 0

@@ -512,6 +512,205 @@ impl<'gcx> Lowerer<'gcx> {
         helper
     }
 
+    /// Validates that a memory ABI value is entirely contained before `end`.
+    pub(super) fn validate_memory_abi_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        pos: ValueId,
+        end: ValueId,
+    ) {
+        let helper = self.abi_memory_validate_helper(ty.peel_refs());
+        builder.internal_call_void(helper, vec![pos, end], 0);
+    }
+
+    fn abi_memory_validate_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+        let ty = ty.peel_refs();
+        if let Some(&helper) = self.abi_memory_validate_helpers.get(&ty) {
+            return helper;
+        }
+
+        let index = self.abi_memory_validate_helpers.len();
+        let name =
+            Ident::with_dummy_span(Symbol::intern(&format!("__abi_validate_memory_{index}")));
+        let helper = self.module.add_function(Function::new(name));
+        self.abi_memory_validate_helpers.insert(ty, helper);
+
+        let mut func = Function::new(name);
+        func.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let pos = builder.add_param(MirType::MemPtr);
+            let end = builder.add_param(MirType::MemPtr);
+            self.validate_memory_abi_value_inline(&mut builder, ty, pos, end);
+            builder.ret([]);
+        }
+        *self.module.function_mut(helper) = func;
+        helper
+    }
+
+    fn validate_memory_abi_value_inline(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        pos: ValueId,
+        end: ValueId,
+    ) {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.validate_memory_abi_range(builder, pos, 32, end);
+                let len = builder.mload(pos);
+                let word = builder.imm_u64(32);
+                let data = builder.add(pos, word);
+                self.validate_memory_abi_dynamic_range(builder, data, len, end);
+            }
+            TyKind::DynArray(elem) | TyKind::Slice(elem) => {
+                self.validate_memory_abi_range(builder, pos, 32, end);
+                let len = builder.mload(pos);
+                let word = builder.imm_u64(32);
+                let data = builder.add(pos, word);
+                self.validate_memory_abi_array(builder, elem, len, data, end);
+            }
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    builder.error_value(self.abi_head_size_overflow());
+                    return;
+                };
+                let len = builder.imm_u64(len);
+                self.validate_memory_abi_array(builder, elem, len, pos, end);
+            }
+            TyKind::Struct(id) => {
+                let fields = self.gcx.struct_field_types(id).to_vec();
+                self.validate_memory_abi_fields(builder, &fields, pos, end);
+            }
+            TyKind::Tuple(fields) => {
+                self.validate_memory_abi_fields(builder, fields, pos, end);
+            }
+            TyKind::Udvt(inner, _) => {
+                self.validate_memory_abi_value(builder, inner, pos, end);
+            }
+            _ => {
+                self.validate_memory_abi_range(builder, pos, 32, end);
+                let word = builder.mload(pos);
+                self.emit_abi_field_clean_check(builder, ty, word);
+            }
+        }
+    }
+
+    fn validate_memory_abi_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        len: ValueId,
+        base: ValueId,
+        end: ValueId,
+    ) {
+        let elem = elem.peel_refs();
+        let stride = match self.abi_head_size(elem) {
+            Ok(stride) => stride,
+            Err(guar) => {
+                builder.error_value(guar);
+                return;
+            }
+        };
+        let stride_value = builder.imm_u64(stride);
+        let head_size = builder.mul(len, stride_value);
+        let roundtrip = builder.div(head_size, stride_value);
+        let did_roundtrip = builder.eq(roundtrip, len);
+        let overflow = builder.iszero(did_roundtrip);
+        self.emit_abi_decode_revert_if(builder, overflow);
+        self.validate_memory_abi_dynamic_range(builder, base, head_size, end);
+
+        self.emit_decode_elements_loop(builder, len, |this, builder, index| {
+            let offset = builder.mul(index, stride_value);
+            let head = builder.add(base, offset);
+            let pos = this.resolve_memory_abi_body(builder, elem, head, base, head_size, end);
+            this.validate_memory_abi_value(builder, elem, pos, end);
+        });
+    }
+
+    fn validate_memory_abi_fields(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        fields: &[Ty<'gcx>],
+        base: ValueId,
+        end: ValueId,
+    ) {
+        let head_size = match self.abi_head_size_sum(fields.iter().map(|ty| ty.peel_refs())) {
+            Ok(size) => size,
+            Err(guar) => {
+                builder.error_value(guar);
+                return;
+            }
+        };
+        self.validate_memory_abi_range(builder, base, head_size, end);
+        let head_size_value = builder.imm_u64(head_size);
+        let mut offset = 0;
+        for &field in fields {
+            let field = field.peel_refs();
+            let head = self.offset_ptr(builder, base, offset);
+            let pos =
+                self.resolve_memory_abi_body(builder, field, head, base, head_size_value, end);
+            self.validate_memory_abi_value(builder, field, pos, end);
+            offset += match self.abi_head_size(field) {
+                Ok(size) => size,
+                Err(guar) => {
+                    builder.error_value(guar);
+                    return;
+                }
+            };
+        }
+    }
+
+    pub(super) fn resolve_memory_abi_body(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        head: ValueId,
+        base: ValueId,
+        head_size: ValueId,
+        end: ValueId,
+    ) -> ValueId {
+        if !self.abi_is_dynamic(ty) {
+            return head;
+        }
+        let offset = builder.mload(head);
+        let before_tail = builder.lt(offset, head_size);
+        self.emit_abi_decode_revert_if(builder, before_tail);
+        let pos = builder.add(base, offset);
+        let overflow = builder.lt(pos, base);
+        self.emit_abi_decode_revert_if(builder, overflow);
+        let out_of_bounds = builder.gt(pos, end);
+        self.emit_abi_decode_revert_if(builder, out_of_bounds);
+        pos
+    }
+
+    fn validate_memory_abi_range(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        pos: ValueId,
+        size: u64,
+        end: ValueId,
+    ) {
+        let size = builder.imm_u64(size);
+        self.validate_memory_abi_dynamic_range(builder, pos, size, end);
+    }
+
+    fn validate_memory_abi_dynamic_range(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        pos: ValueId,
+        size: ValueId,
+        end: ValueId,
+    ) {
+        let range_end = builder.add(pos, size);
+        let overflow = builder.lt(range_end, pos);
+        self.emit_abi_decode_revert_if(builder, overflow);
+        let out_of_bounds = builder.gt(range_end, end);
+        self.emit_abi_decode_revert_if(builder, out_of_bounds);
+    }
+
     fn materialize_calldata_value_inline(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -548,7 +747,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // decoded from calldata, so validate before storing it.
                 let word = source.load(builder, pos);
                 self.emit_abi_field_clean_check(builder, ty, word);
-                word
+                self.abi_decode_value(builder, word, ty)
             }
         }
     }

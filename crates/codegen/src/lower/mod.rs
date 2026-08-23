@@ -32,7 +32,7 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
-    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId},
+    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, StmtKind, VariableId},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
 use std::collections::hash_map::Entry;
@@ -41,6 +41,58 @@ use self::storage::StorageLocation;
 
 /// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
 const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
+
+fn params_and_modifier_locals(params: &[VariableId], body: &hir::Block<'_>) -> Vec<VariableId> {
+    let mut vars = params.to_vec();
+    for stmt in body.stmts {
+        collect_modifier_local_vars(stmt, &mut vars);
+    }
+    vars
+}
+
+fn collect_modifier_local_vars(stmt: &hir::Stmt<'_>, vars: &mut Vec<VariableId>) {
+    match &stmt.kind {
+        StmtKind::DeclSingle(var_id) => vars.push(*var_id),
+        StmtKind::DeclMulti(var_ids, _) => vars.extend(var_ids.iter().flatten().copied()),
+        StmtKind::Block(block)
+        | StmtKind::UncheckedBlock(block)
+        | StmtKind::AssemblyBlock(block)
+        | StmtKind::Loop(block, _) => {
+            for stmt in block.stmts {
+                collect_modifier_local_vars(stmt, vars);
+            }
+        }
+        StmtKind::If(_, then_stmt, else_stmt) => {
+            collect_modifier_local_vars(then_stmt, vars);
+            if let Some(else_stmt) = else_stmt {
+                collect_modifier_local_vars(else_stmt, vars);
+            }
+        }
+        StmtKind::Switch(switch) => {
+            for case in switch.cases {
+                for stmt in case.body.stmts {
+                    collect_modifier_local_vars(stmt, vars);
+                }
+            }
+        }
+        StmtKind::Try(try_stmt) => {
+            for clause in try_stmt.clauses {
+                vars.extend_from_slice(clause.args);
+                for stmt in clause.block.stmts {
+                    collect_modifier_local_vars(stmt, vars);
+                }
+            }
+        }
+        StmtKind::Emit(_)
+        | StmtKind::Revert(_)
+        | StmtKind::Return(_)
+        | StmtKind::Break
+        | StmtKind::Continue
+        | StmtKind::Expr(_)
+        | StmtKind::Placeholder
+        | StmtKind::Err(_) => {}
+    }
+}
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -241,6 +293,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Shared ABI aggregate decoders keyed by source buffer and semantic type.
     abi_decode_helpers: FxHashMap<(bytes::AbiSource, Ty<'gcx>), FunctionId>,
+    /// Shared bounded-memory ABI validators keyed by semantic type.
+    abi_memory_validate_helpers: FxHashMap<Ty<'gcx>, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Shared base value for constructor ABI argument accesses.
@@ -352,6 +406,7 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             abi_decode_helpers: FxHashMap::default(),
+            abi_memory_validate_helpers: FxHashMap::default(),
             lowering_constructor: false,
             constructor_args_base: None,
             lowering_internal_function: false,
@@ -1125,16 +1180,36 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         };
 
-        // Bind the modifier's parameters to its argument values. Reassigned
-        // parameters live in (or reuse, when an outer placeholder re-enters
-        // this level) a frame slot; the rest stay SSA values whose previous
-        // bindings are restored on exit.
         let arg_exprs = match self.ordered_function_args(mod_id, &modifier.args, false) {
             Ok(exprs) => exprs,
             Err(_) => return,
         };
+
+        // Every placeholder expansion is a distinct activation. The same HIR
+        // variable IDs recur when a modifier appears twice or contains more
+        // than one placeholder, so suspend all of this modifier's bindings
+        // before allocating its parameters and locals.
+        let mut activation_vars = params_and_modifier_locals(mod_fn.parameters, mod_body);
+        activation_vars.sort_unstable();
+        activation_vars.dedup();
+        let saved_bindings = activation_vars
+            .iter()
+            .copied()
+            .map(|var_id| {
+                (
+                    var_id,
+                    self.locals.remove(&var_id),
+                    self.local_memory_slots.remove(&var_id),
+                    self.slice_slot_locals.remove(&var_id),
+                    self.storage_ref_locals.remove(var_id),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Bind the modifier's parameters to its argument values. Reassigned
+        // parameters receive a fresh frame slot for this activation; the rest
+        // stay as SSA values.
         let params = mod_fn.parameters;
-        let mut saved_bindings: Vec<(VariableId, Option<ValueId>)> = Vec::new();
         for (i, arg) in arg_exprs.into_iter().enumerate() {
             let Some(&param_id) = params.get(i) else { break };
             let value = if self.param_is_storage_ref(param_id) {
@@ -1149,13 +1224,11 @@ impl<'gcx> Lowerer<'gcx> {
                 self.coerce_arg_for_param(builder, param_id, arg, value)
             };
             if self.is_var_assigned(&param_id) {
-                let offset = self
-                    .get_local_memory_offset(&param_id)
-                    .unwrap_or_else(|| self.alloc_local_memory(param_id));
+                let offset = self.alloc_local_memory(param_id);
                 let addr = self.local_memory_addr(builder, offset);
                 builder.mstore(addr, value);
             } else {
-                saved_bindings.push((param_id, self.locals.insert(param_id, value)));
+                self.locals.insert(param_id, value);
             }
         }
 
@@ -1169,14 +1242,32 @@ impl<'gcx> Lowerer<'gcx> {
             builder.jump(exit_block);
         }
         builder.switch_to_block(exit_block);
-        for (param_id, old) in saved_bindings {
-            match old {
+        for (var_id, old_value, old_slot, was_slice, was_storage_ref) in saved_bindings {
+            match old_value {
                 Some(value) => {
-                    self.locals.insert(param_id, value);
+                    self.locals.insert(var_id, value);
                 }
                 None => {
-                    self.locals.remove(&param_id);
+                    self.locals.remove(&var_id);
                 }
+            }
+            match old_slot {
+                Some(offset) => {
+                    self.local_memory_slots.insert(var_id, offset);
+                }
+                None => {
+                    self.local_memory_slots.remove(&var_id);
+                }
+            }
+            if was_slice {
+                self.slice_slot_locals.insert(var_id);
+            } else {
+                self.slice_slot_locals.remove(&var_id);
+            }
+            if was_storage_ref {
+                self.storage_ref_locals.insert(var_id);
+            } else {
+                self.storage_ref_locals.remove(var_id);
             }
         }
     }
@@ -1478,6 +1569,8 @@ impl<'gcx> Lowerer<'gcx> {
                             sema_field_ty,
                             abi_param_source,
                         );
+                        let field_val =
+                            self.abi_decode_value(&mut builder, field_val, sema_field_ty);
 
                         // A dynamic array/bytes field's head word is the tail
                         // offset relative to the args start: materialize the
@@ -1542,6 +1635,7 @@ impl<'gcx> Lowerer<'gcx> {
                             elem_ty,
                             abi_param_source,
                         );
+                        let elem_val = self.abi_decode_value(&mut builder, elem_val, elem_ty);
                         let elem_index = builder.imm_u64(elem_idx);
                         let elem_addr = builder.memory_object_element_addr(
                             array_ptr,
@@ -1654,7 +1748,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
-                    let head_or_value = builder.add_param(ty);
+                    let mut head_or_value = builder.add_param(ty);
                     if decodes_abi_params {
                         self.emit_abi_param_validation(
                             &mut builder,
@@ -1662,6 +1756,8 @@ impl<'gcx> Lowerer<'gcx> {
                             param_ty,
                             abi_param_source,
                         );
+                        head_or_value =
+                            self.abi_decode_value(&mut builder, head_or_value, param_ty);
                     }
                     let is_reassigned = self.is_var_assigned(&param_id);
                     let is_storage_ref = self.param_is_storage_ref(param_id);
@@ -1945,6 +2041,9 @@ impl<'gcx> Lowerer<'gcx> {
                 _ => return None,
             },
             TyKind::Contract(_) => AbiWordValidator::Mask(U256::MAX >> 96),
+            TyKind::Fn(function) if function.is_external() => {
+                AbiWordValidator::Mask(U256::MAX << 64)
+            }
             TyKind::Enum(enum_id) => {
                 AbiWordValidator::EnumRange(self.gcx.hir.enumm(enum_id).variants.len() as u64)
             }

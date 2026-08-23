@@ -735,13 +735,11 @@ impl<'gcx> Lowerer<'gcx> {
         let loop_block = builder.create_block();
         let exit_block = builder.create_block();
 
-        // A `continue` in a `for` loop must execute the update block before
-        // checking the condition again.
-        let (continue_target, is_for_with_update) = if source == hir::LoopSource::ForWithUpdate {
-            let update_block = builder.create_block();
-            (update_block, true)
-        } else {
-            (loop_block, false)
+        // A `continue` in a `for` loop must execute the update block, and one
+        // in a `do while` loop must execute the trailing condition.
+        let continue_target = match source {
+            hir::LoopSource::ForWithUpdate | hir::LoopSource::DoWhile => builder.create_block(),
+            hir::LoopSource::For | hir::LoopSource::While => loop_block,
         };
 
         // Push loop context for break/continue
@@ -751,20 +749,59 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(loop_block);
 
-        // For for loops with update, lower body without the update, then emit update block
-        if is_for_with_update {
+        if source == hir::LoopSource::ForWithUpdate {
             self.lower_for_loop_body(builder, block, continue_target, loop_block);
+        } else if source == hir::LoopSource::DoWhile {
+            self.lower_do_while_body(builder, block, continue_target, loop_block, exit_block);
         } else {
             self.lower_block(builder, block);
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(loop_block);
             }
         }
-
         // Pop loop context
         self.pop_loop();
 
         builder.switch_to_block(exit_block);
+    }
+
+    /// Lowers the user body separately from the synthetic trailing condition.
+    fn lower_do_while_body(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        block: &hir::Block<'_>,
+        check_block: crate::mir::BlockId,
+        loop_block: crate::mir::BlockId,
+        exit_block: crate::mir::BlockId,
+    ) {
+        let (cond, body_stmts) = if let Some((check, body_stmts)) = block.stmts.split_last()
+            && let StmtKind::If(cond, then_stmt, Some(else_stmt)) = &check.kind
+        {
+            debug_assert!(matches!(then_stmt.kind, StmtKind::Continue));
+            debug_assert!(matches!(else_stmt.kind, StmtKind::Break));
+            (cond, body_stmts)
+        } else {
+            debug_assert!(false, "invalid desugared do-while condition");
+            self.lower_block(builder, block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            return;
+        };
+
+        for stmt in body_stmts {
+            self.lower_stmt(builder, stmt);
+            if builder.func().block(builder.current_block()).is_terminated() {
+                break;
+            }
+        }
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(check_block);
+        }
+
+        builder.switch_to_block(check_block);
+        let cond = self.lower_value_expr(builder, cond);
+        builder.branch(cond, loop_block, exit_block);
     }
 
     /// Lowers a for loop body with special handling for its update block.
@@ -1114,7 +1151,7 @@ impl<'gcx> Lowerer<'gcx> {
                     ));
                 } else {
                     let value = self.lower_return_value_for_ty(builder, arg, ty);
-                    topics.push(self.abi_clean_value(builder, value, ty));
+                    topics.push(self.abi_encode_value(builder, value, ty));
                 }
             } else {
                 let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
