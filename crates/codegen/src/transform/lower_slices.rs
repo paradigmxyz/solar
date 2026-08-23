@@ -37,7 +37,7 @@ impl MirPass for LowerSlices {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let mut cx = LowerSlicesCx::default();
+        let mut cx = LowerSlicesCx;
         cx.run(module)
     }
 }

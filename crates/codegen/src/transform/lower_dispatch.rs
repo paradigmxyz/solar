@@ -59,16 +59,11 @@ struct LowerDispatchCx {
 
 impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
-        // Idempotent: only build the entry once.
-        if module.phase >= MirPhase::Dispatch {
-            return false;
-        }
-
         // Dispatch routes to the argument-free ABI wrappers, so it requires the
         // ABI phase. Running on `built`/`optimized` MIR would leave
         // argument-taking external functions unroutable while still advancing
         // the phase; require the precondition and bail otherwise.
-        if module.phase < MirPhase::Abi {
+        if module.phase != MirPhase::Abi {
             return false;
         }
 

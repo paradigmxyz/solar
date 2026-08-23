@@ -520,20 +520,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<Vec<ValueId>> {
-        let (data, layout) = self.lower_abi_decode_layout(data, types, span)?;
+        let memory_types = types
+            .iter()
+            .copied()
+            .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
+            .collect::<Vec<_>>();
+        let (data, layout) = self.lower_abi_decode_layout(data, &memory_types, span)?;
         if !layout.types.iter().any(Self::needs_eager_abi_decode) {
             let layout = self.context.module.intern_abi_param_layout(layout);
             let first = self.builder.abi_decode(layout, data);
-            let mut values = Vec::with_capacity(types.len());
+            let mut values = Vec::with_capacity(memory_types.len());
             values.push(first);
-            if types.len() > 1 {
+            if memory_types.len() > 1 {
                 let base = self.multi_return_buffer_base();
-                for index in 1..types.len() {
+                for index in 1..memory_types.len() {
                     values.push(self.load_multi_return_value_as(
                         base,
                         index,
-                        types.len(),
-                        types[index],
+                        memory_types.len(),
+                        memory_types[index],
                     ));
                 }
             }

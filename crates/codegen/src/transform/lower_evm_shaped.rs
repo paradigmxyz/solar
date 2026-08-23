@@ -89,13 +89,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         })
     });
     if !has_candidate {
-        let mut changed = false;
         for func in &mut module.functions {
-            changed |= split_clobbering_phi_edges(func) != 0;
+            split_clobbering_phi_edges(func);
         }
-        let phase_changed = module.phase != MirPhase::EvmShaped;
         module.advance_phase(MirPhase::EvmShaped);
-        return changed || phase_changed;
+        return true;
     }
 
     let call_graph = CallGraphInfo::new(module);
@@ -127,7 +125,6 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         }
     }
 
-    let mut changed = false;
     let function_ids: Vec<_> = module.functions.indices().collect();
     for func_id in function_ids {
         let func = &mut module.functions[func_id];
@@ -160,18 +157,16 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             function_changed = true;
         }
         if function_changed {
-            function_changed |= repair_reachability_phis(func);
-            function_changed |= remove_unreachable_blocks(func) != 0;
+            let _ = repair_reachability_phis(func);
+            let _ = remove_unreachable_blocks(func);
         }
-        changed |= function_changed;
     }
     for func in &mut module.functions {
-        changed |= split_clobbering_phi_edges(func) != 0;
+        split_clobbering_phi_edges(func);
     }
 
-    let phase_changed = module.phase != MirPhase::EvmShaped;
     module.advance_phase(MirPhase::EvmShaped);
-    changed || phase_changed
+    true
 }
 
 fn split_clobbering_phi_edges(func: &mut Function) -> usize {

@@ -386,13 +386,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values.insert(binding, value);
         } else if !target.return_types.is_empty() && !returns_clause.args.is_empty() {
             let data = self.materialize_returndata_bytes();
-            let return_types = target
-                .return_types
-                .iter()
-                .copied()
-                .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
-                .collect::<Vec<_>>();
-            let values = self.lower_abi_decode_values(data, &return_types, returns_clause.span)?;
+            let values =
+                self.lower_abi_decode_values(data, &target.return_types, returns_clause.span)?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 self.values.insert(binding, value);
             }

@@ -176,7 +176,7 @@ fn lower_storage_field_to_memory(
     storage_offset: u64,
     dest: MemoryObjectAccess,
 ) {
-    let slot = offset_value(builder, storage, storage_offset);
+    let slot = builder.add_u64_offset(storage, storage_offset);
     match field {
         StorageField::Word => {
             let value = builder.sload(slot);
@@ -245,7 +245,7 @@ fn lower_memory_field_to_storage(
     storage: ValueId,
     storage_offset: u64,
 ) {
-    let slot = offset_value(builder, storage, storage_offset);
+    let slot = builder.add_u64_offset(storage, storage_offset);
     let value = load_memory_object_word(builder, source);
     match field {
         StorageField::Word => builder.sstore(slot, value),
@@ -262,11 +262,7 @@ fn lower_clear_storage(
 ) {
     let zero = builder.imm_u64(0);
     for offset in 0..layout.storage_slots() {
-        let slot = offset_value(builder, storage, offset);
+        let slot = builder.add_u64_offset(storage, offset);
         builder.sstore(slot, zero);
     }
-}
-
-fn offset_value(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
-    builder.add_u64_offset(base, offset)
 }

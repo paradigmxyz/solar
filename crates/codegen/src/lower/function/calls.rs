@@ -344,11 +344,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let returns = function.returns.len();
-        let static_return = self.static_aggregate_return_layout(function.returns.iter().copied());
+        let return_tys = function.returns.to_vec();
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = function.returns.iter().any(|&ret| {
-            self.types.abi_return_type(ret).is_some_and(|ty| !matches!(ty, AbiType::Word))
+        let decode_returndata = return_tys.iter().any(|&ty| {
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
         });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
@@ -379,13 +380,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some((data, _, size)) = static_return_buffer {
             self.revert_if_short_returndata(size);
-            let return_types = function
-                .returns
-                .iter()
-                .copied()
-                .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
-                .collect::<Vec<_>>();
-            return self.lower_abi_decode_values(data, &return_types, callee.span);
+            return self.lower_abi_decode_values(data, &return_tys, callee.span);
         }
         if decode_returndata {
             if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
@@ -396,13 +391,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             }
             let data = self.materialize_returndata_bytes();
-            let return_types = function
-                .returns
-                .iter()
-                .copied()
-                .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
-                .collect::<Vec<_>>();
-            return self.lower_abi_decode_values(data, &return_types, callee.span);
+            return self.lower_abi_decode_values(data, &return_tys, callee.span);
         }
         if self.context.gcx.sess.opts.evm_version.supports_returndata() {
             self.validate_static_returndata(ret_offset, function.returns);
@@ -838,10 +827,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = function.returns.iter().any(|&ret| {
-            self.types
-                .abi_return_type(self.context.gcx.type_of_item(ret.into()))
-                .is_some_and(|ty| !matches!(ty, AbiType::Word))
+        let decode_returndata = return_tys.iter().any(|&ty| {
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
         });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },
@@ -875,17 +862,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some((data, _, size)) = static_return_buffer {
             self.revert_if_short_returndata(size);
-            let return_types = function
-                .returns
-                .iter()
-                .map(|&ret| {
-                    self.context
-                        .gcx
-                        .type_of_item(ret.into())
-                        .with_loc_if_ref(self.context.gcx, DataLocation::Memory)
-                })
-                .collect::<Vec<_>>();
-            return self.lower_decoded_return_value(data, &return_types, expr.span, zero);
+            return self.lower_decoded_return_value(data, &return_tys, expr.span, zero);
         }
         if decode_returndata {
             if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
@@ -896,17 +873,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             }
             let data = self.materialize_returndata_bytes();
-            let return_types = function
-                .returns
-                .iter()
-                .map(|&ret| {
-                    self.context
-                        .gcx
-                        .type_of_item(ret.into())
-                        .with_loc_if_ref(self.context.gcx, DataLocation::Memory)
-                })
-                .collect::<Vec<_>>();
-            return self.lower_decoded_return_value(data, &return_types, expr.span, zero);
+            return self.lower_decoded_return_value(data, &return_tys, expr.span, zero);
         }
         if self.context.gcx.sess.opts.evm_version.supports_returndata() {
             self.validate_static_returndata(ret_offset, &return_tys);
@@ -1000,12 +967,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| {
-                self.context
-                    .gcx
-                    .type_of_item(ret.into())
-                    .with_loc_if_ref(self.context.gcx, DataLocation::Memory)
-            })
+            .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         self.lower_decoded_return_value(data, &return_types, expr.span, zero)
     }
