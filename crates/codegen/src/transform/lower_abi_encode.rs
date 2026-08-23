@@ -323,12 +323,11 @@ fn encode_static(
         AbiType::Tuple(fields) => {
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let slot = builder.memory_object_field_addr(
+                let field_value = builder.memory_object_load_field(
                     value,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                let field_value = builder.mload(slot);
                 encode_static(builder, field, field_value, field_head);
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
@@ -337,12 +336,11 @@ fn encode_static(
             let mut element_head = head_addr;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let slot = builder.memory_object_element_addr(
+                let element_value = builder.memory_object_load_element(
                     value,
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                let element_value = builder.mload(slot);
                 encode_static(builder, element, element_value, element_head);
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
@@ -478,12 +476,12 @@ fn encode_dynamic_body(
             let mut values = Vec::with_capacity(*len as usize);
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let slot = builder.memory_object_element_addr(
+                let element_value = builder.memory_object_load_element(
                     value,
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
-                values.push(builder.mload(slot));
+                values.push(element_value);
             }
             let types = vec![element.as_ref().clone(); *len as usize];
             let size = encode_tuple(builder, &values, &types, dest);
@@ -492,12 +490,12 @@ fn encode_dynamic_body(
         AbiType::Tuple(fields) => {
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let slot = builder.memory_object_field_addr(
+                let field_value = builder.memory_object_load_field(
                     value,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                values.push(builder.mload(slot));
+                values.push(field_value);
             }
             let size = encode_tuple(builder, &values, fields, dest);
             builder.add(dest, size)

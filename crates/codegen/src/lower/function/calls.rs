@@ -648,10 +648,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.in_inline_assembly || !self.dirty_values.contains(&value) {
             return value;
         }
-        if let TyKind::Enum(id) = ty.peel_refs().kind {
-            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-            self.builder.validate_enum_value(variants, value);
-        }
+        self.validate_enum(ty, value);
         self.normalize_abi_scalar(value, ty)
     }
 

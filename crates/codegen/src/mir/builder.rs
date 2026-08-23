@@ -117,6 +117,31 @@ impl<'a> FunctionBuilder<'a> {
         self.switch_to_block(continue_block);
     }
 
+    /// Reverts with empty data when `condition` is true.
+    pub(crate) fn revert_if(&mut self, condition: ValueId) -> BlockId {
+        self.revert_if_with(condition, false)
+    }
+
+    /// Reverts with empty data when `condition` is zero.
+    pub(crate) fn revert_if_zero(&mut self, condition: ValueId) -> BlockId {
+        self.revert_if_with(condition, true)
+    }
+
+    fn revert_if_with(&mut self, condition: ValueId, condition_is_zero: bool) -> BlockId {
+        let continue_block = self.create_block();
+        let revert = self.create_block();
+        if condition_is_zero {
+            self.branch(condition, continue_block, revert);
+        } else {
+            self.branch(condition, revert, continue_block);
+        }
+        self.switch_to_block(revert);
+        let zero = self.imm_u64(0);
+        self.revert(zero, zero);
+        self.switch_to_block(continue_block);
+        continue_block
+    }
+
     /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
     pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
         let limit = self.imm_u64(variants);
@@ -549,32 +574,6 @@ impl<'a> FunctionBuilder<'a> {
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
         self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
-    }
-
-    /// Projects a direct struct-field address through the semantic object layout.
-    pub(crate) fn memory_object_field_addr(
-        &mut self,
-        object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        field: u64,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectFieldAddr { object, layout, field },
-            Some(MirType::MemPtr),
-        )
-    }
-
-    /// Projects an array-element address through the semantic object layout.
-    pub(crate) fn memory_object_element_addr(
-        &mut self,
-        object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        index: ValueId,
-    ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectElementAddr { object, layout, index },
-            Some(MirType::MemPtr),
-        )
     }
 
     /// Loads a direct struct field through the semantic object layout.

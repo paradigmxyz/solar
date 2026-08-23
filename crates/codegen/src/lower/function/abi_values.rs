@@ -213,11 +213,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        if !self.is_external_abi_argument(value)
-            && let TyKind::Enum(id) = ty.peel_refs().kind
-        {
-            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-            self.builder.validate_enum_value(variants, value);
+        if !self.is_external_abi_argument(value) {
+            self.validate_enum(ty, value);
         }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
@@ -341,10 +338,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             self.builder.switch_to_block(body);
             let element_value = self.builder.mload(source);
-            if let TyKind::Enum(id) = element_ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, element_value);
-            }
+            self.validate_enum(element_ty, element_value);
             let element_value = self.normalize_abi_scalar(element_value, element_ty);
             self.builder.mstore(destination, element_value);
             let word = self.builder.imm_u64(32);
@@ -431,10 +425,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.canonicalize_abi_value(ty, value)
             }
             _ => {
-                if let TyKind::Enum(id) = ty.peel_refs().kind {
-                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                    self.builder.validate_enum_value(variants, value);
-                }
+                self.validate_enum(ty, value);
                 self.normalize_abi_scalar(value, ty)
             }
         }
@@ -938,10 +929,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+            self.validate_enum(ty, value);
             if let Some(abi_type) = self.types.abi_type(ty) {
                 self.validate_calldata_bytes_argument(value, &abi_type);
                 self.validate_calldata_array_head(value, ty, &abi_type);
@@ -1402,10 +1390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
-                if let TyKind::Enum(id) = element.ty.peel_refs().kind {
-                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                    self.builder.validate_enum_value(variants, element_value);
-                }
+                self.validate_enum(element.ty, element_value);
                 let element_value = self.normalize_abi_scalar(element_value, element.ty);
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })

@@ -927,10 +927,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.context.storage.load_at_slot(&mut self.builder, access.location, access.slot)
         };
-        if let TyKind::Enum(id) = ty.peel_refs().kind {
-            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-            self.builder.validate_enum_value(variants, value);
-        }
+        self.validate_enum(ty, value);
         Some(value)
     }
 
@@ -956,10 +953,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
         let value = self.normalize_dirty_scalar(value, ty);
-        if let TyKind::Enum(id) = ty.peel_refs().kind {
-            let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-            self.builder.validate_enum_value(variants, value);
-        }
+        self.validate_enum(ty, value);
         if let Some(offset) = access.offset {
             self.context.storage.store_packed_at_slot(
                 &mut self.builder,

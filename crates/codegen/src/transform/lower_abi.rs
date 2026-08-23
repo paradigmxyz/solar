@@ -799,14 +799,7 @@ impl LowerAbiCx {
         let head_size = builder.imm_u64(layout.checked_head_size().expect("static ABI layout"));
         let short = builder.lt(length, head_size);
         let invalid = builder.or(overflow, short);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
 
         let mut valid = builder.imm_bool(true);
         let mut offset = 0_u64;
@@ -825,14 +818,7 @@ impl LowerAbiCx {
         }
 
         let invalid = builder.iszero(valid);
-        let done = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, done);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(done);
-        *current = done;
+        *current = builder.revert_if(invalid);
     }
 
     fn validate_static_memory_argument(
@@ -2452,13 +2438,7 @@ impl LowerAbiCx {
             }
             _ => unreachable!("checked scalar ABI array element"),
         };
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(valid, next, revert);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
+        builder.revert_if_zero(valid);
         let next_index = builder.add(index, one);
         let backedge = builder.current_block();
         builder.jump(header);
@@ -2491,14 +2471,7 @@ impl LowerAbiCx {
         let head_size = builder.imm_u64(head_size);
         let short = builder.lt(length, head_size);
         let invalid = builder.or(overflow, short);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        current = next;
+        current = builder.revert_if(invalid);
 
         let mut values = Vec::with_capacity(layout.types.len());
         let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
@@ -2551,14 +2524,7 @@ impl LowerAbiCx {
                 let value = builder.mload(head);
                 let value = if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
                     let valid = validator.condition(builder, value, has_bitwise_shifting);
-                    let next = builder.create_block();
-                    let revert = builder.create_block();
-                    builder.branch(valid, next, revert);
-                    builder.switch_to_block(revert);
-                    let zero = builder.imm_u64(0);
-                    builder.revert(zero, zero);
-                    builder.switch_to_block(next);
-                    *current = next;
+                    *current = builder.revert_if_zero(valid);
                     value
                 } else {
                     value
@@ -2574,14 +2540,7 @@ impl LowerAbiCx {
                 let value = builder.mload(head);
                 let variants = builder.imm_u64(*variants);
                 let valid = builder.lt(value, variants);
-                let next = builder.create_block();
-                let revert = builder.create_block();
-                builder.branch(valid, next, revert);
-                builder.switch_to_block(revert);
-                let zero = builder.imm_u64(0);
-                builder.revert(zero, zero);
-                builder.switch_to_block(next);
-                *current = next;
+                *current = builder.revert_if_zero(valid);
                 value
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
@@ -2721,14 +2680,7 @@ impl LowerAbiCx {
         let remaining = builder.sub(input_end, data);
         let tail_invalid = builder.gt(len, remaining);
         let invalid = builder.or(head_invalid, tail_invalid);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
         (data, len)
     }
 
@@ -2744,14 +2696,7 @@ impl LowerAbiCx {
         let value =
             Self::decode_static_calldata_value(builder, ty, head, &mut valid, has_bitwise_shifting);
         let invalid = builder.iszero(valid);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
         value
     }
 
@@ -2943,14 +2888,7 @@ impl LowerAbiCx {
             builder.div(remaining, element_head_size)
         };
         let invalid = builder.gt(len, max_len);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
         let element_head_size = builder.imm_u64(element_head_size);
         builder.mul(len, element_head_size)
     }
@@ -3111,14 +3049,7 @@ impl LowerAbiCx {
                 builder.sub(calldata_size, base)
             };
             let invalid = builder.gt(offset, remaining);
-            let next = builder.create_block();
-            let revert = builder.create_block();
-            builder.branch(invalid, revert, next);
-            builder.switch_to_block(revert);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-            builder.switch_to_block(next);
-            *current = next;
+            *current = builder.revert_if(invalid);
             return target;
         }
 
@@ -3131,14 +3062,7 @@ impl LowerAbiCx {
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
         let invalid = builder.or(overflow, out_of_range);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
         target
     }
 
@@ -3166,14 +3090,7 @@ impl LowerAbiCx {
         // potentially overflowing end pointer.
         let remaining = builder.sub(input_end, start);
         let invalid = builder.gt(size, remaining);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
     }
 
     fn guard_calldata_range(
@@ -3197,14 +3114,7 @@ impl LowerAbiCx {
         let calldata_size = builder.calldatasize();
         let remaining = builder.sub(calldata_size, start);
         let invalid = builder.gt(size, remaining);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(invalid, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(invalid);
     }
 
     fn checked_add(
@@ -3216,14 +3126,7 @@ impl LowerAbiCx {
         builder.switch_to_block(*current);
         let result = builder.add(lhs, rhs);
         let overflow = builder.lt(result, lhs);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(overflow, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(overflow);
         result
     }
 
@@ -3236,14 +3139,7 @@ impl LowerAbiCx {
         let padding = builder.imm_u64(63);
         let rounded = builder.add(length, padding);
         let overflow = builder.lt(rounded, length);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(overflow, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(overflow);
         let mask = builder.imm_u64(31);
         let mask = builder.not(mask);
         builder.and(rounded, mask)
@@ -3262,14 +3158,7 @@ impl LowerAbiCx {
         let exact = builder.eq(quotient, lhs);
         let valid = builder.or(rhs_zero, exact);
         let overflow = builder.iszero(valid);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(overflow, revert, next);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
-        *current = next;
+        *current = builder.revert_if(overflow);
         result
     }
 
@@ -3715,13 +3604,7 @@ impl LowerAbiCx {
         has_bitwise_shifting: bool,
     ) -> ValueId {
         let valid = validator.condition(builder, value, has_bitwise_shifting);
-        let next = builder.create_block();
-        let revert = builder.create_block();
-        builder.branch(valid, next, revert);
-        builder.switch_to_block(revert);
-        let zero = builder.imm_u64(0);
-        builder.revert(zero, zero);
-        builder.switch_to_block(next);
+        builder.revert_if_zero(valid);
         value
     }
 

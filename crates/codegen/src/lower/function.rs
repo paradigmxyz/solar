@@ -381,6 +381,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((gas, value, zero))
     }
 
+    fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
+        let TyKind::Enum(id) = ty.peel_refs().kind else { return };
+        self.builder
+            .validate_enum_value(self.context.gcx.hir.enumm(id).variants.len() as u64, value);
+    }
+
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),

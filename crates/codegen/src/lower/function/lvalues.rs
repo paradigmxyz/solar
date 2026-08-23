@@ -197,10 +197,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let value =
                 self.context.storage.load_at_slot(&mut self.builder, access.location, access.slot);
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+            self.validate_enum(ty, value);
             return Some(value);
         }
         let var = self.context.gcx.hir.variable(id);
@@ -217,10 +214,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.context.gcx, span, "mapping value");
             }
             let value = self.context.storage.load(&mut self.builder, location);
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+            self.validate_enum(ty, value);
             return Some(value);
         }
         report_unsupported(self.context.gcx, span, "identifier")
@@ -261,10 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some(location) = self.context.storage.get(id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+            self.validate_enum(ty, value);
             self.context.storage.store(&mut self.builder, location, value);
             return Some(());
         }
@@ -286,10 +277,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = self.builder.imm_u256(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
-            if let TyKind::Enum(id) = ty.peel_refs().kind {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                self.builder.validate_enum_value(variants, value);
-            }
+            self.validate_enum(ty, value);
             self.context.storage.store(&mut self.builder, location, value);
             Some(())
         }
