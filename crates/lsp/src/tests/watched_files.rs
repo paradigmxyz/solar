@@ -666,8 +666,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
             crate::workspace::Workspace::load_foundry_bounded(
                 project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
-                None,
-                &[],
+                crate::workspace::FoundryConfigContext::default(),
             )
             .unwrap(),
         ],

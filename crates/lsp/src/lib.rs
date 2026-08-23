@@ -34,38 +34,44 @@ pub struct LaunchConfig {
 
 /// Effective Foundry configuration for one workspace supplied by an embedding host.
 ///
-/// `workspace_root` is the canonical absolute directory containing that workspace's
-/// `foundry.toml`. The `PathBuf` fields must also be canonical absolute paths; root matching folds
-/// redundant path components but does not resolve symlinks. Remapping target strings are final
-/// [`ImportRemapping`] values and are passed through unchanged. These values are
-/// already resolved by the host, including any inherited profiles and remappings. When this
-/// configuration matches a workspace, the language server uses these values as-is: it does not
-/// parse the local profile, read `remappings.txt`, or autodetect library remappings. The snapshot
-/// is captured when [`LaunchConfig`] is built and is reused for rediscovery during that LSP
-/// session; rebuild the launch configuration when Foundry configuration changes.
-#[derive(Clone, Debug, Default)]
+/// `workspace_root` is the absolute directory containing that workspace's `foundry.toml`. When the
+/// configuration enters [`LaunchConfig`], its path fields are validated as absolute and lexically
+/// normalized without accessing the filesystem or resolving symlinks. Remapping target strings are
+/// final [`ImportRemapping`] values and are passed through unchanged. These values are already
+/// resolved by the host, including any inherited profiles and remappings. When this configuration
+/// matches a workspace, the language server uses these values as-is: it does not parse the local
+/// profile, read `remappings.txt`, or autodetect library remappings. The snapshot is captured when
+/// [`LaunchConfig`] is built and is reused for rediscovery during that LSP session; rebuild the
+/// launch configuration when Foundry configuration changes.
+#[derive(Clone, Debug)]
 pub struct FoundryWorkspaceConfig {
-    /// Canonical absolute directory containing the workspace manifest.
-    pub workspace_root: PathBuf,
+    /// Absolute directory containing the workspace manifest.
+    workspace_root: PathBuf,
     /// Effective source roots used for workspace indexing.
-    pub source_roots: Vec<PathBuf>,
+    source_roots: Vec<PathBuf>,
     /// Effective source roots used for flycheck indexing (including tests and scripts).
-    pub flycheck_source_roots: Vec<PathBuf>,
+    flycheck_source_roots: Vec<PathBuf>,
     /// Effective Foundry library/include paths.
-    pub include_paths: Vec<PathBuf>,
+    include_paths: Vec<PathBuf>,
     /// Final import remappings after all host-side resolution.
-    pub import_remappings: Vec<ImportRemapping>,
+    import_remappings: Vec<ImportRemapping>,
     /// Effective EVM version, if the selected Foundry configuration supplied one.
-    pub evm_version: Option<EvmVersion>,
+    evm_version: Option<EvmVersion>,
 }
 
 impl FoundryWorkspaceConfig {
     /// Creates an empty resolved configuration for `workspace_root`.
     ///
-    /// The root and all paths supplied to the builder must be canonical absolute paths. Hosts
-    /// should provide every effective value they want the compiler to use.
+    /// Hosts should provide every effective value they want the compiler to use.
     pub fn new(workspace_root: impl Into<PathBuf>) -> Self {
-        Self { workspace_root: workspace_root.into(), ..Self::default() }
+        Self {
+            workspace_root: workspace_root.into(),
+            source_roots: Vec::new(),
+            flycheck_source_roots: Vec::new(),
+            include_paths: Vec::new(),
+            import_remappings: Vec::new(),
+            evm_version: None,
+        }
     }
 
     /// Sets the effective workspace source roots.
@@ -114,33 +120,41 @@ impl FoundryWorkspaceConfig {
     }
 
     /// Returns the workspace root used for exact manifest matching.
-    pub fn workspace_root(&self) -> &Path {
+    pub(crate) fn workspace_root(&self) -> &Path {
         &self.workspace_root
     }
 
     /// Returns the effective source roots.
-    pub fn source_roots(&self) -> &[PathBuf] {
+    pub(crate) fn source_roots(&self) -> &[PathBuf] {
         &self.source_roots
     }
 
     /// Returns the effective flycheck source roots.
-    pub fn flycheck_source_roots(&self) -> &[PathBuf] {
+    pub(crate) fn flycheck_source_roots(&self) -> &[PathBuf] {
         &self.flycheck_source_roots
     }
 
     /// Returns the effective include paths.
-    pub fn include_paths(&self) -> &[PathBuf] {
+    pub(crate) fn include_paths(&self) -> &[PathBuf] {
         &self.include_paths
     }
 
     /// Returns the final host-resolved import remappings.
-    pub fn import_remappings(&self) -> &[ImportRemapping] {
+    pub(crate) fn import_remappings(&self) -> &[ImportRemapping] {
         &self.import_remappings
     }
 
     /// Returns the effective EVM version, if one was supplied.
-    pub fn evm_version(&self) -> Option<EvmVersion> {
+    pub(crate) fn evm_version(&self) -> Option<EvmVersion> {
         self.evm_version
+    }
+
+    fn into_normalized(mut self) -> Self {
+        self.workspace_root = normalize_foundry_workspace_path(self.workspace_root);
+        self.source_roots = normalize_foundry_workspace_paths(self.source_roots);
+        self.flycheck_source_roots = normalize_foundry_workspace_paths(self.flycheck_source_roots);
+        self.include_paths = normalize_foundry_workspace_paths(self.include_paths);
+        self
     }
 }
 
@@ -165,16 +179,19 @@ impl LaunchConfig {
 
     /// Supplies an already-resolved Foundry workspace configuration.
     ///
-    /// The configuration is keyed by its exact canonical workspace root. Calling this method
+    /// The configuration is keyed by its exact normalized workspace root. Calling this method
     /// again for the same root replaces the earlier snapshot; configurations for other roots are
     /// retained. The snapshot is reused for workspace rediscovery until a new LSP launch.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the workspace root or any configured path is not absolute.
     pub fn with_foundry_workspace_config(mut self, config: FoundryWorkspaceConfig) -> Self {
-        let mut config = config;
-        config.workspace_root = config.workspace_root.normalize();
+        let config = config.into_normalized();
         if let Some(existing) = self
             .foundry_workspace_configs
             .iter_mut()
-            .find(|existing| existing.workspace_root.normalize() == config.workspace_root)
+            .find(|existing| existing.workspace_root == config.workspace_root)
         {
             *existing = config;
         } else {
@@ -205,6 +222,20 @@ impl LaunchConfig {
     pub(crate) fn foundry_workspace_configs(&self) -> &[FoundryWorkspaceConfig] {
         &self.foundry_workspace_configs
     }
+}
+
+fn normalize_foundry_workspace_path(path: impl Into<PathBuf>) -> PathBuf {
+    let path = path.into();
+    assert!(
+        path.is_absolute(),
+        "Foundry workspace config paths must be absolute: `{}`",
+        path.display()
+    );
+    path.normalize()
+}
+
+fn normalize_foundry_workspace_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    paths.into_iter().map(normalize_foundry_workspace_path).collect()
 }
 
 mod call_hierarchy;

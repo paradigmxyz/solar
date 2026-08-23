@@ -24,25 +24,29 @@ When the host has already resolved Foundry workspace configuration (including `e
 provide the effective values directly:
 
 ```rust,no_run
-# use std::path::PathBuf;
+# fn build_config() -> Result<(), Box<dyn std::error::Error>> {
 # use solar_config::EvmVersion;
+let workspace = std::env::current_dir()?.join("workspace");
 let config = solar_lsp::LaunchConfig::default().with_foundry_workspace_config(
-    solar_lsp::FoundryWorkspaceConfig::new("/workspace")
-        .with_source_roots([PathBuf::from("/workspace/src")])
-        .with_flycheck_source_roots([PathBuf::from("/workspace/src")])
-        .with_include_paths([PathBuf::from("/workspace/lib")])
+    solar_lsp::FoundryWorkspaceConfig::new(&workspace)
+        .with_source_roots([workspace.join("src")])
+        .with_flycheck_source_roots([workspace.join("src")])
+        .with_include_paths([workspace.join("lib")])
         .with_evm_version(EvmVersion::Cancun),
 );
+# let _ = config;
+# Ok(())
+# }
 ```
 
-The workspace root and path fields in this snapshot are canonical absolute paths; matching folds
-redundant path components but does not resolve symlinks. Import remappings are final
-`solar_config::ImportRemapping` values and are passed through unchanged; as with
-`CompileOpts`, a relative remapping target is interpreted relative to the workspace base path.
+The workspace root and path fields in this snapshot must be absolute. `LaunchConfig` validates and
+lexically normalizes them without accessing the filesystem or resolving symlinks. Import
+remappings are final `solar_config::ImportRemapping` values and are passed through unchanged; as
+with `CompileOpts`, a relative remapping target is interpreted relative to the workspace base path.
 The language server matches each snapshot only to the exact manifest directory, so multiple or
 nested manifests remain isolated. The snapshot is launch-time state reused during rediscovery; the
-host should build a new `LaunchConfig` for changed Foundry settings. An unmatched manifest continues
-to use its local `foundry.toml` parser.
+host should build a new `LaunchConfig` for changed Foundry settings. An unmatched manifest
+continues to use its local `foundry.toml` parser.
 
 An embedding executable that also provides Forge commands can use its own path as the default, as
 shown above. Other hosts should supply the path to their Forge executable instead.

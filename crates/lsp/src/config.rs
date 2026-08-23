@@ -1,11 +1,11 @@
 use crate::{
-    FoundryWorkspaceConfig, commands,
+    FoundryWorkspaceConfig, LaunchConfig, commands,
     diagnostics::DiagnosticOwner,
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     import_resolution::ImportResolutionContext,
     workspace::{
-        SourceWatchRoot, Workspace, WorkspaceKind, WorkspacePathIndex,
+        FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceKind, WorkspacePathIndex,
         index_policy::{
             IndexingCancellation, IndexingOptions, WorkspaceIndexMetrics, WorkspaceIndexPolicy,
         },
@@ -686,6 +686,10 @@ impl Config {
         let mut manifest_watch_roots = Vec::new();
         let mut git_marker_watch_roots = Vec::new();
         let mut seen_manifests = FxHashSet::default();
+        let foundry_config = FoundryConfigContext::new(
+            self.selected_profile.as_deref(),
+            &self.foundry_workspace_configs,
+        );
         for root in &self.workspace_roots {
             if cancellation.is_cancelled() {
                 return None;
@@ -697,8 +701,7 @@ impl Config {
                     &self.index_policy,
                     cancellation,
                     &mut metrics,
-                    self.selected_profile.as_deref(),
-                    &self.foundry_workspace_configs,
+                    foundry_config,
                 )?;
             manifest_watch_roots.extend(discovered_watch_roots);
             git_marker_watch_roots.extend(discovered_marker_watch_roots);
@@ -712,8 +715,7 @@ impl Config {
             load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
-                self.selected_profile.as_deref(),
-                &self.foundry_workspace_configs,
+                foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
             );
@@ -749,8 +751,7 @@ impl Config {
             if load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
-                self.selected_profile.as_deref(),
-                &self.foundry_workspace_configs,
+                foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
             ) == 0
@@ -883,8 +884,7 @@ impl Config {
 fn load_discovered_workspaces(
     manifests: impl IntoIterator<Item = ProjectManifest>,
     workspace_roots: &[PathBuf],
-    selected_profile: Option<&str>,
-    foundry_workspace_configs: &[FoundryWorkspaceConfig],
+    foundry_config: FoundryConfigContext<'_>,
     seen_manifests: &mut FxHashSet<ProjectManifest>,
     workspaces: &mut Vec<Workspace>,
 ) -> usize {
@@ -896,12 +896,7 @@ fn load_discovered_workspaces(
         match manifest {
             ProjectManifest::Foundry(path) => {
                 let fallback_root = path.parent().map(PathBuf::from);
-                match Workspace::load_foundry_bounded(
-                    path,
-                    workspace_roots,
-                    selected_profile,
-                    foundry_workspace_configs,
-                ) {
+                match Workspace::load_foundry_bounded(path, workspace_roots, foundry_config) {
                     Ok(workspace) => workspaces.push(workspace),
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
@@ -975,15 +970,13 @@ fn workspace_roots_from_initialize(
 
 #[cfg(any(test, feature = "bench"))]
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
-    negotiate_capabilities_with_pull_diagnostic_data(params, false, None, None, &[])
+    negotiate_capabilities_with_pull_diagnostic_data(params, false, &LaunchConfig::default())
 }
 
 pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     params: InitializeParams,
     pull_diagnostics_data: bool,
-    default_forge_path: Option<&Path>,
-    selected_profile: Option<&str>,
-    foundry_workspace_configs: &[FoundryWorkspaceConfig],
+    launch_config: &LaunchConfig,
 ) -> (ServerCapabilities, Config) {
     let capabilities = params.capabilities;
     let initialization_options = params.initialization_options;
@@ -994,7 +987,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
         .as_ref()
         .and_then(|options| options.get("forgePath"))
         .and_then(|path| serde_json::from_value::<PathBuf>(path.clone()).ok())
-        .or_else(|| default_forge_path.map(Path::to_path_buf))
+        .or_else(|| launch_config.default_forge_path().map(Path::to_path_buf))
         .unwrap_or_else(|| PathBuf::from("forge"));
     let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
     let indexing_options = IndexingOptions::from_json(initialization_options.clone());
@@ -1204,8 +1197,8 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
         Config {
             workspace_roots,
             forge_path,
-            selected_profile: selected_profile.map(str::to_owned),
-            foundry_workspace_configs: foundry_workspace_configs.to_vec(),
+            selected_profile: launch_config.selected_profile().map(str::to_owned),
+            foundry_workspace_configs: launch_config.foundry_workspace_configs().to_vec(),
             index_policy,
             flycheck_options,
             watched_file_dynamic_registration,
@@ -1772,8 +1765,11 @@ mod tests {
                     ..Default::default()
                 });
 
-                let (_, config) =
-                    negotiate_capabilities_with_pull_diagnostic_data(params, pull, None, None, &[]);
+                let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(
+                    params,
+                    pull,
+                    &LaunchConfig::default(),
+                );
 
                 let expected_publish = delivery == DiagnosticDelivery::Push && publish;
                 let expected_pull = delivery == DiagnosticDelivery::Pull && pull;
@@ -2112,12 +2108,11 @@ mod tests {
         let (_, default_config) = negotiate_capabilities(InitializeParams::default());
         assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
 
+        let launch_config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
         let (_, embedded_config) = negotiate_capabilities_with_pull_diagnostic_data(
             InitializeParams::default(),
             false,
-            Some(Path::new("/embedded/forge")),
-            None,
-            &[],
+            &launch_config,
         );
         assert_eq!(embedded_config.forge_path(), PathBuf::from("/embedded/forge"));
 
@@ -2128,13 +2123,8 @@ mod tests {
             ..Default::default()
         };
 
-        let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(
-            params,
-            false,
-            Some(Path::new("/embedded/forge")),
-            None,
-            &[],
-        );
+        let (_, config) =
+            negotiate_capabilities_with_pull_diagnostic_data(params, false, &launch_config);
 
         assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
     }

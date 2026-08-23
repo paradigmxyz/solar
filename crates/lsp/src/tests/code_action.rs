@@ -1,6 +1,7 @@
 use crate::{
-    code_actions::source_fingerprint, config::negotiate_capabilities_with_pull_diagnostic_data,
-    global_state::GlobalState, test_support::TestProject,
+    LaunchConfig, code_actions::source_fingerprint,
+    config::negotiate_capabilities_with_pull_diagnostic_data, global_state::GlobalState,
+    test_support::TestProject,
 };
 use async_lsp::ClientSocket;
 use lsp_types::{
@@ -1265,9 +1266,7 @@ fn state_with_diagnostic_capabilities(
     let config = negotiate_capabilities_with_pull_diagnostic_data(
         initialize,
         pull_diagnostic_data,
-        None,
-        None,
-        &[],
+        &LaunchConfig::default(),
     )
     .1;
     state.config = Arc::new(config);

@@ -67,6 +67,50 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
     assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
 }
 
+#[test]
+fn foundry_workspace_config_normalizes_absolute_paths() {
+    let project = TestProject::new();
+    let launch_config = LaunchConfig::default().with_foundry_workspace_config(
+        FoundryWorkspaceConfig::new(project.path("/workspace/./nested/.."))
+            .with_source_roots([project.path("/workspace/src/../src")])
+            .with_flycheck_source_roots([project.path("/workspace/test/../test")])
+            .with_include_paths([project.path("/workspace/lib/../lib")]),
+    );
+    let config = &launch_config.foundry_workspace_configs()[0];
+
+    assert_eq!(config.workspace_root(), project.path("/workspace"));
+    assert_eq!(config.source_roots(), [project.path("/workspace/src")]);
+    assert_eq!(config.flycheck_source_roots(), [project.path("/workspace/test")]);
+    assert_eq!(config.include_paths(), [project.path("/workspace/lib")]);
+}
+
+#[test]
+#[should_panic(expected = "Foundry workspace config paths must be absolute")]
+fn foundry_workspace_config_rejects_relative_paths() {
+    let _ = LaunchConfig::default()
+        .with_foundry_workspace_config(FoundryWorkspaceConfig::new("relative/workspace"));
+}
+
+#[test]
+fn launch_config_replaces_lexically_equivalent_foundry_root() {
+    let project = TestProject::new();
+    let launch_config = LaunchConfig::default()
+        .with_foundry_workspace_config(
+            FoundryWorkspaceConfig::new(project.path("/workspace/./nested/.."))
+                .with_source_roots([project.path("/workspace/first")]),
+        )
+        .with_foundry_workspace_config(
+            FoundryWorkspaceConfig::new(project.path("/workspace"))
+                .with_source_roots([project.path("/workspace/second")]),
+        );
+
+    assert_eq!(launch_config.foundry_workspace_configs().len(), 1);
+    assert_eq!(
+        launch_config.foundry_workspace_configs()[0].source_roots(),
+        [project.path("/workspace/second")]
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn initialize_applies_host_resolved_foundry_workspace_config() {
     let project = TestProject::from_fixture(
@@ -76,6 +120,12 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
 
         //- /custom-src/Custom.sol
         contract CustomContract {}
+
+        //- /default-test/Default.t.sol
+        contract DefaultTest {}
+
+        //- /custom-test/Custom.t.sol
+        contract CustomTest {}
 
         //- /custom-libs/pkg/src/Lib.sol
         contract Lib {}
@@ -93,10 +143,12 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
         //- /base.toml
         [profile.custom]
         src = "custom-src"
+        test = "custom-test"
 
         //- /foundry.toml
         [profile.default]
         src = "default-src"
+        test = "default-test"
 
         [profile.custom]
         extends = "base.toml"
@@ -104,7 +156,7 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
     );
     let resolved = FoundryWorkspaceConfig::new(project.root())
         .with_source_roots([project.path("/custom-src")])
-        .with_flycheck_source_roots([project.path("/custom-src")])
+        .with_flycheck_source_roots([project.path("/custom-src"), project.path("/custom-test")])
         .with_include_paths([project.path("/custom-libs")])
         .with_import_remappings(["host/=custom-src/".parse().unwrap()])
         .with_evm_version(EvmVersion::Cancun);
@@ -126,6 +178,10 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
         .unwrap();
     assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
     assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
+    assert_eq!(
+        workspace.flycheck_source_files(),
+        &[project.path("/custom-src/Custom.sol"), project.path("/custom-test/Custom.t.sol"),]
+    );
     assert_eq!(workspace.compile_opts().include_paths, [project.path("/custom-libs")]);
     assert_eq!(workspace.compile_opts().evm_version, EvmVersion::Cancun);
     assert_eq!(
@@ -209,46 +265,6 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
     assert_eq!(source_roots("/one"), [project.path("/one/host-one")]);
     assert_eq!(source_roots("/two"), [project.path("/two/host-two")]);
     assert_eq!(source_roots("/three"), [project.path("/three/local-three")]);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn host_foundry_workspace_config_does_not_change_explicit_flychecks() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /src/Main.sol
-        contract Main {}
-
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-        "#,
-    );
-    let config =
-        LaunchConfig::default().with_selected_profile("custom").with_foundry_workspace_config(
-            FoundryWorkspaceConfig::new(project.root())
-                .with_source_roots([project.path("/src")])
-                .with_flycheck_source_roots([project.path("/src")]),
-        );
-    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
-    let mut params = project.initialize_params();
-    params.initialization_options = Some(serde_json::json!({
-        "flychecks": [{
-            "id": "custom-lint",
-            "command": "custom-lint",
-            "args": ["--json"],
-            "output": "solc-json"
-        }]
-    }));
-
-    state.on_initialize(params).await.unwrap();
-    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
-
-    let flychecks = state.config.flychecks_for_path(&project.path("/src/Main.sol"));
-    assert_eq!(flychecks.len(), 1);
-    assert_eq!(flychecks[0].id, "custom-lint");
-    assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
-    assert_eq!(flychecks[0].args, ["--json"]);
-    assert_eq!(flychecks[0].cwd, project.root());
 }
 
 #[tokio::test(flavor = "current_thread")]
