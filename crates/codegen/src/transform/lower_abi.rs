@@ -80,29 +80,8 @@ impl MirPass for LowerAbi {
     }
 }
 
-/// Statistics from ABI wrapper lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerAbiStats {
-    /// Number of external functions wrapped.
-    wrapped: usize,
-    /// Number of value-carrying returns rewritten to ABI returndata encoding.
-    encoded_returns: usize,
-    /// Number of external functions whose live returns lack a matching ABI
-    /// layout. Any non-zero count makes the whole pass bail.
-    skipped_returns: usize,
-    /// Number of internal call sites retargeted from a wrapped function to its
-    /// extracted body.
-    retargeted_calls: usize,
-    /// Number of wrappers that received a prologue callvalue check because
-    /// the dispatch entry cannot hoist one.
-    injected_checks: usize,
-    /// Number of constructors whose deferred ABI inputs were materialized.
-    decoded_constructors: usize,
-}
-
 #[derive(Debug, Default)]
 struct LowerAbiCx {
-    stats: LowerAbiStats,
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
@@ -111,7 +90,6 @@ struct LowerAbiCx {
 
 impl LowerAbiCx {
     fn run(&mut self, module: &mut Module, evm_version: EvmVersion) -> bool {
-        self.stats = LowerAbiStats::default();
         self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
         self.function_params =
             module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
@@ -135,7 +113,9 @@ impl LowerAbiCx {
             callvalue.observe(func);
             if is_wrappable_external(func) {
                 targets.push(id);
-                self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
+                if !can_encode_live_returns(func) {
+                    return false;
+                }
             }
             if func.attributes.is_constructor && func.abi_params.is_some() {
                 if Self::can_decode_constructor_params(func) {
@@ -163,14 +143,6 @@ impl LowerAbiCx {
                 .blocks
                 .iter()
                 .any(|block| matches!(block.terminator, Some(Terminator::RevertReturndata)));
-        }
-
-        // All-or-nothing: `abi` means *every* bodied external function is a
-        // wrapper. If any return lacks the semantic layout required to encode
-        // it, leave the module untouched instead of advancing to a phase the
-        // content does not satisfy.
-        if self.stats.skipped_returns != 0 {
-            return false;
         }
 
         if targets.is_empty()
@@ -232,7 +204,6 @@ impl LowerAbiCx {
 
         for id in constructors {
             self.decode_constructor_params(module.function_mut(id));
-            self.stats.decoded_constructors += 1;
         }
         for id in wrapped_constructors {
             let layout = module.function(id).abi_params.clone();
@@ -241,7 +212,6 @@ impl LowerAbiCx {
             func.abi_params = None;
             func.abi_param_locations = None;
             func.abi_args_lazy = false;
-            self.stats.decoded_constructors += 1;
         }
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -249,10 +219,8 @@ impl LowerAbiCx {
             if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(id)) {
                 body_of_wrapper.insert(id, body_id);
             }
-            self.stats.wrapped += 1;
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
                 Self::inject_callvalue_check(module.function_mut(id));
-                self.stats.injected_checks += 1;
             }
         }
 
@@ -266,7 +234,6 @@ impl LowerAbiCx {
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
-                        self.stats.retargeted_calls += 1;
                     }
                 });
             }
@@ -1031,20 +998,10 @@ impl LowerAbiCx {
         physical_index: &mut usize,
         has_bitwise_shifting: bool,
     ) -> ValueId {
-        if let AbiParamType::Scalar(scalar) = ty {
+        if matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. }) {
             let value = physical_args[*physical_index];
             *physical_index += 1;
-            return Self::validate_constructor_word(builder, value, *scalar, has_bitwise_shifting);
-        }
-        if let AbiParamType::Enum { variants, .. } = ty {
-            let value = physical_args[*physical_index];
-            *physical_index += 1;
-            return Self::validate_constructor_enum(
-                builder,
-                value,
-                *variants,
-                has_bitwise_shifting,
-            );
+            return Self::validate_constructor_word(builder, value, ty, has_bitwise_shifting);
         }
 
         let AbiParamType::FixedArray { element, len } = ty else {
@@ -1135,7 +1092,7 @@ impl LowerAbiCx {
             );
         }
         let return_params = module.function(wrapper_id).abi_return_params.clone();
-        self.stats.encoded_returns += encode_live_returns(
+        encode_live_returns(
             module.function_mut(wrapper_id),
             return_params.as_ref(),
             abi_params.as_ref(),
@@ -1885,42 +1842,18 @@ impl LowerAbiCx {
             );
         }
         match ty {
-            crate::mir::AbiParamType::Scalar(scalar) if constructor => Self::decode_input_scalar(
-                builder,
-                *scalar,
-                base,
-                input_end,
-                current,
-                head_checked,
-                has_bitwise_shifting,
-            ),
-            crate::mir::AbiParamType::Scalar(scalar) => Self::decode_scalar(
-                builder,
-                *scalar,
-                base,
-                current,
-                head_checked,
-                has_bitwise_shifting,
-            ),
-            crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
-                Self::decode_input_enum(
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
+                Self::decode_source_scalar(
                     builder,
-                    *variants,
+                    ty,
                     base,
                     input_end,
+                    constructor,
                     current,
                     head_checked,
                     has_bitwise_shifting,
                 )
             }
-            crate::mir::AbiParamType::Enum { variants, .. } => Self::decode_enum(
-                builder,
-                *variants,
-                base,
-                current,
-                head_checked,
-                has_bitwise_shifting,
-            ),
             crate::mir::AbiParamType::FixedArray { element, len }
                 if Self::is_supported_tuple_field(element) =>
             {
@@ -1956,11 +1889,12 @@ impl LowerAbiCx {
                     for _ in 0..*len {
                         let offset_value = builder.imm_u64(offset);
                         let word_pos = builder.add(base, offset_value);
-                        let _ = Self::decode_input_scalar_or_enum(
+                        let _ = Self::decode_source_scalar(
                             builder,
                             element,
                             word_pos,
                             input_end,
+                            constructor,
                             current,
                             true,
                             has_bitwise_shifting,
@@ -1980,46 +1914,22 @@ impl LowerAbiCx {
                 for index in 0..*len {
                     let offset_value = builder.imm_u64(offset);
                     let word_pos = builder.add(base, offset_value);
-                    let value = match element.as_ref() {
-                        crate::mir::AbiParamType::Scalar(scalar) if constructor => {
-                            Self::decode_input_scalar(
-                                builder,
-                                *scalar,
-                                word_pos,
-                                input_end,
-                                current,
-                                true,
-                                has_bitwise_shifting,
-                            )
-                        }
-                        crate::mir::AbiParamType::Scalar(scalar) => Self::decode_scalar(
+                    let value = if matches!(
+                        element.as_ref(),
+                        crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. }
+                    ) {
+                        Self::decode_source_scalar(
                             builder,
-                            *scalar,
+                            element,
                             word_pos,
+                            input_end,
+                            constructor,
                             current,
                             true,
                             has_bitwise_shifting,
-                        ),
-                        crate::mir::AbiParamType::Enum { variants, .. } if constructor => {
-                            Self::decode_input_enum(
-                                builder,
-                                *variants,
-                                word_pos,
-                                input_end,
-                                current,
-                                true,
-                                has_bitwise_shifting,
-                            )
-                        }
-                        crate::mir::AbiParamType::Enum { variants, .. } => Self::decode_enum(
-                            builder,
-                            *variants,
-                            word_pos,
-                            current,
-                            true,
-                            has_bitwise_shifting,
-                        ),
-                        element => Self::decode_aggregate_argument(
+                        )
+                    } else {
+                        Self::decode_aggregate_argument(
                             builder,
                             element,
                             element.mir_type(),
@@ -2033,7 +1943,7 @@ impl LowerAbiCx {
                             validate_array_elements,
                             helpers,
                             has_bitwise_shifting,
-                        ),
+                        )
                     };
                     let elem_index = builder.imm_u64(index);
                     builder.memory_object_store_element(
@@ -2140,11 +2050,12 @@ impl LowerAbiCx {
                 let mut element_current = builder.current_block();
                 let offset = builder.mul(index, word);
                 let position = builder.add(data, offset);
-                let _ = Self::decode_input_scalar_or_enum(
+                let _ = Self::decode_source_scalar(
                     builder,
                     element,
                     position,
                     input_end,
+                    constructor,
                     &mut element_current,
                     true,
                     has_bitwise_shifting,
@@ -2334,11 +2245,12 @@ impl LowerAbiCx {
                     for field in fields.iter() {
                         let field_offset = builder.imm_u64(offset);
                         let field_head = builder.add(base, field_offset);
-                        let _ = Self::decode_input_scalar_or_enum(
+                        let _ = Self::decode_source_scalar(
                             builder,
                             field,
                             field_head,
                             input_end,
+                            constructor,
                             current,
                             true,
                             has_bitwise_shifting,
@@ -2509,13 +2421,8 @@ impl LowerAbiCx {
             }
             return value;
         }
-        if let AbiParamType::Scalar(scalar) = ty {
-            let value = builder.mload(head);
-            if *scalar == MirType::Function {
-                let shift = builder.imm_u64(64);
-                return builder.shr(shift, value);
-            }
-            return value;
+        if matches!(ty, AbiParamType::Scalar(_)) {
+            return builder.mload(head);
         }
         match ty {
             crate::mir::AbiParamType::FixedArray { element, len } => {
@@ -2685,27 +2592,20 @@ impl LowerAbiCx {
         valid: &mut ValueId,
         has_bitwise_shifting: bool,
     ) -> ValueId {
+        if let Some(validator) = ty.word_validator() {
+            let value = builder.calldataload(head);
+            let condition = validator.condition(builder, value, has_bitwise_shifting);
+            *valid = builder.and(*valid, condition);
+            if matches!(ty, crate::mir::AbiParamType::Scalar(MirType::Function)) {
+                let shift = builder.imm_u64(64);
+                return builder.shr(shift, value);
+            }
+            return value;
+        }
+        if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
+            return builder.calldataload(head);
+        }
         match ty {
-            crate::mir::AbiParamType::Scalar(scalar) => {
-                let value = builder.calldataload(head);
-                if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
-                    let condition = validator.condition(builder, value, has_bitwise_shifting);
-                    *valid = builder.and(*valid, condition);
-                }
-                if *scalar == MirType::Function {
-                    let shift = builder.imm_u64(64);
-                    builder.shr(shift, value)
-                } else {
-                    value
-                }
-            }
-            crate::mir::AbiParamType::Enum { variants, .. } => {
-                let value = builder.calldataload(head);
-                let variants = builder.imm_u64(*variants);
-                let condition = builder.lt(value, variants);
-                *valid = builder.and(*valid, condition);
-                value
-            }
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
@@ -2752,61 +2652,14 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
                 unreachable!("dynamic ABI values are not static")
             }
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
+                unreachable!("scalar ABI word handled above")
+            }
         }
     }
 
     fn load_calldata_word(builder: &mut FunctionBuilder<'_>, position: ValueId) -> ValueId {
         builder.calldataload(position)
-    }
-
-    fn decode_scalar(
-        builder: &mut FunctionBuilder<'_>,
-        scalar: MirType,
-        position: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        builder.switch_to_block(*current);
-        if !head_checked {
-            Self::guard_calldata_range(builder, position, 32, current);
-        }
-        let value = Self::load_calldata_word(builder, position);
-        Self::validate_decoded_word(
-            builder,
-            value,
-            AbiWordValidator::from_mir_type(scalar),
-            current,
-            has_bitwise_shifting,
-        );
-        if scalar == MirType::Function {
-            let shift = builder.imm_u64(64);
-            return builder.shr(shift, value);
-        }
-        value
-    }
-
-    fn decode_enum(
-        builder: &mut FunctionBuilder<'_>,
-        variants: u64,
-        position: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        builder.switch_to_block(*current);
-        if !head_checked {
-            Self::guard_calldata_range(builder, position, 32, current);
-        }
-        let value = Self::load_calldata_word(builder, position);
-        Self::validate_decoded_word(
-            builder,
-            value,
-            Some(AbiWordValidator::EnumRange(variants)),
-            current,
-            has_bitwise_shifting,
-        );
-        value
     }
 
     fn load_input_word(
@@ -2871,111 +2724,30 @@ impl LowerAbiCx {
         builder.mul(len, element_head_size)
     }
 
-    fn decode_input_scalar_or_enum(
+    fn decode_source_scalar(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
         position: ValueId,
         input_end: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        match ty {
-            crate::mir::AbiParamType::Scalar(scalar) => Self::decode_input_scalar(
-                builder,
-                *scalar,
-                position,
-                input_end,
-                current,
-                head_checked,
-                has_bitwise_shifting,
-            ),
-            crate::mir::AbiParamType::Enum { variants, .. } => Self::decode_input_enum(
-                builder,
-                *variants,
-                position,
-                input_end,
-                current,
-                head_checked,
-                has_bitwise_shifting,
-            ),
-            _ => unreachable!("scalar or enum ABI type expected"),
-        }
-    }
-
-    fn decode_input_scalar(
-        builder: &mut FunctionBuilder<'_>,
-        scalar: MirType,
-        position: ValueId,
-        input_end: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        let value = Self::decode_input_word(
-            builder,
-            AbiWordValidator::from_mir_type(scalar),
-            position,
-            input_end,
-            current,
-            head_checked,
-            has_bitwise_shifting,
-        );
-        if scalar == MirType::Function {
-            let shift = builder.imm_u64(64);
-            return builder.shr(shift, value);
-        }
-        value
-    }
-
-    fn decode_input_word(
-        builder: &mut FunctionBuilder<'_>,
-        validator: Option<AbiWordValidator>,
-        position: ValueId,
-        input_end: ValueId,
+        constructor: bool,
         current: &mut BlockId,
         head_checked: bool,
         has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         if !head_checked {
-            Self::guard_input_range(builder, position, 32, input_end, current);
+            Self::guard_source_range(builder, position, 32, input_end, constructor, current);
         }
-        let value = builder.mload(position);
-        Self::validate_decoded_word(builder, value, validator, current, has_bitwise_shifting);
+        let value = Self::load_input_word(builder, position, input_end, constructor);
+        if let Some(validator) = ty.word_validator() {
+            Self::validate_abi_word(builder, value, validator, has_bitwise_shifting);
+            *current = builder.current_block();
+        }
+        if matches!(ty, crate::mir::AbiParamType::Scalar(MirType::Function)) {
+            let shift = builder.imm_u64(64);
+            return builder.shr(shift, value);
+        }
         value
-    }
-
-    fn validate_decoded_word(
-        builder: &mut FunctionBuilder<'_>,
-        value: ValueId,
-        validator: Option<AbiWordValidator>,
-        current: &mut BlockId,
-        has_bitwise_shifting: bool,
-    ) {
-        let Some(validator) = validator else { return };
-        Self::validate_abi_word(builder, value, validator, has_bitwise_shifting);
-        *current = builder.current_block();
-    }
-
-    fn decode_input_enum(
-        builder: &mut FunctionBuilder<'_>,
-        variants: u64,
-        position: ValueId,
-        input_end: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        Self::decode_input_word(
-            builder,
-            Some(AbiWordValidator::EnumRange(variants)),
-            position,
-            input_end,
-            current,
-            head_checked,
-            has_bitwise_shifting,
-        )
     }
 
     fn guard_source_range(
@@ -3508,49 +3280,30 @@ impl LowerAbiCx {
         params: &mut IndexVec<ArgIdx, MirType>,
         ty: &crate::mir::AbiParamType,
     ) {
-        match ty {
-            crate::mir::AbiParamType::Scalar(scalar) => {
-                params.push(*scalar);
+        if Self::is_constructor_word(ty) {
+            params.push(ty.mir_type());
+        } else if let crate::mir::AbiParamType::FixedArray { element, len } = ty {
+            for _ in 0..*len {
+                Self::push_constructor_param_types(params, element);
             }
-            crate::mir::AbiParamType::Enum { ty, .. } => {
-                params.push(*ty);
-            }
-            crate::mir::AbiParamType::FixedArray { element, len } => {
-                for _ in 0..*len {
-                    Self::push_constructor_param_types(params, element);
-                }
-            }
-            _ => unreachable!("checked constructor ABI parameter"),
+        } else {
+            unreachable!("checked constructor ABI parameter");
         }
     }
 
     fn validate_constructor_word(
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-        ty: MirType,
+        ty: &AbiParamType,
         has_bitwise_shifting: bool,
     ) -> ValueId {
-        let Some(validator) = AbiWordValidator::from_mir_type(ty) else { return value };
+        let Some(validator) = ty.word_validator() else { return value };
         let value = Self::validate_abi_word(builder, value, validator, has_bitwise_shifting);
-        if ty == MirType::Function {
+        if matches!(ty, AbiParamType::Scalar(MirType::Function)) {
             let shift = builder.imm_u64(64);
             return builder.shr(shift, value);
         }
         value
-    }
-
-    fn validate_constructor_enum(
-        builder: &mut FunctionBuilder<'_>,
-        value: ValueId,
-        variants: u64,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        Self::validate_abi_word(
-            builder,
-            value,
-            AbiWordValidator::EnumRange(variants),
-            has_bitwise_shifting,
-        )
     }
 
     fn validate_abi_word(
@@ -4271,8 +4024,8 @@ fn encode_live_returns(
     return_params: Option<&AbiParamLayout>,
     input_params: Option<&AbiParamLayout>,
     lazy_args: bool,
-) -> usize {
-    let Some(mut layout) = func.abi_returns.clone() else { return 0 };
+) {
+    let Some(mut layout) = func.abi_returns.clone() else { return };
     let return_blocks = func
         .blocks
         .indices()
@@ -4307,7 +4060,6 @@ fn encode_live_returns(
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let return_types = func.returns.clone();
     let return_params = return_params.map(|layout| layout.types.clone());
-    let mut encoded_returns = 0;
     for block_id in block_ids {
         let values = match func.blocks[block_id].terminator.take() {
             Some(Terminator::Return { values }) if !values.is_empty() => values.into_vec(),
@@ -4354,7 +4106,5 @@ fn encode_live_returns(
             );
             builder.ret_data(offset, size);
         }
-        encoded_returns += 1;
     }
-    encoded_returns
 }

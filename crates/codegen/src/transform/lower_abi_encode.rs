@@ -215,33 +215,51 @@ pub(crate) fn encode_static_tuple(
 ) -> ValueId {
     let mut head = dest;
     for (&value, ty) in values.iter().zip(types) {
-        encode_static_raw(builder, ty, value, head);
+        encode_static_impl(builder, ty, value, head, false);
         head = offset_ptr(builder, head, ty.head_size());
     }
     builder.sub(head, dest)
 }
 
-fn encode_static_raw(
+fn encode_static(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     value: ValueId,
-    head: ValueId,
+    head_addr: ValueId,
 ) {
+    encode_static_impl(builder, ty, value, head_addr, true);
+}
+
+fn encode_static_impl(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    value: ValueId,
+    head_addr: ValueId,
+    allow_slice_fast_path: bool,
+) {
+    if allow_slice_fast_path
+        && let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
+            builder.func().value_slice_location(value)
+    {
+        let source = builder.slice_ptr(value);
+        encode_static_slice(builder, ty, source, head_addr, location);
+        return;
+    }
     match ty {
         AbiType::Tuple(fields) => {
-            let mut field_head = head;
+            let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
                 let field_value = builder.memory_object_load_field(
                     value,
                     MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                encode_static_raw(builder, field, field_value, field_head);
+                encode_static_impl(builder, field, field_value, field_head, allow_slice_fast_path);
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len } => {
-            let mut element_head = head;
+            let mut element_head = head_addr;
             for index in 0..*len {
                 let index = builder.imm_u64(index);
                 let element_value = builder.memory_object_load_element(
@@ -249,16 +267,22 @@ fn encode_static_raw(
                     MemoryObjectLayout::word_fixed_array(*len),
                     index,
                 );
-                encode_static_raw(builder, element, element_value, element_head);
+                encode_static_impl(
+                    builder,
+                    element,
+                    element_value,
+                    element_head,
+                    allow_slice_fast_path,
+                );
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
         }
         AbiType::Function => {
             let shift = builder.imm_u64(64);
             let value = builder.shl(shift, value);
-            builder.mstore(head, value);
+            builder.mstore(head_addr, value);
         }
-        _ => builder.mstore(head, value),
+        _ => builder.mstore(head_addr, value),
     }
 }
 
@@ -306,54 +330,6 @@ fn encode_value(
     }
 }
 
-fn encode_static(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiType,
-    value: ValueId,
-    head_addr: ValueId,
-) {
-    if let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
-        builder.func().value_slice_location(value)
-    {
-        let source = builder.slice_ptr(value);
-        encode_static_slice(builder, ty, source, head_addr, location);
-        return;
-    }
-    match ty {
-        AbiType::Tuple(fields) => {
-            let mut field_head = head_addr;
-            for (index, field) in fields.iter().enumerate() {
-                let field_value = builder.memory_object_load_field(
-                    value,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
-                encode_static(builder, field, field_value, field_head);
-                field_head = offset_ptr(builder, field_head, field.head_size());
-            }
-        }
-        AbiType::FixedArray { element, len } => {
-            let mut element_head = head_addr;
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(
-                    value,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    index_value,
-                );
-                encode_static(builder, element, element_value, element_head);
-                element_head = offset_ptr(builder, element_head, element.head_size());
-            }
-        }
-        AbiType::Function => {
-            let shift = builder.imm_u64(64);
-            let value = builder.shl(shift, value);
-            builder.mstore(head_addr, value);
-        }
-        _ => builder.mstore(head_addr, value),
-    }
-}
-
 fn encode_static_slice(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
@@ -367,7 +343,7 @@ fn encode_static_slice(
             let mut head = head_addr;
             for field in fields {
                 let source_word = offset_ptr(builder, source, source_offset);
-                encode_static_slice_at(builder, field, source_word, head, location);
+                encode_static_slice(builder, field, source_word, head, location);
                 source_offset += field.head_size();
                 head = offset_ptr(builder, head, field.head_size());
             }
@@ -377,30 +353,10 @@ fn encode_static_slice(
             let mut head = head_addr;
             for _ in 0..*len {
                 let source_word = offset_ptr(builder, source, source_offset);
-                encode_static_slice_at(builder, element, source_word, head, location);
+                encode_static_slice(builder, element, source_word, head, location);
                 source_offset += element.head_size();
                 head = offset_ptr(builder, head, element.head_size());
             }
-        }
-        AbiType::Word | AbiType::Function => {
-            encode_static_slice_at(builder, ty, source, head_addr, location);
-        }
-        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
-            unreachable!("dynamic ABI values are not static")
-        }
-    }
-}
-
-fn encode_static_slice_at(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiType,
-    source: ValueId,
-    head_addr: ValueId,
-    location: SliceLocation,
-) {
-    match ty {
-        AbiType::Tuple(_) | AbiType::FixedArray { .. } => {
-            encode_static_slice(builder, ty, source, head_addr, location);
         }
         AbiType::Function | AbiType::Word => {
             let value = load_slice_word(builder, source, location);

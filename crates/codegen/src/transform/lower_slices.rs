@@ -42,21 +42,6 @@ impl MirPass for LowerSlices {
     }
 }
 
-/// Statistics from slice lowering.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct LowerSlicesStats {
-    /// Slice constructors erased.
-    slices: usize,
-    /// Pointer/length projections resolved.
-    projections: usize,
-    /// Logical slice parameters expanded into pointer/length words.
-    params: usize,
-    /// Logical call arguments expanded into pointer/length words.
-    call_args: usize,
-    /// External slice parameters projected back to ABI head reads.
-    external_params: usize,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ParamRepr {
     Word,
@@ -65,9 +50,7 @@ enum ParamRepr {
 }
 
 #[derive(Debug, Default)]
-struct LowerSlicesCx {
-    stats: LowerSlicesStats,
-}
+struct LowerSlicesCx;
 
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
@@ -200,7 +183,6 @@ impl LowerSlicesCx {
             }
             block.instructions = instructions;
         }
-        self.stats.projections += replacements.len();
         true
     }
     /// Computes the shifted local-frame addresses for a signature expansion.
@@ -261,7 +243,6 @@ impl LowerSlicesCx {
                     let (ims, new_slice) = new_slice_inst(func, sp, sl, location);
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
                     replacements.insert(old, new_slice);
-                    self.stats.slices += 1;
                     changed = true;
                     continue;
                 }
@@ -333,7 +314,6 @@ impl LowerSlicesCx {
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);
                 splits.push((inst_id, ptr_phi, len_phi, make));
-                self.stats.slices += 1;
                 changed = true;
             }
             if splits.is_empty() {
@@ -401,7 +381,6 @@ impl LowerSlicesCx {
                                 expanded.push(builder.slice_len(arg));
                             }
                         }
-                        self.stats.call_args += usize::from(repr != ParamRepr::Word);
                     }
                     let InstKind::InternalCall { args, .. } =
                         &mut builder.func_mut().inst_mut(inst_id).kind
@@ -504,7 +483,6 @@ impl LowerSlicesCx {
                 }
                 ParamRepr::Word => unreachable!(),
             }
-            self.stats.params += 1;
         }
 
         let mut replacements = FxHashMap::default();
@@ -520,7 +498,6 @@ impl LowerSlicesCx {
             {
                 replacements.insert(result, replacement);
                 removed.insert(inst_id);
-                self.stats.projections += 1;
             }
         }
         builder.func_mut().replace_uses_canonicalized(&replacements);
@@ -570,7 +547,6 @@ impl LowerSlicesCx {
                         .inst_result_value(inst_id)
                         .expect("slice projection must produce a value");
                     replacements.insert(result, replacement);
-                    self.stats.projections += 1;
                 } else {
                     builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 }
@@ -604,7 +580,6 @@ impl LowerSlicesCx {
             })
             .collect();
         self.lower_compact_values(func, &raw_heads);
-        self.stats.external_params += slice_args.len();
         true
     }
 
@@ -696,7 +671,7 @@ impl LowerSlicesCx {
             let physical_object = matches!(func.value_ty(slice), Some(MirType::MemPtr));
             let physical_word = matches!(func.value_ty(slice), Some(MirType::UInt(_)))
                 && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
-            let changed = if physical_object {
+            if physical_object {
                 if is_ptr {
                     let result =
                         func.inst_result_value(inst).expect("slice projection has a result");
@@ -705,17 +680,10 @@ impl LowerSlicesCx {
                 } else {
                     func.inst_mut(inst).kind = InstKind::MLoad(slice);
                 }
-                true
             } else if physical_word {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, slice);
                 removed.insert(inst);
-                true
-            } else {
-                false
-            };
-            if changed {
-                self.stats.projections += 1;
             }
         }
         if components.is_empty() {
@@ -756,12 +724,10 @@ impl LowerSlicesCx {
         for (&slice, &(ptr, len, constructor)) in &components {
             if removable.contains(&slice) {
                 removed.insert(constructor);
-                self.stats.slices += 1;
                 for (&result, &(projected_slice, inst, is_ptr)) in &projections {
                     if projected_slice == slice {
                         replacements.insert(result, if is_ptr { ptr } else { len });
                         removed.insert(inst);
-                        self.stats.projections += 1;
                     }
                 }
             }
@@ -777,7 +743,6 @@ impl LowerSlicesCx {
 
 impl LowerSlicesCx {
     fn run(&mut self, module: &mut Module) -> bool {
-        self.stats = LowerSlicesStats::default();
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module
             .functions

@@ -38,10 +38,9 @@ impl MirPass for LowerMemoryObjects {
         if module.phase >= MirPhase::MemoryLowered {
             return false;
         }
-        let mut stats = LowerMemoryObjectsStats::default();
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            changed |= lower_function::<EvmMemoryLayout>(func, &mut stats);
+            changed |= lower_function::<EvmMemoryLayout>(func);
         }
         if module.phase == MirPhase::Dispatch {
             module.advance_phase(MirPhase::MemoryLowered);
@@ -51,21 +50,7 @@ impl MirPass for LowerMemoryObjects {
     }
 }
 
-/// Statistics from semantic memory-object lowering.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct LowerMemoryObjectsStats {
-    /// Object allocations changed to raw physical allocations.
-    allocations: usize,
-    /// Semantic accesses expanded or erased.
-    accesses: usize,
-    /// Nominal object types erased to physical pointers.
-    types: usize,
-}
-
-fn lower_function<P: MemoryLayoutPolicy>(
-    func: &mut Function,
-    stats: &mut LowerMemoryObjectsStats,
-) -> bool {
+fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     let is_object_value = |value| match func.value(value) {
         Value::Arg(_) | Value::Undef(_) => {
             func.value_ty(value).as_ref().is_some_and(is_object_type)
@@ -121,12 +106,10 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let instruction = builder.func_mut().inst_mut(inst);
                     instruction.kind =
                         InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
-                    stats.allocations += 1;
                 }
                 InstKind::MemoryObjectLen(object, kind) => {
                     if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
                         builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
-                        stats.accesses += 1;
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }
@@ -136,7 +119,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     };
                     let address = offset_address(&mut builder, object, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    stats.accesses += 1;
                 }
                 InstKind::SetMemoryObjectLen(object, len, kind) => {
                     let Some(offset) = P::object_length_offset(kind) else {
@@ -145,7 +127,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     };
                     let address = offset_address(&mut builder, object, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectData(object, kind) => {
                     if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
@@ -155,7 +136,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         let pointer = builder.slice_ptr(object);
                         replacements.insert(result, pointer);
                         removed.insert(inst);
-                        stats.accesses += 1;
                         continue;
                     }
                     let offset = P::object_data_offset(kind);
@@ -168,7 +148,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         let offset = builder.imm_u64(offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
-                    stats.accesses += 1;
                 }
                 InstKind::MLoad(object) => {
                     let Some(location) = builder.func().value_slice_location(object) else {
@@ -181,7 +160,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     builder.func_mut().inst_mut(inst).kind = kind;
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
                     if let Some(location) = builder.func().value_slice_location(object) {
@@ -214,7 +192,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                                 builder.func_mut().inst_mut(user).kind =
                                     InstKind::CalldataLoad(address);
                                 removed.insert(inst);
-                                stats.accesses += 1;
                                 continue;
                             }
                         }
@@ -228,7 +205,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             replacements.insert(result, address);
                         }
                         removed.insert(inst);
-                        stats.accesses += 1;
                         continue;
                     }
                     let Some(offset) = P::field_offset(layout, field) else {
@@ -244,7 +220,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         let offset = builder.imm_u64(offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
-                    stats.accesses += 1;
                 }
                 InstKind::Keccak256Bytes(object) => {
                     if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {
@@ -264,7 +239,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             }
                         };
                         builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                        stats.accesses += 1;
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }
@@ -277,7 +251,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let len = builder.mload(length_address);
                     let data = offset_address(&mut builder, object, P::object_data_offset(kind));
                     builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectElementAddr { object, layout, index } => {
                     let Some(stride) = P::element_stride(layout) else {
@@ -301,7 +274,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         InstKind::Add(base, offset)
                     };
                     builder.func_mut().inst_mut(inst).kind = kind;
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadField { object, layout, field } => {
                     let Some(offset) = P::field_offset(layout, field) else {
@@ -316,13 +288,11 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             continue;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
-                        stats.accesses += 1;
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }
                     let address = offset_address(&mut builder, object, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectStoreField { object, layout, field, value } => {
                     let Some(offset) = P::field_offset(layout, field) else {
@@ -331,7 +301,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     };
                     let address = offset_address(&mut builder, object, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadElement { object, layout, index } => {
                     if let Some(location) = builder.func().value_slice_location(object) {
@@ -362,7 +331,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             continue;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
-                        stats.accesses += 1;
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }
@@ -384,7 +352,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         builder.add(base, offset)
                     };
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadByte { object, index } => {
                     if let Some(location) = builder.func().value_slice_location(object) {
@@ -404,7 +371,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                             replacements.insert(result, byte);
                         }
                         removed.insert(inst);
-                        stats.accesses += 1;
                         continue;
                     }
                     let base = offset_address(
@@ -420,7 +386,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         replacements.insert(result, byte);
                     }
                     removed.insert(inst);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
                     let Some(stride) = P::element_stride(layout) else {
@@ -441,7 +406,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         builder.add(base, offset)
                     };
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectStoreByte { object, index, value } => {
                     let base = offset_address(
@@ -451,7 +415,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     );
                     let address = builder.add(base, index);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectStoreWord { object, offset, value } => {
                     let base = offset_address(
@@ -461,19 +424,16 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     );
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    stats.accesses += 1;
                 }
                 InstKind::MemorySliceLoadWord { slice, offset } => {
                     let source = builder.slice_ptr(slice);
                     let address = dynamic_offset_address(&mut builder, source, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    stats.accesses += 1;
                 }
                 InstKind::CalldataSliceLoadWord { slice, offset } => {
                     let source = builder.slice_ptr(slice);
                     let address = dynamic_offset_address(&mut builder, source, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
                     let destination =
@@ -484,7 +444,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     builder.func_mut().inst_mut(inst).kind = physical;
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
                     let base = offset_address(&mut builder, object, P::object_data_offset(kind));
@@ -495,7 +454,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     builder.func_mut().inst_mut(inst).kind = physical;
-                    stats.accesses += 1;
                 }
                 InstKind::MemoryObjectCopy {
                     destination,
@@ -513,7 +471,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         offset_address(&mut builder, source, P::object_data_offset(source_kind));
                     builder.func_mut().inst_mut(inst).kind =
                         InstKind::MCopy(destination, source, length);
-                    stats.accesses += 1;
                 }
                 _ => {}
             }
@@ -526,7 +483,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
     if !replacements.is_empty() {
         func.replace_uses_canonicalized(&replacements);
     }
-    erase_object_types(func, stats);
+    erase_object_types(func);
     coalesce_constant_allocations(func);
     true
 }
@@ -788,15 +745,15 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
     }
 }
 
-fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) {
+fn erase_object_types(func: &mut Function) {
     let arg_indices: Vec<_> = func.arg_indices().collect();
     for index in arg_indices {
         let mut ty = func.arg_ty(index);
-        erase_object_type(&mut ty, stats);
+        erase_object_type(&mut ty);
         func.set_arg_ty(index, ty);
     }
     for ty in &mut func.returns {
-        erase_object_type(ty, stats);
+        erase_object_type(ty);
     }
     let mut values = DenseBitSet::new_empty(func.num_values());
     for value in func.live_values() {
@@ -804,21 +761,20 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     }
     for value in values.iter() {
         match func.value_mut(value) {
-            Value::Undef(ty) => erase_object_type(ty, stats),
+            Value::Undef(ty) => erase_object_type(ty),
             Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
     func.for_each_instruction_mut(|_, inst| {
         if let Some(ty) = &mut inst.result_ty {
-            erase_object_type(ty, stats);
+            erase_object_type(ty);
         }
     });
 }
 
-fn erase_object_type(ty: &mut MirType, stats: &mut LowerMemoryObjectsStats) {
+fn erase_object_type(ty: &mut MirType) {
     if matches!(ty, MirType::MemoryObject(_)) {
         *ty = MirType::MemPtr;
-        stats.types += 1;
     }
 }
 

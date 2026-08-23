@@ -47,24 +47,13 @@ impl MirPass for LowerDispatch {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerDispatchCx {
-            stats: LowerDispatchStats::default(),
-            has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting(),
-        }
-        .run(module)
+        LowerDispatchCx { has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting() }
+            .run(module)
     }
-}
-
-/// Statistics from dispatch lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerDispatchStats {
-    /// Number of selector cases routed by the synthesized `entry` function.
-    routed: usize,
 }
 
 #[derive(Debug)]
 struct LowerDispatchCx {
-    stats: LowerDispatchStats,
     has_bitwise_shifting: bool,
 }
 
@@ -129,7 +118,6 @@ impl LowerDispatchCx {
         let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
-        self.stats.routed = routes.len();
         module.advance_phase(MirPhase::Dispatch);
         true
     }
