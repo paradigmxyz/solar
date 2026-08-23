@@ -2089,55 +2089,14 @@ impl LowerAbiCx {
                     current,
                 );
                 if !constructor && validate_array_elements && Self::is_scalar_or_enum(element) {
-                    let preheader = *current;
-                    let header = builder.create_block();
-                    let body = builder.create_block();
-                    let done = builder.create_block();
-                    builder.switch_to_block(preheader);
-                    builder.jump(header);
-
-                    builder.switch_to_block(header);
-                    let zero = builder.imm_u64(0);
-                    let one = builder.imm_u64(1);
-                    let index = builder.phi(vec![(preheader, zero)]);
-                    let more = builder.lt(index, len);
-                    builder.branch(more, body, done);
-
-                    builder.switch_to_block(body);
-                    let offset = builder.mul(index, word);
-                    let position = builder.add(data, offset);
-                    let mut element_current = body;
-                    match &**element {
-                        crate::mir::AbiParamType::Scalar(scalar) => {
-                            let _ = Self::decode_scalar(
-                                builder,
-                                *scalar,
-                                position,
-                                &mut element_current,
-                                true,
-                                has_bitwise_shifting,
-                            );
-                        }
-                        crate::mir::AbiParamType::Enum { variants, .. } => {
-                            let _ = Self::decode_enum(
-                                builder,
-                                *variants,
-                                position,
-                                &mut element_current,
-                                true,
-                                has_bitwise_shifting,
-                            );
-                        }
-                        _ => unreachable!("checked scalar calldata array element"),
-                    }
-                    builder.switch_to_block(element_current);
-                    let next = builder.add(index, one);
-                    let backedge = builder.current_block();
-                    builder.jump(header);
-                    builder.add_phi_incoming(index, backedge, next);
-
-                    builder.switch_to_block(done);
-                    *current = done;
+                    Self::validate_calldata_scalar_array(
+                        builder,
+                        data,
+                        element,
+                        len,
+                        current,
+                        has_bitwise_shifting,
+                    );
                 }
                 let location =
                     if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
