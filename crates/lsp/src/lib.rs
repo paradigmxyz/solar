@@ -35,12 +35,13 @@ pub struct LaunchConfig {
 /// Effective Foundry configuration for one workspace supplied by an embedding host.
 ///
 /// `workspace_root` is the absolute directory containing that workspace's `foundry.toml`. When the
-/// configuration enters [`LaunchConfig`], its path fields are validated as absolute and lexically
-/// normalized without accessing the filesystem or resolving symlinks. Remapping target strings are
-/// final [`ImportRemapping`] values and are passed through unchanged. These values are already
-/// resolved by the host, including any inherited profiles and remappings. When this configuration
-/// matches a workspace, the language server uses these values as-is: it does not parse the local
-/// profile, read `remappings.txt`, or autodetect library remappings. The snapshot is captured when
+/// configuration enters [`LaunchConfig`], the root is validated as absolute and its source,
+/// flycheck, and include paths are resolved against it before lexical normalization. This does not
+/// access the filesystem or resolve symlinks. Remapping target strings are final
+/// [`ImportRemapping`] values and are passed through unchanged. These values are already resolved
+/// by the host, including any inherited profiles and remappings. When this configuration matches a
+/// workspace, the language server uses these values as-is: it does not parse the local profile,
+/// read `remappings.txt`, or autodetect library remappings. The snapshot is captured when
 /// [`LaunchConfig`] is built and is reused for rediscovery during that LSP session; rebuild the
 /// launch configuration when Foundry configuration changes.
 #[derive(Clone, Debug)]
@@ -150,10 +151,12 @@ impl FoundryWorkspaceConfig {
     }
 
     fn into_normalized(mut self) -> Self {
-        self.workspace_root = normalize_foundry_workspace_path(self.workspace_root);
-        self.source_roots = normalize_foundry_workspace_paths(self.source_roots);
-        self.flycheck_source_roots = normalize_foundry_workspace_paths(self.flycheck_source_roots);
-        self.include_paths = normalize_foundry_workspace_paths(self.include_paths);
+        self.workspace_root = normalize_foundry_workspace_root(self.workspace_root);
+        let root = &self.workspace_root;
+        self.source_roots = resolve_foundry_workspace_paths(root, self.source_roots);
+        self.flycheck_source_roots =
+            resolve_foundry_workspace_paths(root, self.flycheck_source_roots);
+        self.include_paths = resolve_foundry_workspace_paths(root, self.include_paths);
         self
     }
 }
@@ -179,13 +182,14 @@ impl LaunchConfig {
 
     /// Supplies an already-resolved Foundry workspace configuration.
     ///
-    /// The configuration is keyed by its exact normalized workspace root. Calling this method
+    /// The configuration is keyed by its exact normalized workspace root. Relative source,
+    /// flycheck, and include paths are interpreted relative to that root. Calling this method
     /// again for the same root replaces the earlier snapshot; configurations for other roots are
     /// retained. The snapshot is reused for workspace rediscovery until a new LSP launch.
     ///
     /// # Panics
     ///
-    /// Panics if the workspace root or any configured path is not absolute.
+    /// Panics if the workspace root is not absolute.
     pub fn with_foundry_workspace_config(mut self, config: FoundryWorkspaceConfig) -> Self {
         let config = config.into_normalized();
         if let Some(existing) = self
@@ -224,18 +228,18 @@ impl LaunchConfig {
     }
 }
 
-fn normalize_foundry_workspace_path(path: impl Into<PathBuf>) -> PathBuf {
+fn normalize_foundry_workspace_root(path: impl Into<PathBuf>) -> PathBuf {
     let path = path.into();
     assert!(
         path.is_absolute(),
-        "Foundry workspace config paths must be absolute: `{}`",
+        "Foundry workspace config root must be absolute: `{}`",
         path.display()
     );
     path.normalize()
 }
 
-fn normalize_foundry_workspace_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
-    paths.into_iter().map(normalize_foundry_workspace_path).collect()
+fn resolve_foundry_workspace_paths(root: &Path, paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    paths.into_iter().map(|path| root.join(path).normalize()).collect()
 }
 
 mod call_hierarchy;

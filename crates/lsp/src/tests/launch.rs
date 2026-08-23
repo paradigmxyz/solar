@@ -68,25 +68,34 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
 }
 
 #[test]
-fn foundry_workspace_config_normalizes_absolute_paths() {
+fn foundry_workspace_config_normalizes_paths_against_root() {
     let project = TestProject::new();
     let launch_config = LaunchConfig::default().with_foundry_workspace_config(
         FoundryWorkspaceConfig::new(project.path("/workspace/./nested/.."))
-            .with_source_roots([project.path("/workspace/src/../src")])
-            .with_flycheck_source_roots([project.path("/workspace/test/../test")])
-            .with_include_paths([project.path("/workspace/lib/../lib")]),
+            .with_source_roots([PathBuf::from("src/../src"), project.path("/external/src/../src")])
+            .with_flycheck_source_roots([PathBuf::from("test/../test")])
+            .with_include_paths([
+                PathBuf::from("lib/../lib"),
+                PathBuf::from("../external/lib/../lib"),
+            ]),
     );
     let config = &launch_config.foundry_workspace_configs()[0];
 
     assert_eq!(config.workspace_root(), project.path("/workspace"));
-    assert_eq!(config.source_roots(), [project.path("/workspace/src")]);
+    assert_eq!(
+        config.source_roots(),
+        [project.path("/workspace/src"), project.path("/external/src")]
+    );
     assert_eq!(config.flycheck_source_roots(), [project.path("/workspace/test")]);
-    assert_eq!(config.include_paths(), [project.path("/workspace/lib")]);
+    assert_eq!(
+        config.include_paths(),
+        [project.path("/workspace/lib"), project.path("/external/lib")]
+    );
 }
 
 #[test]
-#[should_panic(expected = "Foundry workspace config paths must be absolute")]
-fn foundry_workspace_config_rejects_relative_paths() {
+#[should_panic(expected = "Foundry workspace config root must be absolute")]
+fn foundry_workspace_config_rejects_relative_workspace_root() {
     let _ = LaunchConfig::default()
         .with_foundry_workspace_config(FoundryWorkspaceConfig::new("relative/workspace"));
 }
@@ -155,9 +164,9 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
         "#,
     );
     let resolved = FoundryWorkspaceConfig::new(project.root())
-        .with_source_roots([project.path("/custom-src")])
-        .with_flycheck_source_roots([project.path("/custom-src"), project.path("/custom-test")])
-        .with_include_paths([project.path("/custom-libs")])
+        .with_source_roots(["custom-src"])
+        .with_flycheck_source_roots(["custom-src", "custom-test"])
+        .with_include_paths(["custom-libs"])
         .with_import_remappings(["host/=custom-src/".parse().unwrap()])
         .with_evm_version(EvmVersion::Cancun);
     let config = LaunchConfig::default()
