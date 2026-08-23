@@ -171,7 +171,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MLoad(object) => {
-                    let Some(location) = slice_location(builder.func(), object) else {
+                    let Some(location) = builder.func().value_slice_location(object) else {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     };
@@ -184,7 +184,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                    if let Some(location) = slice_location(builder.func(), object) {
+                    if let Some(location) = builder.func().value_slice_location(object) {
                         let Some(offset) = P::field_offset(layout, field) else {
                             builder.func_mut().blocks[block].instructions.push(inst);
                             continue;
@@ -308,7 +308,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     };
-                    if let Some(location) = slice_location(builder.func(), object) {
+                    if let Some(location) = builder.func().value_slice_location(object) {
                         let base = builder.slice_ptr(object);
                         let address = offset_address(&mut builder, base, offset);
                         let Some(kind) = slice_load_kind(location, address) else {
@@ -334,7 +334,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                    if let Some(location) = slice_location(builder.func(), object) {
+                    if let Some(location) = builder.func().value_slice_location(object) {
                         if !matches!(
                             layout,
                             MemoryObjectLayout::DynamicArray { element_words: 1 }
@@ -387,7 +387,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadByte { object, index } => {
-                    if let Some(location) = slice_location(builder.func(), object) {
+                    if let Some(location) = builder.func().value_slice_location(object) {
                         let source = builder.slice_ptr(object);
                         let address = dynamic_offset_address(&mut builder, source, index);
                         let word = match location {
@@ -668,13 +668,6 @@ fn constant_raw_allocation(
     })
 }
 
-fn slice_location(func: &Function, object: crate::mir::ValueId) -> Option<SliceLocation> {
-    match func.value_ty(object) {
-        Some(MirType::Slice(location)) => Some(location),
-        _ => None,
-    }
-}
-
 fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Option<InstKind> {
     match location {
         SliceLocation::Calldata => Some(InstKind::CalldataLoad(address)),
@@ -752,12 +745,7 @@ fn offset_address(
     base: crate::mir::ValueId,
     offset: u64,
 ) -> crate::mir::ValueId {
-    if offset == 0 {
-        base
-    } else {
-        let offset = builder.imm_u64(offset);
-        builder.add(base, offset)
-    }
+    builder.add_u64_offset(base, offset)
 }
 
 fn dynamic_offset_address(

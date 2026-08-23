@@ -85,6 +85,16 @@ impl<'a> FunctionBuilder<'a> {
         self.alloc_value(Value::Immediate(Immediate::bool(value)))
     }
 
+    /// Adds a constant byte offset, folding zero offsets.
+    pub(crate) fn add_u64_offset(&mut self, base: ValueId, offset: u64) -> ValueId {
+        if offset == 0 {
+            base
+        } else {
+            let offset = self.imm_u64(offset);
+            self.add(base, offset)
+        }
+    }
+
     /// Reverts with Solidity's `Panic(uint256)` payload.
     pub(crate) fn panic(&mut self, code: PanicCode) {
         let selector = self.imm_u256(U256::from(0x4e48_7b71_u64) << 224);

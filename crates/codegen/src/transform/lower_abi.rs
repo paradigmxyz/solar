@@ -52,7 +52,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, Symbol, kw};
+use solar_interface::{Ident, Span, Symbol};
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -137,7 +137,7 @@ impl LowerAbiCx {
                 targets.push(id);
                 self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
             }
-            if is_constructor(func) && func.abi_params.is_some() {
+            if func.attributes.is_constructor && func.abi_params.is_some() {
                 if Self::can_decode_constructor_params(func) {
                     constructors.push(id);
                 } else if Self::can_wrap_constructor_params(func) {
@@ -182,7 +182,9 @@ impl LowerAbiCx {
             && bytes_fallback.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
-                is_constructor(func) || func.attributes.is_receive || func.attributes.is_fallback
+                func.attributes.is_constructor
+                    || func.attributes.is_receive
+                    || func.attributes.is_fallback
             });
             if !has_selectorless_entry {
                 return false;
@@ -828,19 +830,13 @@ impl LowerAbiCx {
         valid: &mut ValueId,
         has_bitwise_shifting: bool,
     ) {
+        if let Some(validator) = ty.word_validator() {
+            let value = builder.mload(head);
+            let condition = validator.condition(builder, value, has_bitwise_shifting);
+            *valid = builder.and(*valid, condition);
+            return;
+        }
         match ty {
-            AbiParamType::Scalar(scalar) => {
-                let Some(validator) = AbiWordValidator::from_mir_type(*scalar) else { return };
-                let value = builder.mload(head);
-                let condition = validator.condition(builder, value, has_bitwise_shifting);
-                *valid = builder.and(*valid, condition);
-            }
-            AbiParamType::Enum { variants, .. } => {
-                let value = builder.mload(head);
-                let variants = builder.imm_u64(*variants);
-                let condition = builder.lt(value, variants);
-                *valid = builder.and(*valid, condition);
-            }
             AbiParamType::FixedArray { element, len } => {
                 let mut offset = 0_u64;
                 for _ in 0..*len {
@@ -878,6 +874,7 @@ impl LowerAbiCx {
             AbiParamType::Bytes | AbiParamType::DynamicArray(_) => {
                 unreachable!("dynamic ABI values are not static")
             }
+            AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {}
         }
     }
 
@@ -1399,15 +1396,7 @@ impl LowerAbiCx {
                 for (index, &ty) in arg_types.iter().enumerate() {
                     let validator = abi_params
                         .and_then(|layout| layout.types.get(index))
-                        .and_then(|layout_ty| match layout_ty {
-                            crate::mir::AbiParamType::Enum { variants, .. } => {
-                                Some(AbiWordValidator::EnumRange(*variants))
-                            }
-                            crate::mir::AbiParamType::Scalar(_) => {
-                                AbiWordValidator::from_mir_type(ty)
-                            }
-                            _ => None,
-                        })
+                        .and_then(crate::mir::AbiParamType::word_validator)
                         .or_else(|| AbiWordValidator::from_mir_type(ty));
                     head_offset +=
                         abi_params.and_then(|layout| layout.types.get(index)).map_or(32, |ty| {
@@ -2424,19 +2413,10 @@ impl LowerAbiCx {
         let offset = builder.mul(index, word);
         let position = builder.add(data, offset);
         let value = builder.calldataload(position);
-        let valid = match element {
-            crate::mir::AbiParamType::Scalar(scalar) => {
-                if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
-                    validator.condition(builder, value, has_bitwise_shifting)
-                } else {
-                    builder.imm_bool(true)
-                }
-            }
-            crate::mir::AbiParamType::Enum { variants, .. } => {
-                let variants = builder.imm_u64(*variants);
-                builder.lt(value, variants)
-            }
-            _ => unreachable!("checked scalar ABI array element"),
+        let valid = if let Some(validator) = element.word_validator() {
+            validator.condition(builder, value, has_bitwise_shifting)
+        } else {
+            builder.imm_bool(true)
         };
         builder.revert_if_zero(valid);
         let next_index = builder.add(index, one);
@@ -2519,30 +2499,25 @@ impl LowerAbiCx {
         has_bitwise_shifting: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
+        if let Some(validator) = ty.word_validator() {
+            let value = builder.mload(head);
+            let valid = validator.condition(builder, value, has_bitwise_shifting);
+            *current = builder.revert_if_zero(valid);
+            if matches!(ty, AbiParamType::Scalar(MirType::Function)) {
+                let shift = builder.imm_u64(64);
+                return builder.shr(shift, value);
+            }
+            return value;
+        }
+        if let AbiParamType::Scalar(scalar) = ty {
+            let value = builder.mload(head);
+            if *scalar == MirType::Function {
+                let shift = builder.imm_u64(64);
+                return builder.shr(shift, value);
+            }
+            return value;
+        }
         match ty {
-            crate::mir::AbiParamType::Scalar(scalar) => {
-                let value = builder.mload(head);
-                let value = if let Some(validator) = AbiWordValidator::from_mir_type(*scalar) {
-                    let valid = validator.condition(builder, value, has_bitwise_shifting);
-                    *current = builder.revert_if_zero(valid);
-                    value
-                } else {
-                    value
-                };
-                if *scalar == MirType::Function {
-                    let shift = builder.imm_u64(64);
-                    builder.shr(shift, value)
-                } else {
-                    value
-                }
-            }
-            crate::mir::AbiParamType::Enum { variants, .. } => {
-                let value = builder.mload(head);
-                let variants = builder.imm_u64(*variants);
-                let valid = builder.lt(value, variants);
-                *current = builder.revert_if_zero(valid);
-                value
-            }
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let size = builder.imm_u64(len.saturating_mul(32));
                 let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
@@ -2588,6 +2563,9 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
                 unreachable!("dynamic ABI values are not in a static tuple")
+            }
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
+                unreachable!("scalar ABI word handled above")
             }
         }
     }
@@ -3163,20 +3141,7 @@ impl LowerAbiCx {
     }
 
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(
-            ty,
-            crate::mir::AbiParamType::FixedArray { element, .. }
-                if Self::is_supported_tuple_field(element)
-        ) || matches!(
-            ty,
-            crate::mir::AbiParamType::DynamicArray(element)
-                if Self::is_supported_tuple_field(element)
-        ) || matches!(ty, crate::mir::AbiParamType::Bytes)
-            || matches!(
-                ty,
-                crate::mir::AbiParamType::Tuple(fields)
-                    if fields.iter().all(Self::is_supported_tuple_field)
-            )
+        Self::is_supported_tuple_field(ty) && !Self::is_constructor_word(ty)
     }
 
     fn can_use_calldata_slice(
@@ -3186,16 +3151,7 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
     ) -> bool {
-        if !matches!(arg_type, MirType::MemoryObject(_))
-            || !(matches!(ty, crate::mir::AbiParamType::Bytes)
-                || Self::is_scalar_array(ty)
-                || matches!(
-                    ty,
-                    crate::mir::AbiParamType::DynamicArray(element)
-                        if Self::is_scalar_or_enum(element)
-                            || matches!(element.as_ref(), crate::mir::AbiParamType::Bytes)
-                ))
-        {
+        if !matches!(arg_type, MirType::MemoryObject(_)) || !Self::can_encode_calldata_slice(ty) {
             return false;
         }
         if uses.is_empty()
@@ -3703,12 +3659,6 @@ fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
         values.len() == 1
             && func.value_ty(values[0]) == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
     })
-}
-
-/// Keep the reserved-name fallback for text MIR produced before constructor
-/// attributes were serialized.
-fn is_constructor(func: &Function) -> bool {
-    func.attributes.is_constructor || func.name.symbol == kw::Constructor
 }
 
 /// Whether every value-carrying return has a matching semantic ABI layout.

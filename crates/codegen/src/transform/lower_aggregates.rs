@@ -268,10 +268,5 @@ fn lower_clear_storage(
 }
 
 fn offset_value(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
-    if offset == 0 {
-        base
-    } else {
-        let offset = builder.imm_u64(offset);
-        builder.add(base, offset)
-    }
+    builder.add_u64_offset(base, offset)
 }

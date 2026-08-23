@@ -488,18 +488,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         function: &TyFn<'gcx>,
     ) -> FunctionId {
-        let shape = InternalFunctionPointerShape {
-            params: function
-                .parameters
-                .iter()
-                .map(|&ty| types::TypeLowerer::mir_type(ty))
-                .collect(),
-            returns: function
-                .returns
-                .iter()
-                .map(|&ty| types::TypeLowerer::mir_return_type(ty))
-                .collect(),
-        };
+        let shape = InternalFunctionPointerShape::from_ty(function);
         if let Some(&dispatcher) = self.context.pointer_registry.dispatchers.get(&shape) {
             return dispatcher;
         }

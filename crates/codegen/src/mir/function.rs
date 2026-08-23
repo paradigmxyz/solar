@@ -2,7 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
+    InstKind, Instruction, MangledSymbol, MirType, SliceLocation, StorageAlias, Value, ValueId,
+    utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -127,6 +128,15 @@ impl Function {
             Value::Immediate(imm) => Some(imm.ty()),
             Value::Undef(ty) => Some(*ty),
             Value::Error(_) => None,
+        }
+    }
+
+    /// Returns the slice location of a value, if it is slice-typed.
+    #[must_use]
+    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<SliceLocation> {
+        match self.value_ty(id) {
+            Some(MirType::Slice(location)) => Some(location),
+            _ => None,
         }
     }
 

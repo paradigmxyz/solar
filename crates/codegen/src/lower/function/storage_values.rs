@@ -1403,21 +1403,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn load_storage_bytes_header(&mut self, slot: ValueId) -> (ValueId, ValueId, ValueId) {
-        let header = self.builder.sload(slot);
-        let one = self.builder.imm_u64(1);
-        let flag = self.builder.and(header, one);
-        let is_long = self.builder.eq(flag, one);
-        let short_tag = self.builder.imm_u64(0xfe);
-        let short_len_tag = self.builder.and(header, short_tag);
-        let shift = self.builder.imm_u64(1);
-        let short_len = self.builder.shr(shift, short_len_tag);
-        let long_len = self.builder.shr(shift, header);
-        let length = self.builder.select(is_long, long_len, short_len);
-        let thirty_two = self.builder.imm_u64(32);
-        let short_length = self.builder.lt(length, thirty_two);
-        let invalid_encoding = self.builder.eq(is_long, short_length);
-        self.builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
-        (header, is_long, length)
+        decode_storage_bytes_header(&mut self.builder, slot)
     }
 
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
@@ -1993,7 +1979,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
-fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+fn decode_storage_bytes_header(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+) -> (ValueId, ValueId, ValueId) {
     let header = builder.sload(slot);
     let one = builder.imm_u64(1);
     let flag = builder.and(header, one);
@@ -2008,6 +1997,13 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
     let short_length = builder.lt(length, thirty_two);
     let invalid_encoding = builder.eq(is_long, short_length);
     builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
+    (header, is_long, length)
+}
+
+fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+    let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
+    let one = builder.imm_u64(1);
+    let thirty_two = builder.imm_u64(32);
 
     let rounded = {
         let thirty_one = builder.imm_u64(31);

@@ -313,7 +313,7 @@ fn encode_static(
     head_addr: ValueId,
 ) {
     if let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
-        slice_location(builder, value)
+        builder.func().value_slice_location(value)
     {
         let source = builder.slice_ptr(value);
         encode_static_slice(builder, ty, source, head_addr, location);
@@ -421,13 +421,6 @@ fn load_slice_word(
         SliceLocation::Calldata => builder.calldataload(source),
         SliceLocation::Memory => builder.mload(source),
         SliceLocation::Returndata => unreachable!("returndata slices are not static ABI inputs"),
-    }
-}
-
-fn slice_location(builder: &FunctionBuilder<'_>, value: ValueId) -> Option<SliceLocation> {
-    match builder.func().value_ty(value) {
-        Some(MirType::Slice(location)) => Some(location),
-        _ => None,
     }
 }
 
@@ -910,12 +903,9 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
 }
 
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
-    if offset == 0 {
-        base
-    } else if builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
+    if offset != 0 && builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
         builder.imm_u64(offset)
     } else {
-        let offset = builder.imm_u64(offset);
-        builder.add(base, offset)
+        builder.add_u64_offset(base, offset)
     }
 }

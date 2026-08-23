@@ -69,16 +69,6 @@ struct LowerSlicesCx {
     stats: LowerSlicesStats,
 }
 
-/// The slice location of a value, if it is slice-typed. A `select`/`phi`
-/// result is always word-typed by construction, so slice aggregate uses are
-/// recognized from their operands rather than the result type.
-fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation> {
-    match func.value_ty(value) {
-        Some(MirType::Slice(location)) => Some(location),
-        _ => None,
-    }
-}
-
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
@@ -142,11 +132,11 @@ impl LowerSlicesCx {
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
                 if !projection_users.contains_key(&result)
                     || !incoming.iter().any(|(_, value)| {
-                        value_slice_location(func, *value).is_some()
+                        func.value_slice_location(*value).is_some()
                             || matches!(func.value_ty(*value), Some(MirType::MemPtr))
                     })
                     || !incoming.iter().all(|(_, value)| {
-                        value_slice_location(func, *value).is_some()
+                        func.value_slice_location(*value).is_some()
                             || matches!(
                                 func.value_ty(*value),
                                 Some(MirType::MemPtr | MirType::UInt(_))
@@ -159,7 +149,7 @@ impl LowerSlicesCx {
                 let mut ptr_incoming = Vec::with_capacity(incoming.len());
                 let mut len_incoming = Vec::with_capacity(incoming.len());
                 for (pred, value) in incoming {
-                    let (pointer, length) = if value_slice_location(func, value).is_some() {
+                    let (pointer, length) = if func.value_slice_location(value).is_some() {
                         let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
                         let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
                         func.blocks[pred].instructions.push(ptr_inst);
@@ -259,7 +249,7 @@ impl LowerSlicesCx {
             let mut out = Vec::with_capacity(insts.len());
             for inst_id in insts {
                 if let InstKind::Select(cond, a, b) = func.inst(inst_id).kind
-                    && let Some(location) = value_slice_location(func, a)
+                    && let Some(location) = func.value_slice_location(a)
                 {
                     let old = func.inst_result_value(inst_id).expect("select has a result");
                     let (ia, pa) = new_word_inst(func, InstKind::SlicePtr(a));
@@ -293,15 +283,15 @@ impl LowerSlicesCx {
                     InstKind::Phi(incoming) => {
                         let Some(location) = func
                             .inst_result_value(inst_id)
-                            .and_then(|result| value_slice_location(func, result))
+                            .and_then(|result| func.value_slice_location(result))
                         else {
                             continue;
                         };
                         let can_split = incoming
                             .iter()
-                            .any(|(_, value)| value_slice_location(func, *value).is_some())
+                            .any(|(_, value)| func.value_slice_location(*value).is_some())
                             && incoming.iter().all(|(_, value)| {
-                                value_slice_location(func, *value).is_some()
+                                func.value_slice_location(*value).is_some()
                                     || matches!(
                                         func.value_ty(*value),
                                         Some(MirType::MemPtr | MirType::UInt(_))
@@ -323,7 +313,7 @@ impl LowerSlicesCx {
                 let mut ptr_incoming = Vec::with_capacity(incoming.len());
                 let mut len_incoming = Vec::with_capacity(incoming.len());
                 for (pred, value) in incoming {
-                    let (pv, lv) = if value_slice_location(func, value).is_some() {
+                    let (pv, lv) = if func.value_slice_location(value).is_some() {
                         let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
                         let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
                         func.blocks[pred].instructions.push(pi);

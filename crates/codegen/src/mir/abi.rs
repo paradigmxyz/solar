@@ -171,6 +171,16 @@ impl AbiParamType {
         }
     }
 
+    /// Returns the validator for a scalar or enum word, if it is not full-width.
+    #[must_use]
+    pub(crate) fn word_validator(&self) -> Option<AbiWordValidator> {
+        match self {
+            Self::Scalar(ty) => AbiWordValidator::from_mir_type(*ty),
+            Self::Enum { variants, .. } => Some(AbiWordValidator::EnumRange(*variants)),
+            _ => None,
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {

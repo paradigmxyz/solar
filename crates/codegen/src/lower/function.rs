@@ -324,6 +324,23 @@ pub(super) struct InternalFunctionPointerShape {
     returns: Vec<MirType>,
 }
 
+impl InternalFunctionPointerShape {
+    fn from_ty(function: &TyFn<'_>) -> Self {
+        Self {
+            params: function
+                .parameters
+                .iter()
+                .map(|&ty| types::TypeLowerer::mir_type(ty))
+                .collect(),
+            returns: function
+                .returns
+                .iter()
+                .map(|&ty| types::TypeLowerer::mir_return_type(ty))
+                .collect(),
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
@@ -661,18 +678,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
-                let candidate_shape = InternalFunctionPointerShape {
-                    params: function
-                        .parameters
-                        .iter()
-                        .map(|&ty| types::TypeLowerer::mir_type(ty))
-                        .collect(),
-                    returns: function
-                        .returns
-                        .iter()
-                        .map(|&ty| types::TypeLowerer::mir_return_type(ty))
-                        .collect(),
-                };
+                let candidate_shape = InternalFunctionPointerShape::from_ty(function);
                 (candidate_shape == shape).then_some(function_id)
             })
             .filter_map(|function_id| {
