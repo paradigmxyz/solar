@@ -169,11 +169,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
     true
 }
 
-fn split_clobbering_phi_edges(func: &mut Function) -> usize {
+fn split_clobbering_phi_edges(func: &mut Function) {
     let phi_successors =
         func.blocks.indices().filter(|&block| func.block_has_phi(block)).collect::<Vec<_>>();
     if phi_successors.is_empty() {
-        return 0;
+        return;
     }
 
     let liveness = Liveness::compute(func);
@@ -214,11 +214,9 @@ fn split_clobbering_phi_edges(func: &mut Function) -> usize {
 
     edges.sort_unstable_by_key(|(predecessor, successor)| (predecessor.index(), successor.index()));
     edges.dedup();
-    let split = edges.len();
     for (predecessor, successor) in edges {
         split_edge(func, predecessor, successor);
     }
-    split
 }
 
 /// Whether a function can never return to an internal caller: its reachable CFG

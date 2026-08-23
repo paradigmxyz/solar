@@ -1007,9 +1007,8 @@ impl LowerAbiCx {
         let AbiParamType::FixedArray { element, len } = ty else {
             unreachable!("checked constructor ABI parameter")
         };
-        let size = builder.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
-        let ptr = builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+        let (ptr, layout) =
+            builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
         for index in 0..*len {
             let value = Self::decode_constructor_param(
                 builder,
@@ -1904,12 +1903,8 @@ impl LowerAbiCx {
                     }
                     return base;
                 }
-                let size = builder.imm_u64(len.saturating_mul(32));
-                let ptr = builder.alloc_object(
-                    size,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
+                let (ptr, layout) =
+                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
                     let offset_value = builder.imm_u64(offset);
@@ -1946,12 +1941,7 @@ impl LowerAbiCx {
                         )
                     };
                     let elem_index = builder.imm_u64(index);
-                    builder.memory_object_store_element(
-                        ptr,
-                        crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                        elem_index,
-                        value,
-                    );
+                    builder.memory_object_store_element(ptr, layout, elem_index, value);
                     offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 ptr
@@ -2426,10 +2416,8 @@ impl LowerAbiCx {
         }
         match ty {
             crate::mir::AbiParamType::FixedArray { element, len } => {
-                let size = builder.imm_u64(len.saturating_mul(32));
-                let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
-                let object =
-                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let (object, layout) =
+                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
                     let offset_value = builder.imm_u64(offset);
@@ -2607,10 +2595,8 @@ impl LowerAbiCx {
         }
         match ty {
             crate::mir::AbiParamType::FixedArray { element, len } => {
-                let size = builder.imm_u64(len.saturating_mul(32));
-                let layout = crate::mir::MemoryObjectLayout::word_fixed_array(*len);
-                let object =
-                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let (object, layout) =
+                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
                     let offset_value = builder.imm_u64(offset);
@@ -3854,9 +3840,7 @@ fn canonicalize_return_value(
             output
         }
         AbiParamType::FixedArray { element, len } => {
-            let size = builder.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-            let layout = MemoryObjectLayout::word_fixed_array(*len);
-            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            let (output, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
                 let element_value = builder.memory_object_load_element(value, layout, index_value);

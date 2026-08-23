@@ -344,7 +344,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let returns = function.returns.len();
-        let return_tys = function.returns.to_vec();
+        let return_tys = function.returns;
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
@@ -380,7 +380,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some((data, _, size)) = static_return_buffer {
             self.revert_if_short_returndata(size);
-            return self.lower_abi_decode_values(data, &return_tys, callee.span);
+            return self.lower_abi_decode_values(data, return_tys, callee.span);
         }
         if decode_returndata {
             if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
@@ -391,7 +391,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             }
             let data = self.materialize_returndata_bytes();
-            return self.lower_abi_decode_values(data, &return_tys, callee.span);
+            return self.lower_abi_decode_values(data, return_tys, callee.span);
         }
         if self.context.gcx.sess.opts.evm_version.supports_returndata() {
             self.validate_static_returndata(ret_offset, function.returns);
