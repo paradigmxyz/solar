@@ -174,15 +174,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
-        if self.default_bindings.contains(&id) {
+        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            let value = self.default_binding_value(ty);
-            self.values.insert(id, value);
-            return Some(value);
-        }
-        if self.deferred_bindings.contains(&id) {
-            let ty = self.context.gcx.type_of_item(id.into());
-            let value = self.deferred_binding_value(ty);
+            let value = if self.default_bindings.contains(&id) {
+                self.default_binding_value(ty)
+            } else {
+                self.deferred_binding_value(ty)
+            };
             self.values.insert(id, value);
             return Some(value);
         }
@@ -253,11 +251,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             entry.insert(value);
             return Some(());
         }
-        if self.default_bindings.contains(&id) {
-            self.values.insert(id, value);
-            return Some(());
-        }
-        if self.deferred_bindings.contains(&id) {
+        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             self.values.insert(id, value);
             return Some(());
         }

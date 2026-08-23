@@ -330,25 +330,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let address_shift = self.builder.imm_u64(32);
         let address = self.builder.shr(address_shift, function_value);
 
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let mut gas = self.builder.gas();
-        let mut call_value = zero;
-        if let Some(options) = call_opts {
-            for option in options.args {
-                let value = self.lower_expr(&option.value)?;
-                match option.name.name {
-                    kw::Gas => gas = value,
-                    sym::value => call_value = value,
-                    _ => {
-                        return report_unsupported(
-                            self.context.gcx,
-                            option.name.span,
-                            "call option",
-                        );
-                    }
-                }
-            }
-        }
+        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
 
         let mut values = Vec::with_capacity(arg_exprs.len());
         let mut types = Vec::with_capacity(arg_exprs.len());
@@ -361,7 +343,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let zero = self.builder.imm_u256(U256::ZERO);
         let returns = function.returns.len();
         let static_return = self.static_aggregate_return_layout(function.returns.iter().copied());
         let static_return_buffer =
@@ -833,25 +814,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, expr.span, "external function arguments");
         }
         let address = self.lower_expr(receiver)?;
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let mut call_value = zero;
-        let mut gas = self.builder.gas();
-        if let Some(options) = call_opts {
-            for option in options.args {
-                let value = self.lower_expr(&option.value)?;
-                match option.name.name {
-                    kw::Gas => gas = value,
-                    sym::value => call_value = value,
-                    _ => {
-                        return report_unsupported(
-                            self.context.gcx,
-                            option.name.span,
-                            "call option",
-                        );
-                    }
-                }
-            }
-        }
+        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
         let parameter_names =
             self.context.gcx.callable_param_names(CallableParamSource::Function {
                 id: function_id,

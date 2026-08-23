@@ -357,6 +357,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    fn lower_call_options(
+        &mut self,
+        options: Option<&hir::CallOptions<'_>>,
+        allow_value: bool,
+        diagnostic: &'static str,
+    ) -> Option<(ValueId, ValueId, ValueId)> {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let mut gas = self.builder.gas();
+        let mut value = zero;
+        if let Some(options) = options {
+            for option in options.args {
+                let option_value = self.lower_expr(&option.value)?;
+                match option.name.name {
+                    kw::Gas => gas = option_value,
+                    sym::value if allow_value => value = option_value,
+                    _ => {
+                        return report_unsupported(self.context.gcx, option.name.span, diagnostic);
+                    }
+                }
+            }
+        }
+        Some((gas, value, zero))
+    }
+
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),

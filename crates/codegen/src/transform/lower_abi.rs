@@ -542,12 +542,13 @@ impl LowerAbiCx {
 
                     let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
                     let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-                    let Some(values) = Self::decode_memory_tuple(
+                    let Some(values) = Self::decode_memory_tuple_with_helpers(
                         &mut builder,
                         base,
                         length,
                         layout.as_ref(),
                         false,
+                        None,
                         self.has_bitwise_shifting,
                     ) else {
                         return false;
@@ -708,12 +709,13 @@ impl LowerAbiCx {
             builder.add_return(result_ty);
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple(
+            let values = Self::decode_memory_tuple_with_helpers(
                 &mut builder,
                 base,
                 length,
                 layout.as_ref(),
                 false,
+                None,
                 self.has_bitwise_shifting,
             )
             .expect("checked static ABI layout");
@@ -952,12 +954,13 @@ impl LowerAbiCx {
             }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple(
+            let values = Self::decode_memory_tuple_with_helpers(
                 &mut builder,
                 base,
                 length,
                 layout.as_ref(),
                 false,
+                None,
                 self.has_bitwise_shifting,
             )
             .expect("checked aggregate ABI layout");
@@ -3785,24 +3788,6 @@ impl LowerAbiCx {
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
     }
-    pub(crate) fn decode_memory_tuple(
-        builder: &mut FunctionBuilder<'_>,
-        base: ValueId,
-        length: ValueId,
-        layout: &AbiParamLayout,
-        allow_alias: bool,
-        has_bitwise_shifting: bool,
-    ) -> Option<Vec<ValueId>> {
-        Self::decode_memory_tuple_with_helpers(
-            builder,
-            base,
-            length,
-            layout,
-            allow_alias,
-            None,
-            has_bitwise_shifting,
-        )
-    }
 }
 
 /// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
@@ -3814,12 +3799,13 @@ pub(crate) fn decode_memory_tuple(
     allow_alias: bool,
     has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
-    LowerAbiCx::decode_memory_tuple(
+    LowerAbiCx::decode_memory_tuple_with_helpers(
         builder,
         base,
         length,
         layout,
         allow_alias,
+        None,
         has_bitwise_shifting,
     )
 }

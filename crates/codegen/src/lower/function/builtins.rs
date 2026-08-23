@@ -101,7 +101,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_span = data.span;
         let data_ty = self.context.gcx.type_of_expr(data.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
-        let zero = self.builder.imm_u256(U256::ZERO);
         if capture_returndata && !self.context.gcx.sess.opts.evm_version.supports_returndata() {
             return report_error(
                 self.context.gcx,
@@ -109,24 +108,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 "codegen cannot bind low-level call returndata before Byzantium",
             );
         }
-        let mut gas = self.builder.gas();
-        let mut value = zero;
-        if let Some(options) = call_opts {
-            for option in options.args {
-                let option_value = self.lower_expr(&option.value)?;
-                match option.name.name {
-                    kw::Gas => gas = option_value,
-                    sym::value if builtin == Builtin::AddressCall => value = option_value,
-                    _ => {
-                        return report_unsupported(
-                            self.context.gcx,
-                            option.name.span,
-                            "call option",
-                        );
-                    }
-                }
-            }
-        }
+        let (gas, value, zero) =
+            self.lower_call_options(call_opts, builtin == Builtin::AddressCall, "call option")?;
         let data = self.lower_typed_expr(data, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
         let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);

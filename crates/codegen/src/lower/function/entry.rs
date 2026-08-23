@@ -271,7 +271,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let target = self.return_targets.pop().expect("return target exists");
         self.builder.switch_to_block(target.block);
         self.values = self.merge_many_values(before_values, &target.states);
-        self.storage_refs = self.merge_many_storage_refs(before_storage_refs, &target.states);
+        self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &target.states);
     }
 
     pub(super) fn lower_function_body(

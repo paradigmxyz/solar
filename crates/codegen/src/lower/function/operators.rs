@@ -20,10 +20,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut overflow = self.builder.and(same_sign, result_changed_sign);
         if bits < 256 {
             let (min, max) = signed_bounds(bits, &mut self.builder);
-            let below = self.builder.slt(result, min);
-            let above = self.builder.sgt(result, max);
-            let out_of_range = self.builder.or(below, above);
-            overflow = self.builder.or(overflow, out_of_range);
+            overflow = self.add_signed_range_check(overflow, result, min, max);
         }
         overflow
     }
@@ -44,10 +41,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut overflow = self.builder.and(signs_differ, result_changed_sign);
         if bits < 256 {
             let (min, max) = signed_bounds(bits, &mut self.builder);
-            let below = self.builder.slt(result, min);
-            let above = self.builder.sgt(result, max);
-            let out_of_range = self.builder.or(below, above);
-            overflow = self.builder.or(overflow, out_of_range);
+            overflow = self.add_signed_range_check(overflow, result, min, max);
         }
         overflow
     }
@@ -69,10 +63,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut overflow = self.builder.iszero(valid);
         if let ArithmeticKind::Signed(bits) = kind {
             let (min, max) = signed_bounds(bits, &mut self.builder);
-            let below = self.builder.slt(result, min);
-            let above = self.builder.sgt(result, max);
-            let out_of_range = self.builder.or(below, above);
-            overflow = self.builder.or(overflow, out_of_range);
+            overflow = self.add_signed_range_check(overflow, result, min, max);
             let minus_one = self.builder.imm_u256(U256::MAX);
             let lhs_is_min = self.builder.eq(lhs, min);
             let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
@@ -86,6 +77,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             overflow = self.builder.or(overflow, too_wide);
         }
         overflow
+    }
+
+    fn add_signed_range_check(
+        &mut self,
+        overflow: ValueId,
+        result: ValueId,
+        min: ValueId,
+        max: ValueId,
+    ) -> ValueId {
+        let below = self.builder.slt(result, min);
+        let above = self.builder.sgt(result, max);
+        let out_of_range = self.builder.or(below, above);
+        self.builder.or(overflow, out_of_range)
     }
 
     pub(super) fn truncate_wrapping_result(

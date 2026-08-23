@@ -304,11 +304,11 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectLoadField { object, layout, field } => {
+                    let Some(offset) = P::field_offset(layout, field) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
                     if let Some(location) = slice_location(builder.func(), object) {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
-                        };
                         let base = builder.slice_ptr(object);
                         let address = offset_address(&mut builder, base, offset);
                         let Some(kind) = slice_load_kind(location, address) else {
@@ -320,10 +320,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }
-                    let Some(offset) = P::field_offset(layout, field) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
                     let address = offset_address(&mut builder, object, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;

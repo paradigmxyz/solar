@@ -50,7 +50,6 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let mut replacements = FxHashMap::default();
-    let mut changed = false;
     let blocks: Vec<_> = func.blocks.indices().collect();
 
     for block in blocks {
@@ -93,7 +92,6 @@ fn lower_function(func: &mut Function) -> bool {
                         .inst_result_value(inst)
                         .expect("frame load must produce a value");
                     replacements.insert(old, value);
-                    changed = true;
                 }
                 Some(FrameOp::Store { offset, mode, kind, value }) => {
                     let address = frame_address(&mut builder, offset, mode);
@@ -115,7 +113,6 @@ fn lower_function(func: &mut Function) -> bool {
                             builder.mstore(len_address, len);
                         }
                     }
-                    changed = true;
                 }
                 None => builder.func_mut().blocks[block].instructions.push(inst),
             }
@@ -123,7 +120,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     func.replace_uses_canonicalized(&replacements);
-    changed
+    true
 }
 
 fn frame_address(

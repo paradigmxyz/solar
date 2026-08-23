@@ -141,7 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_loop_values(before_values, &states, &FxHashMap::default());
-        self.storage_refs = self.merge_loop_storage_refs(before_storage_refs, &states);
+        self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &states);
         Some(())
     }
 
@@ -323,25 +323,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 self.lower_expr(receiver)?
             };
-            let zero = self.builder.imm_u256(U256::ZERO);
-            let mut call_value = zero;
-            let mut gas = self.builder.gas();
-            if let Some(options) = call_opts {
-                for option in options.args {
-                    let value = self.lower_expr(&option.value)?;
-                    match option.name.name {
-                        kw::Gas => gas = value,
-                        sym::value => call_value = value,
-                        _ => {
-                            return report_unsupported(
-                                self.context.gcx,
-                                option.name.span,
-                                "try call option",
-                            );
-                        }
-                    }
-                }
-            }
+            let (gas, call_value, zero) =
+                self.lower_call_options(*call_opts, true, "try call option")?;
             let mut values = Vec::with_capacity(target.parameter_types.len());
             let mut types = Vec::with_capacity(target.parameter_types.len());
             for (index, parameter_ty) in target.parameter_types.iter().copied().enumerate() {
@@ -505,7 +488,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         states.extend(catch_states);
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_many_values(before, &states);
-        self.storage_refs = self.merge_many_storage_refs(before_storage_refs, &states);
+        self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &states);
         Some(())
     }
 
@@ -835,7 +818,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     &FxHashMap::default(),
                 );
                 self.storage_refs =
-                    self.merge_loop_storage_refs(header_storage_refs.clone(), &update_states);
+                    self.merge_storage_ref_states(header_storage_refs.clone(), &update_states);
                 if matches!(source, LoopSource::DoWhile) {
                     self.loops.last_mut().expect("loop target exists").continue_block = header;
                 }
@@ -877,7 +860,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values =
             self.merge_loop_values(before_values, &loop_targets.break_states, &header_phis);
         self.storage_refs =
-            self.merge_loop_storage_refs(header_storage_refs, &loop_targets.break_states);
+            self.merge_storage_ref_states(header_storage_refs, &loop_targets.break_states);
         Some(())
     }
 
@@ -939,36 +922,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         merged
-    }
-
-    pub(super) fn merge_loop_storage_refs(
-        &mut self,
-        mut before: FxHashMap<VariableId, StorageAccess>,
-        exits: &[LoopState],
-    ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = exits
-            .iter()
-            .flat_map(|state| state.storage_refs.keys())
-            .copied()
-            .collect::<solar_data_structures::map::FxHashSet<_>>();
-        for id in ids {
-            let fallback = before.get(&id).copied();
-            let incoming = exits
-                .iter()
-                .filter_map(|state| {
-                    state
-                        .storage_refs
-                        .get(&id)
-                        .copied()
-                        .or(fallback)
-                        .map(|access| (state.block, access))
-                })
-                .collect::<Vec<_>>();
-            if let Some(access) = self.merge_storage_accesses(incoming).or(fallback) {
-                before.insert(id, access);
-            }
-        }
-        before
     }
 
     pub(super) fn merge_storage_accesses(
@@ -1095,7 +1048,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value
     }
 
-    pub(super) fn merge_many_storage_refs(
+    pub(super) fn merge_storage_ref_states(
         &mut self,
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
