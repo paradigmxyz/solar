@@ -120,7 +120,7 @@ bb15:
   jump bb20
 bb20:
   dup1
-  push 480
+  push 448
   mstore
   push 36
   calldataload
@@ -131,20 +131,16 @@ bb20:
   stop
 bb22:
   push 1
-  push 480
+  push 448
   mload
   add
   push 1
-  push 448
+  push 480
   mload
   add
   swap1
   jump bb20
 bb23:
-  push 480
-  mstore
-  push 448
-  mstore
   push bb24
   push 160
   mload
@@ -334,16 +330,17 @@ bb24:
   mstore
   mcopy
   pop
+  dup5
+  push 480
+  mstore
   push 4
   calldataload
-  push 448
-  mload
+  dup6
   lt
   push bb28
   jumpi
   push 255
-  push 448
-  mload
+  dup6
   and
   push 248
   shl
@@ -452,8 +449,13 @@ bb24:
   keccak256
   push 352
   mstore
+  dup5
+  push 448
+  mstore
   pop
-  swap2
+  swap4
+  pop
+  pop
   pop
   pop
   push bb30
@@ -582,14 +584,14 @@ bb36:
   push 1
   add
   dup1
-  push 192
+  push 256
   mstore
   push bb37
-  swap1
+  dup2
   jump bb69
 bb37:
   dup1
-  push 224
+  push 192
   mstore
   dup1
   mload
@@ -668,10 +670,9 @@ bb37:
   swap1
   mload
   dup1
-  push 224
-  mstore
   push 192
-  mload
+  mstore
+  dup3
   sload
   push 1
   dup2
@@ -736,14 +737,16 @@ bb37:
   swap1
   pop
   add
-  push 256
+  push 224
   mstore
   push 512
   dup1
   push 160
   mstore
-  push 192
-  mload
+  dup5
+  dup1
+  push 256
+  mstore
   dup2
   mstore
   push 32
@@ -752,7 +755,8 @@ bb37:
   push 288
   mstore
   pop
-  swap2
+  swap3
+  pop
   pop
   pop
   push bb41
@@ -760,7 +764,7 @@ bb37:
   push 128
   mload
   mload
-  push 224
+  push 192
   mload
   push 3
   shl
@@ -770,22 +774,22 @@ bb37:
   shr
   not
   and
-  push 224
+  push 192
   mload
   push 1
   shl
   or
-  push 192
+  push 256
   mload
   sstore
   jump bb44
 bb44:
-  push 256
+  push 224
   mload
   push 160
   mload
   mstore
-  push 256
+  push 224
   mload
   jump bb45
 bb45:
@@ -817,13 +821,13 @@ bb45:
   mload
   jump bb45
 bb41:
-  push 224
+  push 192
   mload
   push 1
   shl
   push 1
   or
-  push 192
+  push 256
   mload
   sstore
   push 0
@@ -833,7 +837,7 @@ bb41:
   push 0
   jump bb42
 bb42:
-  push 256
+  push 224
   mload
   gt
   iszero

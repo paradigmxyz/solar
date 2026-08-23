@@ -147,6 +147,8 @@ pub(crate) struct Lowerer<'gcx> {
     module: Module,
     /// The most-derived contract this module is being built for.
     contract_id: Option<ContractId>,
+    /// Whether public ABI wrappers forward to one shared typed body.
+    share_public_bodies: bool,
     /// The current contract being lowered.
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
@@ -306,7 +308,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Creates a new lowerer.
-    pub(crate) fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
+    pub(crate) fn new(gcx: Gcx<'gcx>, name: Ident, share_public_bodies: bool) -> Self {
         if !gcx.has_typeck_results() {
             gcx.dcx().emit_err(name.span, "tried to lower contract without typeck results");
         }
@@ -315,6 +317,7 @@ impl<'gcx> Lowerer<'gcx> {
             gcx,
             module: Module::new(name),
             contract_id: None,
+            share_public_bodies,
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             storage_locations: FxHashMap::default(),
@@ -1196,6 +1199,12 @@ impl<'gcx> Lowerer<'gcx> {
             self.hir_to_mir_functions.insert(func_id, mir_id);
         }
 
+        let forwarding_body = (self.share_public_bodies
+            && !force_internal
+            && self.public_function_has_internal_caller(func_id)
+            && !self.returns_calldata_slice(hir_func))
+        .then(|| self.ensure_internal_mir_function(func_id));
+
         let mut mir_func = Function::new(func_name);
 
         mir_func.attributes = FunctionAttributes {
@@ -1282,29 +1291,35 @@ impl<'gcx> Lowerer<'gcx> {
         // name a contract are base-constructor invocations, evaluated by the
         // constructor prelude instead. Each modifier resolves to its
         // most-derived override, like a virtual call.
-        self.modifier_frames = hir_func
-            .modifiers
-            .iter()
-            .filter_map(|modifier| match modifier.id {
-                hir::ItemId::Function(mod_id) => {
-                    Some((self.virtual_function_target(mod_id), modifier))
-                }
-                _ => None,
-            })
-            .collect();
+        self.modifier_frames = if forwarding_body.is_some() {
+            Vec::new()
+        } else {
+            hir_func
+                .modifiers
+                .iter()
+                .filter_map(|modifier| match modifier.id {
+                    hir::ItemId::Function(mod_id) => {
+                        Some((self.virtual_function_target(mod_id), modifier))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
         self.modifier_function = Some(func_id);
         self.modifier_depth = 0;
         self.modifier_return_exit = None;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
-        if let Some(body) = &hir_func.body {
-            self.collect_assigned_vars_block(body);
-        }
-        for i in 0..self.modifier_frames.len() {
-            let (mod_id, _) = self.modifier_frames[i];
-            if let Some(mod_body) = &self.gcx.hir.function(mod_id).body {
-                self.collect_assigned_vars_block(mod_body);
+        if forwarding_body.is_none() {
+            if let Some(body) = &hir_func.body {
+                self.collect_assigned_vars_block(body);
+            }
+            for i in 0..self.modifier_frames.len() {
+                let (mod_id, _) = self.modifier_frames[i];
+                if let Some(mod_body) = &self.gcx.hir.function(mod_id).body {
+                    self.collect_assigned_vars_block(mod_body);
+                }
             }
         }
         {
@@ -1689,101 +1704,109 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(addr, value);
             }
 
-            // Initialize named-return slots only after the complete return
-            // prefix and parameter area have been registered.
-            for &ret_id in hir_func.returns {
-                let ret_var = self.gcx.hir.variable(ret_id);
-                // An unnamed return cannot be assigned or read by the body.
-                // Keep it absent and materialize its default only if control
-                // actually reaches the implicit-return epilogue. With a
-                // modifier chain even unnamed returns need slots: the body's
-                // `return` values must survive the post-placeholder modifier
-                // code that still runs before the epilogue reads them.
-                if ret_var.name.is_none() && self.modifier_frames.is_empty() {
-                    continue;
-                }
-                // A storage-located named return is a storage reference:
-                // assignments bind its slot, and analysis guarantees it is
-                // assigned before use, so it takes no default value.
-                let ret_ty = self.gcx.type_of_item(ret_id.into());
-                if ret_var.data_location == Some(solar_ast::DataLocation::Storage)
-                    || matches!(ret_ty.peel_refs().kind, TyKind::Mapping(..))
-                {
-                    self.storage_ref_locals.insert(ret_id);
-                    let _ = self.alloc_local_memory(ret_id);
-                    continue;
-                }
-                // Allocate memory for return variables so they can be assigned to
-                // within the function body (e.g., `liquidity = 1` in if/else branches)
-                if Self::calldata_dynamic_var_kind(ret_var).is_some() {
-                    let offset = self.alloc_local_slice_memory(ret_id);
-                    self.init_empty_slice_slot(&mut builder, offset);
-                    continue;
-                }
-
-                let offset = self.alloc_local_memory(ret_id);
-                let offset_val = self.local_memory_addr(&mut builder, offset);
-                if let Some(value) = self.lower_bulk_zero_return_struct(&mut builder, ret_id) {
-                    builder.mstore(offset_val, value);
-                } else if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id)
-                {
-                    builder.mstore(offset_val, value);
-                }
-            }
-
-            if hir_func.kind == hir::FunctionKind::Constructor
-                && let Some(contract_id) = hir_func.contract
-            {
-                self.lower_constructor_prelude(&mut builder, contract_id);
-            }
-
-            if let Some(body) = &hir_func.body {
-                if self.modifier_frames.is_empty() {
-                    self.lower_block(&mut builder, body);
-                } else {
-                    self.lower_modifier_level(&mut builder, 0);
-                }
-            }
-
-            if !builder.func().block(builder.current_block()).is_terminated() {
-                if builder.func().returns.is_empty() {
-                    builder.stop();
-                } else {
-                    // Load each return variable's word (the value for value types,
-                    // a memory pointer for reference types).
-                    let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
-                    for &ret_id in hir_func.returns {
-                        let ret_var = self.gcx.hir.variable(ret_id);
-                        let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
-                            if self.is_slice_slot_local(&ret_id) {
-                                self.load_slice_slot(
-                                    &mut builder,
-                                    offset,
-                                    crate::mir::SliceLocation::Calldata,
-                                )
-                            } else {
-                                let offset_val = self.local_memory_addr(&mut builder, offset);
-                                let val = builder.mload(offset_val);
-                                if uses_external_abi || !self.asm_assigned_vars.contains(ret_id) {
-                                    self.clean_asm_dirty_read(&mut builder, ret_id, val)
-                                } else {
-                                    val
-                                }
-                            }
-                        } else if let Some(value) =
-                            self.lower_default_variable_value(&mut builder, ret_id)
-                        {
-                            value
-                        } else {
-                            self.err_value(
-                                &mut builder,
-                                ret_var.span,
-                                "codegen is missing a return variable slot",
-                            )
-                        };
-                        items.push((ret_val, self.gcx.type_of_item(ret_id.into())));
+            if let Some(body_id) = forwarding_body {
+                self.lower_external_body_call(&mut builder, hir_func, body_id);
+            } else {
+                // Initialize named-return slots only after the complete return
+                // prefix and parameter area have been registered.
+                for &ret_id in hir_func.returns {
+                    let ret_var = self.gcx.hir.variable(ret_id);
+                    // An unnamed return cannot be assigned or read by the body.
+                    // Keep it absent and materialize its default only if control
+                    // actually reaches the implicit-return epilogue. With a
+                    // modifier chain even unnamed returns need slots: the body's
+                    // `return` values must survive the post-placeholder modifier
+                    // code that still runs before the epilogue reads them.
+                    if ret_var.name.is_none() && self.modifier_frames.is_empty() {
+                        continue;
                     }
-                    self.finish_return(&mut builder, items);
+                    // A storage-located named return is a storage reference:
+                    // assignments bind its slot, and analysis guarantees it is
+                    // assigned before use, so it takes no default value.
+                    let ret_ty = self.gcx.type_of_item(ret_id.into());
+                    if ret_var.data_location == Some(solar_ast::DataLocation::Storage)
+                        || matches!(ret_ty.peel_refs().kind, TyKind::Mapping(..))
+                    {
+                        self.storage_ref_locals.insert(ret_id);
+                        let _ = self.alloc_local_memory(ret_id);
+                        continue;
+                    }
+                    // Allocate memory for return variables so they can be assigned to
+                    // within the function body (e.g., `liquidity = 1` in if/else branches).
+                    if Self::calldata_dynamic_var_kind(ret_var).is_some() {
+                        let offset = self.alloc_local_slice_memory(ret_id);
+                        self.init_empty_slice_slot(&mut builder, offset);
+                        continue;
+                    }
+
+                    let offset = self.alloc_local_memory(ret_id);
+                    let offset_val = self.local_memory_addr(&mut builder, offset);
+                    if let Some(value) = self.lower_bulk_zero_return_struct(&mut builder, ret_id) {
+                        builder.mstore(offset_val, value);
+                    } else if let Some(value) =
+                        self.lower_default_variable_value(&mut builder, ret_id)
+                    {
+                        builder.mstore(offset_val, value);
+                    }
+                }
+
+                if hir_func.kind == hir::FunctionKind::Constructor
+                    && let Some(contract_id) = hir_func.contract
+                {
+                    self.lower_constructor_prelude(&mut builder, contract_id);
+                }
+
+                if let Some(body) = &hir_func.body {
+                    if self.modifier_frames.is_empty() {
+                        self.lower_block(&mut builder, body);
+                    } else {
+                        self.lower_modifier_level(&mut builder, 0);
+                    }
+                }
+
+                if !builder.func().block(builder.current_block()).is_terminated() {
+                    if builder.func().returns.is_empty() {
+                        builder.stop();
+                    } else {
+                        // Load each return variable's word (the value for value types,
+                        // a memory pointer for reference types).
+                        let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
+                        for &ret_id in hir_func.returns {
+                            let ret_var = self.gcx.hir.variable(ret_id);
+                            let ret_val = if let Some(offset) =
+                                self.get_local_memory_offset(&ret_id)
+                            {
+                                if self.is_slice_slot_local(&ret_id) {
+                                    self.load_slice_slot(
+                                        &mut builder,
+                                        offset,
+                                        crate::mir::SliceLocation::Calldata,
+                                    )
+                                } else {
+                                    let offset_val = self.local_memory_addr(&mut builder, offset);
+                                    let val = builder.mload(offset_val);
+                                    if uses_external_abi || !self.asm_assigned_vars.contains(ret_id)
+                                    {
+                                        self.clean_asm_dirty_read(&mut builder, ret_id, val)
+                                    } else {
+                                        val
+                                    }
+                                }
+                            } else if let Some(value) =
+                                self.lower_default_variable_value(&mut builder, ret_id)
+                            {
+                                value
+                            } else {
+                                self.err_value(
+                                    &mut builder,
+                                    ret_var.span,
+                                    "codegen is missing a return variable slot",
+                                )
+                            };
+                            items.push((ret_val, self.gcx.type_of_item(ret_id.into())));
+                        }
+                        self.finish_return(&mut builder, items);
+                    }
                 }
             }
         }
@@ -1798,6 +1821,55 @@ impl<'gcx> Lowerer<'gcx> {
         *self.module.function_mut(mir_id) = mir_func;
         self.check_expr_errors = check_expr_errors;
         mir_id
+    }
+
+    /// Whether a public function is the target of a Solidity-level internal call.
+    fn public_function_has_internal_caller(&self, target: HirFunctionId) -> bool {
+        let function = self.gcx.hir.function(target);
+        if function.visibility != hir::Visibility::Public
+            || function.kind != hir::FunctionKind::Function
+        {
+            return false;
+        }
+        let Some(contract_id) = self.contract_id else { return false };
+        self.gcx.hir.contract(contract_id).linearized_bases.iter().any(|&base| {
+            self.gcx.hir.contract(base).all_functions().any(|caller| {
+                self.function_callees(caller)
+                    .into_iter()
+                    .any(|callee| self.virtual_function_target(callee) == target)
+            })
+        })
+    }
+
+    /// Forwards a decoded external entry to its one shared typed body.
+    fn lower_external_body_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        function: &hir::Function<'_>,
+        body: FunctionId,
+    ) {
+        let args = function.parameters.iter().map(|param| self.locals[param]).collect::<Vec<_>>();
+        if function.returns.is_empty() {
+            builder.internal_call_void(body, args, 0);
+            builder.stop();
+            return;
+        }
+
+        let result_ty = self.lower_type_from_var(function.returns[0]);
+        let first = builder.internal_call(body, args, result_ty, function.returns.len());
+        let mut values = Vec::with_capacity(function.returns.len());
+        values.push(first);
+        if function.returns.len() > 1 {
+            let tail = self.multi_return_buffer_base(builder);
+            for index in 1..function.returns.len() {
+                values.push(self.load_multi_return_value(builder, tail, index));
+            }
+        }
+        let items = values
+            .into_iter()
+            .zip(function.returns.iter().map(|&ret| self.gcx.type_of_item(ret.into())))
+            .collect();
+        self.finish_return(builder, items);
     }
 
     /// Reverts when calldata does not contain the complete ABI head.
@@ -2544,8 +2616,23 @@ pub fn lower_contract_with_bytecodes(
     contract_id: ContractId,
     child_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
+    lower_contract_with_bytecodes_and_body_sharing(
+        gcx,
+        contract_id,
+        child_bytecodes,
+        gcx.sess.opts.optimization.is_size(),
+    )
+}
+
+/// Lowers a contract while explicitly selecting shared public function bodies.
+pub(crate) fn lower_contract_with_bytecodes_and_body_sharing(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    share_public_bodies: bool,
+) -> Module {
     let contract = gcx.hir.contract(contract_id);
-    let mut lowerer = Lowerer::new(gcx, contract.name);
+    let mut lowerer = Lowerer::new(gcx, contract.name, share_public_bodies);
 
     // Register all child contract bytecodes
     for (&child_id, bytecode) in child_bytecodes {

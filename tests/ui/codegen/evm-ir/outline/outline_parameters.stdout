@@ -1,0 +1,118 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (after outline) ===
+  @module OutlineParameters
+  bb0:
+-   push 1
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+    push 2
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb1
++   push 1
++   push bb5
++   swap2
++   swap1
++   jump bb4
+  bb1:
+-   push 3
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+    push 4
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb2
++   push 3
++   push bb6
++   swap2
++   swap1
++   jump bb4
+  bb2:
+-   push 5
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+    push 6
+-   add
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   jump bb3
++   push 5
++   push bb7
++   swap2
++   swap1
++   jump bb4
+  bb3:
++   push 8
+    push 7
++   push bb8
++   swap2
++   swap1
++   jump bb4
++ bb4:
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+-   push 8
++   swap1
+    add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    pop
++   jump
++ bb5:
++   jump bb1
++ bb6:
++   jump bb2
++ bb7:
++   jump bb3
++ bb8:
+    stop
+  

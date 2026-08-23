@@ -7,7 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    EVM_WORD_BYTES,
+    EIP170_RUNTIME_CODE_SIZE_LIMIT, EVM_WORD_BYTES,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
@@ -141,6 +141,7 @@ impl LazyStackArgPlan {
 /// untracked return address until control returns.
 #[derive(Clone, Debug)]
 struct StaticCallStackPlan {
+    prepare_ops: Vec<StackOp>,
     caller_stack: StackModel,
 }
 
@@ -1886,44 +1887,82 @@ impl<'gcx> EvmCodegen<'gcx> {
             MirPhase::EvmShaped,
             "EVM codegen requires MIR in the final phase"
         );
-        let mut preserve_caller_stack =
-            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
-        let mut runtime_stack_args = true;
-        self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas()
+            && self.gcx.sess.opts.evm_version >= solar_config::EvmVersion::SpuriousDragon;
+        let mut code_size_rescue = false;
+        let mut gas_first_result = None;
         loop {
-            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
-            self.reset_runtime_codegen(module);
-            self.preserve_caller_stack = preserve_caller_stack;
-            self.runtime_stack_args = runtime_stack_args;
+            let mut preserve_caller_stack =
+                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+            let mut runtime_stack_args = true;
+            self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+            loop {
+                let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+                self.reset_runtime_codegen(module);
+                self.preserve_caller_stack = preserve_caller_stack;
+                self.runtime_stack_args = runtime_stack_args;
 
-            if !module.functions.is_empty() {
-                self.emit_runtime(module, call_graph);
+                if !module.functions.is_empty() {
+                    self.emit_runtime(module, call_graph);
+                }
+
+                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
+                    continue;
+                }
+                if !self.internal_call_stack_edges.is_empty()
+                    && !self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH)
+                {
+                    if preserve_caller_stack {
+                        preserve_caller_stack = false;
+                        continue;
+                    }
+                    if runtime_stack_args {
+                        runtime_stack_args = false;
+                        continue;
+                    }
+                    if self.stack_returns_enabled {
+                        self.stack_returns_enabled = false;
+                        continue;
+                    }
+                }
+                break;
             }
 
-            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
+            let size_focused = self.gcx.sess.opts.optimization.is_size() || code_size_rescue;
+            let outline_stack_headroom =
+                if size_focused && self.recursive_stack_functions.is_empty() {
+                    (1..=ir::MAX_OUTLINE_STACK_HEADROOM)
+                        .rev()
+                        .find(|&headroom| {
+                            self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH - headroom)
+                        })
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+            self.asm.set_unknown_target_stack_headroom(outline_stack_headroom);
+            self.asm.set_enable_size_outlining(code_size_rescue);
+
+            let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
+            if may_need_code_size_rescue
+                && !code_size_rescue
+                && result.bytecode.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
+                && result.bytecode.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT * 2
+            {
+                gas_first_result = Some(result);
+                code_size_rescue = true;
                 continue;
             }
-            if !self.internal_call_stack_edges.is_empty() && !self.caller_stack_prefixes_fit(module)
+            let result = if code_size_rescue
+                && result.bytecode.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
             {
-                if preserve_caller_stack {
-                    preserve_caller_stack = false;
-                    continue;
-                }
-                if runtime_stack_args {
-                    runtime_stack_args = false;
-                    continue;
-                }
-                if self.stack_returns_enabled {
-                    self.stack_returns_enabled = false;
-                    continue;
-                }
-            }
-            break;
+                gas_first_result.take().expect("code-size rescue must retain the gas-first runtime")
+            } else {
+                result
+            };
+            self.runtime_immutable_refs = result.immutable_refs;
+            return GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir };
         }
-
-        let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
-        self.runtime_immutable_refs = result.immutable_refs;
-        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {
@@ -1965,13 +2004,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// stack into their target. Recursive regions are excluded from the
     /// optimization before emission because their incoming prefix is
     /// intentionally unbounded.
-    fn caller_stack_prefixes_fit(&self, module: &Module) -> bool {
-        if !self
-            .internal_call_stack_edges
-            .iter()
-            .any(|edge| edge.preserved_words != 0 || edge.argument_words != 0)
-        {
-            return true;
+    fn caller_stack_prefixes_fit(&self, module: &Module, max_stack_depth: usize) -> bool {
+        if self.function_stack_peaks.values().any(|&peak| peak > max_stack_depth) {
+            return false;
         }
         let Some(entry_id) = module
             .functions
@@ -2007,7 +2042,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .stack_return_plan(edge.callee)
                     .map_or(0, |plan| if plan.arity > 1 { plan.arity + 1 } else { 0 });
                 if candidate.saturating_add(entry_transient.max(adoption_transient))
-                    > MAX_STACK_DEPTH
+                    > max_stack_depth
                 {
                     return false;
                 }
@@ -2036,7 +2071,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let candidate = base.saturating_add(carried);
                     // Tail calls carry the caller stack and briefly push only
                     // the target label; they do not add a return address.
-                    if candidate.saturating_add(1) > MAX_STACK_DEPTH {
+                    if candidate.saturating_add(1) > max_stack_depth {
                         return false;
                     }
                     if incoming[*callee].is_none_or(|current| candidate > current) {
@@ -2054,7 +2089,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             incoming.is_none_or(|incoming| {
                 incoming
                     .saturating_add(self.function_stack_peaks.get(&func_id).copied().unwrap_or(0))
-                    <= MAX_STACK_DEPTH
+                    <= max_stack_depth
             })
         })
     }
@@ -8137,6 +8172,82 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        // A call cannot observe words below its hidden return address. Keep an entirely live,
+        // uniquely identified caller stack there without requiring the first post-call
+        // instruction to consume the whole layout. The callee scheduler remains relative to its
+        // own stack, and whole-program prefix validation retains the conservative spill fallback
+        // when nested calls would exceed the physical EVM stack.
+        let mut seen = FxHashSet::default();
+        let opaque_prefix = self.scheduler.stack.iter().all(|word| {
+            word.is_some_and(|value| {
+                seen.insert(value) && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+            })
+        });
+        if opaque_prefix {
+            return Some(StaticCallStackPlan {
+                prepare_ops: Vec::new(),
+                caller_stack: self.scheduler.stack.clone(),
+            });
+        }
+
+        let mut retained = Vec::new();
+        for value in self.scheduler.stack.iter().flatten() {
+            if !retained.contains(&value)
+                && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                && (self.scheduler.is_stack_only_value(value)
+                    || (matches!(func.value(value), crate::mir::Value::Inst(_))
+                        && Self::can_own_spill_slot(func, value)))
+            {
+                retained.push(value);
+            }
+        }
+        if !retained.is_empty() {
+            let mut caller_stack = self.scheduler.stack.clone();
+            let mut prepare_ops = Vec::new();
+            while let Some(depth) = {
+                let mut remaining = Self::value_counts(retained.iter().copied());
+                caller_stack.iter().enumerate().find_map(|(depth, word)| {
+                    if let Some(value) = word
+                        && let Some(count) = remaining.get_mut(&value)
+                        && *count != 0
+                    {
+                        *count -= 1;
+                        return None;
+                    }
+                    Some(depth)
+                })
+            } {
+                if depth > MAX_STACK_ACCESS {
+                    break;
+                }
+                if depth != 0 {
+                    prepare_ops.push(StackOp::Swap(depth as u8));
+                    caller_stack.swap(depth as u8);
+                }
+                prepare_ops.push(StackOp::Pop);
+                caller_stack.pop();
+            }
+            if caller_stack.depth() == retained.len() {
+                let stack_args_are_stable = stack_mask.is_none_or(|mask| {
+                    args.iter().enumerate().all(|(index, &arg)| {
+                        !mask.contains(index)
+                            || !matches!(func.value(arg), crate::mir::Value::Inst(_))
+                            || caller_stack.contains(arg)
+                            || self.scheduler.reloadable_spill(arg).is_some()
+                            || !self.scheduler.stack.contains(arg)
+                    })
+                });
+                let fresh = retained
+                    .iter()
+                    .filter(|&&value| !self.scheduler.spills.is_stored(value))
+                    .count();
+                let spill_fallback_cost = depth + fresh * 3 + retained.len() * 2;
+                if stack_args_are_stable && prepare_ops.len() < spill_fallback_cost {
+                    return Some(StaticCallStackPlan { prepare_ops, caller_stack });
+                }
+            }
+        }
+
         let &next_inst = func.blocks[block].instructions.get(inst_idx + 1)?;
         let orders = Self::static_call_operand_orders(&func.inst(next_inst).kind);
         let needed = orders.first()?;
@@ -8216,7 +8327,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         let drain_cost = drain_cost.plus(drained_next_cost?);
         preserve_cost
             .filter(|cost| cost.cmp_for(drain_cost, self.gcx.sess.opts.optimization).is_lt())
-            .map(|_| StaticCallStackPlan { caller_stack: self.scheduler.stack.clone() })
+            .map(|_| StaticCallStackPlan {
+                prepare_ops: Vec::new(),
+                caller_stack: self.scheduler.stack.clone(),
+            })
     }
 
     fn static_call_operand_orders(kind: &InstKind) -> SmallVec<[SmallVec<[ValueId; 3]>; 2]> {
@@ -8459,6 +8573,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
+                    && !caller_stack_plan
+                        .as_ref()
+                        .is_some_and(|plan| plan.caller_stack.contains(arg))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !Self::is_always_rematerializable_value(func, arg)
                 {
@@ -8497,6 +8614,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             Some(self.scheduler.stack.clone())
         } else {
             caller_stack_plan.map(|mut plan| {
+                for op in plan.prepare_ops {
+                    self.emit_stack_op(op);
+                }
                 debug_assert_eq!(plan.caller_stack.as_slice(), self.scheduler.stack.as_slice());
                 plan.caller_stack.inherit_max_depth(self.scheduler.stack.max_depth());
                 plan.caller_stack
@@ -10086,22 +10206,22 @@ mod tests {
                 preserved_words: 1,
                 argument_words: 0,
             });
-            assert!(!codegen.caller_stack_prefixes_fit(&module));
+            assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
 
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 2);
-            assert!(codegen.caller_stack_prefixes_fit(&module));
+            assert!(codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
 
             // The transient argument tuple and target label must be budgeted even
             // when the preserved prefix and callee peak fit on their own.
             codegen.internal_call_stack_edges[0].preserved_words = MAX_STACK_DEPTH - 3;
             codegen.internal_call_stack_edges[0].argument_words = 2;
             codegen.function_stack_peaks.insert(callee, 2);
-            assert!(!codegen.caller_stack_prefixes_fit(&module));
+            assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
 
             codegen.internal_call_stack_edges[0].preserved_words = 0;
             codegen.internal_call_stack_edges[0].argument_words = MAX_STACK_DEPTH;
             codegen.function_stack_peaks.insert(callee, 0);
-            assert!(!codegen.caller_stack_prefixes_fit(&module));
+            assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
         });
     }
 

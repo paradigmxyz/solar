@@ -2244,7 +2244,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether any return of `func` is a `bytes`/`string`/array calldata
     /// slice. One such return is enough to force the inline path: a slice
     /// cannot cross a real `internal_call` boundary.
-    fn returns_calldata_slice(&self, func: &hir::Function<'_>) -> bool {
+    pub(super) fn returns_calldata_slice(&self, func: &hir::Function<'_>) -> bool {
         func.returns
             .iter()
             .any(|&id| Self::calldata_dynamic_var_kind(self.gcx.hir.variable(id)).is_some())
@@ -2874,7 +2874,7 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
-    fn function_callees(&self, func_id: hir::FunctionId) -> Vec<hir::FunctionId> {
+    pub(super) fn function_callees(&self, func_id: hir::FunctionId) -> Vec<hir::FunctionId> {
         let mut callees = Vec::new();
         let func = self.gcx.hir.function(func_id);
         if let Some(body) = func.body {
