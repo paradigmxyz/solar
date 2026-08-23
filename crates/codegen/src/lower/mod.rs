@@ -237,6 +237,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_targets: GrowableBitSet<HirFunctionId>,
     /// Shared internal function-pointer dispatchers keyed by MIR parameter and return types.
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
+    /// Shared ABI aggregate decoders keyed by source buffer and semantic type.
+    abi_decode_helpers: FxHashMap<(bytes::AbiSource, Ty<'gcx>), FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Shared base value for constructor ABI argument accesses.
@@ -346,6 +348,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_functions: GrowableBitSet::new_empty(),
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
+            abi_decode_helpers: FxHashMap::default(),
             lowering_constructor: false,
             constructor_args_base: None,
             lowering_internal_function: false,

@@ -6,11 +6,15 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
+  bb3:
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = add v3, 1
@@ -19,6 +23,8 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
     v10 = slice_len v8
     v11 = lt v10, 1
     jumpi v11, bb5, bb6
+  bb5:
+    revert 0, 0
   bb6:
     v12 = sub v10, 1
     v13 = add v9, 1
@@ -27,6 +33,10 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
     v16 = add v15, 31
     v17 = lt v16, v15
     jumpi v17, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb8:
     v18 = not 31
     v19 = and v16, v18
@@ -35,6 +45,10 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
     v22 = add 32, v21
     v23 = lt v22, v21
     jumpi v23, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb10:
     v24 = alloc memorybytes, exact, uninitialized, infallible, v22
     set_memory_object_len memorybytes, v24, v15
@@ -45,20 +59,6 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] 
     v28 = slice_ptr v14
     calldatacopy v25, v28, v15
     ret v24
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
-  bb1:
-    revert 0, 0
 }
 
 fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
@@ -67,11 +67,15 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
+  bb3:
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = mul 1, 32
@@ -81,6 +85,8 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v11 = slice_len v9
     v12 = lt v11, 1
     jumpi v12, bb5, bb6
+  bb5:
+    revert 0, 0
   bb6:
     v13 = sub v11, 1
     v14 = mul 1, 32
@@ -99,27 +105,27 @@ fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v21 = add v19, v20
     v22 = calldataload v21
     v23 = add v19, v22
-    v24 = calldataload v23
-    v25 = add v23, 32
-    v26 = shr 251, v24
-    jumpi v26, bb9, bb10
-  bb10:
-    v27 = mul v24, 32
-    v28 = add 32, v27
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v29, v24
-    v30 = memory_object_data memoryarray, v29
-    calldatacopy v30, v25, v27
-    ret v29
-  bb9:
+    v24 = internal_call @__abi_decode_calldata_0, 1, v23
+    ret v24
+}
+
+fn @__abi_decode_calldata_0(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = calldataload arg0
+    v1 = add arg0, 32
+    v2 = shr 251, v0
+    jumpi v2, bb1, bb2
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
-  bb1:
-    revert 0, 0
+  bb2:
+    v3 = mul v0, 32
+    v4 = add 32, v3
+    v5 = alloc memoryarray<1>, exact, uninitialized, infallible, v4
+    set_memory_object_len memoryarray, v5, v0
+    v6 = memory_object_data memoryarray, v5
+    calldatacopy v6, v1, v3
+    ret v5
 }
 

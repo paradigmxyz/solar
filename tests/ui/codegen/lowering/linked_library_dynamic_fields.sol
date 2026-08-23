@@ -23,10 +23,11 @@ library L {
     // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
     // CHECK: [[APPLY]]:
     // CHECK: calldatacopy
-    // CHECK: calldatacopy
     // CHECK: keccak256
     // CHECK: sstore
     // CHECK: return
+    // The second dynamic-field copy lives in a shared decoder helper laid out after the entry.
+    // CHECK: calldatacopy
     function apply_(mapping(address => uint256) storage m, P memory p)
         public
         returns (uint256)

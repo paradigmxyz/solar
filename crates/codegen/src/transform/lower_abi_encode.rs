@@ -1,13 +1,15 @@
 //! Lower semantic ABI encoding operations to memory and slice operations.
 
 use crate::{
+    memory::EvmMemoryLayout,
     mir::{
-        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
-        SliceLocation, Terminator, ValueId,
+        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, FunctionId, InstKind,
+        MemoryObjectKind, MirType, Module, SliceLocation, Terminator, ValueId,
     },
     pass::MirPass,
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::{Ident, Symbol};
 use solar_sema::Gcx;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
@@ -28,11 +30,110 @@ impl MirPass for LowerAbiEncode {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let original_functions: Vec<_> = module.functions.indices().collect();
+        let helper_types = collect_helper_types(module, &original_functions);
+        let mut helpers = FxHashMap::default();
+        for (index, ty) in helper_types.iter().enumerate() {
+            let name = Ident::with_dummy_span(Symbol::intern(&format!("__abi_encode_{index}")));
+            let mut helper = Function::new(name);
+            helper.attributes.no_inline = true;
+            let id = module.add_function(helper);
+            helpers.insert(ty.clone(), id);
+        }
+        for ty in &helper_types {
+            let id = helpers[ty];
+            let name = module.function(id).name.symbol;
+            *module.function_mut(id) = build_helper(name, ty, &helpers);
+        }
+
         let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
+        for id in original_functions {
+            changed |= lower_function(module.function_mut(id), &helpers);
         }
         changed
+    }
+}
+
+/// Collects repeated aggregate shapes in stable first-use order. Scalar words and one-off shapes
+/// stay inline: a call around code that has no duplicate cannot recover its control-flow overhead.
+fn collect_helper_types(module: &Module, functions: &[FunctionId]) -> Vec<AbiType> {
+    let mut counts = FxHashMap::default();
+    let mut order = Vec::new();
+    for &function in functions {
+        let func = module.function(function);
+        for inst in func.instructions() {
+            let InstKind::AbiEncode { layout, .. } = &func.inst(inst).kind else { continue };
+            for ty in &layout.types {
+                count_helper_type(ty, 1, &mut counts, &mut order);
+            }
+        }
+    }
+    order.into_iter().filter(|ty| counts[ty] > 1).collect()
+}
+
+fn count_helper_type(
+    ty: &AbiType,
+    occurrences: u64,
+    counts: &mut FxHashMap<AbiType, u64>,
+    order: &mut Vec<AbiType>,
+) {
+    if matches!(ty, AbiType::Word) {
+        return;
+    }
+    if !counts.contains_key(ty) {
+        order.push(ty.clone());
+    }
+    let count = counts.entry(ty.clone()).or_default();
+    *count = count.saturating_add(occurrences);
+    match ty {
+        AbiType::DynamicArray { element, .. } => {
+            count_helper_type(element, occurrences, counts, order);
+        }
+        AbiType::FixedArray { element, len } => {
+            count_helper_type(element, occurrences.saturating_mul(*len), counts, order);
+        }
+        AbiType::Tuple(fields) => {
+            for field in fields {
+                count_helper_type(field, occurrences, counts, order);
+            }
+        }
+        AbiType::Word | AbiType::Bytes(_) => {}
+    }
+}
+
+fn build_helper(name: Symbol, ty: &AbiType, helpers: &FxHashMap<AbiType, FunctionId>) -> Function {
+    let mut func = Function::new(Ident::with_dummy_span(name));
+    func.attributes.no_inline = true;
+    func.internal_frame_size = ty.loop_depth() * 5 * 32;
+    {
+        let mut builder = FunctionBuilder::new(&mut func);
+        let value = builder.add_param(abi_value_type(ty));
+        let dest = builder.add_param(MirType::MemPtr);
+        builder.add_return(MirType::MemPtr);
+        let local_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + ((builder.func().params.len() + builder.func().returns.len()) as u64)
+                * EvmMemoryLayout::WORD_SIZE;
+        let scratch = AbiScratch {
+            base: (ty.loop_depth() != 0).then(|| builder.internal_frame_addr(local_base)),
+            depth: 0,
+        };
+        let tail = encode_body(&mut builder, ty, value, dest, scratch, Some(helpers));
+        builder.ret([tail]);
+    }
+    func
+}
+
+fn abi_value_type(ty: &AbiType) -> MirType {
+    match ty {
+        AbiType::Word => MirType::uint256(),
+        AbiType::Bytes(SliceLocation::Memory) => MirType::MemoryObject(MemoryObjectKind::Bytes),
+        AbiType::Bytes(location) => MirType::Slice(*location),
+        AbiType::DynamicArray { location: SliceLocation::Memory, .. } => {
+            MirType::MemoryObject(MemoryObjectKind::DynamicArray)
+        }
+        AbiType::DynamicArray { location, .. } => MirType::Slice(*location),
+        AbiType::FixedArray { .. } => MirType::MemoryObject(MemoryObjectKind::FixedArray),
+        AbiType::Tuple(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
     }
 }
 
@@ -49,7 +150,7 @@ struct AbiValueDest {
     tail: ValueId,
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn lower_function(func: &mut Function, helpers: &FxHashMap<AbiType, FunctionId>) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
@@ -73,7 +174,7 @@ fn lower_function(func: &mut Function) -> bool {
                 _ => None,
             };
             if let Some((selector, args, layout)) = encode {
-                let replacement = lower_encode(&mut builder, &layout, selector, &args);
+                let replacement = lower_encode(&mut builder, &layout, selector, &args, helpers);
                 let result = builder
                     .func()
                     .inst_result_value(inst)
@@ -127,6 +228,7 @@ fn lower_encode(
     layout: &AbiLayout,
     selector: Option<ValueId>,
     args: &[ValueId],
+    helpers: &FxHashMap<AbiType, FunctionId>,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
@@ -139,7 +241,14 @@ fn lower_encode(
             builder.mstore(buf, selector);
         }
         let dest = offset_ptr(builder, buf, selector_size);
-        encode_tuple(builder, args, &layout.types, dest, AbiScratch { base: None, depth: 0 });
+        encode_tuple_with_helpers(
+            builder,
+            args,
+            &layout.types,
+            dest,
+            AbiScratch { base: None, depth: 0 },
+            Some(helpers),
+        );
         let total_size = builder.imm_u64(total_size);
         return builder.make_slice(buf, total_size, SliceLocation::Memory);
     }
@@ -157,12 +266,13 @@ fn lower_encode(
         builder.mstore(buf, selector);
     }
     let dest = offset_ptr(builder, buf, selector_size);
-    let size = encode_tuple(
+    let size = encode_tuple_with_helpers(
         builder,
         args,
         &layout.types,
         dest,
         AbiScratch { base: scratch_base, depth: 0 },
+        Some(helpers),
     );
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(size, selector_size);
@@ -174,19 +284,20 @@ fn lower_encode(
     builder.make_slice(allocated, total, SliceLocation::Memory)
 }
 
-pub(crate) fn encode_tuple(
+fn encode_tuple_with_helpers(
     builder: &mut FunctionBuilder<'_>,
     values: &[ValueId],
     types: &[AbiType],
     dest: ValueId,
     scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) -> ValueId {
     let head_size: u64 = types.iter().map(AbiType::head_size).sum();
     if !types.iter().any(AbiType::is_dynamic) {
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
             let head = offset_ptr(builder, dest, head_offset);
-            encode_static(builder, ty, value, head);
+            encode_static(builder, ty, value, head, scratch, helpers);
             head_offset += ty.head_size();
         }
         return builder.imm_u64(head_size);
@@ -203,6 +314,7 @@ pub(crate) fn encode_tuple(
             value,
             AbiValueDest { head_addr, tuple_base: dest, tail },
             scratch,
+            helpers,
         );
         head_offset += ty.head_size();
     }
@@ -215,13 +327,18 @@ fn encode_value(
     value: ValueId,
     dest: AbiValueDest,
     scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) -> ValueId {
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.mstore(dest.head_addr, relative);
-        encode_dynamic_body(builder, ty, value, dest.tail, scratch)
+        if let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty)) {
+            call_encode_helper(builder, helper, value, dest.tail)
+        } else {
+            encode_body(builder, ty, value, dest.tail, scratch, helpers)
+        }
     } else {
-        encode_static(builder, ty, value, dest.head_addr);
+        encode_static(builder, ty, value, dest.head_addr, scratch, helpers);
         dest.tail
     }
 }
@@ -231,46 +348,38 @@ fn encode_static(
     ty: &AbiType,
     value: ValueId,
     head_addr: ValueId,
+    scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) {
-    match ty {
-        AbiType::Tuple(fields) => {
-            let mut field_head = head_addr;
-            for (index, field) in fields.iter().enumerate() {
-                let slot = builder.memory_object_field_addr(
-                    value,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
-                let field_value = builder.mload(slot);
-                encode_static(builder, field, field_value, field_head);
-                field_head = offset_ptr(builder, field_head, field.head_size());
-            }
-        }
-        AbiType::FixedArray { element, len } => {
-            let mut element_head = head_addr;
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
-                let slot = builder.memory_object_element_addr(
-                    value,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    index_value,
-                );
-                let element_value = builder.mload(slot);
-                encode_static(builder, element, element_value, element_head);
-                element_head = offset_ptr(builder, element_head, element.head_size());
-            }
-        }
-        _ => builder.mstore(head_addr, value),
+    if let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty)) {
+        let _ = call_encode_helper(builder, helper, value, head_addr);
+    } else {
+        encode_static_body(builder, ty, value, head_addr, scratch, helpers);
     }
 }
 
-fn encode_dynamic_body(
+fn call_encode_helper(
+    builder: &mut FunctionBuilder<'_>,
+    helper: FunctionId,
+    value: ValueId,
+    dest: ValueId,
+) -> ValueId {
+    builder.internal_call(helper, vec![value, dest], MirType::MemPtr, 1)
+}
+
+fn encode_body(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     value: ValueId,
     dest: ValueId,
     scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) -> ValueId {
+    if !ty.is_dynamic() {
+        encode_static_body(builder, ty, value, dest, scratch, helpers);
+        return offset_ptr(builder, dest, ty.head_size());
+    }
+
     match ty {
         AbiType::Bytes(location) => encode_bytes(builder, value, dest, *location),
         AbiType::DynamicArray { element, location }
@@ -279,7 +388,7 @@ fn encode_dynamic_body(
             encode_word_array(builder, value, dest, *location)
         }
         AbiType::DynamicArray { element, location: SliceLocation::Memory } => {
-            encode_dynamic_array(builder, element, value, dest, scratch)
+            encode_dynamic_array(builder, element, value, dest, scratch, helpers)
         }
         AbiType::FixedArray { element, len } => {
             let mut values = Vec::with_capacity(*len as usize);
@@ -293,7 +402,7 @@ fn encode_dynamic_body(
                 values.push(builder.mload(slot));
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            let size = encode_tuple(builder, &values, &types, dest, scratch);
+            let size = encode_tuple_with_helpers(builder, &values, &types, dest, scratch, helpers);
             builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
@@ -306,16 +415,54 @@ fn encode_dynamic_body(
                 );
                 values.push(builder.mload(slot));
             }
-            let size = encode_tuple(builder, &values, fields, dest, scratch);
+            let size = encode_tuple_with_helpers(builder, &values, fields, dest, scratch, helpers);
             builder.add(dest, size)
         }
         AbiType::DynamicArray {
             location: SliceLocation::Calldata | SliceLocation::Returndata,
             ..
-        } => {
-            unreachable!("non-word calldata arrays are materialized before ABI encoding")
-        }
+        } => unreachable!("non-word calldata arrays are materialized before ABI encoding"),
         AbiType::Word => unreachable!("word ABI values are static"),
+    }
+}
+
+fn encode_static_body(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    value: ValueId,
+    dest: ValueId,
+    scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
+) {
+    match ty {
+        AbiType::Tuple(fields) => {
+            let mut field_head = dest;
+            for (index, field) in fields.iter().enumerate() {
+                let slot = builder.memory_object_field_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
+                );
+                let field_value = builder.mload(slot);
+                encode_static(builder, field, field_value, field_head, scratch, helpers);
+                field_head = offset_ptr(builder, field_head, field.head_size());
+            }
+        }
+        AbiType::FixedArray { element, len } => {
+            let mut element_head = dest;
+            for index in 0..*len {
+                let index_value = builder.imm_u64(index);
+                let slot = builder.memory_object_element_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
+                );
+                let element_value = builder.mload(slot);
+                encode_static(builder, element, element_value, element_head, scratch, helpers);
+                element_head = offset_ptr(builder, element_head, element.head_size());
+            }
+        }
+        _ => builder.mstore(dest, value),
     }
 }
 
@@ -325,6 +472,7 @@ fn encode_dynamic_array(
     value: ValueId,
     dest: ValueId,
     scratch: AbiScratch,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) -> ValueId {
     let scratch_base = scratch.base.expect("dynamic ABI array encoding requires scratch memory");
     let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
@@ -371,6 +519,7 @@ fn encode_dynamic_array(
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base, tail: current_tail },
         AbiScratch { base: Some(scratch_base), depth: scratch.depth + 1 },
+        helpers,
     );
     builder.mstore(tail_slot, new_tail);
 
@@ -388,6 +537,16 @@ fn encode_dynamic_array(
 
     builder.switch_to_block(done);
     builder.mload(tail_slot)
+}
+
+pub(crate) fn encode_tuple(
+    builder: &mut FunctionBuilder<'_>,
+    values: &[ValueId],
+    types: &[AbiType],
+    dest: ValueId,
+    scratch: AbiScratch,
+) -> ValueId {
+    encode_tuple_with_helpers(builder, values, types, dest, scratch, None)
 }
 
 fn encode_word_array(

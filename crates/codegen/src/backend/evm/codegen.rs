@@ -1886,7 +1886,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             MirPhase::EvmShaped,
             "EVM codegen requires MIR in the final phase"
         );
-        let mut preserve_caller_stack = self.gcx.sess.opts.optimization.is_gas();
+        let mut preserve_caller_stack =
+            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
         let mut runtime_stack_args = true;
         self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
         loop {
@@ -4346,6 +4347,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Establishes reload routes for dynamic-call arguments before the anonymous frame base adds
+    /// one word above them. This is a fallback, not a stack-depth limit: accessible arguments keep
+    /// their ordinary stack convention and arbitrarily deep layouts spill through memory.
+    fn materialize_deep_dynamic_call_args(&mut self, func: &Function, args: &[ValueId]) {
+        for &arg in args {
+            let Some(depth) = self.scheduler.stack.find(arg) else { continue };
+            if depth + 1 < MAX_STACK_ACCESS
+                || self.scheduler.reloadable_spill(arg).is_some()
+                || Self::is_rematerializable_value(func, arg)
+            {
+                continue;
+            }
+
+            let slot = self.scheduler.spills.allocate(arg);
+            if depth >= MAX_STACK_ACCESS {
+                self.spill_deep_stack_value(func, arg, slot, depth);
+            } else {
+                self.spill_accessible_stack_value(func, arg, slot, depth);
+            }
+            self.scheduler.materialize_stack_only_value(arg);
+        }
+    }
+
     fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
@@ -5578,12 +5602,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_current_internal_frame_addr(offset);
     }
 
-    /// Removes the unused dynamic-frame header and stack-return words from a static frame.
+    /// Removes the unused dynamic-frame header and single stack-return word from a static frame.
     fn compact_static_frame_offset(&self, func_id: FunctionId, offset: u64) -> u64 {
-        // The stack-return compaction below must stay active on the frame-backed
-        // fallback (`runtime_stack_args == false`): `emitted_frame_size` subtracts
-        // the returned words in both modes, so skipping the shift here would place
-        // locals and spills beyond the reserved frame.
+        // Single-word stack returns remove their backing slot even on the
+        // frame-backed fallback. Multiword returns retain their ordinary area
+        // so a failed bounded projection has compiler-owned staging memory.
         let mut compact = if self.runtime_stack_args {
             offset
                 .checked_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
@@ -5591,7 +5614,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             offset
         };
-        if let Some(plan) = self.stack_return_plan(func_id) {
+        if let Some(plan) = self.stack_return_plan(func_id)
+            && plan.arity == 1
+        {
             let return_size = plan.arity as u64 * EvmMemoryLayout::WORD_SIZE;
             let return_base = plan.local_base - return_size;
             debug_assert!(
@@ -5609,13 +5634,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///
     /// Tail-call edges keep the memory convention because an external dispatch path does not
     /// necessarily carry an internal return address. Calls whose MIR return arity disagrees with
-    /// the callee are also excluded defensively. This convention is runtime-gas-only: size mode
-    /// retains shared frame slots rather than adding stack shuffles at every return.
+    /// the callee are also excluded defensively. Every optimized mode uses the convention: the
+    /// bounded tuple shuffle replaces callee stores and caller loads, and any function that cannot
+    /// realize its plan is regenerated with its ordinary frame-backed return area.
     fn compute_stack_return_plans(&mut self, module: &Module) {
         for abi in self.static_call_abis.values_mut() {
             abi.returns = None;
         }
-        if !self.stack_returns_enabled || !self.gcx.sess.opts.optimization.is_gas() {
+        if !self.stack_returns_enabled {
             return;
         }
 
@@ -5633,14 +5659,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
+                && !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
-                // A multi-result fallback has to stage anonymous stack words
-                // in memory when direct projection is unavailable. Keep those
-                // functions frame-backed so the callee return area provides a
-                // compiler-owned buffer instead of clobbering unbumped user
-                // memory at the free-memory pointer.
-                && arity == 1
+                && (1..=MAX_STACK_ACCESS).contains(&arity)
                 && has_return
                 && has_consistent_returns
             {
@@ -5866,7 +5888,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, CanonicalArgValues> {
         let mut all_values = FxHashMap::default();
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return all_values;
         }
 
@@ -6132,7 +6154,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         has_phis: bool,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if !self.gcx.sess.opts.optimization.is_gas()
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
             || func.blocks.len() < 3
         {
@@ -6386,7 +6408,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -6555,7 +6577,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Collects operand-use facts shared by lazy and direct stack-argument selection.
     fn collect_stack_arg_uses(&self, module: &Module) -> FxHashMap<FunctionId, StackArgUseInfo> {
         let mut all_uses = FxHashMap::default();
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return all_uses;
         }
 
@@ -6627,7 +6649,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -6712,7 +6734,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if !self.gcx.sess.opts.optimization.is_gas() {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -7159,7 +7181,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
             + self.function_spill_size(func_id);
-        if let Some(plan) = self.stack_return_plan(func_id) {
+        if let Some(plan) = self.stack_return_plan(func_id)
+            && plan.arity == 1
+        {
             size - plan.arity as u64 * EvmMemoryLayout::WORD_SIZE
         } else {
             size
@@ -7928,6 +7952,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         // the call, leaving it unavailable at its later use.
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
+        // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
+        // are stored. Give any argument that this extra word would bury beyond `DUP16` a memory
+        // route first. Deep-spill recovery can move named MIR values out of the way, but it cannot
+        // save an anonymous frame-base word after that word has already been pushed.
+        self.materialize_deep_dynamic_call_args(func, args);
+
         self.emit_new_internal_frame_base_tracked();
 
         // frame[32] = previous frame pointer
@@ -8546,7 +8576,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if let Some(plan) = self.stack_return_plan(callee) {
-            self.adopt_stack_call_results(func, plan, returns, result, liveness, block, inst_idx);
+            self.adopt_stack_call_results(
+                func, callee, plan, returns, result, liveness, block, inst_idx,
+            );
             return (preserved_words, argument_words);
         }
 
@@ -8590,6 +8622,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn adopt_stack_call_results(
         &mut self,
         func: &Function,
+        callee: FunctionId,
         plan: StackReturnPlan,
         returns: usize,
         result: Option<ValueId>,
@@ -8620,8 +8653,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             }
 
-            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.asm.emit_op(op::MLOAD);
+            // Keep the ordinary return area for multiword stack callees as a compiler-owned
+            // fallback buffer. A callee may legally leave slot `0x40` clobbered, so deriving this
+            // address from the post-call free-memory pointer would turn a valid return into an
+            // arbitrary write or OOG. The common direct-projection path never touches the buffer.
+            let return_base = plan.local_base - plan.arity as u64 * EvmMemoryLayout::WORD_SIZE;
+            let buffer = self.static_frame_addr(callee, return_base);
+            self.asm.emit_push_deferred(buffer);
             self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
 

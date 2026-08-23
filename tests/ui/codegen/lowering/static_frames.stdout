@@ -177,8 +177,7 @@ bb46:
   shr
   push 384
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 1
@@ -418,8 +417,7 @@ bb20:
   shr
   push 416
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 448
@@ -440,18 +438,9 @@ bb20:
   swap1
   jump
 bb25:
-  push 736
-  mload
-  dup1
+  dup2
   push 608
   mstore
-  push 736
-  dup1
-  push 32
-  mstore
-  push 32
-  add
-  mload
   push 640
   mstore
   push 0
@@ -482,8 +471,7 @@ bb25:
   shr
   push 608
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 672
@@ -544,10 +532,7 @@ bb33:
   add
   push 800
   mload
-  push 736
-  mstore
-  push 768
-  mstore
+  swap2
   jump
 bb37:
   dup1
@@ -577,6 +562,8 @@ bb73:
 bb72:
   add
   mload
+  jump bb75
+bb75:
   push 160
   mload
   push 128
@@ -1085,9 +1072,4 @@ bb68:
   add
   mload
   mod
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  jump
+  jump bb75

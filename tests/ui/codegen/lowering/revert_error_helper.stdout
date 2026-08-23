@@ -11,19 +11,19 @@ bb0:
   dup1
   push 0x561cce0a
   eq
-  push bb8
+  push bb7
   jumpi
   dup1
   push 0xa871da91
   sub
   push bb4
   jumpi
-  push 320
+  push 416
   dup1
   push 64
   mstore
   dup1
-  push 288
+  push 192
   mstore
   push 64
   dup2
@@ -36,20 +36,15 @@ bb0:
   push 32
   dup2
   add
-  dup1
-  push 192
-  mstore
   push 0x3339
   push 240
   shl
-  dup2
-  jump bb9
-bb9:
+  swap1
   mstore
   push 64
   mload
   dup1
-  push 256
+  push 128
   mstore
   push 32
   dup2
@@ -59,94 +54,81 @@ bb9:
   sub
   dup3
   mstore
-  swap3
+  swap1
+  pop
+  push bb6
+  swap2
+  swap1
+  jump bb9
+bb9:
+  dup2
   mload
   dup1
-  push 128
+  push 320
   mstore
-  dup4
+  dup2
+  dup2
+  dup2
   mstore
-  swap2
-  pop
   push 31
-  push 128
-  mload
+  dup3
   add
   push 31
   not
   and
   dup1
-  push 224
+  push 352
   mstore
-  push 64
-  dup4
-  add
-  push 160
-  mstore
-  swap2
+  swap3
   pop
+  push 32
+  add
+  push 384
+  mstore
   pop
   iszero
-  push bb7
+  push bb11
   jumpi
   push 32
-  push 224
+  push 352
   mload
   sub
-  push 160
+  push 384
   mload
   add
   push 0
   swap1
   mstore
-  jump bb7
-bb7:
-  push 224
+  jump bb11
+bb11:
+  push 352
   mload
-  push 160
+  push 384
   mload
   add
-  push 128
+  swap1
+  push 32
+  add
+  push 320
   mload
-  push 192
-  mload
-  push 160
+  dup2
+  push 384
   mload
   mcopy
-  push 256
-  mload
+  pop
   swap1
-  sub
-  push 31
-  dup2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup1
-  push 288
-  mstore
-  swap1
-  dup2
-  add
-  push 64
-  mstore
-  dup2
-  dup2
-  return
+  jump
 bb4 [cold]:
   push 0
   dup1
   revert
-bb8:
-  push 320
+bb7:
+  push 416
   dup1
   push 64
   mstore
   dup1
-  push 288
+  push 192
   mstore
   push 96
   dup2
@@ -159,20 +141,64 @@ bb8:
   push 32
   dup2
   add
-  dup1
-  push 192
-  mstore
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
   mstore
   push 32
-  dup2
   add
   push 33
   push 248
   shl
   swap1
+  mstore
+  push 64
+  mload
+  dup1
+  push 128
+  mstore
+  push 32
+  dup2
+  add
+  dup2
+  dup2
+  sub
+  dup3
+  mstore
+  swap1
+  pop
+  push bb8
+  swap2
+  swap1
   jump bb9
+bb8:
+  jump bb6
+bb6:
+  dup1
+  push 160
+  mstore
+  push 128
+  mload
+  swap1
+  sub
+  push 31
+  dup2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup1
+  push 224
+  mstore
+  swap1
+  dup2
+  add
+  push 64
+  mstore
+  dup2
+  dup2
+  return
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:

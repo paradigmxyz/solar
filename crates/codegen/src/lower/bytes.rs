@@ -1,10 +1,12 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
+use crate::mir::{
+    Function, FunctionBuilder, FunctionId, MemoryObjectKind, MirType, SliceLocation, ValueId,
+};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
-use solar_interface::{diagnostics::ErrorGuaranteed, sym};
+use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -14,7 +16,7 @@ use solar_sema::{
 /// The ABI-encoded region an argument decode reads from. External calls read
 /// calldata after the selector; constructors read the argument blob CODECOPY'd
 /// into memory at the heap start.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum AbiSource {
     Calldata,
     Memory,
@@ -33,6 +35,27 @@ impl AbiSource {
             Self::Calldata => builder.calldatacopy(dst, src, len),
             Self::Memory => builder.mcopy(dst, src, len),
         }
+    }
+}
+
+fn abi_decode_needs_helper(ty: Ty<'_>) -> bool {
+    !matches!(
+        ty.peel_refs().kind,
+        TyKind::Elementary(elementary)
+            if !matches!(elementary, ElementaryType::Bytes | ElementaryType::String)
+    ) && !matches!(ty.peel_refs().kind, TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Udvt(..))
+}
+
+fn abi_decode_result_type(ty: Ty<'_>) -> MirType {
+    match ty.peel_refs().kind {
+        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+            MirType::MemoryObject(MemoryObjectKind::Bytes)
+        }
+        TyKind::DynArray(_) | TyKind::Slice(_) => {
+            MirType::MemoryObject(MemoryObjectKind::DynamicArray)
+        }
+        TyKind::Array(..) | TyKind::Struct(_) | TyKind::Tuple(_) => MirType::MemPtr,
+        _ => MirType::uint256(),
     }
 }
 
@@ -135,7 +158,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether a lowered value is a logical memory slice (an ABI-encode
     /// payload) rather than a `[length][data...]` bytes pointer.
     pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
-        use crate::mir::{MirType, SliceLocation};
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Memory)))
     }
 
@@ -146,7 +168,6 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &FunctionBuilder<'_>,
         value: ValueId,
     ) -> bool {
-        use crate::mir::MirType;
         matches!(builder.func().value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
     }
 
@@ -155,7 +176,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// was decoded to memory in the prologue lowers to a memory bytes
     /// pointer.
     pub(super) fn value_is_calldata_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
-        use crate::mir::{MirType, SliceLocation};
         matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
     }
 
@@ -167,7 +187,6 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &FunctionBuilder<'_>,
         value: ValueId,
     ) -> bool {
-        use crate::mir::{MemoryObjectKind, MirType};
         matches!(
             builder.func().value_ty(value),
             Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
@@ -447,6 +466,53 @@ impl<'gcx> Lowerer<'gcx> {
     /// Materializes a calldata value whose ABI body starts at the absolute
     /// calldata position `pos`.
     pub(super) fn materialize_calldata_value_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        ty: Ty<'gcx>,
+        pos: ValueId,
+    ) -> ValueId {
+        let ty = ty.peel_refs();
+        if abi_decode_needs_helper(ty) {
+            let helper = self.abi_decode_helper(source, ty);
+            return builder.internal_call(helper, vec![pos], abi_decode_result_type(ty), 1);
+        }
+        self.materialize_calldata_value_inline(builder, source, ty, pos)
+    }
+
+    fn abi_decode_helper(&mut self, source: AbiSource, ty: Ty<'gcx>) -> FunctionId {
+        let key = (source, ty.peel_refs());
+        if let Some(&helper) = self.abi_decode_helpers.get(&key) {
+            return helper;
+        }
+
+        let index = self.abi_decode_helpers.len();
+        let source_name = match source {
+            AbiSource::Calldata => "calldata",
+            AbiSource::Memory => "memory",
+        };
+        let name =
+            Ident::with_dummy_span(Symbol::intern(&format!("__abi_decode_{source_name}_{index}")));
+        let helper = self.module.add_function(Function::new(name));
+        // Register before materializing the body so a recursive aggregate calls
+        // the same helper and lets the backend select its recursive-frame fallback.
+        self.abi_decode_helpers.insert(key, helper);
+
+        let mut func = Function::new(name);
+        func.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let pos = builder.add_param(MirType::uint256());
+            let result_ty = abi_decode_result_type(ty);
+            builder.add_return(result_ty);
+            let value = self.materialize_calldata_value_inline(&mut builder, source, ty, pos);
+            builder.ret([value]);
+        }
+        *self.module.function_mut(helper) = func;
+        helper
+    }
+
+    fn materialize_calldata_value_inline(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         source: AbiSource,

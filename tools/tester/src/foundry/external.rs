@@ -58,28 +58,12 @@ struct ExternalProject {
 
 const SEAPORT_CODE_SIZE_SKIPS: &[Skip] = &[
     Skip {
-        pattern: "^PausableZoneController$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
-    },
-    Skip {
-        pattern: "^SuggestedActionHelper$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
-    },
-    Skip {
         pattern: "^ExecutionsHelper$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
-    },
-    Skip {
-        pattern: "^MatchFulfillmentHelper$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+        reason: "CODEGEN-002: runtime bytecode still exceeds EIP-170 after ABI-decoder outlining",
     },
     Skip {
         pattern: "^SeaportValidator$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
-    },
-    Skip {
-        pattern: "^SeaportNavigator$",
-        reason: "CODEGEN-002: runtime bytecode exceeds EIP-170 pending ABI-decoder outlining",
+        reason: "CODEGEN-002: runtime bytecode still exceeds EIP-170 after ABI-decoder outlining",
     },
 ];
 
