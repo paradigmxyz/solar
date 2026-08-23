@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
 // ported-from: test/libsolidity/semanticTests/array/copying/function_type_array_to_storage.sol
 

@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: mappingEmpty() => true
 //@ run-call: mappingLong(bytes32,bytes1) 0x0000000000000000000000000000000000000000000000000000000000000000, 0x00 => true
 //@ run-call: mappingShort(bytes31) 0x00000000000000000000000000000000000000000000000000000000000000 => true

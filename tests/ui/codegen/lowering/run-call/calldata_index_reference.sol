@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: dynamicFixed(uint256[2][]) [[1, 2], [3, 4]] => 0x44, 2, 0x84
 //@ run-call: staticFixed(uint256[2][2]) [[1, 2], [3, 4]] => 0x44, 3, 4
 //@ run-call: nestedDynamic(uint256[][]) [[1], [2, 3]] => 0xe4, 2, 3

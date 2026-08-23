@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
 //@ run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
 //@ run-call: allocatedAggregates() => 2, 18, 5, 2, 8

@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: notUint8(uint8) 0 => 255
 //@ run-call: notUint8(uint8) 0xa5 => 90
 //@ run-call: notUint16(uint16) 0 => 65535

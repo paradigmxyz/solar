@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: structs((uint256),(uint256,uint256)) (66), (7, 119) => 7, 66
 //@ run-call: staticArray(uint256[2][2]) [[8, 7], [6, 5]] => 8, 5
 //@ run-call: dynamicArray(uint256[2][]) [[8, 7], [6, 5]] => 2, 8, 5

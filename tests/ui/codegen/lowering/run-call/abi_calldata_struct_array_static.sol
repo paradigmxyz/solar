@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_struct_static_v2.sol
 

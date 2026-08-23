@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: encPackedBytes(bytes,uint256,uint256) 0x414242, 1, 3 => 0x4242
 //@ run-call: encPackedBytesReference(bytes,uint256,uint256) 0x414242, 1, 3 => 0x4242
 //@ run-call: encBytes(bytes,uint256,uint256) 0x414242, 1, 3 => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000024242000000000000000000000000000000000000000000000000000000000000

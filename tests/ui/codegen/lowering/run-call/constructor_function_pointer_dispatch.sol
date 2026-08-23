@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
 // ported-from: test/libsolidity/semanticTests/constructor/functions_called_by_constructor_through_dispatch.sol
 

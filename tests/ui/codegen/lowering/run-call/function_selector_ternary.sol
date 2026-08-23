@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: h(bool) true => 0x26121ff0
 //@ run-call: h(bool) false => 0xe2179b8e
 // ported-from: test/libsolidity/semanticTests/functionTypes/selector_ternary.sol

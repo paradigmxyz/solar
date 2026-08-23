@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: test1 [[[1], [2]], [[7, 8], [9]]] => 24
 //@ run-call: test2 [[[1, 2], [3]], [[4, 5], [6]]] => 15
 //@ run-call: test3 [[[1, 2], [3, 4]], [[5, 6]]] => 10

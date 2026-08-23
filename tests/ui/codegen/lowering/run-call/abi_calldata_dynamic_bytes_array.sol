@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: inspect [0x0102, 0x040506] => 2, 2, 1, 2, 3, 4, 5, 6
 //@ run-call: encode [0x0102, 0x040506] => 0xedff71de02e6a78c4e1b28325ab806b0c18e590be1ea92ca617d246559c679c4
 //@ run-call-fail: 0x04f02d88000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020

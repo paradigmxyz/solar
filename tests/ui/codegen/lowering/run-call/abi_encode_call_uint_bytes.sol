@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: f() => 0x6dddb956123400000000000000000000000000000000000000000000000000000000000061620000000000000000000000000000000000000000000000000000000000001234000000000000000000000000000000000000000000000000000000000000
 //@ run-call: f2() => 0x2a62baf500000000000000000000000000000000000000000000000000000000000012340000000000000000000000000000000000000000000000000000000000001234
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_uint_bytes.sol

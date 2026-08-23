@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
 // ported-from: test/libsolidity/semanticTests/constructor/bytes_in_constructors_packer.sol
 

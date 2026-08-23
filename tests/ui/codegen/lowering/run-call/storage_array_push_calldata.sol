@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: pushArray(uint120[]) [1, 2, 3] => 1
 //@ run-call: pushStruct((uint16,uint16,uint16[3],uint16[])) (2, 3, [0, 0, 4], [0, 0, 5, 0]) => 2345
 // ported-from: test/libsolidity/semanticTests/array/push/array_push_nested_from_calldata.sol

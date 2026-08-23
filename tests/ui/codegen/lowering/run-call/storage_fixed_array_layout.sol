@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: slots() => 0, 3, 4, 7, 8, 10
 //@ run-call: preserveNeighbors() => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
 //@ run-call: copyDoesNotOverlapSource() => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000

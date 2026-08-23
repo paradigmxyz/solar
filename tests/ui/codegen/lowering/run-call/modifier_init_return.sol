@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: f 9 => [0, 0, 0, 0, 0]
 //@ run-call: f 10 => [0, 0, 3, 0, 0]
 // ported-from: test/libsolidity/semanticTests/modifiers/modifier_init_return.sol

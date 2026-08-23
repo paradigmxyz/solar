@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
 //@ run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
 //@ run-call: testOnePop => 3

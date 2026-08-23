@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: chain 12, 3 => 15
 //@ run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
 //@ run-call-fail: chain 11, 3

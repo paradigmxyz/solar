@@ -28,6 +28,7 @@ use ui_test::{
 const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
 const RUN_CALL_MIR_STDOUT_FILTER_PATTERN: &str = r#"(?s)\{"contracts".*\}\n?$"#;
 
+mod codegen_matrix;
 mod errors;
 #[cfg(test)]
 mod foundry;
@@ -175,6 +176,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         };
     }
     register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
+    config.custom_comments.insert(codegen_matrix::NAME, codegen_matrix::parse);
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -341,10 +343,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if is_codegen_test {
         config.program.args.push("--allow=2264".into());
     }
+    let has_codegen_matrix = codegen_matrix::apply(config, src);
     let has_mir_dump = src.lines().any(|line| {
         let line = line.trim_start();
         line.starts_with("//@") && line.contains("-Zdump=mir")
-    });
+    }) || has_codegen_matrix;
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
         if has_mir_dump {
             configure_run_call_stdout(config, src);
@@ -370,6 +373,11 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     let mut emitted_revisions = Vec::new();
     let mut unscoped_run_call = false;
     let mut base_mir_dump = false;
+    if codegen_matrix::is_standard(src) {
+        declared_revisions.extend(codegen_matrix::revisions().map(str::to_owned));
+        mir_revisions.push("mir".to_owned());
+        emitted_revisions.extend(["none", "gas", "size"].map(str::to_owned));
+    }
     for line in src.lines() {
         let Some((directive, revisions)) = run_call::parse_directive(line) else {
             continue;

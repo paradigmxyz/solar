@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: ConstructorMemoryReturn::value() => "1"
 //@ run-call: ConstructorMemoryReturn::direct() => 5
 //@ run-call: ConstructorMemoryReturn::pairValue() => 3

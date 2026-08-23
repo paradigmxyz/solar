@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
 //@ run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
 //@ run-call: storeSmall(uint16[]) [1, 2, 3] => 2

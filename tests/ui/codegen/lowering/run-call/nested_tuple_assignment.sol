@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 // ported-from: tests/libsolidity/semanticTests/types/tuple_assign_multi_slot_grow.sol
 //@ run-call: assign() => 0x30, 0x31, 0x32
 //@ run-call: swap() => 2, 1, 4, 3

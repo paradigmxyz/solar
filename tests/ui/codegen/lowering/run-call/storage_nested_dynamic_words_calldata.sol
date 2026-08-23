@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: copyDynamic(uint256[][]) [[10, 11], [20, 21, 22]] => 33
 //@ run-call: copyFixedDynamic(uint256[][2]) [[10, 11], [20, 21]] => 33
 //@ run-call: copyDynamicFixed(uint256[2][]) [[10, 11], [20, 21]] => 33

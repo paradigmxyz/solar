@@ -1,10 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call: f((function)) (0x303132333435363738393031323334353637383961626364) => 1
 //@ run-call-fail: 0x9f4a608d3031323334353637383930313233343536373839616263645800000000000000
 //@ run-call: g((function)) (0x303132333435363738393031323334353637383961626364) => 2

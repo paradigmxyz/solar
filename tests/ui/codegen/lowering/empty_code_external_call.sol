@@ -1,11 +1,7 @@
 //@ filecheck:
 // CHECK: @module
-//@ revisions: none gas size mir
 //@ compile-flags: --libraries EmptyCodeLibrary=0x1111111111111111111111111111111111111111
-//@[none] compile-flags: -O none --emit=abi,bin
-//@[gas] compile-flags: -O gas --emit=abi,bin
-//@[size] compile-flags: -O size --emit=abi,bin
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard
 //@ run-call-fail: EmptyCodeCalls::direct() => 0x
 //@ run-call-fail: EmptyCodeCalls::pointer() => 0x
 //@ run-call-fail: EmptyCodeCalls::libraryCall() => 0x
