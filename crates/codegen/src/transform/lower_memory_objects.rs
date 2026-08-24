@@ -10,11 +10,7 @@ use crate::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -92,383 +88,362 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
 
     materialize_mixed_byte_phis(func);
     let mut replacements = FxHashMap::default();
-    let mut removed = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
 
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        for &inst in &instructions {
+        'next: for &inst in &instructions {
             let kind = builder.func().inst(inst).kind.clone();
-            match kind {
-                InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                    let instruction = builder.func_mut().inst_mut(inst);
-                    instruction.kind =
-                        InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
-                }
-                InstKind::MemoryObjectLen(object, kind) => {
-                    if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                        builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
+            'keep: {
+                match kind {
+                    InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
+                        let instruction = builder.func_mut().inst_mut(inst);
+                        instruction.kind =
+                            InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
-                    let Some(offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    let address = builder.add_u64_offset(object, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                }
-                InstKind::SetMemoryObjectLen(object, len, kind) => {
-                    let Some(offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    let address = builder.add_u64_offset(object, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
-                }
-                InstKind::MemoryObjectData(object, kind) => {
-                    if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                        let Some(result) = builder.func().inst_result_value(inst) else {
-                            continue;
-                        };
-                        let pointer = builder.slice_ptr(object);
-                        replacements.insert(result, pointer);
-                        removed.insert(inst);
-                        continue;
-                    }
-                    let offset = P::object_data_offset(kind);
-                    if offset == 0 {
-                        if let Some(result) = builder.func().inst_result_value(inst) {
-                            replacements.insert(result, object);
+                    InstKind::MemoryObjectLen(object, kind) => {
+                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
+                            builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
+                            break 'keep;
                         }
-                        removed.insert(inst);
-                    } else {
-                        let offset = builder.imm_u64(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                }
-                InstKind::MLoad(object) => {
-                    let Some(location) = builder.func().value_slice_location(object) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    let source = builder.slice_ptr(object);
-                    let Some(kind) = slice_load_kind(location, source) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    builder.func_mut().inst_mut(inst).kind = kind;
-                }
-                InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                    if let Some(location) = builder.func().value_slice_location(object) {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
+                        let Some(offset) = P::object_length_offset(kind) else {
+                            break 'keep;
                         };
-                        if location == SliceLocation::Calldata {
+                        let address = builder.add_u64_offset(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    }
+                    InstKind::SetMemoryObjectLen(object, len, kind) => {
+                        let Some(offset) = P::object_length_offset(kind) else {
+                            break 'keep;
+                        };
+                        let address = builder.add_u64_offset(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
+                    }
+                    InstKind::MemoryObjectData(object, kind) => {
+                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
                             let Some(result) = builder.func().inst_result_value(inst) else {
-                                builder.func_mut().blocks[block].instructions.push(inst);
-                                continue;
+                                continue 'next;
                             };
-                            let mut user = None;
-                            let mut multiple_users = false;
-                            for &candidate in &instructions {
-                                if !builder.func().inst(candidate).operands().contains(&result) {
-                                    continue;
-                                }
-                                if user.replace(candidate).is_some() {
-                                    multiple_users = true;
-                                    break;
-                                }
+                            let pointer = builder.slice_ptr(object);
+                            replacements.insert(result, pointer);
+                            continue 'next;
+                        }
+                        let offset = P::object_data_offset(kind);
+                        if offset == 0 {
+                            if let Some(result) = builder.func().inst_result_value(inst) {
+                                replacements.insert(result, object);
                             }
-                            if !multiple_users
-                                && let Some(user) = user
-                                && matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == result)
-                            {
-                                let base = builder.slice_ptr(object);
-                                let address = builder.add_u64_offset(base, offset);
-                                builder.func_mut().inst_mut(user).kind =
-                                    InstKind::CalldataLoad(address);
-                                removed.insert(inst);
-                                continue;
-                            }
+                            continue 'next;
+                        } else {
+                            let offset = builder.imm_u64(offset);
+                            builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                         }
-                        if location != SliceLocation::Memory {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
-                        }
-                        let base = builder.slice_ptr(object);
-                        let address = builder.add_u64_offset(base, offset);
-                        if let Some(result) = builder.func().inst_result_value(inst) {
-                            replacements.insert(result, address);
-                        }
-                        removed.insert(inst);
-                        continue;
                     }
-                    let Some(offset) = P::field_offset(layout, field) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    if offset == 0 {
-                        if let Some(result) = builder.func().inst_result_value(inst) {
-                            replacements.insert(result, object);
-                        }
-                        removed.insert(inst);
-                    } else {
-                        let offset = builder.imm_u64(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                }
-                InstKind::Keccak256Bytes(object) => {
-                    if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {
-                        let source = builder.slice_ptr(object);
-                        let len = builder.slice_len(object);
-                        let data = match location {
-                            SliceLocation::Memory => source,
-                            SliceLocation::Calldata => {
-                                let data = builder.alloc_raw(len, AllocationSemantics::INTERNAL);
-                                builder.calldatacopy(data, source, len);
-                                data
-                            }
-                            SliceLocation::Returndata => {
-                                let data = builder.alloc_raw(len, AllocationSemantics::INTERNAL);
-                                builder.returndatacopy(data, source, len);
-                                data
-                            }
+                    InstKind::MLoad(object) => {
+                        let Some(location) = builder.func().value_slice_location(object) else {
+                            break 'keep;
                         };
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    }
-                    let kind = crate::mir::MemoryObjectKind::Bytes;
-                    let Some(length_offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    let length_address = builder.add_u64_offset(object, length_offset);
-                    let len = builder.mload(length_address);
-                    let data = builder.add_u64_offset(object, P::object_data_offset(kind));
-                    builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
-                }
-                InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                    let Some(stride) = P::element_stride(layout) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
-                    // Solidity bounds-checks the index before forming the address.
-                    let base_offset = P::object_data_offset(layout.kind());
-                    let kind = if let Some(index) = builder.func().value_u64(index)
-                        && let Some(offset) = index.checked_mul(stride)
-                        && let Some(offset) = base_offset.checked_add(offset)
-                    {
-                        let offset = builder.imm_u64(offset);
-                        InstKind::Add(object, offset)
-                    } else {
-                        let base = builder.add_u64_offset(object, base_offset);
-                        let stride = builder.imm_u64(stride);
-                        let offset = builder.mul(index, stride);
-                        InstKind::Add(base, offset)
-                    };
-                    builder.func_mut().inst_mut(inst).kind = kind;
-                }
-                InstKind::MemoryObjectLoadField { object, layout, field } => {
-                    let Some(offset) = P::field_offset(layout, field) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    if let Some(location) = builder.func().value_slice_location(object) {
-                        let base = builder.slice_ptr(object);
-                        let address = builder.add_u64_offset(base, offset);
-                        let Some(kind) = slice_load_kind(location, address) else {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
+                        let source = builder.slice_ptr(object);
+                        let Some(kind) = slice_load_kind(location, source) else {
+                            break 'keep;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
                     }
-                    let address = builder.add_u64_offset(object, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                }
-                InstKind::MemoryObjectStoreField { object, layout, field, value } => {
-                    let Some(offset) = P::field_offset(layout, field) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    let address = builder.add_u64_offset(object, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                }
-                InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                    if let Some(location) = builder.func().value_slice_location(object) {
-                        if !matches!(
-                            layout,
-                            MemoryObjectLayout::DynamicArray { element_words: 1 }
-                                | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-                        ) {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
+                    InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                        if let Some(location) = builder.func().value_slice_location(object) {
+                            let Some(offset) = P::field_offset(layout, field) else {
+                                break 'keep;
+                            };
+                            if location == SliceLocation::Calldata {
+                                let Some(result) = builder.func().inst_result_value(inst) else {
+                                    break 'keep;
+                                };
+                                let mut user = None;
+                                let mut multiple_users = false;
+                                for &candidate in &instructions {
+                                    if !builder.func().inst(candidate).operands().contains(&result)
+                                    {
+                                        continue;
+                                    }
+                                    if user.replace(candidate).is_some() {
+                                        multiple_users = true;
+                                        break;
+                                    }
+                                }
+                                if !multiple_users
+                                    && let Some(user) = user
+                                    && matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == result)
+                                {
+                                    let base = builder.slice_ptr(object);
+                                    let address = builder.add_u64_offset(base, offset);
+                                    builder.func_mut().inst_mut(user).kind =
+                                        InstKind::CalldataLoad(address);
+                                    continue 'next;
+                                }
+                            }
+                            if location != SliceLocation::Memory {
+                                break 'keep;
+                            }
+                            let base = builder.slice_ptr(object);
+                            let address = builder.add_u64_offset(base, offset);
+                            if let Some(result) = builder.func().inst_result_value(inst) {
+                                replacements.insert(result, address);
+                            }
+                            continue 'next;
+                        }
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            break 'keep;
+                        };
+                        if offset == 0 {
+                            if let Some(result) = builder.func().inst_result_value(inst) {
+                                replacements.insert(result, object);
+                            }
+                            continue 'next;
+                        } else {
+                            let offset = builder.imm_u64(offset);
+                            builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
+                        }
+                    }
+                    InstKind::Keccak256Bytes(object) => {
+                        if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {
+                            let source = builder.slice_ptr(object);
+                            let len = builder.slice_len(object);
+                            let data = match location {
+                                SliceLocation::Memory => source,
+                                SliceLocation::Calldata => {
+                                    let data =
+                                        builder.alloc_raw(len, AllocationSemantics::INTERNAL);
+                                    builder.calldatacopy(data, source, len);
+                                    data
+                                }
+                                SliceLocation::Returndata => {
+                                    let data =
+                                        builder.alloc_raw(len, AllocationSemantics::INTERNAL);
+                                    builder.returndatacopy(data, source, len);
+                                    data
+                                }
+                            };
+                            builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
+                            break 'keep;
+                        }
+                        let kind = crate::mir::MemoryObjectKind::Bytes;
+                        let Some(length_offset) = P::object_length_offset(kind) else {
+                            break 'keep;
+                        };
+                        let length_address = builder.add_u64_offset(object, length_offset);
+                        let len = builder.mload(length_address);
+                        let data = builder.add_u64_offset(object, P::object_data_offset(kind));
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
+                    }
+                    InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                        let Some(stride) = P::element_stride(layout) else {
+                            break 'keep;
+                        };
+                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                        // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
+                        // Solidity bounds-checks the index before forming the address.
+                        let base_offset = P::object_data_offset(layout.kind());
+                        let kind = if let Some(index) = builder.func().value_u64(index)
+                            && let Some(offset) = index.checked_mul(stride)
+                            && let Some(offset) = base_offset.checked_add(offset)
+                        {
+                            let offset = builder.imm_u64(offset);
+                            InstKind::Add(object, offset)
+                        } else {
+                            let base = builder.add_u64_offset(object, base_offset);
+                            let stride = builder.imm_u64(stride);
+                            let offset = builder.mul(index, stride);
+                            InstKind::Add(base, offset)
+                        };
+                        builder.func_mut().inst_mut(inst).kind = kind;
+                    }
+                    InstKind::MemoryObjectLoadField { object, layout, field } => {
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            break 'keep;
+                        };
+                        if let Some(location) = builder.func().value_slice_location(object) {
+                            let base = builder.slice_ptr(object);
+                            let address = builder.add_u64_offset(base, offset);
+                            let Some(kind) = slice_load_kind(location, address) else {
+                                break 'keep;
+                            };
+                            builder.func_mut().inst_mut(inst).kind = kind;
+                            break 'keep;
+                        }
+                        let address = builder.add_u64_offset(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    }
+                    InstKind::MemoryObjectStoreField { object, layout, field, value } => {
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            break 'keep;
+                        };
+                        let address = builder.add_u64_offset(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    }
+                    InstKind::MemoryObjectLoadElement { object, layout, index } => {
+                        if let Some(location) = builder.func().value_slice_location(object) {
+                            if !matches!(
+                                layout,
+                                MemoryObjectLayout::DynamicArray { element_words: 1 }
+                                    | MemoryObjectLayout::FixedArray { element_words: 1, .. }
+                            ) {
+                                break 'keep;
+                            }
+                            let Some(stride) = P::element_stride(layout) else {
+                                break 'keep;
+                            };
+                            let base = builder.slice_ptr(object);
+                            let address = if let Some(index) = builder.func().value_u64(index)
+                                && let Some(offset) = index.checked_mul(stride)
+                            {
+                                builder.add_u64_offset(base, offset)
+                            } else {
+                                let stride = builder.imm_u64(stride);
+                                let offset = builder.mul(index, stride);
+                                builder.add(base, offset)
+                            };
+                            let Some(kind) = slice_load_kind(location, address) else {
+                                break 'keep;
+                            };
+                            builder.func_mut().inst_mut(inst).kind = kind;
+                            break 'keep;
                         }
                         let Some(stride) = P::element_stride(layout) else {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
+                            break 'keep;
                         };
-                        let base = builder.slice_ptr(object);
+                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                        let base_offset = P::object_data_offset(layout.kind());
                         let address = if let Some(index) = builder.func().value_u64(index)
                             && let Some(offset) = index.checked_mul(stride)
+                            && let Some(offset) = base_offset.checked_add(offset)
                         {
-                            builder.add_u64_offset(base, offset)
+                            builder.add_u64_offset(object, offset)
                         } else {
+                            let base = builder.add_u64_offset(object, base_offset);
                             let stride = builder.imm_u64(stride);
                             let offset = builder.mul(index, stride);
                             builder.add(base, offset)
                         };
-                        let Some(kind) = slice_load_kind(location, address) else {
-                            builder.func_mut().blocks[block].instructions.push(inst);
-                            continue;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = kind;
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
-                    let Some(stride) = P::element_stride(layout) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    let base_offset = P::object_data_offset(layout.kind());
-                    let address = if let Some(index) = builder.func().value_u64(index)
-                        && let Some(offset) = index.checked_mul(stride)
-                        && let Some(offset) = base_offset.checked_add(offset)
-                    {
-                        builder.add_u64_offset(object, offset)
-                    } else {
-                        let base = builder.add_u64_offset(object, base_offset);
-                        let stride = builder.imm_u64(stride);
-                        let offset = builder.mul(index, stride);
-                        builder.add(base, offset)
-                    };
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                }
-                InstKind::MemoryObjectLoadByte { object, index } => {
-                    if let Some(location) = builder.func().value_slice_location(object) {
-                        let source = builder.slice_ptr(object);
-                        let address = dynamic_offset_address(&mut builder, source, index);
-                        let word = match location {
-                            crate::mir::SliceLocation::Calldata => builder.calldataload(address),
-                            crate::mir::SliceLocation::Memory => builder.mload(address),
-                            crate::mir::SliceLocation::Returndata => {
-                                builder.func_mut().blocks[block].instructions.push(inst);
-                                continue;
+                    InstKind::MemoryObjectLoadByte { object, index } => {
+                        if let Some(location) = builder.func().value_slice_location(object) {
+                            let source = builder.slice_ptr(object);
+                            let address = dynamic_offset_address(&mut builder, source, index);
+                            let word = match location {
+                                crate::mir::SliceLocation::Calldata => {
+                                    builder.calldataload(address)
+                                }
+                                crate::mir::SliceLocation::Memory => builder.mload(address),
+                                crate::mir::SliceLocation::Returndata => {
+                                    break 'keep;
+                                }
+                            };
+                            let zero = builder.imm_u64(0);
+                            let byte = builder.byte(zero, word);
+                            if let Some(result) = builder.func().inst_result_value(inst) {
+                                replacements.insert(result, byte);
                             }
-                        };
+                            continue 'next;
+                        }
+                        let base = builder.add_u64_offset(
+                            object,
+                            P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                        );
+                        let address = builder.add(base, index);
+                        let word = builder.mload(address);
                         let zero = builder.imm_u64(0);
                         let byte = builder.byte(zero, word);
                         if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, byte);
                         }
-                        removed.insert(inst);
-                        continue;
+                        continue 'next;
                     }
-                    let base = builder.add_u64_offset(
-                        object,
-                        P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
-                    );
-                    let address = builder.add(base, index);
-                    let word = builder.mload(address);
-                    let zero = builder.imm_u64(0);
-                    let byte = builder.byte(zero, word);
-                    if let Some(result) = builder.func().inst_result_value(inst) {
-                        replacements.insert(result, byte);
+                    InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
+                        let Some(stride) = P::element_stride(layout) else {
+                            break 'keep;
+                        };
+                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+                        let base_offset = P::object_data_offset(layout.kind());
+                        let address = if let Some(index) = builder.func().value_u64(index)
+                            && let Some(offset) = index.checked_mul(stride)
+                            && let Some(offset) = base_offset.checked_add(offset)
+                        {
+                            builder.add_u64_offset(object, offset)
+                        } else {
+                            let base = builder.add_u64_offset(object, base_offset);
+                            let stride = builder.imm_u64(stride);
+                            let offset = builder.mul(index, stride);
+                            builder.add(base, offset)
+                        };
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
-                    removed.insert(inst);
+                    InstKind::MemoryObjectStoreByte { object, index, value } => {
+                        let base = builder.add_u64_offset(
+                            object,
+                            P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                        );
+                        let address = builder.add(base, index);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
+                    }
+                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
+                        let base = builder.add_u64_offset(
+                            object,
+                            P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                        );
+                        let address = builder.add(base, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    }
+                    InstKind::MemorySliceLoadWord { slice, offset } => {
+                        let source = builder.slice_ptr(slice);
+                        let address = dynamic_offset_address(&mut builder, source, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
+                    }
+                    InstKind::CalldataSliceLoadWord { slice, offset } => {
+                        let source = builder.slice_ptr(slice);
+                        let address = dynamic_offset_address(&mut builder, source, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
+                    }
+                    InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
+                        let destination =
+                            builder.add_u64_offset(object, P::object_data_offset(kind));
+                        let Some(physical) =
+                            lower_slice_copy::<P>(&mut builder, destination, source)
+                        else {
+                            break 'keep;
+                        };
+                        builder.func_mut().inst_mut(inst).kind = physical;
+                    }
+                    InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
+                        let base = builder.add_u64_offset(object, P::object_data_offset(kind));
+                        let destination = builder.add(base, offset);
+                        let Some(physical) =
+                            lower_slice_copy::<P>(&mut builder, destination, source)
+                        else {
+                            break 'keep;
+                        };
+                        builder.func_mut().inst_mut(inst).kind = physical;
+                    }
+                    InstKind::MemoryObjectCopy {
+                        destination,
+                        destination_kind,
+                        source,
+                        source_kind,
+                        length,
+                    } => {
+                        let destination = builder
+                            .add_u64_offset(destination, P::object_data_offset(destination_kind));
+                        let source =
+                            builder.add_u64_offset(source, P::object_data_offset(source_kind));
+                        builder.func_mut().inst_mut(inst).kind =
+                            InstKind::MCopy(destination, source, length);
+                    }
+                    _ => {}
                 }
-                InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                    let Some(stride) = P::element_stride(layout) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                    let base_offset = P::object_data_offset(layout.kind());
-                    let address = if let Some(index) = builder.func().value_u64(index)
-                        && let Some(offset) = index.checked_mul(stride)
-                        && let Some(offset) = base_offset.checked_add(offset)
-                    {
-                        builder.add_u64_offset(object, offset)
-                    } else {
-                        let base = builder.add_u64_offset(object, base_offset);
-                        let stride = builder.imm_u64(stride);
-                        let offset = builder.mul(index, stride);
-                        builder.add(base, offset)
-                    };
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                }
-                InstKind::MemoryObjectStoreByte { object, index, value } => {
-                    let base = builder.add_u64_offset(
-                        object,
-                        P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
-                    );
-                    let address = builder.add(base, index);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
-                }
-                InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                    let base = builder.add_u64_offset(
-                        object,
-                        P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
-                    );
-                    let address = builder.add(base, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                }
-                InstKind::MemorySliceLoadWord { slice, offset } => {
-                    let source = builder.slice_ptr(slice);
-                    let address = dynamic_offset_address(&mut builder, source, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                }
-                InstKind::CalldataSliceLoadWord { slice, offset } => {
-                    let source = builder.slice_ptr(slice);
-                    let address = dynamic_offset_address(&mut builder, source, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
-                }
-                InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
-                    let destination = builder.add_u64_offset(object, P::object_data_offset(kind));
-                    let Some(physical) = lower_slice_copy::<P>(&mut builder, destination, source)
-                    else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    builder.func_mut().inst_mut(inst).kind = physical;
-                }
-                InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
-                    let base = builder.add_u64_offset(object, P::object_data_offset(kind));
-                    let destination = builder.add(base, offset);
-                    let Some(physical) = lower_slice_copy::<P>(&mut builder, destination, source)
-                    else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
-                        continue;
-                    };
-                    builder.func_mut().inst_mut(inst).kind = physical;
-                }
-                InstKind::MemoryObjectCopy {
-                    destination,
-                    destination_kind,
-                    source,
-                    source_kind,
-                    length,
-                } => {
-                    let destination = builder
-                        .add_u64_offset(destination, P::object_data_offset(destination_kind));
-                    let source = builder.add_u64_offset(source, P::object_data_offset(source_kind));
-                    builder.func_mut().inst_mut(inst).kind =
-                        InstKind::MCopy(destination, source, length);
-                }
-                _ => {}
             }
-            if !removed.contains(&inst) {
-                builder.func_mut().blocks[block].instructions.push(inst);
-            }
+            builder.func_mut().blocks[block].instructions.push(inst);
         }
     }
 
@@ -496,21 +471,16 @@ fn coalesce_constant_allocations(func: &mut Function) {
             };
 
             let mut allocations = vec![(inst_id, first)];
-            let mut derived = DenseBitSet::new_empty(func.num_values());
             let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
             let mut stored = Vec::new();
-            derived.insert(first.result);
             owners[first.result] = Some(0);
             stored.push(false);
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
-                if let Some(allocation) = constant_raw_allocation(func, next_id)
-                    && allocation.semantics == first.semantics
-                {
+                if let Some(allocation) = constant_raw_allocation(func, next_id) {
                     let index = allocations.len();
                     allocations.push((next_id, allocation));
-                    derived.insert(allocation.result);
                     owners[allocation.result] = Some(index);
                     stored.push(false);
                     scan += 1;
@@ -520,14 +490,14 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let kind = func.inst(next_id).kind.clone();
                 let result = func.inst_result_value(next_id);
                 let is_derived_address = result.is_some_and(|result| {
-                    derived.contains(result)
+                    owners[result].is_some()
                         || matches!(kind, InstKind::Add(lhs, rhs)
-                            if (derived.contains(lhs) && func.value_u64(rhs).is_some())
-                                || (derived.contains(rhs) && func.value_u64(lhs).is_some()))
+                            if (owners[lhs].is_some() && func.value_u64(rhs).is_some())
+                                || (owners[rhs].is_some() && func.value_u64(lhs).is_some()))
                 });
                 let initial_store_address = match &kind {
                     InstKind::MStore(address, _) | InstKind::MStore8(address, _)
-                        if derived.contains(*address) =>
+                        if owners[*address].is_some() =>
                     {
                         Some(*address)
                     }
@@ -542,9 +512,8 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     if let Some(result) = result
                         && let InstKind::Add(lhs, rhs) = kind
                     {
-                        let source = if derived.contains(lhs) { lhs } else { rhs };
+                        let source = if owners[lhs].is_some() { lhs } else { rhs };
                         owners[result] = owners[source];
-                        derived.insert(result);
                     }
                     scan += 1;
                     continue;

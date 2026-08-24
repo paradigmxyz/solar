@@ -505,18 +505,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
-                Some(
-                    if let Some(bytes) = self
-                        .context
-                        .gcx
-                        .type_of_expr(expr.id)
-                        .and_then(operators::fixed_bytes_width)
-                    {
-                        self.clean_fixed_bytes(result, bytes)
-                    } else {
-                        result
-                    },
-                )
+                Some(if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
+                    self.clean_fixed_bytes(result, bytes)
+                } else {
+                    result
+                })
             }
             ExprKind::Call(callee, args, call_opts) => {
                 self.lower_call(expr, callee, *args, *call_opts)

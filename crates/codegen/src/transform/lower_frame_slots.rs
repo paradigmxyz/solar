@@ -8,11 +8,6 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
-enum FrameOp {
-    Load { offset: u64, mode: FrameMode, kind: FrameSlotKind },
-    Store { offset: u64, mode: FrameMode, kind: FrameSlotKind, value: crate::mir::ValueId },
-}
-
 /// Lowers logical mutable-local slots after ABI and dispatch lowering.
 pub(crate) struct LowerFrameSlots;
 
@@ -58,20 +53,8 @@ fn lower_function(func: &mut Function) -> bool {
         builder.switch_to_block(block);
 
         for inst in instructions {
-            let op = match &builder.func().inst(inst).kind {
+            match builder.func().inst(inst).kind.clone() {
                 InstKind::FrameLoad { offset, mode, kind } => {
-                    FrameOp::Load { offset: *offset, mode: *mode, kind: *kind }
-                }
-                InstKind::FrameStore { offset, mode, kind, value } => {
-                    FrameOp::Store { offset: *offset, mode: *mode, kind: *kind, value: *value }
-                }
-                _ => {
-                    builder.func_mut().blocks[block].instructions.push(inst);
-                    continue;
-                }
-            };
-            match op {
-                FrameOp::Load { offset, mode, kind } => {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match kind {
                         FrameSlotKind::Word => builder.mload(address),
@@ -92,7 +75,7 @@ fn lower_function(func: &mut Function) -> bool {
                         .expect("frame load must produce a value");
                     replacements.insert(old, value);
                 }
-                FrameOp::Store { offset, mode, kind, value } => {
+                InstKind::FrameStore { offset, mode, kind, value } => {
                     let address = frame_address(&mut builder, offset, mode);
                     match kind {
                         FrameSlotKind::Word => {
@@ -114,6 +97,7 @@ fn lower_function(func: &mut Function) -> bool {
                         }
                     }
                 }
+                _ => builder.func_mut().blocks[block].instructions.push(inst),
             }
         }
     }

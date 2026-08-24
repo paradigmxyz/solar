@@ -100,6 +100,20 @@ fn split_slice_incoming(func: &mut Function, incoming: Vec<(BlockId, ValueId)>) 
     (ptr_incoming, len_incoming)
 }
 
+fn can_split_slice_incoming(
+    func: &Function,
+    incoming: &[(BlockId, ValueId)],
+    allow_memory_pointer: bool,
+) -> bool {
+    incoming.iter().any(|(_, value)| {
+        func.value_slice_location(*value).is_some()
+            || (allow_memory_pointer && matches!(func.value_ty(*value), Some(MirType::MemPtr)))
+    }) && incoming.iter().all(|(_, value)| {
+        func.value_slice_location(*value).is_some()
+            || matches!(func.value_ty(*value), Some(MirType::MemPtr | MirType::UInt(_)))
+    })
+}
+
 impl LowerSlices {
     /// Splits a pointer phi whose incoming values still mix memory objects and
     /// logical slices. Inlining can erase the pointer type on one incoming
@@ -133,17 +147,7 @@ impl LowerSlices {
                 let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
                 if !projection_users.contains_key(&result)
-                    || !incoming.iter().any(|(_, value)| {
-                        func.value_slice_location(*value).is_some()
-                            || matches!(func.value_ty(*value), Some(MirType::MemPtr))
-                    })
-                    || !incoming.iter().all(|(_, value)| {
-                        func.value_slice_location(*value).is_some()
-                            || matches!(
-                                func.value_ty(*value),
-                                Some(MirType::MemPtr | MirType::UInt(_))
-                            )
-                    })
+                    || !can_split_slice_incoming(func, &incoming, true)
                 {
                     continue;
                 }
@@ -271,17 +275,7 @@ impl LowerSlices {
                         else {
                             continue;
                         };
-                        let can_split = incoming
-                            .iter()
-                            .any(|(_, value)| func.value_slice_location(*value).is_some())
-                            && incoming.iter().all(|(_, value)| {
-                                func.value_slice_location(*value).is_some()
-                                    || matches!(
-                                        func.value_ty(*value),
-                                        Some(MirType::MemPtr | MirType::UInt(_))
-                                    )
-                            });
-                        if can_split {
+                        if can_split_slice_incoming(func, incoming, false) {
                             slice_phis.push((inst_id, location));
                         }
                     }

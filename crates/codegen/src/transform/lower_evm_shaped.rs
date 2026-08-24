@@ -88,75 +88,69 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
         })
     });
-    if !has_candidate {
-        for func in &mut module.functions {
-            split_clobbering_phi_edges(func);
+    if has_candidate {
+        let call_graph = CallGraphInfo::new(module);
+        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if function_cannot_return(func)
+                && func.selector.is_none()
+                && !func.attributes.is_receive
+                && !func.attributes.is_fallback
+                && !call_graph.is_recursive(func_id)
+            {
+                tail_callable.insert(func_id);
+            }
         }
-        module.advance_phase(MirPhase::EvmShaped);
-        return true;
-    }
 
-    let call_graph = CallGraphInfo::new(module);
-    let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if function_cannot_return(func)
-            && func.selector.is_none()
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && !call_graph.is_recursive(func_id)
-        {
-            tail_callable.insert(func_id);
+        // The deployment path emits constructor-reachable bodies without static
+        // frames, so an argument-carrying tail call has no compile-time
+        // argument addresses there. Keep those calls ordinary; argument-less
+        // rewrites need no frame addressing and stay valid on both paths.
+        let mut constructor_reachable = call_graph.reachable_callees_from(
+            module
+                .functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
+            }
         }
-    }
 
-    // The deployment path emits constructor-reachable bodies without static
-    // frames, so an argument-carrying tail call has no compile-time
-    // argument addresses there. Keep those calls ordinary; argument-less
-    // rewrites need no frame addressing and stay valid on both paths.
-    let mut constructor_reachable = call_graph.reachable_callees_from(
-        module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-    );
-    for (id, func) in module.functions.iter_enumerated() {
-        if func.attributes.is_constructor {
-            constructor_reachable.insert(id);
-        }
-    }
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
+            let mut function_changed = false;
+            for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
+                let insts = &func.blocks[block_id].instructions;
+                let Some(position) = insts.iter().position(|&inst_id| {
+                    let inst = func.inst(inst_id);
+                    inst.result_ty.is_none()
+                        && matches!(
+                            &inst.kind,
+                            InstKind::InternalCall { function, args, .. }
+                                if tail_callable.contains(*function)
+                                    && (args.is_empty()
+                                        || !constructor_reachable.contains(func_id))
+                        )
+                }) else {
+                    continue;
+                };
 
-    for (func_id, func) in module.functions.iter_mut_enumerated() {
-        let mut function_changed = false;
-        for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
-            let insts = &func.blocks[block_id].instructions;
-            let Some(position) = insts.iter().position(|&inst_id| {
-                let inst = func.inst(inst_id);
-                inst.result_ty.is_none()
-                    && matches!(
-                        &inst.kind,
-                        InstKind::InternalCall { function, args, .. }
-                            if tail_callable.contains(*function)
-                                && (args.is_empty()
-                                    || !constructor_reachable.contains(func_id))
-                    )
-            }) else {
-                continue;
-            };
+                let inst_id = func.blocks[block_id].instructions[position];
+                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
+                    unreachable!("position matched an internal call");
+                };
+                let (function, args) = (*function, args.iter().copied().collect());
 
-            let inst_id = func.blocks[block_id].instructions[position];
-            let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
-                unreachable!("position matched an internal call");
-            };
-            let (function, args) = (*function, args.iter().copied().collect());
-
-            // Control never comes back: everything after the call is dead.
-            func.blocks[block_id].instructions.truncate(position);
-            func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
-            function_changed = true;
-        }
-        if function_changed {
-            let _ = repair_reachability_phis(func);
-            let _ = remove_unreachable_blocks(func);
+                // Control never comes back: everything after the call is dead.
+                func.blocks[block_id].instructions.truncate(position);
+                func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
+                function_changed = true;
+            }
+            if function_changed {
+                let _ = repair_reachability_phis(func);
+                let _ = remove_unreachable_blocks(func);
+            }
         }
     }
     for func in &mut module.functions {

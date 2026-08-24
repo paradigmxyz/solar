@@ -631,13 +631,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
         let length = self.builder.returndata_size();
-        let size = self.builder.checked_padded_size(length);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         let zero = self.builder.imm_u256(U256::ZERO);
         let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
@@ -673,13 +667,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         let (pieces, total) = self.lower_packed_pieces(exprs, true)?;
 
-        let size = self.builder.checked_padded_size(total);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+        let output = self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL);
 
         let mut offset = self.builder.imm_u64(0);
         let mut index = 0;

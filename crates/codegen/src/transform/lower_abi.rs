@@ -715,15 +715,8 @@ impl LowerAbiCx {
         layout: &AbiParamLayout,
     ) -> ValueId {
         let size = layout.checked_head_size().expect("static ABI layout");
-        let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE).expect("static ABI size");
-        let object_size = builder.imm_u64(object_size);
-        let object = builder.alloc_object(
-            object_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
         let size = builder.imm_u64(size);
-        builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
+        let object = builder.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
         let source = builder.make_slice(data, size, SliceLocation::Memory);
         builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         object
@@ -1340,21 +1333,17 @@ impl LowerAbiCx {
                 for (index, ty) in layout.types.iter().enumerate() {
                     let arg_index = crate::mir::ArgIdx::new(index);
                     let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
-                    if !Self::is_supported_aggregate(ty) {
-                        head_offset +=
-                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
+                    let head_size =
+                        ty.checked_head_size().expect("ABI head size exceeds u64 range");
+                    if !Self::is_supported_aggregate(ty)
+                        || !arg_types.get(index).is_some_and(|ty| {
+                            matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))
+                        })
+                    {
+                        head_offset += head_size;
                         continue;
                     }
-                    let Some(arg_type) = arg_types.get(index).copied() else {
-                        head_offset +=
-                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
-                        continue;
-                    };
-                    if !matches!(arg_type, MirType::MemoryObject(_) | MirType::Slice(_)) {
-                        head_offset +=
-                            ty.checked_head_size().expect("ABI head size exceeds u64 range");
-                        continue;
-                    }
+                    let arg_type = arg_types[index];
                     builder.switch_to_block(current);
                     let (head, tuple_base) = if constructor {
                         let head_offset_value = builder.imm_u64(head_offset);
@@ -1471,7 +1460,7 @@ impl LowerAbiCx {
                             replacements.insert(use_value, value);
                         }
                     }
-                    head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
+                    head_offset += head_size;
                 }
             }
 
