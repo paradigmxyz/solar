@@ -25,6 +25,10 @@ struct TryTarget<'a, 'gcx> {
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    pub(super) fn snapshot_loop_state(&self, block: BlockId) -> LoopState {
+        LoopState { block, values: self.values.clone(), storage_refs: self.storage_refs.clone() }
+    }
+
     pub(super) fn lower_if(
         &mut self,
         condition: &hir::Expr<'_>,
@@ -131,11 +135,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let exit = self.builder.current_block();
             if !terminated {
                 self.builder.jump(merge_block);
-                states.push(LoopState {
-                    block: exit,
-                    values: self.values.clone(),
-                    storage_refs: self.storage_refs.clone(),
-                });
+                states.push(self.snapshot_loop_state(exit));
             }
         }
 
@@ -775,11 +775,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
         let update_state = if let Some(update_stmt) = update_stmt {
             self.lower_block(block)?;
-            let normal_state = (!self.is_terminated()).then(|| LoopState {
-                block: self.builder.current_block(),
-                values: self.values.clone(),
-                storage_refs: self.storage_refs.clone(),
-            });
+            let normal_state = (!self.is_terminated())
+                .then(|| self.snapshot_loop_state(self.builder.current_block()));
             if normal_state.is_some() {
                 self.builder.jump(update.expect("for loop update block"));
             }
@@ -813,11 +810,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.loops.last_mut().expect("loop target exists").continue_block = header;
                 }
                 self.lower_stmt(update_stmt)?;
-                let update_state = (!self.is_terminated()).then(|| LoopState {
-                    block: self.builder.current_block(),
-                    values: self.values.clone(),
-                    storage_refs: self.storage_refs.clone(),
-                });
+                let update_state = (!self.is_terminated())
+                    .then(|| self.snapshot_loop_state(self.builder.current_block()));
                 if update_state.is_some() {
                     self.builder.jump(header);
                 }
@@ -825,11 +819,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         } else {
             self.lower_block(block)?;
-            let normal_state = (!self.is_terminated()).then(|| LoopState {
-                block: self.builder.current_block(),
-                values: self.values.clone(),
-                storage_refs: self.storage_refs.clone(),
-            });
+            let normal_state = (!self.is_terminated())
+                .then(|| self.snapshot_loop_state(self.builder.current_block()));
             if normal_state.is_some() {
                 self.builder.jump(header);
             }

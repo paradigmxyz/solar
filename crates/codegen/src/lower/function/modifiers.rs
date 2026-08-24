@@ -27,16 +27,13 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
-        BindingSnapshot {
-            bindings: ids
-                .iter()
-                .map(|&id| (id, self.values.get(&id).copied(), self.storage_refs.get(&id).copied()))
-                .collect(),
-        }
+        ids.iter()
+            .map(|&id| (id, self.values.get(&id).copied(), self.storage_refs.get(&id).copied()))
+            .collect()
     }
 
     pub(super) fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
-        for &(id, value, access) in &snapshot.bindings {
+        for &(id, value, access) in snapshot {
             self.values.remove(&id);
             self.storage_refs.remove(&id);
             if let Some(value) = value {

@@ -253,11 +253,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn record_return_state(&mut self) {
-        let state = LoopState {
-            block: self.builder.current_block(),
-            values: self.values.clone(),
-            storage_refs: self.storage_refs.clone(),
-        };
+        let state = self.snapshot_loop_state(self.builder.current_block());
         if let Some(target) = self.return_targets.last_mut() {
             target.states.push(state);
         }

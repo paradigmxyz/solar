@@ -251,9 +251,7 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-struct BindingSnapshot {
-    bindings: Vec<(VariableId, Option<ValueId>, Option<StorageAccess>)>,
-}
+type BindingSnapshot = Vec<(VariableId, Option<ValueId>, Option<StorageAccess>)>;
 
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],

@@ -186,11 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(target) = self.loops.last().map(|targets| targets.break_block) else {
                     return report_unsupported(self.context.gcx, stmt.span, "break outside loop");
                 };
-                let state = LoopState {
-                    block: self.builder.current_block(),
-                    values: self.values.clone(),
-                    storage_refs: self.storage_refs.clone(),
-                };
+                let state = self.snapshot_loop_state(self.builder.current_block());
                 self.loops.last_mut().expect("loop target exists").break_states.push(state);
                 self.builder.jump(target);
             }
@@ -202,11 +198,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "continue outside loop",
                     );
                 };
-                let state = LoopState {
-                    block: self.builder.current_block(),
-                    values: self.values.clone(),
-                    storage_refs: self.storage_refs.clone(),
-                };
+                let state = self.snapshot_loop_state(self.builder.current_block());
                 self.loops.last_mut().expect("loop target exists").continue_states.push(state);
                 self.builder.jump(target);
             }
