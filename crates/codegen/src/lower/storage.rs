@@ -217,8 +217,8 @@ impl<'gcx> StorageLayout<'gcx> {
                 builder.signextend(index, masked)
             }
             StorageEncoding::FixedBytes => {
-                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
-                let shift = builder.imm_u64(shift);
+                let shift = builder
+                    .imm_u64(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
                 builder.shl(shift, masked)
             }
         }
@@ -274,8 +274,8 @@ impl<'gcx> StorageLayout<'gcx> {
         let cleared = builder.and(old, keep_mask);
         let value = match location.encoding {
             StorageEncoding::FixedBytes => {
-                let shift = u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8;
-                let shift = builder.imm_u64(shift);
+                let shift = builder
+                    .imm_u64(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
                 builder.shr(shift, value)
             }
             StorageEncoding::Unsigned | StorageEncoding::Signed => value,

@@ -752,8 +752,7 @@ impl LowerAbiCx {
         data: ValueId,
         layout: &AbiParamLayout,
     ) -> ValueId {
-        let size = layout.checked_head_size().expect("static ABI layout");
-        let size = builder.imm_u64(size);
+        let size = builder.imm_u64(layout.checked_head_size().expect("static ABI layout"));
         let object = builder.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
         let source = builder.make_slice(data, size, SliceLocation::Memory);
         builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);

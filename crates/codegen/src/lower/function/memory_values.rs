@@ -114,8 +114,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
             return report_unsupported(self.context.gcx, expr.span, "tuple object");
         };
-        let size = fields.checked_mul(32)?;
-        let size = self.builder.imm_u64(size);
+        let size = self.builder.imm_u64(fields.checked_mul(32)?);
         let initialization = if values.iter().all(Option::is_some) {
             AllocationSemantics::INTERNAL
         } else {
@@ -192,8 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
-        let size = words.checked_add(1)?.checked_mul(32)?;
-        let size = builder.imm_u64(size);
+        let size = builder.imm_u64(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let length = builder.imm_u64(u64::try_from(bytes.len()).ok()?);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
@@ -270,8 +268,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(self.builder.imm_u64(EvmMemoryLayout::ZERO_SLOT));
         }
-        let size = Self::default_object_size(layout)?;
-        let size = self.builder.imm_u64(size);
+        let size = self.builder.imm_u64(Self::default_object_size(layout)?);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if matches!(mode, DefaultObjectMode::Binding) {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {

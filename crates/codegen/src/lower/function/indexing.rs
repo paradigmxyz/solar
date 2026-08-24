@@ -105,8 +105,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .type_of_expr(expr.id)?
                         .with_loc_if_ref(self.context.gcx, DataLocation::Calldata);
-                    let head_size = self.types.abi_type(element)?.head_size();
-                    let head_size = self.builder.imm_u64(head_size);
+                    let head_size = self.builder.imm_u64(self.types.abi_type(element)?.head_size());
                     let offset = self.builder.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
                     // Dynamic-array slices retain their element base for nested offsets;

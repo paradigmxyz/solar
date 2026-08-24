@@ -783,8 +783,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_abi = self.types.abi_type(element)?;
         let element_head_size = element_abi.head_size();
         if validate_bounds {
-            let head_size = length.checked_mul(element_head_size)?;
-            let head_size = self.builder.imm_u64(head_size);
+            let head_size = self.builder.imm_u64(length.checked_mul(element_head_size)?);
             self.check_calldata_tail_range(base, head_size);
         }
         let _ = length.checked_mul(32)?;

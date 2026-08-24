@@ -985,8 +985,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, ValueId, ValueId)> {
         let size = layout.checked_head_size()?;
         if layout.types.len() != 1 {
-            let object_size = size.checked_add(EvmMemoryLayout::WORD_SIZE)?;
-            let object_size = self.builder.imm_u64(object_size);
+            let object_size = self.builder.imm_u64(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
             let object = self.builder.alloc_object(
                 object_size,
                 MemoryObjectLayout::Bytes,

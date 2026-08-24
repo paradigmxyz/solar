@@ -125,8 +125,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
                 return report_unsupported(self.context.gcx, expr.span, "calldata struct field");
             };
-            let offset = fields[..field].iter().map(AbiType::head_size).sum();
-            let offset = self.builder.imm_u64(offset);
+            let offset = self.builder.imm_u64(fields[..field].iter().map(AbiType::head_size).sum());
             let base = self.builder.slice_ptr(object);
             let head = self.builder.add(base, offset);
             let field_ty = self
