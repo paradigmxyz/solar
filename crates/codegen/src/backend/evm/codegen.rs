@@ -46,6 +46,7 @@ use solar_data_structures::{
 };
 use solar_interface::sym;
 use solar_sema::Gcx;
+use std::cell::OnceCell;
 
 mod switch;
 
@@ -2449,6 +2450,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .flatten()
             .unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
+        let cross_block_live = OnceCell::new();
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
 
@@ -2470,8 +2472,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let hazard_recomputable = Self::cross_block_recomputable_values_with(func, |value| {
             !existing_stack_only_values.contains(&value)
         });
-        let hazard_cross_block_values =
-            self.spill_hazard_cross_block_values(func, liveness, &hazard_recomputable);
+        let hazard_cross_block_values = self.spill_hazard_cross_block_values(
+            func,
+            liveness,
+            &cross_block_live,
+            &hazard_recomputable,
+        );
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
         });
@@ -2529,7 +2535,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_sources = stack_phi_plan.edge_sources.clone();
         } else if global_stack_plan.is_empty()
             && let Some((values, plan)) =
-                self.compute_cross_block_stack_layout(func, liveness, has_phis)
+                self.compute_cross_block_stack_layout(
+                    func,
+                    liveness,
+                    &cross_block_live,
+                    has_phis,
+                )
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
             && stack_phi_plan.merge_resident(func, &plan)
@@ -2629,7 +2640,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         initial_stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
         self.scheduler.set_stack_only_values(func.num_values(), initial_stack_only_values);
 
-        self.preallocate_cross_block_spills(func, liveness);
+        self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
         if has_hazard_stack_plan {
             for value in global_stack_plan.entries.values().flatten() {
                 self.scheduler.spills.clear_store_requirement(*value);
@@ -3741,20 +3752,27 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// emitted before the predecessor that stores one of its live-in values. Reserving the slot up
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
-    fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        let values = Self::cross_block_spill_values(func, liveness);
+    fn preallocate_cross_block_spills(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
+    ) {
+        let cross_block_live =
+            cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
+        let values = Self::cross_block_spill_values(func, cross_block_live);
 
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
-            let colorable = Self::cross_block_live_values(func, liveness);
-            let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+            let colorable = cross_block_live;
+            let ranges = Self::spill_live_ranges(func, liveness, colorable);
             let interferences =
-                Self::parallel_phi_interferences(func, liveness, &colorable, &self.block_copies);
+                Self::parallel_phi_interferences(func, liveness, colorable, &self.block_copies);
 
             let mut colors = Vec::<SpillColor>::new();
-            for value in &colorable {
+            for value in colorable {
                 let value_ranges = &ranges[value];
                 let color = colors
                     .iter()
@@ -4057,14 +4075,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
-    fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.num_values());
+    fn cross_block_spill_values(
+        func: &Function,
+        cross_block_live: &DenseBitSet<ValueId>,
+    ) -> DenseBitSet<ValueId> {
+        let mut values = cross_block_live.clone();
         for block_id in func.blocks.indices() {
-            for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
-                if Self::can_own_spill_slot(func, val) {
-                    values.insert(val);
-                }
-            }
             for &inst_id in &func.blocks[block_id].instructions {
                 if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                     && let Some(val) = func.inst_result_value(inst_id)
@@ -6232,6 +6248,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         liveness: &Liveness,
+        cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         has_phis: bool,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
@@ -6242,10 +6259,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let inst_blocks = func.inst_blocks();
-        let cross_block = Self::cross_block_live_values(func, liveness);
+        let cross_block =
+            cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
         let mut uses =
             FxHashMap::<ValueId, (BlockId, usize, FxHashSet<BlockId>, bool, bool, bool)>::default();
-        for value in &cross_block {
+        for value in cross_block {
             let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
             if matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
                 || Self::is_cross_block_recomputable_inst(func, value)
@@ -6356,10 +6374,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         liveness: &Liveness,
+        cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         recomputable: &DenseBitSet<ValueId>,
     ) -> Vec<ValueId> {
         if self.spill_hazard_is_repeated_low_phi(func) {
-            return Self::cross_block_live_values(func, liveness)
+            return cross_block_live
+                .get_or_init(|| Self::cross_block_live_values(func, liveness))
                 .iter()
                 .filter(|&value| {
                     Self::can_own_spill_slot(func, value) && !recomputable.contains(value)
