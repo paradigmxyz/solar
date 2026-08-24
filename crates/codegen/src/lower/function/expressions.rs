@@ -284,7 +284,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
-        if matches!(builtin, Builtin::ContractCreationCode | Builtin::ContractRuntimeCode) {
+        if matches!(
+            builtin,
+            Builtin::ContractCreationCode | Builtin::ContractRuntimeCode | Builtin::ContractName
+        ) {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.context.gcx, expr.span, "environment builtin");
             };
@@ -294,6 +297,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let TyKind::Contract(contract_id) = ty.peel_refs().kind else {
                 return report_unsupported(self.context.gcx, expr.span, "creation code target");
             };
+            if builtin == Builtin::ContractName {
+                let name = self.context.gcx.item_name(contract_id);
+                return self.lower_bytes_literal(name.as_str().as_bytes());
+            }
             let bytecodes = if builtin == Builtin::ContractCreationCode {
                 self.context.child_bytecodes
             } else {
