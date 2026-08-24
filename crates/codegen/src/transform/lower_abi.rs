@@ -76,7 +76,11 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerAbiCx::default().run(module, gcx.sess.opts.evm_version)
+        LowerAbiCx::default().run(
+            module,
+            gcx.sess.opts.evm_version,
+            gcx.sess.opts.optimization.is_gas(),
+        )
     }
 }
 
@@ -106,7 +110,7 @@ impl DecodeOptions<'_> {
 }
 
 impl LowerAbiCx {
-    fn run(&mut self, module: &mut Module, evm_version: EvmVersion) -> bool {
+    fn run(&mut self, module: &mut Module, evm_version: EvmVersion, gas_mode: bool) -> bool {
         // Idempotent: only `built`/`optimized` modules have an implicit ABI
         // boundary to materialize.
         if module.phase >= MirPhase::Abi {
@@ -232,7 +236,9 @@ impl LowerAbiCx {
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(id)) {
+            if let Some(body_id) =
+                self.wrap_function(module, id, internally_called.contains(id), gas_mode)
+            {
                 body_of_wrapper.insert(id, body_id);
             }
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
@@ -976,9 +982,14 @@ impl LowerAbiCx {
         module: &mut Module,
         wrapper_id: FunctionId,
         needs_body: bool,
+        gas_mode: bool,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
-        let call_body = needs_body
+        // Gas mode keeps the external body in place so its calldata-only
+        // arguments can stay as slices. Size mode shares the body with the
+        // wrapper when possible, avoiding a duplicate implementation.
+        let call_body = !gas_mode
+            && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
             && original.blocks[BlockId::ENTRY].instructions.first().copied().is_some();
         let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
