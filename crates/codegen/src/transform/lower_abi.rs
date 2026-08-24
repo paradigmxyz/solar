@@ -342,22 +342,15 @@ impl LowerAbiCx {
     }
 
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
-        for func in module.functions.iter() {
-            for inst_id in func.instructions() {
-                if let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind
-                    && (layout.types.is_empty() || layout.checked_head_size().is_none())
-                {
-                    return false;
-                }
-            }
-        }
-
         let mut decode_counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
                 let InstKind::AbiDecode { layout, .. } = &func.inst(inst_id).kind else {
                     continue;
                 };
+                if layout.types.is_empty() || layout.checked_head_size().is_none() {
+                    return false;
+                }
                 *decode_counts.entry(layout.clone()).or_insert(0) += 1;
             }
         }
@@ -3825,7 +3818,6 @@ fn encode_live_returns(
     }
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let return_types = func.returns.clone();
-    let return_params = return_params.map(|layout| layout.types.clone());
     for block_id in block_ids {
         let values = match func.blocks[block_id].terminator.take() {
             Some(Terminator::Return { values }) if !values.is_empty() => values.into_vec(),
@@ -3843,8 +3835,7 @@ fn encode_live_returns(
             .map(|(index, value)| {
                 let value = calldata_returns.get(&value).copied().unwrap_or(value);
                 let Some(ty) = return_params
-                    .as_ref()
-                    .and_then(|params| params.get(index).cloned())
+                    .and_then(|layout| layout.types.get(index).cloned())
                     .or_else(|| return_types.get(index).copied().map(AbiParamType::Scalar))
                 else {
                     return value;
