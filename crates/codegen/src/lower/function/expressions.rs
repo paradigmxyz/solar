@@ -108,34 +108,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
 
-        let id = self.context.gcx.resolved_variable(expr)?;
+        let resolved = self.context.gcx.resolved_expr(expr)?;
+        let id = resolved.as_variable()?;
         let variable = self.context.gcx.hir.variable(id);
         if variable.is_constant() {
             return self.lower_constant_variable(id, expr.span);
         }
-        if let Some(hir::ItemId::Enum(enum_id)) = variable.parent {
-            let Some(index) = self
-                .context
-                .gcx
-                .hir
-                .enumm(enum_id)
-                .variants
-                .iter()
-                .position(|&variant| variant == id)
-            else {
-                return report_unsupported(self.context.gcx, expr.span, "enum member");
-            };
+        if let Some(index) = resolved.enum_variant_index(&self.context.gcx.hir) {
             return Some(self.builder.imm_u256(U256::from(index)));
         }
         if variable.is_state_variable() {
             return self.load_variable(id, expr.span);
         }
-        let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
-            return report_unsupported(self.context.gcx, expr.span, "member");
-        };
-        let Some(field) =
-            self.context.gcx.hir.strukt(struct_id).fields.iter().position(|&field| field == id)
-        else {
+        let Some(field) = resolved.struct_field_index(&self.context.gcx.hir) else {
             return report_unsupported(self.context.gcx, expr.span, "struct field");
         };
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;

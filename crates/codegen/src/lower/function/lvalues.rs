@@ -34,20 +34,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     return report_unsupported(self.context.gcx, expr.span, "l-value");
                 }
-                let id = self.context.gcx.resolved_variable(expr)?;
-                let variable = self.context.gcx.hir.variable(id);
-                let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
-                    return report_unsupported(self.context.gcx, expr.span, "member l-value");
-                };
-                let Some(field) = self
-                    .context
-                    .gcx
-                    .hir
-                    .strukt(struct_id)
-                    .fields
-                    .iter()
-                    .position(|&field| field == id)
-                else {
+                let resolved = self.context.gcx.resolved_expr(expr)?;
+                let id = resolved.as_variable()?;
+                let Some(field) = resolved.struct_field_index(&self.context.gcx.hir) else {
                     return report_unsupported(self.context.gcx, name.span, "struct field l-value");
                 };
                 let object = self.lower_expr(receiver)?;
