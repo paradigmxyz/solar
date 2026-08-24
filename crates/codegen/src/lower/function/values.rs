@@ -277,9 +277,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut values = Vec::with_capacity(rhs_elements.len());
             self.lower_tuple_assignment_values(elements, rhs_elements, rhs.span, &mut values)?;
             let mut assignments = Vec::with_capacity(values.len());
-            for (element, rhs, value) in values {
+            for (element, rhs, value, source_ty) in values {
                 let lhs_ty = self.type_of_expr_or_variable(element)?;
-                let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let rhs_ty =
+                    source_ty.or_else(|| self.context.gcx.type_of_expr(rhs.id)).unwrap_or(lhs_ty);
                 let value = if lhs_ty.is_ref_at(DataLocation::Storage) {
                     value
                 } else {
@@ -349,7 +350,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         elements: &[Option<&'hir hir::Expr<'hir>>],
         rhs_elements: &[Option<&'hir hir::Expr<'hir>>],
         span: Span,
-        values: &mut Vec<(&'hir hir::Expr<'hir>, &'hir hir::Expr<'hir>, ValueId)>,
+        values: &mut Vec<(&'hir hir::Expr<'hir>, &'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
         if rhs_elements.len() < elements.len() {
             return report_unsupported(self.context.gcx, span, "tuple assignment arity");
@@ -363,9 +364,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let ExprKind::Tuple(nested_rhs) = &rhs.peel_parens().kind else {
-                let value = self.lower_expr(rhs)?;
-                if let Some(lhs) = lhs {
-                    values.push((lhs, rhs, value));
+                if let Some(lhs) = lhs
+                    && let ExprKind::Tuple(nested_lhs) = &lhs.peel_parens().kind
+                {
+                    let Some(TyKind::Tuple(rhs_types)) =
+                        self.context.gcx.type_of_expr(rhs.id).map(|ty| ty.kind)
+                    else {
+                        return report_unsupported(
+                            self.context.gcx,
+                            rhs.span,
+                            "nested tuple assignment value",
+                        );
+                    };
+                    let rhs_values = self.lower_values(rhs)?;
+                    if rhs_values.len() != nested_lhs.len() || rhs_types.len() != nested_lhs.len() {
+                        return report_unsupported(
+                            self.context.gcx,
+                            rhs.span,
+                            "tuple assignment arity",
+                        );
+                    }
+                    for ((lhs, value), &rhs_ty) in nested_lhs.iter().zip(rhs_values).zip(rhs_types)
+                    {
+                        let Some(lhs) = lhs else { continue };
+                        if matches!(lhs.peel_parens().kind, ExprKind::Tuple(_)) {
+                            return report_unsupported(
+                                self.context.gcx,
+                                lhs.span,
+                                "nested tuple assignment target",
+                            );
+                        }
+                        values.push((lhs, rhs, value, Some(rhs_ty)));
+                    }
+                } else {
+                    let value = self.lower_expr(rhs)?;
+                    if let Some(lhs) = lhs {
+                        values.push((lhs, rhs, value, None));
+                    }
                 }
                 continue;
             };
