@@ -487,13 +487,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [_value] = self.lower_builtin_args(builtin, &args)?;
                 Some(())
             }
-            _ => {
-                return report_error(
-                    self.context.gcx,
-                    args.span,
-                    "codegen routed a value Yul builtin through unit lowering",
-                );
-            }
+            _ => report_error(
+                self.context.gcx,
+                args.span,
+                "codegen routed a value Yul builtin through unit lowering",
+            ),
         }
     }
 
