@@ -933,9 +933,7 @@ impl LowerAbiCx {
             let end = builder.constructor_args_end();
             let head_size = builder.imm_u64(head_size);
             let required = builder.add(base, head_size);
-            let overflow = builder.lt(required, base);
-            let short = builder.gt(required, end);
-            let invalid = builder.or(overflow, short);
+            let invalid = builder.gt(required, end);
             builder.branch(invalid, revert, decode);
 
             builder.switch_to_block(revert);
@@ -1138,27 +1136,24 @@ impl LowerAbiCx {
             let result = builder.internal_call(body_id, args, return_types[0], return_types.len());
             let mut values = Vec::with_capacity(return_types.len());
             values.push(result);
-            if return_types.len() > 1 {
-                let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                for index in 1..return_types.len() {
-                    let index_value = builder.imm_u64(index as u64);
-                    let value = match return_types[index] {
-                        MirType::MemoryObject(kind) => builder.memory_object_load_object(
-                            base,
-                            MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
-                            index_value,
-                            kind,
-                        ),
-                        _ => {
-                            let offset = builder.imm_u64(
-                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
-                            );
-                            let position = builder.add(base, offset);
-                            builder.mload(position)
-                        }
-                    };
-                    values.push(value);
-                }
+            let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
+            for index in 1..return_types.len() {
+                let index_value = builder.imm_u64(index as u64);
+                let value = match return_types[index] {
+                    MirType::MemoryObject(kind) => builder.memory_object_load_object(
+                        base,
+                        MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
+                        index_value,
+                        kind,
+                    ),
+                    _ => {
+                        let offset = builder
+                            .imm_u64(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
+                        let position = builder.add(base, offset);
+                        builder.mload(position)
+                    }
+                };
+                values.push(value);
             }
             builder.ret(values);
         }
@@ -1315,9 +1310,7 @@ impl LowerAbiCx {
             let invalid = if constructor {
                 let head_size_value = builder.imm_u64(head_size);
                 let required = builder.add(input_base, head_size_value);
-                let overflow = builder.lt(required, input_base);
-                let short = builder.gt(required, input_end);
-                builder.or(overflow, short)
+                builder.gt(required, input_end)
             } else {
                 let required = builder.imm_u64(4 + head_size);
                 builder.lt(input_end, required)
@@ -1431,7 +1424,7 @@ impl LowerAbiCx {
                                 logical_values[index] = Some(value);
                             }
                         } else if ty.is_dynamic() {
-                            Self::validate_aggregate_argument(
+                            Self::validate_dynamic_aggregate_argument(
                                 &mut builder,
                                 ty,
                                 head,
@@ -1439,7 +1432,6 @@ impl LowerAbiCx {
                                 input_end,
                                 constructor,
                                 &mut current,
-                                true,
                             );
                         }
                     } else {
@@ -1636,10 +1628,9 @@ impl LowerAbiCx {
         .then_some(source)
     }
 
-    /// Validates the immediate ABI shape of an aggregate without materializing
-    /// its memory representation.
-    #[allow(clippy::too_many_arguments)]
-    fn validate_aggregate_argument(
+    /// Validates the immediate ABI shape of a dynamic aggregate without
+    /// materializing its memory representation.
+    fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
         head: ValueId,
@@ -1647,28 +1638,20 @@ impl LowerAbiCx {
         input_end: ValueId,
         constructor: bool,
         current: &mut BlockId,
-        head_checked: bool,
     ) {
         builder.switch_to_block(*current);
-        let base = if ty.is_dynamic() {
-            if !head_checked {
-                Self::guard_input_range(builder, head, 32, input_end, current);
-            }
-            let offset = Self::load_input_word(builder, head, constructor);
-            Self::guard_input_offset(
-                builder,
-                tuple_base,
-                offset,
-                input_end,
-                matches!(
-                    ty,
-                    crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
-                ),
-                current,
-            )
-        } else {
-            head
-        };
+        let offset = Self::load_input_word(builder, head, constructor);
+        let base = Self::guard_input_offset(
+            builder,
+            tuple_base,
+            offset,
+            input_end,
+            matches!(
+                ty,
+                crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
+            ),
+            current,
+        );
 
         match ty {
             crate::mir::AbiParamType::DynamicArray(element) => {
@@ -1681,23 +1664,8 @@ impl LowerAbiCx {
                     element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
             }
-            crate::mir::AbiParamType::FixedArray { element, len } => {
-                let head_size = len.saturating_mul(
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
-                );
-                if !head_checked || ty.is_dynamic() {
-                    Self::guard_input_range(builder, base, head_size, input_end, current);
-                }
-            }
-            crate::mir::AbiParamType::Tuple(fields) => {
-                let head_size = fields.iter().fold(0_u64, |size, field| {
-                    size.saturating_add(
-                        field.checked_head_size().expect("ABI head size exceeds u64 range"),
-                    )
-                });
-                if !head_checked || ty.is_dynamic() {
-                    Self::guard_input_range(builder, base, head_size, input_end, current);
-                }
+            crate::mir::AbiParamType::FixedArray { .. } | crate::mir::AbiParamType::Tuple(..) => {
+                Self::guard_input_range(builder, base, ty.data_head_size(), input_end, current);
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
@@ -1705,7 +1673,9 @@ impl LowerAbiCx {
                 let data = builder.add(base, word);
                 Self::guard_input_range_value(builder, data, len, input_end, current);
             }
-            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {}
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
+                unreachable!("scalar ABI value is not a dynamic aggregate")
+            }
         }
     }
 
@@ -2593,25 +2563,6 @@ impl LowerAbiCx {
         let len = Self::load_input_word(builder, base, constructor);
         let word = builder.imm_u64(32);
         let data = builder.add(base, word);
-        let head_bytes = Self::checked_dynamic_array_bytes(
-            builder,
-            len,
-            data,
-            element_head_size,
-            input_end,
-            current,
-        );
-        (len, data, head_bytes)
-    }
-
-    fn checked_dynamic_array_bytes(
-        builder: &mut FunctionBuilder<'_>,
-        len: ValueId,
-        data: ValueId,
-        element_head_size: u64,
-        input_end: ValueId,
-        current: &mut BlockId,
-    ) -> ValueId {
         builder.switch_to_block(*current);
         // Checking the quotient before multiplying proves both that the
         // multiplication cannot wrap and that the complete element head fits
@@ -2627,7 +2578,8 @@ impl LowerAbiCx {
         let invalid = builder.gt(len, max_len);
         *current = builder.revert_if(invalid);
         let element_head_size = builder.imm_u64(element_head_size);
-        builder.mul(len, element_head_size)
+        let head_bytes = builder.mul(len, element_head_size);
+        (len, data, head_bytes)
     }
 
     #[allow(clippy::too_many_arguments)]

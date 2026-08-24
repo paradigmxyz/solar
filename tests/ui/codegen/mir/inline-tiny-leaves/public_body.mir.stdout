@@ -6,13 +6,11 @@ immutables:
 
 fn @_anonymous(arg0: u256) [constructor] {
   bb0:
-    v0 = constructor_args_base
     v1 = constructor_args_end
+    v0 = constructor_args_base
     v2 = add v0, 32
-    v3 = lt v2, v0
-    v4 = gt v2, v1
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v3 = gt v2, v1
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
