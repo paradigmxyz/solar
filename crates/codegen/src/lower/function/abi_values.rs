@@ -372,8 +372,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_value = self.builder.memory_object_load_element(value, layout, index);
         let element_value = self.canonicalize_abi_value(element_ty, element_value);
         self.builder.memory_object_store_element(output, layout, index, element_value);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -609,7 +608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let four = self.builder.imm_u64(4);
-        let payload_ptr = self.builder.add(data_ptr, four);
+        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let payload_len = self.builder.sub(data_len, four);
         let payload_slice =
             self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
@@ -623,8 +622,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);
-        let four = self.builder.imm_u64(4);
-        let payload_ptr = self.builder.add(data_ptr, four);
+        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let word_size = self.builder.imm_u64(32);
         let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
         self.builder.memory_slice_load_word(payload, zero)
@@ -1099,8 +1097,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_value = self.builder.memory_object_load_element(value, layout, index);
         let element_words = self.count_inplace_dynamic_value(element, element_value)?;
         let next_total = self.builder.checked_add(total, element_words);
-        let one = self.builder.imm_u64(1);
-        let next_index = self.builder.add(index, one);
+        let next_index = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -1212,8 +1209,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_value = self.builder.memory_object_load_element(value, layout, index);
         let next_offset =
             self.copy_inplace_dynamic_value(element, element_value, output, current_offset)?;
-        let one = self.builder.imm_u64(1);
-        let next_index = self.builder.add(index, one);
+        let next_index = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -1360,8 +1356,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 unreachable!("packed array shape")
             }
         }
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);

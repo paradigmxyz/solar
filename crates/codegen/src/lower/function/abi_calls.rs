@@ -463,8 +463,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             validate_bounds && element_is_dynamic,
         )?;
         self.builder.memory_object_store_element(object, layout, index, value);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -690,8 +689,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_if_invalid(too_large);
 
         let size = self.builder.mul(length, stride);
-        let word = self.builder.imm_u64(32);
-        let data = self.builder.add(value_pos, word);
+        let data = self.builder.add_u64_offset(value_pos, 32);
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, size);
         let out_of_bounds = self.builder.sgt(data, limit);

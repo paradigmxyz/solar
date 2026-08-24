@@ -1220,8 +1220,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
         let value = self.load_storage_value(element, access, span)?;
         self.builder.memory_object_store_element(object, layout, index, value);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -1441,8 +1440,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let element_slot = self.builder.add(data_slot, index);
         self.builder.sstore(element_slot, zero);
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -1551,8 +1549,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
         self.clear_storage_access(element, access, span)?;
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -1592,8 +1589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.store_storage_value(element, access, value, span)?;
         }
-        let one = self.builder.imm_u64(1);
-        let next = self.builder.add(index, one);
+        let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
@@ -1724,8 +1720,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_access =
                     self.storage_array_element_access(access.slot, index, element, true, span)?;
                 self.clear_storage_access(element, element_access, span)?;
-                let one = self.builder.imm_u64(1);
-                let next = self.builder.add(index, one);
+                let next = self.builder.add_u64_offset(index, 1);
                 let backedge = self.builder.current_block();
                 self.builder.jump(header);
                 self.builder.add_phi_incoming(index, backedge, next);
