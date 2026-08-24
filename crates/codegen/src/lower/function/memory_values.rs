@@ -108,14 +108,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
             return report_unsupported(self.context.gcx, expr.span, "tuple object");
         };
-        let size = self.builder.imm_u64(fields.checked_mul(32)?);
         let initialization = if values.iter().all(Option::is_some) {
             AllocationSemantics::INTERNAL
         } else {
             AllocationSemantics::SOLIDITY_ZEROED
         };
-        let layout = MemoryObjectLayout::Struct { fields };
-        let object = self.builder.alloc_object(size, layout, initialization);
+        let (object, layout) = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
             let value = self.lower_expr(value)?;
