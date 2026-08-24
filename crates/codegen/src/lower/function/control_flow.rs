@@ -29,11 +29,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         LoopState { block, values: self.values.clone(), storage_refs: self.storage_refs.clone() }
     }
 
-    fn lower_branches<T>(
+    pub(super) fn lower_branches<T>(
         &mut self,
         condition: ValueId,
         then_first: bool,
-        mut lower: impl FnMut(&mut Self, bool) -> Option<T>,
+        mut lower_then: impl FnMut(&mut Self) -> Option<T>,
+        mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         self.materialize_default_bindings();
         let first_block = self.builder.create_block();
@@ -48,7 +49,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(then_block);
-        let then_value = lower(self, true)?;
+        let then_value = lower_then(self)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
         let then_values = std::mem::take(&mut self.values);
@@ -60,7 +61,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(else_block);
-        let else_value = lower(self, false)?;
+        let else_value = lower_else(self)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
         let else_values = std::mem::take(&mut self.values);
@@ -101,14 +102,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) =
-            self.lower_branches(condition, true, |this, is_then| {
-                if is_then {
-                    this.lower_stmt(then_stmt)
-                } else {
-                    else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
-                }
-            })?;
+        let (then_branch, else_branch) = self.lower_branches(
+            condition,
+            true,
+            |this| this.lower_stmt(then_stmt),
+            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
+        )?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
@@ -556,29 +555,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         merged
     }
 
-    pub(super) fn lower_ternary_branches<T>(
-        &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
-        mut lower: impl FnMut(&mut Self, &hir::Expr<'_>) -> Option<T>,
-    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        let condition = self.lower_expr(condition)?;
-        self.lower_branches(condition, true, |this, is_then| {
-            lower(this, if is_then { then_expr } else { else_expr })
-        })
-    }
-
     pub(super) fn lower_ternary(
         &mut self,
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        let (then_branch, else_branch) =
-            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
-                this.lower_expr(expr)
-            })?;
+        let condition = self.lower_expr(condition)?;
+        let (then_branch, else_branch) = self.lower_branches(
+            condition,
+            true,
+            |this| this.lower_expr(then_expr),
+            |this| this.lower_expr(else_expr),
+        )?;
         match (then_branch.terminated, else_branch.terminated) {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
@@ -598,13 +587,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let lhs = self.lower_expr(lhs_expr)?;
         let is_and = op == BinOpKind::And;
-        let (then_branch, else_branch) = self.lower_branches(lhs, is_and, |this, is_then| {
-            if is_then == is_and {
-                this.lower_expr(rhs_expr)
-            } else {
-                Some(this.builder.imm_bool(!is_and))
-            }
-        })?;
+        let (then_branch, else_branch) = self.lower_branches(
+            lhs,
+            is_and,
+            |this| {
+                if is_and { this.lower_expr(rhs_expr) } else { Some(this.builder.imm_bool(true)) }
+            },
+            |this| {
+                if is_and { Some(this.builder.imm_bool(false)) } else { this.lower_expr(rhs_expr) }
+            },
+        )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
         if rhs.terminated || rhs.value == short.value {
@@ -620,10 +612,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<Vec<ValueId>> {
-        let (then_branch, else_branch) =
-            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
-                this.lower_values(expr)
-            })?;
+        let condition = self.lower_expr(condition)?;
+        let (then_branch, else_branch) = self.lower_branches(
+            condition,
+            true,
+            |this| this.lower_values(then_expr),
+            |this| this.lower_values(else_expr),
+        )?;
         if !then_branch.terminated
             && !else_branch.terminated
             && then_branch.value.len() != else_branch.value.len()

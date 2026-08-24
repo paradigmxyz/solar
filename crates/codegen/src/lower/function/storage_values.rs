@@ -533,10 +533,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<StorageAccess> {
-        let (then_branch, else_branch) =
-            self.lower_ternary_branches(condition, then_expr, else_expr, |this, expr| {
-                this.storage_access(expr)
-            })?;
+        let condition = self.lower_expr(condition)?;
+        let (then_branch, else_branch) = self.lower_branches(
+            condition,
+            true,
+            |this| this.storage_access(then_expr),
+            |this| this.storage_access(else_expr),
+        )?;
         let mut incoming = Vec::with_capacity(2);
         if !then_branch.terminated {
             incoming.push((then_branch.block, then_branch.value));
