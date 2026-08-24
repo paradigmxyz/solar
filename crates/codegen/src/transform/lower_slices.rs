@@ -429,6 +429,7 @@ impl LowerSlicesCx {
         }
         let added_slots = new_params.len() - old_params.len();
         let Some(shifted_frame_offsets) = Self::shifted_frame_offsets(func, added_slots) else {
+            func.params = old_params;
             return false;
         };
 
