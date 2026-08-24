@@ -31,6 +31,15 @@
 
 (comment) @comment
 
+; Built-ins
+; ---------
+
+((identifier) @variable.builtin
+  (#match? @variable.builtin "^(abi|block|msg|now|super|this|tx)$"))
+
+((identifier) @function.builtin
+  (#match? @function.builtin "^(addmod|assert|blockhash|blobhash|ecrecover|gasleft|keccak256|mulmod|require|ripemd160|selfdestruct|sha256|sha3|suicide)$"))
+
 ; Definitions and references
 ; -----------
 
