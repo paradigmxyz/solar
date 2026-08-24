@@ -550,7 +550,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             base,
             length,
             &layout,
-            true,
+            false,
             (!helpers.is_empty()).then_some(&helpers),
             self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
         )

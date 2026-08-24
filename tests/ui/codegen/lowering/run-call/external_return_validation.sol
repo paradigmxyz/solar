@@ -8,6 +8,7 @@
 //@ run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
 //@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) false => (0)
 //@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) true => (1)
+//@ run-call: ExternalReturnValidation::distinctDynamicReturns() => 7
 //@ run-call: ExternalReturnValidation::dirtyArray() => [true, true]
 //@ run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
@@ -31,6 +32,14 @@
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_stored.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_arg.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/return_dynamic_types_cross_call_out_of_range_post_homestead.sol
+
+interface DynamicReturns {
+    struct Value {
+        uint256[] values;
+    }
+
+    function get() external returns (Value memory, Value memory);
+}
 
 contract ExternalReturnValidation {
     struct Pair {
@@ -105,6 +114,25 @@ contract ExternalReturnValidation {
     function dirtyValueInternal() internal pure returns (uint8 value) {
         assembly {
             value := 0x100
+        }
+    }
+
+    function distinctDynamicReturns() external returns (uint256) {
+        (DynamicReturns.Value memory first, DynamicReturns.Value memory second) =
+            DynamicReturns(address(this)).get();
+        first.values[0] = 9;
+        return second.values[0];
+    }
+
+    fallback() external {
+        assembly {
+            mstore(0x00, 0x40)
+            mstore(0x20, 0x60)
+            mstore(0x40, 0x40)
+            mstore(0x60, 0x20)
+            mstore(0x80, 1)
+            mstore(0xa0, 7)
+            return(0, 0xc0)
         }
     }
 
