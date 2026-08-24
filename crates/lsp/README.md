@@ -16,10 +16,6 @@ solar_lsp::launch(config).await?;
 # }
 ```
 
-An embedding host that already selected a Foundry profile can pass it through with
-`with_selected_profile("custom")`; the language server uses that profile when discovering workspace
-sources and when running its automatically configured Forge lint checks.
-
 An embedding executable that also provides Forge commands can use its own path as the default, as
 shown above. Other hosts should supply the path to their Forge executable instead.
 
