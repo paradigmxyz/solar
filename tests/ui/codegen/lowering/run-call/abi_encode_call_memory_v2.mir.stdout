@@ -120,37 +120,79 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_ret
     revert 0, 36
   bb20:
     v46 = memory_object_load_element memorybytes, v26, 0
-    v47 = memory_object_load_element memorybytes, v33, 0
-    v48 = eq v46, v47
-    v49 = iszero v48
-    jumpi v49, bb21, bb22
+    v47 = memory_object_len memorybytes, v26
+    v48 = lt v47, 4
+    v49 = sub 4, v47
+    v50 = mul 8, v49
+    v51 = shl v50, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v52 = select v48, v51, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v53 = and v46, v52
+    v54 = memory_object_load_element memorybytes, v33, 0
+    v55 = memory_object_len memorybytes, v33
+    v56 = lt v55, 4
+    v57 = sub 4, v55
+    v58 = mul 8, v57
+    v59 = shl v58, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v60 = select v56, v59, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v61 = and v54, v60
+    v62 = eq v53, v61
+    v63 = iszero v62
+    jumpi v63, bb21, bb22
   bb21:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
   bb22:
-    v50 = memory_object_load_element memorybytes, v26, 0
-    v51 = memory_object_load_element memorybytes, v36, 0
-    v52 = eq v50, v51
-    v53 = iszero v52
-    jumpi v53, bb23, bb24
+    v64 = memory_object_load_element memorybytes, v26, 0
+    v65 = memory_object_len memorybytes, v26
+    v66 = lt v65, 4
+    v67 = sub 4, v65
+    v68 = mul 8, v67
+    v69 = shl v68, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v70 = select v66, v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v71 = and v64, v70
+    v72 = memory_object_load_element memorybytes, v36, 0
+    v73 = memory_object_len memorybytes, v36
+    v74 = lt v73, 4
+    v75 = sub 4, v73
+    v76 = mul 8, v75
+    v77 = shl v76, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v78 = select v74, v77, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v79 = and v72, v78
+    v80 = eq v71, v79
+    v81 = iszero v80
+    jumpi v81, bb23, bb24
   bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
   bb24:
-    v54 = memory_object_load_element memorybytes, v26, 0
-    v55 = and v19, 0xffffffff
-    v56 = shl 224, v55
-    v57 = eq v54, v56
-    v58 = iszero v57
-    jumpi v58, bb25, bb26
+    v82 = memory_object_load_element memorybytes, v26, 0
+    v83 = memory_object_len memorybytes, v26
+    v84 = lt v83, 4
+    v85 = sub 4, v83
+    v86 = mul 8, v85
+    v87 = shl v86, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v88 = select v84, v87, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v89 = and v82, v88
+    v90 = and v19, 0xffffffff
+    v91 = shl 224, v90
+    v92 = eq v89, v91
+    v93 = iszero v92
+    jumpi v93, bb25, bb26
   bb25:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
   bb26:
-    v59 = memory_object_load_element memorybytes, v26, 0
-    ret v59
+    v94 = memory_object_load_element memorybytes, v26, 0
+    v95 = memory_object_len memorybytes, v26
+    v96 = lt v95, 4
+    v97 = sub 4, v95
+    v98 = mul 8, v97
+    v99 = shl v98, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v100 = select v96, v99, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v101 = and v94, v100
+    ret v101
 }
 
