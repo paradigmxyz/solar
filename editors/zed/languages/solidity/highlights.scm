@@ -104,13 +104,19 @@
  "pragma"
  "abstract"
  "contract"
+ "error"
  "interface"
  "library"
+ "layout"
+ "at"
+ "type"
  "is"
  "struct"
  "enum"
  "event"
+ "anonymous"
  "using"
+ "global"
  "assembly"
  "emit"
  "public"
@@ -126,8 +132,12 @@
  "calldata"
  "var"
  "constant"
+ "let"
  (virtual)
  (override_specifier)
+ (immutable)
+ (state_location)
+ (unchecked)
  (yul_leave)
 ] @keyword
 
@@ -135,11 +145,11 @@
  "for"
  "while"
  "do"
+ "break"
+ "continue"
 ] @repeat
 
 [
- "break"
- "continue"
  "if"
  "else"
  "switch"
@@ -150,6 +160,7 @@
 [
  "try"
  "catch"
+ "revert"
 ] @exception
 
 [
@@ -162,6 +173,7 @@
 "import" @include
 (import_directive "as" @include)
 (import_directive "from" @include)
+(using_alias "as" @keyword)
 
 (event_parameter "indexed" @keyword)
 
