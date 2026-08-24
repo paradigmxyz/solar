@@ -140,29 +140,50 @@ fn lower_storage_to_memory(
     storage: ValueId,
     memory: ValueId,
 ) {
+    visit_storage_fields(builder, layout, memory, |builder, field, offset, destination| {
+        lower_storage_field_to_memory(builder, field, storage, offset, destination);
+    });
+}
+
+fn visit_storage_fields(
+    builder: &mut FunctionBuilder<'_>,
+    layout: &StorageLayout,
+    memory: ValueId,
+    mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, u64, MemoryObjectAccess),
+) {
     match layout {
         StorageLayout::Struct(fields) => {
+            let memory_layout = MemoryObjectLayout::structure(fields.len() as u64);
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                let memory = MemoryObjectAccess::Field {
-                    object: memory,
-                    layout: MemoryObjectLayout::structure(fields.len() as u64),
-                    field: index as u64,
-                };
-                lower_storage_field_to_memory(builder, field, storage, storage_offset, memory);
+                visit(
+                    builder,
+                    field,
+                    storage_offset,
+                    MemoryObjectAccess::Field {
+                        object: memory,
+                        layout: memory_layout,
+                        field: index as u64,
+                    },
+                );
                 storage_offset += field.storage_slots();
             }
         }
         StorageLayout::Array { element, len } => {
+            let memory_layout = MemoryObjectLayout::word_fixed_array(*len);
             let mut storage_offset = 0;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let memory = MemoryObjectAccess::Element {
-                    object: memory,
-                    layout: MemoryObjectLayout::word_fixed_array(*len),
-                    index: index_value,
-                };
-                lower_storage_field_to_memory(builder, element, storage, storage_offset, memory);
+                visit(
+                    builder,
+                    element,
+                    storage_offset,
+                    MemoryObjectAccess::Element {
+                        object: memory,
+                        layout: memory_layout,
+                        index: index_value,
+                    },
+                );
                 storage_offset += element.storage_slots();
             }
         }
@@ -209,33 +230,9 @@ fn lower_memory_to_storage(
     memory: ValueId,
     storage: ValueId,
 ) {
-    match layout {
-        StorageLayout::Struct(fields) => {
-            let mut storage_offset = 0;
-            for (index, field) in fields.iter().enumerate() {
-                let memory = MemoryObjectAccess::Field {
-                    object: memory,
-                    layout: MemoryObjectLayout::structure(fields.len() as u64),
-                    field: index as u64,
-                };
-                lower_memory_field_to_storage(builder, field, memory, storage, storage_offset);
-                storage_offset += field.storage_slots();
-            }
-        }
-        StorageLayout::Array { element, len } => {
-            let mut storage_offset = 0;
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
-                let memory = MemoryObjectAccess::Element {
-                    object: memory,
-                    layout: MemoryObjectLayout::word_fixed_array(*len),
-                    index: index_value,
-                };
-                lower_memory_field_to_storage(builder, element, memory, storage, storage_offset);
-                storage_offset += element.storage_slots();
-            }
-        }
-    }
+    visit_storage_fields(builder, layout, memory, |builder, field, offset, source| {
+        lower_memory_field_to_storage(builder, field, source, storage, offset);
+    });
 }
 
 fn lower_memory_field_to_storage(
