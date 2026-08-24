@@ -1415,16 +1415,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn clear_storage_words(
-        &mut self,
-        slot: ValueId,
-        first_word: ValueId,
-        words: ValueId,
-        zero: ValueId,
-    ) {
-        emit_clear_storage_words(&mut self.builder, slot, first_word, words, zero);
-    }
-
     fn clear_storage_words_with_helper(
         &mut self,
         slot: ValueId,
@@ -1680,7 +1670,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let remainder_is_zero = self.builder.iszero(remainder);
                     let has_partial_slot = self.builder.iszero(remainder_is_zero);
                     let slots = self.builder.add(full_slots, has_partial_slot);
-                    self.clear_storage_words(access.slot, zero, slots, zero);
+                    emit_clear_storage_words(&mut self.builder, access.slot, zero, slots, zero);
                     return Some(());
                 }
 
@@ -1879,7 +1869,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(is_long, cleanup_block, write_block);
 
         self.builder.switch_to_block(cleanup_block);
-        self.clear_storage_words(slot, zero, words, zero);
+        emit_clear_storage_words(&mut self.builder, slot, zero, words, zero);
         self.builder.jump(write_block);
 
         self.builder.switch_to_block(write_block);

@@ -165,13 +165,9 @@ impl LowerSlices {
                 insertions.insert(inst_id, (ptr_phi, len_phi));
                 replacements.insert(result, pointer);
                 for &(user, user_result, is_pointer) in users {
-                    if is_pointer {
-                        replacements.insert(user_result, pointer);
-                        removed.insert(user);
-                    } else {
-                        replacements.insert(user_result, length);
-                        removed.insert(user);
-                    }
+                    let replacement = if is_pointer { pointer } else { length };
+                    replacements.insert(user_result, replacement);
+                    removed.insert(user);
                 }
                 removed.insert(inst_id);
             }

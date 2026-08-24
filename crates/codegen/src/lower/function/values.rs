@@ -25,7 +25,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(vec![success, returndata]);
             }
             if self.context.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
-                && let ExprKind::Call(_, args, _) = &expr.kind
                 && let Some(types) = args.exprs().nth(1)
                 && let ExprKind::Tuple(elements) = types.kind
                 && elements.len() > 1

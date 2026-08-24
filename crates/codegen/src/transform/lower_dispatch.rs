@@ -142,8 +142,8 @@ fn build_entry(
         let select_block = builder.create_block();
         let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
         let fallback_block = fallback.map(|target| (target, builder.create_block()));
-        let default_block = fallback_block.as_ref().map(|&(_, block)| block);
         let revert_block = builder.create_block();
+        let default_block = fallback_block.as_ref().map_or(revert_block, |&(_, block)| block);
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
         // Optional hoisted callvalue check.
@@ -169,7 +169,7 @@ fn build_entry(
             let size = builder.calldatasize();
             let selector_size = builder.imm_u64(4);
             let short = builder.lt(size, selector_size);
-            builder.branch(short, default_block.unwrap_or(revert_block), select_block);
+            builder.branch(short, default_block, select_block);
         }
 
         if let Some((target, receive_block)) = receive_block {
@@ -180,7 +180,7 @@ fn build_entry(
         // Selector switch; the default goes to the fallback when present.
         builder.switch_to_block(select_block);
         if routes.is_empty() {
-            builder.jump(default_block.unwrap_or(revert_block));
+            builder.jump(default_block);
         } else {
             let selector = load_selector(&mut builder, has_bitwise_shifting);
             let cases = routes
@@ -188,7 +188,7 @@ fn build_entry(
                 .zip(&case_blocks)
                 .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
                 .collect();
-            builder.switch(selector, default_block.unwrap_or(revert_block), cases);
+            builder.switch(selector, default_block, cases);
         }
 
         if let Some((target, default_block)) = fallback_block {
