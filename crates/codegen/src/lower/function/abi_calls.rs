@@ -8,14 +8,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
-            && matches!(
-                ty,
-                AbiType::DynamicArray {
-                    element,
-                    location: SliceLocation::Calldata,
-                } if !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
-            )
+        if !matches!(
+            self.builder.func().value_ty(value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        ) {
+            return false;
+        }
+        match ty {
+            AbiType::Bytes(SliceLocation::Memory)
+            | AbiType::DynamicArray { location: SliceLocation::Memory, .. } => false,
+            AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
+            AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
+                !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
+            }
+            _ => false,
+        }
     }
 
     fn can_defer_calldata_validation(&self, value: ValueId, abi_type: &AbiType) -> bool {
