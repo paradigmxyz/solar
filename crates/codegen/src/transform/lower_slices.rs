@@ -722,15 +722,11 @@ impl LowerSlices {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
-            while Self::split_slice_aggregates(func) {
-                changed = true;
-            }
+            changed |= Self::split_slice_aggregates(func);
             changed |= Self::expand_call_args(func, &signatures);
             changed |= Self::lower_external_args(func);
             changed |= Self::lower_params(func, &signatures[&id]);
-            while Self::split_slice_aggregates(func) {
-                changed = true;
-            }
+            changed |= Self::split_slice_aggregates(func);
             changed |= Self::lower_mixed_slice_phis(func);
             changed |= Self::lower_projections(func);
         }
