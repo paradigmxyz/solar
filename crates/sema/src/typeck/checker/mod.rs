@@ -449,9 +449,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else if !is_calldata_sliceable(ty) {
                     self.dcx().emit_err(expr.span, "can only slice dynamic calldata arrays");
                 }
-                if self.index_types(ty).is_some()
-                    || matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
-                {
+                if self.index_types(ty).is_some() || is_string_or_string_slice(ty) {
                     if let Some(start) = start {
                         let _ = self.expect_ty(start, self.gcx.types.uint(256));
                     }
@@ -998,7 +996,9 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
                 (self.gcx.types.uint(256), element.with_loc_if_ref_opt(self.gcx, loc))
             }
-            TyKind::Slice(array) => (self.gcx.types.uint(256), array.base_type(self.gcx)?),
+            TyKind::Slice(array) if !is_string_or_string_slice(array) => {
+                (self.gcx.types.uint(256), array.base_type(self.gcx)?)
+            }
             TyKind::Elementary(ElementaryType::Bytes)
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
@@ -2943,13 +2943,13 @@ fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
 }
 
 fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::StringLiteral(true, _)) || is_string_or_string_slice(ty)
+}
+
+fn is_string_or_string_slice(ty: Ty<'_>) -> bool {
     let ty = ty.peel_refs();
-    matches!(ty.kind, TyKind::StringLiteral(true, _) | TyKind::Elementary(ElementaryType::String))
-        || matches!(
-            ty.kind,
-            TyKind::Slice(array)
-                if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
-        )
+    matches!(ty.kind, TyKind::Elementary(ElementaryType::String))
+        || matches!(ty.kind, TyKind::Slice(array) if is_string_or_string_slice(array))
 }
 
 fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
