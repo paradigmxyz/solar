@@ -28,25 +28,24 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
         BindingSnapshot {
-            ids: ids.to_vec(),
-            values: ids
+            bindings: ids
                 .iter()
-                .filter_map(|&id| self.values.get(&id).copied().map(|value| (id, value)))
-                .collect(),
-            storage_refs: ids
-                .iter()
-                .filter_map(|&id| self.storage_refs.get(&id).copied().map(|access| (id, access)))
+                .map(|&id| (id, self.values.get(&id).copied(), self.storage_refs.get(&id).copied()))
                 .collect(),
         }
     }
 
     pub(super) fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
-        for &id in &snapshot.ids {
+        for &(id, value, access) in &snapshot.bindings {
             self.values.remove(&id);
             self.storage_refs.remove(&id);
+            if let Some(value) = value {
+                self.values.insert(id, value);
+            }
+            if let Some(access) = access {
+                self.storage_refs.insert(id, access);
+            }
         }
-        self.values.extend(snapshot.values.iter().map(|(&id, &value)| (id, value)));
-        self.storage_refs.extend(snapshot.storage_refs.iter().map(|(&id, &access)| (id, access)));
     }
 
     pub(super) fn lower_modifier_chain(

@@ -251,11 +251,8 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-#[derive(Default)]
 struct BindingSnapshot {
-    ids: Vec<VariableId>,
-    values: FxHashMap<VariableId, ValueId>,
-    storage_refs: FxHashMap<VariableId, StorageAccess>,
+    bindings: Vec<(VariableId, Option<ValueId>, Option<StorageAccess>)>,
 }
 
 struct ModifierContext<'gcx> {
