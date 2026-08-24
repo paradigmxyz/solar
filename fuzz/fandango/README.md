@@ -312,11 +312,18 @@ are kept under `target/solsymdiff/`.
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected
-nonpayable function under a zero-initialized, single-call model and additionally
-compares emitted logs and every written target-storage slot. Constructors,
-nonzero initial state, payable calls, and multi-call sequences remain outside
-this lane; the stateful result does not compare side effects in external
-contracts.
+nonpayable function under a zero-initialized model and additionally compares
+emitted logs and every written target-storage slot. Repeat
+`--prefix-calldata 0x...` with complete calldata (a selector plus ABI-encoded
+arguments, or `0x` for receive/fallback) to replay fixed zero-value calls to
+the same target before a symbolic view or nonpayable call; this also requires
+`--include-stateful` and view targets still require `--include-view`. Prefix
+success, returndata, logs, and target storage are compared before the Solar
+lane's symbolic call.
+Constructors, payable calls, arbitrary callers, and side effects in external
+contracts remain outside this lane. Prefix replay adds two concrete calls and
+boundary checks to each symbolic path, so nontrivial targets may need an
+explicitly larger `--max-depth` instead of the Foundry default.
 
 For real projects, use `--project-root`, repeat `--include-path`, and pass
 `--remapping prefix=target` as needed. Solc resolves the import closure once;

@@ -163,6 +163,16 @@ class FunctionSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not a top-level dynamic input"):
             symbolic._normalize_input_lengths([(2, (0,))], inputs)
 
+    def test_validates_prefix_calldata(self) -> None:
+        self.assertEqual(symbolic._prefix_calldata("0xAa00"), "0xaa00")
+        for value in ("", "1234", "0x0", "0xzz"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    argparse.ArgumentTypeError,
+                    "even-length hexadecimal",
+                ):
+                    symbolic._prefix_calldata(value)
+
 
 class ResultClassificationTests(unittest.TestCase):
     def test_classifies_bounded_agreement_and_incomplete(self) -> None:
@@ -284,10 +294,80 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertIn("vm.accesses(TARGET)", test_source)
         self.assertIn("vm.revertToStateAndDelete(snapshot)", test_source)
         self.assertIn("vm.load(STATE_MIRROR", test_source)
+        self.assertEqual(
+            test_source.count("TARGET.call{gas: CALL_GAS}(callData)"),
+            2,
+        )
+        self.assertNotIn("PREFIX_MIRROR", test_source)
         self.assertIn('storage_layout = "zero_init"', config)
+
+    def test_prefix_state_seeds_suffix_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp)
+            symbolic._write_project(
+                project,
+                "0x60006000f3",
+                "0x60016000f3",
+                {
+                    "selector": "0xb3de648b",
+                    "inputs": [{"name": "value", "type": "uint256"}],
+                    "mutability": "view",
+                },
+                "osaka",
+                max_dynamic_length=256,
+                prefix_calldata=("0x12345678", "0x"),
+            )
+
+            test_source = (
+                project / "test" / "SymbolicDifferential.t.sol"
+            ).read_text()
+
+        self.assertEqual(test_source.count('hex"12345678"'), 2)
+        self.assertEqual(test_source.count('hex""'), 2)
+        self.assertIn(
+            "prefixResultA[0] == keccak256(abi.encode(ok, ret))",
+            test_source,
+        )
+        self.assertIn(
+            "prefixResultA[1] == keccak256(abi.encode(ok, ret))",
+            test_source,
+        )
+        self.assertIn("abi.encode(prefixLogsA)", test_source)
+        self.assertNotIn("PREFIX_MIRROR", test_source)
+        self.assertEqual(
+            test_source.count("TARGET.staticcall{gas: CALL_GAS}(callData)"),
+            2,
+        )
+        first_prefix_call = test_source.index('hex"12345678"')
+        second_prefix_call = test_source.index('hex"12345678"', first_prefix_call + 1)
+        prefix_store = test_source.index(
+            "vm.store(STATE_MIRROR, prefixWritesA[i], prefixValuesA[i])"
+        )
+        suffix_store = test_source.index(
+            "vm.store(STATE_MIRROR, writesA[i], valuesA[i])"
+        )
+        self.assertLess(prefix_store, second_prefix_call)
+        self.assertLess(second_prefix_call, suffix_store)
+        self.assertLess(
+            suffix_store,
+            test_source.index("(bool okB, bytes memory retB)"),
+        )
 
 
 class CommandTests(unittest.TestCase):
+    def test_prefix_calls_require_stateful_mode_before_compilation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = pathlib.Path(tmp) / "Probe.sol"
+            source.write_text("contract Probe {}\n")
+            args = argparse.Namespace(
+                source=source,
+                prefix_calldata=["0x"],
+                include_stateful=False,
+            )
+
+            with self.assertRaisesRegex(ValueError, "require --include-stateful"):
+                symbolic.run(args)
+
     def test_identical_compiler_input_reaches_the_focused_runner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -326,6 +406,7 @@ class CommandTests(unittest.TestCase):
                 via_ir=True,
                 include_view=False,
                 include_stateful=False,
+                prefix_calldata=[],
                 project_root=None,
                 include_path=[],
                 remapping=[],

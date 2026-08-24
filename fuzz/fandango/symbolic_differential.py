@@ -47,9 +47,17 @@ def main(argv: list[str] | None = None) -> int:
         "--include-stateful",
         action="store_true",
         help=(
-            "allow a nonpayable target under the clean zero-storage, "
-            "single-call model"
+            "allow a nonpayable target or concrete same-target prefix under "
+            "the clean zero-storage model"
         ),
+    )
+    parser.add_argument(
+        "--prefix-calldata",
+        type=_prefix_calldata,
+        action="append",
+        default=[],
+        metavar="HEX",
+        help="replay fixed zero-value target calldata before the symbolic call",
     )
     parser.add_argument("--project-root", type=pathlib.Path)
     parser.add_argument("--include-path", type=pathlib.Path, action="append", default=[])
@@ -136,6 +144,9 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
     source = args.source.resolve()
     if not source.is_file():
         raise ValueError(f"source file does not exist: {source}")
+    prefix_calldata = tuple(args.prefix_calldata)
+    if prefix_calldata and not args.include_stateful:
+        raise ValueError("prefix calls require --include-stateful")
 
     tools = {
         name: _resolve_executable(getattr(args, name))
@@ -182,6 +193,8 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         include_view=args.include_view,
         include_stateful=args.include_stateful,
     )
+    if prefix_calldata and function["mutability"] == "pure":
+        raise ValueError("prefix calls require a view or nonpayable target")
     input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
     solc_runtime = solc_artifact["runtime"]
     solar_runtime = solar_artifact["runtime"]
@@ -228,6 +241,7 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         args.evm_version,
         dynamic_lengths=args.dynamic_lengths,
         input_lengths=input_lengths,
+        prefix_calldata=prefix_calldata,
         exploration_order=args.exploration_order,
         max_dynamic_length=max_dynamic_length,
         max_returndata_bytes=args.max_returndata_bytes,
@@ -255,6 +269,8 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
             "project": str(project),
         }
     )
+    if prefix_calldata:
+        result["prefix"] = {"calldata": list(prefix_calldata), "value": 0}
     (project / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -281,6 +297,14 @@ def _nonnegative_int(value: str) -> int:
     if number < 0:
         raise argparse.ArgumentTypeError("value must be non-negative")
     return number
+
+
+def _prefix_calldata(value: str) -> str:
+    if not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", value):
+        raise argparse.ArgumentTypeError(
+            "prefix calldata must be 0x-prefixed, even-length hexadecimal"
+        )
+    return value.lower()
 
 
 def _dynamic_lengths(value: str) -> tuple[int, ...]:
@@ -739,6 +763,7 @@ def _write_project(
     max_dynamic_length: int,
     dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
     input_lengths: dict[str, tuple[int, ...]] | None = None,
+    prefix_calldata: tuple[str, ...] = (),
     exploration_order: str = "bfs",
     max_returndata_bytes: int = MAX_RETURNDATA_BYTES,
 ) -> None:
@@ -757,9 +782,90 @@ def _write_project(
         )
         for offset in range(0, max_returndata_bytes, 32)
     )
+    prefix_a = []
+    prefix_store = []
+    prefix_b = []
+    if prefix_calldata:
+        prefix_a.extend(
+            (
+                "        bytes32[] memory prefixResultA = "
+                f"new bytes32[]({len(prefix_calldata)});",
+                "        vm.record();",
+                "        vm.recordLogs();",
+            )
+        )
+        for index, calldata in enumerate(prefix_calldata):
+            payload = calldata.removeprefix("0x")
+            prefix_a.extend(
+                (
+                    "        {",
+                    "            (bool ok, bytes memory ret) =",
+                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    f"            prefixResultA[{index}] = keccak256(abi.encode(ok, ret));",
+                    "        }",
+                )
+            )
+        prefix_a.extend(
+            (
+                "        (, bytes32[] memory prefixWritesA) = vm.accesses(TARGET);",
+                "        vm.stopRecord();",
+                "        Vm.Log[] memory prefixLogsA = vm.getRecordedLogs();",
+                "        bytes32[] memory prefixValuesA =",
+                "            new bytes32[](prefixWritesA.length);",
+                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
+                "            prefixValuesA[i] = vm.load(TARGET, prefixWritesA[i]);",
+                "        }",
+                "",
+            )
+        )
+        prefix_store.extend(
+            (
+                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
+                "            vm.store(STATE_MIRROR, prefixWritesA[i], prefixValuesA[i]);",
+                "        }",
+            )
+        )
+        prefix_b.extend(("        vm.record();", "        vm.recordLogs();"))
+        for index, calldata in enumerate(prefix_calldata):
+            payload = calldata.removeprefix("0x")
+            prefix_b.extend(
+                (
+                    "        {",
+                    "            (bool ok, bytes memory ret) =",
+                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    "            assert(",
+                    f"                prefixResultA[{index}] == keccak256(abi.encode(ok, ret))",
+                    "            );",
+                    "        }",
+                )
+            )
+        prefix_b.extend(
+            (
+                "        (, bytes32[] memory prefixWritesB) = vm.accesses(TARGET);",
+                "        vm.stopRecord();",
+                "        Vm.Log[] memory prefixLogsB = vm.getRecordedLogs();",
+                "        assert(",
+                "            keccak256(abi.encode(prefixLogsA)) ==",
+                "                keccak256(abi.encode(prefixLogsB))",
+                "        );",
+                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
+                "            assert(",
+                "                vm.load(STATE_MIRROR, prefixWritesA[i]) ==",
+                "                    vm.load(TARGET, prefixWritesA[i])",
+                "            );",
+                "        }",
+                "        for (uint256 i; i < prefixWritesB.length; ++i) {",
+                "            assert(",
+                "                vm.load(STATE_MIRROR, prefixWritesB[i]) ==",
+                "                    vm.load(TARGET, prefixWritesB[i])",
+                "            );",
+                "        }",
+                "",
+            )
+        )
     template = (
         _STATEFUL_TEST_TEMPLATE
-        if function.get("mutability") == "nonpayable"
+        if function.get("mutability") == "nonpayable" or prefix_calldata
         else _STATELESS_TEST_TEMPLATE
     )
     test_source = template.format(
@@ -772,7 +878,13 @@ def _write_project(
         target_address=TARGET_ADDRESS,
         state_mirror_address=STATE_MIRROR_ADDRESS,
         call_gas=CALL_GAS,
+        target_call=(
+            "staticcall" if function.get("mutability") == "view" else "call"
+        ),
         max_returndata=max_returndata_bytes,
+        prefix_a="\n".join(prefix_a),
+        prefix_store="\n".join(prefix_store),
+        prefix_b="\n".join(prefix_b),
         word_checks=word_checks,
     )
     (project / "test" / "SymbolicDifferential.t.sol").write_text(
@@ -1129,10 +1241,11 @@ contract SymbolicDifferentialTest {{
         uint256 snapshot = vm.snapshotState();
         vm.etch(TARGET, SOLC_CODE);
 
+{prefix_a}
         vm.record();
         vm.recordLogs();
         (bool okA, bytes memory retA) =
-            TARGET.call{{gas: CALL_GAS}}(callData);
+            TARGET.{target_call}{{gas: CALL_GAS}}(callData);
         (, bytes32[] memory writesA) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsA = vm.getRecordedLogs();
@@ -1142,6 +1255,9 @@ contract SymbolicDifferentialTest {{
             valuesA[i] = vm.load(TARGET, writesA[i]);
         }}
         assert(vm.revertToStateAndDelete(snapshot));
+{prefix_store}
+
+{prefix_b}
         for (uint256 i; i < writesA.length; ++i) {{
             vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
         }}
@@ -1149,7 +1265,7 @@ contract SymbolicDifferentialTest {{
         vm.record();
         vm.recordLogs();
         (bool okB, bytes memory retB) =
-            TARGET.call{{gas: CALL_GAS}}(callData);
+            TARGET.{target_call}{{gas: CALL_GAS}}(callData);
         (, bytes32[] memory writesB) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsB = vm.getRecordedLogs();
