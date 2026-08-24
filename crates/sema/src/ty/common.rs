@@ -25,9 +25,6 @@ pub struct CommonTypes<'gcx> {
     /// `bytes` references.
     pub bytes_ref: EachDataLoc<Ty<'gcx>>,
 
-    /// A dynamically encoded external return value that cannot be accessed before Byzantium.
-    pub inaccessible_dynamic: Ty<'gcx>,
-
     ints: [Ty<'gcx>; 32],
     uints: [Ty<'gcx>; 32],
     fbs: [Ty<'gcx>; 32],
@@ -67,8 +64,6 @@ impl<'gcx> CommonTypes<'gcx> {
 
             bytes,
             bytes_ref: mk_refs(bytes),
-
-            inaccessible_dynamic: mk(InaccessibleDynamic),
 
             ints: from_fn(|i| mk(Elementary(Int(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),

@@ -6,24 +6,6 @@ LL │         addr.staticcall("");
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
-   │
-LL │         bytes memory externalData = target.dynamicReturn();
-   ╰╴                                    ━━━━━━━━━━━━━━━━━━━━━━ expected `bytes memory`, found `inaccessible dynamic type`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
-   │
-LL │         (, bytes memory lowLevelData) = addr.call("");
-   ╰╴                                        ━━━━━━━━━━━━━ expected `bytes memory`, found `inaccessible dynamic type`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
-   │
-LL │         try target.dynamicReturn() returns (bytes memory) {
-   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━ expected `bytes memory`, found `inaccessible dynamic type`
-
 error: typed catch clause requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
    │
@@ -57,5 +39,5 @@ LL │ ┃         } catch {
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: aborting due to 7 previous errors
+error: aborting due to 4 previous errors
 

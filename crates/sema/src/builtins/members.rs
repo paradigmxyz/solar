@@ -60,7 +60,6 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             .map(|b| Member::of_builtin(gcx, b))
             .collect(),
         TyKind::Variadic => Default::default(),
-        TyKind::InaccessibleDynamic => Default::default(),
         TyKind::Type(ty) => type_type(gcx, ty),
         TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),

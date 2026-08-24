@@ -18,7 +18,7 @@ contract Caller {
     // CHECK: returndatacopy
     function probeCall(address target) external returns (uint256) {
         (, bytes memory data) = target.call("");
-        //~[homestead]^ ERROR: mismatched types
+        //~[homestead]^ ERROR: codegen cannot bind low-level call returndata before Byzantium
         return data.length;
     }
 }
