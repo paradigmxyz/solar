@@ -1292,25 +1292,7 @@ impl<'gcx> Lowerer<'gcx> {
         match builtin {
             Builtin::YulMstore => lower!(mstore(offset, value)),
             Builtin::YulMstore8 => lower!(mstore8(offset, value)),
-            Builtin::YulMcopy => {
-                // The Yul `mcopy` builtin is only available on Cancun-compatible
-                // VMs; solc rejects it on older targets. Compiler-generated
-                // copies stay as semantic MIR and the required `lower-mcopy`
-                // pass uses the identity precompile on older targets, but an
-                // explicit assembly `mcopy` keeps the diagnostic.
-                if self.gcx.sess.opts.evm_version.has_mcopy() {
-                    let [dst, src, size] = self.lower_builtin_args(builder, builtin, call_args)?;
-                    builder.mcopy(dst, src, size);
-                } else {
-                    return Err(self
-                        .gcx
-                        .dcx()
-                        .err("codegen requires Cancun-compatible EVM for memory copy")
-                        .span(call_args.span)
-                        .help("compile with `--evm-version cancun` or newer")
-                        .emit());
-                }
-            }
+            Builtin::YulMcopy => lower!(mcopy(dst, src, size)),
             Builtin::YulSstore => lower!(sstore(slot, value)),
             Builtin::YulTstore => lower!(tstore(slot, value)),
             Builtin::YulCalldatacopy => lower!(calldatacopy(dst, src, size)),

@@ -1,0 +1,42 @@
+error: Yul builtin `mcopy` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             mcopy(0, 0, 0)
+   │             ━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: Yul builtin `blobhash` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             pop(blobhash(0))
+   │                 ━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: Yul builtin `blobbasefee` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             pop(blobbasefee())
+   │                 ━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: Yul builtin `tload` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             pop(tload(0))
+   │                 ━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: Yul builtin `tstore` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             tstore(0, 0)
+   │             ━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: aborting due to 5 previous errors
+

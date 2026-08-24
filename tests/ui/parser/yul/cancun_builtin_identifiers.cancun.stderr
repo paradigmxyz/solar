@@ -1,0 +1,32 @@
+error: expected identifier, found Yul EVM builtin keyword `mcopy`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let mcopy
+   ╰╴                ━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `blobhash`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let blobhash
+   ╰╴                ━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `blobbasefee`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let blobbasefee
+   ╰╴                ━━━━━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `tload`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let tload
+   ╰╴                ━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `tstore`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let tstore
+   ╰╴                ━━━━━━
+
+error: aborting due to 5 previous errors
+
