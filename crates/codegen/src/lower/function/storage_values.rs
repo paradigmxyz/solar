@@ -1237,17 +1237,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if index < source_len {
                         let value =
                             self.builder.memory_object_load_element(object, layout, index_value);
-                        if self.types.memory_layout(element).is_some() {
-                            self.store_storage_object_with_source(
-                                element,
-                                source_element,
-                                access.slot,
-                                value,
-                                span,
-                            )?;
-                        } else {
-                            self.store_storage_value(element, access, value, span)?;
-                        }
+                        self.store_storage_value_with_source(
+                            element,
+                            source_element,
+                            access,
+                            value,
+                            span,
+                        )?;
                     } else {
                         let value = self.default_value(element);
                         if self.types.memory_layout(element).is_some() {
@@ -1495,17 +1491,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             value
         };
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
-        if self.types.memory_layout(element).is_some() {
-            self.store_storage_object_with_source(
-                element,
-                source_element,
-                access.slot,
-                value,
-                span,
-            )?;
-        } else {
-            self.store_storage_value(element, access, value, span)?;
-        }
+        self.store_storage_value_with_source(element, source_element, access, value, span)?;
         let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
@@ -1532,17 +1518,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_field = self.context.gcx.hir.strukt(source_struct_id).fields[index];
             let source_field_ty = self.context.gcx.type_of_item(source_field.into());
             let access = StorageAccess { slot: field_slot, location, offset: None };
-            if self.types.memory_layout(field_ty).is_some() {
-                self.store_storage_object_with_source(
-                    field_ty,
-                    source_field_ty,
-                    field_slot,
-                    value,
-                    span,
-                )?;
-            } else {
-                self.store_storage_value(field_ty, access, value, span)?;
-            }
+            self.store_storage_value_with_source(field_ty, source_field_ty, access, value, span)?;
         }
         Some(())
     }

@@ -106,10 +106,9 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                                 replacements.insert(result, object);
                             }
                             continue 'next;
-                        } else {
-                            let offset = builder.imm_u64(offset);
-                            builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                         }
+                        let offset = builder.imm_u64(offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     InstKind::MLoad(object) => {
                         let Some(location) = builder.func().value_slice_location(object) else {
@@ -168,10 +167,9 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                                 replacements.insert(result, object);
                             }
                             continue 'next;
-                        } else {
-                            let offset = builder.imm_u64(offset);
-                            builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                         }
+                        let offset = builder.imm_u64(offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     InstKind::Keccak256Bytes(object) => {
                         if let Some(MirType::Slice(location)) = builder.func().value_ty(object) {

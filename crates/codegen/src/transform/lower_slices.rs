@@ -605,8 +605,9 @@ impl LowerSlices {
         // erased the nominal object type, the projections must use the
         // physical object representation.
         for &(slice, inst, is_ptr) in projections.values() {
-            let physical_object = matches!(func.value_ty(slice), Some(MirType::MemPtr));
-            let physical_word = matches!(func.value_ty(slice), Some(MirType::UInt(_)))
+            let Some(ty) = func.value_ty(slice) else { continue };
+            let physical_object = matches!(ty, MirType::MemPtr);
+            let physical_word = matches!(ty, MirType::UInt(_))
                 && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
             if physical_word || (physical_object && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
