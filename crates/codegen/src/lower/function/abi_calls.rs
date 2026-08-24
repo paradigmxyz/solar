@@ -120,12 +120,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) {
         let mut offset = 0;
         for field_ty in fields {
-            let position = if offset == 0 {
-                base
-            } else {
-                let offset_value = self.builder.imm_u64(offset);
-                self.builder.add(base, offset_value)
-            };
+            let position = self.builder.add_u64_offset(base, offset);
             self.validate_calldata_static_value(field_ty, position);
             let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size()) else {
                 return;

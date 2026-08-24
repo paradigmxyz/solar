@@ -776,13 +776,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let size = if has_dynamic {
             let cursor = cursor.expect("dynamic packed input has a cursor");
-            if offset == 0 {
-                self.builder.sub(cursor, zero)
-            } else {
-                let offset = self.builder.imm_u64(offset);
-                let end = self.builder.add(cursor, offset);
-                self.builder.sub(end, zero)
-            }
+            let end = self.builder.add_u64_offset(cursor, offset);
+            self.builder.sub(end, zero)
         } else {
             total
         };
@@ -821,11 +816,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn packed_scratch_offset(&mut self, base: Option<ValueId>, offset: u64) -> ValueId {
         match base {
-            Some(base) if offset != 0 => {
-                let offset = self.builder.imm_u64(offset);
-                self.builder.add(base, offset)
-            }
-            Some(base) => base,
+            Some(base) => self.builder.add_u64_offset(base, offset),
             None => self.builder.imm_u64(offset),
         }
     }
@@ -1061,17 +1052,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn inplace_struct_layout(&self, fields: usize) -> MemoryObjectLayout {
-        MemoryObjectLayout::Struct { fields: fields as u64 }
-    }
-
     fn count_inplace_dynamic_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
             TyKind::Struct(id) => {
                 let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
-                let layout = self.inplace_struct_layout(fields.len());
+                let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let mut total = self.builder.imm_u64(0);
                 for (index, field) in fields.into_iter().enumerate() {
                     let field = self.context.gcx.type_of_item(field.into());
@@ -1145,7 +1132,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Struct(id) => {
                 let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
-                let layout = self.inplace_struct_layout(fields.len());
+                let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let mut offset = offset;
                 for (index, field) in fields.into_iter().enumerate() {
                     let field = self.context.gcx.type_of_item(field.into());
