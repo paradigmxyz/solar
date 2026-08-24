@@ -479,23 +479,44 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_size = fixed_bytes_size(from);
         let destination_size = fixed_bytes_size(to);
         if let Some(size) = destination_size
-            && self.is_calldata_dynamic_bytes_type(from)
-            && self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
+            && self.is_dynamic_bytes_type(from)
         {
             let zero = self.builder.imm_u64(0);
-            let word = self.builder.calldata_slice_load_word(value, zero);
-            let width = u64::from(size.bytes());
-            let fixed_mask =
-                self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
-            let length = self.builder.slice_len(value);
-            let width_value = self.builder.imm_u64(width);
-            let short = self.builder.lt(length, width_value);
-            let missing = self.builder.sub(width_value, length);
-            let bits_per_byte = self.builder.imm_u64(8);
-            let shift = self.builder.mul(bits_per_byte, missing);
-            let short_mask = self.builder.shl(shift, fixed_mask);
-            let mask = self.builder.select(short, short_mask, fixed_mask);
-            return self.builder.and(word, mask);
+            let word_and_length = match self.builder.func().value_ty(value) {
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                    let word = self.builder.memory_object_load_element(
+                        value,
+                        MemoryObjectLayout::Bytes,
+                        zero,
+                    );
+                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+                    Some((word, length))
+                }
+                Some(MirType::Slice(SliceLocation::Calldata)) => {
+                    let word = self.builder.calldata_slice_load_word(value, zero);
+                    let length = self.builder.slice_len(value);
+                    Some((word, length))
+                }
+                Some(MirType::Slice(SliceLocation::Memory)) => {
+                    let word = self.builder.memory_slice_load_word(value, zero);
+                    let length = self.builder.slice_len(value);
+                    Some((word, length))
+                }
+                _ => None,
+            };
+            if let Some((word, length)) = word_and_length {
+                let width = u64::from(size.bytes());
+                let fixed_mask =
+                    self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
+                let width_value = self.builder.imm_u64(width);
+                let short = self.builder.lt(length, width_value);
+                let missing = self.builder.sub(width_value, length);
+                let bits_per_byte = self.builder.imm_u64(8);
+                let shift = self.builder.mul(bits_per_byte, missing);
+                let short_mask = self.builder.shl(shift, fixed_mask);
+                let mask = self.builder.select(short, short_mask, fixed_mask);
+                return self.builder.and(word, mask);
+            }
         }
         if destination_size.is_some()
             && let Some(abi_type) = self.types.abi_type(from)

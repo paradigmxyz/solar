@@ -172,11 +172,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 )
             }
         };
-        let is_bytes = self.is_calldata_dynamic_bytes_type(receiver_ty)
-            || matches!(
-                receiver_ty.peel_refs().kind,
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
-            );
+        let is_bytes = self.is_dynamic_bytes_type(receiver_ty);
         let element_stride = if is_bytes {
             1
         } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
