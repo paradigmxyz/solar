@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget ===
 @module ExternalFunctionPointerAggregateTarget
-fn @pair() -> (u256, memorybytes) [selector=0xa8aa1b31, pure, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @pair() -> (u256, memorybytes) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 2
@@ -8,7 +8,7 @@ fn @pair() -> (u256, memorybytes) [selector=0xa8aa1b31, pure, abi_args=lazy, abi
     ret 7, v0
 }
 
-fn @combine(arg0: memoryarray, arg1: memorybytes) -> (u256, memorybytes) [selector=0x3488ea15, pure, abi_args=lazy, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes]] {
+fn @combine(arg0: memoryarray, arg1: memorybytes) -> (u256, memorybytes) [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -93,7 +93,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -132,7 +132,7 @@ fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_args=lazy, abi
     ret v19, v21
 }
 
-fn @readArguments() -> (u256, memorybytes) [selector=0x372fd38b, view, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @readArguments() -> (u256, memorybytes) [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -196,7 +196,7 @@ fn @readArguments() -> (u256, memorybytes) [selector=0x372fd38b, view, abi_args=
     ret v27, v29
 }
 
-fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -209,7 +209,7 @@ fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_args=lazy, abi
     ret v0
 }
 
-fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_args=lazy, abi_params=[function, u256], abi_returns=[word]] {
+fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -236,7 +236,7 @@ fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_args=la
     ret v13
 }
 
-fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -271,7 +271,7 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_args=lazy
     ret v17
 }
 
-fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_args=lazy, abi_params=[], abi_returns=[function]] {
+fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -279,7 +279,7 @@ fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_args=lazy, abi_params=
     ret v2
 }
 
-fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -332,7 +332,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_args=lazy, abi_pa
     ret v27
 }
 
-fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -367,7 +367,7 @@ fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_args=lazy, abi_pa
     ret v19
 }
 
-fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -474,7 +474,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_args=lazy, abi_par
     ret v51
 }
 
-fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -509,7 +509,7 @@ fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_
     ret v13
 }
 
-fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

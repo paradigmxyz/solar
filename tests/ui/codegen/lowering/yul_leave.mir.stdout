@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
 @module YulLeave
-fn @simple() -> u256 [selector=0xdf201a46, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @simple() -> u256 [selector=0xdf201a46, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @value.4, 1
     ret v0
 }
 
-fn @conditional(arg0: u256) -> u256 [selector=0xd28ac8d6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @conditional(arg0: u256) -> u256 [selector=0xd28ac8d6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @value.5, 1, arg0
     ret v0
 }
 
-fn @multiple() -> (u256, u256) [selector=0x437a8ae6, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @multiple() -> (u256, u256) [selector=0x437a8ae6, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @values, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -21,7 +21,7 @@ fn @multiple() -> (u256, u256) [selector=0x437a8ae6, pure, abi_args=lazy, abi_pa
     ret v0, v3
 }
 
-fn @fallthrough() -> u256 [selector=0xb3afd11d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @fallthrough() -> u256 [selector=0xb3afd11d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @value.7, 1
     ret v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
 @module StorageBytesFromCalldata
-fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
+fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -103,7 +103,7 @@ fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_args=lazy, abi_params
     jump bb15
 }
 
-fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
+fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -206,13 +206,13 @@ fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_args=lazy, abi_params
     jump bb15
 }
 
-fn @getText() -> memorybytes [selector=0xe00fe2eb, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getText() -> memorybytes [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @getBlob() -> memorybytes [selector=0x32db030e, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @getBlob() -> memorybytes [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @load_storage_bytes, 1, 1
     ret v0

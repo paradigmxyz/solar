@@ -5,7 +5,7 @@ fn @f() -> (u256, storageptr) [view] {
     ret 7, 0
 }
 
-fn @declared() -> u256 [selector=0xfd2ed72a, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @declared() -> u256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
     v0 = add 0, 1
@@ -66,7 +66,7 @@ fn @declared() -> u256 [selector=0xfd2ed72a, abi_args=lazy, abi_params=[], abi_r
     ret v25
 }
 
-fn @assigned() -> u256 [selector=0xadb4d990, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 11 !metadata(storage=slot(0))
     v0 = add 0, 1

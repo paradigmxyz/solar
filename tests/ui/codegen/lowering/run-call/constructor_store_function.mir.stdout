@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_store_function.sol:ConstructorStoreFunction ===
 @module ConstructorStoreFunction
-fn @result() -> u256 [selector=0x65372147, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -19,7 +19,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, 2
     v1 = iszero 2
@@ -36,7 +36,7 @@ fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @use(arg0: u256) -> u256 [selector=0xab5b4456, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @use(arg0: u256) -> u256 [selector=0xab5b4456, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffff

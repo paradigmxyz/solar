@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
-fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure, abi_args=lazy, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word]] {
+fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -23,7 +23,7 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     ret v6
 }
 
-fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_args=lazy, abi_params=[tuple<u256, address>], abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_params=[tuple<u256, address>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -31,7 +31,7 @@ fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_args=lazy,
     ret v2
 }
 
-fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_args=lazy, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -87,7 +87,7 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_args=lazy
     ret v27
 }
 
-fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_args=lazy, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
+fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -143,7 +143,7 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_arg
     ret v27
 }
 
-fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_args=lazy, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
+fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0

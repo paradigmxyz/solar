@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_return_validation.sol:ExternalReturnValidation ===
 @module ExternalReturnValidation
-fn @short() -> u256 [selector=0x38bea4cb, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @short() -> u256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -25,12 +25,12 @@ fn @short() -> u256 [selector=0x38bea4cb, view, abi_args=lazy, abi_params=[], ab
     ret v11
 }
 
-fn @shortTarget() [selector=0xeee93c02, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @shortTarget() [selector=0xeee93c02, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     returndata 0, 0
 }
 
-fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -62,23 +62,23 @@ fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_args=lazy, abi_params=[], abi_
     ret v14
 }
 
-fn @dirtyTarget() [selector=0xacf697c3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyTarget() [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 256 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @dirtyValue() -> u8 [selector=0x79df5ae3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyValue() -> u8 [selector=0x79df5ae3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 256
 }
 
-fn @dirtyBool() -> bool [selector=0xf17a2b8e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyBool() -> bool [selector=0xf17a2b8e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 2
 }
 
-fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_args=lazy, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -89,7 +89,7 @@ fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_args=lazy, abi
     ret v0
 }
 
-fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_args=lazy, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = internal_call @dirtyValueInternal, 1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
@@ -110,7 +110,7 @@ fn @dirtyValueInternal() -> u8 [pure] {
     ret 256
 }
 
-fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -272,7 +272,7 @@ fn @_anonymous() [fallback] {
     returndata 0, 192
 }
 
-fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, bool>]] {
+fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -283,7 +283,7 @@ fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_args=lazy, abi_p
     ret v0
 }
 
-fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
@@ -311,7 +311,7 @@ fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_args=lazy, a
     ret v8
 }
 
-fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -341,7 +341,7 @@ fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_args=lazy,
     ret v10
 }
 
-fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -361,7 +361,7 @@ fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_args=lazy, abi_p
     ret v6
 }
 
-fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
@@ -399,12 +399,12 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_args=lazy, abi_p
     ret v11
 }
 
-fn @dirtyEnum() -> u8 [selector=0x676092a0, pure, abi_args=lazy, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
+fn @dirtyEnum() -> u8 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
   bb0:
     ret 2
 }
 
-fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = lt 2, 2
     v1 = iszero v0
@@ -432,7 +432,7 @@ fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_args=lazy, abi_params=[
     ret 1
 }
 
-fn @dirtyEnumStorageRead() -> u256 [selector=0xb2fb782c, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyEnumStorageRead() -> u256 [selector=0xb2fb782c, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -448,7 +448,7 @@ fn @dirtyEnumStorageRead() -> u256 [selector=0xb2fb782c, abi_args=lazy, abi_para
     ret v1
 }
 
-fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -482,12 +482,12 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_args=lazy, ab
     ret v14
 }
 
-fn @enumTarget(arg0: u8) -> u256 [selector=0x5688f443, pure, abi_args=lazy, abi_params=[enum<2, u8>], abi_returns=[word]] {
+fn @enumTarget(arg0: u8) -> u256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -527,12 +527,12 @@ fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_args=la
     ret v17
 }
 
-fn @enumStructTarget(arg0: memorystruct) -> u256 [selector=0x9e10d92f, pure, abi_args=lazy, abi_params=[tuple<enum<2, u8>>], abi_returns=[word]] {
+fn @enumStructTarget(arg0: memorystruct) -> u256 [selector=0x9e10d92f, pure, abi_params=[tuple<enum<2, u8>>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -610,12 +610,12 @@ fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_args=laz
     ret v36
 }
 
-fn @enumArrayTarget(arg0: memoryarray) -> u256 [selector=0x8529de51, pure, abi_args=lazy, abi_params=[array<_, enum<2, u8>>], abi_returns=[word]] {
+fn @enumArrayTarget(arg0: memoryarray) -> u256 [selector=0x8529de51, pure, abi_params=[array<_, enum<2, u8>>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = lt 2, 2
     v1 = iszero v0
@@ -635,7 +635,7 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_args=lazy, 
     ret v5
 }
 
-fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
@@ -687,7 +687,7 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_args=l
     jump bb1
 }
 
-fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
@@ -738,7 +738,7 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_args=lazy, 
     jump bb4
 }
 
-fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = eq 2, 0
     v1 = iszero v0
@@ -751,7 +751,7 @@ fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_args=lazy, 
     ret v4
 }
 
-fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -782,7 +782,7 @@ fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_args=lazy, 
     ret 1
 }
 
-fn @dynamicTarget(arg0: u256) [selector=0x32079384, pure, abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @dynamicTarget(arg0: u256) [selector=0x32079384, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 33 !metadata(memory=scratch)

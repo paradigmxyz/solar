@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
-fn @assign() -> (u256, u256, u256) [selector=0x12ae6397, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @assign() -> (u256, u256, u256) [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
@@ -50,7 +50,7 @@ fn @assign() -> (u256, u256, u256) [selector=0x12ae6397, pure, abi_args=lazy, ab
     ret v8, v14, v20
 }
 
-fn @swap() -> (u256, u256, u256, u256) [selector=0x8119c065, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @swap() -> (u256, u256, u256, u256) [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     ret 2, 1, 4, 3
 }

@@ -123,14 +123,14 @@ fn @d() {
     stop
 }
 
-fn @high() -> u64 [selector=0x713658f3, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 64, v0
     ret v1
 }
 
-fn @arrayMatches() [selector=0xa9b873e8, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff

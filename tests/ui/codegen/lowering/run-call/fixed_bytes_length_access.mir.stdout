@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_length_access.sol:C ===
 @module C
-fn @f(arg0: bytes32) -> (u256, u256, u256) [selector=0xd7da973a, view, abi_args=lazy, abi_params=[bytes32], abi_returns=[word, word, word]] {
+fn @f(arg0: bytes32) -> (u256, u256, u256) [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word]] {
   bb0:
     v0 = shl 128, 2
     v1 = add 1, 7
@@ -14,7 +14,7 @@ fn @f(arg0: bytes32) -> (u256, u256, u256) [selector=0xd7da973a, view, abi_args=
     ret 32, 16, v1
 }
 
-fn @sideEffect() -> (u256, u256) [selector=0x3a058265, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @sideEffect() -> (u256, u256) [selector=0x3a058265, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @makeBytes, 1
     v1 = sload 1 !metadata(storage=slot(1))

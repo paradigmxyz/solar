@@ -16,7 +16,7 @@ fn @onlyStored() -> u256 [pure] {
     ret 7
 }
 
-fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff

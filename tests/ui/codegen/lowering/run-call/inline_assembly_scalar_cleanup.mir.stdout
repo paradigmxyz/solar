@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
-fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = and 257, 255
     v1 = add v0, 0
@@ -50,7 +50,7 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_arg
     ret v1, v4, v13, v15, v18, v20
 }
 
-fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = and 257, 255
     v1 = eq v0, 1
@@ -70,7 +70,7 @@ fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, 
     ret v1, v4, v7, v10, v12, v14
 }
 
-fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = and 256, 255
     v1 = add v0, 1
@@ -93,7 +93,7 @@ fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_args=lazy, abi_para
     ret v1, v3
 }
 
-fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 255
     v1 = and v0, 255
@@ -108,7 +108,7 @@ fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_args=lazy, abi_params=[],
     ret v2
 }
 
-fn @negation() -> i8 [selector=0x336c96f8, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @negation() -> i8 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = signextend 0, 128
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
@@ -122,7 +122,7 @@ fn @negation() -> i8 [selector=0x336c96f8, pure, abi_args=lazy, abi_params=[], a
     ret v2
 }
 
-fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = and 0x12345678, 255
     v1 = and 0x12345678, 255
@@ -130,18 +130,18 @@ fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_args=la
     ret v0, v2
 }
 
-fn @explicitWideningReturn() -> u256 [selector=0xbd2ce75e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @explicitWideningReturn() -> u256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 0x12345678, 255
     ret v0
 }
 
-fn @implicitReturn() -> u8 [selector=0xf8438e3d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @implicitReturn() -> u8 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0x12345678
 }
 
-fn @invalidEnum() -> u8 [selector=0xb65e9efe, pure, abi_args=lazy, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
+fn @invalidEnum() -> u8 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = lt 2, 2
     v1 = iszero v0
@@ -156,19 +156,19 @@ fn @invalidEnum() -> u8 [selector=0xb65e9efe, pure, abi_args=lazy, abi_params=[]
     ret 2
 }
 
-fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 257
 }
 
-fn @internalArguments() -> (u8, u8) [selector=0xd0754141, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @internalArguments() -> (u8, u8) [selector=0xd0754141, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @dirtyNot, 1, 0x4200
     v1 = internal_call @dirtyNot, 1, 0x4200
     ret v0, v1
 }
 
-fn @storageAssignment() -> u256 [selector=0x7bae1f27, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @storageAssignment() -> u256 [selector=0x7bae1f27, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = eq 5, 0
     v1 = iszero v0

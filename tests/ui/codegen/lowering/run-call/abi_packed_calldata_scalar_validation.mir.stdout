@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_calldata_scalar_validation.sol:AbiPackedCalldataScalarValidation ===
 @module AbiPackedCalldataScalarValidation
-fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_args=lazy, abi_params=[array<_, u8>], abi_returns=[memory_bytes]] {
+fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_params=[array<_, u8>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

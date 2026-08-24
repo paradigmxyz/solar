@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
-fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], object, args arg0
     v1 = abi_decode [u256], v0
     ret v1
 }
 
-fn @bytesRoundtrip(arg0: memorybytes) -> memorybytes [selector=0x2e2230c7, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @bytesRoundtrip(arg0: memorybytes) -> memorybytes [selector=0x2e2230c7, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [memory_bytes], object, args arg0
     v1 = abi_decode [bytes], v0
     ret v1
 }
 
-fn @wordsRoundtrip(arg0: memoryarray) -> u256 [selector=0x285417c3, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @wordsRoundtrip(arg0: memoryarray) -> u256 [selector=0x285417c3, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [memory_array<word>], object, args arg0
     v1 = abi_decode [array<_, u256>], v0
@@ -67,7 +67,7 @@ fn @wordsRoundtrip(arg0: memoryarray) -> u256 [selector=0x285417c3, pure, abi_ar
     ret v16
 }
 
-fn @nestedWordsRoundtrip(arg0: memoryarray) -> u256 [selector=0xd8828f2f, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+fn @nestedWordsRoundtrip(arg0: memoryarray) -> u256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], object, args arg0
     v1 = abi_decode [array<_, array<_, u256>>], v0
@@ -103,7 +103,7 @@ fn @nestedWordsRoundtrip(arg0: memoryarray) -> u256 [selector=0xd8828f2f, pure, 
     ret v12
 }
 
-fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
@@ -148,7 +148,7 @@ fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_args=la
     ret v15, v16, v12
 }
 
-fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -333,7 +333,7 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
     ret v44, v55, v66, v67
 }
 
-fn @hash(arg0: u256) -> bytes32 [selector=0xb189fd4c, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @hash(arg0: u256) -> bytes32 [selector=0xb189fd4c, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = slice_ptr v0

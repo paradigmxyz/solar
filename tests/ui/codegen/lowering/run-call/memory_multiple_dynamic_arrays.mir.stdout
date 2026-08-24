@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_multiple_dynamic_arrays.sol:MemoryMultipleDynamicArrays ===
 @module MemoryMultipleDynamicArrays
-fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 0x560
     set_memory_object_len memoryarray, v0, 42

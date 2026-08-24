@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase (after none) ===
 @module DumpPhase
-fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 0
     v1 = lt v0, arg0

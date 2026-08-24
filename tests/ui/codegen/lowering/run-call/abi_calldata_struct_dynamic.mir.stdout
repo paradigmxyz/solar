@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_dynamic.sol:AbiCalldataStructDynamic ===
 @module AbiCalldataStructDynamic
-fn @hash(arg0: calldataslice) -> bytes32 [selector=0x43298469, pure, abi_args=lazy, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
+fn @hash(arg0: calldataslice) -> bytes32 [selector=0x43298469, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -157,7 +157,7 @@ fn @hash(arg0: calldataslice) -> bytes32 [selector=0x43298469, pure, abi_args=la
     jump bb9
 }
 
-fn @unused(arg0: calldataslice) -> u256 [selector=0x642b2333, pure, abi_args=lazy, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
+fn @unused(arg0: calldataslice) -> u256 [selector=0x642b2333, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
   bb0:
     ret 1
 }

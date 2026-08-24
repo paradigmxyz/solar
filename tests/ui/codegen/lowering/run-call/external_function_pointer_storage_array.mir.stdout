@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_array.sol:ExternalFunctionPointerStorageArray ===
 @module ExternalFunctionPointerStorageArray
-fn @a() [selector=0x0dbe671f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = add 0, 0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -140,7 +140,7 @@ fn @a() [selector=0x0dbe671f, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb19
 }
 
-fn @b() [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = add 0, 0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -280,7 +280,7 @@ fn @b() [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb19
 }
 
-fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[]] {
+fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_, function>], abi_returns=[]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -415,7 +415,7 @@ fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_args=lazy, abi_
     stop
 }
 
-fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

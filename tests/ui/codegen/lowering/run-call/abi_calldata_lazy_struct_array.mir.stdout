@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_array.sol:AbiCalldataLazyStructArray ===
 @module AbiCalldataLazyStructArray
-fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_args=lazy, abi_params=[array<2, tuple<bytes, bytes>>], abi_returns=[word]] {
+fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[array<2, tuple<bytes, bytes>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

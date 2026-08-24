@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_scalar_reencode.sol:AbiCalldataFixedScalarReencode ===
 @module AbiCalldataFixedScalarReencode
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_args=lazy, abi_params=[array<3, u256>], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_params=[array<3, u256>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [array<3, word>], object, args arg0
     ret v0
 }
 
-fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_args=lazy, abi_params=[array<3, u8>], abi_returns=[memory_bytes]] {
+fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 96

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_storage_arrays.sol:AbiEncodeStorageArrays ===
 @module AbiEncodeStorageArrays
-fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes]] {
+fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -186,7 +186,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     ret v87
 }
 
-fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0x26153afa, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word]] {
+fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -448,7 +448,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u2
     ret v69, v79, v89, v99, v109, v119
 }
 
-fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b, abi_args=lazy, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes]] {
+fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 128

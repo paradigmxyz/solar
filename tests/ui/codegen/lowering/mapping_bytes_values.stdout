@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
-fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[]] {
+fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, abi_params=[u256, bytes], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -76,7 +76,7 @@ fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, abi_args=lazy, abi_
     jump bb9
 }
 
-fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, abi_args=lazy, abi_params=[u256, u256, bytes], abi_returns=[]] {
+fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, abi_params=[u256, u256, bytes], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
@@ -153,14 +153,14 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, a
     jump bb9
 }
 
-fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, view, abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = internal_call @load_storage_bytes, 1, v0
     ret v1
 }
 
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, view, abi_args=lazy, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
+fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, view, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0

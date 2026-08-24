@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
 @module MultiReturnRepeated
-fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @sort, 2, 2, 1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

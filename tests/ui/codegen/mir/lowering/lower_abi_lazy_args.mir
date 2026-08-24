@@ -7,7 +7,7 @@
 // CHECK: + {{v[0-9]+}} = calldataload 4
 @module LowerAbiLazyArgs
 
-fn @flag(arg0: bool) -> bool [selector=0x0d2020dd, abi_args=lazy, abi_returns=[word]] {
+fn @flag(arg0: bool) -> bool [selector=0x0d2020dd, abi_returns=[word]] {
   bb0:
     ret arg0
 }

@@ -47,7 +47,7 @@ fn @stage2() {
     stop
 }
 
-fn @run() -> bool [selector=0xc0406226, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))

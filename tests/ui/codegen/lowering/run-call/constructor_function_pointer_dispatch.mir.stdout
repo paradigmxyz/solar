@@ -7,7 +7,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffff
@@ -15,7 +15,7 @@ fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[]
     ret v2
 }
 
-fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure, abi_args=lazy, abi_params=[bytes6, u256], abi_returns=[word]] {
+fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg1, 8
     v1 = iszero 8

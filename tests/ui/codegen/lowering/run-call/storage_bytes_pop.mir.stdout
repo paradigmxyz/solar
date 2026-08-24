@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop.sol:StorageBytesPop ===
 @module StorageBytesPop
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = shr 248, 0x700000000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))

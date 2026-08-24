@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/mapping.sol:Mapping ===
 @module Mapping
-fn @balances(arg0: u256) -> u256 [selector=0x4903b0d1, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @balances(arg0: u256) -> u256 [selector=0x4903b0d1, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @allowances(arg0: address, arg1: address) -> u256 [selector=0x55b6ed5c, view, abi_args=lazy, abi_params=[address, address], abi_returns=[word]] {
+fn @allowances(arg0: address, arg1: address) -> u256 [selector=0x55b6ed5c, view, abi_params=[address, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
@@ -15,14 +15,14 @@ fn @allowances(arg0: address, arg1: address) -> u256 [selector=0x55b6ed5c, view,
     ret v2
 }
 
-fn @set_balance(arg0: u256, arg1: u256) [selector=0xb41d1f5c, abi_args=lazy, abi_params=[u256, u256], abi_returns=[]] {
+fn @set_balance(arg0: u256, arg1: u256) [selector=0xb41d1f5c, abi_params=[u256, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
     stop
 }
 
-fn @add_balance(arg0: u256, arg1: u256) [selector=0xe72cc64e, abi_args=lazy, abi_params=[u256, u256], abi_returns=[]] {
+fn @add_balance(arg0: u256, arg1: u256) [selector=0xe72cc64e, abi_params=[u256, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -39,7 +39,7 @@ fn @add_balance(arg0: u256, arg1: u256) [selector=0xe72cc64e, abi_args=lazy, abi
     stop
 }
 
-fn @approve(arg0: address, arg1: address, arg2: u256) [selector=0xe1f21c67, abi_args=lazy, abi_params=[address, address, u256], abi_returns=[]] {
+fn @approve(arg0: address, arg1: address, arg2: u256) [selector=0xe1f21c67, abi_params=[address, address, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
@@ -47,7 +47,7 @@ fn @approve(arg0: address, arg1: address, arg2: u256) [selector=0xe1f21c67, abi_
     stop
 }
 
-fn @get_allowance(arg0: address, arg1: address) -> u256 [selector=0x18836994, view, abi_args=lazy, abi_params=[address, address], abi_returns=[word]] {
+fn @get_allowance(arg0: address, arg1: address) -> u256 [selector=0x18836994, view, abi_params=[address, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0

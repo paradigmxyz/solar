@@ -427,7 +427,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @from_storage() -> memoryarray [selector=0x904f60db, abi_args=lazy, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -644,7 +644,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_args=lazy, abi_param
     ret v103
 }
 
-fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_args=lazy, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -861,7 +861,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_args=lazy, abi_p
     ret v103
 }
 
-fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_args=lazy, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -1078,7 +1078,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_args=lazy, abi_params
     ret v103
 }
 
-fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_args=lazy, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

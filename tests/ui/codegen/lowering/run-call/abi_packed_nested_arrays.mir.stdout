@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_nested_arrays.sol:AbiPackedNestedArrays ===
 @module AbiPackedNestedArrays
-fn @encodeFixed(arg0: memoryfixedarray) -> bytes32 [selector=0x6681ddb6, pure, abi_args=lazy, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
+fn @encodeFixed(arg0: memoryfixedarray) -> bytes32 [selector=0x6681ddb6, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 191, v0
@@ -79,7 +79,7 @@ fn @encodeFixed(arg0: memoryfixedarray) -> bytes32 [selector=0x6681ddb6, pure, a
     jump bb10
 }
 
-fn @encodeDynamic(arg0: memoryarray) -> bytes32 [selector=0x3620cfcc, pure, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
+fn @encodeDynamic(arg0: memoryarray) -> bytes32 [selector=0x3620cfcc, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = mul v0, 64
@@ -207,7 +207,7 @@ fn @encodeDynamic(arg0: memoryarray) -> bytes32 [selector=0x3620cfcc, pure, abi_
     jump bb20
 }
 
-fn @encodeCalldata(arg0: calldataslice) -> bytes32 [selector=0x06320087, pure, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
+fn @encodeCalldata(arg0: calldataslice) -> bytes32 [selector=0x06320087, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = mul v0, 64
@@ -339,7 +339,7 @@ fn @encodeCalldata(arg0: calldataslice) -> bytes32 [selector=0x06320087, pure, a
     jump bb20
 }
 
-fn @encodeBytes(arg0: memoryfixedarray) -> bytes32 [selector=0x617fca1d, pure, abi_args=lazy, abi_params=[array<2, array<2, bytes1>>], abi_returns=[word]] {
+fn @encodeBytes(arg0: memoryfixedarray) -> bytes32 [selector=0x617fca1d, pure, abi_params=[array<2, array<2, bytes1>>], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 191, v0
@@ -419,7 +419,7 @@ fn @encodeBytes(arg0: memoryfixedarray) -> bytes32 [selector=0x617fca1d, pure, a
     jump bb10
 }
 
-fn @encodeFixedIndex(arg0: memoryfixedarray) -> bytes32 [selector=0x4e9c2229, pure, abi_args=lazy, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
+fn @encodeFixedIndex(arg0: memoryfixedarray) -> bytes32 [selector=0x4e9c2229, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -478,7 +478,7 @@ fn @encodeFixedIndex(arg0: memoryfixedarray) -> bytes32 [selector=0x4e9c2229, pu
     jump bb5
 }
 
-fn @encodeDynamicIndex(arg0: memoryarray) -> bytes32 [selector=0x7d5331fb, pure, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
+fn @encodeDynamicIndex(arg0: memoryarray) -> bytes32 [selector=0x7d5331fb, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -538,7 +538,7 @@ fn @encodeDynamicIndex(arg0: memoryarray) -> bytes32 [selector=0x7d5331fb, pure,
     jump bb5
 }
 
-fn @encodeStructField(arg0: memorystruct) -> bytes32 [selector=0xa7ad7e04, pure, abi_args=lazy, abi_params=[tuple<array<2, u256>>], abi_returns=[word]] {
+fn @encodeStructField(arg0: memorystruct) -> bytes32 [selector=0xa7ad7e04, pure, abi_params=[tuple<array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     v1 = not 31
@@ -580,7 +580,7 @@ fn @encodeStructField(arg0: memorystruct) -> bytes32 [selector=0xa7ad7e04, pure,
     jump bb1
 }
 
-fn @encodeCalldataIndex(arg0: calldataslice) -> bytes32 [selector=0x2e694aed, pure, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
+fn @encodeCalldataIndex(arg0: calldataslice) -> bytes32 [selector=0x2e694aed, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

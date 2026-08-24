@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
-fn @test_cleanup() -> bool [selector=0x2b63198c, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test_cleanup() -> bool [selector=0x2b63198c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 0xffff0001, 0xffff
     v1 = mapping_slot v0, 0

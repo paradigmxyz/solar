@@ -39,7 +39,7 @@ contract StorageStringConstructor {
     // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 1
     string public symbol;
 
-    // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
+    // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: memory_object_len memorybytes
     // CHECK: memory_slice_load_word memory
     // CHECK: sstore 0,

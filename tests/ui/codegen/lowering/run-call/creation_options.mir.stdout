@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
-fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -70,7 +70,7 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_args=lazy, abi_para
     revert v21, v22
 }
 
-fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -137,7 +137,7 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_args=lazy, abi_para
     revert v21, v22
 }
 
-fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -204,7 +204,7 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_args=lazy, abi_param
     revert v21, v22
 }
 
-fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

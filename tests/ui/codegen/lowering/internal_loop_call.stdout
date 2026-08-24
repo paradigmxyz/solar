@@ -37,7 +37,7 @@ fn @sumTo(arg0: u256) -> u256 [pure] {
     jump bb1
 }
 
-fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @sumTo, 1, arg0
     ret v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
-fn @arrayA(arg0: u256) -> u256 [selector=0xad3149a4, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @arrayA(arg0: u256) -> u256 [selector=0xad3149a4, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @arrayA(arg0: u256) -> u256 [selector=0xad3149a4, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @arrayB(arg0: u256) -> u256 [selector=0x9b889676, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @arrayB(arg0: u256) -> u256 [selector=0x9b889676, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 2
     v1 = lt v0, arg0
@@ -26,7 +26,7 @@ fn @arrayB(arg0: u256) -> u256 [selector=0x9b889676, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @arrayC(arg0: u256) -> u256 [selector=0x794b7d08, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @arrayC(arg0: u256) -> u256 [selector=0x794b7d08, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 3
     v1 = lt v0, arg0
@@ -39,7 +39,7 @@ fn @arrayC(arg0: u256) -> u256 [selector=0x794b7d08, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @arrayD(arg0: u256) -> u256 [selector=0xd82c9b10, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @arrayD(arg0: u256) -> u256 [selector=0xd82c9b10, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 5
     v1 = lt v0, arg0
@@ -52,7 +52,7 @@ fn @arrayD(arg0: u256) -> u256 [selector=0xd82c9b10, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @arrayE(arg0: u256) -> u256 [selector=0x866ce1e6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @arrayE(arg0: u256) -> u256 [selector=0x866ce1e6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 8
     v1 = lt v0, arg0
@@ -65,7 +65,7 @@ fn @arrayE(arg0: u256) -> u256 [selector=0x866ce1e6, pure, abi_args=lazy, abi_pa
     ret v0
 }
 
-fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
     set_memory_object_len memoryarray, v0, 10

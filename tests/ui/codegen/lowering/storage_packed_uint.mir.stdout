@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_uint.sol:PackedUint ===
 @module PackedUint
-fn @a() -> u8 [selector=0x0dbe671f, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @a() -> u8 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @b() -> u16 [selector=0x4df7e3d0, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @b() -> u16 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -15,13 +15,13 @@ fn @b() -> u16 [selector=0x4df7e3d0, view, abi_args=lazy, abi_params=[], abi_ret
     ret v2
 }
 
-fn @raw() -> bytes32 [selector=0xc096a632, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @packed(arg0: u8, arg1: u16) -> bytes32 [selector=0x80c8f910, abi_args=lazy, abi_params=[u8, u16], abi_returns=[word]] {
+fn @packed(arg0: u8, arg1: u16) -> bytes32 [selector=0x80c8f910, abi_params=[u8, u16], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255

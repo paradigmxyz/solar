@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_dynamic_memory.sol:AbiCalldataNestedDynamicMemory ===
 @module AbiCalldataNestedDynamicMemory
-fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_args=lazy, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>]] {
+fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -212,7 +212,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_args=l
     jump bb26
 }
 
-fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_args=lazy, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>]] {
+fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test
-fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     internal_call @libFun, 0, 0
     internal_call @libFun, 0, 0

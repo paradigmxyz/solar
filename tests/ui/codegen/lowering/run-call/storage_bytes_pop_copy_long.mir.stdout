@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop_copy_long.sol:StorageBytesPopCopyLong ===
 @module StorageBytesPopCopyLong
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -388,7 +388,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], ab
     jump bb75
 }
 
-fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -610,7 +610,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_args=lazy, abi_params=[
     jump bb41
 }
 
-fn @testOnePop() -> u8 [selector=0x38de92b5, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:

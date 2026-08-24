@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
 @module Caller
-fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
@@ -16,7 +16,7 @@ fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_args=lazy, abi_p
     ret v6
 }
 
-fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_args=lazy, abi_params=[function], abi_returns=[word]] {
+fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_copy_recursive_struct.sol:StorageCopyRecursiveStruct ===
 @module StorageCopyRecursiveStruct
-fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [selector=0xd32cb0fe, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word, word, word]] {
+fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffff

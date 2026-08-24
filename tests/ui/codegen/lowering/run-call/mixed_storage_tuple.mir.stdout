@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mixed_storage_tuple.sol:C ===
 @module C
-fn @setUp() [selector=0x0a9254e4, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 7
@@ -53,7 +53,7 @@ fn @f() -> (u256, storageptr) [view] {
     ret 1, v4
 }
 
-fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -92,7 +92,7 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[],
     ret v12, v18
 }
 
-fn @test_h() -> u256 [selector=0xeafd81e0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

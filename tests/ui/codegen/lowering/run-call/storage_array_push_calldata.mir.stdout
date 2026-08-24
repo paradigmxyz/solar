@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
 @module StorageArrayPushCalldata
-fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_args=lazy, abi_params=[array<_, u120>], abi_returns=[word]] {
+fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -175,7 +175,7 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_args=lazy, 
     ret v91
 }
 
-fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_args=lazy, abi_params=[tuple<u16, u16, array<3, u16>, array<_, u16>>], abi_returns=[word]] {
+fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tuple<u16, u16, array<3, u16>, array<_, u16>>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<4>, exact, uninitialized, infallible, 128

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
 @module ArrayCopyClearStoragePacked
-fn @f() -> u128 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -265,7 +265,7 @@ fn @f() -> u128 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     ret v157
 }
 
-fn @g() -> u64 [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -530,7 +530,7 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[
     ret v157
 }
 
-fn @h() -> u120 [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = add v0, 1

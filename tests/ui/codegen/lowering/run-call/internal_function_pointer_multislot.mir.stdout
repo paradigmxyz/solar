@@ -18,12 +18,12 @@ fn @s(arg0: u256, arg1: u256) -> u256 [pure] {
     ret v0
 }
 
-fn @foo() -> u256 [selector=0xc2985578, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @foo() -> u256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 6
 }
 
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

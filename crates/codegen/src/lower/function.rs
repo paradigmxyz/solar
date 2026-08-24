@@ -131,7 +131,6 @@ pub(super) fn lower(
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         );
-        mir.abi_args_lazy = true;
         if mir.selector.is_some() {
             let mut output_shapes = Vec::with_capacity(hir_function.returns.len());
             let mut output_param_shapes = Vec::with_capacity(hir_function.returns.len());

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop_empty.sol:StorageArrayPopEmpty ===
 @module StorageArrayPopEmpty
-fn @test() -> bool [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0

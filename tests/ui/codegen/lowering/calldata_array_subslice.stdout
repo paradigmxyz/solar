@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_subslice.sol:CalldataArraySubslice ===
 @module CalldataArraySubslice
-fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
+fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

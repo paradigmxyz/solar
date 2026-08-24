@@ -5,7 +5,7 @@ fn @value() -> u256 [pure] {
     ret 7
 }
 
-fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
@@ -19,7 +19,7 @@ fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_args=lazy, abi_params=[], a
     ret v7
 }
 
-fn @callAfterDelete() -> u256 [selector=0x58819bde, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callAfterDelete() -> u256 [selector=0x58819bde, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff

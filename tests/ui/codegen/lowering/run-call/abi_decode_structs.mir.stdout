@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
-fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [selector=0x6644232b, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word]] {
+fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word, word]] {
   bb0:
     v0 = abi_decode [tuple<u256, address, bool>], arg0
     v1 = memory_object_load_field memorystruct<3>, v0, 0
@@ -12,7 +12,7 @@ fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [selector=0x6644232b, pure
     ret v1, v3, v6
 }
 
-fn @dMixed(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0x1be4db0e, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, memory_bytes, word]] {
+fn @dMixed(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word]] {
   bb0:
     v0 = abi_decode [u256, bytes, array<_, u256>], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -22,7 +22,7 @@ fn @dMixed(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0x1be4db0e,
     ret v0, v2, v4
 }
 
-fn @dNested(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0xfc7ec666, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, memory_bytes, word]] {
+fn @dNested(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word]] {
   bb0:
     v0 = abi_decode [tuple<tuple<u256, address, bool>, tuple<u256, bytes, array<_, u256>>, bytes>], arg0
     v1 = memory_object_load_field memorystruct<3>, v0, 0
@@ -34,7 +34,7 @@ fn @dNested(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0xfc7ec666
     ret v2, v4, v6
 }
 
-fn @dDynArr(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xaca542ca, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word, word]] {
+fn @dDynArr(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = abi_decode [array<_, tuple<u256, bytes, array<_, u256>>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -120,7 +120,7 @@ fn @dDynArr(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xaca542ca,
     ret v1, v11, v21, v32
 }
 
-fn @dFixedDyn(arg0: memorybytes) -> (u256, u256) [selector=0x94edd832, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
+fn @dFixedDyn(arg0: memorybytes) -> (u256, u256) [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = abi_decode [array<2, bytes>], arg0
     v1 = lt 0, 2
@@ -164,7 +164,7 @@ fn @dFixedDyn(arg0: memorybytes) -> (u256, u256) [selector=0x94edd832, pure, abi
     ret v7, v14
 }
 
-fn @typedDynArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xa00a84db, pure, abi_args=lazy, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word]] {
+fn @typedDynArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -254,7 +254,7 @@ fn @typedDynArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xa00a84d
     ret v0, v24, v48
 }
 
-fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes, word]] {
+fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, abi_params=[], abi_returns=[word, memory_bytes, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -338,7 +338,7 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     ret v32, v34, v36
 }
 
-fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -431,7 +431,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
     ret v26, v29, v31, v33
 }
 
-fn @fixedDynamicRoundtrip() -> (u256, u256) [selector=0x273ceef0, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @fixedDynamicRoundtrip() -> (u256, u256) [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 96
@@ -503,7 +503,7 @@ fn @fixedDynamicRoundtrip() -> (u256, u256) [selector=0x273ceef0, pure, abi_args
     ret v15, v22
 }
 
-fn @dStaticNested(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0xf634a16d, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+fn @dStaticNested(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -699,7 +699,7 @@ fn @dStaticNested(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [
     ret v21, v30, v39, v48, v57, v66
 }
 
-fn @dNestedArrays(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xa8c86b4a, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word, word]] {
+fn @dNestedArrays(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = abi_decode [array<_, array<_, u256>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -784,7 +784,7 @@ fn @dNestedArrays(arg0: memorybytes) -> (u256, u256, u256, u256) [selector=0xa8c
     ret v1, v9, v20, v31
 }
 
-fn @dArrayFixed(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [selector=0x11d9968b, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word, word, word]] {
+fn @dArrayFixed(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = abi_decode [array<_, array<2, u256>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -903,7 +903,7 @@ fn @dArrayFixed(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [selector=0
     ret v1, v11, v21, v31, v41
 }
 
-fn @dFixedNestedDyn(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [selector=0xf648fcec, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word, word, word]] {
+fn @dFixedNestedDyn(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = abi_decode [array<2, array<_, u256>>], arg0
     v1 = lt 0, 2
@@ -1031,7 +1031,7 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> (u256, u256, u256, u256, u256) [select
     ret v7, v17, v27, v34, v44
 }
 
-fn @dCalldataDyn(arg0: calldataslice) -> (u256, u256, u256) [selector=0xe931c6df, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word, word]] {
+fn @dCalldataDyn(arg0: calldataslice) -> (u256, u256, u256) [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -1086,7 +1086,7 @@ fn @dCalldataDyn(arg0: calldataslice) -> (u256, u256, u256) [selector=0xe931c6df
     ret v13, v17, v21
 }
 
-fn @dOverlap(arg0: memorybytes) -> (bool, bool) [selector=0x9297ba94, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word, word]] {
+fn @dOverlap(arg0: memorybytes) -> (bool, bool) [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

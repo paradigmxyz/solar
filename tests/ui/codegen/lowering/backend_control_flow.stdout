@@ -1,30 +1,30 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @totalSupply() -> u256 [selector=0x18160ddd, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @totalSupply() -> u256 [selector=0x18160ddd, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @reserve0() -> u256 [selector=0x443cb4bc, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @reserve0() -> u256 [selector=0x443cb4bc, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @reserve1() -> u256 [selector=0x5a76f25e, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @reserve1() -> u256 [selector=0x5a76f25e, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0
 }
 
-fn @localVarInConditional() [selector=0xf2ca9be5, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @localVarInConditional() [selector=0xf2ca9be5, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -47,7 +47,7 @@ fn @localVarInConditional() [selector=0xf2ca9be5, abi_args=lazy, abi_params=[], 
     jump bb3
 }
 
-fn @directStorageInConditional() [selector=0xf5a03547, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -71,7 +71,7 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_args=lazy, abi_params
     jump bb3
 }
 
-fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -95,7 +95,7 @@ fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, abi_args=lazy, abi_params=[],
     ret v2
 }
 
-fn @phiUsedMultipleTimes() -> u256 [selector=0x4e3a23dd, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @phiUsedMultipleTimes() -> u256 [selector=0x4e3a23dd, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -139,7 +139,7 @@ fn @phiUsedMultipleTimes() -> u256 [selector=0x4e3a23dd, abi_args=lazy, abi_para
     ret v12
 }
 
-fn @phiWithTernary() -> u256 [selector=0x2318217a, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @phiWithTernary() -> u256 [selector=0x2318217a, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0

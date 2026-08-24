@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
 @module StorageReferenceReassignment
-fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605b6474, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605b6474, abi_params=[u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
@@ -19,7 +19,7 @@ fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605
     ret v4, v5
 }
 
-fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0xda61745d, abi_args=lazy, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
+fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg1, 0
     jumpi arg0, bb1, bb2
@@ -38,7 +38,7 @@ fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [sele
     ret v4, v6
 }
 
-fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xe4706ccb, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
+fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xe4706ccb, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     internal_call @rebindParameterInner, 0, v0, arg1, arg2
@@ -49,7 +49,7 @@ fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selecto
     ret v2, v4
 }
 
-fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x5673b02d, abi_args=lazy, abi_params=[u256, u256, u256, u256], abi_returns=[word, word]] {
+fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x5673b02d, abi_params=[u256, u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, 0
@@ -62,7 +62,7 @@ fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [select
     ret v3, v5
 }
 
-fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [selector=0xcccc734d, abi_args=lazy, abi_params=[bool, u256, u256, u8], abi_returns=[word, word]] {
+fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [selector=0xcccc734d, abi_params=[bool, u256, u256, u8], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg1, 1
     jumpi arg0, bb1, bb2
@@ -95,7 +95,7 @@ fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [sele
     ret v15, v20
 }
 
-fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3c827d72, abi_args=lazy, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word]] {
+fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3c827d72, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -113,7 +113,7 @@ fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u2
     ret v3, v5, 0
 }
 
-fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_params=[u8], abi_returns=[word]] {
   bb0:
     v0 = mul 1, 8
     v1 = shl v0, 255
@@ -126,7 +126,7 @@ fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_args=lazy, abi_p
     ret 1
 }
 
-fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x3edbf013, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
+fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x3edbf013, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, 0
@@ -138,7 +138,7 @@ fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [se
     ret v3, v5
 }
 
-fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> (u8, u8, u8, u8) [selector=0xe5a9572e, abi_args=lazy, abi_params=[u256, u256, u8], abi_returns=[word, word, word, word]] {
+fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> (u8, u8, u8, u8) [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = add v0, 1

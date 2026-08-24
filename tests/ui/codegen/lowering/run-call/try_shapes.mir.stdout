@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
-fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, 2
     v1 = iszero 2
@@ -17,7 +17,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=
     ret v0
 }
 
-fn @g(arg0: u256) -> (u256, u256) [selector=0xe420264a, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word, word]] {
+fn @g(arg0: u256) -> (u256, u256) [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -65,18 +65,18 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @ok() -> u256 [selector=0xd909b403, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @bad() [selector=0x9c3674fc, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     internal_call @revert_error, 0, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas

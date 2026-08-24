@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_dynamic_words_calldata.sol:StorageNestedDynamicWordsCalldata ===
 @module StorageNestedDynamicWordsCalldata
-fn @copyDynamic(arg0: calldataslice) -> u256 [selector=0x2662f0b3, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+fn @copyDynamic(arg0: calldataslice) -> u256 [selector=0x2662f0b3, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -281,7 +281,7 @@ fn @copyDynamic(arg0: calldataslice) -> u256 [selector=0x2662f0b3, abi_args=lazy
     ret v122
 }
 
-fn @copyFixedDynamic(arg0: calldataslice) -> u256 [selector=0x8b16421b, abi_args=lazy, abi_params=[array<2, array<_, u256>>], abi_returns=[word]] {
+fn @copyFixedDynamic(arg0: calldataslice) -> u256 [selector=0x8b16421b, abi_params=[array<2, array<_, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 64
@@ -557,7 +557,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> u256 [selector=0x8b16421b, abi_args
     ret v123
 }
 
-fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0xde674e0a, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
+fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0xde674e0a, abi_params=[array<_, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -748,7 +748,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0xde674e0a, abi_args
     ret v83
 }
 
-fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x4ae52609, abi_args=lazy, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
+fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x4ae52609, abi_params=[array<2, array<2, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 128

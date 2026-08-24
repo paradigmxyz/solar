@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_args=lazy, abi_params=[u256], abi_returns=[tuple<word, word>]] {
+fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_params=[u256], abi_returns=[tuple<word, word>]] {
   bb0:
     v0 = eq arg0, 0
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -48,7 +48,7 @@ fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_args=lazy,
     ret v6
 }
 
-fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<word>]] {
+fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_params=[u256], abi_returns=[memory_array<word>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = iszero 1
@@ -178,7 +178,7 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray [pure] {
     ret v13
 }
 
-fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, pure, abi_args=lazy, abi_params=[u256], abi_returns=[memory_array<word>]] {
+fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, pure, abi_params=[u256], abi_returns=[memory_array<word>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = iszero 1

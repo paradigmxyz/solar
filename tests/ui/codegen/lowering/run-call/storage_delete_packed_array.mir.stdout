@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
-fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -154,7 +154,7 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_args=lazy, abi_params=[], 
     ret v75, v87, v99
 }
 
-fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -271,7 +271,7 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_args=lazy, abi_pa
     ret v51, v61, v71
 }
 
-fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -388,7 +388,7 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_args=lazy, abi_params
     ret v51, v61, v71
 }
 
-fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -462,7 +462,7 @@ fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_args=lazy, abi_par
     ret v37
 }
 
-fn @clearFixedDirtyWord() -> u256 [selector=0xb56337b4, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @clearFixedDirtyWord() -> u256 [selector=0xb56337b4, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 0
     sstore 1, v0 !metadata(storage=slot(1))
@@ -471,7 +471,7 @@ fn @clearFixedDirtyWord() -> u256 [selector=0xb56337b4, abi_args=lazy, abi_param
     ret v1
 }
 
-fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
     mstore 0, 2 !metadata(memory=scratch)

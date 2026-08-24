@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_storage_array_conversion.sol:StorageStorageArrayConversion ===
 @module StorageStorageArrayConversion
-fn @dynamic() -> u256 [selector=0x4bd54f04, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dynamic() -> u256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -193,7 +193,7 @@ fn @dynamic() -> u256 [selector=0x4bd54f04, abi_args=lazy, abi_params=[], abi_re
     ret v107
 }
 
-fn @nested() -> u256 [selector=0x4ce2d543, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @nested() -> u256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -862,7 +862,7 @@ fn @nested() -> u256 [selector=0x4ce2d543, abi_args=lazy, abi_params=[], abi_ret
     ret v496
 }
 
-fn @fixedToDynamic() -> u256 [selector=0xf12520ec, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @fixedToDynamic() -> u256 [selector=0xf12520ec, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = lt 8, 9
     v1 = iszero v0

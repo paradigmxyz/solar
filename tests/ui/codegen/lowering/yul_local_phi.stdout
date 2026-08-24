@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_local_phi.sol:YulLocalPhi ===
 @module YulLocalPhi
-fn @branchLocal(arg0: u256) -> u256 [selector=0xd9935fb1, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @branchLocal(arg0: u256) -> u256 [selector=0xd9935fb1, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0
     v1 = iszero v0

@@ -11,7 +11,7 @@ fn @pick(arg0: bool) -> storageptr [view] {
     ret 0
 }
 
-fn @test(arg0: bool, arg1: u256) -> (u256, u256) [selector=0xc6a64c1f, abi_args=lazy, abi_params=[bool, u256], abi_returns=[word, word]] {
+fn @test(arg0: bool, arg1: u256) -> (u256, u256) [selector=0xc6a64c1f, abi_params=[bool, u256], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @pick, 1, arg0
     sstore v0, arg1 !metadata(storage=symbolic(v0))

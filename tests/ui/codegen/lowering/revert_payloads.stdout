@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
-fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -12,7 +12,7 @@ fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_args=lazy, abi_para
     stop
 }
 
-fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_args=lazy, abi_params=[bool], abi_returns=[]] {
+fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -23,13 +23,13 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_args=lazy, abi_p
     stop
 }
 
-fn @revert_message() [selector=0x0900437f, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @revert_hex_message() [selector=0x36440c33, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
-fn @checkedDirtyOperands() -> (i256, i256) [selector=0xfef4b418, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @checkedDirtyOperands() -> (i256, i256) [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sub 0, 3
     v1 = and 258, 255
@@ -120,7 +120,7 @@ fn @checkedDirtyOperands() -> (i256, i256) [selector=0xfef4b418, pure, abi_args=
     jump bb8
 }
 
-fn @uncheckedDirtyOperands() -> u256 [selector=0x84faa534, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @uncheckedDirtyOperands() -> u256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 0xfffffffffe, 0xffffffff
     v1 = and 258, 255
@@ -129,7 +129,7 @@ fn @uncheckedDirtyOperands() -> u256 [selector=0x84faa534, pure, abi_args=lazy, 
     ret v3
 }
 
-fn @copiedDirtyOperand() -> u256 [selector=0x2f5133b3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copiedDirtyOperand() -> u256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 258, 255
     jump bb1
@@ -175,7 +175,7 @@ fn @copiedDirtyOperand() -> u256 [selector=0x2f5133b3, pure, abi_args=lazy, abi_
     jump bb1
 }
 
-fn @branchedDirtyOperand(arg0: bool) -> i256 [selector=0x3d6d96b7, pure, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @branchedDirtyOperand(arg0: bool) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -245,7 +245,7 @@ fn @branchedDirtyOperand(arg0: bool) -> i256 [selector=0x3d6d96b7, pure, abi_arg
     jump bb4
 }
 
-fn @fullWidthOperands() -> u256 [selector=0xd0e127e5, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @fullWidthOperands() -> u256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = exp 2, 4
     ret v0

@@ -37,7 +37,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
@@ -63,7 +63,7 @@ fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_args=lazy, a
     ret v6, v12
 }
 
-fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_nested.sol:StorageArrayPushNested ===
 @module StorageArrayPushNested
-fn @pushEmpty() -> u256 [selector=0x19d30117, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushEmpty() -> u256 [selector=0x19d30117, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -72,7 +72,7 @@ fn @pushEmpty() -> u256 [selector=0x19d30117, abi_args=lazy, abi_params=[], abi_
     ret v34
 }
 
-fn @pushMemory() -> u256 [selector=0x4d735002, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushMemory() -> u256 [selector=0x4d735002, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -185,7 +185,7 @@ fn @pushMemory() -> u256 [selector=0x4d735002, abi_args=lazy, abi_params=[], abi
     ret v61
 }
 
-fn @pushStruct() -> u256 [selector=0x7f91da62, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -502,7 +502,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_args=lazy, abi_params=[], abi
     ret v184
 }
 
-fn @pushBytes() -> u256 [selector=0x7a248eac, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3

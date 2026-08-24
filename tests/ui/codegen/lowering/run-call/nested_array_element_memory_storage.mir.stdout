@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_array_element_memory_storage.sol:NestedArrayElementMemoryStorage ===
 @module NestedArrayElementMemoryStorage
-fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_args=lazy, abi_params=[array<2, array<2, array<2, u8>>>], abi_returns=[word]] {
+fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, u8>>>], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -212,7 +212,7 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_args=lazy, ab
     ret v120
 }
 
-fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_args=lazy, abi_params=[array<2, array<2, u8>>], abi_returns=[word]] {
+fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[array<2, array<2, u8>>], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0

@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_assignment_order.sol:TupleAssignmentOrder ===
 @module TupleAssignmentOrder
-fn @swap() -> (u256, u256) [selector=0x8119c065, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @swap() -> (u256, u256) [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     ret 2, 1
 }
 
-fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -76,7 +76,7 @@ fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi
     ret v12, v15, v18
 }
 
-fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @setCursor, 1, 1
     v1 = internal_call @setCursor, 1, 2
@@ -89,7 +89,7 @@ fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_args=lazy, a
     ret v3, v4
 }
 
-fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @threeValues, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -100,7 +100,7 @@ fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_args=lazy, abi_
     ret v0
 }
 
-fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
@@ -146,7 +146,7 @@ fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_args=
     ret v9, v12, v13
 }
 
-fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = and v0, 1

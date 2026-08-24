@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_param_object_copy.sol:AbiParamObjectCopy ===
 @module AbiParamObjectCopy
-fn @storedWords(arg0: u256) -> u256 [selector=0x30038209, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @storedWords(arg0: u256) -> u256 [selector=0x30038209, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -17,7 +17,7 @@ fn @storedWords(arg0: u256) -> u256 [selector=0x30038209, view, abi_args=lazy, a
     ret v5
 }
 
-fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 1
@@ -72,7 +72,7 @@ fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_args=lazy, abi_
     jump bb7
 }
 
-fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[array<_, u256>, bytes]] {
+fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[array<_, u256>, bytes]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))

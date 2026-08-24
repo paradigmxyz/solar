@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reference.sol:ModifierReturnReference ===
 @module ModifierReturnReference
-fn @f() -> (u256, u256) [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jump bb3
   bb1:

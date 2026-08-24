@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
 @module AbiEncodeCallConsistent
-fn @fExternal(arg0: u256, arg1: memorybytes) [selector=0x33d85810, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[]] {
+fn @fExternal(arg0: u256, arg1: memorybytes) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_args=lazy, abi_params=[], abi_returns=[function]] {
+fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_params=[], abi_returns=[function]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
@@ -19,7 +19,7 @@ fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_args=lazy
     ret v7
 }
 
-fn @test() -> u8 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
@@ -99,7 +99,7 @@ fn @test() -> u8 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns
     ret v49
 }
 
-fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -122,7 +122,7 @@ fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_args=lazy, abi_par
     ret v16
 }
 
-fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -134,7 +134,7 @@ fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_args=lazy, abi
     ret v6
 }
 
-fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @getExternalFunctionPointer, 1
     v1 = and v0, 0xffffffff

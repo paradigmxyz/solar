@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_bytes.sol:StorageMemoryNestedBytes ===
 @module StorageMemoryNestedBytes
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3

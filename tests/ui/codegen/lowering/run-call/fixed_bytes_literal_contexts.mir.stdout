@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase
-fn @_anonymous(arg0: bytes2) [constructor, abi_args=lazy, abi_params=[bytes2]] {
+fn @_anonymous(arg0: bytes2) [constructor, abi_params=[bytes2]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffff
@@ -17,7 +17,7 @@ fn @_anonymous(arg0: bytes2) [constructor, abi_args=lazy, abi_params=[bytes2]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
-fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1) [selector=0xd32cb0fe, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word, word]] {
+fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0x500000000000000000000000000000000000000000000000000000000000000
@@ -315,7 +315,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     ret v91, v94, v95, v96, v98, v100, v116, v144, v157
 }
 
-fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = shl 24, 255
     v1 = sload 0 !metadata(storage=slot(0))
@@ -337,7 +337,7 @@ fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_args=lazy, abi_params=
     jump bb1
 }
 
-fn @externalIdentity(arg0: bytes1) -> bytes1 [selector=0xa8775ceb, pure, abi_args=lazy, abi_params=[bytes1], abi_returns=[word]] {
+fn @externalIdentity(arg0: bytes1) -> bytes1 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word]] {
   bb0:
     ret arg0
 }

@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
-fn @f(arg0: memoryarray) -> u256 [selector=0x7bc5bbbf, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @f(arg0: memoryarray) -> u256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = internal_call @reduce, 1, arg0, 2, 0
     ret v0

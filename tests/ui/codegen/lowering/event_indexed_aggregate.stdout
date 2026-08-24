@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:EventIndexedAggregate ===
 @module EventIndexedAggregate
-fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_args=lazy, abi_params=[array<2, u256>], abi_returns=[]] {
+fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0
     v1 = slice_ptr v0
@@ -10,7 +10,7 @@ fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_args=lazy, abi_p
     stop
 }
 
-fn @emitDynamicArray(arg0: memoryarray) [selector=0xf38510d4, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[]] {
+fn @emitDynamicArray(arg0: memoryarray) [selector=0xf38510d4, abi_params=[array<_, u256>], abi_returns=[]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = mul v0, 32

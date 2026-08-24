@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 4
@@ -199,7 +199,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     ret v92
 }
 
-fn @dirty() -> u256 [selector=0x7dce0fd0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @dirty() -> u256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0

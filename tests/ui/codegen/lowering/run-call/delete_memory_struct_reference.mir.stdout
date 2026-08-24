@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_struct_reference.sol:DeleteMemoryStructReference ===
 @module DeleteMemoryStructReference
-fn @f() -> (u256, u256) [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @f() -> (u256, u256) [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 96
@@ -38,7 +38,7 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[]
     ret v9, v14
 }
 
-fn @fixedArray() -> (u256, u256) [selector=0x391e2457, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @fixedArray() -> (u256, u256) [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64

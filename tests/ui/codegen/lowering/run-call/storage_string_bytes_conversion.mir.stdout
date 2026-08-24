@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
-fn @_anonymous(arg0: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes]] {
+fn @_anonymous(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -75,7 +75,7 @@ fn @_anonymous(arg0: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes
     jump bb9
 }
 
-fn @readLength() -> u256 [selector=0x3d19002a, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @readLength() -> u256 [selector=0x3d19002a, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -131,7 +131,7 @@ fn @readLength() -> u256 [selector=0x3d19002a, view, abi_args=lazy, abi_params=[
     jump bb7
 }
 
-fn @readBytes() -> memorybytes [selector=0xd98b5568, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @readBytes() -> memorybytes [selector=0xd98b5568, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1

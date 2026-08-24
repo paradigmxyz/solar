@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
-fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -203,7 +203,7 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_args=la
     ret v77, v85, v93, v100, v108, v116
 }
 
-fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -406,7 +406,7 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_arg
     ret v77, v85, v93, v100, v108, v116
 }
 
-fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, 4
@@ -454,7 +454,7 @@ fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_args=lazy, abi_par
     ret v27, v31, v35
 }
 
-fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, 4
@@ -552,7 +552,7 @@ fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_args=lazy, abi_params=[]
     ret v39, v47, v55
 }
 
-fn @clearDirtyWord() -> u256 [selector=0xc9cbcc52, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @clearDirtyWord() -> u256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 0
     sstore 2, v0 !metadata(storage=slot(2))
@@ -561,7 +561,7 @@ fn @clearDirtyWord() -> u256 [selector=0xc9cbcc52, abi_args=lazy, abi_params=[],
     ret v1
 }
 
-fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))

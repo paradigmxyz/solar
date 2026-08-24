@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
 @module C
-fn @copyState() -> (u256, u256) [selector=0x183a6195, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @copyState() -> (u256, u256) [selector=0x183a6195, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -56,7 +56,7 @@ fn @copyState() -> (u256, u256) [selector=0x183a6195, abi_args=lazy, abi_params=
     ret v19, v20
 }
 
-fn @copyReference() -> (u256, u256) [selector=0x4cf1051d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @copyReference() -> (u256, u256) [selector=0x4cf1051d, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -142,7 +142,7 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
-fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

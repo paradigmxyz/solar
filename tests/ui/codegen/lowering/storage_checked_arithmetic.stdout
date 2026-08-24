@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
-fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_args=lazy, abi_params=[address, u256], abi_returns=[]] {
+fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_params=[address, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -16,7 +16,7 @@ fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_args=lazy, 
     stop
 }
 
-fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_args=lazy, abi_params=[address, u256], abi_returns=[]] {
+fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -33,7 +33,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_args
     stop
 }
 
-fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_args=lazy, abi_params=[address, u128], abi_returns=[]] {
+fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -55,7 +55,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_args
     stop
 }
 
-fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi_args=lazy, abi_params=[address, i8], abi_returns=[]] {
+fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))

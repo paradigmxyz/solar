@@ -310,9 +310,6 @@ fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
             hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
             hir::StateMutability::NonPayable => {}
         }
-        if func.abi_args_lazy {
-            write_function_attribute(f, &mut first, "abi_args=lazy")?;
-        }
         if let Some(layout) = &func.abi_params {
             write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
         }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_struct_memory_alias.sol:NestedStructMemoryAlias ===
 @module NestedStructMemoryAlias
-fn @check() -> u256 [selector=0x919840ad, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

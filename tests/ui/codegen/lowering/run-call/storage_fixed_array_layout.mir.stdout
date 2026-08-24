@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:StorageFixedArrayLayout ===
 @module StorageFixedArrayLayout
-fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     ret 0, 3, 4, 7, 8, 10
 }
 
-fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0xf110cb82, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0xf110cb82, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = shl 184, 6
     v1 = lt 6, 7
@@ -133,7 +133,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     ret v56, v57, v68, v69, v79, v80
 }
 
-fn @copyDoesNotOverlapSource() -> (u72, u72, u72, bytes32) [selector=0x8b005e62, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @copyDoesNotOverlapSource() -> (u72, u72, u72, bytes32) [selector=0x8b005e62, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     jump bb1
   bb1:

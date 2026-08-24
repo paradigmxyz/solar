@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
 @module StorageArrayPop
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

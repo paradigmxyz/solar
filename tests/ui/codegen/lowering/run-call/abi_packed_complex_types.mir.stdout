@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_complex_types.sol:AbiPackedComplexTypes ===
 @module AbiPackedComplexTypes
-fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -282,7 +282,7 @@ fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_args=lazy, abi_
     jump bb36
 }
 
-fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -391,7 +391,7 @@ fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_args=lazy, abi_params=[
     ret v43
 }
 
-fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -529,7 +529,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_args=lazy, abi_pa
     jump bb21
 }
 
-fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -616,7 +616,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_args=lazy, abi_pa
     ret v36
 }
 
-fn @hashScalarAbi() -> bytes32 [selector=0x9a69e01a, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashScalarAbi() -> bytes32 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 258, 255
     v1 = abi_encode [word], args v0
@@ -626,7 +626,7 @@ fn @hashScalarAbi() -> bytes32 [selector=0x9a69e01a, pure, abi_args=lazy, abi_pa
     ret v4
 }
 
-fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -652,7 +652,7 @@ fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_args=lazy, abi_params=[
     ret v12
 }
 
-fn @echoScalar(arg0: u8) -> u256 [selector=0x1f3c3a7b, pure, abi_args=lazy, abi_params=[u8], abi_returns=[word]] {
+fn @echoScalar(arg0: u8) -> u256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word]] {
   bb0:
     ret arg0
 }

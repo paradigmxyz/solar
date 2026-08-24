@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_array_pop.sol:StorageNestedArrayPop ===
 @module StorageNestedArrayPop
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     jump bb1
   bb1:

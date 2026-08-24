@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_bytes.sol:AbiEncodeBytes ===
 @module AbiEncodeBytes
-fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, pure, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word, word, word], args arg0, arg1, arg2
     v1 = slice_ptr v0
@@ -9,19 +9,19 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, p
     ret v3
 }
 
-fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b260f, pure, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
+fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b260f, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, word, word], object, args arg0, arg1, arg2
     ret v0
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
     ret v0
 }
 
-fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
+fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, pure, abi_params=[u256, bytes], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word, memory_bytes], args arg0, arg1
     v1 = slice_ptr v0
@@ -30,7 +30,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, 
     ret v3
 }
 
-fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], object, args arg0
     v1 = abi_decode [u256], v0

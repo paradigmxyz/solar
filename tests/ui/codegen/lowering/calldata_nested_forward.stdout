@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_nested_forward.sol:NestedCalldataForward ===
 @module NestedCalldataForward
-fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_args=lazy, abi_params=[array<_, bytes>, address], abi_returns=[]] {
+fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params=[array<_, bytes>, address], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = abi_encode [calldata_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args arg0
@@ -20,7 +20,7 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_args=l
     stop
 }
 
-fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi_args=lazy, abi_params=[array<_, tuple<u256, bytes>>, address], abi_returns=[]] {
+fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi_params=[array<_, tuple<u256, bytes>>, address], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = slice_len arg0

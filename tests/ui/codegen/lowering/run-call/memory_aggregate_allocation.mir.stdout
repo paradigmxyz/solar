@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_aggregate_allocation.sol:MemoryAggregateAllocation ===
 @module MemoryAggregateAllocation
-fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 98, v0

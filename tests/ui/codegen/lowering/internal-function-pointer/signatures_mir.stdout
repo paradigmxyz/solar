@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
-fn @callVoid() -> bool [selector=0xd04622c6, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callVoid() -> bool [selector=0xd04622c6, abi_params=[], abi_returns=[word]] {
   bb0:
     internal_call @internal_dispatcher_p_none_r_none, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -8,7 +8,7 @@ fn @callVoid() -> bool [selector=0xd04622c6, abi_args=lazy, abi_params=[], abi_r
     ret v1
 }
 
-fn @setFlag() [selector=0x62548c7b, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
@@ -19,7 +19,7 @@ fn @setFlag() [selector=0x62548c7b, abi_args=lazy, abi_params=[], abi_returns=[]
     stop
 }
 
-fn @callState() -> bool [selector=0xb67d6f95, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callState() -> bool [selector=0xb67d6f95, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -30,7 +30,7 @@ fn @callState() -> bool [selector=0xb67d6f95, abi_args=lazy, abi_params=[], abi_
     ret v4
 }
 
-fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_args=lazy, abi_params=[u256], abi_returns=[word, word]] {
+fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @internal_dispatcher_p_u256_r_u256_u256, 2, 5, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -52,7 +52,7 @@ fn @pair(arg0: u256) -> (u256, u256) [pure] {
     ret arg0, v0
 }
 
-fn @callZero() [selector=0x46e2b562, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @callZero() [selector=0x46e2b562, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @internal_dispatcher_p_none_r_none, 0, 0
     stop
@@ -71,7 +71,7 @@ fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
     ret v0
 }
 
-fn @callTwoArgs() -> u256 [selector=0xc406c3a3, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @callTwoArgs() -> u256 [selector=0xc406c3a3, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @internal_dispatcher_p_u256_u256_r_u256, 1, 7, 5, 1
     ret v0

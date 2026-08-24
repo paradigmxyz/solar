@@ -444,16 +444,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         loop {
             let key = self.parser.parse_ident()?;
             match key {
-                sym::abi_args => {
-                    self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_ident()?;
-                    if value != sym::lazy {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown ABI argument mode `{value}`")));
-                    }
-                    builder.func_mut().abi_args_lazy = true;
-                }
                 sym::selector => {
                     self.parser.expect(TokenKind::Eq)?;
                     let selector = self.parser.parse_uint()?;

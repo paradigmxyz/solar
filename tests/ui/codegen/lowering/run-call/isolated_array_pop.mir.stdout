@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
 @module IsolatedArrayPop
-fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

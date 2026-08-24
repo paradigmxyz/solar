@@ -113,7 +113,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0

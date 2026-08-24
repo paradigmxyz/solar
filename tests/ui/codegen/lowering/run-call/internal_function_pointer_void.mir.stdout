@@ -11,7 +11,7 @@ fn @setFlag() {
     stop
 }
 
-fn @f() -> bool [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     internal_call @internal_dispatcher_p_none_r_none, 0, 1
     v0 = sload 0 !metadata(storage=slot(0))

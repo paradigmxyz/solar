@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/require_evaluation_order.sol:RequireEvaluationOrder ===
 @module RequireEvaluationOrder
-fn @customError() -> u256 [selector=0xdda3a7bd, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @customError() -> u256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = internal_call @increment, 1
@@ -16,7 +16,7 @@ fn @customError() -> u256 [selector=0xdda3a7bd, abi_args=lazy, abi_params=[], ab
     ret v5
 }
 
-fn @stringError() -> u256 [selector=0x277dd25f, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @stringError() -> u256 [selector=0x277dd25f, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = internal_call @reason, 1
@@ -32,7 +32,7 @@ fn @stringError() -> u256 [selector=0x277dd25f, abi_args=lazy, abi_params=[], ab
     ret v5
 }
 
-fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @returnSeven, 1
     v1 = iszero 1
@@ -46,7 +46,7 @@ fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_args=lazy, abi_params=
     ret 42
 }
 
-fn @customFailure() [selector=0x8fca80a3, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = internal_call @increment, 1
@@ -61,7 +61,7 @@ fn @customFailure() [selector=0x8fca80a3, abi_args=lazy, abi_params=[], abi_retu
     stop
 }
 
-fn @stringFailure() [selector=0x6bf37af5, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = internal_call @reason, 1

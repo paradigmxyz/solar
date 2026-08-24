@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_references.sol:StorageArrayPushReferences ===
 @module StorageArrayPushReferences
-fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -92,7 +92,7 @@ fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_args=
     ret v26, v32, v38
 }
 
-fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -183,7 +183,7 @@ fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_args=la
     ret v34
 }
 
-fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jump bb1
   bb1:
@@ -613,7 +613,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_param
     ret v170, v198
 }
 
-fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -1093,7 +1093,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_args=lazy, abi_params=[]
     jump bb77
 }
 
-fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding.sol:A ===
 @module A
-fn @f() -> bool [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb2
   bb1:
@@ -11,7 +11,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
 
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding.sol:C ===
 @module C
-fn @f() -> bool [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     jumpi 0, bb2, bb3
   bb1:

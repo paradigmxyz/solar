@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_revert_reasons.sol:StorageRevertReasons ===
 @module StorageRevertReasons
-fn @mappingShort() [selector=0x9b5bf7ac, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 0, 0
@@ -82,7 +82,7 @@ fn @mappingShort() [selector=0x9b5bf7ac, abi_args=lazy, abi_params=[], abi_retur
     jump bb9
 }
 
-fn @mappingLong() [selector=0xaf8ee9a6, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -167,7 +167,7 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_args=lazy, abi_params=[], abi_return
     jump bb9
 }
 
-fn @mappingReference() [selector=0x49b1855e, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 2, 0
@@ -249,7 +249,7 @@ fn @mappingReference() [selector=0x49b1855e, abi_args=lazy, abi_params=[], abi_r
     jump bb9
 }
 
-fn @nestedMapping() [selector=0x041c73d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 0, 1
@@ -333,7 +333,7 @@ fn @nestedMapping() [selector=0x041c73d0, abi_args=lazy, abi_params=[], abi_retu
     jump bb9
 }
 
-fn @structRequire() [selector=0x8bb9ced2, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = sload 2 !metadata(storage=slot(2))
@@ -418,7 +418,7 @@ fn @structRequire() [selector=0x8bb9ced2, abi_args=lazy, abi_params=[], abi_retu
     stop
 }
 
-fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
+fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

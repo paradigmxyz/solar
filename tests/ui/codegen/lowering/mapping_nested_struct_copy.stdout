@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
-fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0xeccd65dc, abi_args=lazy, abi_params=[u256, u256, u256, u256, u256], abi_returns=[]] {
+fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, arg1
@@ -25,7 +25,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0x
     stop
 }
 
-fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, view, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word, word]] {
+fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc memorystruct<3>, exact, uninitialized, panic, 96
@@ -51,7 +51,7 @@ fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, view, abi_
     ret v10, v12, v14, v15
 }
 
-fn @clear(arg0: u256) [selector=0xc0fe1af8, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @clear(arg0: u256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, 0 !metadata(storage=symbolic(v0))

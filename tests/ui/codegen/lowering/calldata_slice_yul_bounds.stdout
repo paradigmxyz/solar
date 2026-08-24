@@ -37,7 +37,7 @@ fn @_empty() -> memorybytes [pure] {
     ret v15
 }
 
-fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_empty, 1
     v1 = internal_call @_sink, 1, v0
@@ -50,7 +50,7 @@ fn @_sink(arg0: calldataslice) -> u256 [pure] {
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 4
@@ -66,7 +66,7 @@ fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_args=la
     ret v10
 }
 
-fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = gt v0, 32

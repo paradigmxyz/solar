@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_dynamic_static.sol:AbiCalldataStaticDynamicStatic ===
 @module AbiCalldataStaticDynamicStatic
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x15cfcc01, pure, abi_args=lazy, abi_params=[array<1, array<_, array<1, u8>>>], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x15cfcc01, pure, abi_params=[array<1, array<_, array<1, u8>>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -35,7 +35,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x15cfcc01, pure, abi_args=l
     ret v13
 }
 
-fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_args=lazy, abi_params=[array<2, array<_, array<2, u256>>>], abi_returns=[memory_bytes]] {
+fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, u256>>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -70,7 +70,7 @@ fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_args=
     ret v13
 }
 
-fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
@@ -216,7 +216,7 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_args=lazy, abi_params=[],
     ret v61
 }
 
-fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64

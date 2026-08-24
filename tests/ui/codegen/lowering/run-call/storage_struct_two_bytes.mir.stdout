@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_two_bytes.sol:StorageStructTwoBytes ===
 @module StorageStructTwoBytes
-fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -185,7 +185,7 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_p
     jump bb21
 }
 
-fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -370,7 +370,7 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_p
     jump bb21
 }
 
-fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0

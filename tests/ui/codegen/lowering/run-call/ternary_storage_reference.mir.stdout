@@ -31,7 +31,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @choose(arg0: bool) -> (u256, u256) [selector=0xf6e00e0f, abi_args=lazy, abi_params=[bool], abi_returns=[word, word]] {
+fn @choose(arg0: bool) -> (u256, u256) [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[word, word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -47,7 +47,7 @@ fn @choose(arg0: bool) -> (u256, u256) [selector=0xf6e00e0f, abi_args=lazy, abi_
     ret v2, v3
 }
 
-fn @chooseArray(arg0: bool) -> u256 [selector=0x08ef7a67, view, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @chooseArray(arg0: bool) -> u256 [selector=0x08ef7a67, view, abi_params=[bool], abi_returns=[word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_error_string.sol:TryErrorTarget ===
 @module TryErrorTarget
-fn @fail() [selector=0xa9cc4718, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @revert_error, 0, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     invalid
@@ -45,7 +45,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

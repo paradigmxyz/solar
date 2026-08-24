@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_recursive_struct.sol:StorageDeleteRecursiveStruct ===
 @module StorageDeleteRecursiveStruct
-fn @clearNested() [selector=0xdcbc9943, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = add 0, 1
     v1 = sload v0 !metadata(storage=slot(1))
@@ -99,7 +99,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_args=lazy, abi_params=[], abi_return
     returndata 0, 192
 }
 
-fn @clearMutual() [selector=0x5baf460d, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     v0 = add 2, 1
     v1 = sload v0 !metadata(storage=slot(3))

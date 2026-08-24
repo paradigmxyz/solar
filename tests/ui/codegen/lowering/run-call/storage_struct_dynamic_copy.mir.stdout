@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_dynamic_copy.sol:StorageStructDynamicCopy ===
 @module StorageStructDynamicCopy
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -325,7 +325,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     ret v168
 }
 
-fn @arrayCopy() -> u256 [selector=0xb192499e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @arrayCopy() -> u256 [selector=0xb192499e, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 6 !metadata(storage=slot(6))
     v1 = add v0, 1

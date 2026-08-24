@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationTarget ===
 @module AbiEncodeCallDeclarationTarget
-fn @a(arg0: u256) [selector=0xf0fdf834, pure, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @a(arg0: u256) [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @b(arg0: u256) [selector=0xcd580ff3, pure, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @b(arg0: u256) [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
     stop
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationBase ===
 @module AbiEncodeCallDeclarationBase
-fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -27,7 +27,7 @@ fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_args=lazy, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclaration ===
 @module AbiEncodeCallDeclaration
-fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -282,7 +282,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     ret v106
 }
 
-fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -307,7 +307,7 @@ fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_args=lazy, abi_params=
     ret v11
 }
 
-fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0

@@ -1,26 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
-fn @yulStringLiteral() -> u256 [selector=0x6756b569, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @yulStringLiteral() -> u256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     v0 = mload 0 !metadata(memory=scratch)
     ret v0
 }
 
-fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = clz arg0
     ret v0
 }
 
-fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = callcode v0, arg0, 0, 0, 0, 0, 0
     ret v1
 }
 
-fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_args=lazy, abi_params=[address, bytes4], abi_returns=[word]] {
+fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)

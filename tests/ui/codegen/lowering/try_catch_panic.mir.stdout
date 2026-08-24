@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget ===
 @module TryCatchPanicTarget
-fn @ok() [selector=0xd909b403, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @fail() [selector=0xa9cc4718, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = iszero 0
     jumpi v0, bb1, bb2
@@ -46,7 +46,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -100,7 +100,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], 
     revert v14, v15
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

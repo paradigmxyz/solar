@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
 @module ExternalFunctionPointerCalldataArray
-fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
+fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = eq v0, 3
@@ -138,7 +138,7 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=
     ret v26, v50, v74
 }
 
-fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
+fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -248,22 +248,22 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     ret v50, v53, v55
 }
 
-fn @getter1() -> u256 [selector=0x0ec1632e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getter1() -> u256 [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 23
 }
 
-fn @getter2() -> u256 [selector=0xe255e5f9, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getter2() -> u256 [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 37
 }
 
-fn @getter3() -> u256 [selector=0xec202537, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getter3() -> u256 [selector=0xec202537, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 71
 }
 
-fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_args=lazy, abi_params=[bool], abi_returns=[word, word, word]] {
+fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3

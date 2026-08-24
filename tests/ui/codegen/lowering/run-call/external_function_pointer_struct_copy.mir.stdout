@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
 @module ExternalFunctionPointerStructCopyTarget
-fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
+fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 96
@@ -154,7 +154,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @test() -> bool [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -368,17 +368,17 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     ret 1
 }
 
-fn @random1() [selector=0xd24c5a36, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @random2() [selector=0xc5337ed4, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @random3() [selector=0xafb0db5f, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_storage_conversion.sol:UserDefinedStorageConversion ===
 @module UserDefinedStorageConversion
-fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_args=lazy, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
+fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 128
@@ -150,7 +150,7 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_args=la
     ret v85
 }
 
-fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_args=lazy, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
+fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_load_field memorystruct<4>, arg0, 0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -252,7 +252,7 @@ fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_args=lazy,
     ret v61
 }
 
-fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_args=lazy, abi_params=[array<_, u16>], abi_returns=[word]] {
+fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[array<_, u16>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -404,7 +404,7 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_args=lazy,
     ret v81
 }
 
-fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_args=lazy, abi_params=[array<_, bytes2>], abi_returns=[word]] {
+fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

@@ -15,7 +15,7 @@ fn @_anonymous() [constructor] {
     jump bb1
 }
 
-fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -23,7 +23,7 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_override.sol:ConstructorModifierOverride ===
 @module ConstructorModifierOverride
-fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

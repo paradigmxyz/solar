@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
 @module ExternalFunctionPointerHigherOrderTarget
-fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 2
     v1 = lt v0, arg0
@@ -15,7 +15,7 @@ fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_args=lazy, abi_pa
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
 @module ExternalFunctionPointerHigherOrder
-fn @store(arg0: function) [selector=0xf018a0a7, abi_args=lazy, abi_params=[function], abi_returns=[]] {
+fn @store(arg0: function) [selector=0xf018a0a7, abi_params=[function], abi_returns=[]] {
   bb0:
     v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
     v1 = sload 0 !metadata(storage=slot(0))
@@ -28,7 +28,7 @@ fn @store(arg0: function) [selector=0xf018a0a7, abi_args=lazy, abi_params=[funct
     stop
 }
 
-fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_args=lazy, abi_params=[function], abi_returns=[word]] {
+fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -55,7 +55,7 @@ fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_args=lazy, abi_params
     ret v13
 }
 
-fn @t() -> u256 [selector=0x92d0d153, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @t() -> u256 [selector=0x92d0d153, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff

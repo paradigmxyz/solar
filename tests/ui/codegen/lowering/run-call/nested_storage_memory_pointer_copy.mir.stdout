@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_storage_memory_pointer_copy.sol:NestedStorageMemoryPointerCopy ===
 @module NestedStorageMemoryPointerCopy
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:

@@ -97,7 +97,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
     v1 = div 0, 4

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget ===
 @module ExternalFunctionPointerNestedArrayTarget
-fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
+fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -153,7 +153,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_args=lazy
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
 @module ExternalFunctionPointerNestedArray
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -401,22 +401,22 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     ret v54, v72, v90
 }
 
-fn @e() -> u256 [selector=0xffae15ba, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @e() -> u256 [selector=0xffae15ba, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 5
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 6
 }
 
-fn @g() -> u256 [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 7
 }
 
-fn @h() -> function [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_returns=[function]] {
+fn @h() -> function [selector=0xb8c9d365, abi_params=[], abi_returns=[function]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -445,7 +445,7 @@ fn @h() -> function [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_retu
     ret v10
 }
 
-fn @htwo() -> function [selector=0x573a6b2f, abi_args=lazy, abi_params=[], abi_returns=[function]] {
+fn @htwo() -> function [selector=0x573a6b2f, abi_params=[], abi_returns=[function]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

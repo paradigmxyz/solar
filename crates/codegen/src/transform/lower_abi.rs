@@ -236,7 +236,7 @@ impl LowerAbiCx {
         }
         for id in wrapped_constructors {
             let layout = module.function_mut(id).abi_params.take();
-            self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true, false);
+            self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false);
             Self::clear_abi_inputs(module.function_mut(id));
         }
 
@@ -308,8 +308,7 @@ impl LowerAbiCx {
 
     fn can_wrap_constructor_params(func: &Function) -> bool {
         let Some(layout) = &func.abi_params else { return false };
-        func.abi_args_lazy
-            && func.params.len() == layout.types.len()
+        func.params.len() == layout.types.len()
             && layout
                 .types
                 .iter()
@@ -595,7 +594,7 @@ impl LowerAbiCx {
             let mut builder = FunctionBuilder::new(&mut function);
             let value = builder.add_param(ty.mir_type());
             builder.add_return(ty.mir_type());
-            let value = canonicalize_return_value(&mut builder, ty, value, None, false);
+            let value = canonicalize_return_value(&mut builder, ty, value, None);
             builder.ret([value]);
         }
         module.add_function(function)
@@ -962,17 +961,12 @@ impl LowerAbiCx {
     /// The original function keeps its selector and loses its MIR parameter
     /// and return lists, but its `Value::Arg` entries stay in place. Scalar arguments
     /// continue to denote ABI head words, while logical calldata slices are
-    /// projected by `lower-slices`; both forms preserve lazy per-use
-    /// rematerialization, so wrapper arguments do not spill.
-    /// Materializing the loads as eager MIR instructions instead was measured
-    /// to cost real bytes: an instruction result is not rematerializable, so
-    /// every multi-use or cross-block argument bought spill traffic the
-    /// `Arg` form avoids. The explicit-decode representation returns when
-    /// slices provide explicit high-level decode semantics without changing
-    /// that backend property. Return values are ABI-encoded in place, and no
-    /// internal call is introduced on the external path. When the function has
-    /// internal callers, a pristine `.body` copy with raw returns and parameters
-    /// preserved is appended and those callers are retargeted to it.
+    /// projected by `lower-slices`. Keeping these values rematerializable avoids
+    /// spills across branches and repeated uses. Return values are ABI-encoded
+    /// in place, and no internal call is introduced on the external path. When
+    /// the function has internal callers, a pristine `.body` copy with raw
+    /// returns and parameters preserved is appended and those callers are
+    /// retargeted to it.
     fn wrap_function(
         &mut self,
         module: &mut Module,
@@ -993,23 +987,17 @@ impl LowerAbiCx {
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
             && original_entry_inst.is_some();
-        let lazy_args = original.abi_args_lazy;
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| module.add_function(Self::internal_body(&original)));
 
-        let logical_values = if lazy_args || abi_params.is_some() {
-            self.inject_abi_prologue(
-                module.function_mut(wrapper_id),
-                abi_params.as_ref(),
-                lazy_args,
-                false,
-                call_body,
-            )
-        } else {
-            Vec::new()
-        };
+        let logical_values = self.inject_abi_prologue(
+            module.function_mut(wrapper_id),
+            abi_params.as_ref(),
+            false,
+            call_body,
+        );
         if call_body && logical_values.iter().all(Option::is_some) {
             Self::replace_body_with_call(
                 module.function_mut(wrapper_id),
@@ -1024,7 +1012,6 @@ impl LowerAbiCx {
             module.function_mut(wrapper_id),
             return_params.as_ref(),
             abi_params.as_ref(),
-            lazy_args,
             &self.return_cleanup_helpers,
         );
 
@@ -1071,7 +1058,6 @@ impl LowerAbiCx {
     fn clear_abi_inputs(func: &mut Function) {
         func.abi_params = None;
         func.abi_param_locations = None;
-        func.abi_args_lazy = false;
     }
 
     fn clear_abi_metadata(func: &mut Function) {
@@ -1194,7 +1180,6 @@ impl LowerAbiCx {
         &self,
         func: &mut Function,
         abi_params: Option<&crate::mir::AbiParamLayout>,
-        lazy_args: bool,
         constructor: bool,
         force_memory_aggregates: bool,
     ) -> Vec<Option<ValueId>> {
@@ -1277,32 +1262,30 @@ impl LowerAbiCx {
             builder.branch(invalid, revert, next);
             current = next;
 
-            if lazy_args {
-                let mut head_offset = 0;
-                for (index, &ty) in arg_types.iter().enumerate() {
-                    let abi_type = abi_params.and_then(|layout| layout.types.get(index));
-                    let validator = abi_type
-                        .and_then(crate::mir::AbiParamType::word_validator)
-                        .or_else(|| AbiWordValidator::from_mir_type(ty));
-                    head_offset += abi_type.map_or(32, |ty| {
-                        ty.checked_head_size().expect("ABI head size exceeds u64 range")
-                    });
-                    let Some(validator) = validator else { continue };
-                    builder.switch_to_block(current);
-                    // `Value::Arg` values carry the canonicality invariant that this
-                    // guard establishes. Read the raw input word so an optimizer
-                    // cannot fold the check away before it runs.
-                    let offset = if constructor {
-                        builder.add_u64_offset(input_base, head_offset - 32)
-                    } else {
-                        builder.imm_u64(4 + head_offset - 32)
-                    };
-                    let word = Self::load_input_word(&mut builder, offset, constructor);
-                    let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
-                    let next = builder.create_block();
-                    builder.branch(valid, next, revert);
-                    current = next;
-                }
+            let mut head_offset = 0;
+            for (index, &ty) in arg_types.iter().enumerate() {
+                let abi_type = abi_params.and_then(|layout| layout.types.get(index));
+                let validator = abi_type
+                    .and_then(crate::mir::AbiParamType::word_validator)
+                    .or_else(|| AbiWordValidator::from_mir_type(ty));
+                head_offset += abi_type.map_or(32, |ty| {
+                    ty.checked_head_size().expect("ABI head size exceeds u64 range")
+                });
+                let Some(validator) = validator else { continue };
+                builder.switch_to_block(current);
+                // `Value::Arg` values carry the canonicality invariant that this
+                // guard establishes. Read the raw input word so an optimizer
+                // cannot fold the check away before it runs.
+                let offset = if constructor {
+                    builder.add_u64_offset(input_base, head_offset - 32)
+                } else {
+                    builder.imm_u64(4 + head_offset - 32)
+                };
+                let word = Self::load_input_word(&mut builder, offset, constructor);
+                let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
+                let next = builder.create_block();
+                builder.branch(valid, next, revert);
+                current = next;
             }
 
             if let Some(layout) = abi_params {
@@ -1332,8 +1315,7 @@ impl LowerAbiCx {
                         .as_deref()
                         .and_then(|locations| locations.get(index))
                         .copied()
-                        // Text MIR and older callers do not carry HIR data locations.
-                        // Preserve the historical lazy behavior for those inputs.
+                        // Text MIR does not carry HIR data locations; default to calldata.
                         .unwrap_or(AbiParamLocation::Calldata);
                     let can_alias_memory =
                         location == AbiParamLocation::Memory && Self::can_encode_calldata_slice(ty);
@@ -2892,12 +2874,10 @@ fn reuses_validated_input(
     func: &Function,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     output: &AbiParamType,
 ) -> bool {
-    lazy_args
-        && canonical_input_for_arg(func, value, input_params)
-            .is_some_and(|input| canonical_input_covers_return(input, output))
+    canonical_input_for_arg(func, value, input_params)
+        .is_some_and(|input| canonical_input_covers_return(input, output))
 }
 
 fn is_canonical_return_value(
@@ -2905,16 +2885,13 @@ fn is_canonical_return_value(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
 ) -> bool {
-    if !ty.needs_return_cleanup()
-        || reuses_validated_input(func, value, input_params, lazy_args, ty)
-    {
+    if !ty.needs_return_cleanup() || reuses_validated_input(func, value, input_params, ty) {
         return true;
     }
 
     let mut visiting = FxHashSet::default();
-    is_canonical_return_value_inner(func, ty, value, input_params, lazy_args, &mut visiting)
+    is_canonical_return_value_inner(func, ty, value, input_params, &mut visiting)
 }
 
 fn is_canonical_return_value_inner(
@@ -2922,12 +2899,9 @@ fn is_canonical_return_value_inner(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     visiting: &mut FxHashSet<ValueId>,
 ) -> bool {
-    if !ty.needs_return_cleanup()
-        || reuses_validated_input(func, value, input_params, lazy_args, ty)
-    {
+    if !ty.needs_return_cleanup() || reuses_validated_input(func, value, input_params, ty) {
         return true;
     }
     if !visiting.insert(value) {
@@ -2939,19 +2913,14 @@ fn is_canonical_return_value_inner(
         AbiParamType::Enum { .. } => false,
         AbiParamType::Bytes => true,
         AbiParamType::Tuple(fields) => {
-            is_canonical_return_object(func, fields, value, input_params, lazy_args, visiting)
+            is_canonical_return_object(func, fields, value, input_params, visiting)
         }
         AbiParamType::FixedArray { element, len } => {
-            is_canonical_return_array(func, element, *len, value, input_params, lazy_args, visiting)
+            is_canonical_return_array(func, element, *len, value, input_params, visiting)
         }
-        AbiParamType::DynamicArray(element) => is_canonical_return_dynamic_array(
-            func,
-            element,
-            value,
-            input_params,
-            lazy_args,
-            visiting,
-        ),
+        AbiParamType::DynamicArray(element) => {
+            is_canonical_return_dynamic_array(func, element, value, input_params, visiting)
+        }
     };
     visiting.remove(&value);
     result
@@ -3012,7 +2981,6 @@ fn is_canonical_return_object(
     fields: &[AbiParamType],
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     visiting: &mut FxHashSet<ValueId>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
@@ -3052,7 +3020,7 @@ fn is_canonical_return_object(
     }
     fields.iter().enumerate().all(|(index, ty)| {
         let canonical = stores.get(&(index as u64)).is_some_and(|&value| {
-            is_canonical_return_value_inner(func, ty, value, input_params, lazy_args, visiting)
+            is_canonical_return_value_inner(func, ty, value, input_params, visiting)
         });
         let zero = zeroed && !ty.needs_return_cleanup();
         canonical || zero
@@ -3065,7 +3033,6 @@ fn is_canonical_return_array(
     len: u64,
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     visiting: &mut FxHashSet<ValueId>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
@@ -3092,7 +3059,7 @@ fn is_canonical_return_array(
     }
     (0..len).all(|index| {
         stores.get(&index).is_some_and(|&value| {
-            is_canonical_return_value_inner(func, element, value, input_params, lazy_args, visiting)
+            is_canonical_return_value_inner(func, element, value, input_params, visiting)
         })
     })
 }
@@ -3103,7 +3070,6 @@ fn is_canonical_return_dynamic_array(
     element: &AbiParamType,
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     visiting: &mut FxHashSet<ValueId>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
@@ -3141,7 +3107,7 @@ fn is_canonical_return_dynamic_array(
     let (Some(length), Some((store_inst, index, value))) = (length, store) else {
         return false;
     };
-    if !is_canonical_return_value_inner(func, element, value, input_params, lazy_args, visiting) {
+    if !is_canonical_return_value_inner(func, element, value, input_params, visiting) {
         return false;
     }
 
@@ -3224,10 +3190,9 @@ fn canonicalize_return_value(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
 ) -> ValueId {
     if !ty.needs_return_cleanup()
-        || is_canonical_return_value(builder.func(), ty, value, input_params, lazy_args)
+        || is_canonical_return_value(builder.func(), ty, value, input_params)
     {
         return value;
     }
@@ -3246,13 +3211,8 @@ fn canonicalize_return_value(
                 builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
             for (index, field_ty) in fields.iter().enumerate() {
                 let field_value = builder.memory_object_load_field(value, layout, index as u64);
-                let field_value = canonicalize_return_value(
-                    builder,
-                    field_ty,
-                    field_value,
-                    input_params,
-                    lazy_args,
-                );
+                let field_value =
+                    canonicalize_return_value(builder, field_ty, field_value, input_params);
                 builder.memory_object_store_field(output, layout, index as u64, field_value);
             }
             output
@@ -3262,13 +3222,8 @@ fn canonicalize_return_value(
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
                 let element_value = builder.memory_object_load_element(value, layout, index_value);
-                let element_value = canonicalize_return_value(
-                    builder,
-                    element,
-                    element_value,
-                    input_params,
-                    lazy_args,
-                );
+                let element_value =
+                    canonicalize_return_value(builder, element, element_value, input_params);
                 builder.memory_object_store_element(output, layout, index_value, element_value);
             }
             output
@@ -3299,7 +3254,7 @@ fn canonicalize_return_value(
             builder.switch_to_block(body);
             let element_value = builder.memory_object_load_element(value, layout, index);
             let element_value =
-                canonicalize_return_value(builder, element, element_value, input_params, lazy_args);
+                canonicalize_return_value(builder, element, element_value, input_params);
             builder.memory_object_store_element(output, layout, index, element_value);
             let next = builder.add(index, one);
             let backedge = builder.current_block();
@@ -3406,7 +3361,6 @@ fn encode_live_returns(
     func: &mut Function,
     return_params: Option<&AbiParamLayout>,
     input_params: Option<&AbiParamLayout>,
-    lazy_args: bool,
     cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) {
     let Some(mut layout) = func.abi_returns.take() else { return };
@@ -3463,19 +3417,13 @@ fn encode_live_returns(
                 if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
-                    if is_canonical_return_value(
-                        builder.func(),
-                        &ty,
-                        value,
-                        input_params,
-                        lazy_args,
-                    ) {
+                    if is_canonical_return_value(builder.func(), &ty, value, input_params) {
                         value
                     } else {
                         builder.internal_call(helper, vec![value], ty.mir_type(), 1)
                     }
                 } else {
-                    canonicalize_return_value(&mut builder, &ty, value, input_params, lazy_args)
+                    canonicalize_return_value(&mut builder, &ty, value, input_params)
                 }
             })
             .collect::<Vec<_>>()

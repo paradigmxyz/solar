@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateBase ===
 @module ConstructorAggregateBase
-fn @_anonymous(arg0: memoryarray) [constructor, abi_args=lazy, abi_params=[array<_, tuple<u256, bytes>>]] {
+fn @_anonymous(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -178,7 +178,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain ===
 @module ConstructorAggregateMain
-fn @_anonymous(arg0: memoryarray) [constructor, abi_args=lazy, abi_params=[array<_, tuple<u256, bytes>>]] {
+fn @_anonymous(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -341,7 +341,7 @@ fn @_anonymous(arg0: memoryarray) [constructor, abi_args=lazy, abi_params=[array
     stop
 }
 
-fn @read() -> u256 [selector=0x57de26a4, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @read() -> u256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt 0, v0
@@ -543,7 +543,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:Creator ===
 @module Creator
-fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

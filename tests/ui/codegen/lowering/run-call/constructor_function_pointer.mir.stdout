@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target ===
 @module Target
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @_anonymous(arg0: function) [constructor, abi_args=lazy, abi_params=[function]] {
+fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -36,7 +36,7 @@ fn @_anonymous(arg0: function) [constructor, abi_args=lazy, abi_params=[function
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
-fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -85,7 +85,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     ret v19
 }
 
-fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 16
 }
