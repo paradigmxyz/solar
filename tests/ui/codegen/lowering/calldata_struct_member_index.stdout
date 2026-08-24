@@ -33,16 +33,11 @@ fn @plain() [selector=0xc2dcee6a, pure] {
     jumpi v22, bb5, bb7
   bb7:
     v23 = calldataload v18
-    v24 = shl 7, v23
-    v26 = shr 7, v24
-    v27 = eq v26, v23
-    jumpi v27, bb8, bb5
+    v25 = sub v15, v19
+    v26 = shr 7, v25
+    v27 = gt v23, v26
+    jumpi v27, bb5, bb8
   bb8:
-    v31 = sub v15, v19
-    v32 = shr 7, v31
-    v33 = gt v23, v32
-    jumpi v33, bb5, bb9
-  bb9:
     v1 = lt arg1, v23
     jumpi v1, bb2, bb1
 }
@@ -94,15 +89,13 @@ fn @member() [selector=0x49eb8b89, pure] {
   bb10:
     v40 = calldataload 4
     v41 = add v40, 4
-    v42 = calldatasize
-    v43 = sub v42, 4
-    v44 = gt v40, v43
-    jumpi v44, bb1, bb11
+    v42 = sub v38, 4
+    v43 = gt v40, v42
+    jumpi v43, bb1, bb11
   bb11:
-    v45 = calldatasize
-    v46 = sub v45, v41
-    v47 = gt 128, v46
-    jumpi v47, bb1, bb12
+    v44 = sub v38, v41
+    v45 = gt 128, v44
+    jumpi v45, bb1, bb12
   bb12:
     v1 = add v41, 32
     v2 = add v41, 64
@@ -159,15 +152,13 @@ fn @word() [selector=0xd192e846, pure] {
   bb10:
     v37 = calldataload 4
     v38 = add v37, 4
-    v39 = calldatasize
-    v40 = sub v39, 4
-    v41 = gt v37, v40
-    jumpi v41, bb1, bb11
+    v39 = sub v35, 4
+    v40 = gt v37, v39
+    jumpi v40, bb1, bb11
   bb11:
-    v42 = calldatasize
-    v43 = sub v42, v38
-    v44 = gt 128, v43
-    jumpi v44, bb1, bb12
+    v41 = sub v35, v38
+    v42 = gt 128, v41
+    jumpi v42, bb1, bb12
   bb12:
     v1 = add v38, 64
     v2 = add v38, 96
@@ -263,15 +254,13 @@ fn @lengths() [selector=0xb7a3bd0f, pure] {
   bb14:
     v74 = calldataload 4
     v75 = add v74, 4
-    v76 = calldatasize
-    v77 = sub v76, 4
-    v78 = gt v74, v77
-    jumpi v78, bb1, bb15
+    v76 = sub v72, 4
+    v77 = gt v74, v76
+    jumpi v77, bb1, bb15
   bb15:
-    v79 = calldatasize
-    v80 = sub v79, v75
-    v81 = gt 128, v80
-    jumpi v81, bb1, bb16
+    v78 = sub v72, v75
+    v79 = gt 128, v78
+    jumpi v79, bb1, bb16
   bb16:
     v1 = add v75, 32
     v2 = add v75, 64

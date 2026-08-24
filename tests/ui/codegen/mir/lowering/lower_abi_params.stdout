@@ -28,67 +28,65 @@
 +     v7 = lt v6, 36
 +     jumpi v7, bb2, bb3
 +   bb1:
-+     v0 = memory_object_field_addr memorystruct<0>, v16, 0
++     v0 = memory_object_field_addr memorystruct<0>, v14, 0
       v1 = mload v0
       v2 = memory_object_len memoryarray, v1
 -     v3 = memory_object_field_addr memorystruct<0>, arg0, 1
-+     v3 = memory_object_field_addr memorystruct<0>, v16, 1
++     v3 = memory_object_field_addr memorystruct<0>, v14, 1
       v4 = mload v3
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     v35 = add 128, 32
-+     v36 = sub v35, 128
-+     returndata 128, v36
++     v33 = add 128, 32
++     v34 = sub v33, 128
++     returndata 128, v34
 +   bb2:
 +     revert 0, 0
 +   bb3:
 +     v8 = calldataload 4
 +     v9 = add 4, v8
-+     v10 = calldatasize
-+     v11 = sub v10, 4
-+     v12 = gt v8, v11
-+     jumpi v12, bb5, bb4
++     v10 = sub v6, 4
++     v11 = gt v8, v10
++     jumpi v11, bb5, bb4
 +   bb4:
-+     v13 = calldatasize
-+     v14 = sub v13, v9
-+     v15 = gt 64, v14
-+     jumpi v15, bb7, bb6
++     v12 = sub v6, v9
++     v13 = gt 64, v12
++     jumpi v13, bb7, bb6
 +   bb5:
 +     revert 0, 0
 +   bb6:
-+     v16 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-+     v17 = add v9, 0
-+     v18 = calldataload v17
-+     v19 = add v9, v18
-+     v20 = add v19, 32
-+     v21 = gt v18, 0xffffffffffffffff
-+     v22 = gt v20, v6
-+     v23 = or v21, v22
-+     jumpi v23, bb9, bb8
++     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
++     v15 = add v9, 0
++     v16 = calldataload v15
++     v17 = add v9, v16
++     v18 = add v17, 32
++     v19 = gt v16, 0xffffffffffffffff
++     v20 = gt v18, v6
++     v21 = or v19, v20
++     jumpi v21, bb9, bb8
 +   bb7:
 +     revert 0, 0
 +   bb8:
-+     v24 = calldataload v19
-+     v25 = add v19, 32
-+     v26 = sub v6, v25
-+     v27 = shr 5, v26
-+     v28 = gt v24, v27
-+     jumpi v28, bb11, bb10
++     v22 = calldataload v17
++     v23 = add v17, 32
++     v24 = sub v6, v23
++     v25 = shr 5, v24
++     v26 = gt v22, v25
++     jumpi v26, bb11, bb10
 +   bb9:
 +     revert 0, 0
 +   bb10:
-+     v29 = mul v24, 32
-+     v30 = add v29, 32
-+     v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v30
-+     set_memory_object_len memoryarray, v31, v24
-+     v32 = make_calldata_slice v25, v29
-+     memory_object_copy_from_slice memoryarray, v31, v32
-+     memory_object_store_field memorystruct<3>, v16, 0, v31
-+     v33 = add v9, 32
-+     v34 = calldataload v33
-+     memory_object_store_field memorystruct<3>, v16, 1, v34
-+     memory_object_store_field memorystruct<3>, v16, 2, v9
++     v27 = mul v22, 32
++     v28 = add v27, 32
++     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
++     set_memory_object_len memoryarray, v29, v22
++     v30 = make_calldata_slice v23, v27
++     memory_object_copy_from_slice memoryarray, v29, v30
++     memory_object_store_field memorystruct<3>, v14, 0, v29
++     v31 = add v9, 32
++     v32 = calldataload v31
++     memory_object_store_field memorystruct<3>, v14, 1, v32
++     memory_object_store_field memorystruct<3>, v14, 2, v9
 +     jump bb1
 +   bb11:
 +     revert 0, 0

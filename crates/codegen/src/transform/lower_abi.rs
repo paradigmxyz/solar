@@ -316,16 +316,9 @@ impl LowerAbiCx {
                 Self::is_constructor_array_element(abi_ty) && abi_ty.mir_type() == param_ty
             })
             && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
-            && layout
-                .types
-                .iter()
-                .try_fold(0_u64, |words, ty| words.checked_add(Self::constructor_param_words(ty)?))
-                .and_then(|words| {
-                    let bytes = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-                    (bytes != 0).then_some(words)
-                })
-                .and_then(|words| usize::try_from(words).ok())
-                .is_some()
+            && layout.checked_head_size().is_some_and(|head_size| {
+                head_size != 0 && usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE).is_ok()
+            })
     }
 
     fn can_wrap_constructor_params(func: &Function) -> bool {
@@ -346,14 +339,6 @@ impl LowerAbiCx {
                     if *len <= u64::from(u16::MAX)
                         && Self::is_constructor_array_element(element)
             )
-    }
-
-    fn constructor_param_words(ty: &AbiParamType) -> Option<u64> {
-        if Self::is_constructor_word(ty) {
-            return Some(1);
-        }
-        let AbiParamType::FixedArray { element, len } = ty else { return None };
-        len.checked_mul(Self::constructor_param_words(element)?)
     }
 
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
@@ -925,16 +910,10 @@ impl LowerAbiCx {
         let layout = func.abi_params.clone().expect("checked constructor ABI layout");
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
-        let physical_words = layout
-            .types
-            .iter()
-            .map(Self::constructor_param_words)
-            .try_fold(0_u64, |words, next| words.checked_add(next?))
+        let head_size = layout.checked_head_size().expect("checked constructor ABI head size");
+        let physical_words = usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE)
             .expect("checked constructor ABI word count");
-        let head_size = physical_words
-            .checked_mul(EvmMemoryLayout::WORD_SIZE)
-            .expect("checked constructor ABI head size");
-        let mut params = IndexVec::with_capacity(physical_words as usize);
+        let mut params = IndexVec::with_capacity(physical_words);
         for ty in &layout.types {
             Self::push_constructor_param_types(&mut params, ty);
         }
@@ -1673,15 +1652,14 @@ impl LowerAbiCx {
         builder.switch_to_block(*current);
         let base = if ty.is_dynamic() {
             if !head_checked {
-                Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+                Self::guard_input_range(builder, head, 32, input_end, current);
             }
             let offset = Self::load_input_word(builder, head, constructor);
-            Self::guard_source_offset(
+            Self::guard_input_offset(
                 builder,
                 tuple_base,
                 offset,
                 input_end,
-                constructor,
                 matches!(
                     ty,
                     crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
@@ -1694,19 +1672,13 @@ impl LowerAbiCx {
 
         match ty {
             crate::mir::AbiParamType::DynamicArray(element) => {
-                let len = Self::load_input_word(builder, base, constructor);
-                let word = builder.imm_u64(32);
-                let element_head_size = builder
-                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let _ = Self::checked_mul(builder, len, element_head_size, current);
-                let data = builder.add(base, word);
-                Self::checked_dynamic_array_bytes(
+                let _ = Self::load_input_dynamic_array(
                     builder,
-                    len,
-                    data,
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    base,
                     input_end,
+                    constructor,
                     current,
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
@@ -1714,14 +1686,7 @@ impl LowerAbiCx {
                     element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
                 if !head_checked || ty.is_dynamic() {
-                    Self::guard_source_range(
-                        builder,
-                        base,
-                        head_size,
-                        input_end,
-                        constructor,
-                        current,
-                    );
+                    Self::guard_input_range(builder, base, head_size, input_end, current);
                 }
             }
             crate::mir::AbiParamType::Tuple(fields) => {
@@ -1731,21 +1696,14 @@ impl LowerAbiCx {
                     )
                 });
                 if !head_checked || ty.is_dynamic() {
-                    Self::guard_source_range(
-                        builder,
-                        base,
-                        head_size,
-                        input_end,
-                        constructor,
-                        current,
-                    );
+                    Self::guard_input_range(builder, base, head_size, input_end, current);
                 }
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
-                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
+                Self::guard_input_range_value(builder, data, len, input_end, current);
             }
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {}
         }
@@ -1795,15 +1753,14 @@ impl LowerAbiCx {
         }
         let base = if ty.is_dynamic() {
             if !head_checked {
-                Self::guard_source_range(builder, head, 32, input_end, constructor, current);
+                Self::guard_input_range(builder, head, 32, input_end, current);
             }
             let offset = Self::load_input_word(builder, head, constructor);
-            Self::guard_source_offset(
+            Self::guard_input_offset(
                 builder,
                 tuple_base,
                 offset,
                 input_end,
-                constructor,
                 matches!(
                     ty,
                     crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
@@ -1823,12 +1780,11 @@ impl LowerAbiCx {
             )
         {
             if !head_checked {
-                Self::guard_source_range(
+                Self::guard_input_range(
                     builder,
                     base,
                     ty.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
-                    constructor,
                     current,
                 );
             }
@@ -1860,14 +1816,7 @@ impl LowerAbiCx {
                     element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
                 if !head_checked || ty.is_dynamic() {
-                    Self::guard_source_range(
-                        builder,
-                        base,
-                        head_size,
-                        input_end,
-                        constructor,
-                        current,
-                    );
+                    Self::guard_input_range(builder, base, head_size, input_end, current);
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm_u64(*len);
@@ -1949,19 +1898,13 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::Slice(_)) =>
             {
-                let len = Self::load_input_word(builder, base, constructor);
-                let word = builder.imm_u64(32);
-                let element_head_size = builder
-                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let _ = Self::checked_mul(builder, len, element_head_size, current);
-                let data = builder.add(base, word);
-                Self::checked_dynamic_array_bytes(
+                let (len, data, _) = Self::load_input_dynamic_array(
                     builder,
-                    len,
-                    data,
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    base,
                     input_end,
+                    constructor,
                     current,
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
                 if !constructor && validate_array_elements && Self::is_scalar_or_enum(element) {
                     Self::validate_calldata_scalar_array(
@@ -2063,25 +2006,19 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
             {
-                let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
-                let element_head_size = builder
-                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let _ = Self::checked_mul(builder, len, element_head_size, current);
-                let head = builder.add(base, word);
-                let _ = Self::checked_dynamic_array_bytes(
+                let (len, data_base, _) = Self::load_input_dynamic_array(
                     builder,
-                    len,
-                    head,
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    base,
                     input_end,
+                    constructor,
                     current,
+                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
                 // `element_head_size` is at least one word, so the checked
                 // head size also proves this word-array allocation cannot
                 // overflow.
                 let bytes = builder.mul(len, word);
-                let data_base = builder.add(base, word);
 
                 if !constructor && validate_array_elements && Self::is_scalar_or_enum(element) {
                     Self::validate_calldata_scalar_array(
@@ -2174,7 +2111,7 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
                 let data = builder.add(base, word);
-                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
+                Self::guard_input_range_value(builder, data, len, input_end, current);
                 let location =
                     if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
                 builder.make_slice(data, len, location)
@@ -2184,7 +2121,7 @@ impl LowerAbiCx {
                 let word = builder.imm_u64(32);
                 let thirty_one = builder.imm_u64(31);
                 let data = builder.add(base, word);
-                Self::guard_source_range_value(builder, data, len, input_end, constructor, current);
+                Self::guard_input_range_value(builder, data, len, input_end, current);
                 // The source range check bounds calldata lengths before
                 // rounding; only memory-input decoding needs the explicit
                 // overflow branches used by Solidity's allocator.
@@ -2212,14 +2149,7 @@ impl LowerAbiCx {
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
                 if !head_checked || ty.is_dynamic() {
-                    Self::guard_source_range(
-                        builder,
-                        base,
-                        ty.data_head_size(),
-                        input_end,
-                        constructor,
-                        current,
-                    );
+                    Self::guard_input_range(builder, base, ty.data_head_size(), input_end, current);
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder
@@ -2538,7 +2468,7 @@ impl LowerAbiCx {
     ) -> (ValueId, ValueId) {
         builder.switch_to_block(*current);
         if !head_checked {
-            Self::guard_calldata_range(builder, head, 32, current);
+            Self::guard_input_range(builder, head, 32, input_end, current);
         }
         let offset = builder.calldataload(head);
         let base = builder.add(tuple_base, offset);
@@ -2713,7 +2643,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         if !head_checked {
-            Self::guard_source_range(builder, position, 32, input_end, constructor, current);
+            Self::guard_input_range(builder, position, 32, input_end, current);
         }
         let value = Self::load_input_word(builder, position, constructor);
         if let Some(validator) = ty.word_validator() {
@@ -2727,54 +2657,18 @@ impl LowerAbiCx {
         value
     }
 
-    fn guard_source_range(
-        builder: &mut FunctionBuilder<'_>,
-        start: ValueId,
-        size: u64,
-        input_end: ValueId,
-        constructor: bool,
-        current: &mut BlockId,
-    ) {
-        if constructor {
-            Self::guard_input_range(builder, start, size, input_end, current);
-        } else {
-            Self::guard_calldata_range(builder, start, size, current);
-        }
-    }
-
-    fn guard_source_range_value(
-        builder: &mut FunctionBuilder<'_>,
-        start: ValueId,
-        size: ValueId,
-        input_end: ValueId,
-        constructor: bool,
-        current: &mut BlockId,
-    ) {
-        if constructor {
-            Self::guard_input_range_value(builder, start, size, input_end, current);
-        } else {
-            Self::guard_calldata_range_value(builder, start, size, current);
-        }
-    }
-
-    fn guard_source_offset(
+    fn guard_input_offset(
         builder: &mut FunctionBuilder<'_>,
         base: ValueId,
         offset: ValueId,
         input_end: ValueId,
-        constructor: bool,
         combine_head_range: bool,
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
         if !combine_head_range {
-            let remaining = if constructor {
-                builder.sub(input_end, base)
-            } else {
-                let calldata_size = builder.calldatasize();
-                builder.sub(calldata_size, base)
-            };
+            let remaining = builder.sub(input_end, base);
             let invalid = builder.gt(offset, remaining);
             *current = builder.revert_if(invalid);
             return target;
@@ -2816,30 +2710,6 @@ impl LowerAbiCx {
         // range, so compare against the remaining input instead of forming a
         // potentially overflowing end pointer.
         let remaining = builder.sub(input_end, start);
-        let invalid = builder.gt(size, remaining);
-        *current = builder.revert_if(invalid);
-    }
-
-    fn guard_calldata_range(
-        builder: &mut FunctionBuilder<'_>,
-        start: ValueId,
-        size: u64,
-        current: &mut BlockId,
-    ) {
-        let size = builder.imm_u64(size);
-        Self::guard_calldata_range_value(builder, start, size, current);
-    }
-
-    fn guard_calldata_range_value(
-        builder: &mut FunctionBuilder<'_>,
-        start: ValueId,
-        size: ValueId,
-        current: &mut BlockId,
-    ) {
-        builder.switch_to_block(*current);
-        // `start` is derived from a checked calldata head or tail offset.
-        let calldata_size = builder.calldatasize();
-        let remaining = builder.sub(calldata_size, start);
         let invalid = builder.gt(size, remaining);
         *current = builder.revert_if(invalid);
     }
