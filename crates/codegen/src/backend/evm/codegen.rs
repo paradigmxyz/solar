@@ -1613,16 +1613,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH)
     }
 
-    /// Whether a function is an external interface of its module: an ABI entry,
-    /// the constructor, the fallback, or the receive function. A module with
-    /// none has no reachable runtime code.
-    fn is_module_entry(func: &Function) -> bool {
-        func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
-    }
-
     /// Reports MIR constructs the backend cannot emit yet.
     ///
     /// This includes fallback shapes that ABI lowering did not recognize and
@@ -1760,13 +1750,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         fields(module = %module.name),
     )]
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
-        // An internal-only library (no external interface) has no reachable
-        // runtime code — like `solc`, it produces no bytecode rather than
-        // standalone bodies for functions only ever inlined elsewhere.
         if module.is_interface {
             return EvmArtifact::default();
         }
-        if !module.functions.iter().any(Self::is_module_entry) {
+        if !module.functions.is_empty()
+            && !module.functions.iter().any(|func| {
+                Self::is_external_entry(func)
+                    || func.attributes.is_constructor
+                    || func.attributes.is_dispatch_entry
+            })
+        {
             if self.capture_mir {
                 self.run_optimization_passes(module);
             }

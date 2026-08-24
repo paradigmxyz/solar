@@ -95,16 +95,16 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     v2 = internal_call @arg, 1
     v3 = abi_encode [word], args v2
     v4 = not 31
-    v5 = and 195, v4
+    v5 = and 199, v4
     v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, 132
-    memory_object_store_word memorybytes, v6, 0, 0x6064380380606460c03960c001601f017fffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v6, 32, 0xffffffffffffffffffffffffffffffffe01660405260c060c060643803016020
-    memory_object_store_word memorybytes, v6, 64, 0x8201915081119050156057576053565b605b565b5f80fd5b604f565b5f806064
-    memory_object_store_word memorybytes, v6, 96, 0x5f395ff300000000000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v6, 100, v3
+    set_memory_object_len memorybytes, v6, 136
+    memory_object_store_word memorybytes, v6, 0, 0x6068380380606860c03960c001601f017fffffffffffffffffffffffffffffff
+    memory_object_store_word memorybytes, v6, 32, 0xffffffffffffffffffffffffffffffffe01660405260c060c060683803016020
+    memory_object_store_word memorybytes, v6, 64, 0x8201915081119050156057576053565b605b565b5f80fd5b604f565b60038060
+    memory_object_store_word memorybytes, v6, 96, 0x655f395ff35f80fd000000000000000000000000000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v6, 104, v3
     v7 = memory_object_data memorybytes, v6
-    v8 = create2 v0, v7, 132, v1
+    v8 = create2 v0, v7, 136, v1
     jumpi v8, bb2, bb1
   bb1:
     revert_returndata
