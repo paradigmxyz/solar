@@ -890,16 +890,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .collect::<Vec<_>>();
             let value = match incoming.as_slice() {
-                [] => header_phis.get(&id).copied().or(Some(before_value)),
-                [(_, value)] => Some(*value),
-                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
-                    Some(*first)
-                }
-                _ => Some(self.merge_value_phi(incoming)),
+                [] => header_phis.get(&id).copied().unwrap_or(before_value),
+                [(_, value)] => *value,
+                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => *first,
+                _ => self.merge_value_phi(incoming),
             };
-            if let Some(value) = value {
-                merged.insert(id, value);
-            }
+            merged.insert(id, value);
         }
         merged
     }
