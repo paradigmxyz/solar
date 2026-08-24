@@ -14,6 +14,7 @@ enum StorageStructField {
 enum StorageArrayElement {
     Bytes(FunctionId),
     Word,
+    Packed { bytes: u8, encoding: u8 },
 }
 
 /// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
@@ -58,15 +59,23 @@ fn synthesize_storage_array_helper(
         builder.branch(condition, body, exit);
 
         builder.switch_to_block(body);
-        let element_slot = builder.add(data_slot, index);
         let value = match element {
-            StorageArrayElement::Bytes(helper) => builder.internal_call(
-                helper,
-                vec![element_slot],
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
-            ),
-            StorageArrayElement::Word => builder.sload(element_slot),
+            StorageArrayElement::Bytes(helper) => {
+                let element_slot = builder.add(data_slot, index);
+                builder.internal_call(
+                    helper,
+                    vec![element_slot],
+                    MirType::MemoryObject(MemoryObjectKind::Bytes),
+                    1,
+                )
+            }
+            StorageArrayElement::Word => {
+                let element_slot = builder.add(data_slot, index);
+                builder.sload(element_slot)
+            }
+            StorageArrayElement::Packed { bytes, encoding } => {
+                load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding)
+            }
         };
         builder.memory_object_store_element(object, layout, index, value);
         let next = builder.add_u64_offset(index, 1);
@@ -86,77 +95,58 @@ fn synthesize_storage_packed_array_helper(
     encoding: u8,
 ) -> FunctionId {
     let name = format!("__load_storage_packed_array_{bytes}_{encoding}");
-    let mut function = Function::new(Ident::from_str(&name));
-    function.attributes.no_inline = true;
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let slot = builder.add_param(MirType::uint256());
-        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+    synthesize_storage_array_helper(
+        module,
+        Ident::from_str(&name),
+        StorageArrayElement::Packed { bytes, encoding },
+    )
+}
 
-        let length = builder.sload(slot);
-        let (object, layout) =
-            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-        let data_slot = builder.storage_array_data_slot(slot);
-        let preheader = builder.current_block();
-        let loop_header = builder.create_block();
-        let body = builder.create_block();
-        let exit = builder.create_block();
-        builder.jump(loop_header);
-        builder.switch_to_block(loop_header);
-        let zero = builder.imm_u64(0);
-        let index = builder.phi(vec![(preheader, zero)]);
-        let condition = builder.lt(index, length);
-        builder.branch(condition, body, exit);
-        builder.switch_to_block(body);
-
-        let per_slot = u64::from(32 / bytes);
-        let per_slot_value = builder.imm_u64(per_slot);
-        let (slot_index, index_in_slot) = if per_slot.is_power_of_two() {
-            let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
-            let slot_index = builder.shr(slot_shift, index);
-            let slot_mask = builder.imm_u64(per_slot - 1);
-            let index_in_slot = builder.and(index, slot_mask);
-            (slot_index, index_in_slot)
-        } else {
-            let slot_index = builder.div(index, per_slot_value);
-            let index_in_slot = builder.mod_(index, per_slot_value);
-            (slot_index, index_in_slot)
-        };
-        let storage_slot = builder.add(data_slot, slot_index);
-        let word = builder.sload(storage_slot);
-        let byte_shift = u64::from(bytes) * 8;
-        let shift = if byte_shift.is_power_of_two() {
-            let shift = builder.imm_u64(u64::from(byte_shift.trailing_zeros()));
-            builder.shl(shift, index_in_slot)
-        } else {
-            let byte_shift = builder.imm_u64(byte_shift);
-            builder.mul(index_in_slot, byte_shift)
-        };
-        let shifted = builder.shr(shift, word);
-        let mask = builder.imm_u256((U256::from(1) << (u32::from(bytes) * 8)) - U256::from(1));
-        let value = builder.and(shifted, mask);
-        let value = match encoding {
-            0 => value,
-            1 => {
-                let sign_index = builder.imm_u64(u64::from(bytes - 1));
-                builder.signextend(sign_index, value)
-            }
-            2 => {
-                let align_shift = builder.imm_u64(u64::from(32 - bytes) * 8);
-                builder.shl(align_shift, value)
-            }
-            _ => unreachable!("unknown storage encoding"),
-        };
-        builder.memory_object_store_element(object, layout, index, value);
-        let next = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(loop_header);
-        builder.add_phi_incoming(index, backedge, next);
-        builder.switch_to_block(exit);
-        builder.ret([object]);
+fn load_packed_storage_array_element(
+    builder: &mut FunctionBuilder<'_>,
+    data_slot: ValueId,
+    index: ValueId,
+    bytes: u8,
+    encoding: u8,
+) -> ValueId {
+    let per_slot = u64::from(32 / bytes);
+    let per_slot_value = builder.imm_u64(per_slot);
+    let (slot_index, index_in_slot) = if per_slot.is_power_of_two() {
+        let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
+        let slot_index = builder.shr(slot_shift, index);
+        let slot_mask = builder.imm_u64(per_slot - 1);
+        let index_in_slot = builder.and(index, slot_mask);
+        (slot_index, index_in_slot)
+    } else {
+        let slot_index = builder.div(index, per_slot_value);
+        let index_in_slot = builder.mod_(index, per_slot_value);
+        (slot_index, index_in_slot)
+    };
+    let storage_slot = builder.add(data_slot, slot_index);
+    let word = builder.sload(storage_slot);
+    let byte_shift = u64::from(bytes) * 8;
+    let shift = if byte_shift.is_power_of_two() {
+        let shift = builder.imm_u64(u64::from(byte_shift.trailing_zeros()));
+        builder.shl(shift, index_in_slot)
+    } else {
+        let byte_shift = builder.imm_u64(byte_shift);
+        builder.mul(index_in_slot, byte_shift)
+    };
+    let shifted = builder.shr(shift, word);
+    let mask = builder.imm_u256((U256::from(1) << (u32::from(bytes) * 8)) - U256::from(1));
+    let value = builder.and(shifted, mask);
+    match encoding {
+        0 => value,
+        1 => {
+            let sign_index = builder.imm_u64(u64::from(bytes - 1));
+            builder.signextend(sign_index, value)
+        }
+        2 => {
+            let align_shift = builder.imm_u64(u64::from(32 - bytes) * 8);
+            builder.shl(align_shift, value)
+        }
+        _ => unreachable!("unknown storage encoding"),
     }
-    module.add_function(function)
 }
 
 fn synthesize_storage_struct_array_helper(
