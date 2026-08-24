@@ -79,6 +79,12 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
 }
 
 /// Mutable registries shared by all functions lowered for one contract.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum RecursiveStorageHelper {
+    Store { target: hir::StructId, source: hir::StructId },
+    Clear { target: hir::StructId },
+}
+
 #[derive(Default)]
 pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
@@ -88,9 +94,7 @@ pub(super) struct LoweringState {
     pub(super) storage_word_array_helper: Option<FunctionId>,
     pub(super) packed_array_helpers: FxHashMap<(u8, u8), FunctionId>,
     pub(super) storage_struct_array_helpers: FxHashMap<hir::StructId, FunctionId>,
-    pub(super) recursive_storage_clear_helpers: FxHashMap<hir::StructId, FunctionId>,
-    pub(super) recursive_storage_store_helpers:
-        FxHashMap<(hir::StructId, hir::StructId), FunctionId>,
+    pub(super) recursive_storage_helpers: FxHashMap<RecursiveStorageHelper, FunctionId>,
     pub(super) storage_clear_helper: Option<FunctionId>,
     pub(super) revert_error_helper: Option<FunctionId>,
     pub(super) literal_helpers: FxHashMap<Vec<u8>, FunctionId>,

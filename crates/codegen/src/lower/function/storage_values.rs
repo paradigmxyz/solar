@@ -1169,9 +1169,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return report_unsupported(self.context.gcx, span, "storage struct conversion");
                 }
                 if self.storage_struct_is_recursive(struct_id) {
-                    let helper = self.ensure_recursive_storage_store_helper(
-                        struct_id,
-                        source_struct_id,
+                    let helper = self.ensure_recursive_storage_helper(
+                        RecursiveStorageHelper::Store {
+                            target: struct_id,
+                            source: source_struct_id,
+                        },
                         span,
                     )?;
                     self.builder.internal_call_void(helper, vec![slot, object], 0);
@@ -1481,39 +1483,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn ensure_recursive_storage_store_helper(
+    fn ensure_recursive_storage_helper(
         &mut self,
-        struct_id: solar_sema::hir::StructId,
-        source_struct_id: solar_sema::hir::StructId,
+        key: RecursiveStorageHelper,
         span: Span,
     ) -> Option<FunctionId> {
-        let key = (struct_id, source_struct_id);
-        if let Some(&helper) = self.context.state.recursive_storage_store_helpers.get(&key) {
+        if let Some(&helper) = self.context.state.recursive_storage_helpers.get(&key) {
             return Some(helper);
         }
 
-        let name = Ident::from_str(&format!(
-            "__store_recursive_storage_{}",
-            self.context.module.functions.len()
-        ));
-        let mut function = Function::new(name);
+        let prefix = match key {
+            RecursiveStorageHelper::Store { .. } => "__store_recursive_storage_",
+            RecursiveStorageHelper::Clear { .. } => "__clear_recursive_storage_",
+        };
+        let name = format!("{prefix}{}", self.context.module.functions.len());
+        let mut function = Function::new(Ident::from_str(&name));
         function.attributes.no_inline = true;
-        let helper = self.context.module.add_function(Function::new(name));
-        self.context.state.recursive_storage_store_helpers.insert(key, helper);
+        let helper = self.context.module.add_function(Function::new(Ident::from_str(&name)));
+        self.context.state.recursive_storage_helpers.insert(key, helper);
 
         let lowered = {
             let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
             let slot = lowerer.builder.add_param(MirType::uint256());
-            let object = lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::Struct));
-            let lowered = lowerer
-                .store_storage_struct_fields_with_source(
-                    struct_id,
-                    source_struct_id,
-                    slot,
-                    object,
-                    span,
-                )
-                .is_some();
+            let lowered = match key {
+                RecursiveStorageHelper::Store { target, source } => {
+                    let object =
+                        lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::Struct));
+                    lowerer
+                        .store_storage_struct_fields_with_source(target, source, slot, object, span)
+                        .is_some()
+                }
+                RecursiveStorageHelper::Clear { target } => {
+                    lowerer.clear_storage_struct_fields(target, slot, span).is_some()
+                }
+            };
             if lowered {
                 lowerer.builder.stop();
             } else {
@@ -1523,7 +1526,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         *self.context.module.function_mut(helper) = function;
         if !lowered {
-            self.context.state.recursive_storage_store_helpers.remove(&key);
+            self.context.state.recursive_storage_helpers.remove(&key);
             return None;
         }
         Some(helper)
@@ -1579,7 +1582,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Struct(struct_id) => {
                 if self.storage_struct_is_recursive(struct_id) {
-                    let helper = self.ensure_recursive_storage_clear_helper(struct_id, span)?;
+                    let helper = self.ensure_recursive_storage_helper(
+                        RecursiveStorageHelper::Clear { target: struct_id },
+                        span,
+                    )?;
                     self.builder.internal_call_void(helper, vec![access.slot], 0);
                 } else {
                     self.clear_storage_struct_fields(struct_id, access.slot, span)?;
@@ -1701,43 +1707,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => false,
         }
-    }
-
-    fn ensure_recursive_storage_clear_helper(
-        &mut self,
-        struct_id: solar_sema::hir::StructId,
-        span: Span,
-    ) -> Option<FunctionId> {
-        if let Some(&helper) = self.context.state.recursive_storage_clear_helpers.get(&struct_id) {
-            return Some(helper);
-        }
-
-        let name = Ident::from_str(&format!(
-            "__clear_recursive_storage_{}",
-            self.context.module.functions.len()
-        ));
-        let mut function = Function::new(name);
-        function.attributes.no_inline = true;
-        let helper = self.context.module.add_function(Function::new(name));
-        self.context.state.recursive_storage_clear_helpers.insert(struct_id, helper);
-
-        let lowered = {
-            let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
-            let slot = lowerer.builder.add_param(MirType::uint256());
-            let lowered = lowerer.clear_storage_struct_fields(struct_id, slot, span).is_some();
-            if lowered {
-                lowerer.builder.stop();
-            } else {
-                lowerer.builder.invalid();
-            }
-            lowered
-        };
-        *self.context.module.function_mut(helper) = function;
-        if !lowered {
-            self.context.state.recursive_storage_clear_helpers.remove(&struct_id);
-            return None;
-        }
-        Some(helper)
     }
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {
