@@ -441,7 +441,7 @@ impl LowerAbiCx {
                         builder.func_mut().blocks[current].instructions.push(inst);
                         continue;
                     };
-                    let data = super::lower_abi_encode::resolve(*data, &replacements);
+                    let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let layout = layout.clone();
 
                     let result = builder

@@ -4,6 +4,7 @@ use crate::{
     mir::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind,
         MemoryObjectLayout, MirType, Module, SliceLocation, Terminator, Value, ValueId,
+        utils::resolve_replacement,
     },
     pass::MirPass,
 };
@@ -61,8 +62,10 @@ fn lower_function(func: &mut Function) -> bool {
         for inst in instructions {
             let encode = match &builder.func().inst(inst).kind {
                 InstKind::AbiEncode { selector, args, layout } => Some((
-                    selector.map(|value| resolve(value, &replacements)),
-                    args.iter().map(|&value| resolve(value, &replacements)).collect::<Vec<_>>(),
+                    selector.map(|value| resolve_replacement(value, &replacements)),
+                    args.iter()
+                        .map(|&value| resolve_replacement(value, &replacements))
+                        .collect::<Vec<_>>(),
                     std::sync::Arc::clone(layout),
                 )),
                 _ => None,
@@ -92,22 +95,15 @@ fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId,
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
         let (slice, is_pointer) = match func.inst(inst_id).kind {
-            InstKind::SlicePtr(slice) => (resolve(slice, replacements), true),
-            InstKind::SliceLen(slice) => (resolve(slice, replacements), false),
+            InstKind::SlicePtr(slice) => (resolve_replacement(slice, replacements), true),
+            InstKind::SliceLen(slice) => (resolve_replacement(slice, replacements), false),
             _ => continue,
         };
         let Value::Inst(make_slice) = func.value(slice) else { continue };
         let InstKind::MakeSlice { ptr, len, .. } = &func.inst(*make_slice).kind else { continue };
         let replacement = if is_pointer { *ptr } else { *len };
-        replacements.insert(result, resolve(replacement, replacements));
+        replacements.insert(result, resolve_replacement(replacement, replacements));
     }
-}
-
-pub(crate) fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-    while let Some(&replacement) = replacements.get(&value) {
-        value = replacement;
-    }
-    value
 }
 
 pub(crate) fn move_terminator(
