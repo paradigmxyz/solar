@@ -618,6 +618,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.mapping_slot_memory(key, slot)
             }
         } else {
+            let key = self.normalize_dirty_scalar(key, key_ty);
             self.builder.mapping_slot(key, slot)
         }
     }
