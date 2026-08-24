@@ -483,14 +483,10 @@ impl LowerSlices {
                 };
                 if let Some((head, is_ptr)) = projection {
                     let replacement = if is_ptr {
-                        *pointers.entry(head).or_insert_with(|| {
-                            let data_offset = builder.imm_u64(36);
-                            builder.add(head, data_offset)
-                        })
+                        *pointers.entry(head).or_insert_with(|| builder.add_u64_offset(head, 36))
                     } else {
                         *lengths.entry(head).or_insert_with(|| {
-                            let selector_size = builder.imm_u64(4);
-                            let len_pos = builder.add(head, selector_size);
+                            let len_pos = builder.add_u64_offset(head, 4);
                             builder.calldataload(len_pos)
                         })
                     };

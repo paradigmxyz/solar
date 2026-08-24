@@ -788,8 +788,7 @@ impl LowerAbiCx {
         let mut valid = builder.imm_bool(true);
         let mut offset = 0_u64;
         for ty in &layout.types {
-            let offset_value = builder.imm_u64(offset);
-            let head = builder.add(base, offset_value);
+            let head = builder.add_u64_offset(base, offset);
             Self::validate_static_memory_argument(
                 builder,
                 ty,
@@ -822,8 +821,7 @@ impl LowerAbiCx {
             AbiParamType::FixedArray { element, len } => {
                 let mut offset = 0_u64;
                 for _ in 0..*len {
-                    let offset_value = builder.imm_u64(offset);
-                    let element_head = builder.add(head, offset_value);
+                    let element_head = builder.add_u64_offset(head, offset);
                     Self::validate_static_memory_argument(
                         builder,
                         element,
@@ -839,8 +837,7 @@ impl LowerAbiCx {
             AbiParamType::Tuple(fields) => {
                 let mut offset = 0_u64;
                 for field in fields {
-                    let offset_value = builder.imm_u64(offset);
-                    let field_head = builder.add(head, offset_value);
+                    let field_head = builder.add_u64_offset(head, offset);
                     Self::validate_static_memory_argument(
                         builder,
                         field,
@@ -1319,8 +1316,7 @@ impl LowerAbiCx {
                 layout.checked_head_size().expect("ABI head size exceeds u64 range")
             });
             let invalid = if constructor {
-                let head_size_value = builder.imm_u64(head_size);
-                let required = builder.add(input_base, head_size_value);
+                let required = builder.add_u64_offset(input_base, head_size);
                 builder.gt(required, input_end)
             } else {
                 let required = builder.imm_u64(4 + head_size);
@@ -1346,8 +1342,7 @@ impl LowerAbiCx {
                     // guard establishes. Read the raw input word so an optimizer
                     // cannot fold the check away before it runs.
                     let offset = if constructor {
-                        let offset_value = builder.imm_u64(head_offset - 32);
-                        builder.add(input_base, offset_value)
+                        builder.add_u64_offset(input_base, head_offset - 32)
                     } else {
                         builder.imm_u64(4 + head_offset - 32)
                     };
@@ -1780,8 +1775,7 @@ impl LowerAbiCx {
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
-                    let offset_value = builder.imm_u64(offset);
-                    let word_pos = builder.add(base, offset_value);
+                    let word_pos = builder.add_u64_offset(base, offset);
                     let value = if element.is_scalar_word() {
                         Self::decode_source_scalar(
                             builder,
@@ -2003,8 +1997,7 @@ impl LowerAbiCx {
                 {
                     let mut offset = 0;
                     for field in fields.iter() {
-                        let field_offset = builder.imm_u64(offset);
-                        let field_head = builder.add(base, field_offset);
+                        let field_head = builder.add_u64_offset(base, offset);
                         let _ = Self::decode_source_scalar(
                             builder,
                             field,
@@ -2025,8 +2018,7 @@ impl LowerAbiCx {
                 );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let field_offset = builder.imm_u64(offset);
-                    let field_head = builder.add(base, field_offset);
+                    let field_head = builder.add_u64_offset(base, offset);
                     let value = Self::decode_aggregate_argument(
                         builder,
                         field,
@@ -2121,8 +2113,7 @@ impl LowerAbiCx {
         let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
         let mut head_offset = 0_u64;
         for ty in &layout.types {
-            let offset = builder.imm_u64(head_offset);
-            let head = builder.add(base, offset);
+            let head = builder.add_u64_offset(base, head_offset);
             let value = if static_layout {
                 Self::decode_static_memory_argument(
                     builder,
@@ -2180,8 +2171,7 @@ impl LowerAbiCx {
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
-                    let offset_value = builder.imm_u64(offset);
-                    let field = builder.add(head, offset_value);
+                    let field = builder.add_u64_offset(head, offset);
                     let value = Self::decode_static_memory_argument(
                         builder,
                         element,
@@ -2202,8 +2192,7 @@ impl LowerAbiCx {
                 );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let offset_value = builder.imm_u64(offset);
-                    let field_head = builder.add(head, offset_value);
+                    let field_head = builder.add_u64_offset(head, offset);
                     let value = Self::decode_static_memory_argument(
                         builder,
                         field,
@@ -2357,8 +2346,7 @@ impl LowerAbiCx {
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for index in 0..*len {
-                    let offset_value = builder.imm_u64(offset);
-                    let element_head = builder.add(head, offset_value);
+                    let element_head = builder.add_u64_offset(head, offset);
                     let value = Self::decode_static_calldata_value(
                         builder,
                         element,
@@ -2379,8 +2367,7 @@ impl LowerAbiCx {
                 );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let offset_value = builder.imm_u64(offset);
-                    let field_head = builder.add(head, offset_value);
+                    let field_head = builder.add_u64_offset(head, offset);
                     let value = Self::decode_static_calldata_value(
                         builder,
                         field,

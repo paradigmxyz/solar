@@ -89,8 +89,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return;
                 };
                 for index in 0..length {
-                    let offset = self.builder.imm_u64(index.saturating_mul(element_size));
-                    let position = self.builder.add(base, offset);
+                    let position =
+                        self.builder.add_u64_offset(base, index.saturating_mul(element_size));
                     self.validate_calldata_static_value(element, position);
                 }
             }
@@ -851,8 +851,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         let mut offset = 0u64;
         for (index, field) in fields.iter().copied().enumerate() {
-            let field_offset = self.builder.imm_u64(offset);
-            let head = self.builder.add(base, field_offset);
+            let head = self.builder.add_u64_offset(base, offset);
             let value =
                 self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
             self.builder.memory_object_store_field(object, layout, index as u64, value);

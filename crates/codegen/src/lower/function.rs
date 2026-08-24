@@ -713,10 +713,9 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         let base =
                             builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                         for index in 1..shape.returns.len() {
-                            let offset = builder.imm_u64(
-                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
-                            );
-                            let position = builder.add(base, offset);
+                            let offset =
+                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32);
+                            let position = builder.add_u64_offset(base, offset);
                             values.push(builder.mload(position));
                         }
                     }
