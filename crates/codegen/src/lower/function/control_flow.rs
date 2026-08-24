@@ -29,23 +29,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         LoopState { block, values: self.values.clone(), storage_refs: self.storage_refs.clone() }
     }
 
-    pub(super) fn lower_if(
+    fn lower_branches<T>(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_stmt: &hir::Stmt<'_>,
-        else_stmt: Option<&hir::Stmt<'_>>,
-    ) -> Option<()> {
-        let condition = self.lower_expr(condition)?;
+        condition: ValueId,
+        mut lower: impl FnMut(&mut Self, bool) -> Option<T>,
+    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         self.materialize_default_bindings();
         let then_block = self.builder.create_block();
         let else_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        let before = self.values.clone();
+        let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(condition, then_block, else_block);
 
+        self.values = before_values.clone();
+        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(then_block);
-        self.lower_stmt(then_stmt)?;
+        let then_value = lower(self, true)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
         let then_values = std::mem::take(&mut self.values);
@@ -54,12 +54,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.jump(merge_block);
         }
 
-        self.values = before.clone();
+        self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(else_block);
-        if let Some(stmt) = else_stmt {
-            self.lower_stmt(stmt)?;
-        }
+        let else_value = lower(self, false)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
         let else_values = std::mem::take(&mut self.values);
@@ -70,7 +68,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
-            before,
+            before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
             MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
         );
@@ -87,7 +85,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 terminated: else_terminated,
             },
         );
-        if then_terminated && else_terminated {
+        Some((
+            TernaryBranch { block: then_exit, value: then_value, terminated: then_terminated },
+            TernaryBranch { block: else_exit, value: else_value, terminated: else_terminated },
+        ))
+    }
+
+    pub(super) fn lower_if(
+        &mut self,
+        condition: &hir::Expr<'_>,
+        then_stmt: &hir::Stmt<'_>,
+        else_stmt: Option<&hir::Stmt<'_>>,
+    ) -> Option<()> {
+        let condition = self.lower_expr(condition)?;
+        let (then_branch, else_branch) = self.lower_branches(condition, |this, is_then| {
+            if is_then {
+                this.lower_stmt(then_stmt)
+            } else {
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            }
+        })?;
+        if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
         Some(())
@@ -542,61 +560,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower: impl FnMut(&mut Self, &hir::Expr<'_>) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         let condition = self.lower_expr(condition)?;
-        self.materialize_default_bindings();
-        let then_block = self.builder.create_block();
-        let else_block = self.builder.create_block();
-        let merge_block = self.builder.create_block();
-        let before_values = self.values.clone();
-        let before_storage_refs = self.storage_refs.clone();
-        self.builder.branch(condition, then_block, else_block);
-
-        self.values = before_values.clone();
-        self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(then_block);
-        let then_value = lower(self, then_expr)?;
-        let then_terminated = self.is_terminated();
-        let then_exit = self.builder.current_block();
-        let then_values = self.values.clone();
-        let then_storage_refs = self.storage_refs.clone();
-        if !then_terminated {
-            self.builder.jump(merge_block);
-        }
-
-        self.values = before_values.clone();
-        self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(else_block);
-        let else_value = lower(self, else_expr)?;
-        let else_terminated = self.is_terminated();
-        let else_exit = self.builder.current_block();
-        let else_values = std::mem::take(&mut self.values);
-        let else_storage_refs = std::mem::take(&mut self.storage_refs);
-        if !else_terminated {
-            self.builder.jump(merge_block);
-        }
-
-        self.builder.switch_to_block(merge_block);
-        self.values = self.merge_values(
-            before_values,
-            MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
-            MergeBranch { block: else_exit, values: else_values, terminated: else_terminated },
-        );
-        self.storage_refs = self.merge_storage_refs(
-            before_storage_refs,
-            MergeBranch {
-                block: then_exit,
-                values: then_storage_refs,
-                terminated: then_terminated,
-            },
-            MergeBranch {
-                block: else_exit,
-                values: else_storage_refs,
-                terminated: else_terminated,
-            },
-        );
-        Some((
-            TernaryBranch { block: then_exit, value: then_value, terminated: then_terminated },
-            TernaryBranch { block: else_exit, value: else_value, terminated: else_terminated },
-        ))
+        self.lower_branches(condition, |this, is_then| {
+            lower(this, if is_then { then_expr } else { else_expr })
+        })
     }
 
     pub(super) fn lower_ternary(
