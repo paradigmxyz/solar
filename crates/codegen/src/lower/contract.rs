@@ -6,7 +6,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::Ident;
+use solar_interface::{ByteSymbol, Ident};
 use solar_sema::{
     Gcx,
     hir::{self, ContractId, Visit},
@@ -249,7 +249,7 @@ fn shared_string_literals(
 ) -> (FxHashSet<Vec<u8>>, FxHashSet<Vec<u8>>) {
     struct Counter<'hir> {
         hir: &'hir hir::Hir<'hir>,
-        counts: FxHashMap<Vec<u8>, usize>,
+        counts: FxHashMap<ByteSymbol, usize>,
     }
 
     impl<'hir> Visit<'hir> for Counter<'hir> {
@@ -263,7 +263,7 @@ fn shared_string_literals(
             if let hir::ExprKind::Lit(lit) = expr.kind
                 && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
             {
-                *self.counts.entry(bytes.as_byte_str().to_vec()).or_default() += 1;
+                *self.counts.entry(bytes).or_default() += 1;
             }
             if let Some(variable_id) = expr.as_variable()
                 && self.hir.variable(variable_id).is_constant()
@@ -271,7 +271,7 @@ fn shared_string_literals(
                 && let hir::ExprKind::Lit(lit) = initializer.peel_parens().kind
                 && let solar_ast::LitKind::Str(_, bytes, _) = lit.kind
             {
-                *self.counts.entry(bytes.as_byte_str().to_vec()).or_default() += 1;
+                *self.counts.entry(bytes).or_default() += 1;
             }
             self.walk_expr(expr)
         }
@@ -284,15 +284,14 @@ fn shared_string_literals(
     let mut shared = FxHashSet::default();
     let mut shared_word = FxHashSet::default();
     for (bytes, count) in counter.counts {
-        if bytes.is_empty() {
+        if count < 3 || bytes.as_byte_str().is_empty() {
             continue;
         }
+        let bytes = bytes.as_byte_str().to_vec();
         if count >= 4 {
             shared.insert(bytes.clone());
         }
-        if count >= 3 {
-            shared_word.insert(bytes);
-        }
+        shared_word.insert(bytes);
     }
     (shared, shared_word)
 }
