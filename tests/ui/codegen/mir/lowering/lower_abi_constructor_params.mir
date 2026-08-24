@@ -4,6 +4,8 @@
 // CHECK: + @phase abi
 // CHECK: + fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256)
 // CHECK-NOT: abi_params
+// CHECK: + [[VALUE:v[0-9]+]] = callvalue
+// CHECK: + jumpi [[VALUE]],
 // CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160

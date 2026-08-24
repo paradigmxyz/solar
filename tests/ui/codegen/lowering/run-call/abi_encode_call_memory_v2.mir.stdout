@@ -30,14 +30,14 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v3
     v6 = abi_encode []
     v7 = not 31
-    v8 = and 103, v7
+    v8 = and 111, v7
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, 40
-    memory_object_store_word memorybytes, v9, 0, 0x601f8060095f395ff334601a575f3560e01c8063a7a0d53714601657601a565b
-    memory_object_store_word memorybytes, v9, 32, 0x601e565b5f80fd5b000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v9, 40, v6
+    set_memory_object_len memorybytes, v9, 48
+    memory_object_store_word memorybytes, v9, 0, 0x34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c8063a7a0d537
+    memory_object_store_word memorybytes, v9, 32, 0x14601657601a565b601e565b5f80fd5b00000000000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v9, 48, v6
     v10 = memory_object_data memorybytes, v9
-    v11 = create 0, v10, 40
+    v11 = create 0, v10, 48
     jumpi v11, bb4, bb3
   bb3:
     revert_returndata

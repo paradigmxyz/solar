@@ -6,8 +6,8 @@
 fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 12
-    memory_object_store_word memorybytes, v0, 0, 0x60038060095f395ff35f80fd0000000000000000000000000000000000000000
+    set_memory_object_len memorybytes, v0, 20
+    memory_object_store_word memorybytes, v0, 0, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v1 = memory_object_len memorybytes, v0
     v2 = gt v1, 0
     jumpi v2, bb1, bb2
@@ -78,13 +78,13 @@ fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_r
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 75, v1
+    v2 = and 83, v1
     v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 12
-    memory_object_store_word memorybytes, v3, 0, 0x60038060095f395ff35f80fd0000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 12, v0
+    set_memory_object_len memorybytes, v3, 20
+    memory_object_store_word memorybytes, v3, 0, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v3, 20, v0
     v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 12
+    v5 = create 0, v4, 20
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
