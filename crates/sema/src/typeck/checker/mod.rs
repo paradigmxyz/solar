@@ -449,7 +449,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else if !is_calldata_sliceable(ty) {
                     self.dcx().emit_err(expr.span, "can only slice dynamic calldata arrays");
                 }
-                if let Some((_index_ty, _result_ty)) = self.index_types(ty) {
+                if self.index_types(ty).is_some()
+                    || matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
+                {
                     if let Some(start) = start {
                         let _ = self.expect_ty(start, self.gcx.types.uint(256));
                     }
