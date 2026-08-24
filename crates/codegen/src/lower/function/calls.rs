@@ -1027,25 +1027,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
         let actual = self.builder.returndata_size();
         let short = self.builder.lt(actual, expected);
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(short, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.revert_if_invalid(short);
     }
 
     fn revert_if_no_code(&mut self, address: ValueId) {
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(missing, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.revert_if_invalid(missing);
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
@@ -1070,13 +1058,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let valid = validator.condition(&mut self.builder, value, false);
 
         let invalid = self.builder.iszero(valid);
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(invalid, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.revert_if_invalid(invalid);
     }
 
     pub(super) fn resolve_call_target(
