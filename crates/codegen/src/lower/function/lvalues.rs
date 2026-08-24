@@ -33,7 +33,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &expr.kind {
             ExprKind::Member(receiver, name) => {
                 if self.context.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
-                    || name.name == sym::offset
+                    || (name.name == sym::offset
+                        && self
+                            .type_of_expr_or_variable(receiver)
+                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata)))
                 {
                     return report_unsupported(self.context.gcx, expr.span, "l-value");
                 }
@@ -111,11 +114,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         place: &LValuePlace<'gcx>,
         value: ValueId,
     ) -> Option<()> {
+        self.store_lvalue_place_with_source(place, value, None)
+    }
+
+    fn store_lvalue_place_with_source(
+        &mut self,
+        place: &LValuePlace<'gcx>,
+        value: ValueId,
+        source_ty: Option<Ty<'gcx>>,
+    ) -> Option<()> {
         match *place {
             LValuePlace::Variable { id, span } => self.store_variable(id, value, span),
-            LValuePlace::Storage { ty, access, span } => {
-                self.store_storage_value(ty, access, value, span)
-            }
+            LValuePlace::Storage { ty, access, span } => match source_ty {
+                Some(source_ty) => {
+                    self.store_storage_value_with_source(ty, source_ty, access, value, span)
+                }
+                None => self.store_storage_value(ty, access, value, span),
+            },
             LValuePlace::MemoryField { object, layout, field, .. } => {
                 self.builder.memory_object_store_field(object, layout, field, value);
                 Some(())
@@ -283,21 +298,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         source_ty: Option<Ty<'gcx>>,
     ) -> Option<()> {
-        if let Some(place) = self.resolve_storage_byte_place(expr) {
-            return self.store_lvalue_place(&place, value);
-        }
-        if let Some(access) = self.storage_access(expr) {
-            return if let Some(source_ty) = source_ty {
-                self.store_storage_access_with_source(expr, access, value, source_ty)
-            } else {
-                self.store_storage_access(expr, access, value)
-            };
-        }
-        if let Some(id) = self.context.gcx.resolved_variable(expr)
-            && self.can_access_variable(id)
-        {
-            return self.store_variable(id, value, expr.span);
-        }
+        let expr = expr.peel_parens();
         match &expr.kind {
             ExprKind::Member(receiver, name)
                 if self.context.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
@@ -306,65 +307,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .type_of_expr_or_variable(receiver)
                             .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))) =>
             {
-                self.store_yul_member(receiver, *name, value, expr.span)
-            }
-            ExprKind::Member(receiver, name) => {
-                let id = self.context.gcx.resolved_variable(expr)?;
-                let variable = self.context.gcx.hir.variable(id);
-                let Some(hir::ItemId::Struct(struct_id)) = variable.parent else {
-                    return report_unsupported(self.context.gcx, expr.span, "member assignment");
-                };
-                let Some(field) = self
-                    .context
-                    .gcx
-                    .hir
-                    .strukt(struct_id)
-                    .fields
-                    .iter()
-                    .position(|&field| field == id)
-                else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        name.span,
-                        "struct field assignment",
-                    );
-                };
-                let object = self.lower_expr(receiver)?;
-                let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
-                let layout = self.types.memory_layout(receiver_ty)?;
-                self.builder.memory_object_store_field(object, layout, field as u64, value);
-                Some(())
+                return self.store_yul_member(receiver, *name, value, expr.span);
             }
             ExprKind::YulMember(receiver, name) => {
-                self.store_yul_member(receiver, *name, value, expr.span)
+                return self.store_yul_member(receiver, *name, value, expr.span);
             }
-            ExprKind::Index(receiver, index) => {
-                let Some(index) = index else {
-                    return report_unsupported(self.context.gcx, expr.span, "index assignment");
-                };
-                let object = self.lower_expr(receiver)?;
-                let index = self.lower_expr(index)?;
-                let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
-                let layout = self.types.memory_layout(receiver_ty)?;
-                match layout {
-                    MemoryObjectLayout::DynamicArray { .. }
-                    | MemoryObjectLayout::FixedArray { .. } => {
-                        let length = self.memory_object_length(object, layout);
-                        self.builder.bounds_check(index, length);
-                        self.builder.memory_object_store_element(object, layout, index, value);
-                        Some(())
-                    }
-                    MemoryObjectLayout::Bytes => {
-                        let length = self.builder.memory_object_len(object, layout.kind());
-                        self.builder.bounds_check(index, length);
-                        self.store_byte(object, index, value);
-                        Some(())
-                    }
-                    _ => report_unsupported(self.context.gcx, expr.span, "index assignment"),
-                }
-            }
-            _ => report_unsupported(self.context.gcx, expr.span, "assignment target"),
+            _ => {}
         }
+        let place = self.resolve_lvalue_place(expr)?;
+        self.store_lvalue_place_with_source(&place, value, source_ty)
     }
 
     fn store_yul_member(

@@ -798,27 +798,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.load_storage_value(ty, access, expr.span)
     }
 
-    pub(super) fn store_storage_access(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        access: StorageAccess,
-        value: ValueId,
-    ) -> Option<()> {
-        let ty = self.context.gcx.type_of_expr(expr.id)?;
-        self.store_storage_value(ty, access, value, expr.span)
-    }
-
-    pub(super) fn store_storage_access_with_source(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        access: StorageAccess,
-        value: ValueId,
-        source_ty: Ty<'gcx>,
-    ) -> Option<()> {
-        let ty = self.context.gcx.type_of_expr(expr.id)?;
-        self.store_storage_value_with_source(ty, source_ty, access, value, expr.span)
-    }
-
     pub(super) fn load_storage_value(
         &mut self,
         ty: Ty<'gcx>,
