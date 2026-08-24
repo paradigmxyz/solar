@@ -7,7 +7,6 @@ use solar_ast::{
 use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
-    config::EvmVersion,
     diagnostics::DiagCtxt,
     error_code,
     source_map::{FileName, SourceFile},
@@ -1006,12 +1005,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        let is_reserved = if self.in_yul {
-            ident.is_yul_keyword() || self.is_reserved_yul_builtin(ident)
-        } else {
-            ident.is_reserved(false)
-        };
-        if is_reserved {
+        if ident.is_reserved(self.in_yul) {
             let err = self.expected_ident_found_err();
             if recover {
                 err.emit();
@@ -1021,12 +1015,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         self.bump();
         Ok(ident)
-    }
-
-    fn is_reserved_yul_builtin(&self, ident: Ident) -> bool {
-        ident.is_reserved_yul_builtin()
-            && (self.sess.opts.evm_version >= EvmVersion::Cancun
-                || !ident.name.is_cancun_yul_builtin())
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.

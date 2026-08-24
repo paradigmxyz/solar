@@ -321,12 +321,6 @@ impl Symbol {
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
-    /// Returns `true` if the symbol is a Yul builtin introduced in Cancun.
-    #[inline]
-    pub fn is_cancun_yul_builtin(self) -> bool {
-        matches!(self, kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore)
-    }
-
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
     /// possible future use.
     #[inline]

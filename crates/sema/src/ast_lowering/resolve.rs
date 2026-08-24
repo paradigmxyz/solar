@@ -1417,8 +1417,15 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(&*functions);
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
-            if name.name.is_cancun_yul_builtin()
-                && self.lcx.sess.opts.evm_version < EvmVersion::Cancun
+            if self.lcx.sess.opts.evm_version < EvmVersion::Cancun
+                && matches!(
+                    builtin,
+                    Builtin::YulBlobbasefee
+                        | Builtin::YulBlobhash
+                        | Builtin::YulMcopy
+                        | Builtin::YulTload
+                        | Builtin::YulTstore
+                )
             {
                 return Err(self
                     .dcx()

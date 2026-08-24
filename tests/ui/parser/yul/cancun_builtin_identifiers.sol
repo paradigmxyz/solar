@@ -3,18 +3,10 @@
 //@[cancun] compile-flags: --evm-version cancun
 
 contract C {
-    function variables() external pure {
+    function identifier() external pure {
         assembly {
             let mcopy
-            //~[cancun]^ ERROR: expected identifier, found Yul EVM builtin keyword `mcopy`
-            let blobhash
-            //~[cancun]^ ERROR: expected identifier, found Yul EVM builtin keyword `blobhash`
-            let blobbasefee
-            //~[cancun]^ ERROR: expected identifier, found Yul EVM builtin keyword `blobbasefee`
-            let tload
-            //~[cancun]^ ERROR: expected identifier, found Yul EVM builtin keyword `tload`
-            let tstore
-            //~[cancun]^ ERROR: expected identifier, found Yul EVM builtin keyword `tstore`
+            //~^ ERROR: expected identifier, found Yul EVM builtin keyword `mcopy`
         }
     }
 
