@@ -441,7 +441,7 @@ fn @f(arg0: u256, arg1: memorybytes) -> (u256, bytes1) [selector=0xcdc9dc79, abi
   bb7:
     revert_returndata
   bb8:
-    v16 = returndata_size
+    v16 = returndatasize
     v17 = lt v16, 32
     jumpi v17, bb9, bb10
   bb9:
@@ -460,7 +460,7 @@ fn @f(arg0: u256, arg1: memorybytes) -> (u256, bytes1) [selector=0xcdc9dc79, abi
   bb11:
     revert_returndata
   bb12:
-    v27 = returndata_size
+    v27 = returndatasize
     v28 = lt v27, 32
     jumpi v28, bb13, bb14
   bb13:

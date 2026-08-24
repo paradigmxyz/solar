@@ -144,7 +144,7 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_args=lazy, a
   bb13:
     revert_returndata
   bb14:
-    v38 = returndata_size
+    v38 = returndatasize
     v39 = add v38, 63
     v40 = lt v39, v38
     jumpi v40, bb15, bb16

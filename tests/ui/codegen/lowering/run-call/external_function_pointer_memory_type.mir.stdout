@@ -25,7 +25,7 @@ fn @main() -> bool [selector=0xdffeadd0, abi_args=lazy, abi_params=[], abi_retur
   bb1:
     revert_returndata
   bb2:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = lt v12, 32
     jumpi v13, bb3, bb4
   bb3:

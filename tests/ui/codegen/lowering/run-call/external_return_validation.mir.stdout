@@ -12,7 +12,7 @@ fn @short() -> u256 [selector=0x38bea4cb, view, abi_args=lazy, abi_params=[], ab
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb3, bb4
   bb3:
@@ -42,7 +42,7 @@ fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_args=lazy, abi_params=[], abi_
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb3, bb4
   bb3:
@@ -122,7 +122,7 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_args=lazy, abi_pa
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
@@ -469,7 +469,7 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_args=lazy, ab
   bb3:
     revert_returndata
   bb4:
-    v9 = returndata_size
+    v9 = returndatasize
     v10 = lt v9, 32
     jumpi v10, bb5, bb6
   bb5:
@@ -514,7 +514,7 @@ fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_args=la
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = lt v12, 32
     jumpi v13, bb5, bb6
   bb5:
@@ -597,7 +597,7 @@ fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_args=laz
   bb10:
     revert_returndata
   bb11:
-    v31 = returndata_size
+    v31 = returndatasize
     v32 = lt v31, 32
     jumpi v32, bb12, bb13
   bb12:
@@ -763,7 +763,7 @@ fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_args=lazy, 
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb3, bb4

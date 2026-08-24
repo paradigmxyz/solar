@@ -61,7 +61,7 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_args=lazy, abi_params=[], abi
   bb3:
     revert_returndata
   bb4:
-    v19 = returndata_size
+    v19 = returndatasize
     v20 = lt v19, 32
     jumpi v20, bb5, bb6
   bb5:

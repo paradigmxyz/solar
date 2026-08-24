@@ -208,7 +208,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
   bb7:
     revert_returndata
   bb8:
-    v26 = returndata_size
+    v26 = returndatasize
     v27 = add v26, 63
     v28 = lt v27, v26
     jumpi v28, bb9, bb10

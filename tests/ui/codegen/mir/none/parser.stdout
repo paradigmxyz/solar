@@ -69,9 +69,9 @@
       ret v0
   }
   
-  fn @returndata_size() -> u256 {
+  fn @returndatasize() -> u256 {
     bb0:
-      v0 = returndata_size
+      v0 = returndatasize
       ret v0
   }
   

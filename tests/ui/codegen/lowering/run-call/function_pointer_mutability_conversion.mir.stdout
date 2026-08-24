@@ -90,7 +90,7 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_args=lazy, abi
   bb3:
     revert_returndata
   bb4:
-    v49 = returndata_size
+    v49 = returndatasize
     v50 = lt v49, 32
     jumpi v50, bb5, bb6
   bb5:
@@ -185,7 +185,7 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_args=lazy, abi
   bb3:
     revert_returndata
   bb4:
-    v49 = returndata_size
+    v49 = returndatasize
     v50 = lt v49, 32
     jumpi v50, bb5, bb6
   bb5:
@@ -280,7 +280,7 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_args=lazy, abi_pa
   bb3:
     revert_returndata
   bb4:
-    v49 = returndata_size
+    v49 = returndatasize
     v50 = lt v49, 32
     jumpi v50, bb5, bb6
   bb5:

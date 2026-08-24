@@ -1033,7 +1033,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
-        let actual = self.builder.call_returndata_size();
+        let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
         self.revert_if_invalid(short);
     }

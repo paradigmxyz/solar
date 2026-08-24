@@ -7,7 +7,7 @@ fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_args=
     v2 = memory_object_data memorybytes, arg0
     v3 = memory_object_len memorybytes, arg0
     v4 = call v1, v0, 0, v2, v3, 0, 0
-    v5 = returndata_size
+    v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb1, bb2

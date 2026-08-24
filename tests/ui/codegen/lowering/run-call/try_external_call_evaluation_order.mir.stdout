@@ -157,12 +157,12 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     v8 = call v2, v0, v3, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb1:
-    v9 = returndata_size
+    v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb4, bb5
   bb2:
-    v18 = returndata_size
+    v18 = returndatasize
     v19 = add v18, 63
     v20 = lt v19, v18
     jumpi v20, bb6, bb7

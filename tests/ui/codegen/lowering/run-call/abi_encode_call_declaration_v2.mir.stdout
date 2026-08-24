@@ -35,7 +35,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     v3 = memory_object_data memorybytes, v2
     v4 = memory_object_len memorybytes, v2
     v5 = staticcall v1, v0, v3, v4, 0, 0
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb1, bb2
@@ -85,7 +85,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     v25 = memory_object_data memorybytes, v24
     v26 = memory_object_len memorybytes, v24
     v27 = staticcall v23, v22, v25, v26, 0, 0
-    v28 = returndata_size
+    v28 = returndatasize
     v29 = add v28, 63
     v30 = lt v29, v28
     jumpi v30, bb12, bb13
@@ -135,7 +135,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     v47 = memory_object_data memorybytes, v46
     v48 = memory_object_len memorybytes, v46
     v49 = staticcall v45, v44, v47, v48, 0, 0
-    v50 = returndata_size
+    v50 = returndatasize
     v51 = add v50, 63
     v52 = lt v51, v50
     jumpi v52, bb23, bb24
@@ -185,7 +185,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     v69 = memory_object_data memorybytes, v68
     v70 = memory_object_len memorybytes, v68
     v71 = staticcall v67, v66, v69, v70, 0, 0
-    v72 = returndata_size
+    v72 = returndatasize
     v73 = add v72, 63
     v74 = lt v73, v72
     jumpi v74, bb34, bb35
@@ -235,7 +235,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi
     v91 = memory_object_data memorybytes, v90
     v92 = memory_object_len memorybytes, v90
     v93 = staticcall v89, v88, v91, v92, 0, 0
-    v94 = returndata_size
+    v94 = returndatasize
     v95 = add v94, 63
     v96 = lt v95, v94
     jumpi v96, bb45, bb46
@@ -294,7 +294,7 @@ fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_args=lazy, abi_params=
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb3, bb4
   bb3:

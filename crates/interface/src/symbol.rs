@@ -1115,7 +1115,6 @@ symbols! {
         returndata,
         returndata_array,
         returndata_bytes,
-        returndata_size,
         returndataslice,
         revert_returndata,
         ripemd160,

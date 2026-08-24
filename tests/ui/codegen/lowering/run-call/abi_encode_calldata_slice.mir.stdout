@@ -822,7 +822,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_args=lazy, abi_params=[], abi_re
   bb19:
     revert_returndata
   bb20:
-    v34 = returndata_size
+    v34 = returndatasize
     v35 = add v34, 63
     v36 = lt v35, v34
     jumpi v36, bb21, bb22
@@ -848,7 +848,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_args=lazy, abi_params=[], abi_re
   bb23:
     revert_returndata
   bb24:
-    v48 = returndata_size
+    v48 = returndatasize
     v49 = add v48, 63
     v50 = lt v49, v48
     jumpi v50, bb25, bb26
@@ -875,7 +875,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_args=lazy, abi_params=[], abi_re
   bb27:
     revert_returndata
   bb28:
-    v62 = returndata_size
+    v62 = returndatasize
     v63 = add v62, 63
     v64 = lt v63, v62
     jumpi v64, bb29, bb30
@@ -901,7 +901,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_args=lazy, abi_params=[], abi_re
   bb31:
     revert_returndata
   bb32:
-    v76 = returndata_size
+    v76 = returndatasize
     v77 = add v76, 63
     v78 = lt v77, v76
     jumpi v78, bb33, bb34
@@ -1015,7 +1015,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_args=lazy, abi_params=[], abi_
   bb19:
     revert_returndata
   bb20:
-    v26 = returndata_size
+    v26 = returndatasize
     v27 = add v26, 63
     v28 = lt v27, v26
     jumpi v28, bb21, bb22
@@ -1041,7 +1041,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_args=lazy, abi_params=[], abi_
   bb23:
     revert_returndata
   bb24:
-    v40 = returndata_size
+    v40 = returndatasize
     v41 = add v40, 63
     v42 = lt v41, v40
     jumpi v42, bb25, bb26
@@ -1068,7 +1068,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_args=lazy, abi_params=[], abi_
   bb27:
     revert_returndata
   bb28:
-    v54 = returndata_size
+    v54 = returndatasize
     v55 = add v54, 63
     v56 = lt v55, v54
     jumpi v56, bb29, bb30
@@ -1094,7 +1094,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_args=lazy, abi_params=[], abi_
   bb31:
     revert_returndata
   bb32:
-    v68 = returndata_size
+    v68 = returndatasize
     v69 = add v68, 63
     v70 = lt v69, v68
     jumpi v70, bb33, bb34

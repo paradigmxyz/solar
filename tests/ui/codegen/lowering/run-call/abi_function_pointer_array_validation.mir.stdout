@@ -90,7 +90,7 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v12 = memory_object_data memorybytes, v7
     v13 = memory_object_len memorybytes, v7
     v14 = staticcall v11, v10, v12, v13, 0, 0
-    v15 = returndata_size
+    v15 = returndatasize
     v16 = add v15, 63
     v17 = lt v16, v15
     jumpi v17, bb6, bb7

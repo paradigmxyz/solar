@@ -111,7 +111,7 @@ fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_args=lazy, abi
   bb1:
     revert_returndata
   bb2:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
     jumpi v14, bb3, bb4
@@ -175,7 +175,7 @@ fn @readArguments() -> (u256, memorybytes) [selector=0x372fd38b, view, abi_args=
   bb5:
     revert_returndata
   bb6:
-    v20 = returndata_size
+    v20 = returndatasize
     v21 = add v20, 63
     v22 = lt v21, v20
     jumpi v22, bb7, bb8
@@ -223,7 +223,7 @@ fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_args=la
   bb1:
     revert_returndata
   bb2:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
   bb3:
@@ -247,7 +247,7 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_args=lazy
     v6 = memory_object_data memorybytes, v5
     v7 = memory_object_len memorybytes, v5
     v8 = staticcall v1, v0, v6, v7, 0, 0
-    v9 = returndata_size
+    v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb1, bb2
@@ -291,7 +291,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_args=lazy, abi_pa
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
@@ -319,7 +319,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_args=lazy, abi_pa
   bb5:
     revert_returndata
   bb6:
-    v22 = returndata_size
+    v22 = returndatasize
     v23 = lt v22, 32
     jumpi v23, bb7, bb8
   bb7:
@@ -354,7 +354,7 @@ fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_args=lazy, abi_pa
   bb1:
     revert_returndata
   bb2:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = lt v14, 32
     jumpi v15, bb3, bb4
   bb3:
@@ -420,7 +420,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_args=lazy, abi_par
   bb7:
     revert_returndata
   bb8:
-    v26 = returndata_size
+    v26 = returndatasize
     v27 = lt v26, 32
     jumpi v27, bb9, bb10
   bb9:
@@ -453,7 +453,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_args=lazy, abi_par
   bb13:
     revert_returndata
   bb14:
-    v45 = returndata_size
+    v45 = returndatasize
     v46 = lt v45, 32
     jumpi v46, bb15, bb16
   bb15:
@@ -529,7 +529,7 @@ fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_args=lazy, abi_
   bb1:
     revert_returndata
   bb2:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = lt v12, 32
     jumpi v13, bb3, bb4
   bb3:

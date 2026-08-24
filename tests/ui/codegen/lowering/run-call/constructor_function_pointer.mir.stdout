@@ -20,7 +20,7 @@ fn @_anonymous(arg0: function) [constructor, abi_args=lazy, abi_params=[function
   bb1:
     revert_returndata
   bb2:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
   bb3:
@@ -72,7 +72,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
   bb3:
     revert_returndata
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = lt v14, 32
     jumpi v15, bb5, bb6
   bb5:

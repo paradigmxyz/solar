@@ -215,7 +215,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
   bb29:
     revert_returndata
   bb30:
-    v108 = returndata_size
+    v108 = returndatasize
     v109 = lt v108, 32
     jumpi v109, bb31, bb32
   bb31:

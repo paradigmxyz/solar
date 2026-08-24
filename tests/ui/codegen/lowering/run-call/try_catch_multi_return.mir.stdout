@@ -73,12 +73,12 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], 
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb1:
-    v9 = returndata_size
+    v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb4, bb5
   bb2:
-    v22 = returndata_size
+    v22 = returndatasize
     v23 = add v22, 63
     v24 = lt v23, v22
     jumpi v24, bb8, bb9
@@ -152,12 +152,12 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_args=lazy, abi_params=[], 
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb1:
-    v9 = returndata_size
+    v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb4, bb5
   bb2:
-    v19 = returndata_size
+    v19 = returndatasize
     v20 = add v19, 63
     v21 = lt v20, v19
     jumpi v21, bb6, bb7

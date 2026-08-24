@@ -53,7 +53,7 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_args=lazy, abi_params=[bool]
     v11 = iszero v10
     ret v11
   bb2:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
     jumpi v14, bb4, bb5

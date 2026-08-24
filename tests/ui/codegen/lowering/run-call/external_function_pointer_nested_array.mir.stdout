@@ -25,7 +25,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_args=lazy
   bb3:
     revert_returndata
   bb4:
-    v13 = returndata_size
+    v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
     jumpi v15, bb5, bb6
@@ -75,7 +75,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_args=lazy
   bb11:
     revert_returndata
   bb12:
-    v37 = returndata_size
+    v37 = returndatasize
     v38 = add v37, 63
     v39 = lt v38, v37
     jumpi v39, bb13, bb14
@@ -123,7 +123,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_args=lazy
   bb19:
     revert_returndata
   bb20:
-    v60 = returndata_size
+    v60 = returndatasize
     v61 = add v60, 63
     v62 = lt v61, v60
     jumpi v62, bb21, bb22
@@ -295,7 +295,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
   bb15:
     revert_returndata
   bb16:
-    v34 = returndata_size
+    v34 = returndatasize
     v35 = lt v34, 96
     jumpi v35, bb17, bb18
   bb17:
@@ -324,7 +324,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
   bb21:
     revert_returndata
   bb22:
-    v49 = returndata_size
+    v49 = returndatasize
     v50 = lt v49, 32
     jumpi v50, bb23, bb24
   bb23:
@@ -356,7 +356,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
   bb27:
     revert_returndata
   bb28:
-    v67 = returndata_size
+    v67 = returndatasize
     v68 = lt v67, 32
     jumpi v68, bb29, bb30
   bb29:
@@ -388,7 +388,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
   bb33:
     revert_returndata
   bb34:
-    v85 = returndata_size
+    v85 = returndatasize
     v86 = lt v85, 32
     jumpi v86, bb35, bb36
   bb35:

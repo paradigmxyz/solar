@@ -131,8 +131,8 @@ additional tuple values through the multi-return frame slot.
 Typed memory and calldata-slice copies, byte indexing, ABI scalar words, and
 selector dispatch use semantic slice loads; direct memory opcodes remain only
 for inline assembly, explicit revert payload construction, and operations
-materialized by the ABI/backend boundary. High-level returndata capture uses a
-semantic `CallReturndataSize` value until `lower-abi` rewrites it to the EVM query.
+materialized by the ABI/backend boundary. High-level returndata capture uses
+the `returndatasize` query on supported EVM versions and zero otherwise.
 Failed external calls use a `revert_returndata` MIR terminator until `lower-abi`
 selects the EVM-version behavior and emits the returndata copy and revert.
 
