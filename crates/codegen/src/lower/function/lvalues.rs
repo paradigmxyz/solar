@@ -125,18 +125,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             LValuePlace::MemoryByte { object, index, .. } => {
-                let zero = self.builder.imm_u256(U256::ZERO);
-                let value = self.builder.byte(zero, value);
-                self.builder.memory_object_store_byte(object, index, value);
+                self.store_byte(object, index, value);
                 Some(())
             }
             LValuePlace::StorageByte { slot, object, index, .. } => {
-                let zero = self.builder.imm_u256(U256::ZERO);
-                let value = self.builder.byte(zero, value);
-                self.builder.memory_object_store_byte(object, index, value);
+                self.store_byte(object, index, value);
                 self.store_storage_bytes(slot, object)
             }
         }
+    }
+
+    fn store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let value = self.builder.byte(zero, value);
+        self.builder.memory_object_store_byte(object, index, value);
     }
 
     pub(super) fn resolve_storage_byte_place(
@@ -376,9 +378,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     MemoryObjectLayout::Bytes => {
                         let length = self.builder.memory_object_len(object, layout.kind());
                         self.builder.bounds_check(index, length);
-                        let zero = self.builder.imm_u256(U256::ZERO);
-                        let value = self.builder.byte(zero, value);
-                        self.builder.memory_object_store_byte(object, index, value);
+                        self.store_byte(object, index, value);
                         Some(())
                     }
                     _ => report_unsupported(self.context.gcx, expr.span, "index assignment"),

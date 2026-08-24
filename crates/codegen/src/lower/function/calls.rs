@@ -493,14 +493,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
-        let source_size = match from.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
-            _ => None,
-        };
-        let destination_size = match to.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
-            _ => None,
-        };
+        let source_size = fixed_bytes_size(from);
+        let destination_size = fixed_bytes_size(to);
         if let Some(size) = destination_size
             && self.is_calldata_dynamic_bytes_type(from)
             && self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
@@ -1114,5 +1108,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, expr.span, "low-level call return values");
         };
         Some(vec![success, returndata])
+    }
+}
+
+fn fixed_bytes_size(ty: Ty<'_>) -> Option<TypeSize> {
+    match ty.peel_refs().kind {
+        TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
+        _ => None,
     }
 }

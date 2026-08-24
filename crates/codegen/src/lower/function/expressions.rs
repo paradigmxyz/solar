@@ -227,12 +227,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let value = self.lower_expr(receiver)?;
             return match name.name {
-                kw::Address => {
-                    let shift = self.builder.imm_u64(32);
-                    let address = self.builder.shr(shift, value);
-                    let mask = self.builder.imm_u256(U256::MAX >> 96);
-                    Some(self.builder.and(address, mask))
-                }
+                kw::Address => Some(self.external_function_address(value)),
                 sym::selector => {
                     let mask = self.builder.imm_u256(U256::from(u32::MAX));
                     Some(self.builder.and(value, mask))
@@ -348,10 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.context.gcx, expr.span, "function address");
             }
             let value = self.lower_expr(receiver)?;
-            let shift = self.builder.imm_u64(32);
-            let address = self.builder.shr(shift, value);
-            let mask = self.builder.imm_u256(U256::MAX >> 96);
-            return Some(self.builder.and(address, mask));
+            return Some(self.external_function_address(value));
         }
         if builtin == Builtin::FunctionSelector {
             let ExprKind::Member(receiver, _) = &expr.kind else {
@@ -521,6 +513,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => report_unsupported(self.context.gcx, span, "type limit"),
         }
+    }
+
+    fn external_function_address(&mut self, value: ValueId) -> ValueId {
+        let shift = self.builder.imm_u64(32);
+        let address = self.builder.shr(shift, value);
+        let mask = self.builder.imm_u256(U256::MAX >> 96);
+        self.builder.and(address, mask)
     }
 
     pub(super) fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
