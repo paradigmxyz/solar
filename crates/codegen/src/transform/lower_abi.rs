@@ -83,7 +83,7 @@ impl MirPass for LowerAbi {
 #[derive(Debug, Default)]
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
-    calldata_slice_helpers: FxHashMap<AbiParamType, FunctionId>,
+    calldata_slice_helper: Option<FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     has_bitwise_shifting: bool,
 }
@@ -618,9 +618,7 @@ impl LowerAbiCx {
             })
             .sum::<usize>();
         if count >= 2 {
-            let ty = AbiParamType::Bytes;
-            let helper = self.synthesize_calldata_slice_helper(module);
-            self.calldata_slice_helpers.insert(ty, helper);
+            self.calldata_slice_helper = Some(self.synthesize_calldata_slice_helper(module));
         }
     }
 
@@ -1444,7 +1442,7 @@ impl LowerAbiCx {
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
                             && matches!(ty, AbiParamType::Bytes)
-                            && let Some(&helper) = self.calldata_slice_helpers.get(ty)
+                            && let Some(helper) = self.calldata_slice_helper
                         {
                             let data =
                                 builder.internal_call(helper, vec![head], MirType::uint256(), 2);
