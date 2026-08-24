@@ -7,6 +7,7 @@ use crate::{
         utils::resolve_replacement,
     },
     pass::MirPass,
+    transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -113,21 +114,10 @@ pub(crate) fn move_terminator(
 ) {
     let final_block = builder.current_block();
     let Some(terminator) = terminator else { return };
-    if final_block != original_block {
-        for successor in terminator.successors() {
-            let instructions = builder.func().blocks[successor].instructions.clone();
-            for inst in instructions {
-                if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
-                    for (predecessor, _) in incoming {
-                        if *predecessor == original_block {
-                            *predecessor = final_block;
-                        }
-                    }
-                }
-            }
-        }
-    }
     builder.func_mut().blocks[final_block].terminator = Some(terminator);
+    if final_block != original_block {
+        redirect_successor_predecessors(builder.func_mut(), original_block, final_block);
+    }
 }
 
 fn lower_encode(

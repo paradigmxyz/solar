@@ -26,7 +26,7 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
             .instructions
             .iter()
             .copied()
-            .take_while(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
+            .filter(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
             .collect();
         for phi in phi_insts {
             let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
