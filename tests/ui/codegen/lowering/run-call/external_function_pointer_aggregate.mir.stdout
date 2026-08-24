@@ -243,46 +243,32 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_args=lazy
     v2 = address
     v3 = shl 32, v2
     v4 = or v3, 0x7cf5dab0
-    v5 = abi_encode [function, word], selector 0xec460bea00000000000000000000000000000000000000000000000000000000, args v4, 7
-    v6 = slice_len v5
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    jumpi v8, bb1, bb2
+    v5 = abi_encode [function, word], object, selector 0xec460bea00000000000000000000000000000000000000000000000000000000, args v4, 7
+    v6 = memory_object_data memorybytes, v5
+    v7 = memory_object_len memorybytes, v5
+    v8 = staticcall v1, v0, v6, v7, 0, 0
+    v9 = returndata_size
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    memory_object_copy_from_slice memorybytes, v11, v5
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = staticcall v1, v0, v12, v13, 0, 0
-    v15 = returndata_size
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb3, bb4
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = iszero v8
+    jumpi v16, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    v21 = make_returndata_slice 0, v15
-    memory_object_copy_from_slice memorybytes, v20, v21
-    v22 = iszero v14
-    jumpi v22, bb5, bb6
-  bb5:
     revert 0, 0
-  bb6:
-    v23 = abi_decode [u256], v20
-    ret v23
+  bb4:
+    v17 = abi_decode [u256], v14
+    ret v17
 }
 
 fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_args=lazy, abi_params=[], abi_returns=[function]] {

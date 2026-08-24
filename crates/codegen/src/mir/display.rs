@@ -513,8 +513,11 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
-        InstKind::AbiEncode { selector, args, layout } => {
+        InstKind::AbiEncode { returns_object, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
+            if *returns_object {
+                write!(f, ", object")?;
+            }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;
             }

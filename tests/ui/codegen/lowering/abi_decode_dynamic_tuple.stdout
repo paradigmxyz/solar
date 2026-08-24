@@ -11,26 +11,12 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
 
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, pure, abi_args=lazy, abi_params=[u256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
-    v0 = abi_encode [word, memory_bytes, memory_bytes], args arg0, arg1, arg2
-    v1 = slice_len v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    memory_object_copy_from_slice memorybytes, v6, v0
-    v7 = abi_decode [u256, bytes, bytes], v6
-    v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v9 = memory_object_load_element memoryfixedarray<3, 1>, v8, 1
-    v10 = memory_object_load_element memoryfixedarray<3, 1>, v8, 2
-    ret v7, v9, v10
+    v0 = abi_encode [word, memory_bytes, memory_bytes], object, args arg0, arg1, arg2
+    v1 = abi_decode [u256, bytes, bytes], v0
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = memory_object_load_element memoryfixedarray<3, 1>, v2, 1
+    v4 = memory_object_load_element memoryfixedarray<3, 1>, v2, 2
+    ret v1, v3, v4
 }
 
 fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {

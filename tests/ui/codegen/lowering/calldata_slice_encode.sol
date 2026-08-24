@@ -8,7 +8,7 @@ interface SliceSink {
 contract CalldataSliceEncode {
     // CHECK-LABEL: fn @encode{{[( ]}}
     // CHECK: make_calldata_slice
-    // CHECK: {{v[0-9]+}} = abi_encode [calldata_bytes], args
+    // CHECK: {{v[0-9]+}} = abi_encode [calldata_bytes], object, args
     function encode(bytes calldata data, uint256 start)
         external
         pure

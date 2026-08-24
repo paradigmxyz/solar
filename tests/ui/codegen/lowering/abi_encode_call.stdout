@@ -3,111 +3,87 @@
 @phase evm-shaped
 fn @asValue() [selector=0x440a9300, pure] {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 68
-    jumpi v9, bb3, bb4
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
-  bb2:
-    v7 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v43 = add v7, 128
-    mstore 64, v43 !metadata(memory=scratch)
-    mstore v7, 68
-    v40 = add v7, 32
-    mcopy v40, v16, 68
-    v20 = mload 64 !metadata(memory=scratch)
-    v21 = add v20, 32
-    v22 = sub v21, v20
-    mstore v20, v22
-    v23 = mload v7
-    mstore v21, v23
-    v25 = add v23, 31
-    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = add v20, 64
-    jumpi v26, bb6, bb7
-  bb3:
     revert 0, 0
-  bb4:
-    v10 = calldataload 4
-    v11 = shr 160, v10
-    jumpi v11, bb3, bb5
-  bb5:
+  bb2:
+    v4 = calldataload 4
+    v5 = shr 160, v4
+    jumpi v5, bb1, bb3
+  bb3:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v44 = add v16, 96
-    mstore 64, v44 !metadata(memory=scratch)
-    mstore v16, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v17 = add v16, 4
-    mstore v17, v0
-    v18 = add v16, 36
-    mstore v18, arg1
-    jumpi 0, bb1, bb2
-  bb6:
-    v29 = sub v26, 32
-    v30 = add v27, v29
-    mstore v30, 0
-    jump bb7
-  bb7:
-    v32 = add v27, v26
-    mcopy v27, v40, v23
-    v33 = sub v32, v20
-    v35 = add v33, 31
-    v37 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v45 = add v38, v37
-    mstore 64, v45 !metadata(memory=scratch)
-    returndata v38, v33
+    v10 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v34 = add v10, 128
+    mstore 64, v34 !metadata(memory=scratch)
+    mstore v10, 68
+    v11 = add v10, 32
+    mstore v11, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v12 = add v11, 4
+    mstore v12, v0
+    v13 = add v11, 36
+    mstore v13, arg1
+    v14 = mload 64 !metadata(memory=scratch)
+    v15 = add v14, 32
+    v16 = sub v15, v14
+    mstore v14, v16
+    v17 = mload v10
+    mstore v15, v17
+    v19 = add v17, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v14, 64
+    jumpi v20, bb4, bb5
+  bb4:
+    v23 = sub v20, 32
+    v24 = add v21, v23
+    mstore v24, 0
+    jump bb5
+  bb5:
+    v26 = add v21, v20
+    mcopy v21, v11, v17
+    v27 = sub v26, v14
+    v29 = add v27, 31
+    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v35 = add v32, v31
+    mstore 64, v35 !metadata(memory=scratch)
+    returndata v32, v27
 }
 
 fn @viaCall() [selector=0x23d014a1] {
   bb0:
-    v12 = calldatasize
-    v13 = lt v12, 100
-    jumpi v13, bb3, bb4
+    v6 = calldatasize
+    v7 = lt v6, 100
+    jumpi v7, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
-  bb2:
-    v8 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v31 = add v8, 128
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v8, 68
-    v28 = add v8, 32
-    mcopy v28, v24, 68
-    v10 = mload v8
-    v11 = call v0, arg0, 0, v28, v10, 0, 0
-    v20 = iszero v11
-    v21 = iszero v20
-    mstore 128, v21
-    returndata 128, 32
-  bb3:
     revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v9 = shr 160, v8
+    jumpi v9, bb1, bb3
+  bb3:
+    v11 = calldataload 36
+    v12 = shr 160, v11
+    jumpi v12, bb1, bb4
   bb4:
-    v14 = calldataload 4
-    v15 = shr 160, v14
-    jumpi v15, bb3, bb5
-  bb5:
-    v17 = calldataload 36
-    v18 = shr 160, v17
-    jumpi v18, bb3, bb6
-  bb6:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v24 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v32 = add v24, 96
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v24, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v25 = add v24, 4
-    mstore v25, v1
-    v26 = add v24, 36
-    mstore v26, arg2
-    jumpi 0, bb1, bb2
-}
-
-fn @__revert_stub0() {
-  bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v22 = add v18, 128
+    mstore 64, v22 !metadata(memory=scratch)
+    mstore v18, 68
+    v19 = add v18, 32
+    mstore v19, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v20 = add v19, 4
+    mstore v20, v1
+    v21 = add v19, 36
+    mstore v21, arg2
+    v5 = call v0, arg0, 0, v19, 68, 0, 0
+    v14 = iszero v5
+    v15 = iszero v14
+    mstore 128, v15
+    returndata 128, 32
 }
 
 fn @entry() [entry] {

@@ -182,22 +182,8 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v86 = add v76, 1
     jump bb30
   bb32:
-    v87 = abi_encode [memory_array<array<2, word>>], args v75
-    v88 = slice_len v87
-    v89 = add v88, 63
-    v90 = lt v89, v88
-    jumpi v90, bb33, bb34
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb34:
-    v91 = not 31
-    v92 = and v89, v91
-    v93 = alloc memorybytes, exact, uninitialized, infallible, v92
-    set_memory_object_len memorybytes, v93, v88
-    memory_object_copy_from_slice memorybytes, v93, v87
-    ret v93
+    v87 = abi_encode [memory_array<array<2, word>>], object, args v75
+    ret v87
 }
 
 fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0x26153afa, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word]] {
@@ -530,21 +516,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     v45 = sload v44 !metadata(storage=offset(v39, 2))
     memory_object_store_element memoryfixedarray<2, 1>, v41, 1, v45
     memory_object_store_element memoryfixedarray<2, 1>, v31, 1, v41
-    v46 = abi_encode [array<2, array<2, word>>], args v31
-    v47 = slice_len v46
-    v48 = add v47, 63
-    v49 = lt v48, v47
-    jumpi v49, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v50 = not 31
-    v51 = and v48, v50
-    v52 = alloc memorybytes, exact, uninitialized, infallible, v51
-    set_memory_object_len memorybytes, v52, v47
-    memory_object_copy_from_slice memorybytes, v52, v46
-    ret v52
+    v46 = abi_encode [array<2, array<2, word>>], object, args v31
+    ret v46
 }
 

@@ -803,8 +803,10 @@ pub(crate) enum InstKind {
         /// Number of bytes to copy.
         length: ValueId,
     },
-    /// ABI-encode values into a freshly allocated memory slice.
+    /// ABI-encode values into freshly allocated memory.
     AbiEncode {
+        /// Whether the result is an owned bytes object instead of a raw memory slice.
+        returns_object: bool,
         /// Optional left-aligned four-byte selector prefix.
         selector: Option<ValueId>,
         /// Values corresponding to the tuple layout.

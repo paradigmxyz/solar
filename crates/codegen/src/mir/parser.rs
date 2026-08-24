@@ -1667,11 +1667,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Semantic ABI encoding.
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
+                let mut returns_object = false;
                 let mut selector = None;
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     match group {
+                        sym::object if !returns_object => returns_object = true,
                         sym::selector if selector.is_none() => {
                             selector = Some(self.parse_value(builder)?)
                         }
@@ -1696,9 +1698,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         args.len()
                     )));
                 }
+                let result_ty = if returns_object {
+                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                } else {
+                    MirType::Slice(SliceLocation::Memory)
+                };
                 (
-                    InstKind::AbiEncode { selector, args: args.into(), layout },
-                    Some(MirType::Slice(SliceLocation::Memory)),
+                    InstKind::AbiEncode { returns_object, selector, args: args.into(), layout },
+                    Some(result_ty),
                 )
             }
             sym::abi_decode => {

@@ -708,11 +708,8 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_args=lazy, 
     v9 = memory_object_data memoryfixedarray, v7
     jump bb4
   bb3:
-    v22 = abi_encode [array<1, array<1, word>>], args v3
-    v23 = slice_len v22
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    jumpi v25, bb9, bb10
+    v22 = abi_encode [array<1, array<1, word>>], object, args v3
+    ret v22
   bb4:
     v10 = phi [bb2: 0], [bb8: v20]
     v11 = phi [bb2: v8], [bb8: v18]
@@ -739,17 +736,6 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_args=lazy, 
     v19 = add v12, 32
     v20 = add v10, 1
     jump bb4
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    set_memory_object_len memorybytes, v28, v23
-    memory_object_copy_from_slice memorybytes, v28, v22
-    ret v28
 }
 
 fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {

@@ -48,8 +48,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exprs: &[hir::Expr<'_>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
-        let encoded = self.lower_abi_encode_slice(exprs, selector)?;
-        Some(self.materialize_memory_slice(encoded))
+        let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
+        Some(self.builder.abi_encode_bytes(layout, selector, values))
     }
 
     pub(super) fn lower_abi_encode_slice(
@@ -57,6 +57,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exprs: &[hir::Expr<'_>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
+        let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
+        Some(self.builder.abi_encode(layout, selector, values))
+    }
+
+    fn lower_abi_encode_arguments(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<(Arc<AbiLayout>, Box<[ValueId]>)> {
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for expr in exprs {
@@ -73,7 +81,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.push(abi_type);
         }
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        Some(self.builder.abi_encode(layout, selector, values.into_boxed_slice()))
+        Some((layout, values.into_boxed_slice()))
     }
 
     pub(super) fn lower_selector_word(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -208,8 +216,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.push(abi_type);
         }
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        Some(self.materialize_memory_slice(encoded))
+        Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {

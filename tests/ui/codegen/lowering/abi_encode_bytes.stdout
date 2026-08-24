@@ -11,42 +11,14 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, p
 
 fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b260f, pure, abi_args=lazy, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = abi_encode [word, word, word], args arg0, arg1, arg2
-    v1 = slice_len v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    memory_object_copy_from_slice memorybytes, v6, v0
-    ret v6
+    v0 = abi_encode [word, word, word], object, args arg0, arg1, arg2
+    ret v0
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = abi_encode [word, memory_bytes], args arg0, arg1
-    v1 = slice_len v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    memory_object_copy_from_slice memorybytes, v6, v0
-    ret v6
+    v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
+    ret v0
 }
 
 fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
@@ -60,22 +32,8 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, 
 
 fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = slice_len v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    memory_object_copy_from_slice memorybytes, v6, v0
-    v7 = abi_decode [u256], v6
-    ret v7
+    v0 = abi_encode [word], object, args arg0
+    v1 = abi_decode [u256], v0
+    ret v1
 }
 

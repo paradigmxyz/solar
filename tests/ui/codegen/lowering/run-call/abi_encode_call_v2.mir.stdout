@@ -506,24 +506,10 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_args=lazy, abi_params=[], a
     v27 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v27, 8
     memory_object_store_word memorybytes, v27, 0, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v28 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word>, word, memory_bytes], selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v18, 5, v27
-    v29 = slice_len v28
-    v30 = add v29, 63
-    v31 = lt v30, v29
-    jumpi v31, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
-    set_memory_object_len memorybytes, v34, v29
-    memory_object_copy_from_slice memorybytes, v34, v28
-    v35 = memory_object_data memorybytes, v34
-    v36 = memory_object_len memorybytes, v34
-    v37 = call v17, v16, 0, v35, v36, 0, 0
-    ret v37
+    v28 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v18, 5, v27
+    v29 = memory_object_data memorybytes, v28
+    v30 = memory_object_len memorybytes, v28
+    v31 = call v17, v16, 0, v29, v30, 0, 0
+    ret v31
 }
 
