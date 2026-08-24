@@ -505,6 +505,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
                 Some(self.builder.$method($($arg),*))
             }};
+            ($method:ident($($arg:ident),* $(,)?); $name:literal) => {{
+                let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
+                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
+                    return self.unsupported_yul_version(
+                        concat!("codegen requires Prague-compatible EVM for `", $name, "`"),
+                        "compile with `--evm-version prague` or newer",
+                        args.span,
+                    );
+                }
+                Some(self.builder.$method($($arg),*))
+            }};
         }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
@@ -587,40 +598,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulCreate => lower!(create(value, offset, size)),
             Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
             Builtin::YulExtcall => {
-                let [address, input_offset, input_size, value] =
-                    self.lower_builtin_args(builtin, &args)?;
-                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
-                    return self.unsupported_yul_version(
-                        "codegen requires Prague-compatible EVM for `extcall`",
-                        "compile with `--evm-version prague` or newer",
-                        args.span,
-                    );
-                }
-                Some(self.builder.extcall(address, input_offset, input_size, value))
+                lower!(extcall(address, input_offset, input_size, value); "extcall")
             }
             Builtin::YulExtdelegatecall => {
-                let [address, input_offset, input_size] =
-                    self.lower_builtin_args(builtin, &args)?;
-                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
-                    return self.unsupported_yul_version(
-                        "codegen requires Prague-compatible EVM for `extdelegatecall`",
-                        "compile with `--evm-version prague` or newer",
-                        args.span,
-                    );
-                }
-                Some(self.builder.extdelegatecall(address, input_offset, input_size))
+                lower!(extdelegatecall(address, input_offset, input_size); "extdelegatecall")
             }
             Builtin::YulExtstaticcall => {
-                let [address, input_offset, input_size] =
-                    self.lower_builtin_args(builtin, &args)?;
-                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
-                    return self.unsupported_yul_version(
-                        "codegen requires Prague-compatible EVM for `extstaticcall`",
-                        "compile with `--evm-version prague` or newer",
-                        args.span,
-                    );
-                }
-                Some(self.builder.extstaticcall(address, input_offset, input_size))
+                lower!(extstaticcall(address, input_offset, input_size); "extstaticcall")
             }
             _ => report_error(
                 self.context.gcx,
