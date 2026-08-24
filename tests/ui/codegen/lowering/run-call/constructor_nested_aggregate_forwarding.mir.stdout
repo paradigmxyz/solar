@@ -425,171 +425,151 @@ fn @read() -> u256 [selector=0x57de26a4, view, abi_args=lazy, abi_params=[], abi
     revert 0, 36
   bb8:
     v25 = div v23, 32
-    v26 = add v25, 1
-    v27 = lt v26, v25
+    v26 = add v20, 63
+    v27 = lt v26, v20
     jumpi v27, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v28 = mul v26, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, v26
-    v32 = or v29, v31
-    v33 = iszero v32
-    jumpi v33, bb11, bb12
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc memorybytes, exact, uninitialized, panic, v29
+    set_memory_object_len memorybytes, v30, v20
+    jumpi v16, bb12, bb11
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v31 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v30, 0, v31
+    jump bb13
   bb12:
-    v34 = alloc memorybytes, exact, zeroed, panic, v28
-    set_memory_object_len memorybytes, v34, v20
-    jumpi v16, bb14, bb13
+    v32 = storage_array_data_slot v13
+    jump bb14
   bb13:
-    v35 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v34, 0, v35
-    jump bb15
+    v39 = memory_object_len memorybytes, v30
+    v40 = add v6, v39
+    v41 = lt v40, v6
+    jumpi v41, bb17, bb18
   bb14:
-    v36 = storage_array_data_slot v13
-    jump bb16
+    v33 = phi [bb12: 0], [bb15: v38]
+    v34 = lt v33, v25
+    jumpi v34, bb15, bb16
   bb15:
-    v43 = memory_object_len memorybytes, v34
-    v44 = add v6, v43
-    v45 = lt v44, v6
-    jumpi v45, bb19, bb20
+    v35 = add v32, v33
+    v36 = sload v35 !metadata(storage=symbolic(v35))
+    v37 = mul v33, 32
+    memory_object_store_word memorybytes, v30, v37, v36
+    v38 = add v33, 1
+    jump bb14
   bb16:
-    v37 = phi [bb14: 0], [bb17: v42]
-    v38 = lt v37, v25
-    jumpi v38, bb17, bb18
+    jump bb13
   bb17:
-    v39 = add v36, v37
-    v40 = sload v39 !metadata(storage=symbolic(v39))
-    v41 = mul v37, 32
-    memory_object_store_word memorybytes, v34, v41, v40
-    v42 = add v37, 1
-    jump bb16
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb18:
-    jump bb15
+    v42 = sload 0 !metadata(storage=slot(0))
+    v43 = lt 1, v42
+    v44 = iszero v43
+    jumpi v44, bb19, bb20
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    v46 = sload 0 !metadata(storage=slot(0))
-    v47 = lt 1, v46
-    v48 = iszero v47
-    jumpi v48, bb21, bb22
+    v45 = storage_array_data_slot 0
+    v46 = mul 1, 2
+    v47 = add v45, v46
+    v48 = sload v47 !metadata(storage=symbolic(v47))
+    v49 = add v40, v48
+    v50 = lt v49, v40
+    jumpi v50, bb21, bb22
   bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb22:
-    v49 = storage_array_data_slot 0
-    v50 = mul 1, 2
-    v51 = add v49, v50
-    v52 = sload v51 !metadata(storage=symbolic(v51))
-    v53 = add v44, v52
-    v54 = lt v53, v44
-    jumpi v54, bb23, bb24
-  bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb24:
-    v55 = sload 0 !metadata(storage=slot(0))
-    v56 = lt 1, v55
-    v57 = iszero v56
-    jumpi v57, bb25, bb26
-  bb25:
+  bb22:
+    v51 = sload 0 !metadata(storage=slot(0))
+    v52 = lt 1, v51
+    v53 = iszero v52
+    jumpi v53, bb23, bb24
+  bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb26:
-    v58 = storage_array_data_slot 0
-    v59 = mul 1, 2
-    v60 = add v58, v59
-    v61 = add v60, 1
-    v62 = sload v61 !metadata(storage=offset(v60, 1))
-    v63 = and v62, 1
-    v64 = eq v63, 1
-    v65 = and v62, 254
-    v66 = shr 1, v65
-    v67 = shr 1, v62
-    v68 = select v64, v67, v66
-    v69 = lt v68, 32
-    v70 = eq v64, v69
-    jumpi v70, bb27, bb28
-  bb27:
+  bb24:
+    v54 = storage_array_data_slot 0
+    v55 = mul 1, 2
+    v56 = add v54, v55
+    v57 = add v56, 1
+    v58 = sload v57 !metadata(storage=offset(v56, 1))
+    v59 = and v58, 1
+    v60 = eq v59, 1
+    v61 = and v58, 254
+    v62 = shr 1, v61
+    v63 = shr 1, v58
+    v64 = select v60, v63, v62
+    v65 = lt v64, 32
+    v66 = eq v60, v65
+    jumpi v66, bb25, bb26
+  bb25:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
+  bb26:
+    v67 = add v64, 31
+    v68 = lt v67, v64
+    jumpi v68, bb27, bb28
+  bb27:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb28:
-    v71 = add v68, 31
-    v72 = lt v71, v68
-    jumpi v72, bb29, bb30
+    v69 = div v67, 32
+    v70 = add v64, 63
+    v71 = lt v70, v64
+    jumpi v71, bb29, bb30
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb30:
-    v73 = div v71, 32
-    v74 = add v73, 1
-    v75 = lt v74, v73
-    jumpi v75, bb31, bb32
+    v72 = not 31
+    v73 = and v70, v72
+    v74 = alloc memorybytes, exact, uninitialized, panic, v73
+    set_memory_object_len memorybytes, v74, v64
+    jumpi v60, bb32, bb31
   bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v75 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v74, 0, v75
+    jump bb33
   bb32:
-    v76 = mul v74, 32
-    v77 = iszero 32
-    v78 = div v76, 32
-    v79 = eq v78, v74
-    v80 = or v77, v79
-    v81 = iszero v80
-    jumpi v81, bb33, bb34
+    v76 = storage_array_data_slot v57
+    jump bb34
   bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v83 = memory_object_len memorybytes, v74
+    v84 = add v49, v83
+    v85 = lt v84, v49
+    jumpi v85, bb37, bb38
   bb34:
-    v82 = alloc memorybytes, exact, zeroed, panic, v76
-    set_memory_object_len memorybytes, v82, v68
-    jumpi v64, bb36, bb35
+    v77 = phi [bb32: 0], [bb35: v82]
+    v78 = lt v77, v69
+    jumpi v78, bb35, bb36
   bb35:
-    v83 = and v62, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v82, 0, v83
-    jump bb37
+    v79 = add v76, v77
+    v80 = sload v79 !metadata(storage=symbolic(v79))
+    v81 = mul v77, 32
+    memory_object_store_word memorybytes, v74, v81, v80
+    v82 = add v77, 1
+    jump bb34
   bb36:
-    v84 = storage_array_data_slot v61
-    jump bb38
+    jump bb33
   bb37:
-    v91 = memory_object_len memorybytes, v82
-    v92 = add v53, v91
-    v93 = lt v92, v53
-    jumpi v93, bb41, bb42
-  bb38:
-    v85 = phi [bb36: 0], [bb39: v90]
-    v86 = lt v85, v73
-    jumpi v86, bb39, bb40
-  bb39:
-    v87 = add v84, v85
-    v88 = sload v87 !metadata(storage=symbolic(v87))
-    v89 = mul v85, 32
-    memory_object_store_word memorybytes, v82, v89, v88
-    v90 = add v85, 1
-    jump bb38
-  bb40:
-    jump bb37
-  bb41:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb42:
-    ret v92
+  bb38:
+    ret v84
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -715,8 +695,8 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     memory_object_store_field memorystruct<2>, v34, 1, v26
     v35 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
     v36 = slice_len v35
-    v37 = add 0x1085, v36
-    v38 = lt v37, 0x1085
+    v37 = add 0xf9a, v36
+    v38 = lt v37, 0xf9a
     jumpi v38, bb17, bb18
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -735,11 +715,11 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     v42 = and v39, v41
     v43 = alloc memorybytes, exact, uninitialized, infallible, v42
     set_memory_object_len memorybytes, v43, v37
-    memory_object_store_word memorybytes, v43, 0, 0x6110853803806110856107003961070001601f017fffffffffffffffffffffff
+    memory_object_store_word memorybytes, v43, 0, 0x610f9a380380610f9a6107003961070001601f017fffffffffffffffffffffff
     memory_object_store_word memorybytes, v43, 32, 0xffffffffffffffffffffffffffffffffffffffffe016604052608c565b60a051
     memory_object_store_word memorybytes, v43, 64, 0x604001515f5260205f2060a05160600151905b8160a05160a0015260a0516080
     memory_object_store_word memorybytes, v43, 96, 0x151821015608857818060a05160a00152818060a05160e00152015f81555060
-    memory_object_store_word memorybytes, v43, 128, 0x1820191506052565b5050565b61070080610480528061048052610700611085
+    memory_object_store_word memorybytes, v43, 128, 0x1820191506052565b5050565b61070080610480528061048052610700610f9a
     memory_object_store_word memorybytes, v43, 160, 0x380301806104a052806104a0526020820181806104a052901115610613576106
     memory_object_store_word memorybytes, v43, 192, 0xf565b610520518061052052518060c0528060c0525f548060e0528060e05281
     memory_object_store_word memorybytes, v43, 224, 0x8060c05281119050905060f657610102565b610897565b60c051610100526101
@@ -803,72 +783,64 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
     memory_object_store_word memorybytes, v43, 0x820, 0x6020820181806106e05281525050602061052051016020610580510281019050
     memory_object_store_word memorybytes, v43, 0x840, 0x81806105c0528152505060016105405103806106405280610640526020610560
     memory_object_store_word memorybytes, v43, 0x860, 0x5101806106605280610660526001610580510180610680528061068052826105
-    memory_object_store_word memorybytes, v43, 0x880, 0x4052816105605280610580525050506106c6565b5f80fd5b6107e2806108a35f
+    memory_object_store_word memorybytes, v43, 0x880, 0x4052816105605280610580525050506106c6565b5f80fd5b6106f7806108a35f
     memory_object_store_word memorybytes, v43, 0x8a0, 0x395ff334601a575f3560e01c806357de26a414601657601a565b601e565b5f80
-    memory_object_store_word memorybytes, v43, 0x8c0, 0xfd5b6104606040525f545f101515605a577f4e487b7100000000000000000000
+    memory_object_store_word memorybytes, v43, 0x8c0, 0xfd5b6104206040525f545f101515605a577f4e487b7100000000000000000000
     memory_object_store_word memorybytes, v43, 0x8e0, 0x5f52603260045260245ffd5b5f5f
-    memory_object_store_word memorybytes, v43, 0x900, 0x5260205f2060025f028101905054806101605280610160525f545f10151560aa
-    memory_object_store_word memorybytes, v43, 0x920, 0x577f4e487b710000000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0x940, 0x5f52603260045260245ffd5b5f5f5260205f2060025f0281019050600190
-    memory_object_store_word memorybytes, v43, 0x960, 0x180610180528061018052806101805254806102205280610220526001811660
-    memory_object_store_word memorybytes, v43, 0x980, 0x190148061026052806102605260fe821660011c82806102205260011c818184
-    memory_object_store_word memorybytes, v43, 0x9a0, 0x82820302905001806101a052915050806101a05260208110821415610148577f
-    memory_object_store_word memorybytes, v43, 0x9c0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0x9e0, 0x5f52602260045260245ffd5b601f81018061036052806103605281806101a052
-    memory_object_store_word memorybytes, v43, 0xa00, 0x811015610190577f4e487b710000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0xa20, 0x5f52604160045260245ffd5b602081048060e05290508060
-    memory_object_store_word memorybytes, v43, 0xa40, 0xe0526001810180610280528061028052818060e0528110156101e5577f4e487b
-    memory_object_store_word memorybytes, v43, 0xa60, 0x71000000000000000000000000000000000000000000000000000000005f5260
-    memory_object_store_word memorybytes, v43, 0xa80, 0x4160045260245ffd5b6020810280610100528061010052602015602082048380
-    memory_object_store_word memorybytes, v43, 0xaa0, 0x610280529014925082901791508115915050905090509050905090501561024a
-    memory_object_store_word memorybytes, v43, 0xac0, 0x577f4e487b710000000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0xae0, 0x5f52604160045260245ffd5b6040518060a0528060a05261010051806101
-    memory_object_store_word memorybytes, v43, 0xb00, 0x52810180610320528061032052818060a052811067ffffffffffffffff8211
-    memory_object_store_word memorybytes, v43, 0xb20, 0x811790501561072257610755565b7fffffffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v43, 0xb40, 0xffffffffffffffffffffffffffff006102205116602060a051015f9001526102
-    memory_object_store_word memorybytes, v43, 0xb60, 0xdd565b6101805180610180525f5260205f2060e05160a0515f92909161030956
-    memory_object_store_word memorybytes, v43, 0xb80, 0x5b60a0518060a052516101605101806102a052806102a0526101605180610160
-    memory_object_store_word memorybytes, v43, 0xba0, 0x5281101561037457610347565b83610380528060e05283101561033f57828061
-    memory_object_store_word memorybytes, v43, 0xbc0, 0x3805281806103e05201546020840260208401015260018301925060e0516103
-    memory_object_store_word memorybytes, v43, 0xbe0, 0x9565b5050506102dd565b7f4e487b7100000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0xc00, 0x5f52601160045260245ffd5b5f54600110151561
-    memory_object_store_word memorybytes, v43, 0xc20, 0x3ac577f4e487b71000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0xc40, 0x5f52603260045260245ffd5b5f5f5260205f20600260010281019050
-    memory_object_store_word memorybytes, v43, 0xc60, 0x548101806101c052806101c05281806102a052811091505015610406577f4e48
-    memory_object_store_word memorybytes, v43, 0xc80, 0x7b71000000000000000000000000000000000000000000000000000000005f52
-    memory_object_store_word memorybytes, v43, 0xca0, 0x601160045260245ffd5b5f54600110151561043e577f4e487b71000000000000
-    memory_object_store_word memorybytes, v43, 0xcc0, 0x5f52603260045260245f
-    memory_object_store_word memorybytes, v43, 0xce0, 0xfd5b5f5f5260205f2060026001028101905060019001806101e052806101e052
-    memory_object_store_word memorybytes, v43, 0xd00, 0x806101e05254806102405280610240526001811660019014806102c052806102
-    memory_object_store_word memorybytes, v43, 0xd20, 0xc05260fe821660011c82806102405260011c8181848282030290500180610200
-    memory_object_store_word memorybytes, v43, 0xd40, 0x529150508061020052602081108214156104dd577f4e487b7100000000000000
-    memory_object_store_word memorybytes, v43, 0xd60, 0x5f52602260045260245ffd
-    memory_object_store_word memorybytes, v43, 0xd80, 0x5b601f8101806103a052806103a052818061020052811015610525577f4e487b
-    memory_object_store_word memorybytes, v43, 0xda0, 0x71000000000000000000000000000000000000000000000000000000005f5260
-    memory_object_store_word memorybytes, v43, 0xdc0, 0x4160045260245ffd5b6020810480610120529050806101205260018101806102
-    memory_object_store_word memorybytes, v43, 0xde0, 0xe052806102e05281806101205281101561057d577f4e487b7100000000000000
-    memory_object_store_word memorybytes, v43, 0xe00, 0x5f52604160045260245ffd
-    memory_object_store_word memorybytes, v43, 0xe20, 0x5b60208102806101405280610140526020156020820483806102e05290149250
-    memory_object_store_word memorybytes, v43, 0xe40, 0x829017915081159150509050905090509050156105e0577f4e487b7100000000
-    memory_object_store_word memorybytes, v43, 0xe60, 0x5f52604160045260
-    memory_object_store_word memorybytes, v43, 0xe80, 0x245ffd5b6040518060c0528060c0526101405180610140528101806103405280
-    memory_object_store_word memorybytes, v43, 0xea0, 0x61034052818060c052811067ffffffffffffffff821181179050156107825761
-    memory_object_store_word memorybytes, v43, 0xec0, 0x7b5565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v43, 0xee0, 0xffffffff006102405116602060c051015f900152610674565b6101e051806101
-    memory_object_store_word memorybytes, v43, 0xf00, 0xe0525f5260205f206101205160c0515f9290916106a0565b60c0518060c05251
-    memory_object_store_word memorybytes, v43, 0xf20, 0x6101c05101806103005280610300526101c051806101c05281101561070d5761
-    memory_object_store_word memorybytes, v43, 0xf40, 0x6e0565b836103c05280610120528310156106d85782806103c0528180610400
-    memory_object_store_word memorybytes, v43, 0xf60, 0x52015460208402602084010152600183019250610120516106a0565b50505061
-    memory_object_store_word memorybytes, v43, 0xf80, 0x674565b7f4e487b710000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v43, 0xfa0, 0x5f52601160045260245ffd5b806103005260805260206080016080
-    memory_object_store_word memorybytes, v43, 0xfc0, 0x90036080f35b80610320526040523661010051806101005281838060a0523750
-    memory_object_store_word memorybytes, v43, 0xfe0, 0x6101a051806101a052815250610260516102bf5761028a565b7f4e487b710000
-    memory_object_store_word memorybytes, v43, 0x1000, 0x5f5260416004
-    memory_object_store_word memorybytes, v43, 0x1020, 0x5260245ffd5b80610340526040523661014051806101405281838060c0523750
-    memory_object_store_word memorybytes, v43, 0x1040, 0x6102005180610200528152506102c05161065557610620565b7f4e487b710000
-    memory_object_store_word memorybytes, v43, 0x1060, 0x5f5260416004
-    memory_object_store_word memorybytes, v43, 0x1080, 0x5260245ffd000000000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v43, 0x1085, v35
+    memory_object_store_word memorybytes, v43, 0x900, 0x5260205f2060025f0281019050548060e0528060e0525f545f10151560a8577f
+    memory_object_store_word memorybytes, v43, 0x920, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0x940, 0x5f52603260045260245ffd5b5f5f5260205f2060025f02810190506001900180
+    memory_object_store_word memorybytes, v43, 0x960, 0x610100528061010052806101005254806101e052806101e05260018116600190
+    memory_object_store_word memorybytes, v43, 0x980, 0x14806102a052806102a05260fe821660011c82806101e05260011c8181848282
+    memory_object_store_word memorybytes, v43, 0x9a0, 0x3029050018061012052915050806101205260208110821415610146577f4e48
+    memory_object_store_word memorybytes, v43, 0x9c0, 0x7b71000000000000000000000000000000000000000000000000000000005f52
+    memory_object_store_word memorybytes, v43, 0x9e0, 0x602260045260245ffd5b601f8101806102c052806102c0528180610120528110
+    memory_object_store_word memorybytes, v43, 0xa00, 0x1561018e577f4e487b7100000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xa20, 0x5f52604160045260245ffd5b6020810480610140529050806101
+    memory_object_store_word memorybytes, v43, 0xa40, 0x4052603f8201806102e052806102e0528280610120528110156101e6577f4e48
+    memory_object_store_word memorybytes, v43, 0xa60, 0x7b71000000000000000000000000000000000000000000000000000000005f52
+    memory_object_store_word memorybytes, v43, 0xa80, 0x604160045260245ffd5b601f19811690506040518060a0528060a05281810180
+    memory_object_store_word memorybytes, v43, 0xaa0, 0x61026052915081610260528060a052811067ffffffffffffffff821181179050
+    memory_object_store_word memorybytes, v43, 0xac0, 0x1561065b5761067d565b7fffffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_word memorybytes, v43, 0xae0, 0xffffffffffffffffffff006101e05116602060a051015f90015261027a565b61
+    memory_object_store_word memorybytes, v43, 0xb00, 0x1005180610100525f5260205f206101405160a0515f9290916102a3565b60a0
+    memory_object_store_word memorybytes, v43, 0xb20, 0x518060a0525160e051018061022052806102205260e0518060e0528110156103
+    memory_object_store_word memorybytes, v43, 0xb40, 0x10576102e3565b836103005280610140528310156102db578280610300528180
+    memory_object_store_word memorybytes, v43, 0xb60, 0x6103a052015460208402602084010152600183019250610140516102a3565b50
+    memory_object_store_word memorybytes, v43, 0xb80, 0x505061027a565b7f4e487b710000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xba0, 0x5f52601160045260245ffd5b5f546001101515610348577f
+    memory_object_store_word memorybytes, v43, 0xbc0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xbe0, 0x5f52603260045260245ffd5b5f5f5260205f2060026001028101905054810180
+    memory_object_store_word memorybytes, v43, 0xc00, 0x6101605280610160528180610220528110915050156103a2577f4e487b710000
+    memory_object_store_word memorybytes, v43, 0xc20, 0x5f5260116004
+    memory_object_store_word memorybytes, v43, 0xc40, 0x5260245ffd5b5f5460011015156103da577f4e487b7100000000000000000000
+    memory_object_store_word memorybytes, v43, 0xc60, 0x5f52603260045260245ffd5b5f5f
+    memory_object_store_word memorybytes, v43, 0xc80, 0x5260205f20600260010281019050600190018061018052806101805280610180
+    memory_object_store_word memorybytes, v43, 0xca0, 0x52548061020052806102005260018116600190148061032052806103205260fe
+    memory_object_store_word memorybytes, v43, 0xcc0, 0x821660011c82806102005260011c81818482820302905001806101a052915050
+    memory_object_store_word memorybytes, v43, 0xce0, 0x806101a05260208110821415610479577f4e487b710000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xd00, 0x5f52602260045260245ffd5b601f81
+    memory_object_store_word memorybytes, v43, 0xd20, 0x18061034052806103405281806101a0528110156104c1577f4e487b71000000
+    memory_object_store_word memorybytes, v43, 0xd40, 0x5f526041600452
+    memory_object_store_word memorybytes, v43, 0xd60, 0x60245ffd5b60208104806101c0529050806101c052603f820180610360528061
+    memory_object_store_word memorybytes, v43, 0xd80, 0x3605282806101a052811015610519577f4e487b710000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xda0, 0x5f52604160045260245ffd5b601f19
+    memory_object_store_word memorybytes, v43, 0xdc0, 0x811690506040518060c0528060c0528181018061028052915081610280528060
+    memory_object_store_word memorybytes, v43, 0xde0, 0xc052811067ffffffffffffffff821181179050156106aa576106ca565b7fffff
+    memory_object_store_word memorybytes, v43, 0xe00, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff006102
+    memory_object_store_word memorybytes, v43, 0xe20, 0x5116602060c051015f9001526105ad565b6101805180610180525f5260205f
+    memory_object_store_word memorybytes, v43, 0xe40, 0x206101c05160c0515f9290916105d9565b60c0518060c0525161016051018061
+    memory_object_store_word memorybytes, v43, 0xe60, 0x24052806102405261016051806101605281101561064657610619565b836103
+    memory_object_store_word memorybytes, v43, 0xe80, 0x8052806101c0528310156106115782806103805281806103c052015460208402
+    memory_object_store_word memorybytes, v43, 0xea0, 0x6020840101526001830192506101c0516105d9565b5050506105ad565b7f4e48
+    memory_object_store_word memorybytes, v43, 0xec0, 0x7b71000000000000000000000000000000000000000000000000000000005f52
+    memory_object_store_word memorybytes, v43, 0xee0, 0x601160045260245ffd5b80610240526080526020608001608090036080f35b80
+    memory_object_store_word memorybytes, v43, 0xf00, 0x6102605260405281806101205260a051529050509050905061025b5761022656
+    memory_object_store_word memorybytes, v43, 0xf20, 0x5b7f4e487b710000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xf40, 0x5f52604160045260245ffd5b806102805260405281806101a05260c05152
+    memory_object_store_word memorybytes, v43, 0xf60, 0x905050905061058e57610559565b7f4e487b7100000000000000000000000000
+    memory_object_store_word memorybytes, v43, 0xf80, 0x5f52604160045260245ffd000000000000
+    memory_object_copy_from_slice_at memorybytes, v43, 0xf9a, v35
     v44 = memory_object_data memorybytes, v43
     v45 = create 0, v44, v37
     jumpi v45, bb22, bb21

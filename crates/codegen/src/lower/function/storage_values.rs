@@ -1754,17 +1754,10 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
     let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
     let one = builder.imm_u64(1);
     let thirty_two = builder.imm_u64(32);
-
-    let rounded = {
-        let thirty_one = builder.imm_u64(31);
-        builder.checked_add(length, thirty_one)
-    };
+    let thirty_one = builder.imm_u64(31);
+    let rounded = builder.checked_add(length, thirty_one);
     let words = builder.div(rounded, thirty_two);
-    let total_words = builder.checked_add(words, one);
-    let size = builder.checked_mul(total_words, thirty_two);
-    let object =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+    let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
     let short_block = builder.create_block();
     let long_block = builder.create_block();

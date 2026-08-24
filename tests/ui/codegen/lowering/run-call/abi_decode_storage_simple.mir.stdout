@@ -104,66 +104,56 @@ fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_
     revert 0, 36
   bb18:
     v51 = div v49, 32
-    v52 = add v51, 1
-    v53 = lt v52, v51
+    v52 = add v46, 63
+    v53 = lt v52, v46
     jumpi v53, bb19, bb20
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    v54 = mul v52, 32
-    v55 = iszero 32
-    v56 = div v54, 32
-    v57 = eq v56, v52
-    v58 = or v55, v57
-    v59 = iszero v58
-    jumpi v59, bb21, bb22
+    v54 = not 31
+    v55 = and v52, v54
+    v56 = alloc memorybytes, exact, uninitialized, panic, v55
+    set_memory_object_len memorybytes, v56, v46
+    jumpi v42, bb22, bb21
   bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v57 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v56, 0, v57
+    jump bb23
   bb22:
-    v60 = alloc memorybytes, exact, zeroed, panic, v54
-    set_memory_object_len memorybytes, v60, v46
-    jumpi v42, bb24, bb23
+    v58 = storage_array_data_slot 0
+    jump bb24
   bb23:
-    v61 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v60, 0, v61
-    jump bb25
+    v65 = abi_decode [u256, bytes], v56
+    v66 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v67 = memory_object_load_element memoryfixedarray<2, 1>, v66, 1
+    v68 = memory_object_len memorybytes, v67
+    v69 = memory_object_len memorybytes, v67
+    v70 = lt 0, v69
+    v71 = iszero v70
+    jumpi v71, bb27, bb28
   bb24:
-    v62 = storage_array_data_slot 0
-    jump bb26
+    v59 = phi [bb22: 0], [bb25: v64]
+    v60 = lt v59, v51
+    jumpi v60, bb25, bb26
   bb25:
-    v69 = abi_decode [u256, bytes], v60
-    v70 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v71 = memory_object_load_element memoryfixedarray<2, 1>, v70, 1
-    v72 = memory_object_len memorybytes, v71
-    v73 = memory_object_len memorybytes, v71
-    v74 = lt 0, v73
-    v75 = iszero v74
-    jumpi v75, bb29, bb30
+    v61 = add v58, v59
+    v62 = sload v61 !metadata(storage=symbolic(v61))
+    v63 = mul v59, 32
+    memory_object_store_word memorybytes, v56, v63, v62
+    v64 = add v59, 1
+    jump bb24
   bb26:
-    v63 = phi [bb24: 0], [bb27: v68]
-    v64 = lt v63, v51
-    jumpi v64, bb27, bb28
+    jump bb23
   bb27:
-    v65 = add v62, v63
-    v66 = sload v65 !metadata(storage=symbolic(v65))
-    v67 = mul v63, 32
-    memory_object_store_word memorybytes, v60, v67, v66
-    v68 = add v63, 1
-    jump bb26
-  bb28:
-    jump bb25
-  bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb30:
-    v76 = memory_object_load_byte memorybytes, v71, 0
-    v77 = shl 248, v76
-    ret v69, v72, v77
+  bb28:
+    v72 = memory_object_load_byte memorybytes, v67, 0
+    v73 = shl 248, v72
+    ret v65, v68, v73
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {

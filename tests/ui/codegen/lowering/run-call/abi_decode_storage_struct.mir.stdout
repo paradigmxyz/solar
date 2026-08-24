@@ -159,77 +159,67 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_args=lazy, abi_par
     revert 0, 36
   bb26:
     v72 = div v70, 32
-    v73 = add v72, 1
-    v74 = lt v73, v72
+    v73 = add v67, 63
+    v74 = lt v73, v67
     jumpi v74, bb27, bb28
   bb27:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb28:
-    v75 = mul v73, 32
-    v76 = iszero 32
-    v77 = div v75, 32
-    v78 = eq v77, v73
-    v79 = or v76, v78
-    v80 = iszero v79
-    jumpi v80, bb29, bb30
+    v75 = not 31
+    v76 = and v73, v75
+    v77 = alloc memorybytes, exact, uninitialized, panic, v76
+    set_memory_object_len memorybytes, v77, v67
+    jumpi v63, bb30, bb29
   bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v78 = and v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v77, 0, v78
+    jump bb31
   bb30:
-    v81 = alloc memorybytes, exact, zeroed, panic, v75
-    set_memory_object_len memorybytes, v81, v67
-    jumpi v63, bb32, bb31
+    v79 = storage_array_data_slot 0
+    jump bb32
   bb31:
-    v82 = and v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v81, 0, v82
-    jump bb33
+    v86 = abi_decode [tuple<u256, array<_, u256>>], v77
+    v87 = memory_object_load_field memorystruct<2>, v86, 0
+    v88 = memory_object_load_field memorystruct<2>, v86, 1
+    v89 = memory_object_len memoryarray, v88
+    v90 = memory_object_load_field memorystruct<2>, v86, 1
+    v91 = memory_object_len memoryarray, v90
+    v92 = lt 0, v91
+    v93 = iszero v92
+    jumpi v93, bb35, bb36
   bb32:
-    v83 = storage_array_data_slot 0
-    jump bb34
+    v80 = phi [bb30: 0], [bb33: v85]
+    v81 = lt v80, v72
+    jumpi v81, bb33, bb34
   bb33:
-    v90 = abi_decode [tuple<u256, array<_, u256>>], v81
-    v91 = memory_object_load_field memorystruct<2>, v90, 0
-    v92 = memory_object_load_field memorystruct<2>, v90, 1
-    v93 = memory_object_len memoryarray, v92
-    v94 = memory_object_load_field memorystruct<2>, v90, 1
-    v95 = memory_object_len memoryarray, v94
-    v96 = lt 0, v95
-    v97 = iszero v96
-    jumpi v97, bb37, bb38
+    v82 = add v79, v80
+    v83 = sload v82 !metadata(storage=symbolic(v82))
+    v84 = mul v80, 32
+    memory_object_store_word memorybytes, v77, v84, v83
+    v85 = add v80, 1
+    jump bb32
   bb34:
-    v84 = phi [bb32: 0], [bb35: v89]
-    v85 = lt v84, v72
-    jumpi v85, bb35, bb36
+    jump bb31
   bb35:
-    v86 = add v83, v84
-    v87 = sload v86 !metadata(storage=symbolic(v86))
-    v88 = mul v84, 32
-    memory_object_store_word memorybytes, v81, v88, v87
-    v89 = add v84, 1
-    jump bb34
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb36:
-    jump bb33
+    v94 = memory_object_load_element memoryarray<1>, v90, 0
+    v95 = memory_object_load_field memorystruct<2>, v86, 1
+    v96 = memory_object_len memoryarray, v95
+    v97 = lt 2, v96
+    v98 = iszero v97
+    jumpi v98, bb37, bb38
   bb37:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb38:
-    v98 = memory_object_load_element memoryarray<1>, v94, 0
-    v99 = memory_object_load_field memorystruct<2>, v90, 1
-    v100 = memory_object_len memoryarray, v99
-    v101 = lt 2, v100
-    v102 = iszero v101
-    jumpi v102, bb39, bb40
-  bb39:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb40:
-    v103 = memory_object_load_element memoryarray<1>, v99, 2
-    ret v91, v93, v98, v103
+    v99 = memory_object_load_element memoryarray<1>, v95, 2
+    ret v87, v89, v94, v99
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
