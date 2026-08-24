@@ -1,0 +1,26 @@
+error: transient storage requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/cancun.sol:LL:CC
+   │
+LL │     uint256 transient value;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: builtin `blobhash` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/cancun.sol:LL:CC
+   │
+LL │         return blobhash(0);
+   │                ━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: builtin `blobbasefee` requires Cancun-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/cancun.sol:LL:CC
+   │
+LL │         return block.blobbasefee;
+   │                ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: aborting due to 3 previous errors
+
