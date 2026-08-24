@@ -1,0 +1,10 @@
+error: Yul builtin `clz` requires Osaka-compatible EVM
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_osaka_evm_version.sol:LL:CC
+   │
+LL │             pop(clz(0))
+   │                 ━━━
+   │
+   ╰ help: compile with `--evm-version osaka` or newer
+
+error: aborting due to 1 previous error
+
