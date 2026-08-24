@@ -903,9 +903,9 @@ impl LowerAbiCx {
             Self::push_constructor_param_types(&mut params, ty);
         }
         func.set_params(params);
-        let physical_indices = func.params.indices().collect::<Vec<_>>();
-        let physical_args =
-            physical_indices.into_iter().map(|index| func.alloc_arg(index)).collect::<Vec<_>>();
+        let physical_args = (0..func.params.len())
+            .map(|index| func.alloc_arg(ArgIdx::from_usize(index)))
+            .collect::<Vec<_>>();
 
         let mut replacements = FxHashMap::default();
         let guard = {
