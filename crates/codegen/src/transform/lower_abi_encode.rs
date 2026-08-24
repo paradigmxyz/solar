@@ -74,7 +74,8 @@ fn lower_function(func: &mut Function) -> bool {
                 .map(|&value| resolve_replacement(value, &replacements))
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
-            let replacement = lower_encode(&mut builder, &layout, selector, &args, *returns_object);
+            let returns_object = *returns_object;
+            let replacement = lower_encode(&mut builder, &layout, selector, &args, returns_object);
             remove_literal_objects(builder.func_mut(), &args);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
