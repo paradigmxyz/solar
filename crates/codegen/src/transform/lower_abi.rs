@@ -609,9 +609,9 @@ impl LowerAbiCx {
                         .types
                         .iter()
                         .zip(&func.params)
-                        .filter(|(ty, arg_type)| {
-                            matches!(arg_type, &&MirType::Slice(SliceLocation::Calldata))
-                                && matches!(ty, &&AbiParamType::Bytes)
+                        .filter(|&(ty, arg_type)| {
+                            matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+                                && matches!(ty, AbiParamType::Bytes)
                         })
                         .count()
                 })

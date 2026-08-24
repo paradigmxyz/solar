@@ -75,15 +75,15 @@ fn lower_function(func: &mut Function) -> bool {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match kind {
                         FrameSlotKind::Word => builder.mload(address),
-                        FrameSlotKind::Slice(location) => {
-                            if mode == FrameMode::MultiReturn {
-                                unreachable!("multi-return buffers contain words")
-                            }
+                        FrameSlotKind::Slice(location) if mode != FrameMode::MultiReturn => {
                             let ptr = builder.mload(address);
-                            let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
-                            let len_address = builder.add(address, word);
+                            let len_address =
+                                builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
                             let len = builder.mload(len_address);
                             builder.make_slice(ptr, len, location)
+                        }
+                        FrameSlotKind::Slice(_) => {
+                            unreachable!("multi-return buffers contain words")
                         }
                     };
                     let old = builder
@@ -101,16 +101,16 @@ fn lower_function(func: &mut Function) -> bool {
                             }
                             builder.mstore(address, value);
                         }
-                        FrameSlotKind::Slice(_) => {
-                            if mode == FrameMode::MultiReturn {
-                                unreachable!("multi-return buffers contain words")
-                            }
+                        FrameSlotKind::Slice(_) if mode != FrameMode::MultiReturn => {
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
                             builder.mstore(address, ptr);
-                            let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
-                            let len_address = builder.add(address, word);
+                            let len_address =
+                                builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
                             builder.mstore(len_address, len);
+                        }
+                        FrameSlotKind::Slice(_) => {
+                            unreachable!("multi-return buffers contain words")
                         }
                     }
                 }

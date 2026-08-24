@@ -174,9 +174,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
-        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
+        let is_default_binding = self.default_bindings.contains(&id);
+        if is_default_binding || self.deferred_bindings.contains(&id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            let value = if self.default_bindings.contains(&id) {
+            let value = if is_default_binding {
                 self.default_binding_value(ty)
             } else {
                 self.deferred_binding_value(ty)

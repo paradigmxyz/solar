@@ -71,7 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.slice_len(value);
         let size = self.builder.imm_u64(abi_type.head_size());
         let too_short = self.builder.gt(size, length);
-        self.revert_if_invalid(too_short);
+        self.builder.revert_if(too_short);
         self.check_calldata_range(base, size);
         self.validate_calldata_static_value(ty, base);
         true
@@ -683,7 +683,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let bound = self.builder.sub(available, thirty_one);
             let valid = self.builder.slt(offset, bound);
             let invalid = self.builder.iszero(valid);
-            self.revert_if_invalid(invalid);
+            self.builder.revert_if(invalid);
         }
         Some(value_pos)
     }
@@ -694,14 +694,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let out_of_bounds = self.builder.gt(end, calldata_size);
         let invalid = self.builder.or(overflow, out_of_bounds);
-        self.revert_if_invalid(invalid);
+        self.builder.revert_if(invalid);
     }
 
     fn check_calldata_tail_range(&mut self, start: ValueId, size: ValueId) {
         let end = self.builder.add(start, size);
         let calldata_size = self.builder.calldatasize();
         let out_of_bounds = self.builder.gt(end, calldata_size);
-        self.revert_if_invalid(out_of_bounds);
+        self.builder.revert_if(out_of_bounds);
     }
 
     fn validate_calldata_dynamic_tail(
@@ -712,7 +712,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) {
         let max_length = self.builder.imm_u64(u64::MAX);
         let too_large = self.builder.gt(length, max_length);
-        self.revert_if_invalid(too_large);
+        self.builder.revert_if(too_large);
 
         let size = self.builder.mul(length, stride);
         let word = self.builder.imm_u64(32);
@@ -720,17 +720,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, size);
         let out_of_bounds = self.builder.sgt(data, limit);
-        self.revert_if_invalid(out_of_bounds);
-    }
-
-    pub(super) fn revert_if_invalid(&mut self, condition: ValueId) {
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(condition, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm_u64(0);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.builder.revert_if(out_of_bounds);
     }
 
     pub(super) fn calldata_load_word(&mut self, pointer: ValueId) -> ValueId {
@@ -751,7 +741,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .expect("function words always validate")
             .condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
-        self.revert_if_invalid(invalid);
+        self.builder.revert_if(invalid);
         let shift = self.builder.imm_u64(64);
         self.builder.shr(shift, value)
     }
@@ -785,7 +775,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let valid = validator.condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
-        self.revert_if_invalid(invalid);
+        self.builder.revert_if(invalid);
         value
     }
 
@@ -810,11 +800,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let length = self.builder.slice_len(slice);
         let max_length = self.builder.imm_u64(u64::MAX);
         let too_large = self.builder.gt(length, max_length);
-        self.revert_if_invalid(too_large);
+        self.builder.revert_if(too_large);
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, length);
         let out_of_bounds = self.builder.sgt(pointer, limit);
-        self.revert_if_invalid(out_of_bounds);
+        self.builder.revert_if(out_of_bounds);
     }
 
     fn materialize_calldata_fixed_array(

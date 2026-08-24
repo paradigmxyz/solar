@@ -37,8 +37,7 @@ impl MirPass for LowerSlices {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let mut cx = LowerSlicesCx;
-        cx.run(module)
+        Self::run(module)
     }
 }
 
@@ -48,9 +47,6 @@ enum ParamRepr {
     CompactCalldata,
     Pair,
 }
-
-#[derive(Debug, Default)]
-struct LowerSlicesCx;
 
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
@@ -81,12 +77,12 @@ fn new_slice_inst(
     ))
 }
 
-impl LowerSlicesCx {
+impl LowerSlices {
     /// Splits a pointer phi whose incoming values still mix memory objects and
     /// logical slices. Inlining can erase the pointer type on one incoming
     /// memory object, so the physical word types may differ. Keep the pointer
     /// and length paths separate at the backend boundary.
-    fn lower_mixed_slice_phis(&mut self, func: &mut Function) -> bool {
+    fn lower_mixed_slice_phis(func: &mut Function) -> bool {
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut phi_replacements = FxHashMap::default();
@@ -220,7 +216,7 @@ impl LowerSlicesCx {
     /// operations over a `make_slice`, so no two-word slice value survives an
     /// aggregate use. Each operand slice is then consumed only by projections
     /// and folds away in `lower_projections`.
-    fn split_slice_aggregates(&mut self, func: &mut Function) -> bool {
+    fn split_slice_aggregates(func: &mut Function) -> bool {
         let mut changed = false;
         let mut replacements = FxHashMap::default();
 
@@ -349,7 +345,6 @@ impl LowerSlicesCx {
     }
 
     fn expand_call_args(
-        &mut self,
         func: &mut Function,
         signatures: &FxHashMap<FunctionId, IndexVec<ArgIdx, ParamRepr>>,
     ) -> bool {
@@ -396,11 +391,7 @@ impl LowerSlicesCx {
         changed
     }
 
-    fn lower_params(
-        &mut self,
-        func: &mut Function,
-        signature: &IndexVec<ArgIdx, ParamRepr>,
-    ) -> bool {
+    fn lower_params(func: &mut Function, signature: &IndexVec<ArgIdx, ParamRepr>) -> bool {
         if func.selector.is_some()
             || func.blocks.is_empty()
             || !func.params.iter().any(Self::is_slice)
@@ -408,10 +399,9 @@ impl LowerSlicesCx {
             return false;
         }
 
-        let old_params = std::mem::take(&mut func.params);
-        let mut physical_indices = IndexVec::<ArgIdx, ArgIdx>::with_capacity(old_params.len());
-        let mut new_params = IndexVec::<ArgIdx, MirType>::with_capacity(old_params.len() + 1);
-        for (index, &ty) in old_params.iter_enumerated() {
+        let mut physical_indices = IndexVec::<ArgIdx, ArgIdx>::with_capacity(func.params.len());
+        let mut new_params = IndexVec::<ArgIdx, MirType>::with_capacity(func.params.len() + 1);
+        for (index, &ty) in func.params.iter_enumerated() {
             physical_indices.push(new_params.next_idx());
             match signature[index] {
                 ParamRepr::Word => {
@@ -427,12 +417,10 @@ impl LowerSlicesCx {
                 }
             }
         }
-        let added_slots = new_params.len() - old_params.len();
+        let added_slots = new_params.len() - func.params.len();
         let Some(shifted_frame_offsets) = Self::shifted_frame_offsets(func, added_slots) else {
-            func.params = old_params;
             return false;
         };
-
         let argument_values: FxHashSet<_> = func
             .live_values()
             .filter(|&value| matches!(func.value(value), Value::Arg(_)))
@@ -506,16 +494,12 @@ impl LowerSlicesCx {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
         if !compact_heads.is_empty() {
-            self.lower_compact_values(builder.func_mut(), &compact_heads);
+            Self::lower_compact_values(builder.func_mut(), &compact_heads);
         }
         true
     }
 
-    fn lower_compact_values(
-        &mut self,
-        func: &mut Function,
-        raw_heads: &FxHashMap<ValueId, ValueId>,
-    ) {
+    fn lower_compact_values(func: &mut Function, raw_heads: &FxHashMap<ValueId, ValueId>) {
         let mut replacements = raw_heads.clone();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -556,7 +540,7 @@ impl LowerSlicesCx {
         func.replace_uses_canonicalized(&replacements);
     }
 
-    fn lower_external_args(&mut self, func: &mut Function) -> bool {
+    fn lower_external_args(func: &mut Function) -> bool {
         if func.selector.is_none() || func.blocks.is_empty() {
             return false;
         }
@@ -580,7 +564,7 @@ impl LowerSlicesCx {
                 (slice, head)
             })
             .collect();
-        self.lower_compact_values(func, &raw_heads);
+        Self::lower_compact_values(func, &raw_heads);
         true
     }
 
@@ -642,7 +626,7 @@ impl LowerSlicesCx {
         matches!(ty, MirType::Slice(_))
     }
 
-    fn lower_projections(&mut self, func: &mut Function) -> bool {
+    fn lower_projections(func: &mut Function) -> bool {
         let live_insts: FxHashSet<_> = func.instructions().collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
@@ -740,10 +724,7 @@ impl LowerSlicesCx {
         }
         true
     }
-}
-
-impl LowerSlicesCx {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(module: &mut Module) -> bool {
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module
             .functions
@@ -785,23 +766,23 @@ impl LowerSlicesCx {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
-            while self.split_slice_aggregates(func) {
+            while Self::split_slice_aggregates(func) {
                 changed = true;
             }
         }
         for func in module.functions.iter_mut() {
-            changed |= self.expand_call_args(func, &signatures);
+            changed |= Self::expand_call_args(func, &signatures);
         }
         let function_ids: Vec<_> = module.functions.indices().collect();
         for id in function_ids {
             let func = module.function_mut(id);
-            changed |= self.lower_external_args(func);
-            changed |= self.lower_params(func, &signatures[&id]);
-            while self.split_slice_aggregates(func) {
+            changed |= Self::lower_external_args(func);
+            changed |= Self::lower_params(func, &signatures[&id]);
+            while Self::split_slice_aggregates(func) {
                 changed = true;
             }
-            changed |= self.lower_mixed_slice_phis(func);
-            changed |= self.lower_projections(func);
+            changed |= Self::lower_mixed_slice_phis(func);
+            changed |= Self::lower_projections(func);
         }
         changed
     }
