@@ -197,43 +197,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.jump(target);
             }
             StmtKind::Return(expr) => {
-                let values = expr.map_or_else(
-                    || Some(Vec::new()),
-                    |expr| {
-                        if self.returns.len() == 1 {
-                            let ty = self.context.gcx.type_of_item(self.returns[0].into());
-                            if ty.is_ref_at(DataLocation::Storage) {
-                                return Some(vec![self.storage_access(expr)?.slot]);
-                            }
-                            if self
-                                .context
-                                .gcx
-                                .type_of_expr(expr.id)
-                                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
-                                && self.types.memory_layout(ty).is_some()
-                            {
-                                return Some(vec![self.lower_typed_expr(expr, ty)?]);
-                            }
-                            if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-                                return Some(vec![value]);
-                            }
-                            if let ExprKind::Lit(lit) =
-                                self.peel_bytes_conversion(expr).peel_parens().kind
-                                && matches!(lit.kind, LitKind::Str(..))
-                                && matches!(
-                                    ty.peel_refs().kind,
-                                    TyKind::Elementary(
-                                        solar_sema::hir::ElementaryType::Bytes
-                                            | solar_sema::hir::ElementaryType::String,
-                                    )
-                                )
-                            {
-                                return Some(vec![self.lower_typed_expr(expr, ty)?]);
-                            }
-                        }
-                        self.lower_return_values(expr)
-                    },
-                )?;
+                let values =
+                    expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_return_values(expr))?;
                 if !values.is_empty() && values.len() != self.returns.len() {
                     return report_unsupported(self.context.gcx, stmt.span, "return value count");
                 }

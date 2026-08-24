@@ -46,26 +46,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return_types,
                 ));
             }
+            let function_pointer =
+                self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
+                    TyKind::Fn(function)
+                        if function.function_id.is_none()
+                            && (function.is_internal() || function.is_external()) =>
+                    {
+                        Some(function)
+                    }
+                    _ => None,
+                });
             let returns = self
                 .context
                 .gcx
                 .resolved_function(callee)
                 .map(|function_id| self.context.gcx.hir.function(function_id).returns.len())
-                .or_else(|| {
-                    self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
-                        TyKind::Fn(function)
-                            if function.function_id.is_none()
-                                && (function.is_internal() || function.is_external()) =>
-                        {
-                            Some(function.returns.len())
-                        }
-                        _ => None,
-                    })
-                });
-            if let Some(TyKind::Fn(function)) =
-                self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+                .or_else(|| function_pointer.map(|function| function.returns.len()));
+            if let Some(function) = function_pointer
                 && function.is_external()
-                && function.function_id.is_none()
             {
                 return self.lower_external_function_pointer_call_values(
                     callee, function, *args, *call_opts,
@@ -78,10 +76,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let base = self.multi_return_buffer_base();
                 let gcx = self.context.gcx;
                 let resolved_function = gcx.resolved_function(callee);
-                let pointer_returns = gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
-                    TyKind::Fn(function) => Some(function.returns),
-                    _ => None,
-                });
+                let pointer_returns = function_pointer.map(|function| function.returns);
                 let return_types = (1..returns).map(move |index| {
                     resolved_function
                         .and_then(|function_id| {
@@ -115,6 +110,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         if self.returns.len() == 1 {
             let ty = self.context.gcx.type_of_item(self.returns[0].into());
+            if ty.is_ref_at(DataLocation::Storage) {
+                return Some(vec![self.storage_access(expr)?.slot]);
+            }
             return Some(vec![self.lower_typed_expr(expr, ty)?]);
         }
         if self.returns.len() > 1

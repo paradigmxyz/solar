@@ -32,11 +32,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_branches<T>(
         &mut self,
         condition: ValueId,
+        then_first: bool,
         mut lower: impl FnMut(&mut Self, bool) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         self.materialize_default_bindings();
-        let then_block = self.builder.create_block();
-        let else_block = self.builder.create_block();
+        let first_block = self.builder.create_block();
+        let second_block = self.builder.create_block();
+        let (then_block, else_block) =
+            if then_first { (first_block, second_block) } else { (second_block, first_block) };
         let merge_block = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
@@ -98,13 +101,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(condition, |this, is_then| {
-            if is_then {
-                this.lower_stmt(then_stmt)
-            } else {
-                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
-            }
-        })?;
+        let (then_branch, else_branch) =
+            self.lower_branches(condition, true, |this, is_then| {
+                if is_then {
+                    this.lower_stmt(then_stmt)
+                } else {
+                    else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+                }
+            })?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
@@ -560,7 +564,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower: impl FnMut(&mut Self, &hir::Expr<'_>) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         let condition = self.lower_expr(condition)?;
-        self.lower_branches(condition, |this, is_then| {
+        self.lower_branches(condition, true, |this, is_then| {
             lower(this, if is_then { then_expr } else { else_expr })
         })
     }
@@ -593,58 +597,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
         let lhs = self.lower_expr(lhs_expr)?;
-        self.materialize_default_bindings();
-        let rhs_block = self.builder.create_block();
-        let short_block = self.builder.create_block();
-        let merge_block = self.builder.create_block();
-        let before = self.values.clone();
-        let before_storage_refs = self.storage_refs.clone();
         let is_and = op == BinOpKind::And;
-        if is_and {
-            self.builder.branch(lhs, rhs_block, short_block);
+        let (then_branch, else_branch) = self.lower_branches(lhs, is_and, |this, is_then| {
+            if is_then == is_and {
+                this.lower_expr(rhs_expr)
+            } else {
+                Some(this.builder.imm_bool(!is_and))
+            }
+        })?;
+        let (rhs, short) =
+            if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
+        if rhs.terminated || rhs.value == short.value {
+            Some(short.value)
         } else {
-            self.builder.branch(lhs, short_block, rhs_block);
-        }
-
-        self.values = before.clone();
-        self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(rhs_block);
-        let rhs = self.lower_expr(rhs_expr)?;
-        let rhs_terminated = self.is_terminated();
-        let rhs_exit = self.builder.current_block();
-        let rhs_values = self.values.clone();
-        let rhs_storage_refs = self.storage_refs.clone();
-        if !rhs_terminated {
-            self.builder.jump(merge_block);
-        }
-
-        self.values = before.clone();
-        self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(short_block);
-        let short = self.builder.imm_bool(!is_and);
-        let short_exit = self.builder.current_block();
-        let short_values = self.values.clone();
-        let short_storage_refs = self.storage_refs.clone();
-        self.builder.jump(merge_block);
-
-        self.builder.switch_to_block(merge_block);
-        self.values = self.merge_values(
-            before,
-            MergeBranch { block: rhs_exit, values: rhs_values, terminated: rhs_terminated },
-            MergeBranch { block: short_exit, values: short_values, terminated: false },
-        );
-        self.storage_refs = self.merge_storage_refs(
-            before_storage_refs,
-            MergeBranch { block: rhs_exit, values: rhs_storage_refs, terminated: rhs_terminated },
-            MergeBranch { block: short_exit, values: short_storage_refs, terminated: false },
-        );
-        if rhs_terminated {
-            return Some(short);
-        }
-        if rhs == short {
-            Some(short)
-        } else {
-            Some(self.builder.phi(vec![(rhs_exit, rhs), (short_exit, short)]))
+            Some(self.builder.phi(vec![(rhs.block, rhs.value), (short.block, short.value)]))
         }
     }
 

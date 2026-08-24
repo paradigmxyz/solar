@@ -133,17 +133,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some(TyKind::Fn(function)) =
             self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
-            && function.is_external()
             && function.function_id.is_none()
         {
-            return self.lower_external_function_pointer_call(callee, function, args, call_opts);
-        }
-        if let Some(TyKind::Fn(function)) =
-            self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
-            && function.is_internal()
-            && function.function_id.is_none()
-        {
-            return self.lower_internal_function_pointer_call(expr, callee, function, args);
+            if function.is_external() {
+                return self
+                    .lower_external_function_pointer_call(callee, function, args, call_opts);
+            }
+            if function.is_internal() {
+                return self.lower_internal_function_pointer_call(expr, callee, function, args);
+            }
         }
         if let Some(function_id) = self.context.gcx.resolved_function(callee) {
             return self.lower_function_call(expr, callee, function_id, args, call_opts);
