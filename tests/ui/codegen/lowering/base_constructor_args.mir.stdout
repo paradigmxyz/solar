@@ -467,9 +467,8 @@ fn @record(arg0: u256) -> u256 {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, arg0 !metadata(storage=symbolic(v4))
+    v3 = storage_array_element_slot 0, v0, 1
+    sstore v3, arg0 !metadata(storage=symbolic(v3))
     sstore 0, v1 !metadata(storage=slot(0))
     ret arg0
 }
@@ -485,46 +484,42 @@ fn @order() -> (u256, u256, u256, u256) [selector=0xbf15071d, view, abi_args=laz
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_data_slot 0
-    v4 = add v3, 0
-    v5 = sload v4 !metadata(storage=symbolic(v3))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = lt 1, v6
-    v8 = iszero v7
-    jumpi v8, bb3, bb4
+    v3 = storage_array_element_slot 0, 0, 1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = lt 1, v5
+    v7 = iszero v6
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v9 = storage_array_data_slot 0
-    v10 = add v9, 1
-    v11 = sload v10 !metadata(storage=offset(v9, 1))
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = lt 2, v12
-    v14 = iszero v13
-    jumpi v14, bb5, bb6
+    v8 = storage_array_element_slot 0, 1, 1
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = lt 2, v10
+    v12 = iszero v11
+    jumpi v12, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v15 = storage_array_data_slot 0
-    v16 = add v15, 2
-    v17 = sload v16 !metadata(storage=offset(v15, 2))
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = lt 3, v18
-    v20 = iszero v19
-    jumpi v20, bb7, bb8
+    v13 = storage_array_element_slot 0, 2, 1
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = lt 3, v15
+    v17 = iszero v16
+    jumpi v17, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v21 = storage_array_data_slot 0
-    v22 = add v21, 3
-    v23 = sload v22 !metadata(storage=offset(v21, 3))
-    ret v5, v11, v17, v23
+    v18 = storage_array_element_slot 0, 3, 1
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    ret v4, v9, v14, v19
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===

@@ -14,9 +14,8 @@ fn @_anonymous() [constructor] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    v4 = storage_array_data_slot 0
-    v5 = add v4, v1
-    sstore v5, v0 !metadata(storage=symbolic(v5))
+    v4 = storage_array_element_slot 0, v1, 1
+    sstore v4, v0 !metadata(storage=symbolic(v4))
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb4
   bb4:
@@ -47,10 +46,9 @@ fn @result() -> (u256, u256) [selector=0x65372147, view, abi_args=lazy, abi_para
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = storage_array_data_slot 0
-    v5 = add v4, 0
-    v6 = sload v5 !metadata(storage=symbolic(v4))
-    ret v0, v6
+    v4 = storage_array_element_slot 0, 0, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v0, v5
 }
 
 fn @constructor() [constructor] {
@@ -69,9 +67,8 @@ fn @constructor() [constructor] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = storage_array_data_slot 0
-    v5 = add v4, v1
-    sstore v5, v0 !metadata(storage=symbolic(v5))
+    v4 = storage_array_element_slot 0, v1, 1
+    sstore v4, v0 !metadata(storage=symbolic(v4))
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb5
   bb5:

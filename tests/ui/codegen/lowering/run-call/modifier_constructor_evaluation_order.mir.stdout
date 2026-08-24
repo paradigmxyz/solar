@@ -64,9 +64,8 @@ fn @f(arg0: u256) -> u256 {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, arg0 !metadata(storage=symbolic(v4))
+    v3 = storage_array_element_slot 0, v0, 1
+    sstore v3, arg0 !metadata(storage=symbolic(v3))
     sstore 0, v1 !metadata(storage=slot(0))
     ret 0
 }

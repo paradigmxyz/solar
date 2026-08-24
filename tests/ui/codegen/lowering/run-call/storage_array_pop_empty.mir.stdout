@@ -12,9 +12,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_retur
   bb2:
     v2 = sub v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v2
-    sstore v4, 0 !metadata(storage=symbolic(v4))
+    v3 = storage_array_element_slot 0, v2, 1
+    sstore v3, 0 !metadata(storage=symbolic(v3))
     ret 1
 }
 

@@ -11,23 +11,21 @@ fn @_anonymous() [constructor] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_data_slot 2
-    v4 = add v3, v0
-    sstore v4, 11 !metadata(storage=symbolic(v4))
+    v3 = storage_array_element_slot 2, v0, 1
+    sstore v3, 11 !metadata(storage=symbolic(v3))
     sstore 2, v1 !metadata(storage=slot(2))
-    v5 = sload 3 !metadata(storage=slot(3))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb3, bb4
+    v4 = sload 3 !metadata(storage=slot(3))
+    v5 = add v4, 1
+    v6 = lt v5, v4
+    jumpi v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = storage_array_data_slot 3
-    v9 = add v8, v5
-    sstore v9, 22 !metadata(storage=symbolic(v9))
-    sstore 3, v6 !metadata(storage=slot(3))
+    v7 = storage_array_element_slot 3, v4, 1
+    sstore v7, 22 !metadata(storage=symbolic(v7))
+    sstore 3, v5 !metadata(storage=slot(3))
     stop
 }
 
@@ -65,9 +63,8 @@ fn @chooseArray(arg0: bool) -> u256 [selector=0x08ef7a67, view, abi_args=lazy, a
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v4 = storage_array_data_slot v0
-    v5 = add v4, 0
-    v6 = sload v5 !metadata(storage=symbolic(v4))
-    ret v6
+    v4 = storage_array_element_slot v0, 0, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
