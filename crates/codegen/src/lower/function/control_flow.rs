@@ -3,23 +3,21 @@
 use super::*;
 
 /// A `try` statement target resolved to the callee shape needed for lowering.
+#[derive(Clone, Copy)]
+enum TryCallee<'a> {
+    Creation { ty: &'a hir::Type<'a>, contract_id: hir::ContractId },
+    Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
+    FunctionPointer { address: ValueId, selector: ValueId },
+}
+
 struct TryTarget<'a, 'gcx> {
-    /// Creation metadata when the target is `new Contract(...)`.
-    creation: Option<(&'a hir::Type<'a>, hir::ContractId)>,
+    callee: TryCallee<'a>,
     /// ABI parameter types of the target call.
     parameter_types: Vec<Ty<'gcx>>,
     /// Return types of the target call.
     return_types: Vec<Ty<'gcx>>,
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
-    /// Computed selector value for external function pointer targets.
-    selector: Option<ValueId>,
-    /// Raw four-byte selector for member-call targets.
-    selector_bytes: Option<[u8; 4]>,
-    /// Computed address value for external function pointer targets.
-    address: Option<ValueId>,
-    /// Receiver expression for member-call targets.
-    receiver: Option<&'a hir::Expr<'a>>,
     /// Whether the call must use STATICCALL.
     static_call: bool,
 }
@@ -188,17 +186,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .unwrap_or((&[], Vec::new().into()));
             TryTarget {
-                creation: Some((ty, contract_id)),
+                callee: TryCallee::Creation { ty, contract_id },
                 parameter_types: parameters
                     .iter()
                     .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                selector: None,
-                selector_bytes: None,
-                address: None,
-                receiver: None,
                 static_call: false,
             }
         } else if let ExprKind::Member(receiver, _) = callee.kind {
@@ -207,7 +201,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let function = self.context.gcx.hir.function(function_id);
             TryTarget {
-                creation: None,
+                callee: TryCallee::Member {
+                    receiver,
+                    selector: self.context.gcx.function_selector(function_id).0,
+                },
                 parameter_types: function
                     .parameters
                     .iter()
@@ -221,10 +218,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_names: Some(self.context.gcx.callable_param_names(
                     CallableParamSource::Function { id: function_id, skips_receiver: false },
                 )),
-                selector: None,
-                selector_bytes: Some(self.context.gcx.function_selector(function_id).0),
-                address: None,
-                receiver: Some(receiver),
                 static_call: self.uses_static_call(function.state_mutability),
             }
         } else if let Some(TyKind::Fn(function)) =
@@ -235,14 +228,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let function_value = self.lower_expr(callee)?;
             let (address, selector) = self.split_external_function_pointer(function_value);
             TryTarget {
-                creation: None,
+                callee: TryCallee::FunctionPointer { address, selector },
                 parameter_types: function.parameters.to_vec(),
                 return_types: function.returns.to_vec(),
                 parameter_names: None,
-                selector: Some(selector),
-                selector_bytes: None,
-                address: Some(address),
-                receiver: None,
                 static_call: self.uses_static_call(function.state_mutability),
             }
         } else {
@@ -254,7 +243,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if catch_clauses.is_empty() {
             return report_unsupported(self.context.gcx, try_stmt.expr.span, "try/catch clauses");
         }
-        let creation_binding = if target.creation.is_some() {
+        let creation_binding = if matches!(target.callee, TryCallee::Creation { .. }) {
             if returns_clause.name.is_some() || returns_clause.args.len() > 1 {
                 return report_unsupported(
                     self.context.gcx,
@@ -314,23 +303,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, args.span, "try arguments");
         }
 
-        let (success, creation_value) = if let Some((ty, contract_id)) = target.creation {
+        let (success, creation_value) = if let TryCallee::Creation { ty, contract_id } =
+            target.callee
+        {
             let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
             let zero = self.builder.imm_u256(U256::ZERO);
             let failed = self.builder.eq(created, zero);
             (self.builder.iszero(failed), Some(created))
         } else {
-            let address = if let Some(address) = target.address {
-                address
-            } else {
-                let Some(receiver) = target.receiver else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        try_stmt.expr.span,
-                        "try receiver",
-                    );
-                };
-                self.lower_expr(receiver)?
+            let address = match target.callee {
+                TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
+                TryCallee::FunctionPointer { address, .. } => address,
+                TryCallee::Creation { .. } => unreachable!(),
             };
             let (gas, call_value, zero) =
                 self.lower_call_options(*call_opts, true, "try call option")?;
@@ -346,17 +330,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values.push(value);
                 types.push(abi_type);
             }
-            let selector = if let Some(selector) = target.selector {
-                selector
-            } else {
-                let Some(selector_bytes) = target.selector_bytes else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        try_stmt.expr.span,
-                        "try selector",
-                    );
-                };
-                self.builder.imm_u256(U256::from_be_slice(&selector_bytes) << 224)
+            let selector = match target.callee {
+                TryCallee::Member { selector, .. } => {
+                    self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
+                }
+                TryCallee::FunctionPointer { selector, .. } => selector,
+                TryCallee::Creation { .. } => unreachable!(),
             };
             let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
             let encoded =
