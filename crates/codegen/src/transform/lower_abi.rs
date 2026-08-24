@@ -88,6 +88,7 @@ impl MirPass for LowerAbi {
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
+    return_cleanup_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     has_bitwise_shifting: bool,
 }
@@ -187,6 +188,7 @@ impl LowerAbiCx {
 
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
+        self.synthesize_shared_return_cleanup_helpers(module, &targets);
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
@@ -620,6 +622,53 @@ impl LowerAbiCx {
         }
     }
 
+    fn synthesize_shared_return_cleanup_helpers(
+        &mut self,
+        module: &mut Module,
+        targets: &[FunctionId],
+    ) {
+        let mut counts = FxHashMap::<AbiParamType, usize>::default();
+        for &id in targets {
+            let Some(layout) = module.function(id).abi_return_params.as_ref() else { continue };
+            for ty in &layout.types {
+                if ty.needs_return_cleanup()
+                    && matches!(
+                        ty,
+                        AbiParamType::FixedArray { .. }
+                            | AbiParamType::DynamicArray(..)
+                            | AbiParamType::Tuple(..)
+                    )
+                {
+                    *counts.entry(ty.clone()).or_default() += 1;
+                }
+            }
+        }
+        for (ty, count) in counts {
+            if count < 2 {
+                continue;
+            }
+            let helper = self.synthesize_return_cleanup_helper(module, ty.clone());
+            self.return_cleanup_helpers.insert(ty, helper);
+        }
+    }
+
+    fn synthesize_return_cleanup_helper(
+        &self,
+        module: &mut Module,
+        ty: AbiParamType,
+    ) -> FunctionId {
+        let name = format!("__cleanup_return_{}", module.functions.len());
+        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let value = builder.add_param(ty.mir_type());
+            builder.add_return(ty.mir_type());
+            let value = canonicalize_return_value(&mut builder, &ty, value, None, false);
+            builder.ret([value]);
+        }
+        module.add_function(function)
+    }
+
     fn synthesize_calldata_slice_helper(&self, module: &mut Module) -> FunctionId {
         let name = format!("__decode_calldata_slice_{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
@@ -1038,6 +1087,7 @@ impl LowerAbiCx {
             return_params.as_ref(),
             abi_params.as_ref(),
             lazy_args,
+            &self.return_cleanup_helpers,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -3600,6 +3650,7 @@ fn encode_live_returns(
     return_params: Option<&AbiParamLayout>,
     input_params: Option<&AbiParamLayout>,
     lazy_args: bool,
+    cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) {
     let Some(mut layout) = func.abi_returns.clone() else { return };
     let return_blocks = func
@@ -3654,6 +3705,10 @@ fn encode_live_returns(
                 };
                 if reuses_validated_input(builder.func(), value, input_params, lazy_args, &ty) {
                     value
+                } else if let Some(&helper) = cleanup_helpers.get(&ty)
+                    && builder.func().value_ty(value) == Some(ty.mir_type())
+                {
+                    builder.internal_call(helper, vec![value], ty.mir_type(), 1)
                 } else {
                     canonicalize_return_value(&mut builder, &ty, value, input_params, lazy_args)
                 }
