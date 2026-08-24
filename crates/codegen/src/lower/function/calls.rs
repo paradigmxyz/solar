@@ -482,12 +482,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return dispatcher;
         }
         let index = self.context.state.pointer_registry.dispatchers.len();
-        let dispatcher = self
-            .context
-            .module
-            .add_function(Function::new(Ident::from_str(&format!("__internal_dispatch_{index}"))));
-        self.context.state.pointer_registry.dispatchers.insert(shape, dispatcher);
-        dispatcher
+        *self.context.state.pointer_registry.dispatchers.entry(shape).or_insert_with(|| {
+            self.context.module.add_function(Function::new(Ident::from_str(&format!(
+                "__internal_dispatch_{index}"
+            ))))
+        })
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {

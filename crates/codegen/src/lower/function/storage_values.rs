@@ -1014,16 +1014,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         ) {
             let bytes_helper = self.ensure_storage_bytes_helper();
-            let helper = match self.context.state.storage_bytes_array_helper {
-                Some(helper) => helper,
-                None => {
-                    let helper =
-                        synthesize_storage_bytes_array_helper(self.context.module, bytes_helper);
-                    self.context.state.storage_bytes_array_helper = Some(helper);
-                    helper
-                }
-            };
-            return Some(helper);
+            let helper = self.context.state.storage_bytes_array_helper.get_or_insert_with(|| {
+                synthesize_storage_bytes_array_helper(self.context.module, bytes_helper)
+            });
+            return Some(*helper);
         }
         if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
             return self.ensure_storage_struct_array_helper(element, struct_id);
@@ -1038,15 +1032,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 StorageEncoding::FixedBytes => 2,
             };
             let key = (size.bytes(), encoding);
-            let helper = match self.context.state.packed_array_helpers.get(&key).copied() {
-                Some(helper) => helper,
-                None => {
-                    let helper =
-                        synthesize_storage_packed_array_helper(self.context.module, key.0, key.1);
-                    self.context.state.packed_array_helpers.insert(key, helper);
-                    helper
-                }
-            };
+            let helper = *self.context.state.packed_array_helpers.entry(key).or_insert_with(|| {
+                synthesize_storage_packed_array_helper(self.context.module, key.0, key.1)
+            });
             return Some(helper);
         }
         if self.types.element_words(element) == 1
@@ -1057,15 +1045,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .packed_encoding(element)
                 .is_none_or(|(size, _)| size.bits() == 256)
         {
-            let helper = match self.context.state.storage_word_array_helper {
-                Some(helper) => helper,
-                None => {
-                    let helper = synthesize_storage_word_array_helper(self.context.module);
-                    self.context.state.storage_word_array_helper = Some(helper);
-                    helper
-                }
-            };
-            return Some(helper);
+            let helper =
+                self.context.state.storage_word_array_helper.get_or_insert_with(|| {
+                    synthesize_storage_word_array_helper(self.context.module)
+                });
+            return Some(*helper);
         }
         None
     }
@@ -1339,12 +1323,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
-        if let Some(helper) = self.context.state.storage_bytes_helper {
-            return helper;
-        }
-        let helper = synthesize_storage_bytes_helper(self.context.module);
-        self.context.state.storage_bytes_helper = Some(helper);
-        helper
+        *self
+            .context
+            .state
+            .storage_bytes_helper
+            .get_or_insert_with(|| synthesize_storage_bytes_helper(self.context.module))
     }
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
@@ -1471,14 +1454,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first_word: ValueId,
         words: ValueId,
     ) {
-        let helper = match self.context.state.storage_clear_helper {
-            Some(helper) => helper,
-            None => {
-                let helper = synthesize_storage_clear_helper(self.context.module);
-                self.context.state.storage_clear_helper = Some(helper);
-                helper
-            }
-        };
+        let helper = *self
+            .context
+            .state
+            .storage_clear_helper
+            .get_or_insert_with(|| synthesize_storage_clear_helper(self.context.module));
         self.builder.internal_call_void(helper, vec![slot, first_word, words], 0);
     }
 
