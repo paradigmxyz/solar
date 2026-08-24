@@ -761,8 +761,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.sstore(base.slot, last);
         let access =
             self.storage_array_element_access(base.slot, last, element, true, expr.span)?;
-        let value = self.default_value(element);
-        self.store_storage_value(element, access, value, expr.span)?;
+        self.clear_storage_access(element, access, expr.span)?;
         Some(zero)
     }
 
