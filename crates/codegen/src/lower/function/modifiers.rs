@@ -93,15 +93,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
-        let mut saved_locals = Vec::with_capacity(local_ids.len());
-        let mut saved_storage_locals = Vec::new();
-        for id in local_ids {
-            if Self::is_storage_parameter(self.context.gcx.type_of_item(id.into())) {
-                saved_storage_locals.push((id, self.storage_refs.get(&id).copied()));
-            } else {
-                saved_locals.push((id, self.values.get(&id).copied()));
-            }
-        }
+        let saved_locals = self.snapshot_bindings(&local_ids);
         let parameter_names = match modifier.args.kind {
             hir::CallArgsKind::Named(_) => {
                 Some(self.context.gcx.callable_param_names(CallableParamSource::Function {
@@ -111,8 +103,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             hir::CallArgsKind::Unnamed(_) => None,
         };
-        let mut saved_parameters = Vec::with_capacity(modifier_function.parameters.len());
-        let mut saved_storage_parameters = Vec::new();
+        let saved_parameters = self.snapshot_bindings(modifier_function.parameters);
         for (index, &parameter) in modifier_function.parameters.iter().enumerate() {
             let Some(argument) =
                 modifier.args.argument_for_parameter(index, parameter_names.as_deref())
@@ -126,12 +117,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             if Self::is_storage_parameter(parameter_ty) {
                 let access = self.storage_access(argument)?;
-                saved_storage_parameters
-                    .push((parameter, self.storage_refs.insert(parameter, access)));
+                self.storage_refs.insert(parameter, access);
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;
                 let value = self.materialize_call_argument(parameter_ty, value, argument.span)?;
-                saved_parameters.push((parameter, self.values.insert(parameter, value)));
+                self.values.insert(parameter, value);
             }
         }
 
@@ -149,34 +139,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.modifiers.push(context);
         let result = self.lower_block(modifier_body);
         self.modifiers.pop();
-        for (parameter, previous) in saved_parameters {
-            if let Some(value) = previous {
-                self.values.insert(parameter, value);
-            } else {
-                self.values.remove(&parameter);
-            }
-        }
-        for (parameter, previous) in saved_storage_parameters {
-            if let Some(access) = previous {
-                self.storage_refs.insert(parameter, access);
-            } else {
-                self.storage_refs.remove(&parameter);
-            }
-        }
-        for (local, previous) in saved_locals {
-            if let Some(value) = previous {
-                self.values.insert(local, value);
-            } else {
-                self.values.remove(&local);
-            }
-        }
-        for (local, previous) in saved_storage_locals {
-            if let Some(access) = previous {
-                self.storage_refs.insert(local, access);
-            } else {
-                self.storage_refs.remove(&local);
-            }
-        }
+        self.restore_bindings(&saved_parameters);
+        self.restore_bindings(&saved_locals);
         result
     }
 
