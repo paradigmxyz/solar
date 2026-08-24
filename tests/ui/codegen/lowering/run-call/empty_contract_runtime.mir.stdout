@@ -24,6 +24,7 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_args=lazy, abi_params
     v6 = phi [bb1: v5], [bb2: 0]
     ret v6
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
 @module InternalContract
 
