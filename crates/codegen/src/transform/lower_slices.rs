@@ -122,7 +122,6 @@ impl LowerSlices {
     fn lower_mixed_slice_phis(func: &mut Function) -> bool {
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
-        let mut phi_replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
         let mut insertions = FxHashMap::default();
         let mut projection_users: FxHashMap<ValueId, Vec<(InstId, ValueId, bool)>> =
@@ -157,7 +156,7 @@ impl LowerSlices {
                 let (ptr_phi, pointer) = new_word_inst(func, InstKind::Phi(ptr_incoming));
                 let (len_phi, length) = new_word_inst(func, InstKind::Phi(len_incoming));
                 insertions.insert(inst_id, (ptr_phi, len_phi));
-                phi_replacements.insert(result, pointer);
+                replacements.insert(result, pointer);
                 if let Some(users) = projection_users.get(&result) {
                     for &(user, user_result, is_pointer) in users {
                         if is_pointer {
@@ -177,7 +176,6 @@ impl LowerSlices {
             return false;
         }
         func.replace_uses_canonicalized(&replacements);
-        func.replace_uses_canonicalized(&phi_replacements);
         for block in func.blocks.iter_mut() {
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for inst_id in std::mem::take(&mut block.instructions) {
@@ -228,7 +226,6 @@ impl LowerSlices {
     /// aggregate use. Each operand slice is then consumed only by projections
     /// and folds away in `lower_projections`.
     fn split_slice_aggregates(func: &mut Function) -> bool {
-        let mut changed = false;
         let mut replacements = FxHashMap::default();
 
         // Selects: rewrite in place within their block.
@@ -250,7 +247,6 @@ impl LowerSlices {
                     let (ims, new_slice) = new_slice_inst(func, sp, sl, location);
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
                     replacements.insert(old, new_slice);
-                    changed = true;
                     continue;
                 }
                 out.push(inst_id);
@@ -294,7 +290,6 @@ impl LowerSlices {
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);
                 split_map.insert(inst_id, (ptr_phi, len_phi, make));
-                changed = true;
             }
             if split_map.is_empty() {
                 continue;
@@ -320,10 +315,10 @@ impl LowerSlices {
             func.blocks[block_id].instructions = phis;
         }
 
-        if changed {
+        if !replacements.is_empty() {
             func.replace_uses_canonicalized(&replacements);
         }
-        changed
+        !replacements.is_empty()
     }
 
     fn expand_call_args(

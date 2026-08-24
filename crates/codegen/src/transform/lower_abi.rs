@@ -107,15 +107,14 @@ impl DecodeOptions<'_> {
 
 impl LowerAbiCx {
     fn run(&mut self, module: &mut Module, evm_version: EvmVersion) -> bool {
-        self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
-        self.function_params =
-            module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
-
         // Idempotent: only `built`/`optimized` modules have an implicit ABI
         // boundary to materialize.
         if module.phase >= MirPhase::Abi {
             return false;
         }
+        self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
+        self.function_params =
+            module.functions.iter().map(|func| func.params.iter().copied().collect()).collect();
 
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
@@ -1913,7 +1912,9 @@ impl LowerAbiCx {
                 // overflow.
                 let bytes = builder.mul(len, word);
 
-                if !constructor && validate_array_elements && Self::is_scalar_or_enum(element) {
+                let copy_validated =
+                    !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
+                if copy_validated {
                     Self::validate_calldata_scalar_array(
                         builder,
                         data_base,
@@ -1922,24 +1923,17 @@ impl LowerAbiCx {
                         current,
                         has_bitwise_shifting,
                     );
-                    let total = builder.add(bytes, word);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::INTERNAL,
-                    );
-                    builder.set_memory_object_len(ptr, len, layout.kind());
-                    let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
-                    builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
-                    return ptr;
                 }
-
                 let total = builder.add(bytes, word);
                 let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                 let ptr =
                     builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
                 builder.set_memory_object_len(ptr, len, layout.kind());
+                if copy_validated {
+                    let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
+                    builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
+                    return ptr;
+                }
 
                 // Dynamic ABI arrays use a head of one word per element. The
                 // element value may itself be dynamic, so nested objects are
