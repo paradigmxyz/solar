@@ -356,7 +356,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
             match ty.peel_refs().kind {
                 TyKind::StringLiteral(..)
-                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
+                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+                | TyKind::Slice(_) => {
                     if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
                         && let LitKind::Str(_, bytes, _) = &lit.kind
                     {
@@ -460,16 +461,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match builtin {
             Builtin::YulMstore => lower!(mstore(offset, value)),
             Builtin::YulMstore8 => lower!(mstore8(offset, value)),
-            Builtin::YulMcopy => {
-                if !self.context.gcx.sess.opts.evm_version.has_mcopy() {
-                    return self.unsupported_yul_version(
-                        "codegen requires Cancun-compatible EVM for memory copy",
-                        "compile with `--evm-version cancun` or newer",
-                        args.span,
-                    );
-                }
-                lower!(mcopy(dest, src, size))
-            }
+            Builtin::YulMcopy => lower!(mcopy(dest, src, size)),
             Builtin::YulSstore => lower!(sstore(slot, value)),
             Builtin::YulTstore => lower!(tstore(slot, value)),
             Builtin::YulCalldatacopy => lower!(calldatacopy(dest, src, size)),

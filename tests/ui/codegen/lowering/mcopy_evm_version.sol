@@ -4,7 +4,7 @@ contract McopyEvmVersion {
     function copy() external pure {
         assembly {
             mcopy(0x80, 0xa0, 0x20)
-            //~^ ERROR: codegen requires Cancun-compatible EVM for memory copy
+            //~^ ERROR: Yul builtin `mcopy` requires Cancun-compatible EVM
             //~| HELP: compile with `--evm-version cancun` or newer
         }
     }

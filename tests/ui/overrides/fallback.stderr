@@ -1,0 +1,28 @@
+error[9456]: overriding function is missing `override` specifier
+   ╭▸ ROOT/tests/ui/overrides/fallback.sol:LL:CC
+   │
+LL │     fallback() external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/fallback.sol:LL:CC
+   │
+LL │     fallback() external virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[4334]: cannot override non-virtual function
+   ╭▸ ROOT/tests/ui/overrides/fallback.sol:LL:CC
+   │
+LL │     fallback() external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding function is here
+   ╭▸ ROOT/tests/ui/overrides/fallback.sol:LL:CC
+   │
+LL │     fallback() external override {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `virtual` to the base function to allow overriding
+
+error: aborting due to 2 previous errors
+

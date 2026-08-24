@@ -300,8 +300,12 @@ fuzz/bin/solsymdiff \
 ```
 
 Both compilers receive the same closed Standard JSON input and compiler
-settings. The generated Foundry property installs both runtimes, calls them in
-the same context, and compares success or revert status and exact returndata.
+settings. The generated Foundry property swaps both runtimes onto the same
+fixed address, calls them from the same initial state, and compares success or
+revert status and exact returndata. Keeping one target address preserves
+`address(this)`, external self-calls, storage ownership, and log emitters.
+A generated symbolic bound is raised as needed to hold both runtime bytecode
+blobs and is recorded in `result.json`.
 A mismatch is reported only after Foundry concretely replays the symbolic
 counterexample. The generated replay project, compiler input, and `result.json`
 are kept under `target/solsymdiff/`.
