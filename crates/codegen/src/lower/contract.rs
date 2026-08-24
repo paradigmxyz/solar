@@ -230,12 +230,7 @@ pub(super) fn lower(
         return module;
     }
 
-    function::generate_internal_function_pointer_dispatchers(
-        gcx,
-        &mut module,
-        &mir_ids,
-        &state.pointer_registry,
-    );
+    function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;
@@ -246,7 +241,7 @@ pub(super) fn lower(
 fn shared_string_literals(
     gcx: Gcx<'_>,
     function_ids: &[(hir::FunctionId, bool)],
-) -> (FxHashSet<Vec<u8>>, FxHashSet<Vec<u8>>) {
+) -> (FxHashSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
     struct Counter<'hir> {
         hir: &'hir hir::Hir<'hir>,
         counts: FxHashMap<ByteSymbol, usize>,
@@ -287,9 +282,8 @@ fn shared_string_literals(
         if count < 3 || bytes.as_byte_str().is_empty() {
             continue;
         }
-        let bytes = bytes.as_byte_str().to_vec();
         if count >= 4 {
-            shared.insert(bytes.clone());
+            shared.insert(bytes);
         }
         shared_word.insert(bytes);
     }

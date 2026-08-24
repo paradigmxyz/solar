@@ -7,11 +7,11 @@ fn @ok() [selector=0xd909b403, pure, abi_args=lazy, abi_params=[], abi_returns=[
 
 fn @fail() [selector=0xa9cc4718, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @__revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @revert_error(arg0: u256, arg1: u256) {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)

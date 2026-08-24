@@ -110,7 +110,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v51 = and v34, v50
     jumpi v51, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 0, v49, v44
+    internal_call @clear_storage_words, 0, 0, v49, v44
     jump bb20
   bb20:
     jumpi v48, bb21, bb22
@@ -254,7 +254,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v121 = and v104, v120
     jumpi v121, bb45, bb46
   bb45:
-    internal_call @__clear_storage_words, 0, 0, v119, v114
+    internal_call @clear_storage_words, 0, 0, v119, v114
     jump bb46
   bb46:
     jumpi v118, bb47, bb48
@@ -447,7 +447,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v214 = and v197, v213
     jumpi v214, bb81, bb82
   bb81:
-    internal_call @__clear_storage_words, 0, 0, v212, v207
+    internal_call @clear_storage_words, 0, 0, v212, v207
     jump bb82
   bb82:
     jumpi v211, bb83, bb84
@@ -589,7 +589,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v283 = and v266, v282
     jumpi v283, bb107, bb108
   bb107:
-    internal_call @__clear_storage_words, 0, 0, v281, v276
+    internal_call @clear_storage_words, 0, 0, v281, v276
     jump bb108
   bb108:
     jumpi v280, bb109, bb110
@@ -733,7 +733,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v353 = and v336, v352
     jumpi v353, bb133, bb134
   bb133:
-    internal_call @__clear_storage_words, 0, 0, v351, v346
+    internal_call @clear_storage_words, 0, 0, v351, v346
     jump bb134
   bb134:
     jumpi v350, bb135, bb136
@@ -874,7 +874,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     jump bb157
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

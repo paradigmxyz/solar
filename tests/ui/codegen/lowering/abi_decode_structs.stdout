@@ -37,7 +37,7 @@ fn @dFlat() [selector=0x6644232b, pure] {
     mstore 192, v6
     returndata 128, 96
   bb5:
-    v24 = internal_call @__decode_calldata_type_3, 1, 4
+    v24 = internal_call @decode_calldata_type, 1, 4
     v7 = add v24, 32
     v8 = mload v24
     v9 = add v7, v8
@@ -202,7 +202,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v104 = add v96, 128
     jumpi v103, bb18, bb19
   bb17:
-    v92 = internal_call @__decode_calldata_type_3, 1, 4
+    v92 = internal_call @decode_calldata_type, 1, 4
     v7 = add v92, 32
     v8 = mload v92
     v9 = add v7, v8
@@ -344,7 +344,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     v70 = add v24, 1
     jump bb5
   bb15:
-    v73 = internal_call @__decode_calldata_type_3, 1, 4
+    v73 = internal_call @decode_calldata_type, 1, 4
     v2 = add v73, 32
     v3 = mload v73
     v4 = add v2, v3
@@ -354,7 +354,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     jumpi v7, bb2, bb1
 }
 
-fn @__decode_calldata_type_3(arg0: u256) -> memptr {
+fn @decode_calldata_type(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

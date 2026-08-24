@@ -31,8 +31,8 @@ contract FunctionPointerMemoryArray {
     // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 3, [[D:[0-9]+]]
     // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 4, [[E:[0-9]+]]
     // CHECK: [[ARRAY_FN:v[0-9]+]] = memory_object_load_element memoryarray<1>, {{v[0-9]+}}, arg1
-    // CHECK: internal_call @__internal_dispatch_0, 1, [[ARRAY_FN]], arg0
-    // CHECK-LABEL: fn @__internal_dispatch_0(
+    // CHECK: internal_call @internal_dispatcher{{.*}}, 1, [[ARRAY_FN]], arg0
+    // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, [[A]]
     // CHECK: internal_call @arrayA, 1, arg1
     // CHECK: eq arg0, [[B]]

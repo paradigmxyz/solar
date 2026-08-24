@@ -3,12 +3,12 @@
 
 contract StorageLongBytesReturn {
     // CHECK-LABEL: fn @s{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @__load_storage_bytes, 1, 0
+    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 0
     // CHECK: ret
     string public s;
 
     // CHECK-LABEL: fn @b{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @__load_storage_bytes, 1, 1
+    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 1
     // CHECK: ret
     bytes public b;
 
@@ -36,14 +36,14 @@ contract StorageLongBytesReturn {
     }
 
     // CHECK-LABEL: fn @getS{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @__load_storage_bytes, 1, 0
+    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 0
     // CHECK: ret
     function getS() public view returns (string memory) {
         return s;
     }
 
     // CHECK-LABEL: fn @getB{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @__load_storage_bytes, 1, 1
+    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 1
     // CHECK: ret
     function getB() public view returns (bytes memory) {
         return b;

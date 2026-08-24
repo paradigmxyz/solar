@@ -116,7 +116,7 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_args=lazy, abi
     v62 = mul v60, 8
     v63 = shr v62, v61
     v64 = and v63, 0xffffffffffffffff
-    v65 = internal_call @__internal_dispatch_0, 1, v64
+    v65 = internal_call @internal_dispatcher_p_none_r_u256, 1, v64
     ret v54, v65
 }
 
@@ -211,7 +211,7 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_args=lazy, abi
     v62 = mul v60, 8
     v63 = shr v62, v61
     v64 = and v63, 0xffffffffffffffff
-    v65 = internal_call @__internal_dispatch_0, 1, v64
+    v65 = internal_call @internal_dispatcher_p_none_r_u256, 1, v64
     ret v54, v65
 }
 
@@ -306,11 +306,11 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_args=lazy, abi_pa
     v62 = mul v60, 8
     v63 = shr v62, v61
     v64 = and v63, 0xffffffffffffffff
-    v65 = internal_call @__internal_dispatch_0, 1, v64
+    v65 = internal_call @internal_dispatcher_p_none_r_u256, 1, v64
     ret v54, v65
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2

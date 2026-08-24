@@ -36,7 +36,7 @@ fn @_anonymous(arg0: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 0, v17, v12
+    internal_call @clear_storage_words, 0, 0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -186,7 +186,7 @@ fn @readBytes() -> memorybytes [selector=0xd98b5568, view, abi_args=lazy, abi_pa
     jump bb7
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

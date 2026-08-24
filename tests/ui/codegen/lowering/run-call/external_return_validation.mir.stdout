@@ -789,7 +789,7 @@ fn @dynamicTarget(arg0: u256) [selector=0x32079384, pure, abi_args=lazy, abi_par
     returndata 0, arg0
 }
 
-fn @__decode_memory_type_31(arg0: u256, arg1: u256, arg2: u256) -> memorystruct {
+fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memorystruct {
   bb0:
     v0 = mload arg0
     v1 = add arg1, v0

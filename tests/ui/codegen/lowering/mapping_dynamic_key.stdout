@@ -189,7 +189,7 @@ fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, abi_args=lazy, abi_params=[
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 3, v17, v12
+    internal_call @clear_storage_words, 0, 3, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -297,7 +297,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8fc72899, 
     ret v4
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

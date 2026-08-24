@@ -46,7 +46,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v26 = and v9, v25
     jumpi v26, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, v6, v24, v19
+    internal_call @clear_storage_words, 0, v6, v24, v19
     jump bb6
   bb6:
     jumpi v23, bb7, bb8
@@ -212,10 +212,10 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v118 = and v117, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v116, 0, v118
     v119 = add 0, 1
-    v120 = internal_call @__load_storage_bytes, 1, v119
+    v120 = internal_call @load_storage_bytes, 1, v119
     memory_object_store_field memorystruct<3>, v116, 1, v120
     v121 = add 0, 2
-    v122 = internal_call @__load_storage_struct_array_3, 1, v121
+    v122 = internal_call @load_storage_struct_array_0, 1, v121
     memory_object_store_field memorystruct<3>, v116, 2, v122
     v123 = sload 6 !metadata(storage=slot(6))
     v124 = add v123, 1
@@ -229,7 +229,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v126 = storage_array_data_slot 6
     v127 = mul v123, 3
     v128 = add v126, v127
-    internal_call @__store_recursive_storage_4, 0, v128, v116
+    internal_call @store_recursive_storage_0_0, 0, v128, v116
     sstore 6, v124 !metadata(storage=slot(6))
     v129 = sload 0 !metadata(storage=slot(0))
     v130 = not 0xffffffffffffffffffffffffffffffff
@@ -251,7 +251,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v138 = storage_array_data_slot v134
     v139 = mul v137, 3
     v140 = add v138, v139
-    internal_call @__clear_recursive_storage_5, 0, v140
+    internal_call @clear_recursive_storage_0, 0, v140
     v141 = add 0, 2
     v142 = sload v141 !metadata(storage=slot(2))
     v143 = lt 0, v142
@@ -276,10 +276,10 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v155 = and v154, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v153, 0, v155
     v156 = add 0, 1
-    v157 = internal_call @__load_storage_bytes, 1, v156
+    v157 = internal_call @load_storage_bytes, 1, v156
     memory_object_store_field memorystruct<3>, v153, 1, v157
     v158 = add 0, 2
-    v159 = internal_call @__load_storage_struct_array_3, 1, v158
+    v159 = internal_call @load_storage_struct_array_0, 1, v158
     memory_object_store_field memorystruct<3>, v153, 2, v159
     v160 = sload 6 !metadata(storage=slot(6))
     v161 = add v160, 1
@@ -293,7 +293,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v163 = storage_array_data_slot 6
     v164 = mul v160, 3
     v165 = add v163, v164
-    internal_call @__store_recursive_storage_4, 0, v165, v153
+    internal_call @store_recursive_storage_0_0, 0, v165, v153
     sstore 6, v161 !metadata(storage=slot(6))
     v166 = add 0, 2
     v167 = sload v166 !metadata(storage=slot(2))
@@ -319,10 +319,10 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v180 = and v179, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v178, 0, v180
     v181 = add 0, 1
-    v182 = internal_call @__load_storage_bytes, 1, v181
+    v182 = internal_call @load_storage_bytes, 1, v181
     memory_object_store_field memorystruct<3>, v178, 1, v182
     v183 = add 0, 2
-    v184 = internal_call @__load_storage_struct_array_3, 1, v183
+    v184 = internal_call @load_storage_struct_array_0, 1, v183
     memory_object_store_field memorystruct<3>, v178, 2, v184
     v185 = sload 6 !metadata(storage=slot(6))
     v186 = lt 0, v185
@@ -336,16 +336,16 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v188 = storage_array_data_slot 6
     v189 = mul 0, 3
     v190 = add v188, v189
-    internal_call @__store_recursive_storage_4, 0, v190, v178
+    internal_call @store_recursive_storage_0_0, 0, v190, v178
     v191 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v192 = sload 3 !metadata(storage=slot(3))
     v193 = and v192, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v191, 0, v193
     v194 = add 3, 1
-    v195 = internal_call @__load_storage_bytes, 1, v194
+    v195 = internal_call @load_storage_bytes, 1, v194
     memory_object_store_field memorystruct<3>, v191, 1, v195
     v196 = add 3, 2
-    v197 = internal_call @__load_storage_struct_array_3, 1, v196
+    v197 = internal_call @load_storage_struct_array_0, 1, v196
     memory_object_store_field memorystruct<3>, v191, 2, v197
     v198 = sload 6 !metadata(storage=slot(6))
     v199 = add v198, 1
@@ -359,7 +359,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v201 = storage_array_data_slot 6
     v202 = mul v198, 3
     v203 = add v201, v202
-    internal_call @__store_recursive_storage_4, 0, v203, v191
+    internal_call @store_recursive_storage_0_0, 0, v203, v191
     sstore 6, v199 !metadata(storage=slot(6))
     v204 = sload 6 !metadata(storage=slot(6))
     v205 = sload 6 !metadata(storage=slot(6))
@@ -497,7 +497,7 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v277 = mul 0, 3
     v278 = add v276, v277
     v279 = add v278, 1
-    v280 = internal_call @__load_storage_bytes, 1, v279
+    v280 = internal_call @load_storage_bytes, 1, v279
     v281 = memory_object_len memorybytes, v280
     v282 = sload 6 !metadata(storage=slot(6))
     v283 = lt 1, v282
@@ -553,12 +553,12 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v309 = mul 1, 3
     v310 = add v308, v309
     v311 = add v310, 1
-    v312 = internal_call @__load_storage_bytes, 1, v311
+    v312 = internal_call @load_storage_bytes, 1, v311
     v313 = memory_object_len memorybytes, v312
     ret v204, v212, v220, v235, v250, v272, v281, v296, v304, v313
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -575,7 +575,7 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     stop
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -630,7 +630,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb7
 }
 
-fn @__load_storage_struct_array_3(arg0: u256) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -668,10 +668,10 @@ fn @__load_storage_struct_array_3(arg0: u256) -> memoryarray {
     v16 = and v15, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v14, 0, v16
     v17 = add v12, 1
-    v18 = internal_call @__load_storage_bytes, 1, v17
+    v18 = internal_call @load_storage_bytes, 1, v17
     memory_object_store_field memorystruct<3>, v14, 1, v18
     v19 = add v12, 2
-    v20 = internal_call @__load_storage_struct_array_3, 1, v19
+    v20 = internal_call @load_storage_struct_array_0, 1, v19
     memory_object_store_field memorystruct<3>, v14, 2, v20
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v21 = add v11, 1
@@ -681,7 +681,7 @@ fn @__load_storage_struct_array_3(arg0: u256) -> memoryarray {
     ret v9
 }
 
-fn @__store_recursive_storage_4(arg0: u256, arg1: memorystruct) {
+fn @store_recursive_storage_0_0(arg0: u256, arg1: memorystruct) {
   bb0:
     v0 = memory_object_load_field memorystruct<3>, arg1, 0
     v1 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -726,7 +726,7 @@ fn @__store_recursive_storage_4(arg0: u256, arg1: memorystruct) {
     v27 = and v10, v26
     jumpi v27, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, v6, v25, v20
+    internal_call @clear_storage_words, 0, v6, v25, v20
     jump bb6
   bb6:
     jumpi v24, bb7, bb8
@@ -781,7 +781,7 @@ fn @__store_recursive_storage_4(arg0: u256, arg1: memorystruct) {
     v53 = storage_array_data_slot v46
     v54 = mul v51, 3
     v55 = add v53, v54
-    internal_call @__clear_recursive_storage_5, 0, v55
+    internal_call @clear_recursive_storage_0, 0, v55
     v56 = add v51, 1
     jump bb15
   bb17:
@@ -812,12 +812,12 @@ fn @__store_recursive_storage_4(arg0: u256, arg1: memorystruct) {
     v65 = storage_array_data_slot v46
     v66 = mul v57, 3
     v67 = add v65, v66
-    internal_call @__store_recursive_storage_4, 0, v67, v64
+    internal_call @store_recursive_storage_0_0, 0, v67, v64
     v68 = add v57, 1
     jump bb18
 }
 
-fn @__clear_recursive_storage_5(arg0: u256) {
+fn @clear_recursive_storage_0(arg0: u256) {
   bb0:
     sstore arg0, 0 !metadata(storage=symbolic(arg0))
     v0 = add arg0, 1
@@ -866,7 +866,7 @@ fn @__clear_recursive_storage_5(arg0: u256) {
     v20 = storage_array_data_slot v16
     v21 = mul v18, 3
     v22 = add v20, v21
-    internal_call @__clear_recursive_storage_5, 0, v22
+    internal_call @clear_recursive_storage_0, 0, v22
     v23 = add v18, 1
     jump bb8
   bb10:

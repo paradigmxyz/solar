@@ -21,7 +21,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Ident, Symbol};
+use solar_interface::{Ident, sym};
 
 /// Revert-block outlining pass.
 pub(crate) struct OutlineReverts;
@@ -71,7 +71,6 @@ enum HelperKey {
 #[derive(Debug, Default)]
 struct HelperRegistry {
     helpers: FxHashMap<HelperKey, FunctionId>,
-    next_revert: usize,
 }
 
 impl HelperRegistry {
@@ -87,13 +86,11 @@ impl HelperRegistry {
     }
 
     fn create_revert(
-        &mut self,
+        &self,
         module: &mut Module,
         (stores, offset, size): &RevertShape,
     ) -> FunctionId {
-        let name = format!("__revert_stub{}", self.next_revert);
-        self.next_revert += 1;
-        let mut func = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let mut func = Function::new(Ident::with_dummy_span(sym::revert_stub));
         {
             let mut builder = FunctionBuilder::new(&mut func);
             for &(store_offset, value) in stores {

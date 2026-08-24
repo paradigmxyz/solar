@@ -130,7 +130,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v52 = and v35, v51
     jumpi v52, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 1, v50, v45
+    internal_call @clear_storage_words, 0, 1, v50, v45
     jump bb20
   bb20:
     jumpi v49, bb21, bb22
@@ -352,7 +352,7 @@ fn @identity(arg0: bytes2) -> bytes2 [pure] {
     ret arg0
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

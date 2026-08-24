@@ -33,7 +33,7 @@ fn @invoke(arg0: calldataslice) -> bytes1 [selector=0xa6514259, abi_args=lazy, a
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
-    v2 = internal_call @__internal_dispatch_0, 1, v1, arg0
+    v2 = internal_call @internal_dispatcher_p_calldataslice_r_bytes1, 1, v1, arg0
     ret v2
 }
 
@@ -86,7 +86,7 @@ fn @run() -> u8 [selector=0xc0406226, abi_args=lazy, abi_params=[], abi_returns=
     ret v23
 }
 
-fn @__internal_dispatch_0(arg0: function, arg1: calldataslice) -> bytes1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: function, arg1: calldataslice) -> bytes1 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

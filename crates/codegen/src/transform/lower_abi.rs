@@ -52,7 +52,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{Ident, Span, Symbol, sym};
 
 /// ABI phase lowering pass.
 pub(crate) struct LowerAbi;
@@ -372,12 +372,12 @@ impl LowerAbiCx {
                 }
                 if count != alias_count {
                     let helper =
-                        self.synthesize_decode_helper(module, layout.clone(), "__decode_static_");
+                        self.synthesize_decode_helper(module, layout.clone(), sym::decode_static);
                     decode_helpers.insert(layout, helper);
                 }
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper =
-                    self.synthesize_decode_helper(module, layout.clone(), "__decode_aggregate_");
+                    self.synthesize_decode_helper(module, layout.clone(), sym::decode_aggregate);
                 decode_helpers.insert(layout, helper);
             }
         }
@@ -513,8 +513,7 @@ impl LowerAbiCx {
         module: &mut Module,
         ty: AbiParamType,
     ) -> FunctionId {
-        let name = format!("__decode_calldata_type_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
@@ -591,8 +590,7 @@ impl LowerAbiCx {
         module: &mut Module,
         ty: &AbiParamType,
     ) -> FunctionId {
-        let name = format!("__cleanup_return_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let mut function = Function::new(Ident::with_dummy_span(sym::cleanup_return));
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let value = builder.add_param(ty.mir_type());
@@ -604,8 +602,7 @@ impl LowerAbiCx {
     }
 
     fn synthesize_calldata_slice_helper(&self, module: &mut Module) -> FunctionId {
-        let name = format!("__decode_calldata_slice_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_slice));
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
@@ -631,10 +628,9 @@ impl LowerAbiCx {
         &self,
         module: &mut Module,
         layout: AbiParamLayoutRef,
-        prefix: &str,
+        name: Symbol,
     ) -> FunctionId {
-        let name = format!("{prefix}{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let mut function = Function::new(Ident::with_dummy_span(name));
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
@@ -664,9 +660,8 @@ impl LowerAbiCx {
         layout: AbiParamLayout,
         raw_ptr: bool,
     ) -> FunctionId {
-        let prefix = if raw_ptr { "__decode_static_ptr_" } else { "__decode_static_alias_" };
-        let name = format!("{prefix}{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+        let name = if raw_ptr { sym::decode_static_ptr } else { sym::decode_static_alias };
+        let mut function = Function::new(Ident::with_dummy_span(name));
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let data_ty = if raw_ptr {
@@ -2787,8 +2782,7 @@ pub(crate) fn synthesize_memory_decode_helper(
     ty: crate::mir::AbiParamType,
     has_bitwise_shifting: bool,
 ) -> FunctionId {
-    let name = format!("__decode_memory_type_{}", module.functions.len());
-    let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+    let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
         let mut builder = FunctionBuilder::new(&mut function);
         let head = builder.add_param(MirType::uint256());

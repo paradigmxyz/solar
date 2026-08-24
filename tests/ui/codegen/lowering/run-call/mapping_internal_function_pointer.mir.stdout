@@ -52,21 +52,21 @@ fn @run() -> bool [selector=0xc0406226, abi_args=lazy, abi_params=[], abi_return
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = and v1, 0xffffffffffffffff
-    internal_call @__internal_dispatch_0, 0, v2
+    internal_call @internal_dispatcher_p_none_r_none, 0, v2
     v3 = mapping_slot 0x1234, 1
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = and v4, 0xffffffffffffffff
-    internal_call @__internal_dispatch_0, 0, v5
+    internal_call @internal_dispatcher_p_none_r_none, 0, v5
     v6 = mapping_slot 0x1234, 1
     v7 = sload v6 !metadata(storage=symbolic(v6))
     v8 = and v7, 0xffffffffffffffff
-    internal_call @__internal_dispatch_0, 0, v8
+    internal_call @internal_dispatcher_p_none_r_none, 0, v8
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = and v9, 255
     ret v10
 }
 
-fn @__internal_dispatch_0(arg0: function) [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

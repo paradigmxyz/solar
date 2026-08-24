@@ -352,7 +352,7 @@ fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_args=laz
     v95 = and v78, v94
     jumpi v95, bb39, bb40
   bb39:
-    internal_call @__clear_storage_words, 0, 3, v93, v88
+    internal_call @clear_storage_words, 0, 3, v93, v88
     jump bb40
   bb40:
     jumpi v92, bb41, bb42
@@ -474,7 +474,7 @@ fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_args=laz
     v157 = and v140, v156
     jumpi v157, bb61, bb62
   bb61:
-    internal_call @__clear_storage_words, 0, 3, v155, v150
+    internal_call @clear_storage_words, 0, 3, v155, v150
     jump bb62
   bb62:
     jumpi v154, bb63, bb64
@@ -662,7 +662,7 @@ fn @threeValues() -> (u256, u256, u256) [pure] {
     ret 1, 2, 3
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -719,7 +719,7 @@ fn @constructor() [constructor] {
     v20 = and v3, v19
     jumpi v20, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 3, v18, v13
+    internal_call @clear_storage_words, 0, 3, v18, v13
     jump bb6
   bb6:
     jumpi v17, bb7, bb8

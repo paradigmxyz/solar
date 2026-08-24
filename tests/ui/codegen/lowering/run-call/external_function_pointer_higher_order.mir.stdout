@@ -97,11 +97,11 @@ fn @t() -> u256 [selector=0x92d0d153, abi_args=lazy, abi_params=[], abi_returns=
     v21 = sload 0 !metadata(storage=slot(0))
     v22 = shr 64, v21
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v24 = internal_call @__internal_dispatch_0, 1, v20, v23
+    v24 = internal_call @internal_dispatcher_p_function_r_u256, 1, v20, v23
     ret v24
 }
 
-fn @__internal_dispatch_0(arg0: function, arg1: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_function_r_u256(arg0: function, arg1: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2

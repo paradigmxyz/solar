@@ -10,7 +10,7 @@
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
-+     tail_call @__revert_stub0
++     tail_call @revert_stub
     bb2:
       mstore 128, v0
       returndata 128, 32
@@ -25,7 +25,7 @@
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
-+     tail_call @__revert_stub0
++     tail_call @revert_stub
     bb2:
       mstore 128, v0
       returndata 128, 32
@@ -45,7 +45,7 @@
       returndata 128, 32
 + }
 + 
-+ fn @__revert_stub0() {
++ fn @revert_stub() {
 +   bb0:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 17 !metadata(memory=scratch)

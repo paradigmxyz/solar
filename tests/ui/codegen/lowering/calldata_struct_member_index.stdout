@@ -7,14 +7,14 @@ fn @plain() [selector=0xc2dcee6a, pure] {
     v16 = lt v15, 68
     jumpi v16, bb5, bb6
   bb1:
-    tail_call @__revert_stub0
+    tail_call @revert_stub.4
   bb2:
     v4 = shl 7, arg1
     v6 = shr 7, v4
     v7 = eq v6, arg1
     jumpi v7, bb4, bb3
   bb3:
-    tail_call @__revert_stub1
+    tail_call @revert_stub.5
   bb4:
     v10 = add v19, v4
     v13 = add v10, 96
@@ -72,14 +72,14 @@ fn @member() [selector=0x49eb8b89, pure] {
     v24 = lt arg1, v14
     jumpi v24, bb7, bb6
   bb6:
-    tail_call @__revert_stub0
+    tail_call @revert_stub.4
   bb7:
     v27 = shl 7, arg1
     v29 = shr 7, v27
     v30 = eq v29, arg1
     jumpi v30, bb9, bb8
   bb8:
-    tail_call @__revert_stub1
+    tail_call @revert_stub.5
   bb9:
     v33 = add v17, v27
     v36 = add v33, 96
@@ -136,14 +136,14 @@ fn @word() [selector=0xd192e846, pure] {
     v24 = lt arg1, v14
     jumpi v24, bb7, bb6
   bb6:
-    tail_call @__revert_stub0
+    tail_call @revert_stub.4
   bb7:
     v27 = shl 5, arg1
     v29 = shr 5, v27
     v30 = eq v29, arg1
     jumpi v30, bb9, bb8
   bb8:
-    tail_call @__revert_stub1
+    tail_call @revert_stub.5
   bb9:
     v33 = add v17, v27
     v34 = calldataload v33
@@ -271,14 +271,14 @@ fn @lengths() [selector=0xb7a3bd0f, pure] {
     jumpi v6, bb1, bb2
 }
 
-fn @__revert_stub0() {
+fn @revert_stub.4() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @__revert_stub1() {
+fn @revert_stub.5() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -9,89 +9,62 @@ enum StorageArrayElement {
     Packed { bytes: u8, encoding: StorageEncoding },
 }
 
-/// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
-pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId {
-    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes));
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let slot = builder.add_param(MirType::uint256());
-        builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-        let object = lower_storage_bytes_inline(&mut builder, slot);
-        builder.ret([object]);
-    }
-    module.add_function(function)
+/// Builds the helper for decoding one storage `bytes`/`string` slot.
+fn build_storage_bytes_helper(function: &mut Function) {
+    let mut builder = FunctionBuilder::new(function);
+    let slot = builder.add_param(MirType::uint256());
+    builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+    let object = lower_storage_bytes_inline(&mut builder, slot);
+    builder.ret([object]);
 }
 
-fn synthesize_storage_array_helper(
-    module: &mut Module,
-    name: Ident,
-    element: StorageArrayElement,
-) -> FunctionId {
-    let mut function = Function::new(name);
-    function.attributes.no_inline = true;
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let slot = builder.add_param(MirType::uint256());
-        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+fn build_storage_array_helper(function: &mut Function, element: StorageArrayElement) {
+    let mut builder = FunctionBuilder::new(function);
+    let slot = builder.add_param(MirType::uint256());
+    builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
-        let length = builder.sload(slot);
-        let (object, layout) =
-            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+    let length = builder.sload(slot);
+    let (object, layout) =
+        builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
-        let data_slot = builder.storage_array_data_slot(slot);
-        let preheader = builder.current_block();
-        let header = builder.create_block();
-        let body = builder.create_block();
-        let exit = builder.create_block();
-        builder.jump(header);
-        builder.switch_to_block(header);
-        let zero = builder.imm_u64(0);
-        let index = builder.phi(vec![(preheader, zero)]);
-        let condition = builder.lt(index, length);
-        builder.branch(condition, body, exit);
+    let data_slot = builder.storage_array_data_slot(slot);
+    let preheader = builder.current_block();
+    let header = builder.create_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(header);
+    builder.switch_to_block(header);
+    let zero = builder.imm_u64(0);
+    let index = builder.phi(vec![(preheader, zero)]);
+    let condition = builder.lt(index, length);
+    builder.branch(condition, body, exit);
 
-        builder.switch_to_block(body);
-        let value = match element {
-            StorageArrayElement::Bytes(helper) => {
-                let element_slot = builder.add(data_slot, index);
-                builder.internal_call(
-                    helper,
-                    vec![element_slot],
-                    MirType::MemoryObject(MemoryObjectKind::Bytes),
-                    1,
-                )
-            }
-            StorageArrayElement::Word => {
-                let element_slot = builder.add(data_slot, index);
-                builder.sload(element_slot)
-            }
-            StorageArrayElement::Packed { bytes, encoding } => {
-                load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding)
-            }
-        };
-        builder.memory_object_store_element(object, layout, index, value);
-        let next = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(header);
-        builder.add_phi_incoming(index, backedge, next);
-        builder.switch_to_block(exit);
-        builder.ret([object]);
-    }
-    module.add_function(function)
-}
-
-/// Adds a helper for copying one packed dynamic storage array shape.
-fn synthesize_storage_packed_array_helper(
-    module: &mut Module,
-    bytes: u8,
-    encoding: StorageEncoding,
-) -> FunctionId {
-    let name = format!("__load_storage_packed_array_{bytes}_{}", encoding as u8);
-    synthesize_storage_array_helper(
-        module,
-        Ident::from_str(&name),
-        StorageArrayElement::Packed { bytes, encoding },
-    )
+    builder.switch_to_block(body);
+    let value = match element {
+        StorageArrayElement::Bytes(helper) => {
+            let element_slot = builder.add(data_slot, index);
+            builder.internal_call(
+                helper,
+                vec![element_slot],
+                MirType::MemoryObject(MemoryObjectKind::Bytes),
+                1,
+            )
+        }
+        StorageArrayElement::Word => {
+            let element_slot = builder.add(data_slot, index);
+            builder.sload(element_slot)
+        }
+        StorageArrayElement::Packed { bytes, encoding } => {
+            load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding)
+        }
+    };
+    builder.memory_object_store_element(object, layout, index, value);
+    let next = builder.add_u64_offset(index, 1);
+    let backedge = builder.current_block();
+    builder.jump(header);
+    builder.add_phi_incoming(index, backedge, next);
+    builder.switch_to_block(exit);
+    builder.ret([object]);
 }
 
 fn load_packed_storage_array_element(
@@ -128,20 +101,15 @@ fn load_packed_storage_array_element(
     StorageLocation::packed_word(size, encoding).load_word(builder, word, Some(shift))
 }
 
-/// Adds the module-wide helper for clearing the data words of a storage bytes value.
-pub(super) fn synthesize_storage_clear_helper(module: &mut Module) -> FunctionId {
-    let mut function = Function::new(Ident::with_dummy_span(sym::__clear_storage_words));
-    function.attributes.no_inline = true;
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let slot = builder.add_param(MirType::uint256());
-        let first_word = builder.add_param(MirType::uint256());
-        let words = builder.add_param(MirType::uint256());
-        let zero = builder.imm_u64(0);
-        emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
-        builder.stop();
-    }
-    module.add_function(function)
+/// Builds the helper for clearing the data words of a storage bytes value.
+fn build_storage_clear_helper(function: &mut Function) {
+    let mut builder = FunctionBuilder::new(function);
+    let slot = builder.add_param(MirType::uint256());
+    let first_word = builder.add_param(MirType::uint256());
+    let words = builder.add_param(MirType::uint256());
+    let zero = builder.imm_u64(0);
+    emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
+    builder.stop();
 }
 
 fn emit_clear_storage_words(
@@ -818,15 +786,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             )
         ) {
-            let bytes_helper = self.ensure_storage_bytes_helper();
-            let helper = self.context.state.storage_bytes_array_helper.get_or_insert_with(|| {
-                synthesize_storage_array_helper(
-                    self.context.module,
-                    Ident::with_dummy_span(sym::__load_storage_bytes_array),
-                    StorageArrayElement::Bytes(bytes_helper),
-                )
-            });
-            return Some(*helper);
+            let helper = self
+                .lazy_helper(sym::load_storage_bytes_array, |this, function| {
+                    let bytes_helper = this.ensure_storage_bytes_helper();
+                    build_storage_array_helper(function, StorageArrayElement::Bytes(bytes_helper));
+                    Some(())
+                })
+                .expect("storage bytes array helper construction cannot fail");
+            return Some(helper);
         }
         if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
             return self.ensure_storage_struct_array_helper(element, struct_id);
@@ -835,10 +802,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && size.bits() < 256
             && self.types.memory_layout(element).is_none()
         {
-            let key = (size.bytes(), encoding);
-            let helper = *self.context.state.packed_array_helpers.entry(key).or_insert_with(|| {
-                synthesize_storage_packed_array_helper(self.context.module, key.0, key.1)
-            });
+            let bytes = size.bytes();
+            let helper = self
+                .lazy_helper(
+                    helper_name(
+                        sym::load_storage_packed_array,
+                        format!("{bytes}_{}", encoding as u8),
+                    ),
+                    |_, function| {
+                        build_storage_array_helper(
+                            function,
+                            StorageArrayElement::Packed { bytes, encoding },
+                        );
+                        Some(())
+                    },
+                )
+                .expect("packed storage array helper construction cannot fail");
             return Some(helper);
         }
         if self.types.element_words(element) == 1
@@ -849,14 +828,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .packed_encoding(element)
                 .is_none_or(|(size, _)| size.bits() == 256)
         {
-            let helper = self.context.state.storage_word_array_helper.get_or_insert_with(|| {
-                synthesize_storage_array_helper(
-                    self.context.module,
-                    Ident::with_dummy_span(sym::__load_storage_word_array),
-                    StorageArrayElement::Word,
-                )
-            });
-            return Some(*helper);
+            let helper = self
+                .lazy_helper(sym::load_storage_word_array, |_, function| {
+                    build_storage_array_helper(function, StorageArrayElement::Word);
+                    Some(())
+                })
+                .expect("storage word array helper construction cannot fail");
+            return Some(helper);
         }
         None
     }
@@ -866,30 +844,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: solar_sema::ty::Ty<'gcx>,
         struct_id: solar_sema::hir::StructId,
     ) -> Option<FunctionId> {
-        if let Some(&helper) = self.context.state.storage_struct_array_helpers.get(&struct_id) {
-            return Some(helper);
-        }
-
-        let name = format!("__load_storage_struct_array_{}", self.context.module.functions.len());
-        let mut function = Function::new(Ident::from_str(&name));
-        function.attributes.no_inline = true;
-        let helper = self.context.module.add_function(Function::new(Ident::from_str(&name)));
-        self.context.state.storage_struct_array_helpers.insert(struct_id, helper);
-
-        let lowered = {
-            let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
-            let lowered = lowerer.lower_storage_struct_array_helper(element);
-            if lowered.is_none() {
-                lowerer.builder.invalid();
-            }
-            lowered.is_some()
-        };
-        *self.context.module.function_mut(helper) = function;
-        if !lowered {
-            self.context.state.storage_struct_array_helpers.remove(&struct_id);
-            return None;
-        }
-        Some(helper)
+        self.lazy_helper(
+            helper_name(sym::load_storage_struct_array, struct_id.index()),
+            |this, function| {
+                let mut lowerer = FunctionLowerer::new(this.context.reborrow(), function);
+                lowerer.lower_storage_struct_array_helper(element)
+            },
+        )
     }
 
     fn lower_storage_struct_array_helper(&mut self, element: Ty<'gcx>) -> Option<()> {
@@ -1059,11 +1020,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
-        *self
-            .context
-            .state
-            .storage_bytes_helper
-            .get_or_insert_with(|| synthesize_storage_bytes_helper(self.context.module))
+        self.lazy_helper(sym::load_storage_bytes, |_, function| {
+            build_storage_bytes_helper(function);
+            Some(())
+        })
+        .expect("storage bytes helper construction cannot fail")
     }
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
@@ -1162,11 +1123,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first_word: ValueId,
         words: ValueId,
     ) {
-        let helper = *self
-            .context
-            .state
-            .storage_clear_helper
-            .get_or_insert_with(|| synthesize_storage_clear_helper(self.context.module));
+        let helper = self
+            .lazy_helper(sym::clear_storage_words, |_, function| {
+                build_storage_clear_helper(function);
+                Some(())
+            })
+            .expect("storage clear helper construction cannot fail");
         self.builder.internal_call_void(helper, vec![slot, first_word, words], 0);
     }
 
@@ -1321,27 +1283,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn ensure_recursive_storage_helper(
         &mut self,
-        key: RecursiveStorageHelper,
+        helper: RecursiveStorageHelper,
         span: Span,
     ) -> Option<FunctionId> {
-        if let Some(&helper) = self.context.state.recursive_storage_helpers.get(&key) {
-            return Some(helper);
-        }
-
-        let prefix = match key {
-            RecursiveStorageHelper::Store { .. } => "__store_recursive_storage_",
-            RecursiveStorageHelper::Clear { .. } => "__clear_recursive_storage_",
+        let name = match helper {
+            RecursiveStorageHelper::Store { .. } => sym::store_recursive_storage,
+            RecursiveStorageHelper::Clear { .. } => sym::clear_recursive_storage,
         };
-        let name = format!("{prefix}{}", self.context.module.functions.len());
-        let mut function = Function::new(Ident::from_str(&name));
-        function.attributes.no_inline = true;
-        let helper = self.context.module.add_function(Function::new(Ident::from_str(&name)));
-        self.context.state.recursive_storage_helpers.insert(key, helper);
-
-        let lowered = {
-            let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
+        let name = match helper {
+            RecursiveStorageHelper::Store { target, source } => {
+                helper_name(name, format!("{}_{}", target.index(), source.index()))
+            }
+            RecursiveStorageHelper::Clear { target } => helper_name(name, target.index()),
+        };
+        self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.context.reborrow(), function);
             let slot = lowerer.builder.add_param(MirType::uint256());
-            let lowered = match key {
+            let lowered = match helper {
                 RecursiveStorageHelper::Store { target, source } => {
                     let object =
                         lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::Struct));
@@ -1355,17 +1313,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             if lowered {
                 lowerer.builder.stop();
-            } else {
-                lowerer.builder.invalid();
             }
-            lowered
-        };
-        *self.context.module.function_mut(helper) = function;
-        if !lowered {
-            self.context.state.recursive_storage_helpers.remove(&key);
-            return None;
-        }
-        Some(helper)
+            lowered.then_some(())
+        })
     }
 
     pub(super) fn clear_storage_access(

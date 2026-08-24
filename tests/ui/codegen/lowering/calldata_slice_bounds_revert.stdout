@@ -35,7 +35,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v37 = add v30, 64
     jumpi v36, bb6, bb7
   bb5:
-    v22 = internal_call @__decode_calldata_slice_2, 2, 4
+    v22 = internal_call @decode_calldata_slice, 2, 4
     v50 = mload 32 !metadata(memory=scratch)
     v24 = add v50, 32
     v25 = mload v24
@@ -94,7 +94,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v37 = add v30, 64
     jumpi v36, bb6, bb7
   bb5:
-    v22 = internal_call @__decode_calldata_slice_2, 2, 4
+    v22 = internal_call @decode_calldata_slice, 2, 4
     v50 = mload 32 !metadata(memory=scratch)
     v24 = add v50, 32
     v25 = mload v24
@@ -119,7 +119,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     returndata v48, v43
 }
 
-fn @__decode_calldata_slice_2(arg0: u256) -> (u256, u256) {
+fn @decode_calldata_slice(arg0: u256) -> (u256, u256) {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

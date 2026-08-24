@@ -41,7 +41,7 @@ fn @copyState() -> (u256, u256) [selector=0x183a6195, abi_args=lazy, abi_params=
     v14 = add v13, v10
     sstore v14, 0 !metadata(storage=symbolic(v14))
     sstore 0, v11 !metadata(storage=slot(0))
-    v15 = internal_call @__load_storage_word_array, 1, 0
+    v15 = internal_call @load_storage_word_array, 1, 0
     v16 = memory_object_len memoryarray, v15
     v17 = lt 0, v16
     v18 = iszero v17
@@ -84,7 +84,7 @@ fn @copyReference() -> (u256, u256) [selector=0x4cf1051d, abi_args=lazy, abi_par
     v9 = add v8, v5
     sstore v9, 0 !metadata(storage=symbolic(v9))
     sstore 0, v6 !metadata(storage=slot(0))
-    v10 = internal_call @__load_storage_word_array, 1, 0
+    v10 = internal_call @load_storage_word_array, 1, 0
     v11 = memory_object_len memoryarray, v10
     v12 = lt 0, v11
     v13 = iszero v12
@@ -99,7 +99,7 @@ fn @copyReference() -> (u256, u256) [selector=0x4cf1051d, abi_args=lazy, abi_par
     ret v14, v15
 }
 
-fn @__load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -184,7 +184,7 @@ fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_args=lazy, a
     v17 = add v15, v16
     v18 = add v17, 1
     sstore v18, 9 !metadata(storage=offset(v17, 1))
-    v19 = internal_call @__load_storage_struct_array_1, 1, 0
+    v19 = internal_call @load_storage_struct_array_0, 1, 0
     v20 = memory_object_len memoryarray, v19
     v21 = lt 0, v20
     v22 = iszero v21
@@ -231,7 +231,7 @@ fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_args=lazy, a
     ret v27, v35, v36
 }
 
-fn @__load_storage_struct_array_1(arg0: u256) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

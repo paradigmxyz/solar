@@ -73,7 +73,7 @@ fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d
     v46 = lt v40, v45
     jumpi v46, bb12, bb13
   bb10:
-    v68 = internal_call @__load_storage_packed_array_8_2, 1, 0
+    v68 = internal_call @load_storage_packed_array_8_2, 1, 0
     v69 = memory_object_len memoryarray, v68
     v70 = sload 1 !metadata(storage=slot(1))
     v71 = gt v70, v69
@@ -271,7 +271,7 @@ fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d
     ret v119, v132, v145, v158, v171
 }
 
-fn @__load_storage_packed_array_8_2(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_8_2(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

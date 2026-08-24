@@ -17,7 +17,7 @@ fn @full() [selector=0xd17b272f, view] {
     v19 = lt v18, v17
     jumpi v19, bb3, bb5
   bb3:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -26,7 +26,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v12, v7
     v160 = add v12, 32
     returndatacopy v160, 0, v7
-    v54 = internal_call @__decode_aggregate_3, 2, v12
+    v54 = internal_call @decode_aggregate.3, 2, v12
     v159 = mload 32 !metadata(memory=scratch)
     v163 = add v159, 32
     v16 = mload v163
@@ -78,7 +78,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v47, v40
     v168 = add v47, 32
     mcopy v168, v39, v40
-    v55 = internal_call @__decode_aggregate_4, 1, v47
+    v55 = internal_call @decode_aggregate.4, 1, v47
     v94 = mload 64 !metadata(memory=scratch)
     v95 = add v94, 64
     mstore v94, 1
@@ -223,7 +223,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore 128, v49
     returndata 128, 32
   bb4:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb5:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -232,7 +232,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v12, v7
     v59 = add v12, 32
     returndatacopy v59, 0, v7
-    v50 = internal_call @__decode_aggregate_3, 2, v12
+    v50 = internal_call @decode_aggregate.3, 2, v12
     jump bb3
   bb6:
     v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -266,7 +266,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v47, v40
     v66 = add v47, 32
     mcopy v66, v39, v40
-    v51 = internal_call @__decode_aggregate_4, 1, v47
+    v51 = internal_call @decode_aggregate.4, 1, v47
     jump bb3
   bb10:
     revert 0, 0
@@ -284,14 +284,14 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     jumpi v6, bb1, bb2
 }
 
-fn @__revert_stub0() {
+fn @revert_stub() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @__decode_aggregate_3(arg0: memptr) -> (u256, memptr) {
+fn @decode_aggregate.3(arg0: memptr) -> (u256, memptr) {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0
@@ -332,7 +332,7 @@ fn @__decode_aggregate_3(arg0: memptr) -> (u256, memptr) {
     ret v6, v22
 }
 
-fn @__decode_aggregate_4(arg0: memptr) -> memptr {
+fn @decode_aggregate.4(arg0: memptr) -> memptr {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0

@@ -18,7 +18,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     v49 = lt v48, v1
     jumpi v49, bb17, bb18
   bb4:
-    v6 = internal_call @__load_storage_packed_array_2_0, 1, 0
+    v6 = internal_call @load_storage_packed_array_2_0, 1, 0
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = add v7, 1
     v9 = lt v8, v7
@@ -470,7 +470,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_args=lazy, abi_params
     ret v190, v192, v194
 }
 
-fn @__load_storage_packed_array_2_0(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_2_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

@@ -4,7 +4,7 @@
 contract FunctionPointerSelection {
     // CHECK-LABEL: fn @choose(
     // CHECK: [[FN:v[0-9]+]] = phi [bb1: 2], [bb2: 3]
-    // CHECK: internal_call @__internal_dispatch_0, 1, [[FN]], arg1
+    // CHECK: internal_call @internal_dispatcher{{.*}}, 1, [[FN]], arg1
     function choose(bool add, uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = add ? increment : decrement;
         return fn(value);
@@ -19,7 +19,7 @@ contract FunctionPointerSelection {
     }
 
     // CHECK-LABEL: fn @callConstant(
-    // CHECK: internal_call @__internal_dispatch_0, 1, 2, arg0
+    // CHECK: internal_call @internal_dispatcher{{.*}}, 1, 2, arg0
     function callConstant(uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = increment;
         return fn(value);
@@ -27,7 +27,7 @@ contract FunctionPointerSelection {
 
     // CHECK-LABEL: fn @throughCast(
     // CHECK: [[CASTED:v[0-9]+]] = internal_call @castViewToPure, 1, 7
-    // CHECK: internal_call @__internal_dispatch_0, 1, [[CASTED]], arg0
+    // CHECK: internal_call @internal_dispatcher{{.*}}, 1, [[CASTED]], arg0
     // CHECK-LABEL: fn @castViewToPure(
     // CHECK: ret {{v[0-9]+}}
     function throughCast(uint256 value) public pure returns (uint256) {
@@ -47,7 +47,7 @@ contract FunctionPointerSelection {
         return value + 1;
     }
 
-    // CHECK-LABEL: fn @__internal_dispatch_0(
+    // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, 2
     // CHECK: internal_call @increment, 1, arg1
     // CHECK: eq arg0, 3

@@ -250,7 +250,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_bytes_literal(bytes.as_byte_str());
+            return self.lower_shared_bytes_literal(*bytes);
         }
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()
