@@ -188,7 +188,9 @@ impl LowerAbiCx {
 
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
-        self.synthesize_shared_return_cleanup_helpers(module, &targets);
+        if gas_mode {
+            self.synthesize_shared_return_cleanup_helpers(module, &targets);
+        }
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
@@ -348,10 +350,11 @@ impl LowerAbiCx {
         let Some(layout) = &func.abi_params else { return false };
         func.abi_args_lazy
             && func.params.len() == layout.types.len()
-            && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
-                (abi_ty.is_scalar_word() || Self::is_supported_aggregate(abi_ty))
-                    && abi_ty.mir_type() == param_ty
-            })
+            && layout
+                .types
+                .iter()
+                .zip(&func.params)
+                .all(|(abi_ty, &param_ty)| abi_ty.mir_type() == param_ty)
     }
 
     fn is_constructor_array_element(ty: &AbiParamType) -> bool {
@@ -544,8 +547,7 @@ impl LowerAbiCx {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
-                if Self::is_supported_aggregate(ty) && matches!(arg_type, MirType::MemoryObject(_))
-                {
+                if !ty.is_scalar_word() && matches!(arg_type, MirType::MemoryObject(_)) {
                     *counts.entry(ty.clone()).or_default() += 1;
                 }
             }
@@ -631,14 +633,7 @@ impl LowerAbiCx {
         for &id in targets {
             let Some(layout) = module.function(id).abi_return_params.as_ref() else { continue };
             for ty in &layout.types {
-                if ty.needs_return_cleanup()
-                    && matches!(
-                        ty,
-                        AbiParamType::FixedArray { .. }
-                            | AbiParamType::DynamicArray(..)
-                            | AbiParamType::Tuple(..)
-                    )
-                {
+                if !ty.is_scalar_word() && ty.needs_return_cleanup() {
                     *counts.entry(ty.clone()).or_default() += 1;
                 }
             }
@@ -647,7 +642,7 @@ impl LowerAbiCx {
             if count < 2 {
                 continue;
             }
-            let helper = self.synthesize_return_cleanup_helper(module, ty.clone());
+            let helper = self.synthesize_return_cleanup_helper(module, &ty);
             self.return_cleanup_helpers.insert(ty, helper);
         }
     }
@@ -655,7 +650,7 @@ impl LowerAbiCx {
     fn synthesize_return_cleanup_helper(
         &self,
         module: &mut Module,
-        ty: AbiParamType,
+        ty: &AbiParamType,
     ) -> FunctionId {
         let name = format!("__cleanup_return_{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
@@ -984,7 +979,7 @@ impl LowerAbiCx {
         physical_index: &mut usize,
         has_bitwise_shifting: bool,
     ) -> ValueId {
-        if matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. }) {
+        if ty.is_scalar_word() {
             let value = physical_args[*physical_index];
             *physical_index += 1;
             return Self::validate_constructor_word(builder, value, ty, has_bitwise_shifting);
@@ -1034,10 +1029,15 @@ impl LowerAbiCx {
         gas_mode: bool,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
-        // Gas mode keeps the external body in place so its calldata-only
-        // arguments can stay as slices. Size mode shares the body with the
-        // wrapper when possible, avoiding a duplicate implementation.
-        let call_body = !gas_mode
+        // Keep the external body in place only when several dynamic
+        // aggregates can benefit from calldata aliases. A single aggregate
+        // does not repay the duplicate body in the gas/size trade-off.
+        let keep_external_body = gas_mode
+            && original
+                .abi_params
+                .as_ref()
+                .is_some_and(|layout| Self::dynamic_aggregate_count(layout) >= 3);
+        let call_body = !keep_external_body
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
             && original.blocks[BlockId::ENTRY].instructions.first().copied().is_some();
@@ -1109,7 +1109,7 @@ impl LowerAbiCx {
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 (abi_ty.is_scalar_word()
                     && !matches!(param_ty, MirType::Function | MirType::MemoryObject(_)))
-                    || (Self::is_supported_aggregate(abi_ty)
+                    || (!abi_ty.is_scalar_word()
                         && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
             })
             && !func
@@ -1121,6 +1121,10 @@ impl LowerAbiCx {
             && func.blocks.iter().all(|block| {
                 !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != func.returns.len())
             })
+    }
+
+    fn dynamic_aggregate_count(layout: &AbiParamLayout) -> usize {
+        layout.types.iter().filter(|ty| ty.is_dynamic()).count()
     }
 
     fn replace_body_with_call(
@@ -1269,7 +1273,7 @@ impl LowerAbiCx {
             let mut logical_physical = Vec::with_capacity(layout.types.len());
             for ty in &layout.types {
                 logical_physical.push(
-                    (!Self::is_supported_aggregate(ty))
+                    ty.is_scalar_word()
                         .then(|| crate::mir::ArgIdx::new((head_offset / 32) as usize)),
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
@@ -1366,7 +1370,7 @@ impl LowerAbiCx {
                     let uses = arg_uses.get(arg_index).map_or(&[][..], Vec::as_slice);
                     let head_size =
                         ty.checked_head_size().expect("ABI head size exceeds u64 range");
-                    if !Self::is_supported_aggregate(ty)
+                    if ty.is_scalar_word()
                         || !arg_types.get(index).is_some_and(|ty| {
                             matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))
                         })
@@ -1782,10 +1786,7 @@ impl LowerAbiCx {
                 for index in 0..*len {
                     let offset_value = builder.imm_u64(offset);
                     let word_pos = builder.add(base, offset_value);
-                    let value = if matches!(
-                        element.as_ref(),
-                        crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. }
-                    ) {
+                    let value = if element.is_scalar_word() {
                         Self::decode_source_scalar(
                             builder,
                             element,
@@ -2020,7 +2021,7 @@ impl LowerAbiCx {
                 builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                 ptr
             }
-            crate::mir::AbiParamType::Tuple(fields) if Self::is_supported_aggregate(ty) => {
+            crate::mir::AbiParamType::Tuple(fields) => {
                 // Calldata structs with dynamic fields keep their source base
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
@@ -2598,16 +2599,6 @@ impl LowerAbiCx {
         let overflow = builder.iszero(valid);
         *current = builder.revert_if(overflow);
         result
-    }
-
-    fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(
-            ty,
-            crate::mir::AbiParamType::Bytes
-                | crate::mir::AbiParamType::DynamicArray(_)
-                | crate::mir::AbiParamType::FixedArray { .. }
-                | crate::mir::AbiParamType::Tuple(_)
-        )
     }
 
     fn can_use_calldata_slice(
@@ -3271,7 +3262,9 @@ fn is_canonical_return_object(
             InstKind::MemoryObjectStoreField { object: base, field, value, .. }
                 if *base == object =>
             {
-                stores.insert(*field, *value);
+                if stores.insert(*field, *value).is_some() {
+                    return false;
+                }
             }
             InstKind::MemoryObjectLoadField { object: base, .. } if *base == object => {}
             InstKind::MemoryObjectStoreField { value: stored, .. } if *stored == object => {}
@@ -3288,7 +3281,6 @@ fn is_canonical_return_object(
     }) {
         return false;
     }
-
     fields.iter().enumerate().all(|(index, ty)| {
         let canonical = stores.get(&(index as u64)).is_some_and(|&value| {
             is_canonical_return_value_inner(func, ty, value, input_params, lazy_args, visiting)
@@ -3318,7 +3310,9 @@ fn is_canonical_return_array(
             && base == object
         {
             let Some(index) = func.value_u64(index) else { return false };
-            stores.insert(index, value);
+            if stores.insert(index, value).is_some() {
+                return false;
+            }
         } else if let InstKind::MemoryObjectStoreElement { value: stored, .. } =
             func.inst(inst).kind
             && stored == object
@@ -3617,8 +3611,8 @@ fn reuse_direct_calldata_returns(
     let mut replacements = FxHashMap::default();
     let mut calldata_indices = FxHashSet::default();
     for (index, &value) in values.iter().enumerate() {
-        let Some(abi_type) = layout.types.get(index).cloned() else { continue };
-        if !calldata_return_kind(&abi_type) {
+        let Some(abi_type) = layout.types.get(index) else { continue };
+        if !calldata_return_kind(abi_type) {
             continue;
         }
         let Some(source) = direct_calldata_copy_source(func, return_block, value) else {
@@ -3703,12 +3697,20 @@ fn encode_live_returns(
                 else {
                     return value;
                 };
-                if reuses_validated_input(builder.func(), value, input_params, lazy_args, &ty) {
-                    value
-                } else if let Some(&helper) = cleanup_helpers.get(&ty)
+                if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
-                    builder.internal_call(helper, vec![value], ty.mir_type(), 1)
+                    if is_canonical_return_value(
+                        builder.func(),
+                        &ty,
+                        value,
+                        input_params,
+                        lazy_args,
+                    ) {
+                        value
+                    } else {
+                        builder.internal_call(helper, vec![value], ty.mir_type(), 1)
+                    }
                 } else {
                     canonicalize_return_value(&mut builder, &ty, value, input_params, lazy_args)
                 }

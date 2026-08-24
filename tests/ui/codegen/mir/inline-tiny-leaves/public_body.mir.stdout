@@ -20,8 +20,8 @@ fn @_anonymous(arg0: u256) [constructor] {
 
 fn @start() [selector=0xbe9a6555, view] {
   bb0:
-    v0 = loadimmutable _start
-    mstore 128, v0
+    v4 = loadimmutable _start
+    mstore 128, v4
     returndata 128, 32
 }
 

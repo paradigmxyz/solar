@@ -6,6 +6,8 @@
 //@ run-call: ExternalReturnValidation::dirtyValue() => 0
 //@ run-call: ExternalReturnValidation::dirtyBool() => true
 //@ run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
+//@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) false => (0)
+//@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) true => (1)
 //@ run-call: ExternalReturnValidation::dirtyArray() => [true, true]
 //@ run-call: ExternalReturnValidation::dirtyMemoryFixedArray() => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryDynamicArray() => true
@@ -92,6 +94,17 @@ contract ExternalReturnValidation {
         assembly {
             mstore(pair, 0x100)
             mstore(add(pair, 0x20), 2)
+        }
+    }
+
+    function dirtyStructBranch(bool overwrite) external pure returns (Scalar memory value) {
+        value.value = dirtyValueInternal();
+        if (overwrite) value.value = 1;
+    }
+
+    function dirtyValueInternal() internal pure returns (uint8 value) {
+        assembly {
+            value := 0x100
         }
     }
 

@@ -89,6 +89,27 @@ fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_args=lazy, abi
     ret v0
 }
 
+fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_args=lazy, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+  bb0:
+    v0 = internal_call @dirtyValueInternal, 1
+    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v1, 0, 0
+    memory_object_store_field memorystruct<1>, v1, 0, v0
+    jumpi arg0, bb1, bb2
+  bb1:
+    memory_object_store_field memorystruct<1>, v1, 0, 1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    ret v1
+}
+
+fn @dirtyValueInternal() -> u8 [pure] {
+  bb0:
+    ret 256
+}
+
 fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
