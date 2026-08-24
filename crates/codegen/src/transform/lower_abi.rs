@@ -1858,7 +1858,6 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if constructor && allow_alias && Self::is_scalar_or_enum(element) =>
             {
-                let word = builder.imm_u64(32);
                 let (len, data, _) = Self::load_input_dynamic_array(
                     builder,
                     base,
@@ -1867,39 +1866,7 @@ impl LowerAbiCx {
                     current,
                     32,
                 );
-
-                let zero = builder.imm_u64(0);
-                let one = builder.imm_u64(1);
-                let preheader = builder.current_block();
-                let header = builder.create_block();
-                let body = builder.create_block();
-                let done = builder.create_block();
-                builder.jump(header);
-
-                builder.switch_to_block(header);
-                let index = builder.phi(vec![(preheader, zero)]);
-                let more = builder.lt(index, len);
-                builder.branch(more, body, done);
-
-                builder.switch_to_block(body);
-                let mut element_current = builder.current_block();
-                let offset = builder.mul(index, word);
-                let position = builder.add(data, offset);
-                let _ = Self::decode_source_scalar(
-                    builder,
-                    element,
-                    position,
-                    &mut element_current,
-                    options.checked(),
-                );
-                builder.switch_to_block(element_current);
-                let next = builder.add(index, one);
-                let backedge = builder.current_block();
-                builder.jump(header);
-                builder.add_phi_incoming(index, backedge, next);
-
-                builder.switch_to_block(done);
-                *current = done;
+                Self::validate_scalar_array(builder, data, element, len, current, options);
                 base
             }
             crate::mir::AbiParamType::DynamicArray(element)
