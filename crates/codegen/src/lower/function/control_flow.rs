@@ -384,6 +384,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !success_terminated {
             self.builder.jump(merge_block);
         }
+        let mut states = Vec::with_capacity(catch_clauses.len() + 1);
+        if !success_terminated {
+            states.push(LoopState {
+                block: success_exit,
+                values: success_values,
+                storage_refs: success_storage_refs,
+            });
+        }
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
@@ -410,7 +418,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let panic_has_payload = self.builder.iszero(panic_short);
         let panic_selector_matches = self.builder.eq(selector, panic_selector);
         let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
-        let mut catch_states = Vec::with_capacity(catch_clauses.len());
         let mut next_catch = self.builder.current_block();
         for catch_clause in catch_clauses {
             self.builder.switch_to_block(next_catch);
@@ -445,7 +452,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let catch_exit = self.builder.current_block();
             if !catch_terminated {
                 self.builder.jump(merge_block);
-                catch_states.push(LoopState {
+                states.push(LoopState {
                     block: catch_exit,
                     values: std::mem::take(&mut self.values),
                     storage_refs: std::mem::take(&mut self.storage_refs),
@@ -456,15 +463,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(next_catch);
         self.builder.revert(catch_data_ptr, catch_data_len);
 
-        let mut states = Vec::with_capacity(catch_states.len() + 1);
-        if !success_terminated {
-            states.push(LoopState {
-                block: success_exit,
-                values: success_values,
-                storage_refs: success_storage_refs,
-            });
-        }
-        states.extend(catch_states);
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_many_values(before, &states);
         self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &states);
