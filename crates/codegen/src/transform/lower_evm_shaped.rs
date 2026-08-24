@@ -130,13 +130,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                             && tail_callable.contains(*function)
                             && (args.is_empty() || !constructor_reachable.contains(func_id))
                         {
-                            Some((
-                                position,
-                                *function,
-                                args.iter()
-                                    .copied()
-                                    .collect::<smallvec::SmallVec<[crate::mir::ValueId; 2]>>(),
-                            ))
+                            Some((position, *function, args.iter().copied().collect()))
                         } else {
                             None
                         }
