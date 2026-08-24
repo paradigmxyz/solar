@@ -394,16 +394,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
-            TyKind::Slice(element)
-                if matches!(
-                    element.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
-                ) =>
-            {
-                self.validate_calldata_bytes_slice(value);
-                Some(self.materialize_memory_slice(value))
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+            _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
                 self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }

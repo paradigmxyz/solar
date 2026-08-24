@@ -864,7 +864,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.packed_static_shape(ty).is_some() || self.is_dynamic_bytes_type(ty)
     }
 
-    fn is_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
+    pub(super) fn is_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
         matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(
