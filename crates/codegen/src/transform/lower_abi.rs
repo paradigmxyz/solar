@@ -1039,20 +1039,7 @@ impl LowerAbiCx {
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
-        let body_id = needs_body.then(|| {
-            let mut body = original.clone();
-            body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
-            body.name_span = Span::DUMMY;
-            body.selector = None;
-            body.abi_returns = None;
-            body.abi_return_params = None;
-            body.abi_params = None;
-            body.abi_param_locations = None;
-            body.abi_args_lazy = false;
-            body.attributes.visibility = solar_sema::hir::Visibility::Internal;
-            body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
-            module.add_function(body)
-        });
+        let body_id = needs_body.then(|| module.add_function(Self::internal_body(&original)));
 
         let logical_values = if lazy_args || abi_params.is_some() {
             self.inject_abi_prologue(
@@ -1120,6 +1107,21 @@ impl LowerAbiCx {
         layout.types.iter().filter(|ty| ty.is_dynamic()).count()
     }
 
+    fn internal_body(original: &Function) -> Function {
+        let mut body = original.clone();
+        body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
+        body.name_span = Span::DUMMY;
+        body.selector = None;
+        body.abi_returns = None;
+        body.abi_return_params = None;
+        body.abi_params = None;
+        body.abi_param_locations = None;
+        body.abi_args_lazy = false;
+        body.attributes.visibility = solar_sema::hir::Visibility::Internal;
+        body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
+        body
+    }
+
     fn replace_body_with_call(
         func: &mut Function,
         body_id: FunctionId,
@@ -1181,17 +1183,7 @@ impl LowerAbiCx {
     /// into a tail call after slice lowering.
     fn wrap_bytes_fallback(&mut self, module: &mut Module, fallback_id: FunctionId) -> bool {
         let original = module.function(fallback_id).clone();
-        let mut body = original.clone();
-        body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
-        body.name_span = Span::DUMMY;
-        body.selector = None;
-        body.abi_returns = None;
-        body.abi_return_params = None;
-        body.abi_params = None;
-        body.abi_param_locations = None;
-        body.abi_args_lazy = false;
-        body.attributes.visibility = solar_sema::hir::Visibility::Internal;
-        body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
+        let mut body = Self::internal_body(&original);
         body.attributes.is_fallback = false;
         body.attributes.is_receive = false;
         if !Self::lower_bytes_fallback_returns(&mut body) {
