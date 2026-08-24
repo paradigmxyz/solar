@@ -138,10 +138,11 @@ fn build_entry(
 
         let receive_size_block = receive.map(|_| builder.create_block());
         let selector_size_block = needs_short_calldata_guard.then(|| builder.create_block());
-        let receive_block = receive.map(|_| builder.create_block());
+        let receive_block = receive.map(|target| (target, builder.create_block()));
         let select_block = builder.create_block();
         let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
-        let default_block = fallback.map(|_| builder.create_block());
+        let fallback_block = fallback.map(|target| (target, builder.create_block()));
+        let default_block = fallback_block.as_ref().map(|&(_, block)| block);
         let revert_block = builder.create_block();
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
@@ -159,7 +160,7 @@ fn build_entry(
             builder.branch(
                 size,
                 selector_size_block.unwrap_or(select_block),
-                receive_block.expect("receive block must exist"),
+                receive_block.expect("receive block must exist").1,
             );
         }
 
@@ -171,9 +172,7 @@ fn build_entry(
             builder.branch(short, default_block.unwrap_or(revert_block), select_block);
         }
 
-        if let Some(receive_block) = receive_block
-            && let Some(target) = receive
-        {
+        if let Some((target, receive_block)) = receive_block {
             builder.switch_to_block(receive_block);
             builder.tail_call(target, Vec::new());
         }
@@ -192,9 +191,7 @@ fn build_entry(
             builder.switch(selector, default_block.unwrap_or(revert_block), cases);
         }
 
-        if let Some(default_block) = default_block
-            && let Some(target) = fallback
-        {
+        if let Some((target, default_block)) = fallback_block {
             builder.switch_to_block(default_block);
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
                 let go = builder.create_block();
