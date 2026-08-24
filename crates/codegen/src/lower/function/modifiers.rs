@@ -183,9 +183,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 "base constructor arguments",
             );
         }
-        let mut saved_parameters = Vec::with_capacity(constructor.parameters.len());
+        let saved_parameters = self.snapshot_bindings(constructor.parameters);
         for (&parameter, value) in constructor.parameters.iter().zip(values) {
-            saved_parameters.push((parameter, self.values.insert(parameter, value)));
+            self.values.insert(parameter, value);
         }
 
         let continuation = self.builder.create_block();
@@ -205,13 +205,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.jump(continuation);
         }
         self.finish_return_target(before_values, before_storage_refs);
-        for (parameter, previous) in saved_parameters {
-            if let Some(value) = previous {
-                self.values.insert(parameter, value);
-            } else {
-                self.values.remove(&parameter);
-            }
-        }
+        self.restore_bindings(&saved_parameters);
         Some(())
     }
 
