@@ -493,7 +493,7 @@ impl LowerAbiCx {
 
                     let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
                     let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-                    let Some(values) = Self::decode_memory_tuple_with_helpers(
+                    let Some(values) = decode_memory_tuple(
                         &mut builder,
                         base,
                         length,
@@ -700,7 +700,7 @@ impl LowerAbiCx {
             }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple_with_helpers(
+            let values = decode_memory_tuple(
                 &mut builder,
                 base,
                 length,
@@ -2076,70 +2076,6 @@ impl LowerAbiCx {
         *current = done;
     }
 
-    /// Decodes an ABI tuple from an absolute memory range into semantic MIR values.
-    ///
-    /// The same routine serves `abi.decode` and external/constructor wrappers. The caller
-    /// supplies the tuple base and byte length; this entry point turns that range into the
-    /// checked memory-input form used by the recursive aggregate decoder.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn decode_memory_tuple_with_helpers(
-        builder: &mut FunctionBuilder<'_>,
-        base: ValueId,
-        length: ValueId,
-        layout: &AbiParamLayout,
-        allow_alias: bool,
-        helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
-        has_bitwise_shifting: bool,
-    ) -> Option<Vec<ValueId>> {
-        let mut current = builder.current_block();
-        let head_size = layout.checked_head_size()?;
-        builder.switch_to_block(current);
-        let input_end = builder.add(base, length);
-        let overflow = builder.lt(input_end, base);
-        let head_size = builder.imm_u64(head_size);
-        let short = builder.lt(length, head_size);
-        let invalid = builder.or(overflow, short);
-        current = builder.revert_if(invalid);
-
-        let mut values = Vec::with_capacity(layout.types.len());
-        let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
-        let mut head_offset = 0_u64;
-        for ty in &layout.types {
-            let head = builder.add_u64_offset(base, head_offset);
-            let value = if static_layout {
-                Self::decode_static_memory_argument(
-                    builder,
-                    ty,
-                    head,
-                    &mut current,
-                    has_bitwise_shifting,
-                )
-            } else {
-                Self::decode_aggregate_argument(
-                    builder,
-                    ty,
-                    ty.mir_type(),
-                    head,
-                    base,
-                    &mut current,
-                    DecodeOptions {
-                        constructor: true,
-                        input_end,
-                        head_checked: true,
-                        allow_alias,
-                        validate_array_elements: true,
-                        helpers,
-                        has_bitwise_shifting,
-                    },
-                )
-            };
-            values.push(value);
-            head_offset = head_offset
-                .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
-        }
-        Some(values)
-    }
-
     fn decode_static_memory_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -2204,48 +2140,6 @@ impl LowerAbiCx {
                 unreachable!("scalar ABI word handled above")
             }
         }
-    }
-
-    /// Builds a helper for one repeated dynamic tuple in a memory ABI decode.
-    ///
-    /// The helper takes the tuple head, its offset base, and the end of the
-    /// checked input range. Keeping the bounds arguments explicit lets the
-    /// same decoder serve nested dynamic fields without re-materializing the
-    /// input object.
-    pub(crate) fn synthesize_memory_decode_helper(
-        module: &mut Module,
-        ty: crate::mir::AbiParamType,
-        has_bitwise_shifting: bool,
-    ) -> FunctionId {
-        let name = format!("__decode_memory_type_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let head = builder.add_param(MirType::uint256());
-            let tuple_base = builder.add_param(MirType::uint256());
-            let input_end = builder.add_param(MirType::uint256());
-            let mut current = builder.current_block();
-            let value = Self::decode_aggregate_argument(
-                &mut builder,
-                &ty,
-                ty.mir_type(),
-                head,
-                tuple_base,
-                &mut current,
-                DecodeOptions {
-                    constructor: true,
-                    input_end,
-                    head_checked: true,
-                    allow_alias: true,
-                    validate_array_elements: true,
-                    helpers: None,
-                    has_bitwise_shifting,
-                },
-            );
-            builder.add_return(ty.mir_type());
-            builder.ret([value]);
-        }
-        module.add_function(function)
     }
 
     /// Decodes a static calldata aggregate and joins its canonicality checks.
@@ -2951,6 +2845,7 @@ impl LowerAbiCx {
 }
 
 /// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn decode_memory_tuple(
     builder: &mut FunctionBuilder<'_>,
     base: ValueId,
@@ -2960,15 +2855,53 @@ pub(crate) fn decode_memory_tuple(
     helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
     has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
-    LowerAbiCx::decode_memory_tuple_with_helpers(
-        builder,
-        base,
-        length,
-        layout,
-        allow_alias,
-        helpers,
-        has_bitwise_shifting,
-    )
+    let mut current = builder.current_block();
+    let head_size = layout.checked_head_size()?;
+    builder.switch_to_block(current);
+    let input_end = builder.add(base, length);
+    let overflow = builder.lt(input_end, base);
+    let head_size = builder.imm_u64(head_size);
+    let short = builder.lt(length, head_size);
+    let invalid = builder.or(overflow, short);
+    current = builder.revert_if(invalid);
+
+    let mut values = Vec::with_capacity(layout.types.len());
+    let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
+    let mut head_offset = 0_u64;
+    for ty in &layout.types {
+        let head = builder.add_u64_offset(base, head_offset);
+        let value = if static_layout {
+            LowerAbiCx::decode_static_memory_argument(
+                builder,
+                ty,
+                head,
+                &mut current,
+                has_bitwise_shifting,
+            )
+        } else {
+            LowerAbiCx::decode_aggregate_argument(
+                builder,
+                ty,
+                ty.mir_type(),
+                head,
+                base,
+                &mut current,
+                DecodeOptions {
+                    constructor: true,
+                    input_end,
+                    head_checked: true,
+                    allow_alias,
+                    validate_array_elements: true,
+                    helpers,
+                    has_bitwise_shifting,
+                },
+            )
+        };
+        values.push(value);
+        head_offset = head_offset
+            .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
+    }
+    Some(values)
 }
 
 /// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
@@ -2977,7 +2910,35 @@ pub(crate) fn synthesize_memory_decode_helper(
     ty: crate::mir::AbiParamType,
     has_bitwise_shifting: bool,
 ) -> FunctionId {
-    LowerAbiCx::synthesize_memory_decode_helper(module, ty, has_bitwise_shifting)
+    let name = format!("__decode_memory_type_{}", module.functions.len());
+    let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let head = builder.add_param(MirType::uint256());
+        let tuple_base = builder.add_param(MirType::uint256());
+        let input_end = builder.add_param(MirType::uint256());
+        let mut current = builder.current_block();
+        let value = LowerAbiCx::decode_aggregate_argument(
+            &mut builder,
+            &ty,
+            ty.mir_type(),
+            head,
+            tuple_base,
+            &mut current,
+            DecodeOptions {
+                constructor: true,
+                input_end,
+                head_checked: true,
+                allow_alias: true,
+                validate_array_elements: true,
+                helpers: None,
+                has_bitwise_shifting,
+            },
+        );
+        builder.add_return(ty.mir_type());
+        builder.ret([value]);
+    }
+    module.add_function(function)
 }
 
 /// An external entry with a body and a selector — the shape a regular wrapper
