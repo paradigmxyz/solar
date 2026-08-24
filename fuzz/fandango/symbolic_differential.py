@@ -25,9 +25,7 @@ SYMBOLIC_QUERY_TIMEOUT = 30
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
 SYMBOLIC_MAX_CALLDATA_BYTES = 4096
 CALL_GAS = 10_000_000
-SOLC_RUNTIME_ADDRESS = "0x1000000000000000000000000000000000000001"
-SOLAR_RUNTIME_ADDRESS = "0x1000000000000000000000000000000000000002"
-ROUTER_ADDRESS = "0x1000000000000000000000000000000000000003"
+TARGET_ADDRESS = "0x1000000000000000000000000000000000000001"
 STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 
 
@@ -185,12 +183,20 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         include_stateful=args.include_stateful,
     )
     input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
+    solc_runtime = solc_artifact["runtime"]
+    solar_runtime = solar_artifact["runtime"]
+    max_dynamic_length = max(
+        MAX_DYNAMIC_LENGTH,
+        (len(solc_runtime) - 2) // 2,
+        (len(solar_runtime) - 2) // 2,
+    )
     bounds = {
         "command_timeout_seconds": args.timeout,
         "solver_timeout_seconds": args.symbolic_timeout,
         "max_paths": args.max_paths,
         "max_solver_queries": args.max_solver_queries,
         "max_calldata_bytes": args.max_calldata_bytes,
+        "max_dynamic_length": max_dynamic_length,
         "max_depth": args.max_depth,
         "exploration_order": args.exploration_order,
         "storage_layout": (
@@ -216,13 +222,14 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
     )
     _write_project(
         project,
-        solc_artifact["runtime"],
-        solar_artifact["runtime"],
+        solc_runtime,
+        solar_runtime,
         function,
         args.evm_version,
         dynamic_lengths=args.dynamic_lengths,
         input_lengths=input_lengths,
         exploration_order=args.exploration_order,
+        max_dynamic_length=max_dynamic_length,
         max_returndata_bytes=args.max_returndata_bytes,
     )
     report = _run_forge(
@@ -231,6 +238,7 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         tools["solver"],
         project,
         args,
+        max_dynamic_length,
     )
     result = _classify(report, function["selector"], bounds)
     result.update(
@@ -728,6 +736,7 @@ def _write_project(
     function: dict[str, Any],
     evm_version: str,
     *,
+    max_dynamic_length: int,
     dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
     input_lengths: dict[str, tuple[int, ...]] | None = None,
     exploration_order: str = "bfs",
@@ -760,9 +769,7 @@ def _write_project(
         selector=function["selector"],
         solc_runtime=solc_runtime.removeprefix("0x"),
         solar_runtime=solar_runtime.removeprefix("0x"),
-        solc_address=SOLC_RUNTIME_ADDRESS,
-        solar_address=SOLAR_RUNTIME_ADDRESS,
-        router_address=ROUTER_ADDRESS,
+        target_address=TARGET_ADDRESS,
         state_mirror_address=STATE_MIRROR_ADDRESS,
         call_gas=CALL_GAS,
         max_returndata=max_returndata_bytes,
@@ -783,6 +790,7 @@ def _write_project(
             dynamic_lengths=lengths,
             input_lengths=named_lengths,
             exploration_order=exploration_order,
+            max_dynamic_length=max_dynamic_length,
             storage_layout=(
                 "zero_init"
                 if function.get("mutability", "pure") != "pure"
@@ -799,6 +807,7 @@ def _run_forge(
     solver: str,
     project: pathlib.Path,
     args: argparse.Namespace,
+    max_dynamic_length: int,
 ) -> dict[str, Any]:
     help_output = subprocess.run(
         [forge, "test", "--help"],
@@ -829,6 +838,8 @@ def _run_forge(
         str(args.max_solver_queries),
         "--symbolic-max-calldata-bytes",
         str(args.max_calldata_bytes),
+        "--symbolic-max-dynamic-length",
+        str(max_dynamic_length),
         "--json",
     ]
     if "--allow-local-compiler" in help_output:
@@ -947,6 +958,7 @@ def _validate_bounded_agreement(
         "max_paths": expected["max_paths"],
         "max_solver_queries": expected["max_solver_queries"],
         "max_calldata_bytes": expected["max_calldata_bytes"],
+        "max_dynamic_length": expected["max_dynamic_length"],
         "exploration_order": expected["exploration_order"],
         "storage_layout": expected["storage_layout"],
         "default_array_lengths": expected["dynamic_lengths"],
@@ -960,15 +972,6 @@ def _validate_bounded_agreement(
         for name, value in fields.items()
         if actual.get(name) != value
     ]
-    requested_lengths = expected["dynamic_lengths"] + [
-        length
-        for lengths in expected["input_lengths"].values()
-        for length in lengths
-    ]
-    if actual.get("max_dynamic_length", -1) < max(requested_lengths):
-        disagreements.append(
-            f"max_dynamic_length={actual.get('max_dynamic_length')!r}"
-        )
     assumptions = symbolic.get("assumptions")
     kinds = set()
     if isinstance(assumptions, list):
@@ -1013,6 +1016,7 @@ code_size_limit = 1000000
 [symbolic]
 exploration_order = "{exploration_order}"
 storage_layout = "{storage_layout}"
+max_dynamic_length = {max_dynamic_length}
 dynamic_lengths = {{ {input_lengths} }}
 default_array_lengths = [{dynamic_lengths}]
 default_bytes_lengths = [{dynamic_lengths}]
@@ -1026,31 +1030,15 @@ pragma solidity ^0.8.0;
 interface Vm {{
     function assume(bool condition) external pure;
     function etch(address target, bytes calldata runtimeCode) external;
-}}
-
-contract RuntimeRouter {{
-    fallback() external payable {{
-        assembly ("memory-safe") {{
-            if lt(calldatasize(), 20) {{ revert(0, 0) }}
-            let target := shr(96, calldataload(0))
-            let size := sub(calldatasize(), 20)
-            calldatacopy(0, 20, size)
-            let ok := delegatecall(gas(), target, 0, size, 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch ok
-            case 0 {{ revert(0, returndatasize()) }}
-            default {{ return(0, returndatasize()) }}
-        }}
-    }}
+    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
+    function snapshotState() external returns (uint256 snapshotId);
 }}
 
 contract SymbolicDifferentialTest {{
 {definitions}
     Vm private constant vm =
         Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private constant SOLC_RUNTIME = {solc_address};
-    address private constant SOLAR_RUNTIME = {solar_address};
-    address private constant ROUTER = {router_address};
+    address private constant TARGET = {target_address};
     // Prevent sequential calls from observing different gas stipends.
     uint256 private constant CALL_GAS = {call_gas};
     bytes4 private constant TARGET_SELECTOR = bytes4({selector});
@@ -1058,33 +1046,24 @@ contract SymbolicDifferentialTest {{
     bytes private constant SOLAR_CODE = hex"{solar_runtime}";
 
     function setUp() public {{
-        vm.etch(ROUTER, type(RuntimeRouter).runtimeCode);
-        vm.etch(SOLC_RUNTIME, SOLC_CODE);
-        vm.etch(SOLAR_RUNTIME, SOLAR_CODE);
+        vm.etch(TARGET, SOLAR_CODE);
     }}
 
     function checkSymbolicDifferential({declarations}) public {{
         bytes memory callData =
             abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-        _warmRouter();
+        uint256 snapshot = vm.snapshotState();
+        vm.etch(TARGET, SOLC_CODE);
         (bool okA, bytes memory retA) =
-            ROUTER.staticcall{{gas: CALL_GAS}}(
-                abi.encodePacked(SOLC_RUNTIME, callData)
-            );
+            TARGET.staticcall{{gas: CALL_GAS}}(callData);
+        assert(vm.revertToStateAndDelete(snapshot));
         (bool okB, bytes memory retB) =
-            ROUTER.staticcall{{gas: CALL_GAS}}(
-                abi.encodePacked(SOLAR_RUNTIME, callData)
-            );
+            TARGET.staticcall{{gas: CALL_GAS}}(callData);
 
         assert(okA == okB);
         assert(retA.length == retB.length);
         vm.assume(retA.length <= {max_returndata});
 {word_checks}
-    }}
-
-    function _warmRouter() private {{
-        (bool ok,) = ROUTER.staticcall("");
-        assert(!ok);
     }}
 
     function _word(
@@ -1122,35 +1101,17 @@ interface Vm {{
     function load(address target, bytes32 slot) external view returns (bytes32 value);
     function record() external;
     function recordLogs() external;
-    function revertToState(uint256 snapshotId) external returns (bool success);
+    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
     function snapshotState() external returns (uint256 snapshotId);
     function stopRecord() external;
     function store(address target, bytes32 slot, bytes32 value) external;
-}}
-
-contract RuntimeRouter {{
-    fallback() external payable {{
-        assembly ("memory-safe") {{
-            if lt(calldatasize(), 20) {{ revert(0, 0) }}
-            let target := shr(96, calldataload(0))
-            let size := sub(calldatasize(), 20)
-            calldatacopy(0, 20, size)
-            let ok := delegatecall(gas(), target, 0, size, 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch ok
-            case 0 {{ revert(0, returndatasize()) }}
-            default {{ return(0, returndatasize()) }}
-        }}
-    }}
 }}
 
 contract SymbolicDifferentialTest {{
 {definitions}
     Vm private constant vm =
         Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private constant SOLC_RUNTIME = {solc_address};
-    address private constant SOLAR_RUNTIME = {solar_address};
-    address private constant ROUTER = {router_address};
+    address private constant TARGET = {target_address};
     address private constant STATE_MIRROR = {state_mirror_address};
     // Prevent sequential calls from observing different gas stipends.
     uint256 private constant CALL_GAS = {call_gas};
@@ -1159,29 +1120,28 @@ contract SymbolicDifferentialTest {{
     bytes private constant SOLAR_CODE = hex"{solar_runtime}";
 
     function setUp() public {{
-        vm.etch(ROUTER, type(RuntimeRouter).runtimeCode);
-        vm.etch(SOLC_RUNTIME, SOLC_CODE);
-        vm.etch(SOLAR_RUNTIME, SOLAR_CODE);
+        vm.etch(TARGET, SOLAR_CODE);
     }}
 
     function checkSymbolicDifferential({declarations}) public {{
         bytes memory callData =
             abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
         uint256 snapshot = vm.snapshotState();
+        vm.etch(TARGET, SOLC_CODE);
 
         vm.record();
         vm.recordLogs();
         (bool okA, bytes memory retA) =
-            ROUTER.call{{gas: CALL_GAS}}(abi.encodePacked(SOLC_RUNTIME, callData));
-        (, bytes32[] memory writesA) = vm.accesses(ROUTER);
+            TARGET.call{{gas: CALL_GAS}}(callData);
+        (, bytes32[] memory writesA) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsA = vm.getRecordedLogs();
 
         bytes32[] memory valuesA = new bytes32[](writesA.length);
         for (uint256 i; i < writesA.length; ++i) {{
-            valuesA[i] = vm.load(ROUTER, writesA[i]);
+            valuesA[i] = vm.load(TARGET, writesA[i]);
         }}
-        assert(vm.revertToState(snapshot));
+        assert(vm.revertToStateAndDelete(snapshot));
         for (uint256 i; i < writesA.length; ++i) {{
             vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
         }}
@@ -1189,8 +1149,8 @@ contract SymbolicDifferentialTest {{
         vm.record();
         vm.recordLogs();
         (bool okB, bytes memory retB) =
-            ROUTER.call{{gas: CALL_GAS}}(abi.encodePacked(SOLAR_RUNTIME, callData));
-        (, bytes32[] memory writesB) = vm.accesses(ROUTER);
+            TARGET.call{{gas: CALL_GAS}}(callData);
+        (, bytes32[] memory writesB) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsB = vm.getRecordedLogs();
 
@@ -1201,10 +1161,10 @@ contract SymbolicDifferentialTest {{
         assert(keccak256(abi.encode(logsA)) == keccak256(abi.encode(logsB)));
 
         for (uint256 i; i < writesA.length; ++i) {{
-            assert(vm.load(STATE_MIRROR, writesA[i]) == vm.load(ROUTER, writesA[i]));
+            assert(vm.load(STATE_MIRROR, writesA[i]) == vm.load(TARGET, writesA[i]));
         }}
         for (uint256 i; i < writesB.length; ++i) {{
-            assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(ROUTER, writesB[i]));
+            assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(TARGET, writesB[i]));
         }}
     }}
 

@@ -40,6 +40,7 @@ def _forge_report(
     status: str,
     *,
     replay: str = "not_required",
+    max_dynamic_length: int = 256,
 ) -> dict[str, object]:
     symbolic_result: dict[str, object] = {
         "status": status,
@@ -49,7 +50,7 @@ def _forge_report(
             "max_paths": 32,
             "max_solver_queries": 100,
             "max_calldata_bytes": 512,
-            "max_dynamic_length": 256,
+            "max_dynamic_length": max_dynamic_length,
             "exploration_order": "bfs",
             "storage_layout": "solidity",
             "default_array_lengths": [0, 1],
@@ -201,6 +202,7 @@ class ResultClassificationTests(unittest.TestCase):
             "max_paths": 32,
             "max_solver_queries": 100,
             "max_calldata_bytes": 512,
+            "max_dynamic_length": 256,
             "max_depth": None,
             "exploration_order": "bfs",
             "storage_layout": "solidity",
@@ -234,6 +236,7 @@ class ProjectGenerationTests(unittest.TestCase):
                     "mutability": "pure",
                 },
                 "osaka",
+                max_dynamic_length=256,
             )
 
             test_source = (
@@ -245,9 +248,14 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertIn("0xb3de648b", test_source)
         self.assertIn("60006000f3", test_source)
         self.assertIn("60016000f3", test_source)
+        self.assertNotIn("RuntimeRouter", test_source)
+        self.assertIn("vm.etch(TARGET, SOLC_CODE)", test_source)
+        self.assertIn("TARGET.staticcall", test_source)
+        self.assertIn("vm.revertToStateAndDelete(snapshot)", test_source)
         self.assertNotIn("recordLogs", test_source)
         self.assertNotIn("vm.store", test_source)
         self.assertIn('evm_version = "osaka"', config)
+        self.assertIn("max_dynamic_length = 256", config)
 
     def test_stateful_harness_compares_logs_and_written_storage(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -262,6 +270,7 @@ class ProjectGenerationTests(unittest.TestCase):
                     "mutability": "nonpayable",
                 },
                 "osaka",
+                max_dynamic_length=256,
             )
 
             test_source = (
@@ -270,8 +279,10 @@ class ProjectGenerationTests(unittest.TestCase):
             config = (project / "foundry.toml").read_text()
 
         self.assertIn("vm.recordLogs()", test_source)
-        self.assertIn("vm.accesses(ROUTER)", test_source)
-        self.assertIn("vm.revertToState(snapshot)", test_source)
+        self.assertNotIn("RuntimeRouter", test_source)
+        self.assertIn("vm.etch(TARGET, SOLC_CODE)", test_source)
+        self.assertIn("vm.accesses(TARGET)", test_source)
+        self.assertIn("vm.revertToStateAndDelete(snapshot)", test_source)
         self.assertIn("vm.load(STATE_MIRROR", test_source)
         self.assertIn('storage_layout = "zero_init"', config)
 
@@ -287,9 +298,9 @@ class CommandTests(unittest.TestCase):
             )
             solc_input = root / "solc-input.json"
             solar_input = root / "solar-input.json"
-            solc = self._write_compiler(root / "solc", solc_input)
-            solar = self._write_compiler(root / "solar", solar_input)
-            forge = self._write_forge(root / "forge")
+            solc = self._write_compiler(root / "solc", solc_input, "60" * 300)
+            solar = self._write_compiler(root / "solar", solar_input, "60" * 400)
+            forge = self._write_forge(root / "forge", max_dynamic_length=400)
             solver = self._write_executable(root / "z3", "#!/bin/sh\nexit 0\n")
             args = argparse.Namespace(
                 source=source,
@@ -323,6 +334,7 @@ class CommandTests(unittest.TestCase):
             result = symbolic.run(args, root / "out")
 
             self.assertEqual(result["status"], "bounded_agreement")
+            self.assertEqual(result["bounds"]["max_dynamic_length"], 400)
             self.assertEqual(solc_input.read_bytes(), solar_input.read_bytes())
             standard_input = json.loads(solc_input.read_text())
             self.assertEqual(
@@ -380,6 +392,7 @@ class CommandTests(unittest.TestCase):
         self,
         path: pathlib.Path,
         captured_input: pathlib.Path,
+        runtime: str,
     ) -> pathlib.Path:
         artifact = {
             "sources": {"Probe.sol": {"id": 0}},
@@ -389,7 +402,7 @@ class CommandTests(unittest.TestCase):
                         "abi": _artifact()["abi"],
                         "evm": {
                             "deployedBytecode": {
-                                "object": "60006000f3",
+                                "object": runtime,
                                 "immutableReferences": {},
                                 "linkReferences": {},
                             },
@@ -409,10 +422,23 @@ class CommandTests(unittest.TestCase):
         )
         return self._write_executable(path, script)
 
-    def _write_forge(self, path: pathlib.Path) -> pathlib.Path:
+    def _write_forge(
+        self,
+        path: pathlib.Path,
+        *,
+        max_dynamic_length: int,
+    ) -> pathlib.Path:
         script = (
             "#!/usr/bin/env python3\n"
-            f"print({json.dumps(_forge_report('pass'))!r})\n"
+            "import pathlib, sys\n"
+            "if '--help' in sys.argv:\n"
+            "    print('--allow-local-compiler')\n"
+            "    raise SystemExit\n"
+            "index = sys.argv.index('--symbolic-max-dynamic-length')\n"
+            f"assert sys.argv[index + 1] == {str(max_dynamic_length)!r}\n"
+            f"assert 'max_dynamic_length = {max_dynamic_length}' in "
+            "pathlib.Path('foundry.toml').read_text()\n"
+            f"print({json.dumps(_forge_report('pass', max_dynamic_length=max_dynamic_length))!r})\n"
         )
         return self._write_executable(path, script)
 
