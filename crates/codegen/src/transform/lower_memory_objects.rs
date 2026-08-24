@@ -190,26 +190,11 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             let len = builder.slice_len(object);
                             let data = match location {
                                 SliceLocation::Memory => source,
-                                SliceLocation::Calldata => {
+                                location
+                                @ (SliceLocation::Calldata | SliceLocation::Returndata) => {
                                     let data =
                                         builder.alloc_raw(len, AllocationSemantics::INTERNAL);
-                                    builder.copy_slice_data(
-                                        SliceLocation::Calldata,
-                                        data,
-                                        source,
-                                        len,
-                                    );
-                                    data
-                                }
-                                SliceLocation::Returndata => {
-                                    let data =
-                                        builder.alloc_raw(len, AllocationSemantics::INTERNAL);
-                                    builder.copy_slice_data(
-                                        SliceLocation::Returndata,
-                                        data,
-                                        source,
-                                        len,
-                                    );
+                                    builder.copy_slice_data(location, data, source, len);
                                     data
                                 }
                             };
