@@ -192,8 +192,10 @@
 (event_parameter "indexed" @keyword)
 
 (ternary_expression
-  "?" @conditional
-  ":" @conditional)
+  [
+    "?"
+    ":"
+  ] @operator)
 
 ; Punctuation
 
@@ -212,9 +214,7 @@
   ","
   ";"
   ":"
-  "->"
   "=>"
-  ":="
 ] @punctuation.delimiter
 
 
@@ -253,6 +253,8 @@
   "|="
   ">>="
   "<<="
+  "->"
+  ":="
   "-"
   "+"
   "++"
