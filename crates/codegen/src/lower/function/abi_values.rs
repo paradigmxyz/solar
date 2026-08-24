@@ -837,11 +837,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let length = self.builder.slice_len(source);
         let pointer = self.builder.slice_ptr(source);
-        match location {
-            SliceLocation::Memory => self.builder.mcopy(destination, pointer, length),
-            SliceLocation::Calldata => self.builder.calldatacopy(destination, pointer, length),
-            SliceLocation::Returndata => self.builder.returndatacopy(destination, pointer, length),
-        }
+        self.builder.copy_slice_data(location, destination, pointer, length);
         Some(())
     }
 

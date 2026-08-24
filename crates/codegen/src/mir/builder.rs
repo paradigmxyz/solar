@@ -907,6 +907,21 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ReturnDataCopy(dest, offset, size))
     }
 
+    /// Copies bytes from a logical slice's address space into memory.
+    pub(crate) fn copy_slice_data(
+        &mut self,
+        location: SliceLocation,
+        dest: ValueId,
+        source: ValueId,
+        size: ValueId,
+    ) {
+        match location {
+            SliceLocation::Memory => self.mcopy(dest, source, size),
+            SliceLocation::Calldata => self.calldatacopy(dest, source, size),
+            SliceLocation::Returndata => self.returndatacopy(dest, source, size),
+        }
+    }
+
     /// Emits an internal function call.
     pub(crate) fn internal_call(
         &mut self,

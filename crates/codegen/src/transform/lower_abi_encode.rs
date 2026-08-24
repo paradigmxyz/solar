@@ -659,7 +659,7 @@ fn encode_word_array(
         builder.switch_to_block(done);
         return tail;
     }
-    copy_slice_data(builder, location, data_dest, data_source, bytes);
+    builder.copy_slice_data(location, data_dest, data_source, bytes);
     tail
 }
 
@@ -707,25 +707,8 @@ fn encode_bytes(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
-    copy_slice_data(builder, location, data_dest, data_source, len);
+    builder.copy_slice_data(location, data_dest, data_source, len);
     tail
-}
-
-/// Copies `size` bytes of a slice's data from its address space into memory at
-/// `dest`. Memory-to-memory uses `mcopy`; calldata and returndata slices copy
-/// from their own buffers with `calldatacopy`/`returndatacopy`.
-fn copy_slice_data(
-    builder: &mut FunctionBuilder<'_>,
-    location: SliceLocation,
-    dest: ValueId,
-    source: ValueId,
-    size: ValueId,
-) {
-    match location {
-        SliceLocation::Memory => builder.mcopy(dest, source, size),
-        SliceLocation::Calldata => builder.calldatacopy(dest, source, size),
-        SliceLocation::Returndata => builder.returndatacopy(dest, source, size),
-    }
 }
 
 /// Returns the bytes represented by an immutable literal object when all active

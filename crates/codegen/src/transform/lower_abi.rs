@@ -398,11 +398,13 @@ impl LowerAbiCx {
                     static_alias_decode_helpers.insert(layout.clone(), helper);
                 }
                 if count != alias_count {
-                    let helper = self.synthesize_static_decode_helper(module, layout.clone());
+                    let helper =
+                        self.synthesize_decode_helper(module, layout.clone(), "__decode_static_");
                     decode_helpers.insert(layout, helper);
                 }
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
-                let helper = self.synthesize_aggregate_decode_helper(module, layout.clone());
+                let helper =
+                    self.synthesize_decode_helper(module, layout.clone(), "__decode_aggregate_");
                 decode_helpers.insert(layout, helper);
             }
         }
@@ -636,18 +638,20 @@ impl LowerAbiCx {
         module.add_function(function)
     }
 
-    fn synthesize_static_decode_helper(
+    fn synthesize_decode_helper(
         &self,
         module: &mut Module,
         layout: AbiParamLayoutRef,
+        prefix: &str,
     ) -> FunctionId {
-        let name = format!("__decode_static_{}", module.functions.len());
+        let name = format!("{prefix}{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        let result_ty = layout.types[0].mir_type();
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            builder.add_return(result_ty);
+            for ty in &layout.types {
+                builder.add_return(ty.mir_type());
+            }
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let values = Self::decode_memory_tuple_with_helpers(
@@ -659,7 +663,7 @@ impl LowerAbiCx {
                 None,
                 self.has_bitwise_shifting,
             )
-            .expect("checked static ABI layout");
+            .expect("checked ABI layout");
             builder.ret(values);
         }
         module.add_function(function)
@@ -852,36 +856,6 @@ impl LowerAbiCx {
             return false;
         };
         offset == field.saturating_mul(EvmMemoryLayout::WORD_SIZE)
-    }
-
-    fn synthesize_aggregate_decode_helper(
-        &self,
-        module: &mut Module,
-        layout: AbiParamLayoutRef,
-    ) -> FunctionId {
-        let name = format!("__decode_aggregate_{}", module.functions.len());
-        let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            for ty in &layout.types {
-                builder.add_return(ty.mir_type());
-            }
-            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
-            let values = Self::decode_memory_tuple_with_helpers(
-                &mut builder,
-                base,
-                length,
-                layout.as_ref(),
-                false,
-                None,
-                self.has_bitwise_shifting,
-            )
-            .expect("checked aggregate ABI layout");
-            builder.ret(values);
-        }
-        module.add_function(function)
     }
 
     /// Materializes fixed constructor inputs while preserving the physical
