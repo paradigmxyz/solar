@@ -102,6 +102,7 @@
 ; Keywords
 [
  "pragma"
+ "abstract"
  "contract"
  "interface"
  "library"
