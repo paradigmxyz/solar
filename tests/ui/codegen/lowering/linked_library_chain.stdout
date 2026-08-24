@@ -1,4 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
+@module runtime
+bb0:
+  push 0
+  dup1
+  revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module runtime
 bb0:

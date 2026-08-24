@@ -94,7 +94,12 @@ fn lower_dispatch(module: &mut Module, has_bitwise_shifting: bool) -> bool {
             return false;
         }
     }
-    if routes.is_empty() && receive.is_none() && fallback.is_none() {
+    if routes.is_empty()
+        && receive.is_none()
+        && fallback.is_none()
+        && !module.functions.is_empty()
+        && !module.functions.iter().any(|func| func.attributes.is_constructor)
+    {
         module.advance_phase(MirPhase::Dispatch);
         return true;
     }
