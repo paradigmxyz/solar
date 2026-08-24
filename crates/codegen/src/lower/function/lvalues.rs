@@ -24,10 +24,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.type_of_expr_or_variable(expr)?;
             return Some(LValuePlace::Storage { ty, access, span: expr.span });
         }
-        if let Some(id) = self.context.gcx.resolved_variable(expr) {
-            if self.can_access_variable(id) {
-                return Some(LValuePlace::Variable { id, span: expr.span });
-            }
+        if let Some(id) = self.context.gcx.resolved_variable(expr)
+            && self.can_access_variable(id)
+        {
+            return Some(LValuePlace::Variable { id, span: expr.span });
         }
 
         match &expr.kind {
@@ -312,10 +312,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
             }
         }
-        if let Some(id) = self.context.gcx.resolved_variable(expr) {
-            if self.can_access_variable(id) {
-                return self.store_variable(id, value, expr.span);
-            }
+        if let Some(id) = self.context.gcx.resolved_variable(expr)
+            && self.can_access_variable(id)
+        {
+            return self.store_variable(id, value, expr.span);
         }
         match &expr.kind {
             ExprKind::Member(receiver, name)
