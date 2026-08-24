@@ -759,23 +759,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 id: function_id,
                 skips_receiver: false,
             });
-        let mut values = Vec::with_capacity(function.parameters.len());
-        let mut types = Vec::with_capacity(function.parameters.len());
-        for (index, &parameter) in function.parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "external function argument",
-                );
-            };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
-            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-            values.push(value);
-            types.push(abi_type);
-        }
+        let gcx = self.context.gcx;
+        let parameter_types =
+            function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
+        let (values, types) = self.lower_abi_call_arguments(
+            args,
+            parameter_types,
+            Some(&parameter_names),
+            expr.span,
+            "external function argument",
+            false,
+        )?;
         let selector = self.context.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
@@ -830,6 +824,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.load_multi_return_value_as(ret_offset, 0, returns, ty))
     }
 
+    pub(super) fn lower_abi_call_arguments(
+        &mut self,
+        args: hir::CallArgs<'_>,
+        parameter_types: impl ExactSizeIterator<Item = Ty<'gcx>>,
+        parameter_names: Option<&CallableParamNames>,
+        span: Span,
+        error: &'static str,
+        storage_parameters: bool,
+    ) -> Option<(Vec<ValueId>, Vec<AbiType>)> {
+        let parameter_names = parameter_names.map(|names| names.as_slice());
+        let values_and_types = parameter_types
+            .enumerate()
+            .map(|(index, parameter_ty)| {
+                let argument = args
+                    .argument_for_parameter(index, parameter_names)
+                    .or_else(|| report_unsupported(self.context.gcx, span, error))?;
+                if storage_parameters && Self::is_storage_parameter(parameter_ty) {
+                    Some((self.storage_access(argument)?.slot, AbiType::Word))
+                } else {
+                    Some(self.lower_abi_call_argument(argument, parameter_ty)?)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let (values, types) = values_and_types.into_iter().unzip();
+        Some((values, types))
+    }
+
     pub(super) fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
         let contract_id = self.context.gcx.hir.function(function_id).contract?;
         let contract = self.context.gcx.hir.contract(contract_id);
@@ -866,23 +887,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 id: function_id,
                 skips_receiver: false,
             });
-        let mut values = Vec::with_capacity(function.parameters.len());
-        let mut types = Vec::with_capacity(function.parameters.len());
-        for (index, &parameter) in function.parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return report_unsupported(self.context.gcx, expr.span, "linked library argument");
-            };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
-            let (value, abi_type) = if Self::is_storage_parameter(parameter_ty) {
-                (self.storage_access(argument)?.slot, AbiType::Word)
-            } else {
-                self.lower_abi_call_argument(argument, parameter_ty)?
-            };
-            values.push(value);
-            types.push(abi_type);
-        }
+        let gcx = self.context.gcx;
+        let parameter_types =
+            function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
+        let (values, types) = self.lower_abi_call_arguments(
+            args,
+            parameter_types,
+            Some(&parameter_names),
+            expr.span,
+            "linked library argument",
+            true,
+        )?;
 
         let selector = self.context.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);

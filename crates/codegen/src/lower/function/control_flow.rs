@@ -316,18 +316,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let (gas, call_value, zero) =
                 self.lower_call_options(*call_opts, true, "try call option")?;
-            let mut values = Vec::with_capacity(target.parameter_types.len());
-            let mut types = Vec::with_capacity(target.parameter_types.len());
-            for (index, parameter_ty) in target.parameter_types.iter().copied().enumerate() {
-                let Some(argument) =
-                    args.argument_for_parameter(index, target.parameter_names.as_deref())
-                else {
-                    return report_unsupported(self.context.gcx, args.span, "try argument");
-                };
-                let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-                values.push(value);
-                types.push(abi_type);
-            }
+            let (values, types) = self.lower_abi_call_arguments(
+                *args,
+                target.parameter_types.iter().copied(),
+                target.parameter_names.as_ref(),
+                args.span,
+                "try argument",
+                false,
+            )?;
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
                     self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
