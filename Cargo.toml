@@ -140,13 +140,13 @@ evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6a
 ] }
 ruint = { version = "1.16", features = ["num-integer"] }
 
-num-bigint = "0.4"
+num-bigint = "0.5"
 num-rational = "0.4"
 num-traits = "0.2"
 
 # CLI
 clap = "4.4"
-comfy-table = { version = "7.2", default-features = false }
+comfy-table = { version = "8.0", default-features = false }
 
 # diagnostics
 anstream = "1.0.0"
@@ -165,7 +165,7 @@ flate2 = "1.1"
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = "2.0"
+syn = "3.0"
 
 derive_more = { version = "2.0", features = ["full"] }
 strum = "0.28"
@@ -197,7 +197,7 @@ async-lsp = { version = "0.2", default-features = false, features = [
 ] }
 crop = "0.4"
 # See <https://github.com/gluon-lang/lsp-types/issues/284>
-lsp-types = "0.95.0"
+lsp-types = "0.97.0"
 tower = "0.5"
 
 # misc
@@ -232,4 +232,4 @@ vergen = { package = "vergen-gitcl", version = "10" }
 # Use unicode-rs which has a smaller binary size than the default ICU4X as the IDNA backend, used
 # by the `url` crate.
 # See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
-idna_adapter = "=1.1.0"
+idna_adapter = "=1.2.2"

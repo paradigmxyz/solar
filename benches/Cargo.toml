@@ -19,13 +19,13 @@ solar = { workspace = true, default-features = false }
 
 flate2.workspace = true
 serde_json.workspace = true
-solang-parser = "=0.3.4"
+solang-parser = "=0.3.5"
 
-slang_solidity = "=0.18.3"
+slang_solidity = "=1.3.8"
 semver.workspace = true
 
-tree-sitter = "=0.25.8"
-tree-sitter-solidity = "=1.2.12"
+tree-sitter = "=0.26.12"
+tree-sitter-solidity = "=1.2.13"
 
 [dev-dependencies]
 criterion.workspace = true
