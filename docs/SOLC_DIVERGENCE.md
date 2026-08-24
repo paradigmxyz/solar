@@ -90,6 +90,20 @@ not preserved.
 Coverage: `tests/ui/typeck/view_pure_checker/yul_functions.sol` and
 `tests/ui/typeck/view_pure_checker/yul_parity.sol`.
 
+### TYPECK-002: Standalone call-option function values
+
+Status: intentional.
+
+Difference: `solc` permits call options such as `{gas: ...}` and `{value: ...}`
+to form a function value, including when accessing its `.address` or `.selector`
+member. `solar` requires call options to be part of a call expression.
+
+Rationale: `solar` models call options on HIR call expressions and intentionally
+does not represent an option-bearing function value as a separate HIR node.
+
+Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
+[#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
