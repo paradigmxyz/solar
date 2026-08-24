@@ -22,14 +22,10 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
                 *predecessor = to;
             }
         }
-        let phi_insts: Vec<_> = func.blocks[successor]
-            .instructions
-            .iter()
-            .copied()
-            .filter(|inst| matches!(func.inst(*inst).kind, InstKind::Phi(_)))
-            .collect();
-        for phi in phi_insts {
-            let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
+        let instruction_count = func.blocks[successor].instructions.len();
+        for index in 0..instruction_count {
+            let inst = func.blocks[successor].instructions[index];
+            let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind else { continue };
             for (predecessor, _) in incoming {
                 if *predecessor == from {
                     *predecessor = to;
