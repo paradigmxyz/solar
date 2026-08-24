@@ -48,12 +48,9 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let (dest, size) = match &builder.func().inst(inst).kind {
-                InstKind::MemoryZero(dest, size) => (*dest, *size),
-                _ => {
-                    builder.func_mut().blocks[block].instructions.push(inst);
-                    continue;
-                }
+            let InstKind::MemoryZero(dest, size) = builder.func().inst(inst).kind else {
+                builder.func_mut().blocks[block].instructions.push(inst);
+                continue;
             };
             if builder.func().value_u64(size) == Some(32) {
                 let zero = builder.imm_u64(0);

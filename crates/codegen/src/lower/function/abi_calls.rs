@@ -624,9 +624,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 span,
                 validate_bounds,
             ),
-            TyKind::Fn(function) if function.is_external() => {
-                Some(self.decode_calldata_word(ty, value_pos, validate_bounds))
-            }
             _ => Some(self.decode_calldata_word(ty, value_pos, validate_bounds)),
         }
     }
