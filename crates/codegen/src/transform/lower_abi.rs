@@ -1641,17 +1641,7 @@ impl LowerAbiCx {
     ) {
         builder.switch_to_block(*current);
         let offset = Self::load_input_word(builder, head, constructor);
-        let base = Self::guard_input_offset(
-            builder,
-            tuple_base,
-            offset,
-            input_end,
-            matches!(
-                ty,
-                crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
-            ),
-            current,
-        );
+        let base = Self::guard_input_offset(builder, tuple_base, offset, input_end, ty, current);
 
         match ty {
             crate::mir::AbiParamType::DynamicArray(element) => {
@@ -1726,17 +1716,7 @@ impl LowerAbiCx {
                 Self::guard_input_range(builder, head, 32, input_end, current);
             }
             let offset = Self::load_input_word(builder, head, constructor);
-            Self::guard_input_offset(
-                builder,
-                tuple_base,
-                offset,
-                input_end,
-                matches!(
-                    ty,
-                    crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
-                ),
-                current,
-            )
+            Self::guard_input_offset(builder, tuple_base, offset, input_end, ty, current)
         } else {
             head
         };
@@ -1782,9 +1762,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { element, len }
                 if Self::is_supported_tuple_field(element) =>
             {
-                let head_size = len.saturating_mul(
-                    element.checked_head_size().expect("ABI head size exceeds u64 range"),
-                );
+                let head_size = ty.data_head_size();
                 if !head_checked || ty.is_dynamic() {
                     Self::guard_input_range(builder, base, head_size, input_end, current);
                 }
@@ -2614,12 +2592,15 @@ impl LowerAbiCx {
         base: ValueId,
         offset: ValueId,
         input_end: ValueId,
-        combine_head_range: bool,
+        ty: &crate::mir::AbiParamType,
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
-        if !combine_head_range {
+        if !matches!(
+            ty,
+            crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
+        ) {
             let remaining = builder.sub(input_end, base);
             let invalid = builder.gt(offset, remaining);
             *current = builder.revert_if(invalid);

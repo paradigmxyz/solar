@@ -562,10 +562,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
-                self.builder.validate_enum_value(
-                    self.context.gcx.hir.enumm(id).variants.len() as u64,
-                    value,
-                );
+                self.validate_enum(to, value);
             }
             return value;
         }

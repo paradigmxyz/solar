@@ -49,9 +49,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         ty: Ty<'gcx>,
     ) -> bool {
-        if self.is_external_abi_argument(value) {
-            return false;
-        }
         let needs_validation = self.needs_calldata_aggregate_validation(value, ty);
         self.validate_calldata_static_argument_inner(value, ty, needs_validation)
     }
