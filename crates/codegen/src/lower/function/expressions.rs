@@ -495,7 +495,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::MsgValue => self.builder.callvalue(),
             Builtin::MsgSig => {
                 let offset = self.builder.imm_u64(0);
-                let value = self.calldata_load_word(offset);
+                let value = self.builder.calldataload(offset);
                 let mask = self.builder.imm_u256(U256::MAX << 224);
                 self.builder.and(value, mask)
             }
