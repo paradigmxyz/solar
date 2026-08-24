@@ -40,8 +40,8 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
         AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
-        Terminator, Value, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
+        Value, ValueId,
     },
     pass::MirPass,
 };
@@ -3813,10 +3813,7 @@ fn canonicalize_return_value(
         AbiParamType::Scalar(ty) => AbiWordValidator::from_return_mir_type(*ty)
             .map_or(value, |validator| validator.cleanup(builder, value)),
         AbiParamType::Enum { ty, variants } => {
-            let limit = builder.imm_u64(*variants);
-            let valid = builder.lt(value, limit);
-            let invalid = builder.iszero(valid);
-            builder.panic_if(invalid, PanicCode::EnumConversion);
+            builder.validate_enum_value(*variants, value);
             AbiWordValidator::from_return_mir_type(*ty)
                 .map_or(value, |validator| validator.cleanup(builder, value))
         }

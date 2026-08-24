@@ -413,7 +413,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    fn load_multi_return_values(
+    pub(super) fn load_multi_return_values(
         &mut self,
         first: ValueId,
         base: ValueId,

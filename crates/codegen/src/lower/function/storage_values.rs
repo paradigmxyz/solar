@@ -274,10 +274,7 @@ fn synthesize_storage_struct_array_helper(
                 }
                 StorageStructField::Enum { location, variants } => {
                     let value = storage.load_at_slot(&mut builder, location, field_slot);
-                    let limit = builder.imm_u64(variants);
-                    let valid = builder.lt(value, limit);
-                    let invalid = builder.iszero(valid);
-                    builder.panic_if(invalid, PanicCode::EnumConversion);
+                    builder.validate_enum_value(variants, value);
                     value
                 }
                 StorageStructField::Bytes { helper, .. } => builder.internal_call(
@@ -729,7 +726,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             self.builder.imm_u64(0)
         };
-        let old = self.load_storage_bytes(access.slot)?;
+        let old = self.load_storage_bytes(access.slot);
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
         let one = self.builder.imm_u64(1);
         let length = self.builder.checked_add(old_length, one);
@@ -757,7 +754,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
             let access = self.storage_access(receiver)?;
-            let old = self.load_storage_bytes(access.slot)?;
+            let old = self.load_storage_bytes(access.slot);
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u64(0);
             let empty = self.builder.eq(old_length, zero);
@@ -981,7 +978,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.load_storage_bytes(slot)
+                Some(self.load_storage_bytes(slot))
             }
             TyKind::Struct(struct_id) => {
                 let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
@@ -1043,14 +1040,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
             )
         ) {
-            let bytes_helper = match *self.context.storage_bytes_helper {
-                Some(helper) => helper,
-                None => {
-                    let helper = synthesize_storage_bytes_helper(self.context.module);
-                    *self.context.storage_bytes_helper = Some(helper);
-                    helper
-                }
-            };
+            let bytes_helper = self.ensure_storage_bytes_helper();
             let helper = match *self.context.storage_bytes_array_helper {
                 Some(helper) => helper,
                 None => {
@@ -1137,14 +1127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     solar_sema::hir::ElementaryType::Bytes
                     | solar_sema::hir::ElementaryType::String,
                 ) if self.context.share_storage_bytes => {
-                    let helper = match *self.context.storage_bytes_helper {
-                        Some(helper) => helper,
-                        None => {
-                            let helper = synthesize_storage_bytes_helper(self.context.module);
-                            *self.context.storage_bytes_helper = Some(helper);
-                            helper
-                        }
-                    };
+                    let helper = self.ensure_storage_bytes_helper();
                     StorageStructField::Bytes { location, helper }
                 }
                 solar_sema::ty::TyKind::DynArray(element) => {
@@ -1382,24 +1365,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> Option<ValueId> {
-        if !self.context.share_storage_bytes {
-            return Some(lower_storage_bytes_inline(&mut self.builder, slot));
+    fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
+        if let Some(helper) = *self.context.storage_bytes_helper {
+            return helper;
         }
-        let helper = match *self.context.storage_bytes_helper {
-            Some(helper) => helper,
-            None => {
-                let helper = synthesize_storage_bytes_helper(self.context.module);
-                *self.context.storage_bytes_helper = Some(helper);
-                helper
-            }
-        };
-        Some(self.builder.internal_call(
+        let helper = synthesize_storage_bytes_helper(self.context.module);
+        *self.context.storage_bytes_helper = Some(helper);
+        helper
+    }
+
+    pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
+        if !self.context.share_storage_bytes {
+            return lower_storage_bytes_inline(&mut self.builder, slot);
+        }
+        let helper = self.ensure_storage_bytes_helper();
+        self.builder.internal_call(
             helper,
             vec![slot],
             MirType::MemoryObject(MemoryObjectKind::Bytes),
             1,
-        ))
+        )
     }
 
     fn load_storage_bytes_header(&mut self, slot: ValueId) -> (ValueId, ValueId, ValueId) {

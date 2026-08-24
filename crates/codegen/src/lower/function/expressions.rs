@@ -197,7 +197,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return match receiver_ty.peel_refs().kind {
                     TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        let object = self.load_storage_bytes(access.slot)?;
+                        let object = self.load_storage_bytes(access.slot);
                         Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                     }
                     _ => report_unsupported(self.context.gcx, span, what),

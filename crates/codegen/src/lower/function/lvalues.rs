@@ -162,7 +162,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         let access = self.storage_access(self.peel_bytes_conversion(receiver))?;
-        let object = self.load_storage_bytes(access.slot)?;
+        let object = self.load_storage_bytes(access.slot);
         let index = self.lower_expr(index)?;
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         self.builder.bounds_check(index, length);

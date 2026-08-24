@@ -529,20 +529,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !layout.types.iter().any(Self::needs_eager_abi_decode) {
             let layout = self.context.module.intern_abi_param_layout(layout);
             let first = self.builder.abi_decode(layout, data);
-            let mut values = Vec::with_capacity(memory_types.len());
-            values.push(first);
-            if memory_types.len() > 1 {
-                let base = self.multi_return_buffer_base();
-                for index in 1..memory_types.len() {
-                    values.push(self.load_multi_return_value_as(
-                        base,
-                        index,
-                        memory_types.len(),
-                        memory_types[index],
-                    ));
-                }
+            if memory_types.len() == 1 {
+                return Some(vec![first]);
             }
-            return Some(values);
+            let base = self.multi_return_buffer_base();
+            return Some(self.load_multi_return_values(
+                first,
+                base,
+                memory_types.len(),
+                memory_types.iter().skip(1).copied().map(Some),
+            ));
         }
         let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);

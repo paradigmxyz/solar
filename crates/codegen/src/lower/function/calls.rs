@@ -68,7 +68,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
                 let access = self.storage_access(arg)?;
-                self.load_storage_bytes(access.slot)?
+                self.load_storage_bytes(access.slot)
             } else {
                 self.lower_expr(arg)?
             };
@@ -398,16 +398,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
-            let mut values = Vec::with_capacity(returns);
-            for index in 0..returns {
-                values.push(self.load_multi_return_value_as(
-                    ret_offset,
-                    index,
-                    returns,
-                    function.returns[index],
-                ));
-            }
-            return Some(values);
+            let first =
+                self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0]);
+            return Some(self.load_multi_return_values(
+                first,
+                ret_offset,
+                returns,
+                function.returns.iter().skip(1).copied().map(Some),
+            ));
         }
         Some(vec![self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0])])
     }
@@ -564,11 +562,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
-                let limit = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                let limit = self.builder.imm_u64(limit);
-                let valid = self.builder.lt(value, limit);
-                let invalid = self.builder.iszero(valid);
-                self.builder.panic_if(invalid, PanicCode::EnumConversion);
+                self.builder.validate_enum_value(
+                    self.context.gcx.hir.enumm(id).variants.len() as u64,
+                    value,
+                );
             }
             return value;
         }
