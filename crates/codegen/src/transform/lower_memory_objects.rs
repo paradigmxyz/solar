@@ -392,14 +392,13 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     continue;
                 }
 
-                let kind = func.inst(next_id).kind.clone();
                 let result = func.inst_result_value(next_id);
-                let derived_owner = match &kind {
+                let derived_owner = match &func.inst(next_id).kind {
                     InstKind::Add(lhs, rhs) if func.value_u64(*rhs).is_some() => owners[*lhs],
                     InstKind::Add(lhs, rhs) if func.value_u64(*lhs).is_some() => owners[*rhs],
                     _ => None,
                 };
-                let store_owner = match &kind {
+                let store_owner = match &func.inst(next_id).kind {
                     InstKind::MStore(address, _) | InstKind::MStore8(address, _) => {
                         owners[*address]
                     }
