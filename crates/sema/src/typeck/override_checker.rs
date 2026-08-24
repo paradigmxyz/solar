@@ -801,7 +801,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             .functions()
             .filter_map(|f_id| {
                 let f = self.gcx.hir.function(f_id);
-                if f.kind.is_constructor() || f.kind.is_receive() {
+                if f.kind.is_constructor() {
                     return None;
                 }
                 Some(self.signature(OverrideProxy::Function(f_id)))
