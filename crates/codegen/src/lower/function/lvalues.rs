@@ -294,27 +294,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         if let Some(id) = self.context.gcx.resolved_variable(expr)
-            && self.context.gcx.hir.variable(id).is_state_variable()
-        {
-            let ty = self.context.gcx.type_of_item(id.into());
-            if self.types.memory_layout(ty).is_some() {
-                let Some(location) = self.context.storage.get(id) else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        expr.span,
-                        "storage assignment target",
-                    );
-                };
-                let slot = self.builder.imm_u256(location.slot);
-                let access = StorageAccess { slot, location, offset: None };
-                return if let Some(source_ty) = source_ty {
-                    self.store_storage_value_with_source(ty, source_ty, access, value, expr.span)
-                } else {
-                    self.store_storage_value(ty, access, value, expr.span)
-                };
-            }
-        }
-        if let Some(id) = self.context.gcx.resolved_variable(expr)
             && self.can_access_variable(id)
         {
             return self.store_variable(id, value, expr.span);
