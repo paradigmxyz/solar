@@ -261,6 +261,16 @@ impl MirType {
         matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
     }
 
+    /// Returns whether this scalar occupies a complete ABI word without padding.
+    #[must_use]
+    pub(crate) const fn is_full_abi_word(self) -> bool {
+        matches!(
+            self,
+            Self::UInt(size) if size.bits() == 256
+        ) || matches!(self, Self::Int(size) if size.bits() == 256)
+            || matches!(self, Self::FixedBytes(size) if size.bytes() == 32)
+    }
+
     /// Returns the uint256 type.
     #[must_use]
     pub(crate) const fn uint256() -> Self {

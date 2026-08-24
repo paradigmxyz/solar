@@ -130,22 +130,20 @@ fn build_entry(
     // route has that suffix. Solc emits this guard for every dispatch,
     // but the selective form avoids it when no route can collide.
     let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
-    let needs_size_dispatch = receive.is_some() || needs_short_calldata_guard;
 
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
     entry.attributes.is_dispatch_entry = true;
     {
         let mut builder = FunctionBuilder::new(&mut entry);
 
-        let size_block = needs_size_dispatch.then(|| builder.create_block());
-        let short_size_block =
-            (receive.is_some() && needs_short_calldata_guard).then(|| builder.create_block());
+        let receive_size_block = receive.map(|_| builder.create_block());
+        let selector_size_block = needs_short_calldata_guard.then(|| builder.create_block());
         let receive_block = receive.map(|_| builder.create_block());
         let select_block = builder.create_block();
         let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
         let default_block = fallback.map(|_| builder.create_block());
         let revert_block = builder.create_block();
-        let dispatch_block = size_block.unwrap_or(select_block);
+        let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
         // Optional hoisted callvalue check.
         if hoist_callvalue {
@@ -155,24 +153,18 @@ fn build_entry(
             builder.jump(dispatch_block);
         }
 
-        if let Some(size_block) = size_block {
-            builder.switch_to_block(size_block);
+        if let Some(receive_size_block) = receive_size_block {
+            builder.switch_to_block(receive_size_block);
             let size = builder.calldatasize();
-            if receive.is_some() {
-                builder.branch(
-                    size,
-                    short_size_block.unwrap_or(select_block),
-                    receive_block.expect("receive block must exist"),
-                );
-            } else {
-                let selector_size = builder.imm_u64(4);
-                let short = builder.lt(size, selector_size);
-                builder.branch(short, default_block.unwrap_or(revert_block), select_block);
-            }
+            builder.branch(
+                size,
+                selector_size_block.unwrap_or(select_block),
+                receive_block.expect("receive block must exist"),
+            );
         }
 
-        if let Some(short_size_block) = short_size_block {
-            builder.switch_to_block(short_size_block);
+        if let Some(selector_size_block) = selector_size_block {
+            builder.switch_to_block(selector_size_block);
             let size = builder.calldatasize();
             let selector_size = builder.imm_u64(4);
             let short = builder.lt(size, selector_size);

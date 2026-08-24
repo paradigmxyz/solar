@@ -207,11 +207,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn calldata_word_is_full_width(ty: Ty<'gcx>) -> bool {
-        match types::TypeLowerer::mir_type(ty) {
-            MirType::UInt(size) | MirType::Int(size) => size.bits() == 256,
-            MirType::FixedBytes(size) => size.bytes() == 32,
-            _ => false,
-        }
+        types::TypeLowerer::mir_type(ty).is_full_abi_word()
     }
 
     pub(super) fn materialize_memory_argument(

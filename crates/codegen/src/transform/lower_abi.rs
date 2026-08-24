@@ -2952,13 +2952,7 @@ impl LowerAbiCx {
     }
 
     fn is_full_word_scalar(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(
-            ty,
-            crate::mir::AbiParamType::Scalar(scalar)
-                if *scalar == MirType::uint256()
-                    || *scalar == MirType::int256()
-                    || *scalar == MirType::bytes32()
-        )
+        matches!(ty, crate::mir::AbiParamType::Scalar(scalar) if scalar.is_full_abi_word())
     }
 
     fn is_scalar_or_enum(ty: &crate::mir::AbiParamType) -> bool {
