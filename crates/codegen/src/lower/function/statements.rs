@@ -197,6 +197,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.jump(target);
             }
             StmtKind::Return(expr) => {
+                self.materialize_default_bindings();
                 let values =
                     expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_return_values(expr))?;
                 if !values.is_empty() && values.len() != self.returns.len() {
