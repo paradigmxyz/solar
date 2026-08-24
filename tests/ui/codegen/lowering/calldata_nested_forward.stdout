@@ -68,7 +68,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     set_memory_object_len memoryarray, v20, v1
     jump bb9
   bb9:
-    v21 = phi [bb8: 0], [bb29: v78]
+    v21 = phi [bb8: 0], [bb29: v77]
     v22 = lt v21, v1
     jumpi v22, bb10, bb11
   bb10:
@@ -80,12 +80,12 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v28 = iszero v27
     jumpi v28, bb12, bb13
   bb11:
-    v79 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v20
-    v80 = slice_ptr v79
-    v81 = slice_len v79
-    v82 = extcodesize arg1
-    v83 = iszero v82
-    jumpi v83, bb30, bb31
+    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v20
+    v79 = slice_ptr v78
+    v80 = slice_len v78
+    v81 = extcodesize arg1
+    v82 = iszero v81
+    jumpi v82, bb30, bb31
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -113,79 +113,78 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     revert 0, 0
   bb17:
     v42 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v43 = add v36, 0
-    v44 = add v43, 32
-    v45 = lt v44, v43
-    v46 = calldatasize
-    v47 = gt v44, v46
-    v48 = or v45, v47
-    jumpi v48, bb18, bb19
+    v43 = add v36, 32
+    v44 = lt v43, v36
+    v45 = calldatasize
+    v46 = gt v43, v45
+    v47 = or v44, v46
+    jumpi v47, bb18, bb19
   bb18:
     revert 0, 0
   bb19:
-    v49 = calldataload v43
-    memory_object_store_field memorystruct<2>, v42, 0, v49
-    v50 = add v36, 32
-    v51 = add v50, 32
-    v52 = lt v51, v50
-    v53 = calldatasize
-    v54 = gt v51, v53
-    v55 = or v52, v54
-    jumpi v55, bb20, bb21
+    v48 = calldataload v36
+    memory_object_store_field memorystruct<2>, v42, 0, v48
+    v49 = add v36, 32
+    v50 = add v49, 32
+    v51 = lt v50, v49
+    v52 = calldatasize
+    v53 = gt v50, v52
+    v54 = or v51, v53
+    jumpi v54, bb20, bb21
   bb20:
     revert 0, 0
   bb21:
-    v56 = calldataload v50
-    v57 = add v36, v56
-    v58 = calldatasize
-    v59 = sub v58, v36
-    v60 = sub v59, 31
-    v61 = slt v56, v60
-    v62 = iszero v61
-    jumpi v62, bb22, bb23
+    v55 = calldataload v49
+    v56 = add v36, v55
+    v57 = calldatasize
+    v58 = sub v57, v36
+    v59 = sub v58, 31
+    v60 = slt v55, v59
+    v61 = iszero v60
+    jumpi v61, bb22, bb23
   bb22:
     revert 0, 0
   bb23:
-    v63 = calldataload v57
-    v64 = gt v63, 0xffffffffffffffff
-    jumpi v64, bb24, bb25
+    v62 = calldataload v56
+    v63 = gt v62, 0xffffffffffffffff
+    jumpi v63, bb24, bb25
   bb24:
     revert 0, 0
   bb25:
-    v65 = mul v63, 1
-    v66 = add v57, 32
-    v67 = calldatasize
-    v68 = sub v67, v65
-    v69 = sgt v66, v68
-    jumpi v69, bb26, bb27
+    v64 = mul v62, 1
+    v65 = add v56, 32
+    v66 = calldatasize
+    v67 = sub v66, v64
+    v68 = sgt v65, v67
+    jumpi v68, bb26, bb27
   bb26:
     revert 0, 0
   bb27:
-    v70 = add v57, 32
-    v71 = make_calldata_slice v70, v63
-    v72 = slice_len v71
-    v73 = add v72, 63
-    v74 = lt v73, v72
-    jumpi v74, bb28, bb29
+    v69 = add v56, 32
+    v70 = make_calldata_slice v69, v62
+    v71 = slice_len v70
+    v72 = add v71, 63
+    v73 = lt v72, v71
+    jumpi v73, bb28, bb29
   bb28:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb29:
-    v75 = not 31
-    v76 = and v73, v75
-    v77 = alloc memorybytes, exact, uninitialized, infallible, v76
-    set_memory_object_len memorybytes, v77, v72
-    memory_object_copy_from_slice memorybytes, v77, v71
-    memory_object_store_field memorystruct<2>, v42, 1, v77
+    v74 = not 31
+    v75 = and v72, v74
+    v76 = alloc memorybytes, exact, uninitialized, infallible, v75
+    set_memory_object_len memorybytes, v76, v71
+    memory_object_copy_from_slice memorybytes, v76, v70
+    memory_object_store_field memorystruct<2>, v42, 1, v76
     memory_object_store_element memoryarray<1>, v20, v21, v42
-    v78 = add v21, 1
+    v77 = add v21, 1
     jump bb9
   bb30:
     revert 0, 0
   bb31:
-    v84 = call v0, arg1, 0, v80, v81, 0, 0
-    jumpi v84, bb33, bb32
+    v83 = call v0, arg1, 0, v79, v80, 0, 0
+    jumpi v83, bb33, bb32
   bb32:
     revert_returndata
   bb33:

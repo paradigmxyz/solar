@@ -309,35 +309,35 @@ fn @__decode_aggregate_3(arg0: memptr) -> (u256, memptr) {
     v5 = or v3, v4
     jumpi v5, bb2, bb1
   bb1:
-    v7 = mload v0
-    v8 = add v0, 32
-    v9 = mload v8
-    v10 = add v0, v9
-    v11 = add v10, 32
-    v12 = gt v9, 0xffffffffffffffff
-    v13 = gt v11, v2
-    v14 = or v12, v13
-    jumpi v14, bb2, bb3
+    v6 = mload v0
+    v7 = add v0, 32
+    v8 = mload v7
+    v9 = add v0, v8
+    v10 = add v9, 32
+    v11 = gt v8, 0xffffffffffffffff
+    v12 = gt v10, v2
+    v13 = or v11, v12
+    jumpi v13, bb2, bb3
   bb2:
     revert 0, 0
   bb3:
-    v15 = mload v10
-    v17 = sub v2, v11
-    v18 = gt v15, v17
-    jumpi v18, bb2, bb4
+    v14 = mload v9
+    v16 = sub v2, v10
+    v17 = gt v14, v16
+    jumpi v17, bb2, bb4
   bb4:
-    v19 = add v15, 63
-    v20 = lt v19, v15
-    jumpi v20, bb2, bb5
+    v18 = add v14, 63
+    v19 = lt v18, v14
+    jumpi v19, bb2, bb5
   bb5:
-    v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v29 = add v23, v22
-    mstore 64, v29 !metadata(memory=scratch)
-    mstore v23, v15
-    v26 = add v23, 32
-    mcopy v26, v11, v15
-    ret v7, v23
+    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v28 = add v22, v21
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v22, v14
+    v25 = add v22, 32
+    mcopy v25, v10, v14
+    ret v6, v22
 }
 
 fn @__decode_aggregate_4(arg0: memptr) -> memptr {
@@ -350,33 +350,33 @@ fn @__decode_aggregate_4(arg0: memptr) -> memptr {
     v5 = or v3, v4
     jumpi v5, bb2, bb1
   bb1:
-    v7 = mload v0
-    v8 = add v0, v7
-    v9 = add v8, 32
-    v10 = gt v7, 0xffffffffffffffff
-    v11 = gt v9, v2
-    v12 = or v10, v11
-    jumpi v12, bb2, bb3
+    v6 = mload v0
+    v7 = add v0, v6
+    v8 = add v7, 32
+    v9 = gt v6, 0xffffffffffffffff
+    v10 = gt v8, v2
+    v11 = or v9, v10
+    jumpi v11, bb2, bb3
   bb2:
     revert 0, 0
   bb3:
-    v13 = mload v8
-    v15 = sub v2, v9
-    v16 = gt v13, v15
-    jumpi v16, bb2, bb4
+    v12 = mload v7
+    v14 = sub v2, v8
+    v15 = gt v12, v14
+    jumpi v15, bb2, bb4
   bb4:
-    v17 = add v13, 63
-    v18 = lt v17, v13
-    jumpi v18, bb2, bb5
+    v16 = add v12, 63
+    v17 = lt v16, v12
+    jumpi v17, bb2, bb5
   bb5:
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v27 = add v21, v20
-    mstore 64, v27 !metadata(memory=scratch)
-    mstore v21, v13
-    v24 = add v21, 32
-    mcopy v24, v9, v13
-    ret v21
+    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v26 = add v20, v19
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v20, v12
+    v23 = add v20, 32
+    mcopy v23, v8, v12
+    ret v20
 }
 
 fn @entry() [entry] {

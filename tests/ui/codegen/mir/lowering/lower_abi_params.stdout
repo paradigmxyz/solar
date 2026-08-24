@@ -37,9 +37,9 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 128, v5
-+     v33 = add 128, 32
-+     v34 = sub v33, 128
-+     returndata 128, v34
++     v32 = add 128, 32
++     v33 = sub v32, 128
++     returndata 128, v33
 +   bb2:
 +     revert 0, 0
 +   bb3:
@@ -56,36 +56,35 @@
 +     revert 0, 0
 +   bb6:
 +     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-+     v15 = add v9, 0
-+     v16 = calldataload v15
-+     v17 = add v9, v16
-+     v18 = add v17, 32
-+     v19 = gt v16, 0xffffffffffffffff
-+     v20 = gt v18, v6
-+     v21 = or v19, v20
-+     jumpi v21, bb9, bb8
++     v15 = calldataload v9
++     v16 = add v9, v15
++     v17 = add v16, 32
++     v18 = gt v15, 0xffffffffffffffff
++     v19 = gt v17, v6
++     v20 = or v18, v19
++     jumpi v20, bb9, bb8
 +   bb7:
 +     revert 0, 0
 +   bb8:
-+     v22 = calldataload v17
-+     v23 = add v17, 32
-+     v24 = sub v6, v23
-+     v25 = shr 5, v24
-+     v26 = gt v22, v25
-+     jumpi v26, bb11, bb10
++     v21 = calldataload v16
++     v22 = add v16, 32
++     v23 = sub v6, v22
++     v24 = shr 5, v23
++     v25 = gt v21, v24
++     jumpi v25, bb11, bb10
 +   bb9:
 +     revert 0, 0
 +   bb10:
-+     v27 = mul v22, 32
-+     v28 = add v27, 32
-+     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-+     set_memory_object_len memoryarray, v29, v22
-+     v30 = make_calldata_slice v23, v27
-+     memory_object_copy_from_slice memoryarray, v29, v30
-+     memory_object_store_field memorystruct<3>, v14, 0, v29
-+     v31 = add v9, 32
-+     v32 = calldataload v31
-+     memory_object_store_field memorystruct<3>, v14, 1, v32
++     v26 = mul v21, 32
++     v27 = add v26, 32
++     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
++     set_memory_object_len memoryarray, v28, v21
++     v29 = make_calldata_slice v22, v26
++     memory_object_copy_from_slice memoryarray, v28, v29
++     memory_object_store_field memorystruct<3>, v14, 0, v28
++     v30 = add v9, 32
++     v31 = calldataload v30
++     memory_object_store_field memorystruct<3>, v14, 1, v31
 +     memory_object_store_field memorystruct<3>, v14, 2, v9
 +     jump bb1
 +   bb11:
