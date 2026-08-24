@@ -1387,12 +1387,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    fn load_storage_bytes_header(&mut self, slot: ValueId) -> (ValueId, ValueId, ValueId) {
-        decode_storage_bytes_header(&mut self.builder, slot)
-    }
-
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
-        let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
+        let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         let data_ptr = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let data = self.builder.make_slice(data_ptr, length, SliceLocation::Memory);
@@ -1514,7 +1510,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
-        let (_, old_is_long, old_length) = self.load_storage_bytes_header(slot);
+        let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let length = self.builder.imm_u64(bytes.len() as u64);
         let shrunk = self.builder.gt(old_length, length);
         let needs_cleanup = self.builder.and(old_is_long, shrunk);
@@ -1945,7 +1941,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {
-        let (_, is_long, length) = self.load_storage_bytes_header(slot);
+        let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
         let zero = self.builder.imm_u64(0);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
