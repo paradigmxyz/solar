@@ -1146,9 +1146,10 @@ impl LowerAbiCx {
                         kind,
                     ),
                     _ => {
-                        let offset = builder
-                            .imm_u64(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
-                        let position = builder.add(base, offset);
+                        let position = builder.add_u64_offset(
+                            base,
+                            u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
+                        );
                         builder.mload(position)
                     }
                 };
@@ -2062,7 +2063,7 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
         head: ValueId,
-        decode: &mut impl FnMut(&mut FunctionBuilder<'_>, &crate::mir::AbiParamType, ValueId) -> ValueId,
+        mut decode: impl FnMut(&mut FunctionBuilder<'_>, &crate::mir::AbiParamType, ValueId) -> ValueId,
     ) -> ValueId {
         match ty {
             crate::mir::AbiParamType::FixedArray { element, len } => {
@@ -2118,12 +2119,9 @@ impl LowerAbiCx {
         if matches!(ty, AbiParamType::Scalar(_)) {
             return builder.mload(head);
         }
-        let mut decode = |builder: &mut FunctionBuilder<'_>,
-                          ty: &crate::mir::AbiParamType,
-                          head: ValueId| {
+        Self::decode_static_aggregate(builder, ty, head, |builder, ty, head| {
             Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
-        };
-        Self::decode_static_aggregate(builder, ty, head, &mut decode)
+        })
     }
 
     /// Decodes a static calldata aggregate and joins its canonicality checks.
@@ -2210,11 +2208,9 @@ impl LowerAbiCx {
         if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
             return builder.calldataload(head);
         }
-        let mut decode =
-            |builder: &mut FunctionBuilder<'_>, ty: &crate::mir::AbiParamType, head: ValueId| {
-                Self::decode_static_calldata_value(builder, ty, head, valid, has_bitwise_shifting)
-            };
-        Self::decode_static_aggregate(builder, ty, head, &mut decode)
+        Self::decode_static_aggregate(builder, ty, head, |builder, ty, head| {
+            Self::decode_static_calldata_value(builder, ty, head, valid, has_bitwise_shifting)
+        })
     }
 
     fn load_input_word(
@@ -2351,8 +2347,7 @@ impl LowerAbiCx {
         current: &mut BlockId,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        let padding = builder.imm_u64(63);
-        let rounded = builder.add(length, padding);
+        let rounded = builder.add_u64_offset(length, 63);
         let overflow = builder.lt(rounded, length);
         *current = builder.revert_if(overflow);
         let mask = builder.imm_u64(31);

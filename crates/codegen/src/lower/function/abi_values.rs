@@ -344,8 +344,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let word = self.builder.imm_u64(32);
             let next_source = self.builder.add(source, word);
             let next_destination = self.builder.add(destination, word);
-            let one = self.builder.imm_u64(1);
-            let next_index = self.builder.add(index, one);
+            let next_index = self.builder.add_u64_offset(index, 1);
             let backedge = self.builder.current_block();
             self.builder.jump(header);
             self.builder.add_phi_incoming(index, backedge, next_index);
