@@ -1112,9 +1112,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         offset: ValueId,
     ) -> Option<ValueId> {
         let ty = ty.peel_refs();
-        match ty.kind {
+        let value = match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => {
-                self.copy_inplace_array(ty, value, output, offset)
+                return self.copy_inplace_array(ty, value, output, offset);
             }
             TyKind::Struct(id) => {
                 let gcx = self.context.gcx;
@@ -1127,26 +1127,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     offset = self.copy_inplace_dynamic_value(field, field_value, output, offset)?;
                 }
-                Some(offset)
+                return Some(offset);
             }
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
-            ) => Some(self.copy_inplace_bytes(value, output, offset)),
-            TyKind::Udvt(inner, _) => self.copy_inplace_dynamic_value(inner, value, output, offset),
-            TyKind::Tuple(_) | TyKind::Slice(_) => None,
+            ) => return Some(self.copy_inplace_bytes(value, output, offset)),
+            TyKind::Udvt(inner, _) => {
+                return self.copy_inplace_dynamic_value(inner, value, output, offset);
+            }
+            TyKind::Tuple(_) | TyKind::Slice(_) => return None,
             TyKind::Fn(function) if function.is_external() => {
                 let shift = self.builder.imm_u64(64);
-                let value = self.builder.shl(shift, value);
-                self.builder.memory_object_store_word(output, offset, value);
-                let word = self.builder.imm_u64(32);
-                Some(self.builder.checked_add(offset, word))
+                self.builder.shl(shift, value)
             }
-            _ => {
-                self.builder.memory_object_store_word(output, offset, value);
-                let word = self.builder.imm_u64(32);
-                Some(self.builder.checked_add(offset, word))
-            }
-        }
+            _ => value,
+        };
+        self.builder.memory_object_store_word(output, offset, value);
+        let word = self.builder.imm_u64(32);
+        Some(self.builder.checked_add(offset, word))
     }
 
     fn inplace_array_info(
@@ -1490,15 +1488,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
         let input_len = self.builder.memory_object_len(input, MemoryObjectKind::Bytes);
 
-        let output_size = self.builder.imm_u64(64);
-        let output = self.builder.alloc_object(
-            output_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
-        );
-        let output_len = self.builder.imm_u64(32);
-        self.builder.set_memory_object_len(output, output_len, MemoryObjectKind::Bytes);
-        let output_ptr = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        let (output_ptr, output_len) = self.alloc_precompile_output();
         let address = self.builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_size = self.builder.imm_u64(32);
         self.lower_precompile_call(address, input_ptr, input_len, output_ptr, output_size);
@@ -1539,15 +1529,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let offset = self.builder.imm_u64(offset);
             self.builder.memory_object_store_word(input, offset, value);
         }
-        let output_size = self.builder.imm_u64(64);
-        let output = self.builder.alloc_object(
-            output_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
-        );
-        let output_len = self.builder.imm_u64(32);
-        self.builder.set_memory_object_len(output, output_len, MemoryObjectKind::Bytes);
-        let output_ptr = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        let (output_ptr, output_len) = self.alloc_precompile_output();
 
         let address = self.builder.imm_u64(1);
         let input_size = self.builder.imm_u64(128);
@@ -1555,6 +1537,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.lower_precompile_call(address, input_ptr, input_size, output_ptr, output_size);
         let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
         Some(self.builder.memory_slice_load_word(output_slice, zero))
+    }
+
+    fn alloc_precompile_output(&mut self) -> (ValueId, ValueId) {
+        let size = self.builder.imm_u64(64);
+        let output = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        let length = self.builder.imm_u64(32);
+        self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
+        let pointer = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        (pointer, length)
     }
 
     fn lower_precompile_call(

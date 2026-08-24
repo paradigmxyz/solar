@@ -3,6 +3,15 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    fn can_access_variable(&self, id: hir::VariableId) -> bool {
+        let variable = self.context.gcx.hir.variable(id);
+        variable.is_state_variable()
+            || self.values.contains_key(&id)
+            || self.default_bindings.contains(&id)
+            || self.deferred_bindings.contains(&id)
+            || variable.parent.is_none()
+    }
+
     pub(super) fn resolve_lvalue_place(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -16,13 +25,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(LValuePlace::Storage { ty, access, span: expr.span });
         }
         if let Some(id) = self.context.gcx.resolved_variable(expr) {
-            let variable = self.context.gcx.hir.variable(id);
-            if variable.is_state_variable()
-                || self.values.contains_key(&id)
-                || self.default_bindings.contains(&id)
-                || self.deferred_bindings.contains(&id)
-                || variable.parent.is_none()
-            {
+            if self.can_access_variable(id) {
                 return Some(LValuePlace::Variable { id, span: expr.span });
             }
         }
@@ -310,13 +313,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         if let Some(id) = self.context.gcx.resolved_variable(expr) {
-            let variable = self.context.gcx.hir.variable(id);
-            if variable.is_state_variable()
-                || self.values.contains_key(&id)
-                || self.default_bindings.contains(&id)
-                || self.deferred_bindings.contains(&id)
-                || variable.parent.is_none()
-            {
+            if self.can_access_variable(id) {
                 return self.store_variable(id, value, expr.span);
             }
         }
