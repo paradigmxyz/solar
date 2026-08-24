@@ -130,10 +130,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = kind;
                     }
                     InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                        let Some(offset) = P::field_offset(layout, field) else {
+                            break 'keep;
+                        };
                         if let Some(location) = builder.func().value_slice_location(object) {
-                            let Some(offset) = P::field_offset(layout, field) else {
-                                break 'keep;
-                            };
                             if location == SliceLocation::Calldata {
                                 let Some(result) = builder.func().inst_result_value(inst) else {
                                     break 'keep;
@@ -171,9 +171,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             }
                             continue 'next;
                         }
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            break 'keep;
-                        };
                         if offset == 0 {
                             if let Some(result) = builder.func().inst_result_value(inst) {
                                 replacements.insert(result, object);

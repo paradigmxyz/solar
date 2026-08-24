@@ -61,28 +61,23 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let encode = match &builder.func().inst(inst).kind {
-                InstKind::AbiEncode { selector, args, layout } => Some((
-                    selector.map(|value| resolve_replacement(value, &replacements)),
-                    args.iter()
-                        .map(|&value| resolve_replacement(value, &replacements))
-                        .collect::<Vec<_>>(),
-                    std::sync::Arc::clone(layout),
-                )),
-                _ => None,
-            };
-            if let Some((selector, args, layout)) = encode {
-                let replacement = lower_encode(&mut builder, &layout, selector, &args);
-                remove_literal_objects(builder.func_mut(), &args);
-                let result = builder
-                    .func()
-                    .inst_result_value(inst)
-                    .expect("ABI encode must produce a value");
-                replacements.insert(result, replacement);
-            } else {
+            let InstKind::AbiEncode { selector, args, layout } = &builder.func().inst(inst).kind
+            else {
                 let current = builder.current_block();
                 builder.func_mut().blocks[current].instructions.push(inst);
-            }
+                continue;
+            };
+            let selector = selector.map(|value| resolve_replacement(value, &replacements));
+            let args = args
+                .iter()
+                .map(|&value| resolve_replacement(value, &replacements))
+                .collect::<Vec<_>>();
+            let layout = std::sync::Arc::clone(layout);
+            let replacement = lower_encode(&mut builder, &layout, selector, &args);
+            remove_literal_objects(builder.func_mut(), &args);
+            let result =
+                builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
+            replacements.insert(result, replacement);
         }
         move_terminator(&mut builder, block, original_terminator);
     }
@@ -364,20 +359,17 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder, value, *location);
             encode_bytes(builder, value, dest, location)
         }
-        AbiType::DynamicArray { element, location }
-            if matches!(element.as_ref(), AbiType::Word | AbiType::Function) =>
-        {
-            let location = effective_slice_location(builder, value, *location);
-            encode_word_array(
-                builder,
-                value,
-                dest,
-                location,
-                matches!(element.as_ref(), AbiType::Function),
-            )
-        }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder, value, *location);
+            if matches!(element.as_ref(), AbiType::Word | AbiType::Function) {
+                return encode_word_array(
+                    builder,
+                    value,
+                    dest,
+                    location,
+                    matches!(element.as_ref(), AbiType::Function),
+                );
+            }
             match location {
                 SliceLocation::Memory => encode_dynamic_array(builder, element, value, dest),
                 SliceLocation::Calldata => {

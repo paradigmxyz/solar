@@ -295,14 +295,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !value_is_memory_object {
             return value;
         }
-        let (length, dynamic) = match layout {
-            MemoryObjectLayout::DynamicArray { .. } => {
-                let length = self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
-                (length, true)
-            }
-            MemoryObjectLayout::FixedArray { len, .. } => (self.builder.imm_u64(len), false),
-            _ => unreachable!("scalar array layout checked above"),
-        };
+        let dynamic = matches!(layout, MemoryObjectLayout::DynamicArray { .. });
+        let length = self.memory_object_length(value, layout);
         let words = if dynamic {
             let one = self.builder.imm_u64(1);
             self.builder.checked_add(length, one)

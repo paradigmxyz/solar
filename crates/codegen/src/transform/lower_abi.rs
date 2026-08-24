@@ -776,16 +776,14 @@ impl LowerAbiCx {
         let mut valid = builder.imm_bool(true);
         let mut offset = 0_u64;
         for ty in &layout.types {
-            let head = builder.add_u64_offset(base, offset);
-            Self::validate_static_memory_argument(
+            Self::validate_static_memory_child(
                 builder,
                 ty,
-                head,
+                base,
+                &mut offset,
                 &mut valid,
                 has_bitwise_shifting,
             );
-            offset = offset
-                .saturating_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"));
         }
 
         let invalid = builder.iszero(valid);
@@ -809,32 +807,26 @@ impl LowerAbiCx {
             AbiParamType::FixedArray { element, len } => {
                 let mut offset = 0_u64;
                 for _ in 0..*len {
-                    let element_head = builder.add_u64_offset(head, offset);
-                    Self::validate_static_memory_argument(
+                    Self::validate_static_memory_child(
                         builder,
                         element,
-                        element_head,
+                        head,
+                        &mut offset,
                         valid,
                         has_bitwise_shifting,
-                    );
-                    offset = offset.saturating_add(
-                        element.checked_head_size().expect("ABI head size exceeds u64 range"),
                     );
                 }
             }
             AbiParamType::Tuple(fields) => {
                 let mut offset = 0_u64;
                 for field in fields {
-                    let field_head = builder.add_u64_offset(head, offset);
-                    Self::validate_static_memory_argument(
+                    Self::validate_static_memory_child(
                         builder,
                         field,
-                        field_head,
+                        head,
+                        &mut offset,
                         valid,
                         has_bitwise_shifting,
-                    );
-                    offset = offset.saturating_add(
-                        field.checked_head_size().expect("ABI head size exceeds u64 range"),
                     );
                 }
             }
@@ -843,6 +835,26 @@ impl LowerAbiCx {
             }
             AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {}
         }
+    }
+
+    fn validate_static_memory_child(
+        builder: &mut FunctionBuilder<'_>,
+        child: &AbiParamType,
+        head: ValueId,
+        offset: &mut u64,
+        valid: &mut ValueId,
+        has_bitwise_shifting: bool,
+    ) {
+        let child_head = builder.add_u64_offset(head, *offset);
+        Self::validate_static_memory_argument(
+            builder,
+            child,
+            child_head,
+            valid,
+            has_bitwise_shifting,
+        );
+        *offset = offset
+            .saturating_add(child.checked_head_size().expect("ABI head size exceeds u64 range"));
     }
 
     fn can_alias_static_decode(func: &Function, result: ValueId, ty: &AbiParamType) -> bool {
@@ -1679,7 +1691,7 @@ impl LowerAbiCx {
             && matches!(ty, crate::mir::AbiParamType::Bytes)
             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
         {
-            return Self::decode_calldata_bytes_slice(
+            let (data, len) = Self::decode_calldata_bytes_slice_values(
                 builder,
                 head,
                 tuple_base,
@@ -1687,6 +1699,7 @@ impl LowerAbiCx {
                 current,
                 head_checked,
             );
+            return builder.make_slice(data, len, SliceLocation::Calldata);
         }
         let base = if is_dynamic {
             if !head_checked {
@@ -2120,29 +2133,6 @@ impl LowerAbiCx {
         Self::decode_static_aggregate(builder, ty, head, |builder, ty, head| {
             Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
         })
-    }
-
-    /// Decodes a static calldata aggregate and joins its canonicality checks.
-    ///
-    /// Static aggregates have no dependent offsets, so all scalar checks can
-    /// share one revert edge instead of creating one branch per field.
-    fn decode_calldata_bytes_slice(
-        builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
-        tuple_base: ValueId,
-        input_end: ValueId,
-        current: &mut BlockId,
-        head_checked: bool,
-    ) -> ValueId {
-        let (data, len) = Self::decode_calldata_bytes_slice_values(
-            builder,
-            head,
-            tuple_base,
-            input_end,
-            current,
-            head_checked,
-        );
-        builder.make_slice(data, len, SliceLocation::Calldata)
     }
 
     fn decode_calldata_bytes_slice_values(

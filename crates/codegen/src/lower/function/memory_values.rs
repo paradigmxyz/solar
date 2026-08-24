@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8], span: Span) -> Option<ValueId> {
+    pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
         let value = if !bytes.is_empty()
             && bytes.len() <= 32
             && self.context.shared_word_literals.contains(bytes)
@@ -161,7 +161,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             Self::build_bytes_literal(&mut self.builder, bytes, AllocationSemantics::INTERNAL)?
         };
-        let _ = span;
         Some(value)
     }
 

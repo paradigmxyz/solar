@@ -48,22 +48,23 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let zero = match builder.func().inst(inst).kind {
-                InstKind::MemoryZero(dest, size) => Some((dest, size)),
-                _ => None,
-            };
-            if let Some((dest, size)) = zero {
-                if builder.func().value_u64(size) == Some(32) {
-                    let zero = builder.imm_u64(0);
-                    let instruction = builder.func_mut().inst_mut(inst);
-                    instruction.kind = InstKind::MStore(dest, zero);
-                    instruction.metadata.set_memory_region(None);
-                    instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
-                } else {
-                    let calldata_end = builder.calldatasize();
-                    builder.func_mut().inst_mut(inst).kind =
-                        InstKind::CalldataCopy(dest, calldata_end, size);
+            let (dest, size) = match &builder.func().inst(inst).kind {
+                InstKind::MemoryZero(dest, size) => (*dest, *size),
+                _ => {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
                 }
+            };
+            if builder.func().value_u64(size) == Some(32) {
+                let zero = builder.imm_u64(0);
+                let instruction = builder.func_mut().inst_mut(inst);
+                instruction.kind = InstKind::MStore(dest, zero);
+                instruction.metadata.set_memory_region(None);
+                instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
+            } else {
+                let calldata_end = builder.calldatasize();
+                builder.func_mut().inst_mut(inst).kind =
+                    InstKind::CalldataCopy(dest, calldata_end, size);
             }
             builder.func_mut().blocks[block].instructions.push(inst);
         }

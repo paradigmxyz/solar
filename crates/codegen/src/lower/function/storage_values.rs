@@ -282,27 +282,37 @@ pub(super) fn synthesize_storage_clear_helper(module: &mut Module) -> FunctionId
         let first_word = builder.add_param(MirType::uint256());
         let words = builder.add_param(MirType::uint256());
         let zero = builder.imm_u64(0);
-        let data_slot = builder.storage_array_data_slot(slot);
-        let preheader = builder.current_block();
-        let header = builder.create_block();
-        let body = builder.create_block();
-        let exit = builder.create_block();
-        builder.jump(header);
-        builder.switch_to_block(header);
-        let index = builder.phi(vec![(preheader, first_word)]);
-        let condition = builder.lt(index, words);
-        builder.branch(condition, body, exit);
-        builder.switch_to_block(body);
-        let element_slot = builder.add(data_slot, index);
-        builder.sstore(element_slot, zero);
-        let next = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(header);
-        builder.add_phi_incoming(index, backedge, next);
-        builder.switch_to_block(exit);
+        emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
         builder.stop();
     }
     module.add_function(function)
+}
+
+fn emit_clear_storage_words(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    first_word: ValueId,
+    words: ValueId,
+    zero: ValueId,
+) {
+    let data_slot = builder.storage_array_data_slot(slot);
+    let preheader = builder.current_block();
+    let header = builder.create_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(header);
+    builder.switch_to_block(header);
+    let index = builder.phi(vec![(preheader, first_word)]);
+    let condition = builder.lt(index, words);
+    builder.branch(condition, body, exit);
+    builder.switch_to_block(body);
+    let element_slot = builder.add(data_slot, index);
+    builder.sstore(element_slot, zero);
+    let next = builder.add_u64_offset(index, 1);
+    let backedge = builder.current_block();
+    builder.jump(header);
+    builder.add_phi_incoming(index, backedge, next);
+    builder.switch_to_block(exit);
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -1420,24 +1430,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         words: ValueId,
         zero: ValueId,
     ) {
-        let data_slot = self.builder.storage_array_data_slot(slot);
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let index = self.builder.phi(vec![(preheader, first_word)]);
-        let condition = self.builder.lt(index, words);
-        self.builder.branch(condition, body, exit);
-        self.builder.switch_to_block(body);
-        let element_slot = self.builder.add(data_slot, index);
-        self.builder.sstore(element_slot, zero);
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        emit_clear_storage_words(&mut self.builder, slot, first_word, words, zero);
     }
 
     fn clear_storage_words_with_helper(

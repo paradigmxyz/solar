@@ -7,7 +7,7 @@
 //! storage-array hashes use reserved scratch.
 
 use crate::{
-    mir::{BlockId, FunctionBuilder, InstKind, Module},
+    mir::{BlockId, FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::FxHashMap;
@@ -54,37 +54,38 @@ impl MirPass for LowerMappingSlots {
                 for inst_id in instructions {
                     let replacement = match builder.func().inst(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
-                            Some(lower_word_mapping_slot(&mut builder, key, slot))
+                            lower_word_mapping_slot(&mut builder, key, slot)
                         }
                         InstKind::MappingSlotMemory(key, slot) => {
-                            Some(lower_memory_mapping_slot(&mut builder, key, slot))
+                            lower_slice_mapping_slot(&mut builder, SliceLocation::Memory, key, slot)
                         }
-                        InstKind::MappingSlotCalldata(key, slot) => {
-                            Some(lower_calldata_mapping_slot(&mut builder, key, slot))
-                        }
+                        InstKind::MappingSlotCalldata(key, slot) => lower_slice_mapping_slot(
+                            &mut builder,
+                            SliceLocation::Calldata,
+                            key,
+                            slot,
+                        ),
                         InstKind::StorageArrayDataSlot(slot) => {
-                            Some(lower_storage_array_data_slot(&mut builder, slot))
+                            lower_storage_array_data_slot(&mut builder, slot)
                         }
                         InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
-                            Some(lower_storage_array_element_slot(
+                            lower_storage_array_element_slot(
                                 &mut builder,
                                 slot,
                                 index,
                                 element_slots,
-                            ))
+                            )
                         }
                         _ => {
                             builder.func_mut().blocks[block_id].instructions.push(inst_id);
-                            None
+                            continue;
                         }
                     };
-                    if let Some(replacement) = replacement {
-                        let result = builder
-                            .func()
-                            .inst_result_value(inst_id)
-                            .expect("mapping slot must produce a value");
-                        replacements.insert(result, replacement);
-                    }
+                    let result = builder
+                        .func()
+                        .inst_result_value(inst_id)
+                        .expect("mapping slot must produce a value");
+                    replacements.insert(result, replacement);
                 }
             }
             func.replace_uses_canonicalized(&replacements);
@@ -133,33 +134,24 @@ fn lower_word_mapping_slot(
     builder.keccak256(zero, size)
 }
 
-fn lower_memory_mapping_slot(
+fn lower_slice_mapping_slot(
     builder: &mut FunctionBuilder<'_>,
-    ptr: crate::mir::ValueId,
+    location: SliceLocation,
+    value: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let len = builder.memory_object_len(ptr, crate::mir::MemoryObjectKind::Bytes);
+    let len = match location {
+        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+    };
     let word_size = builder.imm_u64(32);
     let payload_size = builder.add(len, word_size);
     let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
-    let source = builder.memory_object_data(ptr, crate::mir::MemoryObjectKind::Bytes);
-    builder.mcopy(scratch, source, len);
-    let slot_address = builder.add(scratch, len);
-    builder.mstore(slot_address, slot);
-    builder.keccak256(scratch, payload_size)
-}
-
-fn lower_calldata_mapping_slot(
-    builder: &mut FunctionBuilder<'_>,
-    slice: crate::mir::ValueId,
-    slot: crate::mir::ValueId,
-) -> crate::mir::ValueId {
-    let len = builder.slice_len(slice);
-    let word_size = builder.imm_u64(32);
-    let payload_size = builder.add(len, word_size);
-    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
-    let source = builder.slice_ptr(slice);
-    builder.calldatacopy(scratch, source, len);
+    let source = match location {
+        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+    };
+    builder.copy_slice_data(location, scratch, source, len);
     let slot_address = builder.add(scratch, len);
     builder.mstore(slot_address, slot);
     builder.keccak256(scratch, payload_size)
