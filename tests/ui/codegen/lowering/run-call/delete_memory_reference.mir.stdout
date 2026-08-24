@@ -41,6 +41,13 @@ fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_args=la
     v2 = memory_object_len memorybytes, v1
     v3 = memory_object_len memorybytes, v0
     v4 = memory_object_load_element memorybytes, v0, 0
-    ret v2, v3, v4
+    v5 = memory_object_len memorybytes, v0
+    v6 = lt v5, 2
+    v7 = sub 2, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v10 = select v6, v9, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v11 = and v4, v10
+    ret v2, v3, v11
 }
 

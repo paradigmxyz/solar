@@ -1347,29 +1347,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         end_offset
     }
 
-    pub(super) fn is_calldata_dynamic_bytes_type(&self, ty: Ty<'gcx>) -> bool {
-        match ty.kind {
-            TyKind::Ref(inner, DataLocation::Calldata) => matches!(
-                inner.kind,
-                TyKind::Elementary(
-                    solar_sema::hir::ElementaryType::Bytes
-                        | solar_sema::hir::ElementaryType::String,
-                )
-            ),
-            TyKind::Slice(inner) => {
-                inner.is_ref_at(DataLocation::Calldata)
-                    && matches!(
-                        inner.peel_refs().kind,
-                        TyKind::Elementary(
-                            solar_sema::hir::ElementaryType::Bytes
-                                | solar_sema::hir::ElementaryType::String,
-                        )
-                    )
-            }
-            _ => false,
-        }
-    }
-
     fn try_pack_packed_word(
         &mut self,
         pieces: &[PackedPiece<'gcx>],
