@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.store_lvalue_place_with_source(place, value, None)
     }
 
-    fn store_lvalue_place_with_source(
+    pub(super) fn store_lvalue_place_with_source(
         &mut self,
         place: &LValuePlace<'gcx>,
         value: ValueId,

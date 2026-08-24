@@ -59,7 +59,6 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[],
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
-    sstore 1, v0 !metadata(storage=slot(1))
     v4 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v5 = sload v3 !metadata(storage=symbolic(v3))
     memory_object_store_field memorystruct<1>, v4, 0, v5
@@ -76,6 +75,7 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[],
     v10 = add v9, 1
     v11 = memory_object_load_field memorystruct<1>, v4, 0
     sstore v10, v11 !metadata(storage=offset(v9, 1))
+    sstore 1, v0 !metadata(storage=slot(1))
     v12 = sload 1 !metadata(storage=slot(1))
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = lt 1, v13

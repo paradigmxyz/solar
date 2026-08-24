@@ -78,13 +78,13 @@ fn @assigned() -> u256 [selector=0xadb4d990, abi_args=lazy, abi_params=[], abi_r
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
     v5 = mload v4
-    sstore 2, v2 !metadata(storage=slot(2))
     v6 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v7 = sload v5 !metadata(storage=symbolic(v5))
     memory_object_store_field memorystruct<2>, v6, 0, v7
     v8 = add v5, 1
     v9 = sload v8 !metadata(storage=offset(v5, 1))
     memory_object_store_field memorystruct<2>, v6, 1, v9
+    sstore 2, v2 !metadata(storage=slot(2))
     v10 = add 0, 1
     sstore v10, 77 !metadata(storage=slot(1))
     v11 = sload 2 !metadata(storage=slot(2))
