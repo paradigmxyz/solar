@@ -14,6 +14,7 @@ use solar_ast::{
 use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
     Ident, Symbol,
+    config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     kw, sym,
 };
@@ -98,6 +99,22 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn dcx(&self) -> &'gcx DiagCtxt {
         self.gcx.dcx()
+    }
+
+    fn emit_evm_version_error(&self, span: Span, feature: &str, required: EvmVersion) {
+        self.dcx()
+            .err(format!("{feature} requires {required:?}-compatible EVM"))
+            .span(span)
+            .help(format!("compile with `--evm-version {required}` or newer"))
+            .emit();
+    }
+
+    fn check_res_evm_version(&self, res: hir::Res, span: Span) {
+        if let hir::Res::Builtin(builtin) = res
+            && let Some(required) = builtin.required_evm_version(self.gcx.sess.opts.evm_version)
+        {
+            self.emit_evm_version_error(span, &format!("builtin `{}`", builtin.name()), required);
+        }
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
@@ -389,6 +406,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(resolutions) => {
                 let res = self.resolve_value(expr, resolutions);
+                self.check_res_evm_version(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -1662,6 +1680,7 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(res) = member.res {
+                    self.check_res_evm_version(res, callee.span);
                     self.results
                         .resolved_callees
                         .insert(callee.id, ResolvedCallee::new(res, member.attached));
@@ -1723,6 +1742,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
+            self.check_res_evm_version(res, expr.span);
             self.results.resolved_exprs.insert(expr.id, res);
         }
     }
@@ -1743,6 +1763,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 hir::Res::Err(self.dcx().emit_err(callee.span, msg))
             }
         };
+        self.check_res_evm_version(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
@@ -1995,6 +2016,10 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
+        if creation && salt_set && !self.gcx.sess.opts.evm_version.has_create2() {
+            self.emit_evm_version_error(span, "call option `salt`", EvmVersion::Constantinople);
+        }
+
         ty
     }
 
@@ -2185,6 +2210,12 @@ impl<'gcx> TypeChecker<'gcx> {
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
         self.check_var_type_size(var, ty);
+
+        if var.data_location == Some(DataLocation::Transient)
+            && self.gcx.sess.opts.evm_version < EvmVersion::Cancun
+        {
+            self.emit_evm_version_error(var.span, "transient storage", EvmVersion::Cancun);
+        }
 
         if let Some(init) = var.initializer {
             if var.is_state_variable() && ty.has_mapping(self.gcx) {

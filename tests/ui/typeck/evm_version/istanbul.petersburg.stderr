@@ -1,0 +1,10 @@
+error: builtin `chainid` requires Istanbul-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/istanbul.sol:LL:CC
+   │
+LL │         return block.chainid;
+   │                ━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version istanbul` or newer
+
+error: aborting due to 1 previous error
+
