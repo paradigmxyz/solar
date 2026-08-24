@@ -9,6 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
+    config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, sym,
 };
@@ -1416,6 +1417,23 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(&*functions);
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
+            if self.lcx.sess.opts.evm_version < EvmVersion::Cancun
+                && matches!(
+                    builtin,
+                    Builtin::YulBlobbasefee
+                        | Builtin::YulBlobhash
+                        | Builtin::YulMcopy
+                        | Builtin::YulTload
+                        | Builtin::YulTstore
+                )
+            {
+                return Err(self
+                    .dcx()
+                    .err(format!("Yul builtin `{}` requires Cancun-compatible EVM", name.name))
+                    .span(name.span)
+                    .help("compile with `--evm-version cancun` or newer")
+                    .emit());
+            }
             return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
         }
         if name.name.as_str().starts_with("verbatim_") {

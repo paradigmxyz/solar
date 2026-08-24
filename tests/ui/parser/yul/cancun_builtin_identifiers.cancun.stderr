@@ -1,0 +1,8 @@
+error: expected identifier, found Yul EVM builtin keyword `mcopy`
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let mcopy
+   ╰╴                ━━━━━
+
+error: aborting due to 1 previous error
+
