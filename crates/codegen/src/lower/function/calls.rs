@@ -478,9 +478,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
     ) -> FunctionId {
         let shape = InternalFunctionPointerShape::from_ty(function);
-        if let Some(&dispatcher) = self.context.state.pointer_registry.dispatchers.get(&shape) {
-            return dispatcher;
-        }
         let index = self.context.state.pointer_registry.dispatchers.len();
         *self.context.state.pointer_registry.dispatchers.entry(shape).or_insert_with(|| {
             self.context.module.add_function(Function::new(Ident::from_str(&format!(

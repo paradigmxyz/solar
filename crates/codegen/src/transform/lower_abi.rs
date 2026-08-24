@@ -425,7 +425,6 @@ impl LowerAbiCx {
             static_alias_ptr_decode_helpers.insert(layout, helper);
         }
 
-        let mut changed = false;
         for func_id in decode_functions.iter() {
             let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
@@ -462,7 +461,6 @@ impl LowerAbiCx {
                             let value =
                                 builder.internal_call(helper, vec![data], MirType::MemPtr, 1);
                             replacements.insert(result, value);
-                            changed = true;
                             continue;
                         }
                     }
@@ -480,7 +478,6 @@ impl LowerAbiCx {
                             return_count,
                         );
                         replacements.insert(result, value);
-                        changed = true;
                         continue;
                     }
 
@@ -515,15 +512,13 @@ impl LowerAbiCx {
                             );
                         }
                     }
-                    changed = true;
                 }
                 super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
             }
             func.replace_uses_canonicalized(&replacements);
-            let repaired = crate::mir::utils::repair_reachability_phis(func);
-            changed |= repaired;
+            let _ = crate::mir::utils::repair_reachability_phis(func);
         }
-        changed
+        !decode_functions.is_empty()
     }
 
     fn synthesize_shared_aggregate_type_helpers(
