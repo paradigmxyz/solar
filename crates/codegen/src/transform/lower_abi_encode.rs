@@ -782,21 +782,21 @@ fn literal_bytes(func: &Function, object: ValueId) -> Option<Vec<u8>> {
 /// the bytes directly in the output. The object must have no active use other
 /// than its allocation and literal stores; otherwise the object remains live.
 fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
+    let mut removed = FxHashSet::default();
     for &object in values {
         if literal_bytes(func, object).is_none() {
             continue;
         }
         let Value::Inst(defining_inst) = func.value(object) else { continue };
-        let mut removed = FxHashSet::default();
         removed.insert(*defining_inst);
         for inst_id in func.instructions() {
             if inst_id != *defining_inst && func.inst(inst_id).operands().contains(&object) {
                 removed.insert(inst_id);
             }
         }
-        for block in &mut func.blocks {
-            block.instructions.retain(|inst| !removed.contains(inst));
-        }
+    }
+    for block in &mut func.blocks {
+        block.instructions.retain(|inst| !removed.contains(inst));
     }
 }
 
