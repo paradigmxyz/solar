@@ -330,20 +330,26 @@ class CommandTests(unittest.TestCase):
                 {"enabled": True, "runs": 200},
             )
 
-    def test_project_imports_are_embedded_in_the_shared_input(self) -> None:
+    def test_import_discovery_uses_requested_evm_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             source_dir = root / "src"
             source_dir.mkdir()
             source = source_dir / "Probe.sol"
             imported = source_dir / "Lib.sol"
-            source.write_text('import "./Lib.sol"; contract Probe {}\n')
+            source_content = (
+                'import "./Lib.sol"; contract Probe { function f() external '
+                "pure returns (uint result) { assembly { let mcopy := 1 "
+                "result := mcopy } } }\n"
+            )
+            source.write_text(source_content)
             imported.write_text("library Lib {}\n")
             compiler = self._write_executable(
                 root / "solc",
                 "#!/usr/bin/env python3\n"
                 "import json, sys\n"
-                "json.load(sys.stdin)\n"
+                "value = json.load(sys.stdin)\n"
+                "assert value['settings']['evmVersion'] == 'paris'\n"
                 "print(json.dumps({'sources': {"
                 "'src/Probe.sol': {'id': 0}, 'src/Lib.sol': {'id': 1}}}))\n",
             )
@@ -351,7 +357,7 @@ class CommandTests(unittest.TestCase):
             materialized = symbolic._standard_input(
                 str(compiler),
                 source,
-                evm_version="osaka",
+                evm_version="paris",
                 optimize=True,
                 optimizer_runs=200,
                 via_ir=True,
@@ -365,11 +371,10 @@ class CommandTests(unittest.TestCase):
             materialized["input"]["sources"],
             {
                 "src/Lib.sol": {"content": "library Lib {}\n"},
-                "src/Probe.sol": {
-                    "content": 'import "./Lib.sol"; contract Probe {}\n'
-                },
+                "src/Probe.sol": {"content": source_content},
             },
         )
+        self.assertEqual(materialized["settings"]["evmVersion"], "paris")
 
     def _write_compiler(
         self,

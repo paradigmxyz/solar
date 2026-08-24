@@ -369,6 +369,7 @@ def _standard_input(
         "language": "Solidity",
         "sources": {root_source: {"content": source.read_text(encoding="utf-8")}},
         "settings": {
+            "evmVersion": evm_version,
             "outputSelection": {"*": {"": ["ast"]}},
             **({"remappings": list(remappings)} if remappings else {}),
         },
