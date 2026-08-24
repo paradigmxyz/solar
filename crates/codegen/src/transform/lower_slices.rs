@@ -769,8 +769,6 @@ impl LowerSlices {
             while Self::split_slice_aggregates(func) {
                 changed = true;
             }
-        }
-        for func in module.functions.iter_mut() {
             changed |= Self::expand_call_args(func, &signatures);
         }
         for (id, func) in module.functions.iter_mut_enumerated() {
