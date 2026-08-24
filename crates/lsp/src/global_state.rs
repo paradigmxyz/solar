@@ -625,8 +625,7 @@ impl GlobalState {
         let (capabilities, config) = negotiate_capabilities_with_pull_diagnostic_data(
             params,
             pull_diagnostic_data_support,
-            self.launch_config.default_forge_path(),
-            self.launch_config.selected_profile(),
+            &self.launch_config,
         );
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
