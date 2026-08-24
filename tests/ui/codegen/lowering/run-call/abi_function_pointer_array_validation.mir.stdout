@@ -74,49 +74,50 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, 0, v3
-    v7 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    v7 = shl 64, v3
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v8 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb3, bb4
   bb3:
-    v8 = add v7, 32
-    v9 = add v8, 92
-    mstore8 v9, 88
+    v9 = add v8, 32
+    v10 = add v9, 92
+    mstore8 v10, 88
     jump bb5
   bb4:
     jump bb5
   bb5:
-    v10 = address
-    v11 = gas
-    v12 = memory_object_data memorybytes, v7
-    v13 = memory_object_len memorybytes, v7
-    v14 = staticcall v11, v10, v12, v13, 0, 0
-    v15 = returndatasize
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb6, bb7
+    v11 = address
+    v12 = gas
+    v13 = memory_object_data memorybytes, v8
+    v14 = memory_object_len memorybytes, v8
+    v15 = staticcall v12, v11, v13, v14, 0, 0
+    v16 = returndatasize
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb6, bb7
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    v21 = make_returndata_slice 0, v15
-    memory_object_copy_from_slice memorybytes, v20, v21
-    v22 = iszero v14
-    jumpi v22, bb8, bb9
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = make_returndata_slice 0, v16
+    memory_object_copy_from_slice memorybytes, v21, v22
+    v23 = iszero v15
+    jumpi v23, bb8, bb9
   bb8:
     revert 0, 0
   bb9:
-    v23 = abi_decode [u256], v20
-    v24 = eq v23, arg2
-    v25 = iszero v24
-    jumpi v25, bb10, bb11
+    v24 = abi_decode [u256], v21
+    v25 = eq v24, arg2
+    v26 = iszero v25
+    jumpi v26, bb10, bb11
   bb10:
     revert 0, 0
   bb11:
-    ret v23
+    ret v24
 }
 
