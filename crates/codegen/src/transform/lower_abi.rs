@@ -2066,6 +2066,49 @@ impl LowerAbiCx {
         *current = done;
     }
 
+    fn decode_static_aggregate(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &crate::mir::AbiParamType,
+        head: ValueId,
+        decode: &mut impl FnMut(&mut FunctionBuilder<'_>, &crate::mir::AbiParamType, ValueId) -> ValueId,
+    ) -> ValueId {
+        match ty {
+            crate::mir::AbiParamType::FixedArray { element, len } => {
+                let (object, layout) =
+                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
+                let mut offset = 0;
+                for index in 0..*len {
+                    let field = builder.add_u64_offset(head, offset);
+                    let value = decode(builder, element, field);
+                    let index_value = builder.imm_u64(index);
+                    builder.memory_object_store_element(object, layout, index_value, value);
+                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
+                }
+                object
+            }
+            crate::mir::AbiParamType::Tuple(fields) => {
+                let (object, layout) = builder.alloc_word_struct(
+                    fields.len() as u64,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
+                let mut offset = 0;
+                for (index, field) in fields.iter().enumerate() {
+                    let field_head = builder.add_u64_offset(head, offset);
+                    let value = decode(builder, field, field_head);
+                    builder.memory_object_store_field(object, layout, index as u64, value);
+                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
+                }
+                object
+            }
+            crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
+                unreachable!("dynamic ABI value in static aggregate")
+            }
+            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
+                unreachable!("scalar ABI word handled above")
+            }
+        }
+    }
+
     fn decode_static_memory_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -2083,53 +2126,12 @@ impl LowerAbiCx {
         if matches!(ty, AbiParamType::Scalar(_)) {
             return builder.mload(head);
         }
-        match ty {
-            crate::mir::AbiParamType::FixedArray { element, len } => {
-                let (object, layout) =
-                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
-                let mut offset = 0;
-                for index in 0..*len {
-                    let field = builder.add_u64_offset(head, offset);
-                    let value = Self::decode_static_memory_argument(
-                        builder,
-                        element,
-                        field,
-                        current,
-                        has_bitwise_shifting,
-                    );
-                    let index_value = builder.imm_u64(index);
-                    builder.memory_object_store_element(object, layout, index_value, value);
-                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
-                object
-            }
-            crate::mir::AbiParamType::Tuple(fields) => {
-                let (object, layout) = builder.alloc_word_struct(
-                    fields.len() as u64,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
-                let mut offset = 0;
-                for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(head, offset);
-                    let value = Self::decode_static_memory_argument(
-                        builder,
-                        field,
-                        field_head,
-                        current,
-                        has_bitwise_shifting,
-                    );
-                    builder.memory_object_store_field(object, layout, index as u64, value);
-                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
-                object
-            }
-            crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
-                unreachable!("dynamic ABI values are not in a static tuple")
-            }
-            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
-                unreachable!("scalar ABI word handled above")
-            }
-        }
+        let mut decode = |builder: &mut FunctionBuilder<'_>,
+                          ty: &crate::mir::AbiParamType,
+                          head: ValueId| {
+            Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
+        };
+        Self::decode_static_aggregate(builder, ty, head, &mut decode)
     }
 
     /// Decodes a static calldata aggregate and joins its canonicality checks.
@@ -2216,53 +2218,11 @@ impl LowerAbiCx {
         if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
             return builder.calldataload(head);
         }
-        match ty {
-            crate::mir::AbiParamType::FixedArray { element, len } => {
-                let (object, layout) =
-                    builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
-                let mut offset = 0;
-                for index in 0..*len {
-                    let element_head = builder.add_u64_offset(head, offset);
-                    let value = Self::decode_static_calldata_value(
-                        builder,
-                        element,
-                        element_head,
-                        valid,
-                        has_bitwise_shifting,
-                    );
-                    let index_value = builder.imm_u64(index);
-                    builder.memory_object_store_element(object, layout, index_value, value);
-                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
-                object
-            }
-            crate::mir::AbiParamType::Tuple(fields) => {
-                let (object, layout) = builder.alloc_word_struct(
-                    fields.len() as u64,
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
-                let mut offset = 0;
-                for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(head, offset);
-                    let value = Self::decode_static_calldata_value(
-                        builder,
-                        field,
-                        field_head,
-                        valid,
-                        has_bitwise_shifting,
-                    );
-                    builder.memory_object_store_field(object, layout, index as u64, value);
-                    offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
-                object
-            }
-            crate::mir::AbiParamType::Bytes | crate::mir::AbiParamType::DynamicArray(_) => {
-                unreachable!("dynamic ABI values are not static")
-            }
-            crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
-                unreachable!("scalar ABI word handled above")
-            }
-        }
+        let mut decode =
+            |builder: &mut FunctionBuilder<'_>, ty: &crate::mir::AbiParamType, head: ValueId| {
+                Self::decode_static_calldata_value(builder, ty, head, valid, has_bitwise_shifting)
+            };
+        Self::decode_static_aggregate(builder, ty, head, &mut decode)
     }
 
     fn load_input_word(
