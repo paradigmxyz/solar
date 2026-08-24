@@ -447,15 +447,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<()> {
+        macro_rules! lower {
+            ($method:ident($($arg:ident),* $(,)?)) => {{
+                let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.$method($($arg),*);
+                Some(())
+            }};
+        }
         match builtin {
-            Builtin::YulMstore => {
-                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.mstore(offset, value);
-            }
-            Builtin::YulMstore8 => {
-                let [offset, value] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.mstore8(offset, value);
-            }
+            Builtin::YulMstore => lower!(mstore(offset, value)),
+            Builtin::YulMstore8 => lower!(mstore8(offset, value)),
             Builtin::YulMcopy => {
                 if !self.context.gcx.sess.opts.evm_version.has_mcopy() {
                     return self.unsupported_yul_version(
@@ -464,77 +465,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         args.span,
                     );
                 }
-                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.mcopy(dest, src, size);
+                lower!(mcopy(dest, src, size))
             }
-            Builtin::YulSstore => {
-                let [slot, value] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.sstore(slot, value);
-            }
-            Builtin::YulTstore => {
-                let [slot, value] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.tstore(slot, value);
-            }
-            Builtin::YulCalldatacopy => {
-                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.calldatacopy(dest, src, size);
-            }
-            Builtin::YulCodecopy => {
-                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.codecopy(dest, src, size);
-            }
-            Builtin::YulExtcodecopy => {
-                let [address, dest, src, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.extcodecopy(address, dest, src, size);
-            }
-            Builtin::YulReturndatacopy => {
-                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.returndatacopy(dest, src, size);
-            }
-            Builtin::YulLog0 => {
-                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.log0(offset, size);
-            }
-            Builtin::YulLog1 => {
-                let [offset, size, topic1] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.log1(offset, size, topic1);
-            }
-            Builtin::YulLog2 => {
-                let [offset, size, topic1, topic2] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.log2(offset, size, topic1, topic2);
-            }
-            Builtin::YulLog3 => {
-                let [offset, size, topic1, topic2, topic3] =
-                    self.lower_builtin_args(builtin, &args)?;
-                self.builder.log3(offset, size, topic1, topic2, topic3);
-            }
-            Builtin::YulLog4 => {
-                let [offset, size, topic1, topic2, topic3, topic4] =
-                    self.lower_builtin_args(builtin, &args)?;
-                self.builder.log4(offset, size, topic1, topic2, topic3, topic4);
-            }
-            Builtin::YulRevert => {
-                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.revert(offset, size);
-            }
-            Builtin::YulReturn => {
-                let [offset, size] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.ret_data(offset, size);
-            }
-            Builtin::YulStop => {
-                let [] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.stop();
-            }
-            Builtin::YulInvalid => {
-                let [] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.invalid();
-            }
-            Builtin::YulSelfdestruct => {
-                let [address] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.selfdestruct(address);
-            }
+            Builtin::YulSstore => lower!(sstore(slot, value)),
+            Builtin::YulTstore => lower!(tstore(slot, value)),
+            Builtin::YulCalldatacopy => lower!(calldatacopy(dest, src, size)),
+            Builtin::YulCodecopy => lower!(codecopy(dest, src, size)),
+            Builtin::YulExtcodecopy => lower!(extcodecopy(address, dest, src, size)),
+            Builtin::YulReturndatacopy => lower!(returndatacopy(dest, src, size)),
+            Builtin::YulLog0 => lower!(log0(offset, size)),
+            Builtin::YulLog1 => lower!(log1(offset, size, topic1)),
+            Builtin::YulLog2 => lower!(log2(offset, size, topic1, topic2)),
+            Builtin::YulLog3 => lower!(log3(offset, size, topic1, topic2, topic3)),
+            Builtin::YulLog4 => lower!(log4(offset, size, topic1, topic2, topic3, topic4)),
+            Builtin::YulRevert => lower!(revert(offset, size)),
+            Builtin::YulReturn => lower!(ret_data(offset, size)),
+            Builtin::YulStop => lower!(stop()),
+            Builtin::YulInvalid => lower!(invalid()),
+            Builtin::YulSelfdestruct => lower!(selfdestruct(address)),
             Builtin::YulPop => {
                 let [_value] = self.lower_builtin_args(builtin, &args)?;
+                Some(())
             }
             _ => {
                 return report_error(
@@ -544,7 +495,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             }
         }
-        Some(())
     }
 
     fn lower_yul_value_builtin_call(
