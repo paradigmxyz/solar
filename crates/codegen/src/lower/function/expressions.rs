@@ -385,6 +385,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.context.gcx.event_selector(event_id).as_slice(),
             )));
         }
+        if builtin == Builtin::FixedBytesLength {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.context.gcx, expr.span, "fixed-bytes length");
+            };
+            let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
+                self.context.gcx.type_of_expr(receiver.id)?.peel_refs().kind
+            else {
+                return report_unsupported(self.context.gcx, expr.span, "fixed-bytes length");
+            };
+            if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
+                self.lower_expr(receiver)?;
+            }
+            return Some(self.builder.imm_u64(u64::from(size.bytes())));
+        }
         if builtin == Builtin::ArrayLength {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.context.gcx, expr.span, "array length");
