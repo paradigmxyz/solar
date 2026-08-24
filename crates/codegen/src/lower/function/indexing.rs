@@ -46,11 +46,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        if let Some(LValuePlace::StorageByte { object, index, ty, .. }) =
-            self.resolve_storage_byte_place(expr)
-        {
-            let value = self.builder.memory_object_load_byte(object, index);
-            return Some(self.normalize_byte_type(ty, value));
+        if let Some(place) = self.resolve_storage_byte_place(expr) {
+            return self.load_lvalue_place(&place);
         }
         if let Some(access) = self.storage_access(expr) {
             return self.load_storage_access(expr, access);
