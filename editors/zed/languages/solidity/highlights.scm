@@ -191,12 +191,6 @@
 
 (event_parameter "indexed" @keyword)
 
-(ternary_expression
-  [
-    "?"
-    ":"
-  ] @operator)
-
 ; Punctuation
 
 [
@@ -260,6 +254,12 @@
   "++"
   "--"
 ] @operator
+
+(ternary_expression
+  [
+    "?"
+    ":"
+  ] @operator)
 
 [
   "delete"
