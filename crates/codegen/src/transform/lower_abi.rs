@@ -105,6 +105,18 @@ struct DecodeOptions<'a> {
 }
 
 impl DecodeOptions<'_> {
+    fn new(constructor: bool, input_end: ValueId, has_bitwise_shifting: bool) -> Self {
+        Self {
+            constructor,
+            input_end,
+            head_checked: false,
+            allow_alias: false,
+            validate_array_elements: true,
+            helpers: None,
+            has_bitwise_shifting,
+        }
+    }
+
     fn checked(self) -> Self {
         Self { head_checked: true, ..self }
     }
@@ -331,15 +343,14 @@ impl LowerAbiCx {
     }
 
     fn can_decode_constructor_params(func: &Function) -> bool {
-        let Some(layout) = &func.abi_params else { return false };
-        func.abi_args_lazy
-            && func.params.len() == layout.types.len()
-            && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
-                Self::is_constructor_array_element(abi_ty) && abi_ty.mir_type() == param_ty
-            })
-            && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
-            && layout.checked_head_size().is_some_and(|head_size| {
-                head_size != 0 && usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE).is_ok()
+        Self::can_wrap_constructor_params(func)
+            && func.abi_params.as_ref().is_some_and(|layout| {
+                layout.types.iter().all(Self::is_constructor_array_element)
+                    && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
+                    && layout.checked_head_size().is_some_and(|head_size| {
+                        head_size != 0
+                            && usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE).is_ok()
+                    })
             })
     }
 
@@ -565,15 +576,7 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 &mut current,
-                DecodeOptions {
-                    constructor: false,
-                    input_end,
-                    head_checked: true,
-                    allow_alias: false,
-                    validate_array_elements: true,
-                    helpers: None,
-                    has_bitwise_shifting: self.has_bitwise_shifting,
-                },
+                DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
             );
             builder.add_return(ty.mir_type());
             builder.ret([value]);
@@ -765,13 +768,8 @@ impl LowerAbiCx {
         current: &mut BlockId,
         has_bitwise_shifting: bool,
     ) {
-        builder.switch_to_block(*current);
-        let input_end = builder.add(base, length);
-        let overflow = builder.lt(input_end, base);
-        let head_size = builder.imm_u64(layout.checked_head_size().expect("static ABI layout"));
-        let short = builder.lt(length, head_size);
-        let invalid = builder.or(overflow, short);
-        *current = builder.revert_if(invalid);
+        let head_size = layout.checked_head_size().expect("static ABI layout");
+        Self::validate_memory_tuple_input(builder, base, length, head_size, current);
 
         let mut valid = builder.imm_bool(true);
         let mut offset = 0_u64;
@@ -788,6 +786,23 @@ impl LowerAbiCx {
 
         let invalid = builder.iszero(valid);
         *current = builder.revert_if(invalid);
+    }
+
+    fn validate_memory_tuple_input(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        length: ValueId,
+        head_size: u64,
+        current: &mut BlockId,
+    ) -> ValueId {
+        builder.switch_to_block(*current);
+        let input_end = builder.add(base, length);
+        let overflow = builder.lt(input_end, base);
+        let head_size = builder.imm_u64(head_size);
+        let short = builder.lt(length, head_size);
+        let invalid = builder.or(overflow, short);
+        *current = builder.revert_if(invalid);
+        input_end
     }
 
     fn validate_static_memory_argument(
@@ -1026,11 +1041,11 @@ impl LowerAbiCx {
             && original.abi_params.as_ref().is_some_and(|layout| {
                 layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
             });
+        let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
         let call_body = !keep_external_body
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
-            && original.blocks[BlockId::ENTRY].instructions.first().copied().is_some();
-        let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
+            && original_entry_inst.is_some();
         let lazy_args = original.abi_args_lazy;
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
@@ -1388,13 +1403,8 @@ impl LowerAbiCx {
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
                         || Self::needs_full_calldata_array_validation(builder.func(), uses, ty);
                     let decode_options = DecodeOptions {
-                        constructor,
-                        input_end,
-                        head_checked: false,
-                        allow_alias: false,
                         validate_array_elements,
-                        helpers: None,
-                        has_bitwise_shifting: self.has_bitwise_shifting,
+                        ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
                         if location == AbiParamLocation::Memory {
@@ -1897,7 +1907,6 @@ impl LowerAbiCx {
                 let remaining = builder.phi(vec![(preheader, len)]);
                 let source = builder.phi(vec![(preheader, data_base)]);
                 let destination_index = builder.phi(vec![(preheader, zero)]);
-                let zero = builder.imm_u64(0);
                 let has_next = builder.gt(remaining, zero);
                 builder.branch(has_next, body, done);
 
@@ -2779,12 +2788,9 @@ pub(crate) fn decode_memory_tuple(
     has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
     let head_size = layout.checked_head_size()?;
-    let input_end = builder.add(base, length);
-    let overflow = builder.lt(input_end, base);
-    let head_size = builder.imm_u64(head_size);
-    let short = builder.lt(length, head_size);
-    let invalid = builder.or(overflow, short);
-    let mut current = builder.revert_if(invalid);
+    let mut current = builder.current_block();
+    let input_end =
+        LowerAbiCx::validate_memory_tuple_input(builder, base, length, head_size, &mut current);
 
     let mut values = Vec::with_capacity(layout.types.len());
     let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
@@ -2808,13 +2814,9 @@ pub(crate) fn decode_memory_tuple(
                 base,
                 &mut current,
                 DecodeOptions {
-                    constructor: true,
-                    input_end,
-                    head_checked: true,
                     allow_alias,
-                    validate_array_elements: true,
                     helpers,
-                    has_bitwise_shifting,
+                    ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
                 },
             )
         };
@@ -2847,13 +2849,8 @@ pub(crate) fn synthesize_memory_decode_helper(
             tuple_base,
             &mut current,
             DecodeOptions {
-                constructor: true,
-                input_end,
-                head_checked: true,
                 allow_alias: true,
-                validate_array_elements: true,
-                helpers: None,
-                has_bitwise_shifting,
+                ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
             },
         );
         builder.add_return(ty.mir_type());

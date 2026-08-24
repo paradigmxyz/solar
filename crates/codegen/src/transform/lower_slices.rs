@@ -100,6 +100,17 @@ fn split_slice_incoming(func: &mut Function, incoming: Vec<(BlockId, ValueId)>) 
     (ptr_incoming, len_incoming)
 }
 
+fn split_slice_phis(
+    func: &mut Function,
+    incoming: Vec<(BlockId, ValueId)>,
+) -> ((InstId, ValueId), (InstId, ValueId)) {
+    let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
+    (
+        new_word_inst(func, InstKind::Phi(ptr_incoming)),
+        new_word_inst(func, InstKind::Phi(len_incoming)),
+    )
+}
+
 fn can_split_slice_incoming(
     func: &Function,
     incoming: &[(BlockId, ValueId)],
@@ -150,10 +161,7 @@ impl LowerSlices {
                     continue;
                 }
 
-                let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
-
-                let (ptr_phi, pointer) = new_word_inst(func, InstKind::Phi(ptr_incoming));
-                let (len_phi, length) = new_word_inst(func, InstKind::Phi(len_incoming));
+                let ((ptr_phi, pointer), (len_phi, length)) = split_slice_phis(func, incoming);
                 insertions.insert(inst_id, (ptr_phi, len_phi));
                 replacements.insert(result, pointer);
                 for &(user, user_result, is_pointer) in users {
@@ -280,9 +288,7 @@ impl LowerSlices {
                     InstKind::Phi(incoming) => std::mem::take(incoming),
                     _ => unreachable!(),
                 };
-                let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
-                let (ptr_phi, sp) = new_word_inst(func, InstKind::Phi(ptr_incoming));
-                let (len_phi, sl) = new_word_inst(func, InstKind::Phi(len_incoming));
+                let ((ptr_phi, sp), (len_phi, sl)) = split_slice_phis(func, incoming);
                 let (make, new_slice) = new_slice_inst(func, sp, sl, location);
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);

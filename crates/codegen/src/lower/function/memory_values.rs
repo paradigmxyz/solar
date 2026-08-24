@@ -121,17 +121,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             AllocationSemantics::SOLIDITY_ZEROED
         };
-        let object =
-            self.builder.alloc_object(size, MemoryObjectLayout::Struct { fields }, initialization);
+        let layout = MemoryObjectLayout::Struct { fields };
+        let object = self.builder.alloc_object(size, layout, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
             let value = self.lower_expr(value)?;
-            self.builder.memory_object_store_field(
-                object,
-                MemoryObjectLayout::Struct { fields },
-                index as u64,
-                value,
-            );
+            self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)
     }

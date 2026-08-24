@@ -400,9 +400,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        let kind = match types::TypeLowerer::mir_type(ty) {
-            MirType::MemoryObject(kind) => kind,
-            _ => return self.load_multi_return_value(base, index, returns),
+        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) else {
+            return self.load_multi_return_value(base, index, returns);
         };
         let index = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX));
         self.builder.memory_object_load_object(

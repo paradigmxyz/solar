@@ -6,10 +6,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
-            let value = self.builder.add_param(types::TypeLowerer::mir_type(
-                self.context.gcx.type_of_item(param.into()),
-            ));
             let ty = self.context.gcx.type_of_item(param.into());
+            let value = self.builder.add_param(types::TypeLowerer::mir_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -24,10 +22,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         for &ret in function.returns {
-            self.builder.add_return(types::TypeLowerer::mir_return_type(
-                self.context.gcx.type_of_item(ret.into()),
-            ));
             let ty = self.context.gcx.type_of_item(ret.into());
+            self.builder.add_return(types::TypeLowerer::mir_return_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 self.storage_refs.insert(

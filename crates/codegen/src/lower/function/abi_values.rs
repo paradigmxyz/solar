@@ -272,18 +272,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.value_is_canonical(value, &mut FxHashSet::default()) {
             return value;
         }
-        let element_ty = match ty.peel_refs().kind {
-            TyKind::DynArray(element) | TyKind::Array(element, _) => element,
-            _ => return value,
+        let (TyKind::DynArray(element_ty) | TyKind::Array(element_ty, _)) = ty.peel_refs().kind
+        else {
+            return value;
         };
         if !self.abi_value_needs_normalization(element_ty) {
             return value;
         }
 
-        let layout = match self.types.memory_layout(ty) {
-            Some(layout @ MemoryObjectLayout::DynamicArray { element_words: 1 })
-            | Some(layout @ MemoryObjectLayout::FixedArray { element_words: 1, .. }) => layout,
-            _ => return value,
+        let Some(
+            layout @ (MemoryObjectLayout::DynamicArray { element_words: 1 }
+            | MemoryObjectLayout::FixedArray { element_words: 1, .. }),
+        ) = self.types.memory_layout(ty)
+        else {
+            return value;
         };
         if !self.is_memory_object_value(value, layout.kind()) {
             return value;
@@ -808,9 +810,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn copy_packed_slice(&mut self, destination: ValueId, source: ValueId) -> Option<()> {
-        let location = match self.builder.func().value_ty(source)? {
-            MirType::Slice(location) => location,
-            _ => return None,
+        let MirType::Slice(location) = self.builder.func().value_ty(source)? else {
+            return None;
         };
         let length = self.builder.slice_len(source);
         let pointer = self.builder.slice_ptr(source);
