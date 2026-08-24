@@ -3550,7 +3550,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for &source in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources).iter()
         {
-            if !self.scheduler.can_emit_value(source, func) {
+            if !self.can_emit_stack_phi_value(func, source) {
                 return false;
             }
             self.emit_operand(func, source);
@@ -3597,11 +3597,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 *count -= 1;
                 continue;
             }
-            if !self.scheduler.can_emit_value(source, func) {
+            if !self.can_emit_stack_phi_value(func, source) {
                 return false;
             }
         }
         true
+    }
+
+    /// Stack-phi preparation emits through `emit_operand`, which can recompute an unstored spill.
+    fn can_emit_stack_phi_value(&self, func: &Function, value: ValueId) -> bool {
+        self.scheduler.can_emit_value(value, func)
+            || self.scheduler.should_recompute_unstored_spill(value)
     }
 
     fn can_prepare_stack_phi_branch(
@@ -3613,7 +3619,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if branch.union.is_empty() || branch.union.len() > MAX_STACK_ACCESS {
             return false;
         }
-        self.scheduler.can_emit_value(condition, func)
+        self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_edge(func, &branch.else_edge)
     }
@@ -3646,7 +3652,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         needed.extend_from_slice(&branch.union);
         self.pop_stack_values_not_needed_by(&needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
-            assert!(self.scheduler.can_emit_value(value, func));
+            assert!(self.can_emit_stack_phi_value(func, value));
             self.emit_operand(func, value);
         }
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
