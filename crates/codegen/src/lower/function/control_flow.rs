@@ -44,8 +44,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(condition, then_block, else_block);
 
-        self.values = before_values.clone();
-        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(then_block);
         let then_value = lower_then(self)?;
         let then_terminated = self.is_terminated();
@@ -360,8 +358,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         self.builder.branch(success, success_block, catch_block);
 
-        self.values = before.clone();
-        self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(success_block);
         if let Some(binding) = creation_binding {
             let Some(value) = creation_value else {
