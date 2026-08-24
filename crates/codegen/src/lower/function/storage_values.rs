@@ -225,13 +225,8 @@ fn synthesize_storage_struct_array_helper(
         builder.branch(condition, body, exit);
 
         builder.switch_to_block(body);
-        let field_size = builder.imm_u64(field_count.saturating_mul(32));
-        let field_layout = MemoryObjectLayout::Struct { fields: field_count };
-        let value = builder.alloc_object(
-            field_size,
-            field_layout,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
+        let (value, field_layout) =
+            builder.alloc_word_struct(field_count, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         for (field_index, field) in fields.iter().enumerate() {
             let location = match field {
                 StorageStructField::Scalar { location }
@@ -965,13 +960,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Struct(struct_id) => {
                 let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
-                let layout = MemoryObjectLayout::Struct { fields };
-                let size = self.builder.imm_u64(fields.saturating_mul(32));
-                let object = self.builder.alloc_object(
-                    size,
-                    layout,
-                    AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                );
+                let (object, layout) = self
+                    .builder
+                    .alloc_word_struct(fields, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 for (index, &field) in
                     self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate()
                 {

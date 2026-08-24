@@ -2023,10 +2023,10 @@ impl LowerAbiCx {
                 }
                 let carries_base = !constructor && ty.has_dynamic_child();
                 let storage_fields = fields.len() + usize::from(carries_base);
-                let size = builder.imm_u64((storage_fields as u64).saturating_mul(32));
-                let layout = crate::mir::MemoryObjectLayout::structure(storage_fields as u64);
-                let ptr =
-                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let (ptr, layout) = builder.alloc_word_struct(
+                    storage_fields as u64,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
                     let field_offset = builder.imm_u64(offset);
@@ -2200,10 +2200,10 @@ impl LowerAbiCx {
                 object
             }
             crate::mir::AbiParamType::Tuple(fields) => {
-                let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
-                let layout = crate::mir::MemoryObjectLayout::structure(fields.len() as u64);
-                let object =
-                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let (object, layout) = builder.alloc_word_struct(
+                    fields.len() as u64,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
                     let offset_value = builder.imm_u64(offset);
@@ -2377,10 +2377,10 @@ impl LowerAbiCx {
                 object
             }
             crate::mir::AbiParamType::Tuple(fields) => {
-                let size = builder.imm_u64((fields.len() as u64).saturating_mul(32));
-                let layout = crate::mir::MemoryObjectLayout::structure(fields.len() as u64);
-                let object =
-                    builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL);
+                let (object, layout) = builder.alloc_word_struct(
+                    fields.len() as u64,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
                     let offset_value = builder.imm_u64(offset);
@@ -3440,10 +3440,8 @@ fn canonicalize_return_value(
         }
         AbiParamType::Bytes => value,
         AbiParamType::Tuple(fields) => {
-            let fields_len = fields.len() as u64;
-            let size = builder.imm_u64(fields_len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-            let layout = MemoryObjectLayout::structure(fields_len);
-            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            let (output, layout) =
+                builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
             for (index, field_ty) in fields.iter().enumerate() {
                 let field_value = builder.memory_object_load_field(value, layout, index as u64);
                 let field_value = canonicalize_return_value(

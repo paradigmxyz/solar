@@ -570,6 +570,18 @@ impl<'a> FunctionBuilder<'a> {
         (object, layout)
     }
 
+    /// Allocates a struct whose fields each occupy one memory word.
+    pub(crate) fn alloc_word_struct(
+        &mut self,
+        fields: u64,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, MemoryObjectLayout) {
+        let size = self.imm_u64(fields.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let layout = MemoryObjectLayout::structure(fields);
+        let object = self.alloc_object(size, layout, semantics);
+        (object, layout)
+    }
+
     /// Allocates a dynamic array whose elements each occupy one memory word.
     pub(crate) fn alloc_dynamic_word_array(
         &mut self,

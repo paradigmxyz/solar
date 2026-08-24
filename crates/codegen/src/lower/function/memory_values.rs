@@ -85,9 +85,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let parameter_names =
             self.context.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
-        let layout = MemoryObjectLayout::Struct { fields };
-        let size = self.builder.imm_u64(fields.saturating_mul(32));
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let (object, layout) =
+            self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
         for (index, &field) in struct_fields.iter().enumerate() {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
