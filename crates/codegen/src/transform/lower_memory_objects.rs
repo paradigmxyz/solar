@@ -470,65 +470,56 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 continue;
             };
 
-            let mut allocations = vec![(inst_id, first)];
+            let mut allocations = vec![(inst_id, first, false)];
             let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
-            let mut stored = Vec::new();
             owners[first.result] = Some(0);
-            stored.push(false);
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
                 if let Some(allocation) = constant_raw_allocation(func, next_id) {
                     let index = allocations.len();
-                    allocations.push((next_id, allocation));
+                    allocations.push((next_id, allocation, false));
                     owners[allocation.result] = Some(index);
-                    stored.push(false);
                     scan += 1;
                     continue;
                 }
 
                 let kind = func.inst(next_id).kind.clone();
                 let result = func.inst_result_value(next_id);
-                let is_derived_address = result.is_some_and(|result| {
-                    owners[result].is_some()
-                        || matches!(kind, InstKind::Add(lhs, rhs)
-                            if (owners[lhs].is_some() && func.value_u64(rhs).is_some())
-                                || (owners[rhs].is_some() && func.value_u64(lhs).is_some()))
-                });
-                let initial_store_address = match &kind {
-                    InstKind::MStore(address, _) | InstKind::MStore8(address, _)
-                        if owners[*address].is_some() =>
-                    {
-                        Some(*address)
+                let derived_owner = match &kind {
+                    InstKind::Add(lhs, rhs) if func.value_u64(*rhs).is_some() => owners[*lhs],
+                    InstKind::Add(lhs, rhs) if func.value_u64(*lhs).is_some() => owners[*rhs],
+                    _ => None,
+                };
+                let store_owner = match &kind {
+                    InstKind::MStore(address, _) | InstKind::MStore8(address, _) => {
+                        owners[*address]
                     }
                     _ => None,
                 };
-                if initial_store_address.is_some() || is_derived_address {
-                    if let Some(address) = initial_store_address
-                        && let Some(owner) = owners[address]
-                    {
-                        stored[owner] = true;
-                    }
-                    if let Some(result) = result
-                        && let InstKind::Add(lhs, rhs) = kind
-                    {
-                        let source = if owners[lhs].is_some() { lhs } else { rhs };
-                        owners[result] = owners[source];
-                    }
+                if let Some(owner) = store_owner {
+                    allocations[owner].2 = true;
+                }
+                if let Some(owner) = derived_owner
+                    && let Some(result) = result
+                {
+                    owners[result] = Some(owner);
+                }
+                if store_owner.is_some() || derived_owner.is_some() {
                     scan += 1;
                     continue;
                 }
                 break;
             }
 
-            if allocations.len() < 2 || stored.iter().any(|stored| !stored) {
+            if allocations.len() < 2 || allocations.iter().any(|(_, _, stored)| !stored) {
                 position += 1;
                 continue;
             }
 
             let Some(total) = allocations
                 .iter()
-                .try_fold(0_u64, |total, (_, allocation)| total.checked_add(allocation.size))
+                .try_fold(0_u64, |total, (_, allocation, _)| total.checked_add(allocation.size))
             else {
                 position = scan;
                 continue;
@@ -536,13 +527,13 @@ fn coalesce_constant_allocations(func: &mut Function) {
             let base = allocations[0].1.result;
             let size = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(total))));
             let mut offset = 0_u64;
-            for (index, (allocation_id, allocation)) in allocations.iter().enumerate() {
+            for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
                     let inst = func.inst_mut(*allocation_id);
                     inst.kind = InstKind::Alloc {
                         size,
                         kind: AllocationKind::Raw,
-                        semantics: allocation.semantics,
+                        semantics: AllocationSemantics::INTERNAL,
                     };
                 } else {
                     let offset_value =
@@ -565,7 +556,6 @@ fn coalesce_constant_allocations(func: &mut Function) {
 struct ConstantRawAllocation {
     result: crate::mir::ValueId,
     size: u64,
-    semantics: AllocationSemantics,
 }
 
 fn constant_raw_allocation(
@@ -582,7 +572,6 @@ fn constant_raw_allocation(
     Some(ConstantRawAllocation {
         result: func.inst_result_value(inst_id)?,
         size: func.value_u64(size)?,
-        semantics,
     })
 }
 

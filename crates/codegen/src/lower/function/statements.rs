@@ -572,10 +572,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         abi_type = self.abi_type_for_value(value, abi_type);
                         let validated_static =
                             self.validate_calldata_static_argument(value, parameter_ty);
-                        let calldata_dynamic = matches!(
-                            self.builder.func().value_ty(value),
-                            Some(MirType::Slice(SliceLocation::Calldata))
-                        ) && abi_type.is_dynamic();
+                        let calldata_dynamic = self.builder.func().value_slice_location(value)
+                            == Some(SliceLocation::Calldata)
+                            && abi_type.is_dynamic();
                         if (calldata_dynamic
                             || self.needs_calldata_materialization(value, &abi_type))
                             && !validated_static

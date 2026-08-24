@@ -91,28 +91,15 @@ fn lower_function(func: &mut Function) -> bool {
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
-        let replacement = match &func.inst(inst_id).kind {
-            InstKind::SlicePtr(slice) => {
-                let slice = resolve(*slice, replacements);
-                let Value::Inst(make_slice) = func.value(slice) else { continue };
-                let InstKind::MakeSlice { ptr, .. } = &func.inst(*make_slice).kind else {
-                    continue;
-                };
-                Some(*ptr)
-            }
-            InstKind::SliceLen(slice) => {
-                let slice = resolve(*slice, replacements);
-                let Value::Inst(make_slice) = func.value(slice) else { continue };
-                let InstKind::MakeSlice { len, .. } = &func.inst(*make_slice).kind else {
-                    continue;
-                };
-                Some(*len)
-            }
-            _ => None,
+        let (slice, is_pointer) = match func.inst(inst_id).kind {
+            InstKind::SlicePtr(slice) => (resolve(slice, replacements), true),
+            InstKind::SliceLen(slice) => (resolve(slice, replacements), false),
+            _ => continue,
         };
-        if let Some(replacement) = replacement {
-            replacements.insert(result, resolve(replacement, replacements));
-        }
+        let Value::Inst(make_slice) = func.value(slice) else { continue };
+        let InstKind::MakeSlice { ptr, len, .. } = &func.inst(*make_slice).kind else { continue };
+        let replacement = if is_pointer { *ptr } else { *len };
+        replacements.insert(result, resolve(replacement, replacements));
     }
 }
 
@@ -819,38 +806,10 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
         let Value::Inst(defining_inst) = func.value(object) else { continue };
         let mut removed = FxHashSet::default();
         removed.insert(*defining_inst);
-        let mut valid = true;
         for inst_id in func.instructions() {
-            if inst_id == *defining_inst {
-                continue;
+            if inst_id != *defining_inst && func.inst(inst_id).operands().contains(&object) {
+                removed.insert(inst_id);
             }
-            let instruction = func.inst(inst_id);
-            if !instruction.operands().contains(&object) {
-                continue;
-            }
-            match instruction.kind {
-                InstKind::SetMemoryObjectLen(value, _, MemoryObjectKind::Bytes)
-                    if value == object =>
-                {
-                    removed.insert(inst_id);
-                }
-                InstKind::MemoryObjectStoreWord { object: value, .. } if value == object => {
-                    removed.insert(inst_id);
-                }
-                _ => {
-                    valid = false;
-                    break;
-                }
-            }
-        }
-        if !valid
-            || func
-                .blocks
-                .iter()
-                .filter_map(|block| block.terminator.as_ref())
-                .any(|terminator| terminator.operands().contains(&object))
-        {
-            continue;
         }
         for block in &mut func.blocks {
             block.instructions.retain(|inst| !removed.contains(inst));

@@ -498,10 +498,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         if let Some(size) = destination_size
             && self.is_calldata_dynamic_bytes_type(from)
-            && matches!(
-                self.builder.func().value_ty(value),
-                Some(MirType::Slice(SliceLocation::Calldata))
-            )
+            && self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
         {
             let zero = self.builder.imm_u64(0);
             let word = self.builder.calldata_slice_load_word(value, zero);

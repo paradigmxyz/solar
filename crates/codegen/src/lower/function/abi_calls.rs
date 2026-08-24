@@ -8,10 +8,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if !matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::Slice(SliceLocation::Calldata))
-        ) {
+        if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata) {
             return false;
         }
         match ty {
@@ -38,7 +35,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
-        matches!(self.builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
+        self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
             && self.calldata_aggregate_requires_validation(ty)
     }
 
@@ -146,10 +143,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_external_abi_argument(value) {
             return;
         }
-        if !matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::Slice(SliceLocation::Calldata))
-        ) || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
+        if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
+            || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
         {
             return;
         }
@@ -167,13 +162,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_external_abi_argument(value) {
             return;
         }
-        if matches!(
-            (self.builder.func().value_ty(value), abi_type),
-            (
-                Some(MirType::Slice(SliceLocation::Calldata)),
-                AbiType::Bytes(SliceLocation::Calldata),
-            )
-        ) {
+        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
+            && matches!(abi_type, AbiType::Bytes(SliceLocation::Calldata))
+        {
             self.validate_calldata_bytes_slice(value);
         }
     }
@@ -341,10 +332,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<ValueId> {
         if ty.is_ref_at(DataLocation::Calldata)
-            && matches!(
-                self.builder.func().value_ty(value),
-                Some(MirType::Slice(SliceLocation::Calldata))
-            )
+            && self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
         {
             Some(value)
         } else {

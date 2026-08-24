@@ -264,8 +264,7 @@ impl LowerSlices {
             let block_id = *block_id;
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
-            type SlicePhi = (InstId, SliceLocation);
-            let mut slice_phis: Vec<SlicePhi> = Vec::new();
+            let mut slice_phis = Vec::new();
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
@@ -282,7 +281,7 @@ impl LowerSlices {
                     _ => continue,
                 }
             }
-            let mut splits: Vec<(InstId, InstId, InstId, InstId)> = Vec::new();
+            let mut split_map = FxHashMap::default();
             for (inst_id, location) in slice_phis {
                 let incoming = match &mut func.inst_mut(inst_id).kind {
                     InstKind::Phi(incoming) => std::mem::take(incoming),
@@ -294,14 +293,12 @@ impl LowerSlices {
                 let (make, new_slice) = new_slice_inst(func, sp, sl, location);
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);
-                splits.push((inst_id, ptr_phi, len_phi, make));
+                split_map.insert(inst_id, (ptr_phi, len_phi, make));
                 changed = true;
             }
-            if splits.is_empty() {
+            if split_map.is_empty() {
                 continue;
             }
-            let split_map: FxHashMap<InstId, (InstId, InstId, InstId)> =
-                splits.iter().map(|&(old, sp, sl, ms)| (old, (sp, sl, ms))).collect();
             let mut phis = Vec::new();
             let mut makes = Vec::new();
             let mut rest = Vec::new();
@@ -410,19 +407,13 @@ impl LowerSlices {
             .live_values()
             .filter(|&value| matches!(func.value(value), Value::Arg(_)))
             .collect();
-        let slice_args: Vec<_> = argument_values
-            .iter()
-            .filter_map(|&value| match func.value(value) {
-                Value::Arg(index) if matches!(func.arg_ty(*index), MirType::Slice(_)) => {
-                    Some((value, *index))
-                }
-                _ => None,
-            })
-            .collect();
+        let mut slice_args = Vec::new();
         for &value in &argument_values {
             let Value::Arg(index) = func.value(value) else { unreachable!() };
             let index = *index;
-            if !matches!(func.arg_ty(index), MirType::Slice(_)) {
+            if matches!(func.arg_ty(index), MirType::Slice(_)) {
+                slice_args.push((value, index));
+            } else {
                 let Value::Arg(value_index) = func.value_mut(value) else { unreachable!() };
                 *value_index = physical_indices[index];
             }
@@ -612,7 +603,7 @@ impl LowerSlices {
     }
 
     fn lower_projections(func: &mut Function) -> bool {
-        let live_insts: FxHashSet<_> = func.instructions().collect();
+        let live_insts: Vec<_> = func.instructions().collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
         let mut replacements = FxHashMap::default();
@@ -641,19 +632,12 @@ impl LowerSlices {
             let physical_object = matches!(func.value_ty(slice), Some(MirType::MemPtr));
             let physical_word = matches!(func.value_ty(slice), Some(MirType::UInt(_)))
                 && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
-            if physical_object {
-                if is_ptr {
-                    let result =
-                        func.inst_result_value(inst).expect("slice projection has a result");
-                    replacements.insert(result, slice);
-                    removed.insert(inst);
-                } else {
-                    func.inst_mut(inst).kind = InstKind::MLoad(slice);
-                }
-            } else if physical_word {
+            if physical_word || (physical_object && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, slice);
                 removed.insert(inst);
+            } else if physical_object {
+                func.inst_mut(inst).kind = InstKind::MLoad(slice);
             }
         }
         if components.is_empty() {

@@ -514,7 +514,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
             .collect::<Vec<_>>();
         let (data, layout) = self.lower_abi_decode_layout(data, &memory_types, span)?;
-        if !layout.types.iter().any(Self::needs_eager_abi_decode) {
+        if !layout.types.iter().any(AbiParamType::has_dynamic_child) {
             let layout = self.context.module.intern_abi_param_layout(layout);
             let first = self.builder.abi_decode(layout, data);
             if memory_types.len() == 1 {
@@ -536,13 +536,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let mut helpers = FxHashMap::default();
         for (ty, count) in counts {
-            if count >= 2
-                && matches!(
-                    &ty,
-                    crate::mir::AbiParamType::Tuple(fields)
-                        if fields.iter().any(crate::mir::AbiParamType::is_dynamic)
-                )
-            {
+            if count >= 2 && ty.has_dynamic_child() {
                 let helper = crate::transform::lower_abi::synthesize_memory_decode_helper(
                     self.context.module,
                     ty.clone(),
@@ -551,45 +545,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 helpers.insert(ty, helper);
             }
         }
-        if helpers.is_empty() {
-            crate::transform::lower_abi::decode_memory_tuple(
-                &mut self.builder,
-                base,
-                length,
-                &layout,
-                true,
-                self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-            )
-        } else {
-            crate::transform::lower_abi::decode_memory_tuple_with_helpers(
-                &mut self.builder,
-                base,
-                length,
-                &layout,
-                true,
-                &helpers,
-                self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-            )
-        }
+        crate::transform::lower_abi::decode_memory_tuple(
+            &mut self.builder,
+            base,
+            length,
+            &layout,
+            true,
+            (!helpers.is_empty()).then_some(&helpers),
+            self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
+        )
     }
 
     fn count_dynamic_tuple_types(
         ty: &crate::mir::AbiParamType,
         counts: &mut FxHashMap<crate::mir::AbiParamType, usize>,
     ) {
-        if matches!(
-            ty,
-            crate::mir::AbiParamType::Tuple(fields)
-                if fields.iter().any(crate::mir::AbiParamType::is_dynamic)
-        ) {
-            *counts.entry(ty.clone()).or_default() += 1;
-        }
         match ty {
             crate::mir::AbiParamType::FixedArray { element, .. }
             | crate::mir::AbiParamType::DynamicArray(element) => {
                 Self::count_dynamic_tuple_types(element, counts)
             }
             crate::mir::AbiParamType::Tuple(fields) => {
+                if ty.has_dynamic_child() {
+                    *counts.entry(ty.clone()).or_default() += 1;
+                }
                 for field in fields {
                     Self::count_dynamic_tuple_types(field, counts);
                 }
@@ -597,19 +576,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             crate::mir::AbiParamType::Scalar(_)
             | crate::mir::AbiParamType::Enum { .. }
             | crate::mir::AbiParamType::Bytes => {}
-        }
-    }
-
-    fn needs_eager_abi_decode(ty: &crate::mir::AbiParamType) -> bool {
-        match ty {
-            crate::mir::AbiParamType::FixedArray { element, .. }
-            | crate::mir::AbiParamType::DynamicArray(element) => element.is_dynamic(),
-            crate::mir::AbiParamType::Tuple(fields) => {
-                fields.iter().any(crate::mir::AbiParamType::is_dynamic)
-            }
-            crate::mir::AbiParamType::Scalar(_)
-            | crate::mir::AbiParamType::Enum { .. }
-            | crate::mir::AbiParamType::Bytes => false,
         }
     }
 

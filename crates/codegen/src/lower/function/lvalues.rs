@@ -229,14 +229,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         if self.in_inline_assembly {
             self.dirty_values.insert(value);
-            if !matches!(
-                self.builder.func().value_ty(value),
-                Some(MirType::Slice(SliceLocation::Calldata))
-            ) && let Some(previous) = self.values.get(&id).copied()
-                && matches!(
-                    self.builder.func().value_ty(previous),
-                    Some(MirType::Slice(SliceLocation::Calldata))
-                )
+            if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
+                && let Some(previous) = self.values.get(&id).copied()
+                && self.builder.func().value_slice_location(previous)
+                    == Some(SliceLocation::Calldata)
             {
                 let length = self.builder.slice_len(previous);
                 value = self.builder.make_slice(value, length, SliceLocation::Calldata);

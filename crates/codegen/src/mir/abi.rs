@@ -198,6 +198,16 @@ impl AbiParamType {
         }
     }
 
+    /// Returns whether an aggregate directly contains a dynamic value.
+    #[must_use]
+    pub(crate) fn has_dynamic_child(&self) -> bool {
+        match self {
+            Self::FixedArray { element, .. } | Self::DynamicArray(element) => element.is_dynamic(),
+            Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
+            Self::Scalar(_) | Self::Enum { .. } | Self::Bytes => false,
+        }
+    }
+
     /// Returns the size of this value's in-place ABI head.
     #[must_use]
     pub(crate) fn data_head_size(&self) -> u64 {
@@ -383,6 +393,16 @@ impl AbiWordValidator {
         Self::from_mir_type(ty)
     }
 
+    /// Returns the bit mask for validators that accept a masked word.
+    #[must_use]
+    pub(crate) fn canonical_mask(self) -> Option<U256> {
+        Some(match self {
+            Self::Unsigned(bits) => U256::MAX >> (256 - usize::from(bits)),
+            Self::LeftAligned(bits) => U256::MAX << (256 - usize::from(bits)),
+            Self::SignExtend(_) | Self::Bool | Self::EnumRange(_) => return None,
+        })
+    }
+
     /// Builds the condition that is true when `word` is canonical.
     pub(crate) fn condition(
         self,
@@ -397,7 +417,7 @@ impl AbiWordValidator {
                     let high = builder.shr(shift, word);
                     builder.iszero(high)
                 } else {
-                    let mask = U256::MAX >> (256 - usize::from(bits));
+                    let mask = self.canonical_mask().expect("unsigned validator has a mask");
                     let mask = builder.imm_u256(mask);
                     let canonical = builder.and(word, mask);
                     builder.eq(word, canonical)
@@ -409,7 +429,7 @@ impl AbiWordValidator {
                     let low = builder.shl(shift, word);
                     builder.iszero(low)
                 } else {
-                    let mask = U256::MAX << (256 - usize::from(bits));
+                    let mask = self.canonical_mask().expect("left-aligned validator has a mask");
                     let mask = builder.imm_u256(mask);
                     let canonical = builder.and(word, mask);
                     builder.eq(word, canonical)
@@ -440,13 +460,8 @@ impl AbiWordValidator {
     /// Builds the canonical form of `word`.
     pub(crate) fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
-            Self::Unsigned(bits) => {
-                let mask = U256::MAX >> (256 - usize::from(bits));
-                let mask = builder.imm_u256(mask);
-                builder.and(word, mask)
-            }
-            Self::LeftAligned(bits) => {
-                let mask = U256::MAX << (256 - usize::from(bits));
+            Self::Unsigned(_) | Self::LeftAligned(_) => {
+                let mask = self.canonical_mask().expect("masked validator has a mask");
                 let mask = builder.imm_u256(mask);
                 builder.and(word, mask)
             }

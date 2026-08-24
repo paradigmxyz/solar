@@ -141,10 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata)
-            && matches!(
-                self.builder.func().value_ty(object),
-                Some(MirType::Slice(SliceLocation::Calldata))
-            )
+            && self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata)
         {
             let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
                 return report_unsupported(self.context.gcx, expr.span, "calldata struct field");
