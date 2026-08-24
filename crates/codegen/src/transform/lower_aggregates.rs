@@ -151,9 +151,9 @@ fn visit_storage_fields(
     memory: ValueId,
     mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, u64, MemoryObjectAccess),
 ) {
+    let memory_layout = memory_object_layout(layout);
     match layout {
         StorageLayout::Struct(fields) => {
-            let memory_layout = memory_object_layout(layout);
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
                 visit(
@@ -170,7 +170,6 @@ fn visit_storage_fields(
             }
         }
         StorageLayout::Array { element, len } => {
-            let memory_layout = memory_object_layout(layout);
             let mut storage_offset = 0;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);

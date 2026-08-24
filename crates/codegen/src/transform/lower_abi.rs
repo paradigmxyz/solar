@@ -232,10 +232,7 @@ impl LowerAbiCx {
         for id in wrapped_constructors {
             let layout = module.function(id).abi_params.clone();
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true, false);
-            let func = module.function_mut(id);
-            func.abi_params = None;
-            func.abi_param_locations = None;
-            func.abi_args_lazy = false;
+            Self::clear_abi_inputs(module.function_mut(id));
         }
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -956,9 +953,7 @@ impl LowerAbiCx {
             guard
         };
         func.replace_uses_canonicalized(&replacements);
-        func.abi_params = None;
-        func.abi_param_locations = None;
-        func.abi_args_lazy = false;
+        Self::clear_abi_inputs(func);
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
@@ -1026,10 +1021,9 @@ impl LowerAbiCx {
         // aggregates can benefit from calldata aliases. A single aggregate
         // does not repay the duplicate body in the gas/size trade-off.
         let keep_external_body = gas_mode
-            && original
-                .abi_params
-                .as_ref()
-                .is_some_and(|layout| Self::dynamic_aggregate_count(layout) >= 3);
+            && original.abi_params.as_ref().is_some_and(|layout| {
+                layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
+            });
         let call_body = !keep_external_body
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
@@ -1075,11 +1069,7 @@ impl LowerAbiCx {
         let wrapper = module.function_mut(wrapper_id);
         wrapper.params.clear();
         wrapper.returns.clear();
-        wrapper.abi_returns = None;
-        wrapper.abi_return_params = None;
-        wrapper.abi_params = None;
-        wrapper.abi_param_locations = None;
-        wrapper.abi_args_lazy = false;
+        Self::clear_abi_metadata(wrapper);
         body_id
     }
 
@@ -1103,23 +1093,27 @@ impl LowerAbiCx {
             })
     }
 
-    fn dynamic_aggregate_count(layout: &AbiParamLayout) -> usize {
-        layout.types.iter().filter(|ty| ty.is_dynamic()).count()
-    }
-
     fn internal_body(original: &Function) -> Function {
         let mut body = original.clone();
         body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
         body.name_span = Span::DUMMY;
         body.selector = None;
-        body.abi_returns = None;
-        body.abi_return_params = None;
-        body.abi_params = None;
-        body.abi_param_locations = None;
-        body.abi_args_lazy = false;
+        Self::clear_abi_metadata(&mut body);
         body.attributes.visibility = solar_sema::hir::Visibility::Internal;
         body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
         body
+    }
+
+    fn clear_abi_inputs(func: &mut Function) {
+        func.abi_params = None;
+        func.abi_param_locations = None;
+        func.abi_args_lazy = false;
+    }
+
+    fn clear_abi_metadata(func: &mut Function) {
+        Self::clear_abi_inputs(func);
+        func.abi_returns = None;
+        func.abi_return_params = None;
     }
 
     fn replace_body_with_call(
@@ -2855,15 +2849,13 @@ pub(crate) fn decode_memory_tuple(
     helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
     has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
-    let mut current = builder.current_block();
     let head_size = layout.checked_head_size()?;
-    builder.switch_to_block(current);
     let input_end = builder.add(base, length);
     let overflow = builder.lt(input_end, base);
     let head_size = builder.imm_u64(head_size);
     let short = builder.lt(length, head_size);
     let invalid = builder.or(overflow, short);
-    current = builder.revert_if(invalid);
+    let mut current = builder.revert_if(invalid);
 
     let mut values = Vec::with_capacity(layout.types.len());
     let static_layout = layout.types.iter().all(|ty| !ty.is_dynamic());
