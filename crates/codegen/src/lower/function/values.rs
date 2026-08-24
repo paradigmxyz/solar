@@ -331,7 +331,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if let LValuePlace::StorageByte { slot, index, ty, .. } = place {
                         // Place resolution materializes storage bytes for its bounds check. Reload
                         // before each write so aliased byte targets do not restore a stale copy.
-                        let object = self.load_storage_bytes(slot)?;
+                        let object = self.load_storage_bytes(slot);
                         place = LValuePlace::StorageByte { slot, object, index, ty };
                     }
                     self.store_lvalue_place_with_source(&place, value, source_ty)?;
