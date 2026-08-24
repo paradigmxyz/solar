@@ -107,7 +107,7 @@ fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
     }
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL_CONDENSED);
+    table.load_style(UTF8_FULL_CONDENSED);
     table.set_header([
         Cell::new("Name"),
         right("Accumulated Size"),
