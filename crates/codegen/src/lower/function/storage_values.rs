@@ -1074,10 +1074,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let helper = self.context.module.add_function(function);
         self.context.state.storage_struct_array_helpers.insert(struct_id, helper);
 
-        let field_ids = self.context.gcx.hir.strukt(struct_id).fields.to_vec();
+        let gcx = self.context.gcx;
+        let field_ids = gcx.hir.strukt(struct_id).fields;
         let mut fields = Vec::with_capacity(field_ids.len());
-        for (index, field_id) in field_ids.into_iter().enumerate() {
-            let field_ty = self.context.gcx.type_of_item(field_id.into());
+        for (index, &field_id) in field_ids.iter().enumerate() {
+            let field_ty = gcx.type_of_item(field_id.into());
             let location = self.context.storage.field_location(struct_id, index)?;
             let field = match field_ty.peel_refs().kind {
                 solar_sema::ty::TyKind::Elementary(
@@ -1109,7 +1110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.context.storage,
             &fields,
             self.context.storage.element_slots(element, Span::DUMMY),
-            self.context.gcx.hir.strukt(struct_id).fields.len() as u64,
+            field_ids.len() as u64,
         );
         Some(helper)
     }
