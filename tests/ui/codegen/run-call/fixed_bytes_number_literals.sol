@@ -10,6 +10,7 @@
 //@ run-call: FixedBytesLiterals::returnedBytesObjectCast() => 14
 //@ run-call: FixedBytesLiterals::calldataSliceCast() => 0x1122334455000000000000000000000000000000000000000000000000000000
 //@ run-call: FixedBytesLiterals::stringAddressCast() => 0x6d696c6164790000000000000000000000000000
+//@ run-call: FixedBytesLiterals::stateLiterals() => 0x11223344, 0xaabb, 0x55667788
 
 // A bare numeric literal used where `bytesN` is expected keeps its numeric
 // sema type, so plain lowering yields the right-aligned integer word; every
@@ -34,6 +35,9 @@ library LibGive {
 
 contract FixedBytesLiterals {
     mapping(bytes4 => uint256) internal m;
+    bytes4 internal stateLiteral = 0x11223344;
+    bytes2 internal stateNeighbor = 0xaabb;
+    bytes4 internal immutable immutableLiteral = 0x55667788;
 
     function viaExternal() public returns (uint256) {
         return IProbe(address(new Probe())).probe(0x01020304);
@@ -100,5 +104,9 @@ contract FixedBytesLiterals {
 
     function stringAddressCast() public pure returns (address) {
         return address(bytes20("milady"));
+    }
+
+    function stateLiterals() public view returns (bytes4, bytes2, bytes4) {
+        return (stateLiteral, stateNeighbor, immutableLiteral);
     }
 }

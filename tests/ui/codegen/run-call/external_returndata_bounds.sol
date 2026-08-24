@@ -1,5 +1,6 @@
 //@ run-call: ReturnHarness::staticAggregate() => 1
 //@ run-call: ReturnHarness::functionPointerAggregate() => 1
+//@ run-call: ReturnHarness::dirtyAddressBoundary() => 1
 //@ run-call-fail: ReturnHarness::truncated()
 
 contract ReturnProducer {
@@ -26,6 +27,12 @@ contract ReturnProducer {
             return(0, 0x40)
         }
     }
+
+    function dirtyAddress() external pure returns (address result) {
+        assembly {
+            result := not(0)
+        }
+    }
 }
 
 contract ReturnHarness {
@@ -47,6 +54,12 @@ contract ReturnHarness {
         function () external view returns (ReturnProducer.Outer memory) fn = producer.aggregate;
         ReturnProducer.Outer memory out = fn();
         return check(out);
+    }
+
+    function dirtyAddressBoundary() external returns (uint256) {
+        ReturnProducer producer = new ReturnProducer();
+        require(producer.dirtyAddress() == address(type(uint160).max), "address");
+        return 1;
     }
 
     function truncated() external returns (uint256) {

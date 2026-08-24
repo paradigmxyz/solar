@@ -1,6 +1,7 @@
 //! Lower semantic ABI encoding operations to memory and slice operations.
 
 use crate::{
+    analysis::CallGraphInfo,
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, FunctionId, InstKind,
@@ -31,6 +32,18 @@ impl MirPass for LowerAbiEncode {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let original_functions: Vec<_> = module.functions.indices().collect();
+        let call_graph = CallGraphInfo::new(module);
+        let mut constructor_reachable = call_graph.reachable_callees_from(
+            module
+                .functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
+            }
+        }
         let helper_types = collect_helper_types(module, &original_functions);
         let mut helpers = FxHashMap::default();
         for (index, ty) in helper_types.iter().enumerate() {
@@ -48,7 +61,11 @@ impl MirPass for LowerAbiEncode {
 
         let mut changed = false;
         for id in original_functions {
-            changed |= lower_function(module.function_mut(id), &helpers);
+            changed |= lower_function(
+                module.function_mut(id),
+                &helpers,
+                constructor_reachable.contains(id),
+            );
         }
         changed
     }
@@ -150,13 +167,21 @@ struct AbiValueDest {
     tail: ValueId,
 }
 
-fn lower_function(func: &mut Function, helpers: &FxHashMap<AbiType, FunctionId>) -> bool {
+fn lower_function(
+    func: &mut Function,
+    helpers: &FxHashMap<AbiType, FunctionId>,
+    constructor_reachable: bool,
+) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
         return false;
     }
 
+    // Constructor-reachable functions use dynamic internal frames. A shared encoder would place
+    // its frame at the current free-memory pointer, overlapping the output that it is meant to
+    // fill.
+    let helpers = (!constructor_reachable).then_some(helpers);
     let mut replacements = FxHashMap::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
@@ -228,7 +253,7 @@ fn lower_encode(
     layout: &AbiLayout,
     selector: Option<ValueId>,
     args: &[ValueId],
-    helpers: &FxHashMap<AbiType, FunctionId>,
+    helpers: Option<&FxHashMap<AbiType, FunctionId>>,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
@@ -247,7 +272,7 @@ fn lower_encode(
             &layout.types,
             dest,
             AbiScratch { base: None, depth: 0 },
-            Some(helpers),
+            helpers,
         );
         let total_size = builder.imm_u64(total_size);
         return builder.make_slice(buf, total_size, SliceLocation::Memory);
@@ -272,7 +297,7 @@ fn lower_encode(
         &layout.types,
         dest,
         AbiScratch { base: scratch_base, depth: 0 },
-        Some(helpers),
+        helpers,
     );
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(size, selector_size);

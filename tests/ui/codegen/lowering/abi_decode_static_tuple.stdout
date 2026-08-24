@@ -36,10 +36,8 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
   bb5:
     revert 0, 0
   bb6:
-    internal_call @__abi_validate_memory_0, 0, v13, v15
     v17 = mload v13
     v18 = add v13, 32
-    internal_call @__abi_validate_memory_1, 0, v18, v15
     v19 = mload v18
     v20 = iszero v19
     v21 = iszero v20
@@ -50,7 +48,6 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     revert 0, 0
   bb8:
     v24 = add v13, 64
-    internal_call @__abi_validate_memory_2, 0, v24, v15
     v25 = mload v24
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
     v27 = eq v25, v26
@@ -71,69 +68,5 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v35 = add v32, 64
     v36 = mload v35
     ret v17, v34, v36
-}
-
-fn @__abi_validate_memory_0(arg0: memptr, arg1: memptr) {
-  bb0:
-    v0 = add arg0, 32
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v2 = gt v0, arg1
-    jumpi v2, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v3 = mload arg0
-    ret
-}
-
-fn @__abi_validate_memory_1(arg0: memptr, arg1: memptr) {
-  bb0:
-    v0 = add arg0, 32
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v2 = gt v0, arg1
-    jumpi v2, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v3 = mload arg0
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    ret
-}
-
-fn @__abi_validate_memory_2(arg0: memptr, arg1: memptr) {
-  bb0:
-    v0 = add arg0, 32
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v2 = gt v0, arg1
-    jumpi v2, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v3 = mload arg0
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    ret
 }
 

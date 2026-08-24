@@ -58,6 +58,73 @@ impl StorageLayout {
             Self::Array { element, .. } => element.is_aggregate(),
         }
     }
+
+    /// Visits storage slots whose aggregate copy preserves bytes with a
+    /// read-modify-write instead of replacing the complete word.
+    pub(crate) fn for_each_preserved_storage_slot(&self, mut visit: impl FnMut(u64)) {
+        self.for_each_preserved_storage_slot_at(0, &mut visit);
+    }
+
+    fn for_each_preserved_storage_slot_at(&self, base: u64, visit: &mut impl FnMut(u64)) {
+        match self {
+            Self::Struct(fields) => {
+                for (index, field) in fields.iter().enumerate() {
+                    match &field.shape {
+                        StorageField::Aggregate(layout) => layout
+                            .for_each_preserved_storage_slot_at(
+                                base.saturating_add(field.slot),
+                                visit,
+                            ),
+                        StorageField::Word => {}
+                        StorageField::Packed(_) => {
+                            if fields[..index].iter().any(|earlier| earlier.slot == field.slot) {
+                                continue;
+                            }
+                            let mut covered = 0u64;
+                            for packed in fields.iter().filter(|packed| packed.slot == field.slot) {
+                                match packed.shape {
+                                    StorageField::Word => {
+                                        covered = u64::from(u32::MAX);
+                                        break;
+                                    }
+                                    StorageField::Packed(value) => {
+                                        let bytes = (1u64 << value.size) - 1;
+                                        covered |= bytes << packed.offset;
+                                    }
+                                    StorageField::Aggregate(_) => {}
+                                }
+                            }
+                            if covered != u64::from(u32::MAX) {
+                                visit(base.saturating_add(field.slot));
+                            }
+                        }
+                    }
+                }
+            }
+            Self::Array { element, len } => match element {
+                StorageField::Word => {}
+                StorageField::Packed(value) => {
+                    let per_slot = u64::from(value.per_slot());
+                    for slot in 0..len.div_ceil(per_slot) {
+                        let remaining = len.saturating_sub(slot.saturating_mul(per_slot));
+                        let values = remaining.min(per_slot);
+                        if values.saturating_mul(u64::from(value.size)) < 32 {
+                            visit(base.saturating_add(slot));
+                        }
+                    }
+                }
+                StorageField::Aggregate(layout) => {
+                    let stride = layout.storage_slots();
+                    for index in 0..*len {
+                        layout.for_each_preserved_storage_slot_at(
+                            base.saturating_add(index.saturating_mul(stride)),
+                            visit,
+                        );
+                    }
+                }
+            },
+        }
+    }
 }
 
 /// A struct field placed at an explicit storage position within its aggregate.

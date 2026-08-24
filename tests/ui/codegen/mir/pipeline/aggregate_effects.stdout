@@ -70,6 +70,13 @@
       stop
   }
   
+  fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+    bb0:
+      sstore 0, arg0
+      memory_to_storage struct<0:u8>, arg1, 0
+      stop
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after memory-dse) ===
   @module AggregateEffects
@@ -135,6 +142,13 @@
       sstore 0, 1
       clear_storage struct<0:word>, 0
       sstore 0, 1
+      stop
+  }
+  
+  fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+    bb0:
+      sstore 0, arg0
+      memory_to_storage struct<0:u8>, arg1, 0
       stop
   }
   
@@ -212,6 +226,14 @@
       stop
   }
   
+  fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+    bb0:
+-     sstore 0, arg0
++     sstore 0, arg0 !metadata(storage=slot(0))
+      memory_to_storage struct<0:u8>, arg1, 0
+      stop
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (before storage-dse) ===
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-dse) ===
   @module AggregateEffects
@@ -279,6 +301,13 @@
       stop
   }
   
+  fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+    bb0:
+      sstore 0, arg0 !metadata(storage=slot(0))
+      memory_to_storage struct<0:u8>, arg1, 0
+      stop
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after dce) ===
   @module AggregateEffects
@@ -342,6 +371,13 @@
     bb0:
       clear_storage struct<0:word>, 0
       sstore 0, 1 !metadata(storage=slot(0))
+      stop
+  }
+  
+  fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+    bb0:
+      sstore 0, arg0 !metadata(storage=slot(0))
+      memory_to_storage struct<0:u8>, arg1, 0
       stop
   }
   

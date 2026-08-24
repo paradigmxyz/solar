@@ -1033,7 +1033,13 @@ impl<'gcx> Lowerer<'gcx> {
                 .iter()
                 .flatten()
                 .zip(tys)
-                .map(|(e, ty)| (self.lower_return_value_for_ty(builder, e, ty), ty))
+                .map(|(e, ty)| {
+                    let dirty = !self.in_assembly_block && self.call_result_may_be_dirty(e);
+                    let value = self.lower_return_value_for_ty(builder, e, ty);
+                    let value =
+                        if dirty { self.abi_clean_value(builder, value, ty) } else { value };
+                    (value, ty)
+                })
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
@@ -1052,13 +1058,18 @@ impl<'gcx> Lowerer<'gcx> {
         if delivers_pending {
             self.pending_inline_returns = None;
         }
+        let dirty = !self.in_assembly_block && self.call_result_may_be_dirty(expr);
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
+        let first = if dirty { self.abi_clean_value(builder, first, tys[0]) } else { first };
         if delivers_pending && let Some(values) = self.pending_inline_returns.take() {
             return values
                 .into_iter()
                 .zip(tys)
                 .map(|(value, ty)| {
-                    (self.materialize_forwarded_return_value(builder, value, ty), ty)
+                    let value = self.materialize_forwarded_return_value(builder, value, ty);
+                    let value =
+                        if dirty { self.abi_clean_value(builder, value, ty) } else { value };
+                    (value, ty)
                 })
                 .collect();
         }
@@ -1067,7 +1078,9 @@ impl<'gcx> Lowerer<'gcx> {
         if tys.len() > 1 {
             let tail_base = self.multi_return_buffer_base(builder);
             for (i, &ty) in tys.iter().enumerate().skip(1) {
-                items.push((self.load_multi_return_value(builder, tail_base, i), ty));
+                let value = self.load_multi_return_value(builder, tail_base, i);
+                let value = if dirty { self.abi_clean_value(builder, value, ty) } else { value };
+                items.push((value, ty));
             }
         }
         items

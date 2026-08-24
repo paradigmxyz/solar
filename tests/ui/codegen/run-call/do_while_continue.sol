@@ -1,6 +1,7 @@
 //@ run-call: DoWhileContinue::once() => 1
 //@ run-call: DoWhileContinue::conditionSideEffects() => 22
 //@ run-call: DoWhileContinue::nested() => 24
+//@ run-call: DoWhileContinue::checkedDecrementLatch() => 10
 
 contract DoWhileContinue {
     function once() external pure returns (uint256 bodyRuns) {
@@ -33,5 +34,11 @@ contract DoWhileContinue {
             continue;
         } while (outer < 2);
         return outer * 10 + innerRuns;
+    }
+
+    function checkedDecrementLatch() external pure returns (uint256 sum) {
+        for (uint256 q = 4; q != 0; --q) {
+            sum += q;
+        }
     }
 }

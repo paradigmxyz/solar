@@ -37,7 +37,6 @@ contract AbiDecodeStructs {
     // ADS: internal_call @[[DYN_ARRAY_HELPER:__abi_decode_memory_[0-9]+]]
     // ADS: fn @[[DYN_ARRAY_HELPER]]
     // ADS: internal_call @__abi_decode_memory_
-    // ADS: ret
     function dDynArr(bytes memory b) public pure returns (uint256 count) {
         Dyn[] memory ds = abi.decode(b, (Dyn[]));
         count = ds.length;

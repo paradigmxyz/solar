@@ -75,7 +75,8 @@ fn @forward(arg0: calldataslice, arg1: address) {
   bb12:
     v35 = returndatasize
     returndatacopy 0, 0, v35 !metadata(memory=scratch)
-    revert 0, v35
+    v36 = returndatasize
+    revert 0, v36
   bb13:
     stop
 }
@@ -189,7 +190,8 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
   bb12:
     v35 = returndatasize
     returndatacopy 0, 0, v35 !metadata(memory=scratch)
-    revert 0, v35
+    v36 = returndatasize
+    revert 0, v36
   bb13:
     stop
 }

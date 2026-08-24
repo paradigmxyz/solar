@@ -896,13 +896,9 @@ bb9:
   jump bb19
 bb18 [cold]:
   returndatasize
-  dup1
-  push 288
-  mstore
   push 0
   dup1
   returndatacopy
-  push 288
-  mload
+  returndatasize
   push 0
   revert

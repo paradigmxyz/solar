@@ -22,6 +22,9 @@
 // CHECK: + // === {{.*}} (after storage-dse) ===
 // CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
 // CHECK: - sstore 0, 1 !metadata(storage=slot(0))
+// CHECK: {{^[ +].*}}fn @keeps_store_feeding_packed_copy{{[( ]}}
+// CHECK: {{^[ +].*}}sstore 0, arg0
+// CHECK: {{^[ +].*}}memory_to_storage struct<0:u8>, arg1, 0
 
 fn @reads_memory(arg0: memptr) {
   bb0:
@@ -87,5 +90,12 @@ fn @clobbers_stored_value() {
     sstore 0, 1
     clear_storage struct<0:word>, 0
     sstore 0, 1
+    stop
+}
+
+fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+  bb0:
+    sstore 0, arg0
+    memory_to_storage struct<0:u8>, arg1, 0
     stop
 }

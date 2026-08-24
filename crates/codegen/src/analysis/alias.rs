@@ -907,6 +907,10 @@ impl AliasAnalysis {
                 }
                 let base =
                     self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
+                layout.for_each_preserved_storage_slot(|offset| {
+                    let offset = alloy_primitives::U256::from_limbs([offset, 0, 0, 0]);
+                    effects.read(Access::Location(Location::Storage(base.offset_by(offset))));
+                });
                 add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
             InstKind::ClearStorage { .. } => {

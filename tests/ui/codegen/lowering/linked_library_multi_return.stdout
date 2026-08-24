@@ -18,13 +18,14 @@ fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
   bb1:
     v4 = returndatasize
     returndatacopy 0, 0, v4 !metadata(memory=scratch)
-    revert 0, v4
+    v5 = returndatasize
+    revert 0, v5
   bb2:
     mstore 32, v0 !metadata(memory=scratch)
-    v5 = mload v0
-    v6 = mload 32 !metadata(memory=scratch)
-    v7 = add v6, 32
-    v8 = mload v7
-    ret v5, v8
+    v6 = mload v0
+    v7 = mload 32 !metadata(memory=scratch)
+    v8 = add v7, 32
+    v9 = mload v8
+    ret v6, v9
 }
 

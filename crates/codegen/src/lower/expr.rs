@@ -2,6 +2,7 @@
 
 use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
+    bytes::{AbiBodyBounds, AbiSource},
     call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
@@ -3063,9 +3064,13 @@ impl<'gcx> Lowerer<'gcx> {
                 let err = builder.error_value(guar);
                 return vec![err; tys.len()];
             };
-            let pos =
-                self.resolve_memory_abi_body(builder, ty, head_pos, data_start, head_size_val, end);
-            self.validate_memory_abi_value(builder, ty, pos, end);
+            let pos = self.resolve_abi_body(
+                builder,
+                AbiSource::Memory,
+                ty,
+                head_pos,
+                AbiBodyBounds::new(data_start, head_size_val, end),
+            );
             let decoded = match strategy {
                 DecodeStrategy::Word(elem) => {
                     let word = builder.mload(head_pos);
@@ -3087,12 +3092,9 @@ impl<'gcx> Lowerer<'gcx> {
                         builder, data_start, len, head_size, &elem, head,
                     )
                 }
-                DecodeStrategy::General(ty) => self.materialize_calldata_value_at(
-                    builder,
-                    super::bytes::AbiSource::Memory,
-                    ty,
-                    pos,
-                ),
+                DecodeStrategy::General(ty) => {
+                    self.materialize_bounded_abi_value_at(builder, AbiSource::Memory, ty, pos, end)
+                }
             };
             out.push(decoded);
             let ty_size = match self.abi_head_size(ty) {
@@ -3103,6 +3105,66 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             };
             head_offset += ty_size;
+        }
+        out
+    }
+
+    /// Decodes typed external-call returndata with solc-compatible top-level
+    /// offset handling. Solc accepts a dynamic body that aliases tuple-head
+    /// bytes, which Foundry's `expectRevert` interception relies on when it
+    /// synthesizes a successful empty return. Every accessed range remains
+    /// recursively bounded by `len`; only the canonical tail-position check
+    /// for top-level members is relaxed.
+    pub(super) fn decode_external_abi_region(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_start: ValueId,
+        len: ValueId,
+        tys: &[Ty<'gcx>],
+    ) -> Vec<ValueId> {
+        let head_size = match self.abi_head_size_sum(tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => {
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            }
+        };
+        let required = builder.imm_u64(head_size);
+        let is_short = builder.lt(len, required);
+        self.emit_abi_decode_revert_if(builder, is_short);
+        let end = builder.add(data_start, len);
+        let end_overflow = builder.lt(end, data_start);
+        self.emit_abi_decode_revert_if(builder, end_overflow);
+
+        let mut out = Vec::with_capacity(tys.len());
+        let mut head_offset = 0u64;
+        for &ty in tys {
+            let ty = ty.peel_refs();
+            let head = self.offset_ptr(builder, data_start, head_offset);
+            let pos = if self.abi_is_dynamic(ty) {
+                let offset = builder.mload(head);
+                let pos = builder.add(data_start, offset);
+                let overflow = builder.lt(pos, data_start);
+                self.emit_abi_decode_revert_if(builder, overflow);
+                let out_of_bounds = builder.gt(pos, end);
+                self.emit_abi_decode_revert_if(builder, out_of_bounds);
+                pos
+            } else {
+                head
+            };
+            let value = if self.abi_is_dynamic(ty) {
+                self.materialize_bounded_abi_value_at(builder, AbiSource::Memory, ty, pos, end)
+            } else {
+                self.materialize_calldata_value_at(builder, AbiSource::Memory, ty, pos)
+            };
+            out.push(value);
+            head_offset += match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => {
+                    let err = builder.error_value(guar);
+                    return vec![err; tys.len()];
+                }
+            };
         }
         out
     }

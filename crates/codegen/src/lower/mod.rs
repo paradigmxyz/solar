@@ -291,10 +291,8 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_targets: GrowableBitSet<HirFunctionId>,
     /// Shared internal function-pointer dispatchers keyed by MIR parameter and return types.
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
-    /// Shared ABI aggregate decoders keyed by source buffer and semantic type.
-    abi_decode_helpers: FxHashMap<(bytes::AbiSource, Ty<'gcx>), FunctionId>,
-    /// Shared bounded-memory ABI validators keyed by semantic type.
-    abi_memory_validate_helpers: FxHashMap<Ty<'gcx>, FunctionId>,
+    /// Shared ABI aggregate decoders keyed by source, type, and boundedness.
+    abi_decode_helpers: FxHashMap<(bytes::AbiSource, Ty<'gcx>, bool), FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Shared base value for constructor ABI argument accesses.
@@ -406,7 +404,6 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             abi_decode_helpers: FxHashMap::default(),
-            abi_memory_validate_helpers: FxHashMap::default(),
             lowering_constructor: false,
             constructor_args_base: None,
             lowering_internal_function: false,
@@ -1325,7 +1322,7 @@ impl<'gcx> Lowerer<'gcx> {
         let current_return_tys =
             hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect::<Vec<_>>();
 
-        let external_arg_head_size = if uses_external_abi {
+        let abi_arg_head_size = if decodes_abi_params {
             self.abi_head_size_sum(
                 hir_func.parameters.iter().map(|&id| self.gcx.type_of_item(id.into())),
             )
@@ -1346,8 +1343,8 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             Ok(Vec::new())
         };
-        let (external_arg_head_size, external_static_return_size, abi_return_types) =
-            match (external_arg_head_size, external_static_return_size, abi_return_types) {
+        let (abi_arg_head_size, external_static_return_size, abi_return_types) =
+            match (abi_arg_head_size, external_static_return_size, abi_return_types) {
                 (Ok(arg_size), Ok(return_size), Ok(types)) => (arg_size, return_size, types),
                 (Err(guar), _, _) | (_, Err(guar), _) | (_, _, Err(guar)) => {
                     let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -1417,7 +1414,7 @@ impl<'gcx> Lowerer<'gcx> {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
             if uses_external_abi {
-                Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
+                Self::emit_external_calldata_head_size_check(&mut builder, abi_arg_head_size);
             }
 
             // Register the return types before binding parameters. A
@@ -1431,6 +1428,19 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let mut deferred_param_slots: Vec<(u64, ValueId)> = Vec::new();
+            let validates_nested_arrays = decodes_abi_params
+                && hir_func
+                    .parameters
+                    .iter()
+                    .any(|&param| self.memory_nested_dyn_array_param(param).is_some());
+            let abi_region_end = validates_nested_arrays.then(|| {
+                if self.lowering_constructor {
+                    let fmp_slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+                    builder.mload(fmp_slot)
+                } else {
+                    builder.calldatasize()
+                }
+            });
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
                 let param_ty = self.gcx.type_of_item(param_id.into());
@@ -1646,7 +1656,7 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
-                    && let Some(elem_ty) = self.memory_nested_dyn_array_param(param_id)
+                    && self.memory_nested_dyn_array_param(param_id).is_some()
                 {
                     // A dynamic memory array's ABI head is an offset to its
                     // `[length][elements...]` tail. Rebuild the ordinary
@@ -1658,13 +1668,35 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         (bytes::AbiSource::Calldata, builder.imm_u64(4))
                     };
+                    let head_size = builder.imm_u64(abi_arg_head_size);
+                    let before_tail = builder.lt(head, head_size);
+                    self.emit_abi_decode_revert_if(&mut builder, before_tail);
                     let len_pos = builder.add(abi_base, head);
-                    let array_ptr = self.materialize_calldata_dynamic_array_at(
-                        &mut builder,
-                        source,
-                        elem_ty,
+                    let overflow = builder.lt(len_pos, abi_base);
+                    self.emit_abi_decode_revert_if(&mut builder, overflow);
+                    let out_of_bounds = builder.gt(
                         len_pos,
+                        abi_region_end.expect("ABI parameters have a bounded source region"),
                     );
+                    self.emit_abi_decode_revert_if(&mut builder, out_of_bounds);
+                    let end = abi_region_end.expect("ABI parameters have a bounded source region");
+                    let array_ptr = if self.lowering_constructor {
+                        self.materialize_bounded_abi_value_inline_at(
+                            &mut builder,
+                            source,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
+                    } else {
+                        self.materialize_bounded_abi_value_at(
+                            &mut builder,
+                            source,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
+                    };
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
                     // Dynamic array of word elements in memory: the ABI head is
@@ -2146,6 +2178,7 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         self.lower_value_expr(builder, init)
                     };
+                    let init_val = self.coerce_literal_for_ty(builder, init, var_ty, init_val);
                     if let Some(&id) = self.immutable_ids.get(&var_id) {
                         builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {

@@ -32,7 +32,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, ValueId,
+        InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
     },
     pass::run_pipeline,
 };
@@ -1093,6 +1093,9 @@ pub struct EvmCodegen<'gcx> {
     /// across one are kept stack-resident instead of reloaded from the
     /// overwritten slot. Empty for every function without such a forward.
     spill_hazard_insts: FxHashSet<InstId>,
+    /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
+    /// Their callers may safely use the result as a dynamic forwarding-buffer base.
+    heap_pointer_return_functions: DenseBitSet<FunctionId>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1169,6 +1172,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_available: None,
             elided_insts: FxHashSet::default(),
             spill_hazard_insts: FxHashSet::default(),
+            heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -1470,6 +1474,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
+        self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -2343,16 +2348,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Splits phi-carrying edges out of multi-successor predecessors when a
-    /// phi destination is still read on a sibling path.
+    /// phi destination is still read before or on a sibling path.
     ///
     /// A phi's parallel copies are emitted in the predecessor before its
     /// terminator, so a conditional predecessor runs them on the edge that
     /// does not reach the phi as well. That is harmless for ordinary join
-    /// phis, whose destinations are dead on the sibling path, but a loop
-    /// header exiting through a shared latch keeps its phi results live in
-    /// the loop body: writing the exit edge's copies early clobbers them.
+    /// phis, whose destinations are dead before the terminator and on the
+    /// sibling path, but a loop header may test its old phi result in the
+    /// latch terminator or keep it live on the exit. Writing the backedge copy
+    /// early then makes the branch observe the next iteration's value.
     /// Rerouting such edges through a fresh jump-only block gives the copies
-    /// an unconditional home.
+    /// an unconditional home after the predecessor's branch.
     fn split_phi_critical_edges(func: &mut Function) {
         let has_phis = func.blocks.iter().any(|block| {
             block
@@ -2374,14 +2380,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if src == dst || splits.contains(&(pred, block_id)) {
                         continue;
                     }
-                    let successors = func.blocks[pred]
-                        .terminator
-                        .as_ref()
-                        .map(|term| term.successors())
-                        .unwrap_or_default();
-                    if successors
-                        .iter()
-                        .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
+                    let Some(terminator) = func.blocks[pred].terminator.as_ref() else { continue };
+                    let successors = terminator.successors();
+                    if terminator.operands().contains(&dst)
+                        || successors
+                            .iter()
+                            .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
                     {
                         splits.push((pred, block_id));
                     }
@@ -2446,7 +2450,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
 
-        self.spill_hazard_insts = Self::compute_spill_hazard_insts(func);
+        self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
 
         // Eliminate phis.
         self.block_copies.clear();
@@ -2462,13 +2466,32 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        let hazard_cross_block_values = self.spill_hazard_cross_block_values(func, liveness);
+        let existing_stack_only_values = self.stack_only_values(func_id, true);
+        let hazard_recomputable = Self::cross_block_recomputable_values_with(func, |value| {
+            !existing_stack_only_values.contains(&value)
+        });
+        let hazard_cross_block_values =
+            self.spill_hazard_cross_block_values(func, liveness, &hazard_recomputable);
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
         });
-        let hazard_stack_layout = resident_stack_plan
-            .is_none()
-            .then(|| self.compute_spill_hazard_stack_layout(func, liveness, &stack_phi_plan))
+        let mut protected_stack_values =
+            self.resident_stack_args(func_id).map_or_else(Vec::new, |values| values.to_vec());
+        for &value in &hazard_cross_block_values {
+            if !protected_stack_values.contains(&value) {
+                protected_stack_values.push(value);
+            }
+        }
+        let hazard_stack_layout = (!hazard_cross_block_values.is_empty()
+            && !resident_carries_hazards)
+            .then(|| {
+                self.compute_spill_hazard_stack_layout(
+                    func,
+                    liveness,
+                    &stack_phi_plan,
+                    &protected_stack_values,
+                )
+            })
             .flatten();
         if !hazard_cross_block_values.is_empty()
             && hazard_stack_layout.is_none()
@@ -2476,7 +2499,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             self.gcx
                 .dcx()
-                .err("codegen cannot preserve values across a low-memory forwarding buffer")
+                .err(format!(
+                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                    func.name
+                ))
                 .emit();
             return;
         }
@@ -2487,11 +2513,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
-        let mut global_stack_plan = resident_stack_plan.unwrap_or_else(|| {
-            hazard_stack_plan
-                .clone()
-                .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan))
-        });
+        let mut global_stack_plan = hazard_stack_plan
+            .clone()
+            .or(resident_stack_plan)
+            .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
         let mut stack_phi_sources = stack_phi_plan.edge_sources.clone();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
@@ -2772,14 +2797,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                         })
                         .collect();
                     for value in at_risk {
-                        if !self.scheduler.stack.contains(value) {
-                            self.emit_value(func, value);
+                        let recomputable = self.scheduler.spills.is_recomputable(value);
+                        if !recomputable {
+                            if !self.scheduler.stack.contains(value) {
+                                self.emit_value(func, value);
+                            }
+                            pinned_hazard_values.insert(value);
                         }
                         self.scheduler.spills.invalidate_stored(value);
                         if let Some(available) = &mut self.spill_available {
                             available.remove(&value);
                         }
-                        pinned_hazard_values.insert(value);
                     }
                 }
 
@@ -6291,12 +6319,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         stack_phi_plan: &StackPhiPlan,
+        values: &[ValueId],
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if self.spill_hazard_insts.is_empty() {
             return None;
         }
 
-        let values = self.spill_hazard_cross_block_values(func, liveness);
         if values.is_empty() || values.len() > GLOBAL_STACK_LAYOUT_LIMIT {
             return None;
         }
@@ -6304,7 +6332,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
-            &values,
+            values,
             self.preserve_caller_stack,
         )?;
         // Phi operands are edge uses, not unchanged target live-ins. Full
@@ -6320,7 +6348,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         plan.entries.retain(|_, entry| !entry.is_empty());
-        Some((values, plan))
+        Some((values.to_vec(), plan))
     }
 
     /// Values that need a successor after a forwarding-buffer clobber.
@@ -6328,18 +6356,54 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         liveness: &Liveness,
+        recomputable: &DenseBitSet<ValueId>,
     ) -> Vec<ValueId> {
+        if self.spill_hazard_is_repeated_low_phi(func) {
+            return Self::cross_block_live_values(func, liveness)
+                .iter()
+                .filter(|&value| {
+                    Self::can_own_spill_slot(func, value) && !recomputable.contains(value)
+                })
+                .collect();
+        }
+
         let inst_blocks = func.inst_blocks();
         let mut values = DenseBitSet::new_empty(func.num_values());
         for inst in &self.spill_hazard_insts {
             let Some(&block) = inst_blocks.get(inst) else { continue };
             for value in liveness.live_out(block) {
-                if Self::can_own_spill_slot(func, value) {
+                if Self::can_own_spill_slot(func, value) && !recomputable.contains(value) {
                     values.insert(value);
                 }
             }
         }
         values.iter().collect()
+    }
+
+    /// Whether a low forwarding destination is a loop-carried pointer. Every
+    /// cross-block value participates in the loop's canonical stack shape;
+    /// selecting only the values live out of the copy can omit phi companions
+    /// needed to preserve that shape on the backedge.
+    fn spill_hazard_is_repeated_low_phi(&self, func: &Function) -> bool {
+        let inst_blocks = func.inst_blocks();
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        loop_info.all_loops().any(|loop_info| {
+            self.spill_hazard_insts.iter().any(|inst| {
+                inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
+                    && matches!(
+                        func.inst(*inst).kind,
+                        InstKind::CalldataCopy(dest, _, _)
+                            if matches!(func.value(dest), Value::Inst(definition)
+                                if matches!(&func.inst(*definition).kind, InstKind::Phi(incoming)
+                                    if incoming.iter().any(|&(_, value)| {
+                                        func.value_u64(value).is_some_and(|address| {
+                                            address < EvmMemoryLayout::HEAP_START
+                                        })
+                                    })))
+                    )
+            })
+        })
     }
 
     /// Whether an existing resident plan carries every at-risk live-out.
@@ -7760,7 +7824,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// internal frame (ordinary high memory, including hand-written
     /// `calldatacopy(mload(0x40), …)` decode loops) are excluded, so this never
     /// perturbs normal or assembly-heavy code that stays above the spill area.
-    fn compute_spill_hazard_insts(func: &Function) -> FxHashSet<InstId> {
+    fn compute_spill_hazard_insts(&self, func: &Function) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
         let has_symbolic_calldatacopy = func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::CalldataCopy(dest, _, size)
@@ -7790,7 +7854,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if func.value_u64(dest).is_some() && func.value_u64(size).is_some() {
                 continue;
             }
-            if Self::write_dest_may_reach_spills(func, &aa, dest) {
+            if self.write_dest_may_reach_spills(func, &aa, dest) {
                 hazards.insert(inst_id);
             }
         }
@@ -7802,7 +7866,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// in compiler-owned high memory; a symbolic low base (raw
     /// `returndatasize()` addressing) or a low absolute base can reach the
     /// fixed low-memory spill slots.
-    fn write_dest_may_reach_spills(func: &Function, aa: &AliasAnalysis, dest: ValueId) -> bool {
+    fn write_dest_may_reach_spills(
+        &self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        dest: ValueId,
+    ) -> bool {
         let Some(address) = aa.memory_address(func, dest) else {
             return true;
         };
@@ -7816,8 +7885,170 @@ impl<'gcx> EvmCodegen<'gcx> {
             MemoryBase::Absolute => {
                 address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
             }
-            MemoryBase::Value(_) => true,
+            MemoryBase::Value(value) => {
+                let mut visiting = DenseBitSet::new_empty(func.num_values());
+                let mut memo = FxHashMap::default();
+                self.heap_pointer_provenance(func, aa, value, &mut visiting, &mut memo)
+                    != Some(true)
+            }
         }
+    }
+
+    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer.
+    /// Calls through these helpers lose alias provenance in MIR, so remember the
+    /// narrow interprocedural fact needed by forwarding-buffer hazard analysis.
+    fn collect_heap_pointer_return_functions(module: &Module) -> DenseBitSet<FunctionId> {
+        let mut functions = DenseBitSet::new_empty(module.functions.len());
+        let no_helpers = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.instructions().any(|inst_id| {
+                matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::InternalCall { .. } | InstKind::SetFmp(_)
+                ) || matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::MStore(address, _)
+                        if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                )
+            }) {
+                continue;
+            }
+
+            let aa = AliasAnalysis::new(func);
+            let mut saw_return = false;
+            let mut valid = true;
+            for block in &func.blocks {
+                let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                saw_return = true;
+                if values.len() != 1 {
+                    valid = false;
+                    break;
+                }
+                let mut visiting = DenseBitSet::new_empty(func.num_values());
+                let mut memo = FxHashMap::default();
+                if Self::heap_pointer_provenance_with_helpers(
+                    func,
+                    &aa,
+                    values[0],
+                    &no_helpers,
+                    &mut visiting,
+                    &mut memo,
+                ) != Some(true)
+                {
+                    valid = false;
+                    break;
+                }
+            }
+            if saw_return && valid {
+                functions.insert(func_id);
+            }
+        }
+        functions
+    }
+
+    /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
+    /// edges are provisionally valid but ungrounded; every accepted cycle must
+    /// also contain a concrete FMP, allocation, or qualified-helper origin.
+    fn heap_pointer_provenance(
+        &self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        value: ValueId,
+        visiting: &mut DenseBitSet<ValueId>,
+        memo: &mut FxHashMap<ValueId, bool>,
+    ) -> Option<bool> {
+        Self::heap_pointer_provenance_with_helpers(
+            func,
+            aa,
+            value,
+            &self.heap_pointer_return_functions,
+            visiting,
+            memo,
+        )
+    }
+
+    fn heap_pointer_provenance_with_helpers(
+        func: &Function,
+        aa: &AliasAnalysis,
+        value: ValueId,
+        helper_returns: &DenseBitSet<FunctionId>,
+        visiting: &mut DenseBitSet<ValueId>,
+        memo: &mut FxHashMap<ValueId, bool>,
+    ) -> Option<bool> {
+        if let Some(&grounded) = memo.get(&value) {
+            return Some(grounded);
+        }
+        if !visiting.insert(value) {
+            return Some(false);
+        }
+
+        let aligned_mask = |value: ValueId| {
+            func.value_u256(value).is_some_and(|mask| {
+                mask == U256::MAX - U256::from(31)
+                    || mask == U256::from(u64::MAX.saturating_sub(31))
+            })
+        };
+        let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
+            Self::heap_pointer_provenance_with_helpers(
+                func,
+                aa,
+                value,
+                helper_returns,
+                visiting,
+                memo,
+            )
+        };
+
+        let provenance = aa
+            .memory_address(func, value)
+            .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
+            .or_else(|| {
+                let Value::Inst(inst_id) = func.value(value) else { return None };
+                match &func.inst(*inst_id).kind {
+                    InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
+                    InstKind::MLoad(address)
+                        if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                    {
+                        Some(true)
+                    }
+                    InstKind::InternalCall { function, returns: 1, .. }
+                        if helper_returns.contains(*function) =>
+                    {
+                        Some(true)
+                    }
+                    InstKind::Add(first, second) => {
+                        derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
+                    }
+                    InstKind::Sub(base, _) => derive(*base, visiting, memo),
+                    InstKind::And(first, second) if aligned_mask(*second) => {
+                        derive(*first, visiting, memo)
+                    }
+                    InstKind::And(first, second) if aligned_mask(*first) => {
+                        derive(*second, visiting, memo)
+                    }
+                    InstKind::MemoryObjectData(object, _)
+                    | InstKind::MemoryObjectFieldAddr { object, .. }
+                    | InstKind::MemoryObjectElementAddr { object, .. } => {
+                        derive(*object, visiting, memo)
+                    }
+                    InstKind::Phi(incoming) => {
+                        let mut grounded = false;
+                        for &(_, incoming) in incoming {
+                            grounded |= derive(incoming, visiting, memo)?;
+                        }
+                        Some(grounded)
+                    }
+                    InstKind::Select(_, then_value, else_value) => Some(
+                        derive(*then_value, visiting, memo)? | derive(*else_value, visiting, memo)?,
+                    ),
+                    _ => None,
+                }
+            });
+        visiting.remove(value);
+        if let Some(grounded) = provenance {
+            memo.insert(value, grounded);
+        }
+        provenance
     }
 
     /// Returns whether a function can read, write, or observe the reserved free-memory-pointer

@@ -687,7 +687,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.materialize_returndata_bytes(builder);
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let values = self.decode_abi_region(builder, data, len, function.returns);
+        let values = self.decode_external_abi_region(builder, data, len, function.returns);
         self.stage_multi_return_tail(builder, &values);
         values.first().copied()
     }
@@ -1717,9 +1717,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         let addr = self.lower_value_expr(builder, base);
 
-        // Every typed external return goes through the recursive bounded ABI
-        // decoder. Static aggregates need materialization just as dynamic
-        // ones do, and even one-word returns must reject short returndata.
+        // Aggregate and dynamic returns need recursive materialization. Plain
+        // value tuples can keep the direct CALL output buffer, avoiding a heap
+        // allocation after every scalar call; the fast path below still checks
+        // the complete returndata head and cleans every narrow ABI word.
         let return_tys = resolved_func
             .map(|func_id| {
                 self.gcx
@@ -1730,8 +1731,8 @@ impl<'gcx> Lowerer<'gcx> {
                     .map(|&id| self.gcx.type_of_item(id.into()))
                     .collect::<Vec<_>>()
             })
-            .filter(|tys| !tys.is_empty());
-        if let Some(return_tys) = return_tys {
+            .unwrap_or_default();
+        if return_tys.iter().any(|ty| !ty.peel_refs().is_value_type()) {
             let kind = self.external_function_call_kind(resolved_func);
             let (gas, value) =
                 self.lower_external_call_options(builder, call_opts, kind.accepts_value());
@@ -1786,6 +1787,23 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.emit_forwarding_revert_unless(builder, success);
 
+        if num_returns != 0 {
+            let payload_size = builder.returndatasize();
+            let too_short = builder.lt(payload_size, ret_size);
+            self.emit_abi_decode_revert_if(builder, too_short);
+        }
+
+        let mut first_return = None;
+        for (index, &ty) in return_tys.iter().enumerate() {
+            let offset = builder.imm_u64(index as u64 * 32);
+            let pos = builder.add(ret_offset, offset);
+            let word = builder.mload(pos);
+            self.emit_abi_field_clean_check(builder, ty, word);
+            let value = self.abi_decode_value(builder, word, ty);
+            builder.mstore(pos, value);
+            first_return.get_or_insert(value);
+        }
+
         if num_returns > 1 {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mstore(ptr_slot, ret_offset);
@@ -1804,7 +1822,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Load first return value from memory
         // Multi-return consumers snapshot additional words from the ephemeral
         // buffer at `ret_offset` before lowering any lvalues.
-        Some(builder.mload(ret_offset))
+        Some(first_return.unwrap_or_else(|| builder.mload(ret_offset)))
     }
 
     /// Performs an external call and bounded-decodes all declared return types.
@@ -1837,7 +1855,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.materialize_returndata_bytes(builder);
         let payload_size = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let base = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let values = self.decode_abi_region(builder, base, payload_size, return_tys);
+        let values = self.decode_external_abi_region(builder, base, payload_size, return_tys);
         self.stage_multi_return_tail(builder, &values);
         Some(values[0])
     }
@@ -3074,9 +3092,13 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(revert_block);
         let zero = builder.imm_u64(0);
         if self.gcx.sess.opts.evm_version.supports_returndata() {
-            let size = builder.returndatasize();
-            builder.returndatacopy(zero, zero, size);
-            builder.revert(zero, size);
+            let copy_size = builder.returndatasize();
+            builder.returndatacopy(zero, zero, copy_size);
+            // The copy may overwrite every compiler-owned low-memory spill
+            // slot. Query the unchanged returndata size again instead of
+            // carrying it through that clobber.
+            let revert_size = builder.returndatasize();
+            builder.revert(zero, revert_size);
         } else {
             builder.revert(zero, zero);
         }

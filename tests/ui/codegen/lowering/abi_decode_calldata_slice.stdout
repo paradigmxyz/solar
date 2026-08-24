@@ -61,25 +61,7 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb11:
     revert 0, 0
   bb12:
-    internal_call @__abi_validate_memory_0, 0, v24, v26
     v28 = mload v24
     ret v28
-}
-
-fn @__abi_validate_memory_0(arg0: memptr, arg1: memptr) {
-  bb0:
-    v0 = add arg0, 32
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v2 = gt v0, arg1
-    jumpi v2, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v3 = mload arg0
-    ret
 }
 

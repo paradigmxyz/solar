@@ -20,58 +20,24 @@ fn @read(arg0: address) -> u256 [abi_returns=[word]] {
     v7 = slice_ptr v6
     v8 = slice_len v6
     v9 = gas
-    v10 = staticcall v9, arg0, v7, v8, 0, 0
+    v10 = staticcall v9, arg0, v7, v8, 0, 32
     jumpi v10, bb6, bb5
   bb5:
     v11 = returndatasize
     returndatacopy 0, 0, v11 !metadata(memory=scratch)
-    revert 0, v11
-  bb6:
     v12 = returndatasize
-    v13 = make_returndata_slice 0, v12
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = add v15, 31
-    v17 = not 31
-    v18 = and v16, v17
-    v19 = add v18, 32
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    v21 = memory_object_data memorybytes, v20
-    returndatacopy v21, v14, v15
-    v22 = memory_object_len memorybytes, v20
-    v23 = memory_object_data memorybytes, v20
-    v24 = lt v22, 32
-    jumpi v24, bb7, bb8
+    revert 0, v12
+  bb6:
+    v13 = returndatasize
+    v14 = lt v13, 32
+    jumpi v14, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v25 = add v23, v22
-    v26 = lt v25, v23
-    jumpi v26, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    internal_call @__abi_validate_memory_0, 0, v23, v25
-    v27 = mload v23
-    ret v27
-}
-
-fn @__abi_validate_memory_0(arg0: memptr, arg1: memptr) {
-  bb0:
-    v0 = add arg0, 32
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    v2 = gt v0, arg1
-    jumpi v2, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v3 = mload arg0
-    ret
+    v15 = add 0, 0
+    v16 = mload v15
+    mstore v15, v16
+    ret v16
 }
 
 fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
@@ -103,35 +69,35 @@ fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
   bb5:
     v15 = returndatasize
     returndatacopy 0, 0, v15 !metadata(memory=scratch)
-    revert 0, v15
-  bb6:
     v16 = returndatasize
-    v17 = make_returndata_slice 0, v16
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = add v19, 31
-    v21 = not 31
-    v22 = and v20, v21
-    v23 = add v22, 32
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, v19
-    v25 = memory_object_data memorybytes, v24
-    returndatacopy v25, v18, v19
-    v26 = memory_object_len memorybytes, v24
-    v27 = memory_object_data memorybytes, v24
-    v28 = lt v26, 32
-    jumpi v28, bb7, bb8
+    revert 0, v16
+  bb6:
+    v17 = returndatasize
+    v18 = make_returndata_slice 0, v17
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = add v20, 31
+    v22 = not 31
+    v23 = and v21, v22
+    v24 = add v23, 32
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v25, v20
+    v26 = memory_object_data memorybytes, v25
+    returndatacopy v26, v19, v20
+    v27 = memory_object_len memorybytes, v25
+    v28 = memory_object_data memorybytes, v25
+    v29 = lt v27, 32
+    jumpi v29, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v29 = add v27, v26
-    v30 = lt v29, v27
-    jumpi v30, bb9, bb10
+    v30 = add v28, v27
+    v31 = lt v30, v28
+    jumpi v31, bb9, bb10
   bb9:
     revert 0, 0
   bb10:
-    internal_call @__abi_validate_memory_0, 0, v27, v29
-    v31 = mload v27
-    ret v31
+    v32 = mload v28
+    ret v32
 }
 

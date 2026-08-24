@@ -23,7 +23,8 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
   bb5:
     v11 = returndatasize
     returndatacopy 0, 0, v11 !metadata(memory=scratch)
-    revert 0, v11
+    v12 = returndatasize
+    revert 0, v12
   bb6:
     stop
   bb1:
