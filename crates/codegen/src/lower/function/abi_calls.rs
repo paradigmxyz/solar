@@ -400,11 +400,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.materialize_calldata_fixed_array(element, length, data, span, true)
             }
             TyKind::Struct(id) => {
-                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
-                let field_types = fields
-                    .iter()
-                    .map(|&field| self.context.gcx.type_of_item(field.into()))
-                    .collect::<Vec<_>>();
+                let gcx = self.context.gcx;
+                let field_types =
+                    gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
                 let base = self.builder.slice_ptr(value);
                 self.materialize_calldata_fields(field_types, base, span, true)
             }
@@ -616,11 +614,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Calldata,
                     ));
                 }
-                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
-                let field_types = fields
-                    .iter()
-                    .map(|&field| self.context.gcx.type_of_item(field.into()))
-                    .collect::<Vec<_>>();
+                let gcx = self.context.gcx;
+                let field_types =
+                    gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
                 self.materialize_calldata_fields(field_types, value_pos, span, validate_bounds)
             }
             TyKind::Tuple(fields) => self.materialize_calldata_fields(

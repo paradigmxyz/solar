@@ -403,7 +403,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         }
         let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
-        let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
+        let gcx = self.context.gcx;
+        let fields = gcx.hir.strukt(id).fields;
         let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32))
         else {
             return value;
@@ -411,7 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm_u64(size);
         let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         for (index, &field) in fields.iter().enumerate() {
-            let field_ty = self.context.gcx.type_of_item(field.into());
+            let field_ty = gcx.type_of_item(field.into());
             let field_value = self.builder.memory_object_load_field(value, layout, index as u64);
             let field_value = self.canonicalize_abi_value(field_ty, field_value);
             self.builder.memory_object_store_field(output, layout, index as u64, field_value);
@@ -1057,11 +1058,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
             TyKind::Struct(id) => {
-                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
+                let gcx = self.context.gcx;
+                let fields = gcx.hir.strukt(id).fields;
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let mut total = self.builder.imm_u64(0);
-                for (index, field) in fields.into_iter().enumerate() {
-                    let field = self.context.gcx.type_of_item(field.into());
+                for (index, &field) in fields.iter().enumerate() {
+                    let field = gcx.type_of_item(field.into());
                     let field_value =
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     let field_words = self.count_inplace_dynamic_value(field, field_value)?;
@@ -1131,11 +1133,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.copy_inplace_array(ty, value, output, offset)
             }
             TyKind::Struct(id) => {
-                let fields = self.context.gcx.hir.strukt(id).fields.to_vec();
+                let gcx = self.context.gcx;
+                let fields = gcx.hir.strukt(id).fields;
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let mut offset = offset;
-                for (index, field) in fields.into_iter().enumerate() {
-                    let field = self.context.gcx.type_of_item(field.into());
+                for (index, &field) in fields.iter().enumerate() {
+                    let field = gcx.type_of_item(field.into());
                     let field_value =
                         self.builder.memory_object_load_field(value, layout, index as u64);
                     offset = self.copy_inplace_dynamic_value(field, field_value, output, offset)?;
