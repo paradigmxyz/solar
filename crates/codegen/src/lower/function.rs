@@ -97,6 +97,7 @@ pub(super) struct LoweringState {
     pub(super) recursive_storage_helpers: FxHashMap<RecursiveStorageHelper, FunctionId>,
     pub(super) storage_clear_helper: Option<FunctionId>,
     pub(super) revert_error_helper: Option<FunctionId>,
+    pub(super) error_catch_match_helper: Option<FunctionId>,
     pub(super) literal_helpers: FxHashMap<Vec<u8>, FunctionId>,
     pub(super) literal_word_helper: Option<FunctionId>,
 }

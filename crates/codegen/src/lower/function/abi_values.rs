@@ -622,35 +622,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         data_len: ValueId,
         selector_matches: ValueId,
     ) -> ValueId {
-        let check_offset = self.builder.create_block();
-        let check_length = self.builder.create_block();
+        let validate = self.builder.create_block();
         let no_match = self.builder.create_block();
         let done = self.builder.create_block();
+        self.builder.branch(selector_matches, validate, no_match);
 
-        let min_size = self.builder.imm_u64(68);
-        let short = self.builder.lt(data_len, min_size);
-        let has_head = self.builder.iszero(short);
-        let candidate = self.builder.and(selector_matches, has_head);
-        self.builder.branch(candidate, check_offset, no_match);
-
-        self.builder.switch_to_block(check_offset);
-        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
-        let offset = self.builder.mload(payload_ptr);
-        let max_u64 = self.builder.imm_u256(U256::from(u64::MAX));
-        let offset_too_large = self.builder.gt(offset, max_u64);
-        let message_data_offset = self.builder.add_u64_offset(offset, 36);
-        let head_out_of_range = self.builder.gt(message_data_offset, data_len);
-        let invalid_offset = self.builder.or(offset_too_large, head_out_of_range);
-        self.builder.branch(invalid_offset, no_match, check_length);
-
-        self.builder.switch_to_block(check_length);
-        let message_ptr = self.builder.add(payload_ptr, offset);
-        let length = self.builder.mload(message_ptr);
-        let length_too_large = self.builder.gt(length, max_u64);
-        let remaining = self.builder.sub(data_len, message_data_offset);
-        let data_out_of_range = self.builder.gt(length, remaining);
-        let invalid_length = self.builder.or(length_too_large, data_out_of_range);
-        let valid = self.builder.iszero(invalid_length);
+        self.builder.switch_to_block(validate);
+        let helper = self.ensure_error_catch_match_helper();
+        let valid = self.builder.internal_call(helper, vec![data_ptr, data_len], MirType::Bool, 1);
         let valid_block = self.builder.current_block();
         self.builder.jump(done);
 
@@ -661,6 +640,60 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(done);
         self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+    }
+
+    /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
+    ///
+    /// <https://github.com/ethereum/solidity/blob/develop/libsolidity/codegen/YulUtilFunctions.cpp#L4676-L4714>
+    fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
+        if let Some(id) = self.context.state.error_catch_match_helper {
+            return id;
+        }
+
+        let mut function = Function::new(Ident::from_str("__try_decode_error_message"));
+        function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let data_ptr = builder.add_param(MirType::MemPtr);
+            let data_len = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::Bool);
+
+            let check_offset = builder.create_block();
+            let check_length = builder.create_block();
+            let no_match = builder.create_block();
+
+            let min_size = builder.imm_u64(68);
+            let short = builder.lt(data_len, min_size);
+            let has_head = builder.iszero(short);
+            builder.branch(has_head, check_offset, no_match);
+
+            builder.switch_to_block(check_offset);
+            let payload_ptr = builder.add_u64_offset(data_ptr, 4);
+            let offset = builder.mload(payload_ptr);
+            let max_u64 = builder.imm_u256(U256::from(u64::MAX));
+            let offset_too_large = builder.gt(offset, max_u64);
+            let message_data_offset = builder.add_u64_offset(offset, 36);
+            let head_out_of_range = builder.gt(message_data_offset, data_len);
+            let invalid_offset = builder.or(offset_too_large, head_out_of_range);
+            builder.branch(invalid_offset, no_match, check_length);
+
+            builder.switch_to_block(check_length);
+            let message_ptr = builder.add(payload_ptr, offset);
+            let length = builder.mload(message_ptr);
+            let length_too_large = builder.gt(length, max_u64);
+            let remaining = builder.sub(data_len, message_data_offset);
+            let data_out_of_range = builder.gt(length, remaining);
+            let invalid_length = builder.or(length_too_large, data_out_of_range);
+            let valid = builder.iszero(invalid_length);
+            builder.ret([valid]);
+
+            builder.switch_to_block(no_match);
+            let no_match = builder.imm_bool(false);
+            builder.ret([no_match]);
+        }
+        let id = self.context.module.add_function(function);
+        self.context.state.error_catch_match_helper = Some(id);
+        id
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
