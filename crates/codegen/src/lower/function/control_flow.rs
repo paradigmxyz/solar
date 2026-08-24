@@ -879,8 +879,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exits: &[LoopState],
         header_phis: &FxHashMap<VariableId, ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
-        let mut merged = FxHashMap::with_capacity_and_hasher(before.len(), Default::default());
-        for (id, before_value) in before {
+        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut merged = before;
+        for id in ids {
+            let before_value = merged[&id];
             let incoming = exits
                 .iter()
                 .filter_map(|state| {
