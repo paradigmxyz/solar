@@ -469,7 +469,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         };
         let function_id = self.resolve_call_target(expr, function_id);
-        self.context.pointer_registry.targets.insert(function_id);
+        self.context.state.pointer_registry.targets.insert(function_id);
         Some(self.builder.imm_u64(internal_function_pointer_id(function_id)))
     }
 
@@ -478,15 +478,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
     ) -> FunctionId {
         let shape = InternalFunctionPointerShape::from_ty(function);
-        if let Some(&dispatcher) = self.context.pointer_registry.dispatchers.get(&shape) {
+        if let Some(&dispatcher) = self.context.state.pointer_registry.dispatchers.get(&shape) {
             return dispatcher;
         }
-        let index = self.context.pointer_registry.dispatchers.len();
+        let index = self.context.state.pointer_registry.dispatchers.len();
         let dispatcher = self
             .context
             .module
             .add_function(Function::new(Ident::from_str(&format!("__internal_dispatch_{index}"))));
-        self.context.pointer_registry.dispatchers.insert(shape, dispatcher);
+        self.context.state.pointer_registry.dispatchers.insert(shape, dispatcher);
         dispatcher
     }
 

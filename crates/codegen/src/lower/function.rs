@@ -53,20 +53,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
     pub(super) child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
-    pub(super) invalid_event_topics: &'ctx mut FxHashSet<hir::EventId>,
-    pub(super) pointer_registry: &'ctx mut InternalFunctionPointerRegistry,
-    pub(super) storage_bytes_helper: &'ctx mut Option<FunctionId>,
-    pub(super) storage_bytes_array_helper: &'ctx mut Option<FunctionId>,
-    pub(super) storage_word_array_helper: &'ctx mut Option<FunctionId>,
-    pub(super) packed_array_helpers: &'ctx mut FxHashMap<(u8, u8), FunctionId>,
-    pub(super) storage_struct_array_helpers: &'ctx mut FxHashMap<hir::StructId, FunctionId>,
-    pub(super) recursive_storage_clear_helpers: &'ctx mut FxHashMap<hir::StructId, FunctionId>,
-    pub(super) recursive_storage_store_helpers:
-        &'ctx mut FxHashMap<(hir::StructId, hir::StructId), FunctionId>,
-    pub(super) storage_clear_helper: &'ctx mut Option<FunctionId>,
-    pub(super) revert_error_helper: &'ctx mut Option<FunctionId>,
-    pub(super) literal_helpers: &'ctx mut FxHashMap<Vec<u8>, FunctionId>,
-    pub(super) literal_word_helper: &'ctx mut Option<FunctionId>,
+    pub(super) state: &'ctx mut LoweringState,
     pub(super) shared_literals: &'ctx FxHashSet<Vec<u8>>,
     pub(super) shared_word_literals: &'ctx FxHashSet<Vec<u8>>,
     pub(super) share_storage_bytes: bool,
@@ -83,24 +70,31 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             immutable_ids: self.immutable_ids,
             child_bytecodes: self.child_bytecodes,
             child_runtime_bytecodes: self.child_runtime_bytecodes,
-            invalid_event_topics: &mut *self.invalid_event_topics,
-            pointer_registry: &mut *self.pointer_registry,
-            storage_bytes_helper: &mut *self.storage_bytes_helper,
-            storage_bytes_array_helper: &mut *self.storage_bytes_array_helper,
-            storage_word_array_helper: &mut *self.storage_word_array_helper,
-            packed_array_helpers: &mut *self.packed_array_helpers,
-            storage_struct_array_helpers: &mut *self.storage_struct_array_helpers,
-            recursive_storage_clear_helpers: &mut *self.recursive_storage_clear_helpers,
-            recursive_storage_store_helpers: &mut *self.recursive_storage_store_helpers,
-            storage_clear_helper: &mut *self.storage_clear_helper,
-            revert_error_helper: &mut *self.revert_error_helper,
-            literal_helpers: &mut *self.literal_helpers,
-            literal_word_helper: &mut *self.literal_word_helper,
+            state: &mut *self.state,
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
         }
     }
+}
+
+/// Mutable registries shared by all functions lowered for one contract.
+#[derive(Default)]
+pub(super) struct LoweringState {
+    pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
+    pub(super) pointer_registry: InternalFunctionPointerRegistry,
+    pub(super) storage_bytes_helper: Option<FunctionId>,
+    pub(super) storage_bytes_array_helper: Option<FunctionId>,
+    pub(super) storage_word_array_helper: Option<FunctionId>,
+    pub(super) packed_array_helpers: FxHashMap<(u8, u8), FunctionId>,
+    pub(super) storage_struct_array_helpers: FxHashMap<hir::StructId, FunctionId>,
+    pub(super) recursive_storage_clear_helpers: FxHashMap<hir::StructId, FunctionId>,
+    pub(super) recursive_storage_store_helpers:
+        FxHashMap<(hir::StructId, hir::StructId), FunctionId>,
+    pub(super) storage_clear_helper: Option<FunctionId>,
+    pub(super) revert_error_helper: Option<FunctionId>,
+    pub(super) literal_helpers: FxHashMap<Vec<u8>, FunctionId>,
+    pub(super) literal_word_helper: Option<FunctionId>,
 }
 
 /// Lowers one HIR function into a typed MIR function.

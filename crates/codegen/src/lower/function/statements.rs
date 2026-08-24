@@ -424,7 +424,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        if let Some(id) = *self.context.revert_error_helper {
+        if let Some(id) = self.context.state.revert_error_helper {
             return id;
         }
 
@@ -449,7 +449,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.revert(zero, size);
         }
         let id = self.context.module.add_function(function);
-        *self.context.revert_error_helper = Some(id);
+        self.context.state.revert_error_helper = Some(id);
         id
     }
 
@@ -509,7 +509,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .filter(|&&id| self.context.gcx.hir.variable(id).indexed)
             .count();
         if indexed_count > max_indexed {
-            if self.context.invalid_event_topics.insert(event_id) {
+            if self.context.state.invalid_event_topics.insert(event_id) {
                 self.context
                     .gcx
                     .dcx()

@@ -166,7 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        if let Some(id) = *self.context.literal_word_helper {
+        if let Some(id) = self.context.state.literal_word_helper {
             return id;
         }
         let mut function = Function::new(Ident::from_str("__literal_bytes_word"));
@@ -188,7 +188,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.ret([object]);
         }
         let id = self.context.module.add_function(function);
-        *self.context.literal_word_helper = Some(id);
+        self.context.state.literal_word_helper = Some(id);
         id
     }
 
@@ -214,10 +214,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_literal_helper(&mut self, bytes: &[u8]) -> FunctionId {
-        if let Some(&id) = self.context.literal_helpers.get(bytes) {
+        if let Some(&id) = self.context.state.literal_helpers.get(bytes) {
             return id;
         }
-        let index = self.context.literal_helpers.len();
+        let index = self.context.state.literal_helpers.len();
         let mut function = Function::new(Ident::from_str(&format!("__literal_bytes_{index}")));
         function.attributes.no_inline = true;
         {
@@ -229,7 +229,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.ret([object]);
         }
         let id = self.context.module.add_function(function);
-        self.context.literal_helpers.insert(bytes.to_vec(), id);
+        self.context.state.literal_helpers.insert(bytes.to_vec(), id);
         id
     }
 

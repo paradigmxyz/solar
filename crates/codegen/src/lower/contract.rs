@@ -47,7 +47,7 @@ pub(super) fn lower(
     let mut seen_selectors = FxHashSet::default();
     let reachable = gcx.contract_reachable_functions(contract_id);
     let prune_unreachable = !gcx.sess.opts.unstable.codegen_all_functions;
-    let mut invalid_event_topics = FxHashSet::default();
+    let mut state = function::LoweringState::default();
     let mut has_fallback = false;
     let mut has_receive = false;
     for &base in contract.linearized_bases {
@@ -144,18 +144,6 @@ pub(super) fn lower(
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
     let (shared_literals, shared_word_literals) = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
-    let mut pointer_registry = function::InternalFunctionPointerRegistry::default();
-    let mut storage_bytes_helper = None;
-    let mut storage_bytes_array_helper = None;
-    let mut storage_word_array_helper = None;
-    let mut packed_array_helpers = FxHashMap::default();
-    let mut storage_struct_array_helpers = FxHashMap::default();
-    let mut recursive_storage_clear_helpers = FxHashMap::default();
-    let mut recursive_storage_store_helpers = FxHashMap::default();
-    let mut storage_clear_helper = None;
-    let mut revert_error_helper = None;
-    let mut literal_helpers = FxHashMap::default();
-    let mut literal_word_helper = None;
     let mut visiting_storage_structs = FxHashSet::default();
     let share_storage_bytes = contract
         .linearized_bases
@@ -189,19 +177,7 @@ pub(super) fn lower(
             immutable_ids: &immutable_ids,
             child_bytecodes,
             child_runtime_bytecodes,
-            invalid_event_topics: &mut invalid_event_topics,
-            pointer_registry: &mut pointer_registry,
-            storage_bytes_helper: &mut storage_bytes_helper,
-            storage_bytes_array_helper: &mut storage_bytes_array_helper,
-            storage_word_array_helper: &mut storage_word_array_helper,
-            packed_array_helpers: &mut packed_array_helpers,
-            storage_struct_array_helpers: &mut storage_struct_array_helpers,
-            recursive_storage_clear_helpers: &mut recursive_storage_clear_helpers,
-            recursive_storage_store_helpers: &mut recursive_storage_store_helpers,
-            storage_clear_helper: &mut storage_clear_helper,
-            revert_error_helper: &mut revert_error_helper,
-            literal_helpers: &mut literal_helpers,
-            literal_word_helper: &mut literal_word_helper,
+            state: &mut state,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
@@ -246,19 +222,7 @@ pub(super) fn lower(
             immutable_ids: &immutable_ids,
             child_bytecodes,
             child_runtime_bytecodes,
-            invalid_event_topics: &mut invalid_event_topics,
-            pointer_registry: &mut pointer_registry,
-            storage_bytes_helper: &mut storage_bytes_helper,
-            storage_bytes_array_helper: &mut storage_bytes_array_helper,
-            storage_word_array_helper: &mut storage_word_array_helper,
-            packed_array_helpers: &mut packed_array_helpers,
-            storage_struct_array_helpers: &mut storage_struct_array_helpers,
-            recursive_storage_clear_helpers: &mut recursive_storage_clear_helpers,
-            recursive_storage_store_helpers: &mut recursive_storage_store_helpers,
-            storage_clear_helper: &mut storage_clear_helper,
-            revert_error_helper: &mut revert_error_helper,
-            literal_helpers: &mut literal_helpers,
-            literal_word_helper: &mut literal_word_helper,
+            state: &mut state,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
@@ -275,7 +239,7 @@ pub(super) fn lower(
         gcx,
         &mut module,
         &mir_ids,
-        &pointer_registry,
+        &state.pointer_registry,
     );
 
     if contract.kind == hir::ContractKind::Interface {

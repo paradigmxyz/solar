@@ -1014,12 +1014,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         ) {
             let bytes_helper = self.ensure_storage_bytes_helper();
-            let helper = match *self.context.storage_bytes_array_helper {
+            let helper = match self.context.state.storage_bytes_array_helper {
                 Some(helper) => helper,
                 None => {
                     let helper =
                         synthesize_storage_bytes_array_helper(self.context.module, bytes_helper);
-                    *self.context.storage_bytes_array_helper = Some(helper);
+                    self.context.state.storage_bytes_array_helper = Some(helper);
                     helper
                 }
             };
@@ -1038,12 +1038,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 StorageEncoding::FixedBytes => 2,
             };
             let key = (size.bytes(), encoding);
-            let helper = match self.context.packed_array_helpers.get(&key).copied() {
+            let helper = match self.context.state.packed_array_helpers.get(&key).copied() {
                 Some(helper) => helper,
                 None => {
                     let helper =
                         synthesize_storage_packed_array_helper(self.context.module, key.0, key.1);
-                    self.context.packed_array_helpers.insert(key, helper);
+                    self.context.state.packed_array_helpers.insert(key, helper);
                     helper
                 }
             };
@@ -1057,11 +1057,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .packed_encoding(element)
                 .is_none_or(|(size, _)| size.bits() == 256)
         {
-            let helper = match *self.context.storage_word_array_helper {
+            let helper = match self.context.state.storage_word_array_helper {
                 Some(helper) => helper,
                 None => {
                     let helper = synthesize_storage_word_array_helper(self.context.module);
-                    *self.context.storage_word_array_helper = Some(helper);
+                    self.context.state.storage_word_array_helper = Some(helper);
                     helper
                 }
             };
@@ -1075,7 +1075,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: solar_sema::ty::Ty<'gcx>,
         struct_id: solar_sema::hir::StructId,
     ) -> Option<FunctionId> {
-        if let Some(&helper) = self.context.storage_struct_array_helpers.get(&struct_id) {
+        if let Some(&helper) = self.context.state.storage_struct_array_helpers.get(&struct_id) {
             return Some(helper);
         }
 
@@ -1088,7 +1088,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut function = Function::new(Ident::from_str(&name));
         function.attributes.no_inline = true;
         let helper = self.context.module.add_function(function);
-        self.context.storage_struct_array_helpers.insert(struct_id, helper);
+        self.context.state.storage_struct_array_helpers.insert(struct_id, helper);
 
         let field_ids = self.context.gcx.hir.strukt(struct_id).fields.to_vec();
         let mut fields = Vec::with_capacity(field_ids.len());
@@ -1339,11 +1339,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
-        if let Some(helper) = *self.context.storage_bytes_helper {
+        if let Some(helper) = self.context.state.storage_bytes_helper {
             return helper;
         }
         let helper = synthesize_storage_bytes_helper(self.context.module);
-        *self.context.storage_bytes_helper = Some(helper);
+        self.context.state.storage_bytes_helper = Some(helper);
         helper
     }
 
@@ -1471,11 +1471,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first_word: ValueId,
         words: ValueId,
     ) {
-        let helper = match *self.context.storage_clear_helper {
+        let helper = match self.context.state.storage_clear_helper {
             Some(helper) => helper,
             None => {
                 let helper = synthesize_storage_clear_helper(self.context.module);
-                *self.context.storage_clear_helper = Some(helper);
+                self.context.state.storage_clear_helper = Some(helper);
                 helper
             }
         };
@@ -1660,7 +1660,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<FunctionId> {
         let key = (struct_id, source_struct_id);
-        if let Some(&helper) = self.context.recursive_storage_store_helpers.get(&key) {
+        if let Some(&helper) = self.context.state.recursive_storage_store_helpers.get(&key) {
             return Some(helper);
         }
 
@@ -1671,7 +1671,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut function = Function::new(name);
         function.attributes.no_inline = true;
         let helper = self.context.module.add_function(Function::new(name));
-        self.context.recursive_storage_store_helpers.insert(key, helper);
+        self.context.state.recursive_storage_store_helpers.insert(key, helper);
 
         let lowered = {
             let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
@@ -1695,7 +1695,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         *self.context.module.function_mut(helper) = function;
         if !lowered {
-            self.context.recursive_storage_store_helpers.remove(&key);
+            self.context.state.recursive_storage_store_helpers.remove(&key);
             return None;
         }
         Some(helper)
@@ -1881,7 +1881,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: solar_sema::hir::StructId,
         span: Span,
     ) -> Option<FunctionId> {
-        if let Some(&helper) = self.context.recursive_storage_clear_helpers.get(&struct_id) {
+        if let Some(&helper) = self.context.state.recursive_storage_clear_helpers.get(&struct_id) {
             return Some(helper);
         }
 
@@ -1892,7 +1892,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut function = Function::new(name);
         function.attributes.no_inline = true;
         let helper = self.context.module.add_function(Function::new(name));
-        self.context.recursive_storage_clear_helpers.insert(struct_id, helper);
+        self.context.state.recursive_storage_clear_helpers.insert(struct_id, helper);
 
         let lowered = {
             let mut lowerer = FunctionLowerer::new(self.context.reborrow(), &mut function);
@@ -1907,7 +1907,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         *self.context.module.function_mut(helper) = function;
         if !lowered {
-            self.context.recursive_storage_clear_helpers.remove(&struct_id);
+            self.context.state.recursive_storage_clear_helpers.remove(&struct_id);
             return None;
         }
         Some(helper)
