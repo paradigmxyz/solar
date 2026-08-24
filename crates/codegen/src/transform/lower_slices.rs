@@ -48,6 +48,8 @@ enum ParamRepr {
     Pair,
 }
 
+type SliceIncoming = (Vec<(BlockId, ValueId)>, Vec<(BlockId, ValueId)>);
+
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
@@ -77,10 +79,7 @@ fn new_slice_inst(
     ))
 }
 
-fn split_slice_incoming(
-    func: &mut Function,
-    incoming: Vec<(BlockId, ValueId)>,
-) -> (Vec<(BlockId, ValueId)>, Vec<(BlockId, ValueId)>) {
+fn split_slice_incoming(func: &mut Function, incoming: Vec<(BlockId, ValueId)>) -> SliceIncoming {
     let mut ptr_incoming = Vec::with_capacity(incoming.len());
     let mut len_incoming = Vec::with_capacity(incoming.len());
     for (pred, value) in incoming {
