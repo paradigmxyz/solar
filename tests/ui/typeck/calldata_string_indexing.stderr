@@ -1,0 +1,14 @@
+error: cannot index into string calldata
+   ╭▸ ROOT/tests/ui/typeck/calldata_string_indexing.sol:LL:CC
+   │
+LL │         return value[0];
+   ╰╴               ━━━━━━━━
+
+error: cannot index into string calldata slice
+   ╭▸ ROOT/tests/ui/typeck/calldata_string_indexing.sol:LL:CC
+   │
+LL │         return value[:][0];
+   ╰╴               ━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
