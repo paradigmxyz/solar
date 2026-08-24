@@ -71,6 +71,13 @@ fn load_memory_object_word(
     }
 }
 
+fn memory_object_layout(layout: &StorageLayout) -> MemoryObjectLayout {
+    match layout {
+        StorageLayout::Struct(fields) => MemoryObjectLayout::structure(fields.len() as u64),
+        StorageLayout::Array { len, .. } => MemoryObjectLayout::word_fixed_array(*len),
+    }
+}
+
 fn lower_function(func: &mut Function) -> bool {
     enum AggregateOp {
         StorageToMemory(ValueId, ValueId, Arc<StorageLayout>),
@@ -146,7 +153,7 @@ fn visit_storage_fields(
 ) {
     match layout {
         StorageLayout::Struct(fields) => {
-            let memory_layout = MemoryObjectLayout::structure(fields.len() as u64);
+            let memory_layout = memory_object_layout(layout);
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
                 visit(
@@ -163,7 +170,7 @@ fn visit_storage_fields(
             }
         }
         StorageLayout::Array { element, len } => {
-            let memory_layout = MemoryObjectLayout::word_fixed_array(*len);
+            let memory_layout = memory_object_layout(layout);
             let mut storage_offset = 0;
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
@@ -198,17 +205,9 @@ fn lower_storage_field_to_memory(
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm_u64(layout.memory_words() * 32);
-            let object_layout = match layout.as_ref() {
-                StorageLayout::Struct(fields) => {
-                    crate::mir::MemoryObjectLayout::Struct { fields: fields.len() as u64 }
-                }
-                StorageLayout::Array { len, .. } => {
-                    crate::mir::MemoryObjectLayout::FixedArray { len: *len, element_words: 1 }
-                }
-            };
             let nested = builder.alloc_object(
                 size,
-                object_layout,
+                memory_object_layout(layout),
                 crate::mir::AllocationSemantics::INTERNAL,
             );
             lower_storage_to_memory(builder, layout, slot, nested);
