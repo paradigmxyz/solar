@@ -730,11 +730,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
         let one = self.builder.imm_u64(1);
         let length = self.builder.checked_add(old_length, one);
-        let size = self.builder.checked_padded_size(length);
-        let layout = MemoryObjectLayout::Bytes;
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-        self.builder.set_memory_object_len(object, length, layout.kind());
-        self.builder.memory_object_copy(object, layout.kind(), old, layout.kind(), old_length);
+        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
+        self.builder.memory_object_copy(
+            object,
+            MemoryObjectKind::Bytes,
+            old,
+            MemoryObjectKind::Bytes,
+            old_length,
+        );
         self.builder.memory_object_store_byte(object, old_length, value);
         self.store_storage_bytes(access.slot, object)?;
         Some(self.builder.imm_u256(U256::ZERO))
@@ -761,12 +764,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
             let one = self.builder.imm_u64(1);
             let length = self.builder.sub(old_length, one);
-            let size = self.builder.checked_padded_size(length);
-            let layout = MemoryObjectLayout::Bytes;
             let object =
-                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-            self.builder.set_memory_object_len(object, length, layout.kind());
-            self.builder.memory_object_copy(object, layout.kind(), old, layout.kind(), length);
+                self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
+            self.builder.memory_object_copy(
+                object,
+                MemoryObjectKind::Bytes,
+                old,
+                MemoryObjectKind::Bytes,
+                length,
+            );
             self.store_storage_bytes(access.slot, object)?;
             return Some(zero);
         }

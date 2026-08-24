@@ -546,6 +546,18 @@ impl<'a> FunctionBuilder<'a> {
         self.alloc_kind(size, crate::mir::AllocationKind::Object(layout), semantics)
     }
 
+    /// Allocates a padded bytes object and records its logical length.
+    pub(crate) fn alloc_bytes_object(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        let size = self.checked_padded_size(length);
+        let object = self.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        self.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        object
+    }
+
     /// Allocates a fixed array whose elements each occupy one memory word.
     pub(crate) fn alloc_word_array(
         &mut self,

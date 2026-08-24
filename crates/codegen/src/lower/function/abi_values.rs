@@ -624,13 +624,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
         let length = self.builder.slice_len(slice);
-        let size = self.builder.checked_padded_size(length);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
         object
     }

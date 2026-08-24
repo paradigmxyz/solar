@@ -1249,12 +1249,10 @@ impl LowerAbiCx {
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
-            let preserve_word_types = abi_params.is_some_and(|layout| {
-                layout.types.len() == arg_types.len()
-                    && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                        ty.is_scalar_word() && ty.mir_type() == param && param != MirType::Function
-                    })
-            });
+            let preserve_word_types = layout.types.len() == arg_types.len()
+                && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
+                    ty.is_scalar_word() && ty.mir_type() == param && param != MirType::Function
+                });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
             for (index, _) in (0..head_offset / 32).enumerate() {
                 params.push(if preserve_word_types {
@@ -3816,16 +3814,11 @@ fn encode_live_returns(
         // overwritten while the return tuple is encoded.
         func.external_static_return_size = layout.head_size();
     }
-    let block_ids: Vec<_> = func.blocks.indices().collect();
     let return_types = func.returns.clone();
-    for block_id in block_ids {
+    for block_id in return_blocks {
         let values = match func.blocks[block_id].terminator.take() {
-            Some(Terminator::Return { values }) if !values.is_empty() => values.into_vec(),
-            Some(terminator) => {
-                func.blocks[block_id].terminator = Some(terminator);
-                continue;
-            }
-            None => continue,
+            Some(Terminator::Return { values }) => values.into_vec(),
+            _ => unreachable!("return block changed unexpectedly"),
         };
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);

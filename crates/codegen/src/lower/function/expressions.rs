@@ -346,13 +346,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let length = self.builder.extcodesize(address);
-            let size = self.builder.checked_padded_size(length);
-            let object = self.builder.alloc_object(
-                size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::SOLIDITY_ZEROED,
-            );
-            self.builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+            let object =
+                self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
             let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u256(U256::ZERO);
             self.builder.extcodecopy(address, data, zero, length);

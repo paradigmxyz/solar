@@ -124,8 +124,6 @@ fn build_entry(
     hoist_callvalue: bool,
     has_bitwise_shifting: bool,
 ) {
-    let fallback_rejects =
-        fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
     // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
     // selector extraction. A short input can therefore match a selector
     // only when its final byte is zero; guard all short inputs if any
@@ -206,12 +204,13 @@ fn build_entry(
             && let Some(target) = fallback
         {
             builder.switch_to_block(default_block);
-            guarded_tail_call(
-                &mut builder,
-                target,
-                fallback_rejects && !hoist_callvalue,
-                revert_block,
-            );
+            if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
+                let go = builder.create_block();
+                let value = builder.callvalue();
+                builder.branch(value, revert_block, go);
+                builder.switch_to_block(go);
+            }
+            builder.tail_call(target, Vec::new());
         }
 
         // Each case tail-calls its argument-free wrapper directly. A
@@ -229,22 +228,6 @@ fn build_entry(
     }
 
     module.add_function(entry);
-}
-
-/// Tail-calls `target`, first rejecting nonzero callvalue when `check`.
-fn guarded_tail_call(
-    builder: &mut FunctionBuilder<'_>,
-    target: FunctionId,
-    check: bool,
-    revert_block: crate::mir::BlockId,
-) {
-    if check {
-        let go = builder.create_block();
-        let value = builder.callvalue();
-        builder.branch(value, revert_block, go);
-        builder.switch_to_block(go);
-    }
-    builder.tail_call(target, Vec::new());
 }
 
 /// Loads the 4-byte function selector from the first calldata word.

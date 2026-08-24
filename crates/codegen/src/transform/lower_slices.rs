@@ -762,7 +762,7 @@ impl LowerSlices {
             return false;
         }
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for (id, func) in module.functions.iter_mut_enumerated() {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
@@ -770,8 +770,6 @@ impl LowerSlices {
                 changed = true;
             }
             changed |= Self::expand_call_args(func, &signatures);
-        }
-        for (id, func) in module.functions.iter_mut_enumerated() {
             changed |= Self::lower_external_args(func);
             changed |= Self::lower_params(func, &signatures[&id]);
             while Self::split_slice_aggregates(func) {

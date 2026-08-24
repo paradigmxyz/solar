@@ -270,13 +270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
         let bytecode_len_value = self.builder.imm_u64(bytecode_len);
         let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
-        let size = self.builder.checked_padded_size(total_len);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, total_len, MemoryObjectKind::Bytes);
+        let object = self.builder.alloc_bytes_object(total_len, AllocationSemantics::INTERNAL);
 
         for (index, chunk) in bytecode.chunks(32).enumerate() {
             let offset = self.builder.imm_u64(u64::try_from(index).ok()?.saturating_mul(32));
