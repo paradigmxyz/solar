@@ -204,7 +204,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         let invalid = self.builder.or(past_end, backwards);
-        self.builder.revert_if(invalid);
+        self.revert_if_invalid(invalid);
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start

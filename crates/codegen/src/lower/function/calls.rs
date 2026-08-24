@@ -1021,13 +1021,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
         let actual = self.builder.returndata_size();
         let short = self.builder.lt(actual, expected);
-        self.builder.revert_if(short);
+        self.revert_if_invalid(short);
     }
 
     fn revert_if_no_code(&mut self, address: ValueId) {
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
-        self.builder.revert_if(missing);
+        self.revert_if_invalid(missing);
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
@@ -1052,7 +1052,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let valid = validator.condition(&mut self.builder, value, false);
 
         let invalid = self.builder.iszero(valid);
-        self.builder.revert_if(invalid);
+        self.revert_if_invalid(invalid);
     }
 
     pub(super) fn resolve_call_target(
