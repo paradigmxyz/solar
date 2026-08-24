@@ -1,0 +1,61 @@
+- // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (before legalize-shifts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (after legalize-shifts) ===
+  @module module
+  bb0:
+    push 7
+    push 1
+-   shl
++   push 2
++   exp
++   mul
+    push 7
+    push 1
+-   shr
++   push 2
++   exp
++   swap1
++   div
+    push 7
+    push 1
+-   sar
++   dup2
++   dup2
++   push 2
++   exp
++   swap2
++   pop
++   dup2
++   dup2
++   div
++   dup3
++   dup3
++   not
++   div
++   not
++   dup3
++   push 0
++   swap1
++   slt
++   dup1
++   dup3
++   mul
++   dup2
++   push 1
++   sub
++   dup5
++   mul
++   add
++   swap1
++   pop
++   swap1
++   pop
++   swap1
++   pop
++   swap1
++   pop
++   swap1
++   pop
++   swap1
++   pop
+    stop
+  

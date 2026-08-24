@@ -25,8 +25,10 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
-pub(in crate::backend::evm) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
+pub(in crate::backend::evm) use passes::{
+    compact_pushes::immediate_materialization_cost, legalize_shifts,
+};
 
 /// Maximum stack reserve used by parameterized machine-run outlining.
 pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;

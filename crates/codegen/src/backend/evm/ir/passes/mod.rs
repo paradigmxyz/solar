@@ -11,12 +11,15 @@ mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
 mod constant_data;
 mod dce;
+mod legalize_shifts;
 mod outline;
 mod peephole;
 mod share_reverts;
 mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
+
+pub(in crate::backend::evm) use legalize_shifts::legalize_shifts;
 
 use super::Module;
 use crate::{
@@ -57,6 +60,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &constant_data::ConstantData,
     &dce::Dce,
+    &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,

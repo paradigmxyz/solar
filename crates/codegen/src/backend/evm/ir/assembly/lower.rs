@@ -24,6 +24,7 @@ impl Assembler<'_> {
 
         let input_is_valid = cfg!(debug_assertions) && ir::builder::is_valid(&ir_program);
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
+        let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         debug_assert!(!input_is_valid || ir::builder::is_valid(&ir_program));
 
         let program = lower_evm_ir(self, &mut ir_program, &mut labels);
