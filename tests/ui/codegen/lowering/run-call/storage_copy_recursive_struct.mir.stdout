@@ -15,555 +15,547 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v7 = sload v6 !metadata(storage=slot(1))
     v8 = and v7, 1
     v9 = eq v8, 1
-    v10 = and v7, 254
-    v11 = shr 1, v10
-    v12 = shr 1, v7
-    v13 = select v9, v12, v11
-    v14 = lt v13, 32
-    v15 = eq v9, v14
-    jumpi v15, bb1, bb2
+    v10 = shr 1, v7
+    v11 = and v10, 127
+    v12 = select v9, v10, v11
+    v13 = lt v12, 32
+    v14 = eq v9, v13
+    jumpi v14, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v16 = memory_object_len memorybytes, v5
-    v17 = memory_object_data memorybytes, v5
-    v18 = make_memory_slice v17, v16
-    v19 = add v13, 31
-    v20 = lt v19, v13
-    jumpi v20, bb3, bb4
+    v15 = memory_object_len memorybytes, v5
+    v16 = memory_object_data memorybytes, v5
+    v17 = make_memory_slice v16, v15
+    v18 = add v12, 31
+    v19 = div v18, 32
+    v20 = add v15, 31
+    v21 = lt v20, v15
+    jumpi v21, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v21 = div v19, 32
-    v22 = add v16, 31
-    v23 = lt v22, v16
-    jumpi v23, bb5, bb6
+    v22 = div v20, 32
+    v23 = lt v15, 32
+    v24 = select v23, 0, v22
+    v25 = gt v12, v15
+    v26 = and v9, v25
+    jumpi v26, bb5, bb6
   bb5:
+    internal_call @__clear_storage_words, 0, v6, v24, v19
+    jump bb6
+  bb6:
+    jumpi v23, bb7, bb8
+  bb7:
+    v27 = memory_slice_load_word memory, v17, 0
+    v28 = sub 32, v15
+    v29 = mul v28, 8
+    v30 = shl v29, 1
+    v31 = sub v30, 1
+    v32 = not v31
+    v33 = and v27, v32
+    v34 = mul v15, 2
+    v35 = or v33, v34
+    sstore v6, v35 !metadata(storage=slot(1))
+    jump bb9
+  bb8:
+    v36 = shl 1, v15
+    v37 = or v36, 1
+    sstore v6, v37 !metadata(storage=slot(1))
+    v38 = storage_array_data_slot v6
+    jump bb10
+  bb9:
+    v45 = add 0, 2
+    v46 = sload v45 !metadata(storage=slot(2))
+    v47 = add v46, 1
+    v48 = lt v47, v46
+    jumpi v48, bb13, bb14
+  bb10:
+    v39 = phi [bb8: 0], [bb11: v44]
+    v40 = lt v39, v22
+    jumpi v40, bb11, bb12
+  bb11:
+    v41 = mul v39, 32
+    v42 = memory_slice_load_word memory, v17, v41
+    v43 = add v38, v39
+    sstore v43, v42 !metadata(storage=symbolic(v43))
+    v44 = add v39, 1
+    jump bb10
+  bb12:
+    jump bb9
+  bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    v24 = div v22, 32
-    v25 = lt v16, 32
-    v26 = select v25, 0, v24
-    v27 = gt v13, v16
-    v28 = and v9, v27
-    jumpi v28, bb7, bb8
-  bb7:
-    internal_call @__clear_storage_words, 0, v6, v26, v21
-    jump bb8
-  bb8:
-    jumpi v25, bb9, bb10
-  bb9:
-    v29 = memory_slice_load_word memory, v18, 0
-    v30 = sub 32, v16
-    v31 = mul v30, 8
-    v32 = shl v31, 1
-    v33 = sub v32, 1
-    v34 = not v33
-    v35 = and v29, v34
-    v36 = mul v16, 2
-    v37 = or v35, v36
-    sstore v6, v37 !metadata(storage=slot(1))
-    jump bb11
-  bb10:
-    v38 = shl 1, v16
-    v39 = or v38, 1
-    sstore v6, v39 !metadata(storage=slot(1))
-    v40 = storage_array_data_slot v6
-    jump bb12
-  bb11:
-    v47 = add 0, 2
-    v48 = sload v47 !metadata(storage=slot(2))
-    v49 = add v48, 1
-    v50 = lt v49, v48
-    jumpi v50, bb15, bb16
-  bb12:
-    v41 = phi [bb10: 0], [bb13: v46]
-    v42 = lt v41, v24
-    jumpi v42, bb13, bb14
-  bb13:
-    v43 = mul v41, 32
-    v44 = memory_slice_load_word memory, v18, v43
-    v45 = add v40, v41
-    sstore v45, v44 !metadata(storage=symbolic(v45))
-    v46 = add v41, 1
-    jump bb12
   bb14:
-    jump bb11
+    v49 = storage_array_data_slot v45
+    v50 = mul v46, 3
+    v51 = add v49, v50
+    sstore v45, v47 !metadata(storage=slot(2))
+    v52 = add 0, 2
+    v53 = sload v52 !metadata(storage=slot(2))
+    v54 = lt 0, v53
+    v55 = iszero v54
+    jumpi v55, bb15, bb16
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb16:
-    v51 = storage_array_data_slot v47
-    v52 = mul v48, 3
-    v53 = add v51, v52
-    sstore v47, v49 !metadata(storage=slot(2))
-    v54 = add 0, 2
-    v55 = sload v54 !metadata(storage=slot(2))
-    v56 = lt 0, v55
-    v57 = iszero v56
-    jumpi v57, bb17, bb18
+    v56 = storage_array_data_slot v52
+    v57 = mul 0, 3
+    v58 = add v56, v57
+    v59 = sload v58 !metadata(storage=symbolic(v58))
+    v60 = not 0xffffffffffffffffffffffffffffffff
+    v61 = and v59, v60
+    v62 = and 2, 0xffffffffffffffffffffffffffffffff
+    v63 = or v61, v62
+    sstore v58, v63 !metadata(storage=symbolic(v58))
+    v64 = add 0, 2
+    v65 = sload v64 !metadata(storage=slot(2))
+    v66 = lt 0, v65
+    v67 = iszero v66
+    jumpi v67, bb17, bb18
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    v58 = storage_array_data_slot v54
-    v59 = mul 0, 3
-    v60 = add v58, v59
-    v61 = sload v60 !metadata(storage=symbolic(v60))
-    v62 = not 0xffffffffffffffffffffffffffffffff
-    v63 = and v61, v62
-    v64 = and 2, 0xffffffffffffffffffffffffffffffff
-    v65 = or v63, v64
-    sstore v60, v65 !metadata(storage=symbolic(v60))
-    v66 = add 0, 2
-    v67 = sload v66 !metadata(storage=slot(2))
-    v68 = lt 0, v67
-    v69 = iszero v68
-    jumpi v69, bb19, bb20
+    v68 = storage_array_data_slot v64
+    v69 = mul 0, 3
+    v70 = add v68, v69
+    v71 = add v70, 2
+    v72 = sload v71 !metadata(storage=offset(v70, 2))
+    v73 = add v72, 1
+    v74 = lt v73, v72
+    jumpi v74, bb19, bb20
   bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb20:
-    v70 = storage_array_data_slot v66
-    v71 = mul 0, 3
-    v72 = add v70, v71
-    v73 = add v72, 2
-    v74 = sload v73 !metadata(storage=offset(v72, 2))
-    v75 = add v74, 1
-    v76 = lt v75, v74
-    jumpi v76, bb21, bb22
-  bb21:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb20:
+    v75 = storage_array_data_slot v71
+    v76 = mul v72, 3
+    v77 = add v75, v76
+    sstore v71, v73 !metadata(storage=offset(v70, 2))
+    v78 = add 0, 2
+    v79 = sload v78 !metadata(storage=slot(2))
+    v80 = lt 0, v79
+    v81 = iszero v80
+    jumpi v81, bb21, bb22
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb22:
-    v77 = storage_array_data_slot v73
-    v78 = mul v74, 3
-    v79 = add v77, v78
-    sstore v73, v75 !metadata(storage=offset(v72, 2))
-    v80 = add 0, 2
-    v81 = sload v80 !metadata(storage=slot(2))
-    v82 = lt 0, v81
-    v83 = iszero v82
-    jumpi v83, bb23, bb24
+    v82 = storage_array_data_slot v78
+    v83 = mul 0, 3
+    v84 = add v82, v83
+    v85 = add v84, 2
+    v86 = sload v85 !metadata(storage=offset(v84, 2))
+    v87 = lt 0, v86
+    v88 = iszero v87
+    jumpi v88, bb23, bb24
   bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb24:
-    v84 = storage_array_data_slot v80
-    v85 = mul 0, 3
-    v86 = add v84, v85
-    v87 = add v86, 2
-    v88 = sload v87 !metadata(storage=offset(v86, 2))
-    v89 = lt 0, v88
-    v90 = iszero v89
-    jumpi v90, bb25, bb26
+    v89 = storage_array_data_slot v85
+    v90 = mul 0, 3
+    v91 = add v89, v90
+    v92 = sload v91 !metadata(storage=symbolic(v91))
+    v93 = not 0xffffffffffffffffffffffffffffffff
+    v94 = and v92, v93
+    v95 = and 3, 0xffffffffffffffffffffffffffffffff
+    v96 = or v94, v95
+    sstore v91, v96 !metadata(storage=symbolic(v91))
+    v97 = add 0, 2
+    v98 = sload v97 !metadata(storage=slot(2))
+    v99 = add v98, 1
+    v100 = lt v99, v98
+    jumpi v100, bb25, bb26
   bb25:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb26:
-    v91 = storage_array_data_slot v87
-    v92 = mul 0, 3
-    v93 = add v91, v92
-    v94 = sload v93 !metadata(storage=symbolic(v93))
-    v95 = not 0xffffffffffffffffffffffffffffffff
-    v96 = and v94, v95
-    v97 = and 3, 0xffffffffffffffffffffffffffffffff
-    v98 = or v96, v97
-    sstore v93, v98 !metadata(storage=symbolic(v93))
-    v99 = add 0, 2
-    v100 = sload v99 !metadata(storage=slot(2))
-    v101 = add v100, 1
-    v102 = lt v101, v100
-    jumpi v102, bb27, bb28
+    v101 = storage_array_data_slot v97
+    v102 = mul v98, 3
+    v103 = add v101, v102
+    sstore v97, v99 !metadata(storage=slot(2))
+    v104 = add 0, 2
+    v105 = sload v104 !metadata(storage=slot(2))
+    v106 = lt 1, v105
+    v107 = iszero v106
+    jumpi v107, bb27, bb28
   bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb28:
-    v103 = storage_array_data_slot v99
-    v104 = mul v100, 3
-    v105 = add v103, v104
-    sstore v99, v101 !metadata(storage=slot(2))
-    v106 = add 0, 2
-    v107 = sload v106 !metadata(storage=slot(2))
-    v108 = lt 1, v107
-    v109 = iszero v108
-    jumpi v109, bb29, bb30
-  bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb30:
-    v110 = storage_array_data_slot v106
-    v111 = mul 1, 3
-    v112 = add v110, v111
-    v113 = sload v112 !metadata(storage=symbolic(v112))
-    v114 = not 0xffffffffffffffffffffffffffffffff
-    v115 = and v113, v114
-    v116 = and 4, 0xffffffffffffffffffffffffffffffff
-    v117 = or v115, v116
-    sstore v112, v117 !metadata(storage=symbolic(v112))
-    v118 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v119 = sload 0 !metadata(storage=slot(0))
-    v120 = and v119, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v118, 0, v120
-    v121 = add 0, 1
-    v122 = internal_call @__load_storage_bytes, 1, v121
-    memory_object_store_field memorystruct<3>, v118, 1, v122
-    v123 = add 0, 2
-    v124 = internal_call @__load_storage_struct_array_3, 1, v123
-    memory_object_store_field memorystruct<3>, v118, 2, v124
-    v125 = sload 6 !metadata(storage=slot(6))
-    v126 = add v125, 1
-    v127 = lt v126, v125
-    jumpi v127, bb31, bb32
-  bb31:
+  bb28:
+    v108 = storage_array_data_slot v104
+    v109 = mul 1, 3
+    v110 = add v108, v109
+    v111 = sload v110 !metadata(storage=symbolic(v110))
+    v112 = not 0xffffffffffffffffffffffffffffffff
+    v113 = and v111, v112
+    v114 = and 4, 0xffffffffffffffffffffffffffffffff
+    v115 = or v113, v114
+    sstore v110, v115 !metadata(storage=symbolic(v110))
+    v116 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v117 = sload 0 !metadata(storage=slot(0))
+    v118 = and v117, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<3>, v116, 0, v118
+    v119 = add 0, 1
+    v120 = internal_call @__load_storage_bytes, 1, v119
+    memory_object_store_field memorystruct<3>, v116, 1, v120
+    v121 = add 0, 2
+    v122 = internal_call @__load_storage_struct_array_3, 1, v121
+    memory_object_store_field memorystruct<3>, v116, 2, v122
+    v123 = sload 6 !metadata(storage=slot(6))
+    v124 = add v123, 1
+    v125 = lt v124, v123
+    jumpi v125, bb29, bb30
+  bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb32:
-    v128 = storage_array_data_slot 6
-    v129 = mul v125, 3
-    v130 = add v128, v129
-    internal_call @__store_recursive_storage_4, 0, v130, v118
-    sstore 6, v126 !metadata(storage=slot(6))
-    v131 = sload 0 !metadata(storage=slot(0))
-    v132 = not 0xffffffffffffffffffffffffffffffff
-    v133 = and v131, v132
-    v134 = and 9, 0xffffffffffffffffffffffffffffffff
-    v135 = or v133, v134
-    sstore 0, v135 !metadata(storage=slot(0))
-    v136 = add 0, 2
-    v137 = sload v136 !metadata(storage=slot(2))
-    v138 = eq v137, 0
-    jumpi v138, bb33, bb34
-  bb33:
+  bb30:
+    v126 = storage_array_data_slot 6
+    v127 = mul v123, 3
+    v128 = add v126, v127
+    internal_call @__store_recursive_storage_4, 0, v128, v116
+    sstore 6, v124 !metadata(storage=slot(6))
+    v129 = sload 0 !metadata(storage=slot(0))
+    v130 = not 0xffffffffffffffffffffffffffffffff
+    v131 = and v129, v130
+    v132 = and 9, 0xffffffffffffffffffffffffffffffff
+    v133 = or v131, v132
+    sstore 0, v133 !metadata(storage=slot(0))
+    v134 = add 0, 2
+    v135 = sload v134 !metadata(storage=slot(2))
+    v136 = eq v135, 0
+    jumpi v136, bb31, bb32
+  bb31:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
-  bb34:
-    v139 = sub v137, 1
-    sstore v136, v139 !metadata(storage=slot(2))
-    v140 = storage_array_data_slot v136
-    v141 = mul v139, 3
-    v142 = add v140, v141
-    internal_call @__clear_recursive_storage_5, 0, v142
-    v143 = add 0, 2
-    v144 = sload v143 !metadata(storage=slot(2))
-    v145 = lt 0, v144
-    v146 = iszero v145
-    jumpi v146, bb35, bb36
-  bb35:
+  bb32:
+    v137 = sub v135, 1
+    sstore v134, v137 !metadata(storage=slot(2))
+    v138 = storage_array_data_slot v134
+    v139 = mul v137, 3
+    v140 = add v138, v139
+    internal_call @__clear_recursive_storage_5, 0, v140
+    v141 = add 0, 2
+    v142 = sload v141 !metadata(storage=slot(2))
+    v143 = lt 0, v142
+    v144 = iszero v143
+    jumpi v144, bb33, bb34
+  bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb36:
-    v147 = storage_array_data_slot v143
-    v148 = mul 0, 3
-    v149 = add v147, v148
-    v150 = sload v149 !metadata(storage=symbolic(v149))
-    v151 = not 0xffffffffffffffffffffffffffffffff
-    v152 = and v150, v151
-    v153 = and 7, 0xffffffffffffffffffffffffffffffff
-    v154 = or v152, v153
-    sstore v149, v154 !metadata(storage=symbolic(v149))
-    v155 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v156 = sload 0 !metadata(storage=slot(0))
-    v157 = and v156, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v155, 0, v157
-    v158 = add 0, 1
-    v159 = internal_call @__load_storage_bytes, 1, v158
-    memory_object_store_field memorystruct<3>, v155, 1, v159
-    v160 = add 0, 2
-    v161 = internal_call @__load_storage_struct_array_3, 1, v160
-    memory_object_store_field memorystruct<3>, v155, 2, v161
-    v162 = sload 6 !metadata(storage=slot(6))
-    v163 = add v162, 1
-    v164 = lt v163, v162
-    jumpi v164, bb37, bb38
-  bb37:
+  bb34:
+    v145 = storage_array_data_slot v141
+    v146 = mul 0, 3
+    v147 = add v145, v146
+    v148 = sload v147 !metadata(storage=symbolic(v147))
+    v149 = not 0xffffffffffffffffffffffffffffffff
+    v150 = and v148, v149
+    v151 = and 7, 0xffffffffffffffffffffffffffffffff
+    v152 = or v150, v151
+    sstore v147, v152 !metadata(storage=symbolic(v147))
+    v153 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v154 = sload 0 !metadata(storage=slot(0))
+    v155 = and v154, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<3>, v153, 0, v155
+    v156 = add 0, 1
+    v157 = internal_call @__load_storage_bytes, 1, v156
+    memory_object_store_field memorystruct<3>, v153, 1, v157
+    v158 = add 0, 2
+    v159 = internal_call @__load_storage_struct_array_3, 1, v158
+    memory_object_store_field memorystruct<3>, v153, 2, v159
+    v160 = sload 6 !metadata(storage=slot(6))
+    v161 = add v160, 1
+    v162 = lt v161, v160
+    jumpi v162, bb35, bb36
+  bb35:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb36:
+    v163 = storage_array_data_slot 6
+    v164 = mul v160, 3
+    v165 = add v163, v164
+    internal_call @__store_recursive_storage_4, 0, v165, v153
+    sstore 6, v161 !metadata(storage=slot(6))
+    v166 = add 0, 2
+    v167 = sload v166 !metadata(storage=slot(2))
+    v168 = lt 0, v167
+    v169 = iszero v168
+    jumpi v169, bb37, bb38
+  bb37:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb38:
-    v165 = storage_array_data_slot 6
-    v166 = mul v162, 3
-    v167 = add v165, v166
-    internal_call @__store_recursive_storage_4, 0, v167, v155
-    sstore 6, v163 !metadata(storage=slot(6))
-    v168 = add 0, 2
-    v169 = sload v168 !metadata(storage=slot(2))
-    v170 = lt 0, v169
-    v171 = iszero v170
-    jumpi v171, bb39, bb40
+    v170 = storage_array_data_slot v166
+    v171 = mul 0, 3
+    v172 = add v170, v171
+    v173 = sload v172 !metadata(storage=symbolic(v172))
+    v174 = not 0xffffffffffffffffffffffffffffffff
+    v175 = and v173, v174
+    v176 = and 8, 0xffffffffffffffffffffffffffffffff
+    v177 = or v175, v176
+    sstore v172, v177 !metadata(storage=symbolic(v172))
+    v178 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v179 = sload 0 !metadata(storage=slot(0))
+    v180 = and v179, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<3>, v178, 0, v180
+    v181 = add 0, 1
+    v182 = internal_call @__load_storage_bytes, 1, v181
+    memory_object_store_field memorystruct<3>, v178, 1, v182
+    v183 = add 0, 2
+    v184 = internal_call @__load_storage_struct_array_3, 1, v183
+    memory_object_store_field memorystruct<3>, v178, 2, v184
+    v185 = sload 6 !metadata(storage=slot(6))
+    v186 = lt 0, v185
+    v187 = iszero v186
+    jumpi v187, bb39, bb40
   bb39:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb40:
-    v172 = storage_array_data_slot v168
-    v173 = mul 0, 3
-    v174 = add v172, v173
-    v175 = sload v174 !metadata(storage=symbolic(v174))
-    v176 = not 0xffffffffffffffffffffffffffffffff
-    v177 = and v175, v176
-    v178 = and 8, 0xffffffffffffffffffffffffffffffff
-    v179 = or v177, v178
-    sstore v174, v179 !metadata(storage=symbolic(v174))
-    v180 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v181 = sload 0 !metadata(storage=slot(0))
-    v182 = and v181, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v180, 0, v182
-    v183 = add 0, 1
-    v184 = internal_call @__load_storage_bytes, 1, v183
-    memory_object_store_field memorystruct<3>, v180, 1, v184
-    v185 = add 0, 2
-    v186 = internal_call @__load_storage_struct_array_3, 1, v185
-    memory_object_store_field memorystruct<3>, v180, 2, v186
-    v187 = sload 6 !metadata(storage=slot(6))
-    v188 = lt 0, v187
-    v189 = iszero v188
-    jumpi v189, bb41, bb42
+    v188 = storage_array_data_slot 6
+    v189 = mul 0, 3
+    v190 = add v188, v189
+    internal_call @__store_recursive_storage_4, 0, v190, v178
+    v191 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v192 = sload 3 !metadata(storage=slot(3))
+    v193 = and v192, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<3>, v191, 0, v193
+    v194 = add 3, 1
+    v195 = internal_call @__load_storage_bytes, 1, v194
+    memory_object_store_field memorystruct<3>, v191, 1, v195
+    v196 = add 3, 2
+    v197 = internal_call @__load_storage_struct_array_3, 1, v196
+    memory_object_store_field memorystruct<3>, v191, 2, v197
+    v198 = sload 6 !metadata(storage=slot(6))
+    v199 = add v198, 1
+    v200 = lt v199, v198
+    jumpi v200, bb41, bb42
   bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb42:
-    v190 = storage_array_data_slot 6
-    v191 = mul 0, 3
-    v192 = add v190, v191
-    internal_call @__store_recursive_storage_4, 0, v192, v180
-    v193 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v194 = sload 3 !metadata(storage=slot(3))
-    v195 = and v194, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v193, 0, v195
-    v196 = add 3, 1
-    v197 = internal_call @__load_storage_bytes, 1, v196
-    memory_object_store_field memorystruct<3>, v193, 1, v197
-    v198 = add 3, 2
-    v199 = internal_call @__load_storage_struct_array_3, 1, v198
-    memory_object_store_field memorystruct<3>, v193, 2, v199
-    v200 = sload 6 !metadata(storage=slot(6))
-    v201 = add v200, 1
-    v202 = lt v201, v200
-    jumpi v202, bb43, bb44
-  bb43:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb42:
+    v201 = storage_array_data_slot 6
+    v202 = mul v198, 3
+    v203 = add v201, v202
+    internal_call @__store_recursive_storage_4, 0, v203, v191
+    sstore 6, v199 !metadata(storage=slot(6))
+    v204 = sload 6 !metadata(storage=slot(6))
+    v205 = sload 6 !metadata(storage=slot(6))
+    v206 = lt 0, v205
+    v207 = iszero v206
+    jumpi v207, bb43, bb44
+  bb43:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb44:
-    v203 = storage_array_data_slot 6
-    v204 = mul v200, 3
-    v205 = add v203, v204
-    internal_call @__store_recursive_storage_4, 0, v205, v193
-    sstore 6, v201 !metadata(storage=slot(6))
-    v206 = sload 6 !metadata(storage=slot(6))
-    v207 = sload 6 !metadata(storage=slot(6))
-    v208 = lt 0, v207
-    v209 = iszero v208
-    jumpi v209, bb45, bb46
+    v208 = storage_array_data_slot 6
+    v209 = mul 0, 3
+    v210 = add v208, v209
+    v211 = sload v210 !metadata(storage=symbolic(v210))
+    v212 = and v211, 0xffffffffffffffffffffffffffffffff
+    v213 = sload 6 !metadata(storage=slot(6))
+    v214 = lt 0, v213
+    v215 = iszero v214
+    jumpi v215, bb45, bb46
   bb45:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb46:
-    v210 = storage_array_data_slot 6
-    v211 = mul 0, 3
-    v212 = add v210, v211
-    v213 = sload v212 !metadata(storage=symbolic(v212))
-    v214 = and v213, 0xffffffffffffffffffffffffffffffff
-    v215 = sload 6 !metadata(storage=slot(6))
-    v216 = lt 0, v215
-    v217 = iszero v216
-    jumpi v217, bb47, bb48
+    v216 = storage_array_data_slot 6
+    v217 = mul 0, 3
+    v218 = add v216, v217
+    v219 = add v218, 2
+    v220 = sload v219 !metadata(storage=offset(v218, 2))
+    v221 = sload 6 !metadata(storage=slot(6))
+    v222 = lt 0, v221
+    v223 = iszero v222
+    jumpi v223, bb47, bb48
   bb47:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb48:
-    v218 = storage_array_data_slot 6
-    v219 = mul 0, 3
-    v220 = add v218, v219
-    v221 = add v220, 2
-    v222 = sload v221 !metadata(storage=offset(v220, 2))
-    v223 = sload 6 !metadata(storage=slot(6))
-    v224 = lt 0, v223
-    v225 = iszero v224
-    jumpi v225, bb49, bb50
+    v224 = storage_array_data_slot 6
+    v225 = mul 0, 3
+    v226 = add v224, v225
+    v227 = add v226, 2
+    v228 = sload v227 !metadata(storage=offset(v226, 2))
+    v229 = lt 0, v228
+    v230 = iszero v229
+    jumpi v230, bb49, bb50
   bb49:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb50:
-    v226 = storage_array_data_slot 6
-    v227 = mul 0, 3
-    v228 = add v226, v227
-    v229 = add v228, 2
-    v230 = sload v229 !metadata(storage=offset(v228, 2))
-    v231 = lt 0, v230
-    v232 = iszero v231
-    jumpi v232, bb51, bb52
+    v231 = storage_array_data_slot v227
+    v232 = mul 0, 3
+    v233 = add v231, v232
+    v234 = sload v233 !metadata(storage=symbolic(v233))
+    v235 = and v234, 0xffffffffffffffffffffffffffffffff
+    v236 = sload 6 !metadata(storage=slot(6))
+    v237 = lt 0, v236
+    v238 = iszero v237
+    jumpi v238, bb51, bb52
   bb51:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb52:
-    v233 = storage_array_data_slot v229
-    v234 = mul 0, 3
-    v235 = add v233, v234
-    v236 = sload v235 !metadata(storage=symbolic(v235))
-    v237 = and v236, 0xffffffffffffffffffffffffffffffff
-    v238 = sload 6 !metadata(storage=slot(6))
-    v239 = lt 0, v238
-    v240 = iszero v239
-    jumpi v240, bb53, bb54
+    v239 = storage_array_data_slot 6
+    v240 = mul 0, 3
+    v241 = add v239, v240
+    v242 = add v241, 2
+    v243 = sload v242 !metadata(storage=offset(v241, 2))
+    v244 = lt 0, v243
+    v245 = iszero v244
+    jumpi v245, bb53, bb54
   bb53:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb54:
-    v241 = storage_array_data_slot 6
-    v242 = mul 0, 3
-    v243 = add v241, v242
-    v244 = add v243, 2
-    v245 = sload v244 !metadata(storage=offset(v243, 2))
-    v246 = lt 0, v245
-    v247 = iszero v246
-    jumpi v247, bb55, bb56
+    v246 = storage_array_data_slot v242
+    v247 = mul 0, 3
+    v248 = add v246, v247
+    v249 = add v248, 2
+    v250 = sload v249 !metadata(storage=offset(v248, 2))
+    v251 = sload 6 !metadata(storage=slot(6))
+    v252 = lt 0, v251
+    v253 = iszero v252
+    jumpi v253, bb55, bb56
   bb55:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb56:
-    v248 = storage_array_data_slot v244
-    v249 = mul 0, 3
-    v250 = add v248, v249
-    v251 = add v250, 2
-    v252 = sload v251 !metadata(storage=offset(v250, 2))
-    v253 = sload 6 !metadata(storage=slot(6))
-    v254 = lt 0, v253
-    v255 = iszero v254
-    jumpi v255, bb57, bb58
+    v254 = storage_array_data_slot 6
+    v255 = mul 0, 3
+    v256 = add v254, v255
+    v257 = add v256, 2
+    v258 = sload v257 !metadata(storage=offset(v256, 2))
+    v259 = lt 0, v258
+    v260 = iszero v259
+    jumpi v260, bb57, bb58
   bb57:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb58:
-    v256 = storage_array_data_slot 6
-    v257 = mul 0, 3
-    v258 = add v256, v257
-    v259 = add v258, 2
-    v260 = sload v259 !metadata(storage=offset(v258, 2))
-    v261 = lt 0, v260
-    v262 = iszero v261
-    jumpi v262, bb59, bb60
+    v261 = storage_array_data_slot v257
+    v262 = mul 0, 3
+    v263 = add v261, v262
+    v264 = add v263, 2
+    v265 = sload v264 !metadata(storage=offset(v263, 2))
+    v266 = lt 0, v265
+    v267 = iszero v266
+    jumpi v267, bb59, bb60
   bb59:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb60:
-    v263 = storage_array_data_slot v259
-    v264 = mul 0, 3
-    v265 = add v263, v264
-    v266 = add v265, 2
-    v267 = sload v266 !metadata(storage=offset(v265, 2))
-    v268 = lt 0, v267
-    v269 = iszero v268
-    jumpi v269, bb61, bb62
+    v268 = storage_array_data_slot v264
+    v269 = mul 0, 3
+    v270 = add v268, v269
+    v271 = sload v270 !metadata(storage=symbolic(v270))
+    v272 = and v271, 0xffffffffffffffffffffffffffffffff
+    v273 = sload 6 !metadata(storage=slot(6))
+    v274 = lt 0, v273
+    v275 = iszero v274
+    jumpi v275, bb61, bb62
   bb61:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb62:
-    v270 = storage_array_data_slot v266
-    v271 = mul 0, 3
-    v272 = add v270, v271
-    v273 = sload v272 !metadata(storage=symbolic(v272))
-    v274 = and v273, 0xffffffffffffffffffffffffffffffff
-    v275 = sload 6 !metadata(storage=slot(6))
-    v276 = lt 0, v275
-    v277 = iszero v276
-    jumpi v277, bb63, bb64
+    v276 = storage_array_data_slot 6
+    v277 = mul 0, 3
+    v278 = add v276, v277
+    v279 = add v278, 1
+    v280 = internal_call @__load_storage_bytes, 1, v279
+    v281 = memory_object_len memorybytes, v280
+    v282 = sload 6 !metadata(storage=slot(6))
+    v283 = lt 1, v282
+    v284 = iszero v283
+    jumpi v284, bb63, bb64
   bb63:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb64:
-    v278 = storage_array_data_slot 6
-    v279 = mul 0, 3
-    v280 = add v278, v279
-    v281 = add v280, 1
-    v282 = internal_call @__load_storage_bytes, 1, v281
-    v283 = memory_object_len memorybytes, v282
-    v284 = sload 6 !metadata(storage=slot(6))
-    v285 = lt 1, v284
-    v286 = iszero v285
-    jumpi v286, bb65, bb66
+    v285 = storage_array_data_slot 6
+    v286 = mul 1, 3
+    v287 = add v285, v286
+    v288 = add v287, 2
+    v289 = sload v288 !metadata(storage=offset(v287, 2))
+    v290 = lt 0, v289
+    v291 = iszero v290
+    jumpi v291, bb65, bb66
   bb65:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb66:
-    v287 = storage_array_data_slot 6
-    v288 = mul 1, 3
-    v289 = add v287, v288
-    v290 = add v289, 2
-    v291 = sload v290 !metadata(storage=offset(v289, 2))
-    v292 = lt 0, v291
-    v293 = iszero v292
-    jumpi v293, bb67, bb68
+    v292 = storage_array_data_slot v288
+    v293 = mul 0, 3
+    v294 = add v292, v293
+    v295 = sload v294 !metadata(storage=symbolic(v294))
+    v296 = and v295, 0xffffffffffffffffffffffffffffffff
+    v297 = sload 6 !metadata(storage=slot(6))
+    v298 = lt 2, v297
+    v299 = iszero v298
+    jumpi v299, bb67, bb68
   bb67:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb68:
-    v294 = storage_array_data_slot v290
-    v295 = mul 0, 3
-    v296 = add v294, v295
-    v297 = sload v296 !metadata(storage=symbolic(v296))
-    v298 = and v297, 0xffffffffffffffffffffffffffffffff
-    v299 = sload 6 !metadata(storage=slot(6))
-    v300 = lt 2, v299
-    v301 = iszero v300
-    jumpi v301, bb69, bb70
+    v300 = storage_array_data_slot 6
+    v301 = mul 2, 3
+    v302 = add v300, v301
+    v303 = add v302, 2
+    v304 = sload v303 !metadata(storage=offset(v302, 2))
+    v305 = sload 6 !metadata(storage=slot(6))
+    v306 = lt 1, v305
+    v307 = iszero v306
+    jumpi v307, bb69, bb70
   bb69:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb70:
-    v302 = storage_array_data_slot 6
-    v303 = mul 2, 3
-    v304 = add v302, v303
-    v305 = add v304, 2
-    v306 = sload v305 !metadata(storage=offset(v304, 2))
-    v307 = sload 6 !metadata(storage=slot(6))
-    v308 = lt 1, v307
-    v309 = iszero v308
-    jumpi v309, bb71, bb72
-  bb71:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb72:
-    v310 = storage_array_data_slot 6
-    v311 = mul 1, 3
-    v312 = add v310, v311
-    v313 = add v312, 1
-    v314 = internal_call @__load_storage_bytes, 1, v313
-    v315 = memory_object_len memorybytes, v314
-    ret v206, v214, v222, v237, v252, v274, v283, v298, v306, v315
+    v308 = storage_array_data_slot 6
+    v309 = mul 1, 3
+    v310 = add v308, v309
+    v311 = add v310, 1
+    v312 = internal_call @__load_storage_bytes, 1, v311
+    v313 = memory_object_len memorybytes, v312
+    ret v204, v212, v220, v235, v250, v272, v281, v296, v304, v313
 }
 
 fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -588,62 +580,54 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
-    v3 = and v0, 254
-    v4 = shr 1, v3
-    v5 = shr 1, v0
-    v6 = select v2, v5, v4
-    v7 = lt v6, 32
-    v8 = eq v2, v7
-    jumpi v8, bb1, bb2
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = add v6, 31
-    v10 = lt v9, v6
-    jumpi v10, bb3, bb4
+    v8 = add v5, 31
+    v9 = div v8, 32
+    v10 = add v5, 63
+    v11 = lt v10, v5
+    jumpi v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v11 = div v9, 32
-    v12 = add v6, 63
-    v13 = lt v12, v6
-    jumpi v13, bb5, bb6
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, panic, v13
+    set_memory_object_len memorybytes, v14, v5
+    jumpi v2, bb6, bb5
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v14, 0, v15
+    jump bb7
   bb6:
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, panic, v15
-    set_memory_object_len memorybytes, v16, v6
-    jumpi v2, bb8, bb7
+    v16 = storage_array_data_slot arg0
+    jump bb8
   bb7:
-    v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v16, 0, v17
-    jump bb9
+    ret v14
   bb8:
-    v18 = storage_array_data_slot arg0
-    jump bb10
+    v17 = phi [bb6: 0], [bb9: v22]
+    v18 = lt v17, v9
+    jumpi v18, bb9, bb10
   bb9:
-    ret v16
+    v19 = add v16, v17
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = mul v17, 32
+    memory_object_store_word memorybytes, v14, v21, v20
+    v22 = add v17, 1
+    jump bb8
   bb10:
-    v19 = phi [bb8: 0], [bb11: v24]
-    v20 = lt v19, v11
-    jumpi v20, bb11, bb12
-  bb11:
-    v21 = add v18, v19
-    v22 = sload v21 !metadata(storage=symbolic(v21))
-    v23 = mul v19, 32
-    memory_object_store_word memorybytes, v16, v23, v22
-    v24 = add v19, 1
-    jump bb10
-  bb12:
-    jump bb9
+    jump bb7
 }
 
 fn @__load_storage_struct_array_3(arg0: u256) -> memoryarray {
@@ -711,134 +695,126 @@ fn @__store_recursive_storage_4(arg0: u256, arg1: memorystruct) {
     v8 = sload v6 !metadata(storage=offset(arg0, 1))
     v9 = and v8, 1
     v10 = eq v9, 1
-    v11 = and v8, 254
-    v12 = shr 1, v11
-    v13 = shr 1, v8
-    v14 = select v10, v13, v12
-    v15 = lt v14, 32
-    v16 = eq v10, v15
-    jumpi v16, bb1, bb2
+    v11 = shr 1, v8
+    v12 = and v11, 127
+    v13 = select v10, v11, v12
+    v14 = lt v13, 32
+    v15 = eq v10, v14
+    jumpi v15, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v17 = memory_object_len memorybytes, v7
-    v18 = memory_object_data memorybytes, v7
-    v19 = make_memory_slice v18, v17
-    v20 = add v14, 31
-    v21 = lt v20, v14
-    jumpi v21, bb3, bb4
+    v16 = memory_object_len memorybytes, v7
+    v17 = memory_object_data memorybytes, v7
+    v18 = make_memory_slice v17, v16
+    v19 = add v13, 31
+    v20 = div v19, 32
+    v21 = add v16, 31
+    v22 = lt v21, v16
+    jumpi v22, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v22 = div v20, 32
-    v23 = add v17, 31
-    v24 = lt v23, v17
-    jumpi v24, bb5, bb6
+    v23 = div v21, 32
+    v24 = lt v16, 32
+    v25 = select v24, 0, v23
+    v26 = gt v13, v16
+    v27 = and v10, v26
+    jumpi v27, bb5, bb6
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    internal_call @__clear_storage_words, 0, v6, v25, v20
+    jump bb6
   bb6:
-    v25 = div v23, 32
-    v26 = lt v17, 32
-    v27 = select v26, 0, v25
-    v28 = gt v14, v17
-    v29 = and v10, v28
-    jumpi v29, bb7, bb8
+    jumpi v24, bb7, bb8
   bb7:
-    internal_call @__clear_storage_words, 0, v6, v27, v22
-    jump bb8
+    v28 = memory_slice_load_word memory, v18, 0
+    v29 = sub 32, v16
+    v30 = mul v29, 8
+    v31 = shl v30, 1
+    v32 = sub v31, 1
+    v33 = not v32
+    v34 = and v28, v33
+    v35 = mul v16, 2
+    v36 = or v34, v35
+    sstore v6, v36 !metadata(storage=offset(arg0, 1))
+    jump bb9
   bb8:
-    jumpi v26, bb9, bb10
-  bb9:
-    v30 = memory_slice_load_word memory, v19, 0
-    v31 = sub 32, v17
-    v32 = mul v31, 8
-    v33 = shl v32, 1
-    v34 = sub v33, 1
-    v35 = not v34
-    v36 = and v30, v35
-    v37 = mul v17, 2
-    v38 = or v36, v37
+    v37 = shl 1, v16
+    v38 = or v37, 1
     sstore v6, v38 !metadata(storage=offset(arg0, 1))
-    jump bb11
+    v39 = storage_array_data_slot v6
+    jump bb10
+  bb9:
+    v46 = add arg0, 2
+    v47 = memory_object_load_field memorystruct<3>, arg1, 2
+    v48 = memory_object_len memoryarray, v47
+    v49 = sload v46 !metadata(storage=offset(arg0, 2))
+    v50 = gt v49, v48
+    jumpi v50, bb13, bb14
   bb10:
-    v39 = shl 1, v17
-    v40 = or v39, 1
-    sstore v6, v40 !metadata(storage=offset(arg0, 1))
-    v41 = storage_array_data_slot v6
-    jump bb12
+    v40 = phi [bb8: 0], [bb11: v45]
+    v41 = lt v40, v23
+    jumpi v41, bb11, bb12
   bb11:
-    v48 = add arg0, 2
-    v49 = memory_object_load_field memorystruct<3>, arg1, 2
-    v50 = memory_object_len memoryarray, v49
-    v51 = sload v48 !metadata(storage=offset(arg0, 2))
-    v52 = gt v51, v50
-    jumpi v52, bb15, bb16
+    v42 = mul v40, 32
+    v43 = memory_slice_load_word memory, v18, v42
+    v44 = add v39, v40
+    sstore v44, v43 !metadata(storage=symbolic(v44))
+    v45 = add v40, 1
+    jump bb10
   bb12:
-    v42 = phi [bb10: 0], [bb13: v47]
-    v43 = lt v42, v25
-    jumpi v43, bb13, bb14
+    jump bb9
   bb13:
-    v44 = mul v42, 32
-    v45 = memory_slice_load_word memory, v19, v44
-    v46 = add v41, v42
-    sstore v46, v45 !metadata(storage=symbolic(v46))
-    v47 = add v42, 1
-    jump bb12
+    jump bb15
   bb14:
-    jump bb11
+    sstore v46, v48 !metadata(storage=offset(arg0, 2))
+    jump bb18
   bb15:
-    jump bb17
+    v51 = phi [bb13: v48], [bb16: v56]
+    v52 = lt v51, v49
+    jumpi v52, bb16, bb17
   bb16:
-    sstore v48, v50 !metadata(storage=offset(arg0, 2))
-    jump bb20
+    v53 = storage_array_data_slot v46
+    v54 = mul v51, 3
+    v55 = add v53, v54
+    internal_call @__clear_recursive_storage_5, 0, v55
+    v56 = add v51, 1
+    jump bb15
   bb17:
-    v53 = phi [bb15: v50], [bb18: v58]
-    v54 = lt v53, v51
-    jumpi v54, bb18, bb19
+    jump bb14
   bb18:
-    v55 = storage_array_data_slot v48
-    v56 = mul v53, 3
-    v57 = add v55, v56
-    internal_call @__clear_recursive_storage_5, 0, v57
-    v58 = add v53, 1
-    jump bb17
+    v57 = phi [bb14: 0], [bb22: v68]
+    v58 = lt v57, v48
+    jumpi v58, bb19, bb20
   bb19:
-    jump bb16
-  bb20:
-    v59 = phi [bb16: 0], [bb24: v70]
-    v60 = lt v59, v50
+    v59 = memory_object_load_element memoryarray<1>, v47, v57
+    v60 = eq v59, 0
     jumpi v60, bb21, bb22
-  bb21:
-    v61 = memory_object_load_element memoryarray<1>, v49, v59
-    v62 = eq v61, 0
-    jumpi v62, bb23, bb24
-  bb22:
+  bb20:
     stop
-  bb23:
-    v63 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v63, 0, 0
-    v64 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v64, 0
-    memory_object_store_field memorystruct<3>, v63, 1, v64
-    v65 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v65, 0
-    memory_object_store_field memorystruct<3>, v63, 2, v65
-    memory_object_store_element memoryarray<1>, v49, v59, v63
-    jump bb24
-  bb24:
-    v66 = phi [bb21: v61], [bb23: v63]
-    v67 = storage_array_data_slot v48
-    v68 = mul v59, 3
-    v69 = add v67, v68
-    internal_call @__store_recursive_storage_4, 0, v69, v66
-    v70 = add v59, 1
-    jump bb20
+  bb21:
+    v61 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v61, 0, 0
+    v62 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v62, 0
+    memory_object_store_field memorystruct<3>, v61, 1, v62
+    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v63, 0
+    memory_object_store_field memorystruct<3>, v61, 2, v63
+    memory_object_store_element memoryarray<1>, v47, v57, v61
+    jump bb22
+  bb22:
+    v64 = phi [bb19: v59], [bb21: v61]
+    v65 = storage_array_data_slot v46
+    v66 = mul v57, 3
+    v67 = add v65, v66
+    internal_call @__store_recursive_storage_4, 0, v67, v64
+    v68 = add v57, 1
+    jump bb18
 }
 
 fn @__clear_recursive_storage_5(arg0: u256) {
@@ -848,60 +824,52 @@ fn @__clear_recursive_storage_5(arg0: u256) {
     v1 = sload v0 !metadata(storage=offset(arg0, 1))
     v2 = and v1, 1
     v3 = eq v2, 1
-    v4 = and v1, 254
-    v5 = shr 1, v4
-    v6 = shr 1, v1
-    v7 = select v3, v6, v5
-    v8 = lt v7, 32
-    v9 = eq v3, v8
-    jumpi v9, bb1, bb2
+    v4 = shr 1, v1
+    v5 = and v4, 127
+    v6 = select v3, v4, v5
+    v7 = lt v6, 32
+    v8 = eq v3, v7
+    jumpi v8, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v10 = add v7, 31
-    v11 = lt v10, v7
-    jumpi v11, bb3, bb4
+    v9 = add v6, 31
+    v10 = div v9, 32
+    jumpi v3, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v11 = storage_array_data_slot v0
+    jump bb5
   bb4:
-    v12 = div v10, 32
-    jumpi v3, bb5, bb6
-  bb5:
-    v13 = storage_array_data_slot v0
-    jump bb7
-  bb6:
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
-    v18 = add arg0, 2
-    v19 = sload v18 !metadata(storage=offset(arg0, 2))
-    sstore v18, 0 !metadata(storage=offset(arg0, 2))
-    jump bb10
+    v16 = add arg0, 2
+    v17 = sload v16 !metadata(storage=offset(arg0, 2))
+    sstore v16, 0 !metadata(storage=offset(arg0, 2))
+    jump bb8
+  bb5:
+    v12 = phi [bb3: 0], [bb6: v15]
+    v13 = lt v12, v10
+    jumpi v13, bb6, bb7
+  bb6:
+    v14 = add v11, v12
+    sstore v14, 0 !metadata(storage=symbolic(v14))
+    v15 = add v12, 1
+    jump bb5
   bb7:
-    v14 = phi [bb5: 0], [bb8: v17]
-    v15 = lt v14, v12
-    jumpi v15, bb8, bb9
+    jump bb4
   bb8:
-    v16 = add v13, v14
-    sstore v16, 0 !metadata(storage=symbolic(v16))
-    v17 = add v14, 1
-    jump bb7
+    v18 = phi [bb4: 0], [bb9: v23]
+    v19 = lt v18, v17
+    jumpi v19, bb9, bb10
   bb9:
-    jump bb6
+    v20 = storage_array_data_slot v16
+    v21 = mul v18, 3
+    v22 = add v20, v21
+    internal_call @__clear_recursive_storage_5, 0, v22
+    v23 = add v18, 1
+    jump bb8
   bb10:
-    v20 = phi [bb6: 0], [bb11: v25]
-    v21 = lt v20, v19
-    jumpi v21, bb11, bb12
-  bb11:
-    v22 = storage_array_data_slot v18
-    v23 = mul v20, 3
-    v24 = add v22, v23
-    internal_call @__clear_recursive_storage_5, 0, v24
-    v25 = add v20, 1
-    jump bb10
-  bb12:
     stop
 }
 

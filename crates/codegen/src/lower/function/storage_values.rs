@@ -1085,7 +1085,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.builder.make_slice(data_ptr, length, SliceLocation::Memory);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let old_rounded = self.builder.checked_add(old_length, thirty_one);
+        let old_rounded = self.builder.add(old_length, thirty_one);
         let old_words = self.builder.div(old_rounded, word_size);
         let rounded = self.builder.checked_add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
@@ -1181,7 +1181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(cleanup_block);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let old_rounded = self.builder.checked_add(old_length, thirty_one);
+        let old_rounded = self.builder.add(old_length, thirty_one);
         let old_words = self.builder.div(old_rounded, word_size);
         let new_words = if bytes.len() < 32 {
             self.builder.imm_u64(0)
@@ -1549,7 +1549,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm_u64(0);
         let word_size = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
-        let rounded = self.builder.checked_add(length, thirty_one);
+        let rounded = self.builder.add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
         let cleanup_block = self.builder.create_block();
         let write_block = self.builder.create_block();
@@ -1572,12 +1572,11 @@ fn decode_storage_bytes_header(
     let one = builder.imm_u64(1);
     let flag = builder.and(header, one);
     let is_long = builder.eq(flag, one);
-    let short_tag = builder.imm_u64(0xfe);
-    let short_len_tag = builder.and(header, short_tag);
     let shift = builder.imm_u64(1);
-    let short_len = builder.shr(shift, short_len_tag);
-    let long_len = builder.shr(shift, header);
-    let length = builder.select(is_long, long_len, short_len);
+    let half = builder.shr(shift, header);
+    let short_mask = builder.imm_u64(0x7f);
+    let short_len = builder.and(half, short_mask);
+    let length = builder.select(is_long, half, short_len);
     let thirty_two = builder.imm_u64(32);
     let short_length = builder.lt(length, thirty_two);
     let invalid_encoding = builder.eq(is_long, short_length);
@@ -1590,7 +1589,7 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
     let one = builder.imm_u64(1);
     let thirty_two = builder.imm_u64(32);
     let thirty_one = builder.imm_u64(31);
-    let rounded = builder.checked_add(length, thirty_one);
+    let rounded = builder.add(length, thirty_one);
     let words = builder.div(rounded, thirty_two);
     let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
