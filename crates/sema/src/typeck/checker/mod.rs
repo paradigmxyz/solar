@@ -110,10 +110,25 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_res_evm_version(&self, res: hir::Res, span: Span) {
-        if let hir::Res::Builtin(builtin) = res
-            && let Some(required) = builtin.required_evm_version(self.gcx.sess.opts.evm_version)
-        {
-            self.emit_evm_version_error(span, &format!("builtin `{}`", builtin.name()), required);
+        if let hir::Res::Builtin(builtin) = res {
+            let target = self.gcx.sess.opts.evm_version;
+            if let Some(required) = builtin.required_evm_version(target) {
+                self.emit_evm_version_error(
+                    span,
+                    &format!("builtin `{}`", builtin.name()),
+                    required,
+                );
+            } else if builtin == Builtin::BlockPrevrandao && !target.has_prev_randao() {
+                self.dcx()
+                    .warn("`block.prevrandao` is not supported by this EVM version and will be treated as `block.difficulty`")
+                    .span(span)
+                    .emit();
+            } else if builtin == Builtin::BlockDifficulty && target.has_prev_randao() {
+                self.dcx()
+                    .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
+                    .span(span)
+                    .emit();
+            }
         }
     }
 
@@ -346,7 +361,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
-                        self.fn_call_return_type(f.returns)
+                        self.fn_call_return_type_for(f)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
                     TyKind::Event(param_tys, _) => {
@@ -1114,6 +1129,29 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         Err(err)
+    }
+
+    fn fn_call_return_type_for(&self, f: &'gcx TyFn<'gcx>) -> Ty<'gcx> {
+        let returns = if !self.gcx.sess.opts.evm_version.supports_returndata()
+            && matches!(
+                f.kind,
+                TyFnKind::External
+                    | TyFnKind::DelegateCall
+                    | TyFnKind::BareCall
+                    | TyFnKind::BareDelegateCall
+                    | TyFnKind::BareStaticCall
+            ) {
+            self.gcx.mk_ty_iter(f.returns.iter().map(|&ty| {
+                if ty.peel_refs().is_dynamically_encoded(self.gcx) {
+                    self.gcx.types.inaccessible_dynamic
+                } else {
+                    ty
+                }
+            }))
+        } else {
+            f.returns
+        };
+        self.fn_call_return_type(returns)
     }
 
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
@@ -2363,8 +2401,14 @@ impl<'gcx> TypeChecker<'gcx> {
         } else {
             std::slice::from_ref(&init_opt)
         };
-        for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
-            let (Some(var), Some(expr)) = (var, expr) else { continue };
+        for (i, (&var, &ty)) in decls.iter().zip(value_types).enumerate() {
+            let Some(var) = var else { continue };
+            let expr = if matches!(init.kind, hir::ExprKind::Tuple(_)) {
+                exprs.get(i).copied().flatten()
+            } else {
+                Some(init)
+            };
+            let Some(expr) = expr else { continue };
             let var_ty = self.check_var_(var, false);
             let _ = self.check_expected(expr, ty, var_ty);
         }
@@ -2771,6 +2815,46 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 let _ = self.check_expr(switch.selector);
                 for case in switch.cases {
                     for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
+                }
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Try(try_) => {
+                let return_ty = self.check_expr(&try_.expr);
+                let return_tys = if let TyKind::Tuple(tys) = return_ty.kind {
+                    tys
+                } else if return_ty.is_unit() {
+                    &[]
+                } else {
+                    std::slice::from_ref(&return_ty)
+                };
+
+                let success = &try_.clauses[0];
+                for (&arg, &return_ty) in success.args.iter().zip(return_tys) {
+                    let arg_ty = self.check_var_(arg, false);
+                    let _ = self.check_expected(&try_.expr, return_ty, arg_ty);
+                }
+
+                if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                    for clause in &try_.clauses[1..] {
+                        if clause.name.is_some() || !clause.args.is_empty() {
+                            self.emit_evm_version_error(
+                                clause.span,
+                                "typed catch clause",
+                                EvmVersion::Byzantium,
+                            );
+                        }
+                    }
+                }
+
+                for (i, clause) in try_.clauses.iter().enumerate() {
+                    if i != 0 {
+                        for &arg in clause.args {
+                            let _ = self.check_var(arg);
+                        }
+                    }
+                    for stmt in clause.block.iter() {
                         self.visit_stmt(stmt)?;
                     }
                 }
@@ -3209,6 +3293,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
         | TyKind::Variadic
+        | TyKind::InaccessibleDynamic
         | TyKind::Super(_)
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,

@@ -466,16 +466,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.is_low_level_call_expr(expr) {
-            if bound.iter().skip(1).any(|&bound| bound)
-                && !self.gcx.sess.opts.evm_version.supports_returndata()
-            {
-                self.gcx
-                    .dcx()
-                    .err("codegen cannot bind low-level call returndata before Byzantium")
-                    .span(expr.span)
-                    .emit();
-                return None;
-            }
             let success = self.lower_value_expr(builder, expr);
             return Some(
                 bound

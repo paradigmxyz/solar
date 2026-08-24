@@ -522,6 +522,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::Module(..)
         | TyKind::BuiltinModule(..)
         | TyKind::Variadic
+        | TyKind::InaccessibleDynamic
         | TyKind::Event(..)
         | TyKind::Meta(..)
         | TyKind::Error(..) => {

@@ -430,6 +430,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
             | TyKind::Variadic
+            | TyKind::InaccessibleDynamic
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
@@ -481,6 +482,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
             | TyKind::Variadic
+            | TyKind::InaccessibleDynamic
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
             TyKind::Ref(ty, _)
@@ -1212,6 +1214,9 @@ pub enum TyKind<'gcx> {
     /// Variadic function parameter.
     Variadic,
 
+    /// A dynamically encoded external return value on an EVM without returndata support.
+    InaccessibleDynamic,
+
     /// Contract.
     Contract(hir::ContractId),
 
@@ -1402,7 +1407,8 @@ impl TyFlags {
             | TyKind::Struct(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
-            | TyKind::Variadic => {}
+            | TyKind::Variadic
+            | TyKind::InaccessibleDynamic => {}
 
             TyKind::Fn(f) => {
                 if f.is_internal() {

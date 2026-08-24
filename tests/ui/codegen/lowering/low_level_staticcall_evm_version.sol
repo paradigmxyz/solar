@@ -8,7 +8,7 @@ contract Caller {
     // CHECK: staticcall
     function probe(address target) external view returns (bool) {
         (bool success,) = target.staticcall("");
-        //~[homestead]^ ERROR: codegen cannot use `staticcall` before Byzantium
+        //~[homestead]^ ERROR: builtin `staticcall` requires Byzantium-compatible EVM
         return success;
     }
 
@@ -18,7 +18,7 @@ contract Caller {
     // CHECK: returndatacopy
     function probeCall(address target) external returns (uint256) {
         (, bytes memory data) = target.call("");
-        //~[homestead]^ ERROR: codegen cannot bind low-level call returndata before Byzantium
+        //~[homestead]^ ERROR: mismatched types
         return data.length;
     }
 }

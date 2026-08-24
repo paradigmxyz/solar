@@ -1534,16 +1534,6 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(builtin) = builtin
             && let Some(kind) = ExternalCallKind::from_low_level_builtin(builtin)
         {
-            if builtin == Builtin::AddressStaticcall
-                && !self.gcx.sess.opts.evm_version.has_static_call()
-            {
-                return self.err_call_result(
-                    builder,
-                    callee,
-                    member.span,
-                    "codegen cannot use `staticcall` before Byzantium".to_string(),
-                );
-            }
             let [data_arg] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),

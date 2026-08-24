@@ -146,6 +146,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
             | TyKind::Variadic
+            | TyKind::InaccessibleDynamic
             | TyKind::Type(_)
             | TyKind::Meta(_)
             | TyKind::Err(_) => {
@@ -286,6 +287,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             }
             TyKind::BuiltinModule(b) => self.buf.write_str(b.name().as_str()),
             TyKind::Variadic => self.buf.write_str("..."),
+            TyKind::InaccessibleDynamic => self.buf.write_str("inaccessible dynamic type"),
             TyKind::Type(ty) | TyKind::Meta(ty) => {
                 self.buf.write_str("type(")?;
                 self.print(ty)?; // TODO: `richIdentifier`
