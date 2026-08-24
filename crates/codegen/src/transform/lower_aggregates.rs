@@ -8,7 +8,6 @@ use crate::{
     pass::MirPass,
 };
 use solar_sema::Gcx;
-use std::sync::Arc;
 
 /// Lowers aggregate copies and clears after the main optimization pipeline.
 pub(crate) struct LowerAggregates;
@@ -79,12 +78,6 @@ fn memory_object_layout(layout: &StorageLayout) -> MemoryObjectLayout {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    enum AggregateOp {
-        StorageToMemory(ValueId, ValueId, Arc<StorageLayout>),
-        MemoryToStorage(ValueId, ValueId, Arc<StorageLayout>),
-        ClearStorage(ValueId, Arc<StorageLayout>),
-    }
-
     let has_aggregates = func.instructions().any(|inst| {
         matches!(
             func.inst(inst).kind,
@@ -103,30 +96,22 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let op = match &builder.func().inst(inst).kind {
+            match &builder.func().inst(inst).kind {
                 InstKind::StorageToMemory { storage, memory, layout } => {
-                    AggregateOp::StorageToMemory(*storage, *memory, Arc::clone(layout))
+                    let (storage, memory, layout) = (*storage, *memory, layout.clone());
+                    lower_storage_to_memory(&mut builder, &layout, storage, memory);
                 }
                 InstKind::MemoryToStorage { memory, storage, layout } => {
-                    AggregateOp::MemoryToStorage(*memory, *storage, Arc::clone(layout))
+                    let (memory, storage, layout) = (*memory, *storage, layout.clone());
+                    lower_memory_to_storage(&mut builder, &layout, memory, storage);
                 }
                 InstKind::ClearStorage { storage, layout } => {
-                    AggregateOp::ClearStorage(*storage, Arc::clone(layout))
+                    let (storage, layout) = (*storage, layout.clone());
+                    lower_clear_storage(&mut builder, &layout, storage);
                 }
                 _ => {
                     builder.func_mut().blocks[block].instructions.push(inst);
                     continue;
-                }
-            };
-            match op {
-                AggregateOp::StorageToMemory(storage, memory, layout) => {
-                    lower_storage_to_memory(&mut builder, &layout, storage, memory);
-                }
-                AggregateOp::MemoryToStorage(memory, storage, layout) => {
-                    lower_memory_to_storage(&mut builder, &layout, memory, storage);
-                }
-                AggregateOp::ClearStorage(storage, layout) => {
-                    lower_clear_storage(&mut builder, &layout, storage);
                 }
             }
         }
