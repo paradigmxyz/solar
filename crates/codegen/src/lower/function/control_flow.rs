@@ -879,24 +879,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exits: &[LoopState],
         header_phis: &FxHashMap<VariableId, ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
-        let mut merged = before.clone();
-        for &id in before.keys() {
-            let incoming =
-                exits.iter().filter_map(|state| state.values.get(&id).copied()).collect::<Vec<_>>();
+        let mut merged = FxHashMap::with_capacity_and_hasher(before.len(), Default::default());
+        for (id, before_value) in before {
+            let incoming = exits
+                .iter()
+                .filter_map(|state| {
+                    state.values.get(&id).copied().map(|value| (state.block, value))
+                })
+                .collect::<Vec<_>>();
             let value = match incoming.as_slice() {
-                [] => header_phis.get(&id).copied().or_else(|| before.get(&id).copied()),
-                [value] => Some(*value),
-                [first, rest @ ..] if rest.iter().all(|value| value == first) => Some(*first),
-                _ => Some(
-                    self.merge_value_phi(
-                        exits
-                            .iter()
-                            .filter_map(|state| {
-                                state.values.get(&id).copied().map(|value| (state.block, value))
-                            })
-                            .collect(),
-                    ),
-                ),
+                [] => header_phis.get(&id).copied().or(Some(before_value)),
+                [(_, value)] => Some(*value),
+                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
+                    Some(*first)
+                }
+                _ => Some(self.merge_value_phi(incoming)),
             };
             if let Some(value) = value {
                 merged.insert(id, value);
