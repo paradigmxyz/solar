@@ -99,12 +99,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 return Some(self.builder.imm_u64(bytes.as_byte_str().len() as u64));
             }
-            if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
-                if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
-                    self.lower_expr(receiver)?;
-                }
-                return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
-            }
             return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
 
@@ -174,6 +168,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         what: &'static str,
     ) -> Option<ValueId> {
+        if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
+            if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
+                self.lower_expr(receiver)?;
+            }
+            return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
+        }
         if receiver_ty.is_ref_at(DataLocation::Storage) {
             if let Some(access) = self.storage_access(receiver) {
                 return match receiver_ty.peel_refs().kind {
@@ -354,6 +354,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.builder.and(address, mask));
         }
         if builtin == Builtin::FunctionSelector {
+            let ExprKind::Member(receiver, _) = &expr.kind else {
+                return report_unsupported(self.context.gcx, expr.span, "function selector");
+            };
             let selector = match self.context.gcx.resolved_expr(expr).and_then(|res| match res {
                 hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {
                     Some(self.context.gcx.function_selector(item).0)
@@ -361,24 +364,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => None,
             }) {
                 Some(selector) => {
-                    let ExprKind::Member(receiver, _) = &expr.kind else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            expr.span,
-                            "function selector",
-                        );
-                    };
                     self.lower_selector_receiver_effects(receiver)?;
                     selector
                 }
                 None => {
-                    let hir::ExprKind::Member(receiver, _) = &expr.kind else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            expr.span,
-                            "function selector",
-                        );
-                    };
                     if let Some(item) =
                         self.context.gcx.resolved_expr(receiver).and_then(|res| match res {
                             hir::Res::Item(
@@ -446,12 +435,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(self.builder.extcodesize(address));
             }
             let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
-            if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
-                if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
-                    self.lower_expr(receiver)?;
-                }
-                return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
-            }
             return self.lower_array_length(receiver, receiver_ty, expr.span, "array length");
         }
         if matches!(builtin, Builtin::TypeMin | Builtin::TypeMax | Builtin::InterfaceId) {

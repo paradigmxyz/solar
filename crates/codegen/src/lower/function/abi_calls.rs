@@ -625,7 +625,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 validate_bounds,
             ),
             TyKind::Fn(function) if function.is_external() => {
-                Some(self.decode_calldata_function_pointer_with_bounds(value_pos, validate_bounds))
+                Some(self.decode_calldata_word(ty, value_pos, validate_bounds))
             }
             _ => Some(self.decode_calldata_word(ty, value_pos, validate_bounds)),
         }
@@ -706,56 +706,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(continue_block);
     }
 
-    fn decode_calldata_function_pointer_with_bounds(
-        &mut self,
-        position: ValueId,
-        validate_bounds: bool,
-    ) -> ValueId {
-        let word = self.builder.imm_u64(32);
-        if validate_bounds {
-            self.check_calldata_range(position, word);
-        }
-        let value = self.builder.calldataload(position);
-        let valid = AbiWordValidator::from_mir_type(MirType::Function)
-            .expect("function words always validate")
-            .condition(&mut self.builder, value, false);
-        let invalid = self.builder.iszero(valid);
-        self.revert_if_invalid(invalid);
-        let shift = self.builder.imm_u64(64);
-        self.builder.shr(shift, value)
-    }
-
     fn decode_calldata_word(
         &mut self,
         ty: Ty<'gcx>,
         position: ValueId,
         validate_bounds: bool,
     ) -> ValueId {
-        if let TyKind::Fn(function) = ty.kind
-            && function.is_external()
-        {
-            return self.decode_calldata_function_pointer_with_bounds(position, validate_bounds);
-        }
-
+        let is_external_function =
+            matches!(ty.kind, TyKind::Fn(function) if function.is_external());
         let word = self.builder.imm_u64(32);
         if validate_bounds {
             self.check_calldata_range(position, word);
         }
         let value = self.builder.calldataload(position);
-        let validator = match ty.kind {
-            TyKind::Enum(id) => {
-                let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
-                AbiWordValidator::EnumRange(variants)
+        let validator = if is_external_function {
+            AbiWordValidator::from_mir_type(MirType::Function)
+                .expect("function words always validate")
+        } else {
+            match ty.kind {
+                TyKind::Enum(id) => {
+                    let variants = self.context.gcx.hir.enumm(id).variants.len() as u64;
+                    AbiWordValidator::EnumRange(variants)
+                }
+                _ => match AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)) {
+                    Some(validator) => validator,
+                    None => return value,
+                },
             }
-            _ => match AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)) {
-                Some(validator) => validator,
-                None => return value,
-            },
         };
         let valid = validator.condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
         self.revert_if_invalid(invalid);
-        value
+        if is_external_function {
+            let shift = self.builder.imm_u64(64);
+            self.builder.shr(shift, value)
+        } else {
+            value
+        }
     }
 
     fn materialize_calldata_bytes_at(

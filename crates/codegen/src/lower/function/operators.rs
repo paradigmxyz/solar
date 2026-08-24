@@ -3,12 +3,13 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn signed_add_overflow(
+    pub(super) fn signed_add_sub_overflow(
         &mut self,
         lhs: ValueId,
         rhs: ValueId,
         result: ValueId,
         bits: u16,
+        is_add: bool,
     ) -> ValueId {
         let zero = self.builder.imm_u256(U256::ZERO);
         let lhs_negative = self.builder.slt(lhs, zero);
@@ -16,29 +17,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_negative = self.builder.slt(result, zero);
         let signs_differ = self.builder.xor(lhs_negative, rhs_negative);
         let result_changed_sign = self.builder.xor(result_negative, lhs_negative);
-        let same_sign = self.builder.iszero(signs_differ);
-        let mut overflow = self.builder.and(same_sign, result_changed_sign);
-        if bits < 256 {
-            let (min, max) = signed_bounds(bits, &mut self.builder);
-            overflow = self.add_signed_range_check(overflow, result, min, max);
-        }
-        overflow
-    }
-
-    pub(super) fn signed_sub_overflow(
-        &mut self,
-        lhs: ValueId,
-        rhs: ValueId,
-        result: ValueId,
-        bits: u16,
-    ) -> ValueId {
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let lhs_negative = self.builder.slt(lhs, zero);
-        let rhs_negative = self.builder.slt(rhs, zero);
-        let result_negative = self.builder.slt(result, zero);
-        let signs_differ = self.builder.xor(lhs_negative, rhs_negative);
-        let result_changed_sign = self.builder.xor(result_negative, lhs_negative);
-        let mut overflow = self.builder.and(signs_differ, result_changed_sign);
+        let sign_condition = if is_add { self.builder.iszero(signs_differ) } else { signs_differ };
+        let mut overflow = self.builder.and(sign_condition, result_changed_sign);
         if bits < 256 {
             let (min, max) = signed_bounds(bits, &mut self.builder);
             overflow = self.add_signed_range_check(overflow, result, min, max);
@@ -194,7 +174,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 }
                             }
                             ArithmeticKind::Signed(bits) => {
-                                self.signed_add_overflow(lhs, rhs, result, bits)
+                                self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                             }
                         };
                         self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
@@ -211,7 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let overflow = match kind {
                             ArithmeticKind::Unsigned(_) => self.builder.lt(lhs, rhs),
                             ArithmeticKind::Signed(bits) => {
-                                self.signed_sub_overflow(lhs, rhs, result, bits)
+                                self.signed_add_sub_overflow(lhs, rhs, result, bits, false)
                             }
                         };
                         self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);

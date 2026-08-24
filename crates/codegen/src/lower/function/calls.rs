@@ -3,6 +3,11 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    pub(super) fn uses_static_call(&self, state_mutability: hir::StateMutability) -> bool {
+        matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
+            && self.context.gcx.sess.opts.evm_version.has_static_call()
+    }
+
     pub(super) fn lower_user_operator(
         &mut self,
         span: Span,
@@ -354,11 +359,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns == 0 {
             self.revert_if_no_code(address);
         }
-        let success = if matches!(
-            function.state_mutability,
-            hir::StateMutability::Pure | hir::StateMutability::View
-        ) && self.context.gcx.sess.opts.evm_version.has_static_call()
-        {
+        let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
             self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
@@ -833,11 +834,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.revert_if_no_code(address);
         }
-        let success = if matches!(
-            function.state_mutability,
-            hir::StateMutability::Pure | hir::StateMutability::View
-        ) && self.context.gcx.sess.opts.evm_version.has_static_call()
-        {
+        let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
         } else {
             self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)

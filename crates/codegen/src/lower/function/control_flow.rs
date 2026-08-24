@@ -204,10 +204,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 selector_bytes: Some(self.context.gcx.function_selector(function_id).0),
                 address: None,
                 receiver: Some(receiver),
-                static_call: matches!(
-                    function.state_mutability,
-                    hir::StateMutability::Pure | hir::StateMutability::View
-                ) && self.context.gcx.sess.opts.evm_version.has_static_call(),
+                static_call: self.uses_static_call(function.state_mutability),
             }
         } else if let Some(TyKind::Fn(function)) =
             self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -225,10 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 selector_bytes: None,
                 address: Some(address),
                 receiver: None,
-                static_call: matches!(
-                    function.state_mutability,
-                    hir::StateMutability::Pure | hir::StateMutability::View
-                ) && self.context.gcx.sess.opts.evm_version.has_static_call(),
+                static_call: self.uses_static_call(function.state_mutability),
             }
         } else {
             return report_unsupported(self.context.gcx, try_stmt.expr.span, "try target");

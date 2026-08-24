@@ -240,15 +240,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.lower_return_values(expr)
                     },
                 )?;
+                if !values.is_empty() && values.len() != self.returns.len() {
+                    return report_unsupported(self.context.gcx, stmt.span, "return value count");
+                }
                 if let Some(target) = self.return_targets.last().map(|target| target.block) {
                     if !values.is_empty() {
-                        if values.len() != self.returns.len() {
-                            return report_unsupported(
-                                self.context.gcx,
-                                stmt.span,
-                                "return value count",
-                            );
-                        }
                         let return_ids = self.returns.clone();
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.context.gcx.type_of_item(id.into());
@@ -275,13 +271,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let returns = self.returns.clone();
                         self.finish(&returns)?;
                     } else {
-                        if values.len() != self.returns.len() {
-                            return report_unsupported(
-                                self.context.gcx,
-                                stmt.span,
-                                "return value count",
-                            );
-                        }
                         let return_ids = self.returns.clone();
                         let values = return_ids
                             .into_iter()
