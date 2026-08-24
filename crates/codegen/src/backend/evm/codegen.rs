@@ -6122,7 +6122,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .expect("stack-phi predecessor has no terminator");
                 plan.edge_layout(func, term)
                     .is_some_and(|layout| layout.iter().any(|value| edge.sources.contains(value)))
-            });
+            }) || phi_plan.branch_edges.iter().any(
+                |(&pred, branch)| {
+                    let term = func.blocks[pred]
+                        .terminator
+                        .as_ref()
+                        .expect("stack-phi predecessor has no terminator");
+                    plan.branch_layouts(term)
+                        .or_else(|| plan.edge_layout(func, term).map(|layout| (layout, layout)))
+                        .is_some_and(|(then, else_)| {
+                            [(&branch.then_edge, then), (&branch.else_edge, else_)].into_iter().any(
+                                |(edge, layout)| {
+                                    layout.iter().any(|value| edge.sources.contains(value))
+                                },
+                            )
+                        })
+                },
+            );
             if resident_is_phi_source {
                 return None;
             }
