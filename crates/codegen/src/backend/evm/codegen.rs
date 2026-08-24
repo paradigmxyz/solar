@@ -5143,11 +5143,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::RETURNDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::CallReturndataSize => {
-                self.asm.emit_op(op::RETURNDATASIZE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-
             // Ternary operations
             InstKind::AddMod(a, b, n) => self.emit_nary_op(
                 func,

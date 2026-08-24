@@ -65,7 +65,7 @@ fn @run() -> u8 [selector=0xc0406226, abi_args=lazy, abi_params=[], abi_returns=
   bb3:
     revert_returndata
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = lt v14, 32
     jumpi v15, bb5, bb6
   bb5:

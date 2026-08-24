@@ -145,7 +145,7 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], a
   bb3:
     revert_returndata
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = lt v14, 32
     jumpi v15, bb5, bb6
   bb5:
@@ -179,7 +179,7 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], a
   bb9:
     revert_returndata
   bb10:
-    v34 = returndata_size
+    v34 = returndatasize
     v35 = lt v34, 32
     jumpi v35, bb11, bb12
   bb11:

@@ -86,12 +86,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb1:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb4, bb5
   bb2:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = add v14, 63
     v16 = lt v15, v14
     jumpi v16, bb6, bb7
@@ -174,12 +174,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     v46 = abi_decode [bytes], v45
     jump bb3
   bb15:
-    v54 = returndata_size
+    v54 = returndatasize
     v55 = add v54, 63
     v56 = lt v55, v54
     jumpi v56, bb18, bb19
   bb16:
-    v64 = returndata_size
+    v64 = returndatasize
     v65 = add v64, 63
     v66 = lt v65, v64
     jumpi v66, bb22, bb23
@@ -300,12 +300,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
   bb38:
     jump bb17
   bb39:
-    v112 = returndata_size
+    v112 = returndatasize
     v113 = add v112, 63
     v114 = lt v113, v112
     jumpi v114, bb42, bb43
   bb40:
-    v122 = returndata_size
+    v122 = returndatasize
     v123 = add v122, 63
     v124 = lt v123, v122
     jumpi v124, bb46, bb47
@@ -394,12 +394,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
   bb55:
     jump bb41
   bb56:
-    v158 = returndata_size
+    v158 = returndatasize
     v159 = add v158, 63
     v160 = lt v159, v158
     jumpi v160, bb59, bb60
   bb57:
-    v173 = returndata_size
+    v173 = returndatasize
     v174 = add v173, 63
     v175 = lt v174, v173
     jumpi v175, bb65, bb66
@@ -483,12 +483,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
   bb70:
     jump bb58
   bb71:
-    v203 = returndata_size
+    v203 = returndatasize
     v204 = add v203, 63
     v205 = lt v204, v203
     jumpi v205, bb74, bb75
   bb72:
-    v213 = returndata_size
+    v213 = returndatasize
     v214 = add v213, 63
     v215 = lt v214, v213
     jumpi v215, bb78, bb79
@@ -578,7 +578,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     v245 = lt v244, v235
     jumpi v245, bb87, bb88
   bb85:
-    v246 = returndata_size
+    v246 = returndatasize
     v247 = add v246, 63
     v248 = lt v247, v246
     jumpi v248, bb89, bb90
@@ -641,12 +641,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
   bb94:
     jump bb86
   bb95:
-    v281 = returndata_size
+    v281 = returndatasize
     v282 = add v281, 63
     v283 = lt v282, v281
     jumpi v283, bb98, bb99
   bb96:
-    v291 = returndata_size
+    v291 = returndatasize
     v292 = add v291, 63
     v293 = lt v292, v291
     jumpi v293, bb102, bb103

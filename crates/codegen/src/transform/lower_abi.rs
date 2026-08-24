@@ -139,7 +139,6 @@ impl LowerAbiCx {
         let mut bytes_fallback = None;
         let mut has_decodes = false;
         let mut has_revert_returndata = false;
-        let mut has_call_returndata_sizes = false;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -167,8 +166,6 @@ impl LowerAbiCx {
             }
             for inst_id in func.instructions() {
                 has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
-                has_call_returndata_sizes |=
-                    matches!(func.inst(inst_id).kind, InstKind::CallReturndataSize);
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     internally_called.insert(function);
                 }
@@ -184,7 +181,6 @@ impl LowerAbiCx {
             && wrapped_constructors.is_empty()
             && !has_decodes
             && !has_revert_returndata
-            && !has_call_returndata_sizes
             && bytes_fallback.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
@@ -207,10 +203,6 @@ impl LowerAbiCx {
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
-        }
-
-        if has_call_returndata_sizes {
-            self.lower_call_returndata_sizes(module, evm_version);
         }
 
         if has_revert_returndata {
@@ -299,47 +291,6 @@ impl LowerAbiCx {
                     builder.revert(zero, zero);
                 }
             }
-        }
-    }
-
-    /// Materializes the volatile returndata size query at the ABI boundary.
-    fn lower_call_returndata_sizes(&self, module: &mut Module, evm_version: EvmVersion) {
-        if evm_version.supports_returndata() {
-            for func in module.functions.iter_mut() {
-                func.for_each_instruction_mut(|_, inst| {
-                    if matches!(inst.kind, InstKind::CallReturndataSize) {
-                        inst.kind = InstKind::ReturnDataSize;
-                    }
-                });
-            }
-            return;
-        }
-
-        for func in module.functions.iter_mut() {
-            let mut replacements = FxHashMap::default();
-            let blocks: Vec<_> = func.blocks.indices().collect();
-            for block in blocks {
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block);
-                let mut retained = Vec::with_capacity(instructions.len());
-                for inst in instructions {
-                    if !matches!(builder.func().inst(inst).kind, InstKind::CallReturndataSize) {
-                        retained.push(inst);
-                        continue;
-                    }
-
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst)
-                        .expect("returndata size must produce a value");
-                    let size = builder.imm_u256(U256::ZERO);
-                    replacements.insert(result, size);
-                }
-                builder.func_mut().blocks[block].instructions = retained;
-            }
-            func.replace_uses_canonicalized(&replacements);
-            let _ = crate::mir::utils::repair_reachability_phis(func);
         }
     }
 

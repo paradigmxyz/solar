@@ -69,7 +69,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], ab
   bb1:
     revert_returndata
   bb2:
-    v7 = returndata_size
+    v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb3, bb4

@@ -82,7 +82,7 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_args=lazy, abi_params=[], abi_ret
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb3, bb4
   bb3:

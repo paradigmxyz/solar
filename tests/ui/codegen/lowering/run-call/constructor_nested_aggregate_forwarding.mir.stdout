@@ -799,7 +799,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=
   bb23:
     revert_returndata
   bb24:
-    v51 = returndata_size
+    v51 = returndatasize
     v52 = lt v51, 32
     jumpi v52, bb25, bb26
   bb25:

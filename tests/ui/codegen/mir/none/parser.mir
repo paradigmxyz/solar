@@ -103,12 +103,12 @@ fn @constructor() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @returndata_size
-// CHECK: {{^ +}}[[SIZE:v[0-9]+]] = returndata_size
+// CHECK-LABEL: @returndatasize
+// CHECK: {{^ +}}[[SIZE:v[0-9]+]] = returndatasize
 // CHECK: {{^ +}}ret [[SIZE]]
-fn @returndata_size() -> u256 {
+fn @returndatasize() -> u256 {
   bb0:
-    v0 = returndata_size
+    v0 = returndatasize
     ret v0
 }
 

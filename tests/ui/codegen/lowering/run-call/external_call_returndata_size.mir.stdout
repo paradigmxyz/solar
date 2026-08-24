@@ -74,7 +74,7 @@ fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_args=lazy, abi_params=
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = lt v12, 32
     jumpi v13, bb5, bb6
   bb5:
@@ -134,7 +134,7 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_args=lazy, abi_params
   bb3:
     revert_returndata
   bb4:
-    v17 = returndata_size
+    v17 = returndatasize
     v18 = lt v17, 32
     jumpi v18, bb5, bb6
   bb5:
@@ -189,7 +189,7 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_args=lazy, abi_p
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_size
+    v12 = returndatasize
     v13 = lt v12, 64
     jumpi v13, bb5, bb6
   bb5:
@@ -255,7 +255,7 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_args=lazy, abi_
   bb3:
     revert_returndata
   bb4:
-    v17 = returndata_size
+    v17 = returndatasize
     v18 = lt v17, 64
     jumpi v18, bb5, bb6
   bb5:
@@ -300,7 +300,7 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_args=lazy, abi_param
   bb3:
     revert_returndata
   bb4:
-    v11 = returndata_size
+    v11 = returndatasize
     v12 = lt v11, 64
     jumpi v12, bb5, bb6
   bb5:
@@ -349,7 +349,7 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_args=lazy, abi_para
   bb3:
     revert_returndata
   bb4:
-    v16 = returndata_size
+    v16 = returndatasize
     v17 = lt v16, 64
     jumpi v17, bb5, bb6
   bb5:
@@ -392,7 +392,7 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_args=lazy, abi_params=
   bb3:
     revert_returndata
   bb4:
-    v11 = returndata_size
+    v11 = returndatasize
     v12 = lt v11, 32
     jumpi v12, bb5, bb6
   bb5:
@@ -443,7 +443,7 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_args=lazy, abi_params
   bb3:
     revert_returndata
   bb4:
-    v16 = returndata_size
+    v16 = returndatasize
     v17 = lt v16, 32
     jumpi v17, bb5, bb6
   bb5:

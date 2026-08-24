@@ -41,7 +41,7 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=
   bb7:
     revert_returndata
   bb8:
-    v21 = returndata_size
+    v21 = returndatasize
     v22 = lt v21, 32
     jumpi v22, bb9, bb10
   bb9:
@@ -83,7 +83,7 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=
   bb15:
     revert_returndata
   bb16:
-    v45 = returndata_size
+    v45 = returndatasize
     v46 = lt v45, 32
     jumpi v46, bb17, bb18
   bb17:
@@ -125,7 +125,7 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_args=
   bb23:
     revert_returndata
   bb24:
-    v69 = returndata_size
+    v69 = returndatasize
     v70 = lt v69, 32
     jumpi v70, bb25, bb26
   bb25:
@@ -225,7 +225,7 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
   bb16:
     revert_returndata
   bb17:
-    v41 = returndata_size
+    v41 = returndatasize
     v42 = lt v41, 96
     jumpi v42, bb18, bb19
   bb18:
@@ -331,7 +331,7 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_args=lazy, abi
   bb10:
     revert_returndata
   bb11:
-    v25 = returndata_size
+    v25 = returndatasize
     v26 = lt v25, 96
     jumpi v26, bb12, bb13
   bb12:
@@ -355,7 +355,7 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_args=lazy, abi
   bb14:
     revert_returndata
   bb15:
-    v46 = returndata_size
+    v46 = returndatasize
     v47 = lt v46, 96
     jumpi v47, bb16, bb17
   bb16:

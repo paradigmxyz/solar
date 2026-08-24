@@ -14,7 +14,7 @@ fn @invoke(arg0: function, arg1: memorystruct) {
   bb1:
     jump bb3
   bb2:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = add v8, 63
     v10 = lt v9, v8
     jumpi v10, bb4, bb5
@@ -87,12 +87,12 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb1:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = add v8, 63
     v10 = lt v9, v8
     jumpi v10, bb4, bb5
   bb2:
-    v18 = returndata_size
+    v18 = returndatasize
     v19 = add v18, 63
     v20 = lt v19, v18
     jumpi v20, bb6, bb7

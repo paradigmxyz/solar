@@ -35,7 +35,7 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_args=lazy, abi_param
   bb4:
     revert_returndata
   bb5:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
   bb6:
@@ -76,7 +76,7 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_args=lazy, abi_params
   bb4:
     revert_returndata
   bb5:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
   bb6:
@@ -117,7 +117,7 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_args=lazy, abi_params
   bb4:
     revert_returndata
   bb5:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
   bb6:
@@ -158,7 +158,7 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_args=lazy, abi_params=
   bb4:
     revert_returndata
   bb5:
-    v6 = returndata_size
+    v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
   bb6:

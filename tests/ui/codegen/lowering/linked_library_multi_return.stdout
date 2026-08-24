@@ -18,7 +18,7 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_args=lazy, abi_params
   bb1:
     revert_returndata
   bb2:
-    v5 = returndata_size
+    v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb3, bb4

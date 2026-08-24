@@ -58,7 +58,7 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_args=lazy, abi_params
   bb1:
     ret 0
   bb2:
-    v7 = returndata_size
+    v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb4, bb5

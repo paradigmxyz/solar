@@ -33,7 +33,7 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_args=lazy, abi_para
   bb3:
     ret 0
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = add v14, 63
     v16 = lt v15, v14
     jumpi v16, bb6, bb7
@@ -100,7 +100,7 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_args=lazy, abi_para
   bb3:
     ret 0
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = add v14, 63
     v16 = lt v15, v14
     jumpi v16, bb6, bb7
@@ -167,7 +167,7 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_args=lazy, abi_param
   bb3:
     ret 0
   bb4:
-    v14 = returndata_size
+    v14 = returndatasize
     v15 = add v14, 63
     v16 = lt v15, v14
     jumpi v16, bb6, bb7

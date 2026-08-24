@@ -87,7 +87,7 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_args=lazy, abi_params=[], 
   bb1:
     revert_returndata
   bb2:
-    v7 = returndata_size
+    v7 = returndatasize
     v8 = lt v7, 32
     jumpi v8, bb3, bb4
   bb3:
@@ -121,7 +121,7 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[]
   bb1:
     revert_returndata
   bb2:
-    v7 = returndata_size
+    v7 = returndatasize
     v8 = lt v7, 32
     jumpi v8, bb3, bb4
   bb3:

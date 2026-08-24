@@ -42,7 +42,7 @@ fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_args=lazy, abi_params
   bb1:
     revert_returndata
   bb2:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
   bb3:

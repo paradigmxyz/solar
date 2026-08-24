@@ -197,7 +197,7 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_args=lazy, abi_params=[],
   bb24:
     revert_returndata
   bb25:
-    v54 = returndata_size
+    v54 = returndatasize
     v55 = add v54, 63
     v56 = lt v55, v54
     jumpi v56, bb26, bb27
@@ -419,7 +419,7 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_args=lazy, abi_params=[],
   bb41:
     revert_returndata
   bb42:
-    v69 = returndata_size
+    v69 = returndatasize
     v70 = add v69, 63
     v71 = lt v70, v69
     jumpi v71, bb43, bb44

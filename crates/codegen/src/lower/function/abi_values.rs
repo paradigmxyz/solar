@@ -592,12 +592,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
-        let length = self.builder.call_returndata_size();
+        let length = self.current_returndata_size();
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         let zero = self.builder.imm_u256(U256::ZERO);
         let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         object
+    }
+
+    /// Returns the current call's returndata size, or zero before Byzantium.
+    pub(super) fn current_returndata_size(&mut self) -> ValueId {
+        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+            self.builder.returndatasize()
+        } else {
+            self.builder.imm_u256(U256::ZERO)
+        }
     }
 
     pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {

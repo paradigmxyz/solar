@@ -11,7 +11,7 @@ fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_args=lazy, abi_p
   bb1:
     revert_returndata
   bb2:
-    v5 = returndata_size
+    v5 = returndatasize
     v6 = lt v5, 32
     jumpi v6, bb3, bb4
   bb3:
@@ -38,7 +38,7 @@ fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_args=laz
   bb1:
     revert_returndata
   bb2:
-    v8 = returndata_size
+    v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
   bb3:

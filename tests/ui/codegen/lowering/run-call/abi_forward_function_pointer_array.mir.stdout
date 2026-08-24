@@ -87,7 +87,7 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_args=la
   bb16:
     revert_returndata
   bb17:
-    v41 = returndata_size
+    v41 = returndatasize
     v42 = lt v41, 32
     jumpi v42, bb18, bb19
   bb18:
