@@ -183,8 +183,7 @@ fn aligned_size(
         return (builder.imm_u64(aligned), None);
     }
     let mask = builder.imm_u256(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-    let padding = builder.imm_u64(EvmMemoryLayout::WORD_SIZE - 1);
-    let rounded = builder.add(size, padding);
+    let rounded = builder.add_u64_offset(size, EvmMemoryLayout::WORD_SIZE - 1);
     let overflow = builder.lt(rounded, size);
     (builder.and(rounded, mask), Some(overflow))
 }
