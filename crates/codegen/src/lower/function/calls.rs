@@ -971,9 +971,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             returns.map(|ty| self.types.abi_return_param_type(ty)).collect::<Option<Vec<_>>>()?;
         (!types.is_empty()
             && types.iter().all(|ty| !ty.is_dynamic())
-            && types
-                .iter()
-                .any(|ty| !matches!(ty, AbiParamType::Scalar(_) | AbiParamType::Enum { .. })))
+            && types.iter().any(|ty| !ty.is_scalar_word()))
         .then(|| AbiParamLayout::new(types.into_boxed_slice()))
     }
 

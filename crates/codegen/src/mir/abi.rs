@@ -171,6 +171,12 @@ impl AbiParamType {
         }
     }
 
+    /// Returns whether this value occupies one ABI word.
+    #[must_use]
+    pub(crate) fn is_scalar_word(&self) -> bool {
+        matches!(self, Self::Scalar(_) | Self::Enum { .. })
+    }
+
     /// Returns the validator for a scalar or enum word, if it is not full-width.
     #[must_use]
     pub(crate) fn word_validator(&self) -> Option<AbiWordValidator> {

@@ -326,13 +326,13 @@ impl LowerAbiCx {
         func.abi_args_lazy
             && func.params.len() == layout.types.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
-                (Self::is_constructor_word(abi_ty) || Self::is_supported_aggregate(abi_ty))
+                (abi_ty.is_scalar_word() || Self::is_supported_aggregate(abi_ty))
                     && abi_ty.mir_type() == param_ty
             })
     }
 
     fn is_constructor_array_element(ty: &AbiParamType) -> bool {
-        Self::is_constructor_word(ty)
+        ty.is_scalar_word()
             || matches!(
                 ty,
                 AbiParamType::FixedArray { element, len }
@@ -1089,7 +1089,7 @@ impl LowerAbiCx {
         let Some(layout) = abi_params else { return false };
         layout.types.len() == func.params.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
-                (Self::is_constructor_word(abi_ty)
+                (abi_ty.is_scalar_word()
                     && !matches!(param_ty, MirType::Function | MirType::MemoryObject(_)))
                     || (Self::is_supported_aggregate(abi_ty)
                         && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
@@ -1259,9 +1259,7 @@ impl LowerAbiCx {
             let preserve_word_types = abi_params.is_some_and(|layout| {
                 layout.types.len() == arg_types.len()
                     && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                        Self::is_constructor_word(ty)
-                            && ty.mir_type() == param
-                            && param != MirType::Function
+                        ty.is_scalar_word() && ty.mir_type() == param && param != MirType::Function
                     })
             });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
@@ -2690,7 +2688,7 @@ impl LowerAbiCx {
     }
 
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
-        Self::is_supported_tuple_field(ty) && !Self::is_constructor_word(ty)
+        Self::is_supported_tuple_field(ty) && !ty.is_scalar_word()
     }
 
     fn can_use_calldata_slice(
@@ -3035,10 +3033,6 @@ impl LowerAbiCx {
         ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
     }
 
-    fn is_constructor_word(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(ty, crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. })
-    }
-
     fn is_full_word_scalar(ty: &crate::mir::AbiParamType) -> bool {
         matches!(
             ty,
@@ -3050,14 +3044,14 @@ impl LowerAbiCx {
     }
 
     fn is_scalar_or_enum(ty: &crate::mir::AbiParamType) -> bool {
-        Self::is_constructor_word(ty) && ty.mir_type() != MirType::Function
+        ty.is_scalar_word() && ty.mir_type() != MirType::Function
     }
 
     fn push_constructor_param_types(
         params: &mut IndexVec<ArgIdx, MirType>,
         ty: &crate::mir::AbiParamType,
     ) {
-        if Self::is_constructor_word(ty) {
+        if ty.is_scalar_word() {
             params.push(ty.mir_type());
         } else if let crate::mir::AbiParamType::FixedArray { element, len } = ty {
             for _ in 0..*len {
@@ -3210,7 +3204,7 @@ fn canonical_input_for_arg<'a>(
     let crate::mir::Value::Arg(index) = func.value(value) else { return None };
     let mut physical = 0;
     for ty in input_params?.types.iter() {
-        if LowerAbiCx::is_constructor_word(ty) && physical == index.index() {
+        if ty.is_scalar_word() && physical == index.index() {
             return Some(ty);
         }
         physical += (ty.checked_head_size().expect("ABI head size exceeds u64 range")
