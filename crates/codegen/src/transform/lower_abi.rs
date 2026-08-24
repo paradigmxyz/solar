@@ -658,7 +658,7 @@ impl LowerAbiCx {
             let mut builder = FunctionBuilder::new(&mut function);
             let value = builder.add_param(ty.mir_type());
             builder.add_return(ty.mir_type());
-            let value = canonicalize_return_value(&mut builder, &ty, value, None, false);
+            let value = canonicalize_return_value(&mut builder, ty, value, None, false);
             builder.ret([value]);
         }
         module.add_function(function)
