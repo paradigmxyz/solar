@@ -368,11 +368,13 @@ impl LowerAbiCx {
         let mut decode_counts = FxHashMap::default();
         let mut static_alias_decode_counts = FxHashMap::<AbiParamLayoutRef, usize>::default();
         let mut static_alias_ptr_layouts = FxHashSet::default();
-        for func in module.functions.iter() {
+        let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
                 let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
+                decode_functions.insert(func_id);
                 if layout.types.is_empty() || layout.checked_head_size().is_none() {
                     return false;
                 }
@@ -424,14 +426,8 @@ impl LowerAbiCx {
         }
 
         let mut changed = false;
-        for func in module.functions.iter_mut() {
-            let has_decode = func
-                .instructions()
-                .any(|inst| matches!(func.inst(inst).kind, InstKind::AbiDecode { .. }));
-            if !has_decode {
-                continue;
-            }
-
+        for func_id in decode_functions.iter() {
+            let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
             let blocks: Vec<_> = func.blocks.indices().collect();
             for block in blocks {
