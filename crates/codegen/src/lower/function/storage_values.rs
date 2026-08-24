@@ -10,6 +10,12 @@ enum StorageStructField {
     Array { location: StorageLocation, helper: FunctionId },
 }
 
+#[derive(Clone, Copy)]
+enum StorageArrayElement {
+    Bytes(FunctionId),
+    Word,
+}
+
 /// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
 pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes));
@@ -28,7 +34,19 @@ fn synthesize_storage_bytes_array_helper(
     module: &mut Module,
     bytes_helper: FunctionId,
 ) -> FunctionId {
-    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_bytes_array));
+    synthesize_storage_array_helper(
+        module,
+        Ident::with_dummy_span(sym::__load_storage_bytes_array),
+        StorageArrayElement::Bytes(bytes_helper),
+    )
+}
+
+fn synthesize_storage_array_helper(
+    module: &mut Module,
+    name: Ident,
+    element: StorageArrayElement,
+) -> FunctionId {
+    let mut function = Function::new(name);
     function.attributes.no_inline = true;
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -53,12 +71,15 @@ fn synthesize_storage_bytes_array_helper(
 
         builder.switch_to_block(body);
         let element_slot = builder.add(data_slot, index);
-        let value = builder.internal_call(
-            bytes_helper,
-            vec![element_slot],
-            MirType::MemoryObject(MemoryObjectKind::Bytes),
-            1,
-        );
+        let value = match element {
+            StorageArrayElement::Bytes(helper) => builder.internal_call(
+                helper,
+                vec![element_slot],
+                MirType::MemoryObject(MemoryObjectKind::Bytes),
+                1,
+            ),
+            StorageArrayElement::Word => builder.sload(element_slot),
+        };
         builder.memory_object_store_element(object, layout, index, value);
         let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
@@ -72,40 +93,11 @@ fn synthesize_storage_bytes_array_helper(
 
 /// Adds the module-wide helper for copying a full-word dynamic storage array.
 pub(super) fn synthesize_storage_word_array_helper(module: &mut Module) -> FunctionId {
-    let mut function = Function::new(Ident::with_dummy_span(sym::__load_storage_word_array));
-    function.attributes.no_inline = true;
-    {
-        let mut builder = FunctionBuilder::new(&mut function);
-        let slot = builder.add_param(MirType::uint256());
-        builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
-
-        let length = builder.sload(slot);
-        let (object, layout) =
-            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-        let data_slot = builder.storage_array_data_slot(slot);
-        let preheader = builder.current_block();
-        let header = builder.create_block();
-        let body = builder.create_block();
-        let exit = builder.create_block();
-        builder.jump(header);
-        builder.switch_to_block(header);
-        let zero = builder.imm_u64(0);
-        let index = builder.phi(vec![(preheader, zero)]);
-        let condition = builder.lt(index, length);
-        builder.branch(condition, body, exit);
-        builder.switch_to_block(body);
-        let element_slot = builder.add(data_slot, index);
-        let value = builder.sload(element_slot);
-        builder.memory_object_store_element(object, layout, index, value);
-        let next = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(header);
-        builder.add_phi_incoming(index, backedge, next);
-        builder.switch_to_block(exit);
-        builder.ret([object]);
-    }
-    module.add_function(function)
+    synthesize_storage_array_helper(
+        module,
+        Ident::with_dummy_span(sym::__load_storage_word_array),
+        StorageArrayElement::Word,
+    )
 }
 
 /// Adds a helper for copying one packed dynamic storage array shape.

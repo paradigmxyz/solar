@@ -285,14 +285,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | Some(layout @ MemoryObjectLayout::FixedArray { element_words: 1, .. }) => layout,
             _ => return value,
         };
-        let value_is_memory_object = matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(kind)) if kind == layout.kind()
-        ) || matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::UInt(size)) if size.bits() == 256
-        );
-        if !value_is_memory_object {
+        if !self.is_memory_object_value(value, layout.kind()) {
             return value;
         }
         let dynamic = matches!(layout, MemoryObjectLayout::DynamicArray { .. });
@@ -384,14 +377,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(layout @ MemoryObjectLayout::Struct { .. }) = self.types.memory_layout(ty) else {
             return value;
         };
-        let value_is_memory_object = matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(MemoryObjectKind::Struct))
-        ) || matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::UInt(size)) if size.bits() == 256
-        );
-        if !value_is_memory_object {
+        if !self.is_memory_object_value(value, MemoryObjectKind::Struct) {
             return value;
         }
         let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
@@ -410,6 +396,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_object_store_field(output, layout, index as u64, field_value);
         }
         output
+    }
+
+    fn is_memory_object_value(&self, value: ValueId, kind: MemoryObjectKind) -> bool {
+        match self.builder.func().value_ty(value) {
+            Some(MirType::MemoryObject(value_kind)) => value_kind == kind,
+            Some(MirType::UInt(size)) => size.bits() == 256,
+            _ => false,
+        }
     }
 
     fn abi_value_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
