@@ -773,9 +773,7 @@ impl LowerSlices {
         for func in module.functions.iter_mut() {
             changed |= Self::expand_call_args(func, &signatures);
         }
-        let function_ids: Vec<_> = module.functions.indices().collect();
-        for id in function_ids {
-            let func = module.function_mut(id);
+        for (id, func) in module.functions.iter_mut_enumerated() {
             changed |= Self::lower_external_args(func);
             changed |= Self::lower_params(func, &signatures[&id]);
             while Self::split_slice_aggregates(func) {

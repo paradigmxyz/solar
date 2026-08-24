@@ -125,9 +125,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         }
     }
 
-    let function_ids: Vec<_> = module.functions.indices().collect();
-    for func_id in function_ids {
-        let func = &mut module.functions[func_id];
+    for (func_id, func) in module.functions.iter_mut_enumerated() {
         let mut function_changed = false;
         for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
             let insts = &func.blocks[block_id].instructions;
