@@ -686,32 +686,14 @@ impl<'a> Validator<'a> {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let inst = func.inst(inst_id);
-                    let semantic = matches!(
-                        inst.kind,
-                        InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
-                            | InstKind::MemoryObjectLen(_, _)
-                            | InstKind::SetMemoryObjectLen(_, _, _)
-                            | InstKind::MemoryObjectData(_, _)
-                            | InstKind::MemoryObjectFieldAddr { .. }
-                            | InstKind::MemoryObjectElementAddr { .. }
-                            | InstKind::MemoryObjectLoadField { .. }
-                            | InstKind::MemoryObjectStoreField { .. }
-                            | InstKind::MemoryObjectLoadElement { .. }
-                            | InstKind::MemoryObjectLoadByte { .. }
-                            | InstKind::MemoryObjectStoreElement { .. }
-                            | InstKind::MemoryObjectStoreByte { .. }
-                            | InstKind::MemoryObjectStoreWord { .. }
-                            | InstKind::MemorySliceLoadWord { .. }
-                            | InstKind::CalldataSliceLoadWord { .. }
-                            | InstKind::MemoryObjectCopyFromSlice { .. }
-                            | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                            | InstKind::MemoryObjectCopy { .. }
-                            | InstKind::FrameLoad { .. }
-                            | InstKind::FrameStore { .. }
-                            | InstKind::Keccak256Bytes(_)
-                    ) || inst
-                        .result_ty
-                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
+                    let semantic = inst.kind.is_memory_object_op()
+                        || matches!(
+                            inst.kind,
+                            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. }
+                        )
+                        || inst
+                            .result_ty
+                            .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
                     if semantic {
                         self.emit_at_inst(
                             format_args!(

@@ -1853,6 +1853,33 @@ impl InstKind {
         )
     }
 
+    /// Returns whether this instruction still carries a semantic memory-object operation.
+    #[must_use]
+    pub(crate) const fn is_memory_object_op(&self) -> bool {
+        matches!(
+            self,
+            Self::Alloc { kind: AllocationKind::Object(_), .. }
+                | Self::MemoryObjectLen(_, _)
+                | Self::SetMemoryObjectLen(_, _, _)
+                | Self::MemoryObjectData(_, _)
+                | Self::MemoryObjectFieldAddr { .. }
+                | Self::MemoryObjectElementAddr { .. }
+                | Self::MemoryObjectLoadField { .. }
+                | Self::MemoryObjectStoreField { .. }
+                | Self::MemoryObjectLoadElement { .. }
+                | Self::MemoryObjectLoadByte { .. }
+                | Self::MemoryObjectStoreElement { .. }
+                | Self::MemoryObjectStoreByte { .. }
+                | Self::MemoryObjectStoreWord { .. }
+                | Self::MemorySliceLoadWord { .. }
+                | Self::CalldataSliceLoadWord { .. }
+                | Self::MemoryObjectCopyFromSlice { .. }
+                | Self::MemoryObjectCopyFromSliceAt { .. }
+                | Self::MemoryObjectCopy { .. }
+                | Self::Keccak256Bytes(_)
+        )
+    }
+
     /// Returns a conservative effect classification for this instruction.
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {

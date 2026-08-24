@@ -58,29 +58,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
         || func.live_values().any(is_object_value)
         || func.instructions().any(|inst_id| {
             let inst = func.inst(inst_id);
-            inst.result_ty.as_ref().is_some_and(is_object_type)
-                || matches!(
-                    inst.kind,
-                    InstKind::MemoryObjectLen(_, _)
-                        | InstKind::SetMemoryObjectLen(_, _, _)
-                        | InstKind::MemoryObjectData(_, _)
-                        | InstKind::MemoryObjectFieldAddr { .. }
-                        | InstKind::MemoryObjectElementAddr { .. }
-                        | InstKind::MemoryObjectLoadField { .. }
-                        | InstKind::MemoryObjectStoreField { .. }
-                        | InstKind::MemoryObjectLoadElement { .. }
-                        | InstKind::MemoryObjectLoadByte { .. }
-                        | InstKind::MemoryObjectStoreElement { .. }
-                        | InstKind::MemoryObjectStoreByte { .. }
-                        | InstKind::MemoryObjectStoreWord { .. }
-                        | InstKind::MemorySliceLoadWord { .. }
-                        | InstKind::CalldataSliceLoadWord { .. }
-                        | InstKind::MemoryObjectCopyFromSlice { .. }
-                        | InstKind::MemoryObjectCopyFromSliceAt { .. }
-                        | InstKind::MemoryObjectCopy { .. }
-                        | InstKind::Keccak256Bytes(_)
-                        | InstKind::Alloc { kind: AllocationKind::Object(_), .. }
-                )
+            inst.result_ty.as_ref().is_some_and(is_object_type) || inst.kind.is_memory_object_op()
         });
     if !has_objects {
         return false;
