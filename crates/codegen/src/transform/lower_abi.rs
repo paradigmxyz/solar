@@ -443,18 +443,14 @@ impl LowerAbiCx {
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
                 for inst in instructions {
-                    let decoded = match &builder.func().inst(inst).kind {
-                        InstKind::AbiDecode { data, layout } => Some((
-                            super::lower_abi_encode::resolve(*data, &replacements),
-                            layout.clone(),
-                        )),
-                        _ => None,
-                    };
-                    let Some((data, layout)) = decoded else {
+                    let InstKind::AbiDecode { data, layout } = &builder.func().inst(inst).kind
+                    else {
                         let current = builder.current_block();
                         builder.func_mut().blocks[current].instructions.push(inst);
                         continue;
                     };
+                    let data = super::lower_abi_encode::resolve(*data, &replacements);
+                    let layout = layout.clone();
 
                     let result = builder
                         .func()
@@ -3510,10 +3506,6 @@ fn canonicalize_return_value(
     }
 }
 
-fn calldata_return_kind(abi_type: &AbiType) -> bool {
-    matches!(abi_type, AbiType::Bytes(SliceLocation::Memory))
-}
-
 fn direct_calldata_copy_source(
     func: &Function,
     return_block: BlockId,
@@ -3577,7 +3569,7 @@ fn reuse_direct_calldata_returns(
     let mut calldata_indices = FxHashSet::default();
     for (index, &value) in values.iter().enumerate() {
         let Some(abi_type) = layout.types.get(index) else { continue };
-        if !calldata_return_kind(abi_type) {
+        if !matches!(abi_type, AbiType::Bytes(SliceLocation::Memory)) {
             continue;
         }
         let Some(source) = direct_calldata_copy_source(func, return_block, value) else {

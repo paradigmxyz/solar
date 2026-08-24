@@ -811,9 +811,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let head_size = self.builder.imm_u64(head_size);
             self.check_calldata_tail_range(base, head_size);
         }
-        let size = self.builder.imm_u64(length.checked_mul(32)?);
-        let layout = MemoryObjectLayout::FixedArray { len: length, element_words: 1 };
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let _ = length.checked_mul(32)?;
+        let (object, layout) = self.builder.alloc_word_array(length, AllocationSemantics::INTERNAL);
         for index in 0..length {
             let index_value = self.builder.imm_u64(index);
             let head_offset = self.builder.imm_u64(index.checked_mul(element_head_size)?);
