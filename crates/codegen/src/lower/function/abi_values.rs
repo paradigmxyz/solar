@@ -420,15 +420,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_child(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        match ty.peel_refs().kind {
-            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => {
-                self.canonicalize_abi_value(ty, value)
-            }
-            _ => {
-                self.validate_enum(ty, value);
-                self.normalize_abi_scalar(value, ty)
-            }
-        }
+        self.canonicalize_abi_value(ty, value)
     }
 
     fn abi_value_needs_normalization(&self, ty: Ty<'gcx>) -> bool {

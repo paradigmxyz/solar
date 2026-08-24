@@ -600,32 +600,31 @@ impl LowerAbiCx {
         module: &mut Module,
         targets: &[FunctionId],
     ) {
-        let mut counts = FxHashMap::<AbiParamType, usize>::default();
-        for &id in targets {
-            let func = module.function(id);
-            let Some(layout) = func.abi_params.as_ref() else { continue };
-            for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
-                if matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
-                    && matches!(ty, AbiParamType::Bytes)
-                {
-                    *counts.entry(ty.clone()).or_default() += 1;
-                }
-            }
-        }
-        for (ty, count) in counts {
-            if count < 2 {
-                continue;
-            }
-            let helper = self.synthesize_calldata_slice_helper(module, ty.clone());
+        let count = targets
+            .iter()
+            .map(|&id| {
+                let func = module.function(id);
+                func.abi_params.as_ref().map_or(0, |layout| {
+                    layout
+                        .types
+                        .iter()
+                        .zip(&func.params)
+                        .filter(|(ty, arg_type)| {
+                            matches!(arg_type, &&MirType::Slice(SliceLocation::Calldata))
+                                && matches!(ty, &&AbiParamType::Bytes)
+                        })
+                        .count()
+                })
+            })
+            .sum::<usize>();
+        if count >= 2 {
+            let ty = AbiParamType::Bytes;
+            let helper = self.synthesize_calldata_slice_helper(module);
             self.calldata_slice_helpers.insert(ty, helper);
         }
     }
 
-    fn synthesize_calldata_slice_helper(
-        &self,
-        module: &mut Module,
-        _ty: AbiParamType,
-    ) -> FunctionId {
+    fn synthesize_calldata_slice_helper(&self, module: &mut Module) -> FunctionId {
         let name = format!("__decode_calldata_slice_{}", module.functions.len());
         let mut function = Function::new(Ident::with_dummy_span(Symbol::intern(&name)));
         {

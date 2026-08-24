@@ -73,13 +73,12 @@ fn lower_function(func: &mut Function) -> bool {
             match op {
                 Some(FrameOp::Load { offset, mode, kind }) => {
                     let address = frame_address(&mut builder, offset, mode);
-                    let value = match (mode, kind) {
-                        (FrameMode::MultiReturn, FrameSlotKind::Word) => builder.mload(address),
-                        (FrameMode::MultiReturn, FrameSlotKind::Slice(_)) => {
-                            unreachable!("multi-return buffers contain words")
-                        }
-                        (_, FrameSlotKind::Word) => builder.mload(address),
-                        (_, FrameSlotKind::Slice(location)) => {
+                    let value = match kind {
+                        FrameSlotKind::Word => builder.mload(address),
+                        FrameSlotKind::Slice(location) => {
+                            if mode == FrameMode::MultiReturn {
+                                unreachable!("multi-return buffers contain words")
+                            }
                             let ptr = builder.mload(address);
                             let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
                             let len_address = builder.add(address, word);
@@ -95,16 +94,17 @@ fn lower_function(func: &mut Function) -> bool {
                 }
                 Some(FrameOp::Store { offset, mode, kind, value }) => {
                     let address = frame_address(&mut builder, offset, mode);
-                    match (mode, kind) {
-                        (FrameMode::MultiReturn, FrameSlotKind::Word) => {
-                            debug_assert_eq!(offset, 0);
+                    match kind {
+                        FrameSlotKind::Word => {
+                            if mode == FrameMode::MultiReturn {
+                                debug_assert_eq!(offset, 0);
+                            }
                             builder.mstore(address, value);
                         }
-                        (FrameMode::MultiReturn, FrameSlotKind::Slice(_)) => {
-                            unreachable!("multi-return buffers contain words")
-                        }
-                        (_, FrameSlotKind::Word) => builder.mstore(address, value),
-                        (_, FrameSlotKind::Slice(_)) => {
+                        FrameSlotKind::Slice(_) => {
+                            if mode == FrameMode::MultiReturn {
+                                unreachable!("multi-return buffers contain words")
+                            }
                             let ptr = builder.slice_ptr(value);
                             let len = builder.slice_len(value);
                             builder.mstore(address, ptr);
