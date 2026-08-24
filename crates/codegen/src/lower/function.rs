@@ -60,7 +60,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
-    fn reborrow<'a>(&'a mut self) -> LoweringContext<'gcx, 'a> {
+    pub(super) fn reborrow<'a>(&'a mut self) -> LoweringContext<'gcx, 'a> {
         LoweringContext {
             gcx: self.gcx,
             module: &mut *self.module,

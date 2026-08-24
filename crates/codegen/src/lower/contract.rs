@@ -165,26 +165,27 @@ pub(super) fn lower(
         mir_ids.insert(function_id, mir_id);
     }
 
+    let mut context = function::LoweringContext {
+        gcx,
+        module: &mut module,
+        storage: &storage,
+        contract_id,
+        function_ids: &mir_ids,
+        immutable_ids: &immutable_ids,
+        child_bytecodes,
+        child_runtime_bytecodes,
+        state: &mut state,
+        shared_literals: &shared_literals,
+        shared_word_literals: &shared_word_literals,
+        share_storage_bytes,
+    };
     for (function_id, expose_selector) in function_ids {
-        let mir_id = mir_ids[&function_id];
-        let name = module.function(mir_id).name;
-        let context = function::LoweringContext {
-            gcx,
-            module: &mut module,
-            storage: &storage,
-            contract_id,
-            function_ids: &mir_ids,
-            immutable_ids: &immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            state: &mut state,
-            shared_literals: &shared_literals,
-            shared_word_literals: &shared_word_literals,
-            share_storage_bytes,
-        };
-        let Some(mut mir) = function::lower(context, function_id, expose_selector) else {
+        let mir_id = context.function_ids[&function_id];
+        let name = context.module.function(mir_id).name;
+        let Some(mut mir) = function::lower(context.reborrow(), function_id, expose_selector)
+        else {
             let function = gcx.hir.function(function_id);
-            let mut builder = FunctionBuilder::new(module.function_mut(mir_id));
+            let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
             for &param in function.parameters {
                 builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
             }
@@ -195,7 +196,7 @@ pub(super) fn lower(
             continue;
         };
         mir.name = name;
-        *module.function_mut(mir_id) = mir;
+        *context.module.function_mut(mir_id) = mir;
     }
 
     let has_state_initializers = contract.linearized_bases.iter().rev().any(|&base| {
@@ -210,30 +211,19 @@ pub(super) fn lower(
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
     if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
-        let mir_id = module.add_function(Function::new(solar_interface::Ident::with_dummy_span(
-            solar_interface::kw::Constructor,
-        )));
-        let context = function::LoweringContext {
-            gcx,
-            module: &mut module,
-            storage: &storage,
-            contract_id,
-            function_ids: &mir_ids,
-            immutable_ids: &immutable_ids,
-            child_bytecodes,
-            child_runtime_bytecodes,
-            state: &mut state,
-            shared_literals: &shared_literals,
-            shared_word_literals: &shared_word_literals,
-            share_storage_bytes,
-        };
-        let Some(mut mir) = function::lower_synthetic_constructor(context, contract_id) else {
-            FunctionBuilder::new(module.function_mut(mir_id)).invalid();
+        let mir_id = context.module.add_function(Function::new(
+            solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
+        ));
+        let Some(mut mir) = function::lower_synthetic_constructor(context.reborrow(), contract_id)
+        else {
+            FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();
+            drop(context);
             return module;
         };
-        mir.name = module.function(mir_id).name;
-        *module.function_mut(mir_id) = mir;
+        mir.name = context.module.function(mir_id).name;
+        *context.module.function_mut(mir_id) = mir;
     }
+    drop(context);
 
     function::generate_internal_function_pointer_dispatchers(
         gcx,
