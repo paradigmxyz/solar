@@ -92,7 +92,7 @@ pub(super) struct LoweringState {
     pub(super) storage_bytes_helper: Option<FunctionId>,
     pub(super) storage_bytes_array_helper: Option<FunctionId>,
     pub(super) storage_word_array_helper: Option<FunctionId>,
-    pub(super) packed_array_helpers: FxHashMap<(u8, u8), FunctionId>,
+    pub(super) packed_array_helpers: FxHashMap<(u8, StorageEncoding), FunctionId>,
     pub(super) storage_struct_array_helpers: FxHashMap<hir::StructId, FunctionId>,
     pub(super) recursive_storage_helpers: FxHashMap<RecursiveStorageHelper, FunctionId>,
     pub(super) storage_clear_helper: Option<FunctionId>,

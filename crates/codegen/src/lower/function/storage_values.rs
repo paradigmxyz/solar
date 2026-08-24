@@ -14,7 +14,7 @@ enum StorageStructField {
 enum StorageArrayElement {
     Bytes(FunctionId),
     Word,
-    Packed { bytes: u8, encoding: u8 },
+    Packed { bytes: u8, encoding: StorageEncoding },
 }
 
 /// Adds the module-wide helper for decoding one storage `bytes`/`string` slot.
@@ -92,9 +92,9 @@ fn synthesize_storage_array_helper(
 fn synthesize_storage_packed_array_helper(
     module: &mut Module,
     bytes: u8,
-    encoding: u8,
+    encoding: StorageEncoding,
 ) -> FunctionId {
-    let name = format!("__load_storage_packed_array_{bytes}_{encoding}");
+    let name = format!("__load_storage_packed_array_{bytes}_{}", encoding as u8);
     synthesize_storage_array_helper(
         module,
         Ident::from_str(&name),
@@ -107,7 +107,7 @@ fn load_packed_storage_array_element(
     data_slot: ValueId,
     index: ValueId,
     bytes: u8,
-    encoding: u8,
+    encoding: StorageEncoding,
 ) -> ValueId {
     let per_slot = u64::from(32 / bytes);
     let per_slot_value = builder.imm_u64(per_slot);
@@ -132,21 +132,8 @@ fn load_packed_storage_array_element(
         let byte_shift = builder.imm_u64(byte_shift);
         builder.mul(index_in_slot, byte_shift)
     };
-    let shifted = builder.shr(shift, word);
-    let mask = builder.imm_u256((U256::from(1) << (u32::from(bytes) * 8)) - U256::from(1));
-    let value = builder.and(shifted, mask);
-    match encoding {
-        0 => value,
-        1 => {
-            let sign_index = builder.imm_u64(u64::from(bytes - 1));
-            builder.signextend(sign_index, value)
-        }
-        2 => {
-            let align_shift = builder.imm_u64(u64::from(32 - bytes) * 8);
-            builder.shl(align_shift, value)
-        }
-        _ => unreachable!("unknown storage encoding"),
-    }
+    let size = TypeSize::new_int_bits(u16::from(bytes) * 8);
+    StorageLocation::packed_word(size, encoding).load_word(builder, word, Some(shift))
 }
 
 fn synthesize_storage_struct_array_helper(
@@ -939,11 +926,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && size.bits() < 256
             && self.types.memory_layout(element).is_none()
         {
-            let encoding = match encoding {
-                StorageEncoding::Unsigned => 0,
-                StorageEncoding::Signed => 1,
-                StorageEncoding::FixedBytes => 2,
-            };
             let key = (size.bytes(), encoding);
             let helper = *self.context.state.packed_array_helpers.entry(key).or_insert_with(|| {
                 synthesize_storage_packed_array_helper(self.context.module, key.0, key.1)

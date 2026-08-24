@@ -14,7 +14,8 @@ use solar_sema::{
 };
 
 /// The representation of a packed value in an EVM storage word.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum StorageEncoding {
     Unsigned,
     Signed,
@@ -73,6 +74,31 @@ impl StorageLocation {
             builder.tstore(slot, value);
         } else {
             builder.sstore(slot, value);
+        }
+    }
+
+    pub(super) fn load_word(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        shift: Option<ValueId>,
+    ) -> ValueId {
+        if !self.packed() {
+            return word;
+        }
+        let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
+        let field_mask = builder.imm_u256(self.mask());
+        let masked = builder.and(shifted, field_mask);
+        match self.encoding {
+            StorageEncoding::Unsigned => masked,
+            StorageEncoding::Signed => {
+                let index = builder.imm_u64(u64::from(self.size.bytes() - 1));
+                builder.signextend(index, masked)
+            }
+            StorageEncoding::FixedBytes => {
+                let shift = builder.imm_u64(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
+                builder.shl(shift, masked)
+            }
         }
     }
 }
@@ -195,24 +221,7 @@ impl<'gcx> StorageLayout<'gcx> {
         word: ValueId,
         shift: Option<ValueId>,
     ) -> ValueId {
-        if !location.packed() {
-            return word;
-        }
-        let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
-        let field_mask = builder.imm_u256(location.mask());
-        let masked = builder.and(shifted, field_mask);
-        match location.encoding {
-            StorageEncoding::Unsigned => masked,
-            StorageEncoding::Signed => {
-                let index = builder.imm_u64(u64::from(location.size.bytes() - 1));
-                builder.signextend(index, masked)
-            }
-            StorageEncoding::FixedBytes => {
-                let shift = builder
-                    .imm_u64(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
-                builder.shl(shift, masked)
-            }
-        }
+        location.load_word(builder, word, shift)
     }
 
     fn store_at(
