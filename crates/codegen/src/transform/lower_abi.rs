@@ -1437,8 +1437,7 @@ impl LowerAbiCx {
                                 builder.internal_call(helper, vec![head], MirType::uint256(), 2);
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                            let word = builder.imm_u64(32);
-                            let len_pos = builder.add(base, word);
+                            let len_pos = builder.add_u64_offset(base, 32);
                             let len = builder.mload(len_pos);
                             builder.make_slice(data, len, SliceLocation::Calldata)
                         } else {
@@ -1639,8 +1638,7 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let word = builder.imm_u64(32);
-                let data = builder.add(base, word);
+                let data = builder.add_u64_offset(base, 32);
                 Self::guard_input_range_value(builder, data, len, input_end, current);
             }
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
@@ -1929,8 +1927,7 @@ impl LowerAbiCx {
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let word = builder.imm_u64(32);
-                let data = builder.add(base, word);
+                let data = builder.add_u64_offset(base, 32);
                 Self::guard_input_range_value(builder, data, len, input_end, current);
                 builder.make_slice(data, len, location)
             }
@@ -2242,8 +2239,7 @@ impl LowerAbiCx {
         element_head_size: u64,
     ) -> (ValueId, ValueId, ValueId) {
         let len = Self::load_input_word(builder, base, constructor);
-        let word = builder.imm_u64(32);
-        let data = builder.add(base, word);
+        let data = builder.add_u64_offset(base, 32);
         builder.switch_to_block(*current);
         // Checking the quotient before multiplying proves both that the
         // multiplication cannot wrap and that the complete element head fits
@@ -2305,8 +2301,7 @@ impl LowerAbiCx {
         // Every dynamic ABI value starts with a word-sized head. Check that
         // word while forming the absolute address so nested offsets cannot
         // wrap or require a second range guard in the value-specific decoder.
-        let word = builder.imm_u64(32);
-        let target_end = builder.add(target, word);
+        let target_end = builder.add_u64_offset(target, 32);
         let max_offset = builder.imm_u64(u64::MAX);
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);

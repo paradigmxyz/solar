@@ -60,8 +60,7 @@ fn synthesize_storage_bytes_array_helper(
             1,
         );
         builder.memory_object_store_element(object, layout, index, value);
-        let one = builder.imm_u64(1);
-        let next = builder.add(index, one);
+        let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(header);
         builder.add_phi_incoming(index, backedge, next);
@@ -99,8 +98,7 @@ pub(super) fn synthesize_storage_word_array_helper(module: &mut Module) -> Funct
         let element_slot = builder.add(data_slot, index);
         let value = builder.sload(element_slot);
         builder.memory_object_store_element(object, layout, index, value);
-        let one = builder.imm_u64(1);
-        let next = builder.add(index, one);
+        let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(header);
         builder.add_phi_incoming(index, backedge, next);
@@ -180,8 +178,7 @@ fn synthesize_storage_packed_array_helper(
             _ => unreachable!("unknown storage encoding"),
         };
         builder.memory_object_store_element(object, layout, index, value);
-        let one = builder.imm_u64(1);
-        let next = builder.add(index, one);
+        let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(loop_header);
         builder.add_phi_incoming(index, backedge, next);
@@ -301,8 +298,7 @@ pub(super) fn synthesize_storage_clear_helper(module: &mut Module) -> FunctionId
         builder.switch_to_block(body);
         let element_slot = builder.add(data_slot, index);
         builder.sstore(element_slot, zero);
-        let one = builder.imm_u64(1);
-        let next = builder.add(index, one);
+        let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(header);
         builder.add_phi_incoming(index, backedge, next);

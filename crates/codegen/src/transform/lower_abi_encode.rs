@@ -650,8 +650,7 @@ fn encode_word_array(
         let shift = builder.imm_u64(64);
         let encoded = builder.shl(shift, value);
         builder.mstore(destination, encoded);
-        let one = builder.imm_u64(1);
-        let next = builder.add(index, one);
+        let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(cond);
         builder.add_phi_incoming(index, backedge, next);
@@ -674,8 +673,7 @@ fn encode_bytes(
     {
         let length = builder.imm_u64(bytes.len() as u64);
         builder.mstore(dest, length);
-        let word = builder.imm_u64(32);
-        let data = builder.add(dest, word);
+        let data = builder.add_u64_offset(dest, 32);
         for (index, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0_u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);

@@ -573,8 +573,7 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(predecessor);
                 let length = builder.slice_len(value);
-                let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
-                let size = builder.add(length, word);
+                let size = builder.add_u64_offset(length, EvmMemoryLayout::WORD_SIZE);
                 let semantics = AllocationSemantics {
                     alignment: AllocationAlignment::Word,
                     ..AllocationSemantics::SOLIDITY_UNINITIALIZED
