@@ -5143,7 +5143,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::RETURNDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::ReturndataSize => {
+            InstKind::CallReturndataSize => {
                 self.asm.emit_op(op::RETURNDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }

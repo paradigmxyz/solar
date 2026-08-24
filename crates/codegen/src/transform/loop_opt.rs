@@ -314,7 +314,7 @@ impl LoopOptimizer {
             | InstKind::SelfBalance
             | InstKind::ExtCodeSize(_)
             | InstKind::ExtCodeHash(_)
-            | InstKind::ReturndataSize
+            | InstKind::CallReturndataSize
             | InstKind::ReturnDataSize => {
                 // Also require guaranteed execution: speculating a cold
                 // BALANCE/EXTCODESIZE/EXTCODEHASH into the preheader of a

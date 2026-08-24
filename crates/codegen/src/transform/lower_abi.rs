@@ -139,7 +139,7 @@ impl LowerAbiCx {
         let mut bytes_fallback = None;
         let mut has_decodes = false;
         let mut has_revert_returndata = false;
-        let mut has_returndata_sizes = false;
+        let mut has_call_returndata_sizes = false;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -167,7 +167,8 @@ impl LowerAbiCx {
             }
             for inst_id in func.instructions() {
                 has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
-                has_returndata_sizes |= matches!(func.inst(inst_id).kind, InstKind::ReturndataSize);
+                has_call_returndata_sizes |=
+                    matches!(func.inst(inst_id).kind, InstKind::CallReturndataSize);
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     internally_called.insert(function);
                 }
@@ -183,7 +184,7 @@ impl LowerAbiCx {
             && wrapped_constructors.is_empty()
             && !has_decodes
             && !has_revert_returndata
-            && !has_returndata_sizes
+            && !has_call_returndata_sizes
             && bytes_fallback.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
@@ -208,8 +209,8 @@ impl LowerAbiCx {
             return false;
         }
 
-        if has_returndata_sizes {
-            self.lower_returndata_sizes(module, evm_version);
+        if has_call_returndata_sizes {
+            self.lower_call_returndata_sizes(module, evm_version);
         }
 
         if has_revert_returndata {
@@ -302,11 +303,11 @@ impl LowerAbiCx {
     }
 
     /// Materializes the volatile returndata size query at the ABI boundary.
-    fn lower_returndata_sizes(&self, module: &mut Module, evm_version: EvmVersion) {
+    fn lower_call_returndata_sizes(&self, module: &mut Module, evm_version: EvmVersion) {
         if evm_version.supports_returndata() {
             for func in module.functions.iter_mut() {
                 func.for_each_instruction_mut(|_, inst| {
-                    if matches!(inst.kind, InstKind::ReturndataSize) {
+                    if matches!(inst.kind, InstKind::CallReturndataSize) {
                         inst.kind = InstKind::ReturnDataSize;
                     }
                 });
@@ -323,7 +324,7 @@ impl LowerAbiCx {
                 builder.switch_to_block(block);
                 let mut retained = Vec::with_capacity(instructions.len());
                 for inst in instructions {
-                    if !matches!(builder.func().inst(inst).kind, InstKind::ReturndataSize) {
+                    if !matches!(builder.func().inst(inst).kind, InstKind::CallReturndataSize) {
                         retained.push(inst);
                         continue;
                     }

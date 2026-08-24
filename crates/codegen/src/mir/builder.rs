@@ -881,8 +881,8 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// Semantic form, materialized by the ABI phase; the counterpart of the
     /// physical [`Self::returndatasize`] query.
-    pub(crate) fn returndata_size(&mut self) -> ValueId {
-        self.emit_inst(InstKind::ReturndataSize, Some(MirType::uint256()))
+    pub(crate) fn call_returndata_size(&mut self) -> ValueId {
+        self.emit_inst(InstKind::CallReturndataSize, Some(MirType::uint256()))
     }
 
     /// Projects the data pointer from a slice.
@@ -950,7 +950,7 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// Physical form: the raw volatile `returndatasize()` query, emitted by
     /// the ABI phase and the yul builtin; the counterpart of the semantic
-    /// [`Self::returndata_size`].
+    /// [`Self::call_returndata_size`].
     pub(crate) fn returndatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::ReturnDataSize, Some(MirType::uint256()))
     }

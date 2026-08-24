@@ -884,9 +884,9 @@ pub(crate) enum InstKind {
     /// boundary is about to consume, not a general volatile query. The ABI
     /// phase materializes it at the boundary: where the EVM version supports
     /// returndata it is rewritten to the physical [`Self::ReturnDataSize`];
-    /// otherwise it is folded away. Do not confuse with
-    /// [`Self::ReturnDataSize`], the raw `returndatasize()` query.
-    ReturndataSize,
+    /// otherwise it is folded away. The MIR spelling remains
+    /// `returndata_size` for parser compatibility.
+    CallReturndataSize,
     /// Project the data pointer from a slice.
     SlicePtr(ValueId),
     /// Project the logical length from a slice.
@@ -947,8 +947,8 @@ pub(crate) enum InstKind {
     /// Get return data size: `returndatasize()`.
     ///
     /// Physical form: the raw volatile EVM query, emitted by the ABI phase
-    /// and by `yul returndatasize()`. Do not confuse with
-    /// [`Self::ReturndataSize`], the semantic size of the preceding call's
+    /// and by `yul returndatasize()`. The counterpart is
+    /// [`Self::CallReturndataSize`], the semantic size of the preceding call's
     /// returndata that the ABI phase rewrites into this instruction.
     ReturnDataSize,
     /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
@@ -1372,7 +1372,7 @@ impl InstKind {
             Self::MSize
             | Self::Fmp
             | Self::CalldataSize
-            | Self::ReturndataSize
+            | Self::CallReturndataSize
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
@@ -1638,7 +1638,7 @@ impl InstKind {
             Self::MSize
             | Self::Fmp
             | Self::CalldataSize
-            | Self::ReturndataSize
+            | Self::CallReturndataSize
             | Self::InternalFrameAddr(_)
             | Self::FrameLoad { .. }
             | Self::ConstructorArgsBase
@@ -1734,7 +1734,7 @@ impl InstKind {
             Self::MakeSlice { location: SliceLocation::Memory, .. } => "make_memory_slice",
             Self::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice",
             Self::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice",
-            Self::ReturndataSize => "returndata_size",
+            Self::CallReturndataSize => "returndata_size",
             Self::SlicePtr(_) => "slice_ptr",
             Self::SliceLen(_) => "slice_len",
             Self::ConstructorArgsBase => "constructor_args_base",
@@ -1951,7 +1951,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
-            | Self::ReturndataSize
+            | Self::CallReturndataSize
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue

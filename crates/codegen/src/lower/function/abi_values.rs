@@ -592,7 +592,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
-        let length = self.builder.returndata_size();
+        let length = self.builder.call_returndata_size();
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         let zero = self.builder.imm_u256(U256::ZERO);
         let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
