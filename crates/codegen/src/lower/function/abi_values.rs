@@ -737,12 +737,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
-                    let dest = if let Some(cursor) = cursor {
-                        self.packed_scratch_offset(Some(cursor), offset)
-                    } else {
-                        self.packed_scratch_offset(None, offset)
-                    };
-                    self.copy_packed_slice(dest, *source)?;
+                    let dest = self.packed_scratch_offset(cursor, offset);
+                    let location = self.builder.func().value_slice_location(*source)?;
+                    let source_length = self.builder.slice_len(*source);
+                    let pointer = self.builder.slice_ptr(*source);
+                    self.builder.copy_slice_data(location, dest, pointer, source_length);
                     cursor = Some(self.builder.add(dest, *length));
                     offset = 0;
                 }
@@ -807,16 +806,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(base) => self.builder.add_u64_offset(base, offset),
             None => self.builder.imm_u64(offset),
         }
-    }
-
-    fn copy_packed_slice(&mut self, destination: ValueId, source: ValueId) -> Option<()> {
-        let MirType::Slice(location) = self.builder.func().value_ty(source)? else {
-            return None;
-        };
-        let length = self.builder.slice_len(source);
-        let pointer = self.builder.slice_ptr(source);
-        self.builder.copy_slice_data(location, destination, pointer, length);
-        Some(())
     }
 
     fn lower_packed_pieces(

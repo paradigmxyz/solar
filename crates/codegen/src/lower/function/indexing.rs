@@ -182,13 +182,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         let element_stride = if is_bytes {
             1
+        } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
+            || location != SliceLocation::Calldata
+        {
+            return report_unsupported(self.context.gcx, expr.span, "slice");
         } else {
-            if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
-                return report_unsupported(self.context.gcx, expr.span, "slice");
-            }
-            if location != SliceLocation::Calldata {
-                return report_unsupported(self.context.gcx, expr.span, "slice");
-            }
             let element = self.array_element_type(receiver_ty)?;
             // The semantic checker rejects range access on arrays with
             // dynamically encoded base types, matching solc, so only

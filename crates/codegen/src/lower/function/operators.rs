@@ -160,56 +160,53 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             BinOpKind::Add => {
                 let result = self.builder.add(lhs, rhs);
                 if self.unchecked {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    if let Some(kind) = arithmetic {
-                        let overflow = match kind {
-                            ArithmeticKind::Unsigned(bits) => {
-                                if bits == 256 {
-                                    self.builder.lt(result, lhs)
-                                } else {
-                                    let max =
-                                        self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
-                                    self.builder.gt(result, max)
-                                }
-                            }
-                            ArithmeticKind::Signed(bits) => {
-                                self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
-                            }
-                        };
-                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                    }
-                    result
+                    return self.truncate_wrapping_result(result, arithmetic);
                 }
+                if let Some(kind) = arithmetic {
+                    let overflow = match kind {
+                        ArithmeticKind::Unsigned(bits) => {
+                            if bits == 256 {
+                                self.builder.lt(result, lhs)
+                            } else {
+                                let max =
+                                    self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+                                self.builder.gt(result, max)
+                            }
+                        }
+                        ArithmeticKind::Signed(bits) => {
+                            self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
+                        }
+                    };
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                }
+                result
             }
             BinOpKind::Sub => {
                 let result = self.builder.sub(lhs, rhs);
                 if self.unchecked {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    if let Some(kind) = arithmetic {
-                        let overflow = match kind {
-                            ArithmeticKind::Unsigned(_) => self.builder.lt(lhs, rhs),
-                            ArithmeticKind::Signed(bits) => {
-                                self.signed_add_sub_overflow(lhs, rhs, result, bits, false)
-                            }
-                        };
-                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                    }
-                    result
+                    return self.truncate_wrapping_result(result, arithmetic);
                 }
+                if let Some(kind) = arithmetic {
+                    let overflow = match kind {
+                        ArithmeticKind::Unsigned(_) => self.builder.lt(lhs, rhs),
+                        ArithmeticKind::Signed(bits) => {
+                            self.signed_add_sub_overflow(lhs, rhs, result, bits, false)
+                        }
+                    };
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                }
+                result
             }
             BinOpKind::Mul => {
                 let result = self.builder.mul(lhs, rhs);
                 if self.unchecked {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    if let Some(kind) = arithmetic {
-                        let overflow = self.mul_overflow(lhs, rhs, result, kind);
-                        self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                    }
-                    result
+                    return self.truncate_wrapping_result(result, arithmetic);
                 }
+                if let Some(kind) = arithmetic {
+                    let overflow = self.mul_overflow(lhs, rhs, result, kind);
+                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                }
+                result
             }
             BinOpKind::Div => {
                 self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
@@ -228,10 +225,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => self.builder.div(lhs, rhs),
                 };
                 if self.unchecked && matches!(arithmetic, Some(ArithmeticKind::Signed(_))) {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    result
+                    return self.truncate_wrapping_result(result, arithmetic);
                 }
+                result
             }
             BinOpKind::Rem => {
                 self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);

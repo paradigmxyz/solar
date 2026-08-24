@@ -29,18 +29,6 @@ pub(super) fn synthesize_storage_bytes_helper(module: &mut Module) -> FunctionId
     module.add_function(function)
 }
 
-/// Adds a helper for copying a dynamic storage array of `bytes` or `string`.
-fn synthesize_storage_bytes_array_helper(
-    module: &mut Module,
-    bytes_helper: FunctionId,
-) -> FunctionId {
-    synthesize_storage_array_helper(
-        module,
-        Ident::with_dummy_span(sym::__load_storage_bytes_array),
-        StorageArrayElement::Bytes(bytes_helper),
-    )
-}
-
 fn synthesize_storage_array_helper(
     module: &mut Module,
     name: Ident,
@@ -89,15 +77,6 @@ fn synthesize_storage_array_helper(
         builder.ret([object]);
     }
     module.add_function(function)
-}
-
-/// Adds the module-wide helper for copying a full-word dynamic storage array.
-pub(super) fn synthesize_storage_word_array_helper(module: &mut Module) -> FunctionId {
-    synthesize_storage_array_helper(
-        module,
-        Ident::with_dummy_span(sym::__load_storage_word_array),
-        StorageArrayElement::Word,
-    )
 }
 
 /// Adds a helper for copying one packed dynamic storage array shape.
@@ -522,9 +501,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.context.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
                 let ExprKind::Member(receiver, _) = &callee.kind else { return None };
-                let (access, _, new_length, base_slot) =
-                    self.storage_array_push_access(receiver)?;
-                self.builder.sstore(base_slot, new_length);
+                let (base, element) = self.storage_array_base(receiver)?;
+                let (access, new_length) =
+                    self.storage_array_push_access(base, element, receiver.span)?;
+                self.builder.sstore(base.slot, new_length);
                 Some(access)
             }
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
@@ -582,27 +562,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
     }
 
-    pub(super) fn storage_array_push_access(
+    fn storage_array_push_access(
         &mut self,
-        receiver: &hir::Expr<'_>,
-    ) -> Option<(StorageAccess, Ty<'gcx>, ValueId, ValueId)> {
-        let base = self.storage_access(receiver)?;
-        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
-        let TyKind::DynArray(element) = receiver_ty.kind else { return None };
+        base: StorageAccess,
+        element: Ty<'gcx>,
+        span: Span,
+    ) -> Option<(StorageAccess, ValueId)> {
         let length = self.builder.sload(base.slot);
         let one = self.builder.imm_u64(1);
         let new_length = self.builder.checked_add(length, one);
-        let access =
-            self.storage_array_element_access(base.slot, length, element, true, receiver.span)?;
-        Some((access, element, new_length, base.slot))
+        let access = self.storage_array_element_access(base.slot, length, element, true, span)?;
+        Some((access, new_length))
     }
 
     pub(super) fn lower_storage_array_push(
         &mut self,
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
-        builtin: Builtin,
-        arguments: &[hir::Expr<'_>],
+        argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "storage array push target");
@@ -612,19 +589,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            return self.lower_storage_bytes_push(expr, receiver, builtin, arguments);
+            return self.lower_storage_bytes_push(receiver, argument);
         }
         let Some((base, element)) = self.storage_array_base(receiver) else {
             return report_unsupported(self.context.gcx, expr.span, "storage array push target");
         };
-        let value = if builtin == Builtin::ArrayPush {
-            let [argument] = arguments else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "storage array push arguments",
-                );
-            };
+        let value = if let Some(argument) = argument {
             let (value, source_ty) = if self.types.memory_layout(element).is_some() {
                 let memory_ty = element.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
                 let value = self.lower_typed_expr(argument, memory_ty)?;
@@ -637,20 +607,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             Some((value, source_ty))
         } else {
-            if !arguments.is_empty() {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "storage array push arguments",
-                );
-            }
             None
         };
-        let length = self.builder.sload(base.slot);
-        let one = self.builder.imm_u64(1);
-        let new_length = self.builder.checked_add(length, one);
-        let element_access =
-            self.storage_array_element_access(base.slot, length, element, true, expr.span)?;
+        let (element_access, new_length) =
+            self.storage_array_push_access(base, element, expr.span)?;
         if let Some((value, source_ty)) = value {
             self.store_storage_value_with_source(
                 element,
@@ -666,31 +626,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_storage_bytes_push(
         &mut self,
-        expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
-        builtin: Builtin,
-        arguments: &[hir::Expr<'_>],
+        argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         let access = self.storage_access(receiver)?;
-        let value = if builtin == Builtin::ArrayPush {
-            let [argument] = arguments else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "storage bytes push arguments",
-                );
-            };
+        let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
             let shift = self.builder.imm_u64(248);
             self.builder.shr(shift, value)
         } else {
-            if !arguments.is_empty() {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "storage bytes push arguments",
-                );
-            }
             self.builder.imm_u64(0)
         };
         let old = self.load_storage_bytes(access.slot);
@@ -1008,7 +952,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             let bytes_helper = self.ensure_storage_bytes_helper();
             let helper = self.context.state.storage_bytes_array_helper.get_or_insert_with(|| {
-                synthesize_storage_bytes_array_helper(self.context.module, bytes_helper)
+                synthesize_storage_array_helper(
+                    self.context.module,
+                    Ident::with_dummy_span(sym::__load_storage_bytes_array),
+                    StorageArrayElement::Bytes(bytes_helper),
+                )
             });
             return Some(*helper);
         }
@@ -1038,10 +986,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .packed_encoding(element)
                 .is_none_or(|(size, _)| size.bits() == 256)
         {
-            let helper =
-                self.context.state.storage_word_array_helper.get_or_insert_with(|| {
-                    synthesize_storage_word_array_helper(self.context.module)
-                });
+            let helper = self.context.state.storage_word_array_helper.get_or_insert_with(|| {
+                synthesize_storage_array_helper(
+                    self.context.module,
+                    Ident::with_dummy_span(sym::__load_storage_word_array),
+                    StorageArrayElement::Word,
+                )
+            });
             return Some(*helper);
         }
         None

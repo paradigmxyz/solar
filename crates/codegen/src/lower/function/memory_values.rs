@@ -2,12 +2,6 @@
 
 use super::*;
 
-#[derive(Clone, Copy)]
-enum DefaultObjectMode {
-    Value,
-    Binding,
-}
-
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
@@ -241,8 +235,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
         }
-        self.default_object_with_mode(ty, DefaultObjectMode::Binding)
-            .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+        self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
     }
 
     pub(super) fn deferred_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
@@ -254,23 +247,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
-        self.default_object_with_mode(ty, DefaultObjectMode::Value)
+        self.default_object_with_mode(ty, false)
     }
 
-    fn default_object_with_mode(
-        &mut self,
-        ty: Ty<'gcx>,
-        mode: DefaultObjectMode,
-    ) -> Option<ValueId> {
+    fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
         let layout = self.types.memory_layout(ty)?;
-        if matches!(mode, DefaultObjectMode::Binding)
+        if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
             return Some(self.builder.imm_u64(EvmMemoryLayout::ZERO_SLOT));
         }
         let size = self.builder.imm_u64(Self::default_object_size(layout)?);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        if matches!(mode, DefaultObjectMode::Binding) {
+        if preserve_fmp {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {
                 unreachable!("allocation result must reference its instruction")
             };
@@ -286,7 +275,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let zero = self.builder.imm_u256(U256::ZERO);
                 for (index, &field) in self.context.gcx.hir.strukt(id).fields.iter().enumerate() {
                     let field_ty = self.context.gcx.type_of_item(field.into());
-                    let value = self.default_object_with_mode(field_ty, mode).unwrap_or(zero);
+                    let value =
+                        self.default_object_with_mode(field_ty, preserve_fmp).unwrap_or(zero);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
             }
@@ -297,7 +287,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
                     for index in 0..len {
-                        let Some(value) = self.default_object_with_mode(element, mode) else {
+                        let Some(value) = self.default_object_with_mode(element, preserve_fmp)
+                        else {
                             continue;
                         };
                         let index = self.builder.imm_u64(index);

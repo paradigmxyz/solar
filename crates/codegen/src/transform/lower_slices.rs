@@ -48,8 +48,6 @@ enum ParamRepr {
     Pair,
 }
 
-type SliceIncoming = (Vec<(BlockId, ValueId)>, Vec<(BlockId, ValueId)>);
-
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
@@ -79,7 +77,10 @@ fn new_slice_inst(
     ))
 }
 
-fn split_slice_incoming(func: &mut Function, incoming: Vec<(BlockId, ValueId)>) -> SliceIncoming {
+fn split_slice_phis(
+    func: &mut Function,
+    incoming: Vec<(BlockId, ValueId)>,
+) -> ((InstId, ValueId), (InstId, ValueId)) {
     let mut ptr_incoming = Vec::with_capacity(incoming.len());
     let mut len_incoming = Vec::with_capacity(incoming.len());
     for (pred, value) in incoming {
@@ -97,14 +98,6 @@ fn split_slice_incoming(func: &mut Function, incoming: Vec<(BlockId, ValueId)>) 
         ptr_incoming.push((pred, pointer));
         len_incoming.push((pred, length));
     }
-    (ptr_incoming, len_incoming)
-}
-
-fn split_slice_phis(
-    func: &mut Function,
-    incoming: Vec<(BlockId, ValueId)>,
-) -> ((InstId, ValueId), (InstId, ValueId)) {
-    let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
     (
         new_word_inst(func, InstKind::Phi(ptr_incoming)),
         new_word_inst(func, InstKind::Phi(len_incoming)),
@@ -150,8 +143,7 @@ impl LowerSlices {
             }
         }
 
-        for block_id in &block_ids {
-            let block_id = *block_id;
+        for &block_id in &block_ids {
             let instructions = func.blocks[block_id].instructions.clone();
             for inst_id in instructions {
                 let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
@@ -231,8 +223,8 @@ impl LowerSlices {
 
         // Selects: rewrite in place within their block.
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for block_id in &block_ids {
-            let insts = std::mem::take(&mut func.blocks[*block_id].instructions);
+        for &block_id in &block_ids {
+            let insts = std::mem::take(&mut func.blocks[block_id].instructions);
             let mut out = Vec::with_capacity(insts.len());
             for inst_id in insts {
                 if let InstKind::Select(cond, a, b) = func.inst(inst_id).kind
@@ -252,30 +244,25 @@ impl LowerSlices {
                 }
                 out.push(inst_id);
             }
-            func.blocks[*block_id].instructions = out;
+            func.blocks[block_id].instructions = out;
         }
 
         // Phis: project each incoming slice in its predecessor, phi the
         // pointer and length words, and rebuild the slice after the phis.
-        for block_id in &block_ids {
-            let block_id = *block_id;
+        for &block_id in &block_ids {
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
             let mut slice_phis = Vec::new();
             for &inst_id in &func.blocks[block_id].instructions {
-                match &func.inst(inst_id).kind {
-                    InstKind::Phi(incoming) => {
-                        let Some(location) = func
-                            .inst_result_value(inst_id)
-                            .and_then(|result| func.value_slice_location(result))
-                        else {
-                            continue;
-                        };
-                        if can_split_slice_incoming(func, incoming, false) {
-                            slice_phis.push((inst_id, location));
-                        }
-                    }
-                    _ => continue,
+                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+                let Some(location) = func
+                    .inst_result_value(inst_id)
+                    .and_then(|result| func.value_slice_location(result))
+                else {
+                    continue;
+                };
+                if can_split_slice_incoming(func, incoming, false) {
+                    slice_phis.push((inst_id, location));
                 }
             }
             let mut split_map = FxHashMap::default();

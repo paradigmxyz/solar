@@ -333,12 +333,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.context.gcx, expr.span, "function address");
             };
-            let Some(TyKind::Fn(function)) =
-                self.type_of_expr_or_variable(receiver).map(|ty| ty.kind)
-            else {
-                return report_unsupported(self.context.gcx, expr.span, "function address");
-            };
-            if !function.is_external() {
+            if !self.is_external_function_value(receiver) {
                 return report_unsupported(self.context.gcx, expr.span, "function address");
             }
             let value = self.lower_expr(receiver)?;
@@ -348,53 +343,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ExprKind::Member(receiver, _) = &expr.kind else {
                 return report_unsupported(self.context.gcx, expr.span, "function selector");
             };
-            let selector = match self.context.gcx.resolved_expr(expr).and_then(|res| match res {
-                hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {
-                    Some(self.context.gcx.function_selector(item).0)
-                }
-                _ => None,
-            }) {
-                Some(selector) => {
-                    self.lower_selector_receiver_effects(receiver)?;
-                    selector
-                }
-                None => {
-                    if let Some(item) =
-                        self.context.gcx.resolved_expr(receiver).and_then(|res| match res {
-                            hir::Res::Item(
-                                item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_)),
-                            ) => Some(item),
-                            _ => None,
-                        })
-                    {
-                        self.lower_selector_receiver_effects(receiver)?;
-                        self.context.gcx.function_selector(item).0
-                    } else {
-                        let Some(TyKind::Fn(function)) =
-                            self.type_of_expr_or_variable(receiver).map(|ty| ty.kind)
-                        else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
-                                "function selector",
-                            );
-                        };
-                        if !function.is_external() {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
-                                "function selector",
-                            );
-                        }
-                        let value = self.lower_expr(receiver)?;
-                        let mask = self.builder.imm_u256(U256::from(u32::MAX));
-                        let selector = self.builder.and(value, mask);
-                        let shift = self.builder.imm_u64(224);
-                        return Some(self.builder.shl(shift, selector));
+            let item = [expr, receiver].into_iter().find_map(|expr| {
+                self.context.gcx.resolved_expr(expr).and_then(|res| match res {
+                    hir::Res::Item(item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_))) => {
+                        Some(item)
                     }
-                }
-            };
-            return Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224));
+                    _ => None,
+                })
+            });
+            if let Some(item) = item {
+                self.lower_selector_receiver_effects(receiver)?;
+                let selector = self.context.gcx.function_selector(item).0;
+                return Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224));
+            }
+
+            if !self.is_external_function_value(receiver) {
+                return report_unsupported(self.context.gcx, expr.span, "function selector");
+            }
+            let value = self.lower_expr(receiver)?;
+            let mask = self.builder.imm_u256(U256::from(u32::MAX));
+            let selector = self.builder.and(value, mask);
+            let shift = self.builder.imm_u64(224);
+            return Some(self.builder.shl(shift, selector));
         }
         if builtin == Builtin::EventSelector {
             let event_id = self.context.gcx.resolved_expr(expr).and_then(|res| match res {
@@ -519,6 +489,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let address = self.builder.shr(shift, value);
         let mask = self.builder.imm_u256(U256::MAX >> 96);
         self.builder.and(address, mask)
+    }
+
+    fn is_external_function_value(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(
+            self.type_of_expr_or_variable(expr).map(|ty| ty.kind),
+            Some(TyKind::Fn(function)) if function.is_external()
+        )
     }
 
     pub(super) fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {

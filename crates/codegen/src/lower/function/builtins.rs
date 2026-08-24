@@ -35,13 +35,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let Some(arguments) = self.builtin_args::<1>(builtin, &args) else {
                         return Some(self.builder.imm_u256(U256::ZERO));
                     };
-                    self.lower_storage_array_push(expr, callee, builtin, arguments)
+                    self.lower_storage_array_push(expr, callee, arguments.first())
                 }
                 Builtin::ArrayPush0 => {
-                    let Some(arguments) = self.builtin_args::<0>(builtin, &args) else {
+                    let Some(_) = self.builtin_args::<0>(builtin, &args) else {
                         return Some(self.builder.imm_u256(U256::ZERO));
                     };
-                    self.lower_storage_array_push(expr, callee, builtin, arguments)
+                    self.lower_storage_array_push(expr, callee, None)
                 }
                 Builtin::ArrayPop => {
                     if self.builtin_args::<0>(builtin, &args).is_none() {

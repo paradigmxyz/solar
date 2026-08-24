@@ -47,19 +47,11 @@ impl MirPass for LowerMemoryObjects {
 }
 
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
-    let is_object_value = |value| match func.value(value) {
-        Value::Arg(_) | Value::Undef(_) => {
-            func.value_ty(value).as_ref().is_some_and(is_object_type)
-        }
-        Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
-    };
+    let is_object_value = |value| func.value_ty(value).as_ref().is_some_and(is_object_type);
     let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
         || func.returns.iter().any(is_object_type)
         || func.live_values().any(is_object_value)
-        || func.instructions().any(|inst_id| {
-            let inst = func.inst(inst_id);
-            inst.result_ty.as_ref().is_some_and(is_object_type) || inst.kind.is_memory_object_op()
-        });
+        || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
     if !has_objects {
         return false;
     }
@@ -685,7 +677,7 @@ fn erase_object_types(func: &mut Function) {
 }
 
 fn erase_object_type(ty: &mut MirType) {
-    if matches!(ty, MirType::MemoryObject(_)) {
+    if is_object_type(ty) {
         *ty = MirType::MemPtr;
     }
 }

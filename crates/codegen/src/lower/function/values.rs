@@ -9,7 +9,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
         if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
-            if let Some(builtin) = self.context.gcx.resolved_builtin(callee)
+            let resolved_builtin = self.context.gcx.resolved_builtin(callee);
+            if let Some(builtin) = resolved_builtin
                 && matches!(
                     builtin,
                     Builtin::AddressCall
@@ -24,7 +25,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let returndata = returndata?;
                 return Some(vec![success, returndata]);
             }
-            if self.context.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+            if resolved_builtin == Some(Builtin::AbiDecode)
                 && let Some(types) = args.exprs().nth(1)
                 && let ExprKind::Tuple(elements) = types.kind
                 && elements.len() > 1
@@ -95,7 +96,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(self.load_multi_return_values(first, base, returns, return_types));
             }
             let returns_empty = returns.is_some_and(|returns| returns == 0)
-                || self.context.gcx.resolved_builtin(callee).is_some_and(|builtin| {
+                || resolved_builtin.is_some_and(|builtin| {
                     matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
                 });
             if returns_empty {
@@ -179,14 +180,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         );
                     };
                     self.storage_refs.insert(id, access);
+                } else if self.is_storage_reference_binding(element) {
+                    return report_unsupported(
+                        self.context.gcx,
+                        element.span,
+                        "mixed storage tuple",
+                    );
                 } else {
-                    if self.is_storage_reference_binding(element) {
-                        return report_unsupported(
-                            self.context.gcx,
-                            element.span,
-                            "mixed storage tuple",
-                        );
-                    }
                     self.store_lvalue(element, value)?;
                 }
             }

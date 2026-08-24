@@ -1640,7 +1640,7 @@ impl LowerAbiCx {
 
         match ty {
             crate::mir::AbiParamType::DynamicArray(element) => {
-                let _ = Self::load_input_dynamic_array(
+                Self::load_input_dynamic_array(
                     builder,
                     base,
                     input_end,
@@ -1801,7 +1801,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::Slice(_)) =>
             {
-                let (len, data, _) = Self::load_input_dynamic_array(
+                let (len, data) = Self::load_input_dynamic_array(
                     builder,
                     base,
                     input_end,
@@ -1818,7 +1818,7 @@ impl LowerAbiCx {
                 if Self::is_full_word_scalar(element) =>
             {
                 let word = builder.imm_u64(32);
-                let (len, data, bytes) = Self::load_input_dynamic_array(
+                let (len, data) = Self::load_input_dynamic_array(
                     builder,
                     base,
                     input_end,
@@ -1833,6 +1833,7 @@ impl LowerAbiCx {
                     // allocating and copying an equivalent object.
                     return base;
                 }
+                let bytes = builder.mul(len, word);
                 let total = builder.add(bytes, word);
                 let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                 let ptr =
@@ -1845,7 +1846,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if constructor && allow_alias && Self::is_scalar_or_enum(element) =>
             {
-                let (len, data, _) = Self::load_input_dynamic_array(
+                let (len, data) = Self::load_input_dynamic_array(
                     builder,
                     base,
                     input_end,
@@ -1859,8 +1860,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(element)
                 if matches!(arg_type, MirType::MemoryObject(_)) =>
             {
-                let word = builder.imm_u64(32);
-                let (len, data_base, _) = Self::load_input_dynamic_array(
+                let (len, data_base) = Self::load_input_dynamic_array(
                     builder,
                     base,
                     input_end,
@@ -1871,6 +1871,7 @@ impl LowerAbiCx {
                 // `element_head_size` is at least one word, so the checked
                 // head size also proves this word-array allocation cannot
                 // overflow.
+                let word = builder.imm_u64(32);
                 let bytes = builder.mul(len, word);
 
                 let copy_validated =
@@ -2224,7 +2225,7 @@ impl LowerAbiCx {
         constructor: bool,
         current: &mut BlockId,
         element_head_size: u64,
-    ) -> (ValueId, ValueId, ValueId) {
+    ) -> (ValueId, ValueId) {
         let len = Self::load_input_word(builder, base, constructor);
         let data = builder.add_u64_offset(base, 32);
         builder.switch_to_block(*current);
@@ -2241,9 +2242,7 @@ impl LowerAbiCx {
         };
         let invalid = builder.gt(len, max_len);
         *current = builder.revert_if(invalid);
-        let element_head_size = builder.imm_u64(element_head_size);
-        let head_bytes = builder.mul(len, element_head_size);
-        (len, data, head_bytes)
+        (len, data)
     }
 
     fn decode_source_scalar(
