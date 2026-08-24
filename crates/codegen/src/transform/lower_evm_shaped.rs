@@ -122,25 +122,28 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             let mut function_changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
-                let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = func.inst(inst_id);
-                    inst.result_ty.is_none()
-                        && matches!(
-                            &inst.kind,
-                            InstKind::InternalCall { function, args, .. }
-                                if tail_callable.contains(*function)
-                                    && (args.is_empty()
-                                        || !constructor_reachable.contains(func_id))
-                        )
-                }) else {
+                let Some((position, function, args)) =
+                    insts.iter().enumerate().find_map(|(position, &inst_id)| {
+                        let inst = func.inst(inst_id);
+                        if inst.result_ty.is_none()
+                            && let InstKind::InternalCall { function, args, .. } = &inst.kind
+                            && tail_callable.contains(*function)
+                            && (args.is_empty() || !constructor_reachable.contains(func_id))
+                        {
+                            Some((
+                                position,
+                                *function,
+                                args.iter()
+                                    .copied()
+                                    .collect::<smallvec::SmallVec<[crate::mir::ValueId; 2]>>(),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                else {
                     continue;
                 };
-
-                let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
-                    unreachable!("position matched an internal call");
-                };
-                let (function, args) = (*function, args.iter().copied().collect());
 
                 // Control never comes back: everything after the call is dead.
                 func.blocks[block_id].instructions.truncate(position);
