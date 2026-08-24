@@ -172,10 +172,8 @@ fn split_clobbering_phi_edges(func: &mut Function) {
         let block = &func.blocks[successor];
         for &predecessor in &block.predecessors {
             let Some(terminator) = &func.blocks[predecessor].terminator else { continue };
-            let mut successors = terminator.successors();
-            successors.sort_unstable_by_key(|block| block.index());
-            successors.dedup();
-            if successors.len() < 2 {
+            let successors = terminator.successors();
+            if !successors.iter().any(|&sibling| sibling != successor) {
                 continue;
             }
 
