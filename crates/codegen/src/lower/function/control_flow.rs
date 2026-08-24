@@ -809,12 +809,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     state.values.get(&id).copied().map(|value| (state.block, value))
                 })
                 .collect::<Vec<_>>();
-            let value = match incoming.as_slice() {
-                [] => header_phis.get(&id).copied().unwrap_or(before_value),
-                [(_, value)] => *value,
-                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => *first,
-                _ => self.merge_value_phi(incoming),
-            };
+            let value = self
+                .merge_incoming_values(incoming)
+                .unwrap_or_else(|| header_phis.get(&id).copied().unwrap_or(before_value));
             merged.insert(id, value);
         }
         merged
@@ -919,19 +916,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .map(|value| (state.block, value))
                 })
                 .collect::<Vec<_>>();
-            let value = match incoming.as_slice() {
-                [] => None,
-                [(_, value)] => Some(*value),
-                [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => {
-                    Some(*first)
-                }
-                _ => Some(self.merge_value_phi(incoming)),
-            };
-            if let Some(value) = value {
+            if let Some(value) = self.merge_incoming_values(incoming) {
                 before.insert(id, value);
             }
         }
         before
+    }
+
+    fn merge_incoming_values(&mut self, incoming: Vec<(BlockId, ValueId)>) -> Option<ValueId> {
+        match incoming.as_slice() {
+            [] => None,
+            [(_, value)] => Some(*value),
+            [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => Some(*first),
+            _ => Some(self.merge_value_phi(incoming)),
+        }
     }
 
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
