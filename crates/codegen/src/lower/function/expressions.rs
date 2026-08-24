@@ -59,6 +59,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let receiver = self.lower_expr(receiver)?;
                 return Some(self.builder.balance(receiver));
             }
+            if builtin == Builtin::ArrayPop {
+                self.storage_access(receiver)?;
+                return Some(self.builder.imm_u256(U256::ZERO));
+            }
             return self.lower_environment_builtin(expr, builtin);
         }
         if let Some(value) = self.lower_internal_function_value(expr) {
