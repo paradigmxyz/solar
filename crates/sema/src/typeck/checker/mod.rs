@@ -16,7 +16,7 @@ use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    kw, sym,
+    error_code, kw, sym,
 };
 use std::ops::ControlFlow;
 
@@ -121,11 +121,13 @@ impl<'gcx> TypeChecker<'gcx> {
             } else if builtin == Builtin::BlockPrevrandao && !target.has_prev_randao() {
                 self.dcx()
                     .warn("`block.prevrandao` is not supported by this EVM version and will be treated as `block.difficulty`")
+                    .code(error_code!(9432))
                     .span(span)
                     .emit();
             } else if builtin == Builtin::BlockDifficulty && target.has_prev_randao() {
                 self.dcx()
                     .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
+                    .code(error_code!(8417))
                     .span(span)
                     .emit();
             }

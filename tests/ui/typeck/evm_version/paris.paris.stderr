@@ -1,4 +1,4 @@
-warning: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain
+warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain
    ╭▸ ROOT/tests/ui/typeck/evm_version/paris.sol:LL:CC
    │
 LL │         return block.difficulty;
