@@ -916,8 +916,7 @@ impl LowerAbiCx {
             builder.switch_to_block(guard);
             let base = builder.constructor_args_base();
             let end = builder.constructor_args_end();
-            let head_size = builder.imm_u64(head_size);
-            let required = builder.add(base, head_size);
+            let required = builder.add_u64_offset(base, head_size);
             let invalid = builder.gt(required, end);
             builder.branch(invalid, revert, decode);
 
@@ -2033,7 +2032,6 @@ impl LowerAbiCx {
 
         builder.switch_to_block(header);
         let zero = builder.imm_u64(0);
-        let one = builder.imm_u64(1);
         let index = builder.phi(vec![(preheader, zero)]);
         let more = builder.lt(index, len);
         builder.branch(more, body, done);
@@ -2050,7 +2048,7 @@ impl LowerAbiCx {
             options.checked(),
         );
         builder.switch_to_block(element_current);
-        let next_index = builder.add(index, one);
+        let next_index = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(header);
         builder.add_phi_incoming(index, backedge, next_index);

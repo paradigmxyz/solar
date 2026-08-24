@@ -206,8 +206,6 @@ fn synthesize_storage_struct_array_helper(
         let length = builder.sload(slot);
         let (object, array_layout) =
             builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let one = builder.imm_u64(1);
-
         let data_slot = builder.storage_array_data_slot(slot);
         let preheader = builder.current_block();
         let header = builder.create_block();
@@ -262,9 +260,8 @@ fn synthesize_storage_struct_array_helper(
             builder.memory_object_store_field(value, field_layout, field_index as u64, field_value);
         }
         builder.memory_object_store_element(object, array_layout, index, value);
-        let next_index = builder.add(index, one);
-        let stride = builder.imm_u64(element_slots);
-        let next_slot = builder.add(element_slot, stride);
+        let next_index = builder.add_u64_offset(index, 1);
+        let next_slot = builder.add_u64_offset(element_slot, element_slots);
         let backedge = builder.current_block();
         builder.jump(header);
         builder.add_phi_incoming(index, backedge, next_index);
