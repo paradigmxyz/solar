@@ -36,14 +36,8 @@ fn synthesize_storage_bytes_array_helper(
         builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = builder.sload(slot);
-        let one = builder.imm_u64(1);
-        let words = builder.checked_add(length, one);
-        let word_size = builder.imm_u64(32);
-        let size = builder.checked_mul(words, word_size);
-        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
-        let object =
-            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        builder.set_memory_object_len(object, length, layout.kind());
+        let (object, layout) =
+            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
         let data_slot = builder.storage_array_data_slot(slot);
         let preheader = builder.current_block();
@@ -87,14 +81,8 @@ pub(super) fn synthesize_storage_word_array_helper(module: &mut Module) -> Funct
         builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = builder.sload(slot);
-        let one = builder.imm_u64(1);
-        let words = builder.checked_add(length, one);
-        let word_size = builder.imm_u64(32);
-        let size = builder.checked_mul(words, word_size);
-        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
-        let object =
-            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        builder.set_memory_object_len(object, length, layout.kind());
+        let (object, layout) =
+            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
         let data_slot = builder.storage_array_data_slot(slot);
         let preheader = builder.current_block();
@@ -137,14 +125,8 @@ fn synthesize_storage_packed_array_helper(
         builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = builder.sload(slot);
-        let one = builder.imm_u64(1);
-        let words = builder.checked_add(length, one);
-        let word_size = builder.imm_u64(32);
-        let size = builder.checked_mul(words, word_size);
-        let layout = MemoryObjectLayout::DynamicArray { element_words: 1 };
-        let object =
-            builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        builder.set_memory_object_len(object, length, layout.kind());
+        let (object, layout) =
+            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
         let data_slot = builder.storage_array_data_slot(slot);
         let preheader = builder.current_block();
@@ -225,14 +207,9 @@ fn synthesize_storage_struct_array_helper(
         builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = builder.sload(slot);
+        let (object, array_layout) =
+            builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         let one = builder.imm_u64(1);
-        let words = builder.checked_add(length, one);
-        let word_size = builder.imm_u64(32);
-        let size = builder.checked_mul(words, word_size);
-        let array_layout = MemoryObjectLayout::WORD_ARRAY;
-        let object =
-            builder.alloc_object(size, array_layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        builder.set_memory_object_len(object, length, MemoryObjectKind::DynamicArray);
 
         let data_slot = builder.storage_array_data_slot(slot);
         let preheader = builder.current_block();

@@ -570,6 +570,22 @@ impl<'a> FunctionBuilder<'a> {
         (object, layout)
     }
 
+    /// Allocates a dynamic array whose elements each occupy one memory word.
+    pub(crate) fn alloc_dynamic_word_array(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, MemoryObjectLayout) {
+        let one = self.imm_u64(1);
+        let words = self.checked_add(length, one);
+        let word_size = self.imm_u64(32);
+        let size = self.checked_mul(words, word_size);
+        let layout = MemoryObjectLayout::WORD_ARRAY;
+        let object = self.alloc_object(size, layout, semantics);
+        self.set_memory_object_len(object, length, layout.kind());
+        (object, layout)
+    }
+
     /// Reads the logical length of a dynamic memory object.
     pub(crate) fn memory_object_len(
         &mut self,
