@@ -65,8 +65,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     for (id, (value, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
+                        let ty = self.context.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
-                            let ty = self.context.gcx.type_of_item((*id).into());
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
                                 // non-storage local copies the referenced
@@ -78,19 +78,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 continue;
                             }
                             self.storage_refs.insert(*id, access);
+                        } else if ty.is_ref_at(DataLocation::Storage) {
+                            return report_unsupported(
+                                self.context.gcx,
+                                self.context.gcx.hir.variable(*id).span,
+                                "mixed storage tuple",
+                            );
                         } else {
-                            if self
-                                .context
-                                .gcx
-                                .type_of_item((*id).into())
-                                .is_ref_at(DataLocation::Storage)
-                            {
-                                return report_unsupported(
-                                    self.context.gcx,
-                                    self.context.gcx.hir.variable(*id).span,
-                                    "mixed storage tuple",
-                                );
-                            }
                             self.values.insert(*id, value);
                         }
                     }
