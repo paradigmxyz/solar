@@ -230,7 +230,7 @@ impl LowerAbiCx {
             self.decode_constructor_params(module.function_mut(id));
         }
         for id in wrapped_constructors {
-            let layout = module.function(id).abi_params.clone();
+            let layout = module.function_mut(id).abi_params.take();
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, true, false);
             Self::clear_abi_inputs(module.function_mut(id));
         }
@@ -892,7 +892,7 @@ impl LowerAbiCx {
     /// Materializes fixed constructor inputs while preserving the physical
     /// word parameters consumed by deployment codegen.
     fn decode_constructor_params(&self, func: &mut Function) {
-        let layout = func.abi_params.clone().expect("checked constructor ABI layout");
+        let layout = func.abi_params.take().expect("checked constructor ABI layout");
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
         let head_size = layout.checked_head_size().expect("checked constructor ABI head size");
@@ -1046,7 +1046,7 @@ impl LowerAbiCx {
                 logical_values.into_iter().map(Option::unwrap).collect(),
             );
         }
-        let return_params = module.function(wrapper_id).abi_return_params.clone();
+        let return_params = module.function_mut(wrapper_id).abi_return_params.take();
         encode_live_returns(
             module.function_mut(wrapper_id),
             return_params.as_ref(),
@@ -1235,7 +1235,7 @@ impl LowerAbiCx {
 
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
-        let abi_param_locations = func.abi_param_locations.clone();
+        let abi_param_locations = func.abi_param_locations.take();
         let mut logical_values = Vec::new();
         let mut replacements = FxHashMap::default();
         let mut slice_values_to_retag = Vec::new();
@@ -3476,7 +3476,7 @@ fn encode_live_returns(
     lazy_args: bool,
     cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) {
-    let Some(mut layout) = func.abi_returns.clone() else { return };
+    let Some(mut layout) = func.abi_returns.take() else { return };
     let return_blocks = func
         .blocks
         .indices()
