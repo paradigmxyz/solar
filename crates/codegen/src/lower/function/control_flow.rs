@@ -102,8 +102,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         let mut case_blocks = Vec::new();
         let mut body_blocks = Vec::new();
-        let mut default_block = merge_block;
-        let mut has_default = false;
+        let mut default_block = None;
 
         for case in switch.cases {
             let block = self.builder.create_block();
@@ -111,15 +110,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.lower_word_literal(constant)?;
                 case_blocks.push((value, block));
             } else {
-                default_block = block;
-                has_default = true;
+                default_block = Some(block);
             }
             body_blocks.push((case, block));
         }
-        self.builder.switch(selector, default_block, case_blocks);
+        self.builder.switch(selector, default_block.unwrap_or(merge_block), case_blocks);
 
-        let mut states = Vec::with_capacity(body_blocks.len() + usize::from(!has_default));
-        if !has_default {
+        let mut states =
+            Vec::with_capacity(body_blocks.len() + usize::from(default_block.is_none()));
+        if default_block.is_none() {
             states.push(LoopState {
                 block: switch_block,
                 values: before_values.clone(),
