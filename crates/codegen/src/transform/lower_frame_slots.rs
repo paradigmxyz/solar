@@ -60,18 +60,18 @@ fn lower_function(func: &mut Function) -> bool {
         for inst in instructions {
             let op = match &builder.func().inst(inst).kind {
                 InstKind::FrameLoad { offset, mode, kind } => {
-                    Some(FrameOp::Load { offset: *offset, mode: *mode, kind: *kind })
+                    FrameOp::Load { offset: *offset, mode: *mode, kind: *kind }
                 }
-                InstKind::FrameStore { offset, mode, kind, value } => Some(FrameOp::Store {
-                    offset: *offset,
-                    mode: *mode,
-                    kind: *kind,
-                    value: *value,
-                }),
-                _ => None,
+                InstKind::FrameStore { offset, mode, kind, value } => {
+                    FrameOp::Store { offset: *offset, mode: *mode, kind: *kind, value: *value }
+                }
+                _ => {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                }
             };
             match op {
-                Some(FrameOp::Load { offset, mode, kind }) => {
+                FrameOp::Load { offset, mode, kind } => {
                     let address = frame_address(&mut builder, offset, mode);
                     let value = match kind {
                         FrameSlotKind::Word => builder.mload(address),
@@ -92,7 +92,7 @@ fn lower_function(func: &mut Function) -> bool {
                         .expect("frame load must produce a value");
                     replacements.insert(old, value);
                 }
-                Some(FrameOp::Store { offset, mode, kind, value }) => {
+                FrameOp::Store { offset, mode, kind, value } => {
                     let address = frame_address(&mut builder, offset, mode);
                     match kind {
                         FrameSlotKind::Word => {
@@ -114,7 +114,6 @@ fn lower_function(func: &mut Function) -> bool {
                         }
                     }
                 }
-                None => builder.func_mut().blocks[block].instructions.push(inst),
             }
         }
     }
