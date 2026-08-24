@@ -286,24 +286,23 @@ impl LowerAbiCx {
     fn lower_returndata_sizes(&self, module: &mut Module, evm_version: EvmVersion) {
         if evm_version.supports_returndata() {
             for func in module.functions.iter_mut() {
-                let instructions: Vec<_> = func.instructions().collect();
-                for inst in instructions {
-                    if matches!(func.inst(inst).kind, InstKind::ReturndataSize) {
-                        func.inst_mut(inst).kind = InstKind::ReturnDataSize;
+                func.for_each_instruction_mut(|_, inst| {
+                    if matches!(inst.kind, InstKind::ReturndataSize) {
+                        inst.kind = InstKind::ReturnDataSize;
                     }
-                }
+                });
             }
             return;
         }
 
         for func in module.functions.iter_mut() {
+            let mut replacements = FxHashMap::default();
             let blocks: Vec<_> = func.blocks.indices().collect();
             for block in blocks {
                 let instructions = std::mem::take(&mut func.blocks[block].instructions);
                 let terminator = func.blocks[block].terminator.take();
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
-                let mut replacements = FxHashMap::default();
                 for inst in instructions {
                     if !matches!(builder.func().inst(inst).kind, InstKind::ReturndataSize) {
                         builder.func_mut().blocks[block].instructions.push(inst);
@@ -318,8 +317,8 @@ impl LowerAbiCx {
                     replacements.insert(result, size);
                 }
                 super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
-                func.replace_uses_canonicalized(&replacements);
             }
+            func.replace_uses_canonicalized(&replacements);
             let _ = crate::mir::utils::repair_reachability_phis(func);
         }
     }
@@ -1735,32 +1734,15 @@ impl LowerAbiCx {
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm_u64(*len);
                     if Self::is_scalar_array(ty) {
-                        Self::validate_calldata_scalar_array(
-                            builder,
-                            base,
-                            element,
-                            length,
-                            current,
-                            has_bitwise_shifting,
+                        Self::validate_scalar_array(
+                            builder, base, element, length, current, options,
                         );
                     }
                     return builder.make_slice(base, length, SliceLocation::Calldata);
                 }
                 if constructor && allow_alias && Self::is_scalar_or_enum(element) {
-                    let mut offset = 0;
-                    for _ in 0..*len {
-                        let offset_value = builder.imm_u64(offset);
-                        let word_pos = builder.add(base, offset_value);
-                        let _ = Self::decode_source_scalar(
-                            builder,
-                            element,
-                            word_pos,
-                            current,
-                            options.checked(),
-                        );
-                        offset +=
-                            element.checked_head_size().expect("ABI head size exceeds u64 range");
-                    }
+                    let length = builder.imm_u64(*len);
+                    Self::validate_scalar_array(builder, base, element, length, current, options);
                     return base;
                 }
                 let (ptr, layout) =
@@ -1809,14 +1791,7 @@ impl LowerAbiCx {
                     element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
                 if !constructor && validate_array_elements && Self::is_scalar_or_enum(element) {
-                    Self::validate_calldata_scalar_array(
-                        builder,
-                        data,
-                        element,
-                        len,
-                        current,
-                        has_bitwise_shifting,
-                    );
+                    Self::validate_scalar_array(builder, data, element, len, current, options);
                 }
                 builder.make_slice(data, len, location)
             }
@@ -1915,14 +1890,7 @@ impl LowerAbiCx {
                 let copy_validated =
                     !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
                 if copy_validated {
-                    Self::validate_calldata_scalar_array(
-                        builder,
-                        data_base,
-                        element,
-                        len,
-                        current,
-                        has_bitwise_shifting,
-                    );
+                    Self::validate_scalar_array(builder, data_base, element, len, current, options);
                 }
                 let total = builder.add(bytes, word);
                 let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
@@ -2085,13 +2053,13 @@ impl LowerAbiCx {
         }
     }
 
-    fn validate_calldata_scalar_array(
+    fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
         element: &crate::mir::AbiParamType,
         len: ValueId,
         current: &mut BlockId,
-        has_bitwise_shifting: bool,
+        options: DecodeOptions<'_>,
     ) {
         let word = builder.imm_u64(32);
         let preheader = *current;
@@ -2111,13 +2079,15 @@ impl LowerAbiCx {
         builder.switch_to_block(body);
         let offset = builder.mul(index, word);
         let position = builder.add(data, offset);
-        let value = builder.calldataload(position);
-        let valid = if let Some(validator) = element.word_validator() {
-            validator.condition(builder, value, has_bitwise_shifting)
-        } else {
-            builder.imm_bool(true)
-        };
-        builder.revert_if_zero(valid);
+        let mut element_current = builder.current_block();
+        let _ = Self::decode_source_scalar(
+            builder,
+            element,
+            position,
+            &mut element_current,
+            options.checked(),
+        );
+        builder.switch_to_block(element_current);
         let next_index = builder.add(index, one);
         let backedge = builder.current_block();
         builder.jump(header);
@@ -2934,15 +2904,10 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Scalar(_)
                 | crate::mir::AbiParamType::Enum { .. }
                 | crate::mir::AbiParamType::Bytes
-        ) || matches!(
-            ty,
-            crate::mir::AbiParamType::FixedArray { element, .. }
-                if Self::is_supported_tuple_field(element)
-        ) || matches!(
-            ty,
-            crate::mir::AbiParamType::DynamicArray(element)
-                if Self::is_supported_tuple_field(element)
-        ) || matches!(ty, crate::mir::AbiParamType::Tuple(fields) if fields.iter().all(Self::is_supported_tuple_field))
+                | crate::mir::AbiParamType::FixedArray { .. }
+                | crate::mir::AbiParamType::DynamicArray(_)
+                | crate::mir::AbiParamType::Tuple(_)
+        )
     }
 
     fn is_full_word_scalar(ty: &crate::mir::AbiParamType) -> bool {

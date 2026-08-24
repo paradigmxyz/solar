@@ -310,21 +310,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             builder.func_mut().inst_mut(inst).kind = kind;
                             break 'keep;
                         }
-                        let Some(stride) = P::element_stride(layout) else {
+                        let Some(address) =
+                            memory_element_address::<P>(&mut builder, object, index, layout)
+                        else {
                             break 'keep;
-                        };
-                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                        let base_offset = P::object_data_offset(layout.kind());
-                        let address = if let Some(index) = builder.func().value_u64(index)
-                            && let Some(offset) = index.checked_mul(stride)
-                            && let Some(offset) = base_offset.checked_add(offset)
-                        {
-                            builder.add_u64_offset(object, offset)
-                        } else {
-                            let base = builder.add_u64_offset(object, base_offset);
-                            let stride = builder.imm_u64(stride);
-                            let offset = builder.mul(index, stride);
-                            builder.add(base, offset)
                         };
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
@@ -362,21 +351,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         continue 'next;
                     }
                     InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                        let Some(stride) = P::element_stride(layout) else {
+                        let Some(address) =
+                            memory_element_address::<P>(&mut builder, object, index, layout)
+                        else {
                             break 'keep;
-                        };
-                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-                        let base_offset = P::object_data_offset(layout.kind());
-                        let address = if let Some(index) = builder.func().value_u64(index)
-                            && let Some(offset) = index.checked_mul(stride)
-                            && let Some(offset) = base_offset.checked_add(offset)
-                        {
-                            builder.add_u64_offset(object, offset)
-                        } else {
-                            let base = builder.add_u64_offset(object, base_offset);
-                            let stride = builder.imm_u64(stride);
-                            let offset = builder.mul(index, stride);
-                            builder.add(base, offset)
                         };
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
@@ -447,9 +425,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
         }
     }
 
-    if !replacements.is_empty() {
-        func.replace_uses_canonicalized(&replacements);
-    }
+    func.replace_uses_canonicalized(&replacements);
     erase_object_types(func);
     coalesce_constant_allocations(func);
     true
@@ -653,6 +629,30 @@ fn dynamic_offset_address(
     offset: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     if builder.func().value_u64(offset) == Some(0) { base } else { builder.add(base, offset) }
+}
+
+fn memory_element_address<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    object: crate::mir::ValueId,
+    index: crate::mir::ValueId,
+    layout: MemoryObjectLayout,
+) -> Option<crate::mir::ValueId> {
+    let stride = P::element_stride(layout)?;
+    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
+    let base_offset = P::object_data_offset(layout.kind());
+    Some(
+        if let Some(index) = builder.func().value_u64(index)
+            && let Some(offset) = index.checked_mul(stride)
+            && let Some(offset) = base_offset.checked_add(offset)
+        {
+            builder.add_u64_offset(object, offset)
+        } else {
+            let base = builder.add_u64_offset(object, base_offset);
+            let stride = builder.imm_u64(stride);
+            let offset = builder.mul(index, stride);
+            builder.add(base, offset)
+        },
+    )
 }
 
 fn lower_slice_copy<P: MemoryLayoutPolicy>(

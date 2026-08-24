@@ -145,9 +145,8 @@ impl LowerSlices {
             for inst_id in instructions {
                 let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
-                if !projection_users.contains_key(&result)
-                    || !can_split_slice_incoming(func, &incoming, true)
-                {
+                let Some(users) = projection_users.get(&result) else { continue };
+                if !can_split_slice_incoming(func, &incoming, true) {
                     continue;
                 }
 
@@ -157,15 +156,13 @@ impl LowerSlices {
                 let (len_phi, length) = new_word_inst(func, InstKind::Phi(len_incoming));
                 insertions.insert(inst_id, (ptr_phi, len_phi));
                 replacements.insert(result, pointer);
-                if let Some(users) = projection_users.get(&result) {
-                    for &(user, user_result, is_pointer) in users {
-                        if is_pointer {
-                            replacements.insert(user_result, pointer);
-                            removed.insert(user);
-                        } else {
-                            replacements.insert(user_result, length);
-                            removed.insert(user);
-                        }
+                for &(user, user_result, is_pointer) in users {
+                    if is_pointer {
+                        replacements.insert(user_result, pointer);
+                        removed.insert(user);
+                    } else {
+                        replacements.insert(user_result, length);
+                        removed.insert(user);
                     }
                 }
                 removed.insert(inst_id);
@@ -315,10 +312,9 @@ impl LowerSlices {
             func.blocks[block_id].instructions = phis;
         }
 
-        if !replacements.is_empty() {
-            func.replace_uses_canonicalized(&replacements);
-        }
-        !replacements.is_empty()
+        let changed = !replacements.is_empty();
+        func.replace_uses_canonicalized(&replacements);
+        changed
     }
 
     fn expand_call_args(

@@ -411,25 +411,17 @@ impl AbiWordValidator {
         has_bitwise_shifting: bool,
     ) -> ValueId {
         match self {
-            Self::Unsigned(bits) => {
+            Self::Unsigned(bits) | Self::LeftAligned(bits) => {
                 if has_bitwise_shifting {
                     let shift = builder.imm_u64(u64::from(bits));
-                    let high = builder.shr(shift, word);
-                    builder.iszero(high)
+                    let shifted = match self {
+                        Self::Unsigned(_) => builder.shr(shift, word),
+                        Self::LeftAligned(_) => builder.shl(shift, word),
+                        _ => unreachable!(),
+                    };
+                    builder.iszero(shifted)
                 } else {
-                    let mask = self.canonical_mask().expect("unsigned validator has a mask");
-                    let mask = builder.imm_u256(mask);
-                    let canonical = builder.and(word, mask);
-                    builder.eq(word, canonical)
-                }
-            }
-            Self::LeftAligned(bits) => {
-                if has_bitwise_shifting {
-                    let shift = builder.imm_u64(u64::from(bits));
-                    let low = builder.shl(shift, word);
-                    builder.iszero(low)
-                } else {
-                    let mask = self.canonical_mask().expect("left-aligned validator has a mask");
+                    let mask = self.canonical_mask().expect("masked validator has a mask");
                     let mask = builder.imm_u256(mask);
                     let canonical = builder.and(word, mask);
                     builder.eq(word, canonical)
