@@ -2,6 +2,11 @@
 
 use super::*;
 
+enum PreparedTupleAssignment<'gcx> {
+    Value { place: LValuePlace<'gcx>, value: ValueId, source_ty: Option<Ty<'gcx>> },
+    StorageReference { id: VariableId, access: StorageAccess },
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
@@ -157,7 +162,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if values.len() != elements.len() {
                 return report_unsupported(self.context.gcx, rhs.span, "storage reference tuple");
             }
-            for (element, (value, access)) in elements.iter().zip(values) {
+            let mut assignment_values = Vec::with_capacity(elements.len());
+            for (element, (mut value, access)) in elements.iter().zip(values) {
                 let Some(element) = element else { continue };
                 if let Some(access) = access {
                     if !self.is_storage_reference_binding(element) {
@@ -166,18 +172,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         // solc: the reference itself only binds to a local
                         // storage variable.
                         let ty = self.type_of_expr_or_variable(element)?;
-                        let value = self.load_storage_object(ty, value, element.span)?;
-                        self.store_lvalue(element, value)?;
-                        continue;
+                        value = self.load_storage_object(ty, value, element.span)?;
+                        assignment_values.push((*element, value, None));
+                    } else {
+                        assignment_values.push((*element, value, Some(access)));
                     }
-                    let Some(id) = self.context.gcx.resolved_variable(element) else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            element.span,
-                            "storage reference target",
-                        );
-                    };
-                    self.storage_refs.insert(id, access);
                 } else if self.is_storage_reference_binding(element) {
                     return report_unsupported(
                         self.context.gcx,
@@ -185,17 +184,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "mixed storage tuple",
                     );
                 } else {
-                    self.store_lvalue(element, value)?;
+                    assignment_values.push((*element, value, None));
                 }
             }
-            return Some(());
+            let mut assignments = Vec::with_capacity(assignment_values.len());
+            for (element, value, access) in assignment_values {
+                if let Some(access) = access {
+                    let Some(id) = self.context.gcx.resolved_variable(element) else {
+                        return report_unsupported(
+                            self.context.gcx,
+                            element.span,
+                            "storage reference target",
+                        );
+                    };
+                    assignments.push(PreparedTupleAssignment::StorageReference { id, access });
+                } else {
+                    assignments.push(PreparedTupleAssignment::Value {
+                        place: self.resolve_lvalue_place(element)?,
+                        value,
+                        source_ty: None,
+                    });
+                }
+            }
+            return self.apply_tuple_assignments(assignments);
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind
             && rhs_elements.len() == elements.len()
             && elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
         {
             let tuple_span = rhs.span;
-            let mut bindings = Vec::with_capacity(elements.len());
+            let mut assignments = Vec::with_capacity(elements.len());
             for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
                 let Some(rhs) = rhs else {
                     if lhs.is_some() {
@@ -222,12 +240,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "storage reference target",
                     );
                 };
-                bindings.push((id, access));
+                assignments.push(PreparedTupleAssignment::StorageReference { id, access });
             }
-            for (id, access) in bindings {
-                self.storage_refs.insert(id, access);
-            }
-            return Some(());
+            return self.apply_tuple_assignments(assignments);
         }
         if self.is_low_level_call_expr(rhs) {
             let values = self.lower_low_level_call_values(
@@ -238,10 +253,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if values.len() != elements.iter().flatten().count() {
                 return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
             }
-            for (element, value) in elements.iter().flatten().zip(values) {
-                self.store_lvalue(element, value)?;
-            }
-            return Some(());
+            return self.store_tuple_values(
+                elements
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .zip(values)
+                    .map(|(element, value)| (element, value, None)),
+            );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
             if rhs_elements.iter().filter(|element| element.is_some()).count() == 1
@@ -250,16 +269,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let values = self.lower_values(rhs)?;
                 if values.len() >= elements.len() {
-                    for (element, value) in elements.iter().zip(values) {
-                        if let Some(element) = element {
-                            self.store_lvalue(element, value)?;
-                        }
-                    }
-                    return Some(());
+                    return self.store_tuple_values(elements.iter().zip(values).filter_map(
+                        |(element, value)| element.map(|element| (element, value, None)),
+                    ));
                 }
             }
             let mut values = Vec::with_capacity(rhs_elements.len());
             self.lower_tuple_assignment_values(elements, rhs_elements, rhs.span, &mut values)?;
+            let mut assignments = Vec::with_capacity(values.len());
             for (element, rhs, value) in values {
                 let lhs_ty = self.type_of_expr_or_variable(element)?;
                 let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
@@ -269,17 +286,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.materialize_memory_argument(lhs_ty, value, rhs.span)?
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue_with_source(element, value, Some(rhs_ty))?;
+                assignments.push((element, value, Some(rhs_ty)));
             }
-            return Some(());
+            return self.store_tuple_values(assignments);
         }
         let values = self.lower_values(rhs)?;
         if values.len() < elements.len() {
             return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
         }
-        for (element, value) in elements.iter().zip(values) {
-            if let Some(element) = element {
-                self.store_lvalue(element, value)?;
+        self.store_tuple_values(
+            elements
+                .iter()
+                .zip(values)
+                .filter_map(|(element, value)| element.map(|element| (element, value, None))),
+        )
+    }
+
+    fn store_tuple_values<'hir>(
+        &mut self,
+        values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
+    ) -> Option<()> {
+        // Solidity evaluates tuple targets left-to-right after the RHS, then
+        // commits their writes right-to-left.
+        let assignments = values
+            .into_iter()
+            .map(|(element, value, source_ty)| {
+                Some(PreparedTupleAssignment::Value {
+                    place: self.resolve_lvalue_place(element)?,
+                    value,
+                    source_ty,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.apply_tuple_assignments(assignments)
+    }
+
+    fn apply_tuple_assignments(
+        &mut self,
+        assignments: Vec<PreparedTupleAssignment<'gcx>>,
+    ) -> Option<()> {
+        for assignment in assignments.into_iter().rev() {
+            match assignment {
+                PreparedTupleAssignment::Value { mut place, value, source_ty } => {
+                    if let LValuePlace::StorageByte { slot, index, ty, .. } = place {
+                        // Place resolution materializes storage bytes for its bounds check. Reload
+                        // before each write so aliased byte targets do not restore a stale copy.
+                        let object = self.load_storage_bytes(slot)?;
+                        place = LValuePlace::StorageByte { slot, object, index, ty };
+                    }
+                    self.store_lvalue_place_with_source(&place, value, source_ty)?;
+                }
+                PreparedTupleAssignment::StorageReference { id, access } => {
+                    self.storage_refs.insert(id, access);
+                }
             }
         }
         Some(())
