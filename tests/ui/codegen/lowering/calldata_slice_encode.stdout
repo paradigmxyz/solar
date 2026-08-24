@@ -28,22 +28,8 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0xa8c06a13,
   bb5:
     revert 0, 0
   bb6:
-    v14 = abi_encode [calldata_bytes], args v7
-    v15 = slice_len v14
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v14
-    ret v20
+    v14 = abi_encode [calldata_bytes], object, args v7
+    ret v14
 }
 
 fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08, abi_args=lazy, abi_params=[bytes, u256, address], abi_returns=[]] {

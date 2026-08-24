@@ -787,9 +787,34 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, false)
+    }
+
+    /// ABI-encodes `args` into a freshly allocated bytes object.
+    pub(crate) fn abi_encode_bytes(
+        &mut self,
+        layout: crate::mir::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+    ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, true)
+    }
+
+    fn emit_abi_encode(
+        &mut self,
+        layout: crate::mir::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+        returns_object: bool,
+    ) -> ValueId {
+        let result_ty = if returns_object {
+            MirType::MemoryObject(MemoryObjectKind::Bytes)
+        } else {
+            MirType::Slice(SliceLocation::Memory)
+        };
         self.emit_inst(
-            InstKind::AbiEncode { selector, args: args.into(), layout },
-            Some(MirType::Slice(SliceLocation::Memory)),
+            InstKind::AbiEncode { returns_object, selector, args: args.into(), layout },
+            Some(result_ty),
         )
     }
 

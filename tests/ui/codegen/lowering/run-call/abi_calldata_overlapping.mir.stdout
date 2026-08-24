@@ -256,11 +256,9 @@ fn @encodeLength(arg0: calldataslice) -> u256 [selector=0xb50dc8e6, pure, abi_ar
     v27 = iszero v26
     jumpi v27, bb12, bb13
   bb11:
-    v60 = abi_encode [memory_array<memory_array<word>>], args v19
-    v61 = slice_len v60
-    v62 = add v61, 63
-    v63 = lt v62, v61
-    jumpi v63, bb26, bb27
+    v60 = abi_encode [memory_array<memory_array<word>>], object, args v19
+    v61 = memory_object_len memorybytes, v60
+    ret v61
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -330,17 +328,5 @@ fn @encodeLength(arg0: calldataslice) -> u256 [selector=0xb50dc8e6, pure, abi_ar
     memory_object_store_element memoryarray<1>, v19, v20, v57
     v59 = add v20, 1
     jump bb9
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb27:
-    v64 = not 31
-    v65 = and v62, v64
-    v66 = alloc memorybytes, exact, uninitialized, infallible, v65
-    set_memory_object_len memorybytes, v66, v61
-    memory_object_copy_from_slice memorybytes, v66, v60
-    v67 = memory_object_len memorybytes, v66
-    ret v67
 }
 

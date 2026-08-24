@@ -14,8 +14,7 @@ contract AbiDecodeDynamicTuple {
     }
 
     // CHECK-LABEL: fn @roundtrip{{[( ]}}
-    // CHECK: abi_encode [word, memory_bytes, memory_bytes], args arg0, arg1, arg2
-    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: abi_encode [word, memory_bytes, memory_bytes], object, args arg0, arg1, arg2
     // CHECK: abi_decode [u256, bytes, bytes]
     function roundtrip(uint256 a, string memory s, bytes memory b)
         external

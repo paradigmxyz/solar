@@ -150,22 +150,8 @@ fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [select
   bb5:
     revert 0, 0
   bb6:
-    v14 = abi_encode [calldata_bytes], args v7
-    v15 = slice_len v14
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v14
-    ret v20
+    v14 = abi_encode [calldata_bytes], object, args v7
+    ret v14
 }
 
 fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x94ba4b13, pure, abi_args=lazy, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -196,22 +182,8 @@ fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybyte
   bb5:
     revert 0, 0
   bb6:
-    v14 = abi_encode [calldata_bytes], args v7
-    v15 = slice_len v14
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v14
-    ret v20
+    v14 = abi_encode [calldata_bytes], object, args v7
+    ret v14
 }
 
 fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x5f29ad1d, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -240,22 +212,8 @@ fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
-    v14 = abi_encode [calldata_array<word>], args v13
-    v15 = slice_len v14
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v14
-    ret v20
+    v14 = abi_encode [calldata_array<word>], object, args v13
+    ret v14
 }
 
 fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xea73d5ef, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -284,22 +242,8 @@ fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memoryby
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
-    v14 = abi_encode [calldata_array<word>], args v13
-    v15 = slice_len v14
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v14
-    ret v20
+    v14 = abi_encode [calldata_array<word>], object, args v13
+    ret v14
 }
 
 fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x0d7d5d61, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {

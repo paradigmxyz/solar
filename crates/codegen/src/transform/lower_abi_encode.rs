@@ -61,7 +61,8 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let InstKind::AbiEncode { selector, args, layout } = &builder.func().inst(inst).kind
+            let InstKind::AbiEncode { returns_object, selector, args, layout } =
+                &builder.func().inst(inst).kind
             else {
                 let current = builder.current_block();
                 builder.func_mut().blocks[current].instructions.push(inst);
@@ -73,7 +74,7 @@ fn lower_function(func: &mut Function) -> bool {
                 .map(|&value| resolve_replacement(value, &replacements))
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
-            let replacement = lower_encode(&mut builder, &layout, selector, &args);
+            let replacement = lower_encode(&mut builder, &layout, selector, &args, *returns_object);
             remove_literal_objects(builder.func_mut(), &args);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
@@ -120,12 +121,30 @@ fn lower_encode(
     layout: &AbiLayout,
     selector: Option<ValueId>,
     args: &[ValueId],
+    returns_object: bool,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
     if !layout.types.iter().any(AbiType::is_dynamic) {
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
+        if returns_object {
+            let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
+            let object = builder.alloc_object(
+                allocation_size,
+                MemoryObjectLayout::Bytes,
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            let total = builder.imm_u64(total_size);
+            builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
+            let buffer = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            if let Some(selector) = selector {
+                builder.mstore(buffer, selector);
+            }
+            let dest = offset_ptr(builder, buffer, selector_size);
+            encode_tuple(builder, args, &layout.types, dest);
+            return object;
+        }
         if selector.is_none() {
             // Constructor arguments do not need a raw slice, and keeping their
             // object header lets the memory lowering preserve the established
@@ -155,7 +174,9 @@ fn lower_encode(
 
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
-    let buffer = builder.fmp();
+    let allocation_base = builder.fmp();
+    let buffer =
+        if returns_object { offset_ptr(builder, allocation_base, 32) } else { allocation_base };
     if let Some(selector) = selector {
         builder.mstore(buffer, selector);
     }
@@ -163,6 +184,16 @@ fn lower_encode(
     let encoded_size = encode_tuple(builder, args, &layout.types, dest);
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(encoded_size, selector_size);
+    if returns_object {
+        let allocation_size = builder.checked_padded_size(total);
+        let object = builder.alloc_object(
+            allocation_size,
+            MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::INTERNAL,
+        );
+        builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
+        return object;
+    }
     let thirty_one = builder.imm_u64(31);
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
