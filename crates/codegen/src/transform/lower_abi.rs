@@ -888,9 +888,10 @@ impl LowerAbiCx {
                 return false;
             }
             let Some(value) = func.inst_result_value(inst_id) else { return false };
-            if matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
-                || matches!(func.value_ty(value), Some(MirType::Function))
-            {
+            if matches!(
+                func.value_ty(value),
+                Some(MirType::MemoryObject(_) | MirType::Slice(_) | MirType::Function)
+            ) {
                 return false;
             }
         }

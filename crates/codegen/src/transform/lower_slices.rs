@@ -109,13 +109,13 @@ fn can_split_slice_incoming(
     incoming: &[(BlockId, ValueId)],
     allow_memory_pointer: bool,
 ) -> bool {
-    incoming.iter().any(|(_, value)| {
-        func.value_slice_location(*value).is_some()
-            || (allow_memory_pointer && matches!(func.value_ty(*value), Some(MirType::MemPtr)))
-    }) && incoming.iter().all(|(_, value)| {
-        func.value_slice_location(*value).is_some()
-            || matches!(func.value_ty(*value), Some(MirType::MemPtr | MirType::UInt(_)))
-    })
+    let mut has_split = false;
+    incoming.iter().all(|(_, value)| {
+        let ty = func.value_ty(*value);
+        let is_slice = matches!(ty, Some(MirType::Slice(_)));
+        has_split |= is_slice || (allow_memory_pointer && matches!(ty, Some(MirType::MemPtr)));
+        is_slice || matches!(ty, Some(MirType::MemPtr | MirType::UInt(_)))
+    }) && has_split
 }
 
 impl LowerSlices {

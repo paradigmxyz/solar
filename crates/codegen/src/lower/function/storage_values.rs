@@ -852,7 +852,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.store_storage_value_with_source(ty, ty, access, value, span)
     }
 
-    fn store_storage_value_with_source(
+    pub(super) fn store_storage_value_with_source(
         &mut self,
         ty: Ty<'gcx>,
         source_ty: Ty<'gcx>,
@@ -1172,16 +1172,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    pub(super) fn store_storage_object(
-        &mut self,
-        ty: Ty<'gcx>,
-        slot: ValueId,
-        object: ValueId,
-        span: Span,
-    ) -> Option<()> {
-        self.store_storage_object_with_source(ty, ty, slot, object, span)
-    }
-
     pub(super) fn store_storage_object_with_source(
         &mut self,
         ty: Ty<'gcx>,
@@ -1246,11 +1236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         )?;
                     } else {
                         let value = self.default_value(element);
-                        if self.types.memory_layout(element).is_some() {
-                            self.store_storage_object(element, access.slot, value, span)?;
-                        } else {
-                            self.store_storage_value(element, access, value, span)?;
-                        }
+                        self.store_storage_value(element, access, value, span)?;
                     }
                 }
                 Some(())

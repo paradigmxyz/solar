@@ -643,7 +643,7 @@ fn lower_object_copy<P: MemoryLayoutPolicy>(
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
     let base = builder.add_u64_offset(object, P::object_data_offset(kind));
-    let destination = offset.map_or(base, |offset| builder.add(base, offset));
+    let destination = offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset));
     lower_slice_copy::<P>(builder, destination, source)
 }
 

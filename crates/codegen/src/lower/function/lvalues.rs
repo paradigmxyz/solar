@@ -201,16 +201,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some(location) = self.context.storage.get(id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            if self.types.memory_layout(ty).is_some() {
-                let slot = self.builder.imm_u256(location.slot);
-                return self.load_storage_object(ty, slot, span);
-            }
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
                 return report_unsupported(self.context.gcx, span, "mapping value");
             }
-            let value = self.context.storage.load(&mut self.builder, location);
-            self.validate_enum(ty, value);
-            return Some(value);
+            let slot = self.builder.imm_u256(location.slot);
+            return self.load_storage_value(
+                ty,
+                StorageAccess { slot, location, offset: None },
+                span,
+            );
         }
         report_unsupported(self.context.gcx, span, "identifier")
     }
@@ -307,10 +306,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     );
                 };
                 let slot = self.builder.imm_u256(location.slot);
+                let access = StorageAccess { slot, location, offset: None };
                 return if let Some(source_ty) = source_ty {
-                    self.store_storage_object_with_source(ty, source_ty, slot, value, expr.span)
+                    self.store_storage_value_with_source(ty, source_ty, access, value, expr.span)
                 } else {
-                    self.store_storage_object(ty, slot, value, expr.span)
+                    self.store_storage_value(ty, access, value, expr.span)
                 };
             }
         }

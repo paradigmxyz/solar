@@ -95,15 +95,6 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.locations.get(&id).copied()
     }
 
-    pub(super) fn load(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-    ) -> ValueId {
-        let slot = builder.imm_u256(location.slot);
-        self.load_at(builder, location, slot)
-    }
-
     pub(super) fn store(
         &self,
         builder: &mut FunctionBuilder<'_>,
