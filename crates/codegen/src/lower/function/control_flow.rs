@@ -408,7 +408,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.imm_u256(U256::from_be_slice(&keccak256("Error(string)")[..4]));
         let panic_selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64));
         let error_selector_matches = self.builder.eq(selector, error_selector);
-        let error_matches = self.builder.and(has_selector, error_selector_matches);
+        let error_matches = if catch_clauses
+            .iter()
+            .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
+        {
+            self.lower_error_catch_match(catch_data_ptr, catch_data_len, error_selector_matches)
+        } else {
+            self.builder.and(has_selector, error_selector_matches)
+        };
         let panic_size = self.builder.imm_u64(36);
         let panic_short = self.builder.lt(catch_data_len, panic_size);
         let panic_has_payload = self.builder.iszero(panic_short);

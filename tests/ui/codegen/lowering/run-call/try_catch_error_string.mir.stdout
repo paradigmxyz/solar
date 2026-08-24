@@ -83,40 +83,64 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_args=lazy, abi_params
     v19 = iszero v18
     v20 = shr 224, v17
     v21 = eq v20, 0x8c379a0
-    v22 = and v19, v21
-    v23 = lt v15, 36
-    v24 = iszero v23
-    v25 = eq v20, 0x4e487b71
-    v26 = and v24, v25
-    jumpi v22, bb6, bb7
+    v22 = lt v15, 68
+    v23 = iszero v22
+    v24 = and v21, v23
+    jumpi v24, bb6, bb8
   bb6:
-    v27 = memory_object_data memorybytes, v12
-    v28 = memory_object_len memorybytes, v12
-    v29 = add v27, 4
-    v30 = sub v28, 4
-    v31 = make_memory_slice v29, v30
-    v32 = slice_len v31
-    v33 = add v32, 63
-    v34 = lt v33, v32
-    jumpi v34, bb8, bb9
+    v25 = add v14, 4
+    v26 = mload v25
+    v27 = gt v26, 0xffffffffffffffff
+    v28 = add v26, 36
+    v29 = gt v28, v15
+    v30 = or v27, v29
+    jumpi v30, bb8, bb7
   bb7:
-    jumpi 1, bb10, bb11
+    v31 = add v25, v26
+    v32 = mload v31
+    v33 = gt v32, 0xffffffffffffffff
+    v34 = sub v15, v28
+    v35 = gt v32, v34
+    v36 = or v33, v35
+    v37 = iszero v36
+    jump bb9
   bb8:
+    jump bb9
+  bb9:
+    v38 = phi [bb7: v37], [bb8: 0]
+    v39 = lt v15, 36
+    v40 = iszero v39
+    v41 = eq v20, 0x4e487b71
+    v42 = and v40, v41
+    jumpi v38, bb10, bb11
+  bb10:
+    v43 = memory_object_data memorybytes, v12
+    v44 = memory_object_len memorybytes, v12
+    v45 = add v43, 4
+    v46 = sub v44, 4
+    v47 = make_memory_slice v45, v46
+    v48 = slice_len v47
+    v49 = add v48, 63
+    v50 = lt v49, v48
+    jumpi v50, bb12, bb13
+  bb11:
+    jumpi 1, bb14, bb15
+  bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb9:
-    v35 = not 31
-    v36 = and v33, v35
-    v37 = alloc memorybytes, exact, uninitialized, infallible, v36
-    set_memory_object_len memorybytes, v37, v32
-    memory_object_copy_from_slice memorybytes, v37, v31
-    v38 = abi_decode [bytes], v37
-    v39 = memory_object_len memorybytes, v38
-    ret v39
-  bb10:
+  bb13:
+    v51 = not 31
+    v52 = and v49, v51
+    v53 = alloc memorybytes, exact, uninitialized, infallible, v52
+    set_memory_object_len memorybytes, v53, v48
+    memory_object_copy_from_slice memorybytes, v53, v47
+    v54 = abi_decode [bytes], v53
+    v55 = memory_object_len memorybytes, v54
+    ret v55
+  bb14:
     ret 0
-  bb11:
+  bb15:
     revert v14, v15
 }
 

@@ -615,6 +615,54 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_decode(layout, payload))
     }
 
+    /// Checks whether an `Error(string)` payload can be decoded without reverting.
+    pub(super) fn lower_error_catch_match(
+        &mut self,
+        data_ptr: ValueId,
+        data_len: ValueId,
+        selector_matches: ValueId,
+    ) -> ValueId {
+        let check_offset = self.builder.create_block();
+        let check_length = self.builder.create_block();
+        let no_match = self.builder.create_block();
+        let done = self.builder.create_block();
+
+        let min_size = self.builder.imm_u64(68);
+        let short = self.builder.lt(data_len, min_size);
+        let has_head = self.builder.iszero(short);
+        let candidate = self.builder.and(selector_matches, has_head);
+        self.builder.branch(candidate, check_offset, no_match);
+
+        self.builder.switch_to_block(check_offset);
+        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
+        let offset = self.builder.mload(payload_ptr);
+        let max_u64 = self.builder.imm_u256(U256::from(u64::MAX));
+        let offset_too_large = self.builder.gt(offset, max_u64);
+        let message_data_offset = self.builder.add_u64_offset(offset, 36);
+        let head_out_of_range = self.builder.gt(message_data_offset, data_len);
+        let invalid_offset = self.builder.or(offset_too_large, head_out_of_range);
+        self.builder.branch(invalid_offset, no_match, check_length);
+
+        self.builder.switch_to_block(check_length);
+        let message_ptr = self.builder.add(payload_ptr, offset);
+        let length = self.builder.mload(message_ptr);
+        let length_too_large = self.builder.gt(length, max_u64);
+        let remaining = self.builder.sub(data_len, message_data_offset);
+        let data_out_of_range = self.builder.gt(length, remaining);
+        let invalid_length = self.builder.or(length_too_large, data_out_of_range);
+        let valid = self.builder.iszero(invalid_length);
+        let valid_block = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(no_match);
+        let no_match_value = self.builder.imm_bool(false);
+        let no_match_block = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+    }
+
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);
