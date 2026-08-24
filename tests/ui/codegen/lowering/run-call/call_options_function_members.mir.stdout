@@ -1,0 +1,187 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/call_options_function_members.sol:CallOptionMembers ===
+@module CallOptionMembers
+fn @g() [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @h() [selector=0xb8c9d365, payable, abi_args=lazy, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @select() -> function {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, 1
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = address
+    v10 = shl 32, v9
+    v11 = or v10, 0xb8c9d365
+    ret v11
+}
+
+fn @option(arg0: u256) -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v7 = add v1, arg0
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+}
+
+fn @callOptionMembers() -> bool [selector=0x147dec44, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xe2179b8e
+    v3 = shr 32, v2
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = address
+    v6 = shl 32, v5
+    v7 = or v6, 0xe2179b8e
+    v8 = shr 32, v7
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = eq v4, v9
+    jumpi v10, bb1, bb2
+  bb1:
+    v11 = address
+    v12 = shl 32, v11
+    v13 = or v12, 0xe2179b8e
+    v14 = and v13, 0xffffffff
+    v15 = shl 224, v14
+    v16 = eq v15, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v17 = phi [bb1: v16], [bb2: 0]
+    jumpi v17, bb4, bb5
+  bb4:
+    v18 = address
+    v19 = shl 32, v18
+    v20 = or v19, 0xb8c9d365
+    v21 = shr 32, v20
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = address
+    v24 = shl 32, v23
+    v25 = or v24, 0xb8c9d365
+    v26 = shr 32, v25
+    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
+    v28 = eq v22, v27
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v29 = phi [bb4: v28], [bb5: 0]
+    jumpi v29, bb7, bb8
+  bb7:
+    v30 = address
+    v31 = shl 32, v30
+    v32 = or v31, 0xb8c9d365
+    v33 = and v32, 0xffffffff
+    v34 = shl 224, v33
+    v35 = eq v34, 0xb8c9d36500000000000000000000000000000000000000000000000000000000
+    jump bb9
+  bb8:
+    jump bb9
+  bb9:
+    v36 = phi [bb7: v35], [bb8: 0]
+    jumpi v36, bb10, bb11
+  bb10:
+    v37 = address
+    v38 = shl 32, v37
+    v39 = or v38, 0xb8c9d365
+    v40 = shr 32, v39
+    v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffff
+    v42 = address
+    v43 = shl 32, v42
+    v44 = or v43, 0xb8c9d365
+    v45 = shr 32, v44
+    v46 = and v45, 0xffffffffffffffffffffffffffffffffffffffff
+    v47 = eq v41, v46
+    jump bb12
+  bb11:
+    jump bb12
+  bb12:
+    v48 = phi [bb10: v47], [bb11: 0]
+    jumpi v48, bb13, bb14
+  bb13:
+    v49 = address
+    v50 = shl 32, v49
+    v51 = or v50, 0xb8c9d365
+    v52 = and v51, 0xffffffff
+    v53 = shl 224, v52
+    v54 = eq v53, 0xb8c9d36500000000000000000000000000000000000000000000000000000000
+    jump bb15
+  bb14:
+    jump bb15
+  bb15:
+    v55 = phi [bb13: v54], [bb14: 0]
+    ret v55
+}
+
+fn @addressSideEffects() -> (u256, bool) [selector=0x18d25c80, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    sstore 0, 0 !metadata(storage=slot(0))
+    v0 = internal_call @select, 1
+    v1 = internal_call @option, 1, 2
+    v2 = internal_call @option, 1, 3
+    v3 = shr 32, v0
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = address
+    v7 = eq v4, v6
+    ret v5, v7
+}
+
+fn @selectorSideEffects() -> (u256, bool) [selector=0x6e73c72f, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    sstore 0, 0 !metadata(storage=slot(0))
+    v0 = internal_call @select, 1
+    v1 = internal_call @option, 1, 2
+    v2 = internal_call @option, 1, 3
+    v3 = and v0, 0xffffffff
+    v4 = shl 224, v3
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = eq v4, 0xb8c9d36500000000000000000000000000000000000000000000000000000000
+    ret v5, v6
+}
+

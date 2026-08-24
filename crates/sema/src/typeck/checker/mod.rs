@@ -377,6 +377,12 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 ty
             }
+            hir::ExprKind::CallOptions(callee, opts) => {
+                let callee_ty = self.check_expr(callee);
+                let ty = self.check_call_options(callee_ty, opts.args, opts.span);
+                self.try_set_not_lvalue(NotLvalueReason::Generic);
+                ty
+            }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
                 if valid_delete(ty) {
@@ -2424,6 +2430,7 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Array(_)
             | hir::ExprKind::Assign(..)
             | hir::ExprKind::Binary(..)
+            | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
             | hir::ExprKind::Slice(..)
             | hir::ExprKind::Lit(_)

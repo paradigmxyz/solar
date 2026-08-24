@@ -507,6 +507,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Call(callee, args, call_opts) => {
                 self.lower_call(expr, callee, *args, *call_opts)
             }
+            ExprKind::CallOptions(callee, options) => {
+                let value = self.lower_expr(callee)?;
+                for option in options.args {
+                    self.lower_expr(&option.value)?;
+                }
+                Some(value)
+            }
             ExprKind::Delete(value) => {
                 self.delete_lvalue(value)?;
                 Some(self.builder.imm_u256(U256::ZERO))

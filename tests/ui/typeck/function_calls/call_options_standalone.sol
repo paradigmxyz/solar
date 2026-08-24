@@ -7,13 +7,16 @@ contract CallOptionMembers {
     }
 
     function callOptionMembers() external returns (bool) {
-        // solc accepts call options as a valid function value here. We currently only support
-        // call options directly on calls.
-        return this.g{gas: 42}.address == this.g.address && //~ ERROR: call options must be part of a call expression
-            this.g{gas: 42}.selector == this.g.selector && //~ ERROR: call options must be part of a call expression
-            this.h{gas: 42}.address == this.h.address && //~ ERROR: call options must be part of a call expression
-            this.h{gas: 42}.selector == this.h.selector && //~ ERROR: call options must be part of a call expression
-            this.h{gas: 42, value: 5}.address == this.h.address && //~ ERROR: call options must be part of a call expression
-            this.h{gas: 42, value: 5}.selector == this.h.selector; //~ ERROR: call options must be part of a call expression
+        return this.g{gas: 42}.address == this.g.address &&
+            this.g{gas: 42}.selector == this.g.selector &&
+            this.h{gas: 42}.address == this.h.address &&
+            this.h{gas: 42}.selector == this.h.selector &&
+            this.h{gas: 42, value: 5}.address == this.h.address &&
+            this.h{gas: 42, value: 5}.selector == this.h.selector;
+    }
+
+    function invalidOptions() external {
+        this.g{value: 5}.address; //~ ERROR: cannot set option `value` on a non-payable function type
+        this.h{gas: false}.selector; //~ ERROR: mismatched types
     }
 }

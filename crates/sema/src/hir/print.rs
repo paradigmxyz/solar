@@ -580,17 +580,13 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
             ExprKind::Call(callee, args, opts) => {
                 self.print_expr(callee)?;
                 if let Some(opts) = opts {
-                    self.out.write_str(" { ")?;
-                    for (i, arg) in opts.args.iter().enumerate() {
-                        if i != 0 {
-                            self.out.write_str(", ")?;
-                        }
-                        write!(self.out, "{}: ", arg.name)?;
-                        self.print_expr(&arg.value)?;
-                    }
-                    self.out.write_str(" }")?;
+                    self.print_call_options(opts)?;
                 }
                 self.print_call_args(args)?;
+            }
+            ExprKind::CallOptions(callee, opts) => {
+                self.print_expr(callee)?;
+                self.print_call_options(opts)?;
             }
             ExprKind::Delete(expr) => {
                 self.out.write_str("delete ")?;
@@ -670,6 +666,18 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
             ExprKind::Err(_) => self.out.write_str("<error>")?,
         }
         Ok(())
+    }
+
+    fn print_call_options(&mut self, opts: &hir::CallOptions<'gcx>) -> fmt::Result {
+        self.out.write_str(" { ")?;
+        for (i, arg) in opts.args.iter().enumerate() {
+            if i != 0 {
+                self.out.write_str(", ")?;
+            }
+            write!(self.out, "{}: ", arg.name)?;
+            self.print_expr(&arg.value)?;
+        }
+        self.out.write_str(" }")
     }
 
     fn print_condition(&mut self, expr: &hir::Expr<'gcx>) -> fmt::Result {

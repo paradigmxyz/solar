@@ -1746,6 +1746,12 @@ impl Expr<'_> {
                     arg.visit(f)?;
                 }
             }
+            ExprKind::CallOptions(callee, options) => {
+                callee.visit(f)?;
+                for arg in options.args {
+                    arg.value.visit(f)?;
+                }
+            }
             ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
@@ -1810,6 +1816,9 @@ pub enum ExprKind<'hir> {
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
     Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir CallOptions<'hir>>),
+
+    /// Call options on a function value: `foo{ gas: 100_000 }`.
+    CallOptions(&'hir Expr<'hir>, &'hir CallOptions<'hir>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.

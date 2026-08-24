@@ -1749,8 +1749,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 ),
             },
             ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
-            ast::ExprKind::Member(expr, member) => {
-                hir::ExprKind::Member(self.lower_expr(expr), *member)
+            ast::ExprKind::Member(receiver, member) => {
+                let receiver =
+                    if matches!(receiver.peel_parens().kind, ast::ExprKind::CallOptions(..)) {
+                        let (callee, options) = self.lower_call_callee(receiver);
+                        let options = options.expect("call-options receiver lost its options");
+                        let kind = hir::ExprKind::CallOptions(callee, options);
+                        let id = self.next_id();
+                        self.arena.alloc(self.hir_builder().expr_owned(id, kind, receiver.span))
+                    } else {
+                        self.lower_expr(receiver)
+                    };
+                hir::ExprKind::Member(receiver, *member)
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {

@@ -157,6 +157,12 @@ pub trait Visit<'hir> {
                 }
                 self.visit_call_args(args)?;
             }
+            ExprKind::CallOptions(expr, opts) => {
+                self.visit_expr(expr)?;
+                for arg in opts.args {
+                    self.visit_expr(&arg.value)?;
+                }
+            }
             ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
