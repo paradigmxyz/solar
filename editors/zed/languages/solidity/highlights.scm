@@ -90,7 +90,7 @@
 
 ; Structs and members
 (member_expression property: (identifier) @property)
-(struct_expression type: ((expression(identifier)) @type .))
+(struct_expression type: (expression (identifier) @type))
 (struct_field_assignment name: (identifier) @property)
 
 
