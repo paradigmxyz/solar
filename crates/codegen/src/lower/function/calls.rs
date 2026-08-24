@@ -317,12 +317,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, args.span, "external function arguments");
         }
         let function_value = self.lower_expr(callee)?;
-        let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
-        let selector = self.builder.and(function_value, selector_mask);
-        let selector_shift = self.builder.imm_u64(224);
-        let selector = self.builder.shl(selector_shift, selector);
-        let address_shift = self.builder.imm_u64(32);
-        let address = self.builder.shr(address_shift, function_value);
+        let (address, selector) = self.split_external_function_pointer(function_value);
 
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
 
@@ -402,6 +397,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ));
         }
         Some(vec![self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0])])
+    }
+
+    pub(super) fn split_external_function_pointer(
+        &mut self,
+        function_value: ValueId,
+    ) -> (ValueId, ValueId) {
+        let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
+        let selector = self.builder.and(function_value, selector_mask);
+        let selector_shift = self.builder.imm_u64(224);
+        let selector = self.builder.shl(selector_shift, selector);
+        let address_shift = self.builder.imm_u64(32);
+        let address = self.builder.shr(address_shift, function_value);
+        (address, selector)
     }
 
     pub(super) fn lower_internal_function_pointer_call(

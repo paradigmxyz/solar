@@ -216,12 +216,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.function_id.is_none()
         {
             let function_value = self.lower_expr(callee)?;
-            let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
-            let selector = self.builder.and(function_value, selector_mask);
-            let selector_shift = self.builder.imm_u64(224);
-            let selector = self.builder.shl(selector_shift, selector);
-            let address_shift = self.builder.imm_u64(32);
-            let address = self.builder.shr(address_shift, function_value);
+            let (address, selector) = self.split_external_function_pointer(function_value);
             TryTarget {
                 creation: None,
                 parameter_types: function.parameters.to_vec(),
