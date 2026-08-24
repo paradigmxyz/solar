@@ -630,11 +630,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         dynamic: bool,
         span: Span,
     ) -> Option<StorageAccess> {
+        let slot_base =
+            if dynamic { self.builder.storage_array_data_slot(base_slot) } else { base_slot };
         if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
         {
-            let slot_base =
-                if dynamic { self.builder.storage_array_data_slot(base_slot) } else { base_slot };
             let bytes = u64::from(size.bytes());
             let per_slot_value = self.builder.imm_u64(32 / bytes);
             let slot_delta = self.builder.div(index, per_slot_value);
@@ -646,11 +646,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(StorageAccess { slot, location, offset: Some(offset) });
         }
         let element_slots = self.context.storage.element_slots(element, span);
-        let slot = if dynamic {
-            self.builder.storage_array_element_slot(base_slot, index, element_slots)
-        } else {
-            self.fixed_array_element_slot(base_slot, index, element_slots)
-        };
+        let slot = self.fixed_array_element_slot(slot_base, index, element_slots);
         Some(StorageAccess { slot, location: StorageLocation::word(U256::ZERO), offset: None })
     }
 

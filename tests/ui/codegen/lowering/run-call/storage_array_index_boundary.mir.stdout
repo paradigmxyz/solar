@@ -26,25 +26,26 @@ fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_args=lazy, ab
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    v8 = storage_array_element_slot 0, v5, 1
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb5
   bb8:
-    v9 = phi [bb2: v1], [bb12: v9]
-    v10 = phi [bb2: v0], [bb12: v10]
-    v11 = phi [bb2: v2], [bb12: v11]
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = gt v12, v11
-    jumpi v13, bb10, bb11
+    v10 = phi [bb2: v1], [bb12: v10]
+    v11 = phi [bb2: v0], [bb12: v11]
+    v12 = phi [bb2: v2], [bb12: v12]
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = gt v13, v12
+    jumpi v14, bb10, bb11
   bb9:
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = lt v10, v18
-    v20 = iszero v19
-    jumpi v20, bb15, bb16
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = lt v11, v20
+    v22 = iszero v21
+    jumpi v22, bb15, bb16
   bb10:
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = eq v14, 0
-    jumpi v15, bb13, bb14
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = eq v15, 0
+    jumpi v16, bb13, bb14
   bb11:
     jump bb9
   bb12:
@@ -54,18 +55,20 @@ fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_args=lazy, ab
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v16 = sub v14, 1
-    sstore 0, v16 !metadata(storage=slot(0))
-    v17 = storage_array_element_slot 0, v16, 1
-    sstore v17, 0 !metadata(storage=symbolic(v17))
+    v17 = sub v15, 1
+    sstore 0, v17 !metadata(storage=slot(0))
+    v18 = storage_array_data_slot 0
+    v19 = add v18, v17
+    sstore v19, 0 !metadata(storage=symbolic(v19))
     jump bb12
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb16:
-    v21 = storage_array_element_slot 0, v10, 1
-    v22 = sload v21 !metadata(storage=symbolic(v21))
-    ret v22
+    v23 = storage_array_data_slot 0
+    v24 = add v23, v11
+    v25 = sload v24 !metadata(storage=symbolic(v24))
+    ret v25
 }
 

@@ -13,25 +13,27 @@ fn @setUp() [selector=0x0a9254e4, abi_args=lazy, abi_params=[], abi_returns=[]] 
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = storage_array_element_slot 0, v1, 1
-    v5 = memory_object_load_field memorystruct<1>, v0, 0
-    sstore v4, v5 !metadata(storage=symbolic(v4))
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    v6 = memory_object_load_field memorystruct<1>, v0, 0
+    sstore v5, v6 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
-    v6 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v6, 0, 8
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb3, bb4
+    v7 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v7, 0, 8
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = add v8, 1
+    v10 = lt v9, v8
+    jumpi v10, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = storage_array_element_slot 0, v7, 1
-    v11 = memory_object_load_field memorystruct<1>, v6, 0
-    sstore v10, v11 !metadata(storage=symbolic(v10))
-    sstore 0, v8 !metadata(storage=slot(0))
+    v11 = storage_array_data_slot 0
+    v12 = add v11, v8
+    v13 = memory_object_load_field memorystruct<1>, v7, 0
+    sstore v12, v13 !metadata(storage=symbolic(v12))
+    sstore 0, v9 !metadata(storage=slot(0))
     stop
 }
 
@@ -46,8 +48,9 @@ fn @f() -> (u256, storageptr) [view] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = storage_array_element_slot 0, 0, 1
-    ret 1, v3
+    v3 = storage_array_data_slot 0
+    v4 = add v3, 0
+    ret 1, v4
 }
 
 fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
@@ -69,22 +72,24 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_args=lazy, abi_params=[],
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = storage_array_element_slot 0, 1, 1
-    v10 = memory_object_load_field memorystruct<1>, v4, 0
-    sstore v9, v10 !metadata(storage=symbolic(v9))
-    v11 = sload 1 !metadata(storage=slot(1))
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = lt 1, v12
-    v14 = iszero v13
-    jumpi v14, bb3, bb4
+    v9 = storage_array_data_slot 0
+    v10 = add v9, 1
+    v11 = memory_object_load_field memorystruct<1>, v4, 0
+    sstore v10, v11 !metadata(storage=offset(v9, 1))
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = lt 1, v13
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v15 = storage_array_element_slot 0, 1, 1
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    ret v11, v16
+    v16 = storage_array_data_slot 0
+    v17 = add v16, 1
+    v18 = sload v17 !metadata(storage=offset(v16, 1))
+    ret v12, v18
 }
 
 fn @test_h() -> u256 [selector=0xeafd81e0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
@@ -103,16 +108,17 @@ fn @test_h() -> u256 [selector=0xeafd81e0, abi_args=lazy, abi_params=[], abi_ret
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v7 = storage_array_element_slot 0, 0, 1
-    v8 = sload v7 !metadata(storage=symbolic(v7))
-    v9 = add v0, v8
-    v10 = lt v9, v0
-    jumpi v10, bb3, bb4
+    v7 = storage_array_data_slot 0
+    v8 = add v7, 0
+    v9 = sload v8 !metadata(storage=symbolic(v7))
+    v10 = add v0, v9
+    v11 = lt v10, v0
+    jumpi v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    ret v9
+    ret v10
 }
 
