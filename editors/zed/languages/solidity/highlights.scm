@@ -24,6 +24,11 @@
  (yul_decimal_number)
  (yul_hex_number)
 ] @number
+(number_unit) @type
+
+(hex_string_literal "hex" @string.special)
+(unicode_string_literal "unicode" @string.special)
+(yul_hex_string_literal "hex" @string.special)
 [
  (true)
  (false)
@@ -186,6 +191,10 @@
 
 (event_parameter "indexed" @keyword)
 
+(ternary_expression
+  "?" @conditional
+  ":" @conditional)
+
 ; Punctuation
 
 [
@@ -201,6 +210,11 @@
 [
   "."
   ","
+  ";"
+  ":"
+  "->"
+  "=>"
+  ":="
 ] @punctuation.delimiter
 
 
@@ -228,6 +242,17 @@
   ">"
   "!"
   "~"
+  "="
+  "+="
+  "-="
+  "*="
+  "/="
+  "%="
+  "^="
+  "&="
+  "|="
+  ">>="
+  "<<="
   "-"
   "+"
   "++"
