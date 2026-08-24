@@ -335,25 +335,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let returns = function.returns.len();
         let return_tys = function.returns;
-        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
-        let static_return_buffer =
-            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
-        });
-        let ret_offset = static_return_buffer.as_ref().map_or_else(
-            || if !decode_returndata && returns > 1 { input } else { zero },
-            |(_, data, _)| *data,
-        );
-        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
-            *size
-        } else if decode_returndata {
-            zero
-        } else {
-            self.builder.imm_u64((returns as u64).saturating_mul(32))
-        };
+        let returns = return_tys.len();
+        let (static_return_buffer, ret_offset, ret_size, decode_returndata) =
+            self.plan_return_buffer(input, zero, return_tys);
         if returns == 0 {
             self.revert_if_no_code(address);
         }
@@ -797,29 +782,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let returns = function.returns.len();
         let return_tys = function
             .returns
             .iter()
             .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
-        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
-        let static_return_buffer =
-            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
-        });
-        let ret_offset = static_return_buffer.as_ref().map_or_else(
-            || if !decode_returndata && returns > 1 { input } else { zero },
-            |(_, data, _)| *data,
-        );
-        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
-            *size
-        } else if decode_returndata {
-            zero
-        } else {
-            self.builder.imm_u64((returns as u64).saturating_mul(32))
-        };
+        let returns = return_tys.len();
+        let (static_return_buffer, ret_offset, ret_size, decode_returndata) =
+            self.plan_return_buffer(input, zero, &return_tys);
         if returns == 0
             && (self.builder.func().attributes.is_constructor
                 || self.context.gcx.resolved_builtin(receiver) != Some(Builtin::This))
@@ -957,6 +927,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && types.iter().all(|ty| !ty.is_dynamic())
             && types.iter().any(|ty| !ty.is_scalar_word()))
         .then(|| AbiParamLayout::new(types.into_boxed_slice()))
+    }
+
+    fn plan_return_buffer(
+        &mut self,
+        input: ValueId,
+        zero: ValueId,
+        return_tys: &[Ty<'gcx>],
+    ) -> (Option<(ValueId, ValueId, ValueId)>, ValueId, ValueId, bool) {
+        let returns = return_tys.len();
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
+        let static_return_buffer =
+            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
+        let decode_returndata = return_tys.iter().any(|&ty| {
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
+        });
+        let ret_offset = static_return_buffer.as_ref().map_or_else(
+            || if !decode_returndata && returns > 1 { input } else { zero },
+            |(_, data, _)| *data,
+        );
+        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
+            *size
+        } else if decode_returndata {
+            zero
+        } else {
+            self.builder.imm_u64((returns as u64).saturating_mul(32))
+        };
+        (static_return_buffer, ret_offset, ret_size, decode_returndata)
     }
 
     fn lower_decoded_return_value(
