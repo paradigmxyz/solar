@@ -300,12 +300,12 @@ impl LowerAbiCx {
             let blocks: Vec<_> = func.blocks.indices().collect();
             for block in blocks {
                 let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let terminator = func.blocks[block].terminator.take();
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
+                let mut retained = Vec::with_capacity(instructions.len());
                 for inst in instructions {
                     if !matches!(builder.func().inst(inst).kind, InstKind::ReturndataSize) {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        retained.push(inst);
                         continue;
                     }
 
@@ -316,7 +316,7 @@ impl LowerAbiCx {
                     let size = builder.imm_u256(U256::ZERO);
                     replacements.insert(result, size);
                 }
-                super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
+                builder.func_mut().blocks[block].instructions = retained;
             }
             func.replace_uses_canonicalized(&replacements);
             let _ = crate::mir::utils::repair_reachability_phis(func);
@@ -399,12 +399,11 @@ impl LowerAbiCx {
                 }
                 if count != alias_count {
                     let helper = self.synthesize_static_decode_helper(module, layout.clone());
-                    decode_helpers.insert(layout, (helper, 1));
+                    decode_helpers.insert(layout, helper);
                 }
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper = self.synthesize_aggregate_decode_helper(module, layout.clone());
-                let return_count = layout.types.len();
-                decode_helpers.insert(layout, (helper, return_count));
+                decode_helpers.insert(layout, helper);
             }
         }
 
@@ -470,9 +469,8 @@ impl LowerAbiCx {
                     } else {
                         data
                     };
-                    if let Some((helper, return_count)) =
-                        decode_helpers.get(layout.as_ref()).copied()
-                    {
+                    if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
+                        let return_count = layout.types.len();
                         let value = builder.internal_call(
                             helper,
                             vec![data],
@@ -1724,9 +1722,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
                 Self::decode_source_scalar(builder, ty, base, current, options)
             }
-            crate::mir::AbiParamType::FixedArray { element, len }
-                if Self::is_supported_tuple_field(element) =>
-            {
+            crate::mir::AbiParamType::FixedArray { element, len } => {
                 let head_size = ty.data_head_size();
                 if !head_checked || is_dynamic {
                     Self::guard_input_range(builder, base, head_size, input_end, current);
@@ -2570,7 +2566,13 @@ impl LowerAbiCx {
     }
 
     fn is_supported_aggregate(ty: &crate::mir::AbiParamType) -> bool {
-        Self::is_supported_tuple_field(ty) && !ty.is_scalar_word()
+        matches!(
+            ty,
+            crate::mir::AbiParamType::Bytes
+                | crate::mir::AbiParamType::DynamicArray(_)
+                | crate::mir::AbiParamType::FixedArray { .. }
+                | crate::mir::AbiParamType::Tuple(_)
+        )
     }
 
     fn can_use_calldata_slice(
@@ -2895,18 +2897,6 @@ impl LowerAbiCx {
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
                 if Self::is_scalar_or_enum(element) && !Self::is_full_word_scalar(element)
-        )
-    }
-
-    fn is_supported_tuple_field(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(
-            ty,
-            crate::mir::AbiParamType::Scalar(_)
-                | crate::mir::AbiParamType::Enum { .. }
-                | crate::mir::AbiParamType::Bytes
-                | crate::mir::AbiParamType::FixedArray { .. }
-                | crate::mir::AbiParamType::DynamicArray(_)
-                | crate::mir::AbiParamType::Tuple(_)
         )
     }
 

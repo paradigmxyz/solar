@@ -536,7 +536,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let mut helpers = FxHashMap::default();
         for (ty, count) in counts {
-            if count >= 2 && ty.has_dynamic_child() {
+            if count >= 2 {
                 let helper = crate::transform::lower_abi::synthesize_memory_decode_helper(
                     self.context.module,
                     ty.clone(),

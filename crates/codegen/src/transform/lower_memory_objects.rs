@@ -318,31 +318,25 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
                     InstKind::MemoryObjectLoadByte { object, index } => {
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            let source = builder.slice_ptr(object);
-                            let address = dynamic_offset_address(&mut builder, source, index);
-                            let word = match location {
-                                crate::mir::SliceLocation::Calldata => {
-                                    builder.calldataload(address)
+                        let word =
+                            if let Some(location) = builder.func().value_slice_location(object) {
+                                let source = builder.slice_ptr(object);
+                                let address = dynamic_offset_address(&mut builder, source, index);
+                                match location {
+                                    crate::mir::SliceLocation::Calldata => {
+                                        builder.calldataload(address)
+                                    }
+                                    crate::mir::SliceLocation::Memory => builder.mload(address),
+                                    crate::mir::SliceLocation::Returndata => break 'keep,
                                 }
-                                crate::mir::SliceLocation::Memory => builder.mload(address),
-                                crate::mir::SliceLocation::Returndata => {
-                                    break 'keep;
-                                }
+                            } else {
+                                let base = builder.add_u64_offset(
+                                    object,
+                                    P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
+                                );
+                                let address = builder.add(base, index);
+                                builder.mload(address)
                             };
-                            let zero = builder.imm_u64(0);
-                            let byte = builder.byte(zero, word);
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, byte);
-                            }
-                            continue 'next;
-                        }
-                        let base = builder.add_u64_offset(
-                            object,
-                            P::object_data_offset(crate::mir::MemoryObjectKind::Bytes),
-                        );
-                        let address = builder.add(base, index);
-                        let word = builder.mload(address);
                         let zero = builder.imm_u64(0);
                         let byte = builder.byte(zero, word);
                         if let Some(result) = builder.func().inst_result_value(inst) {
