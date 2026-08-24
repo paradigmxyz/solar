@@ -20,6 +20,7 @@ use crate::{
     utils::eval,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for local instruction simplification.
@@ -37,9 +38,7 @@ impl MirPass for InstSimplify {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            InstSimplifier::new(gcx.sess.opts.evm_version.has_bitwise_shifting())
-                .run_to_fixpoint(func)
-                != 0
+            InstSimplifier::new(gcx.sess.opts.evm_version).run_to_fixpoint(func) != 0
         })
     }
 }
@@ -49,7 +48,7 @@ impl MirPass for InstSimplify {
 struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
-    has_bitwise_shifting: bool,
+    evm_version: EvmVersion,
 }
 
 struct RunState {
@@ -65,8 +64,8 @@ impl RunState {
 
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
-    fn new(has_bitwise_shifting: bool) -> Self {
-        Self { simplified_count: 0, has_bitwise_shifting }
+    fn new(evm_version: EvmVersion) -> Self {
+        Self { simplified_count: 0, evm_version }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -310,7 +309,8 @@ impl InstSimplifier {
             }
             InstKind::Balance(addr) => {
                 let addr = resolve(*addr);
-                Self::is_current_address(func, addr).then_some(InstKind::SelfBalance)
+                (self.evm_version.has_self_balance() && Self::is_current_address(func, addr))
+                    .then_some(InstKind::SelfBalance)
             }
             _ => None,
         }
@@ -725,7 +725,7 @@ impl InstSimplifier {
         if func.value_u256(a).is_some() && func.value_u256(b).is_none() {
             return Some(InstKind::Mul(b, a));
         }
-        if !self.has_bitwise_shifting {
+        if !self.evm_version.has_bitwise_shifting() {
             return None;
         }
         let (value, constant) = Self::const_operand(func, a, b)?;
@@ -738,7 +738,7 @@ impl InstSimplifier {
     }
 
     fn rewrite_div(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
-        if !self.has_bitwise_shifting {
+        if !self.evm_version.has_bitwise_shifting() {
             return None;
         }
         let shift = Self::power_of_two_shift(func.value_u256(b)?)?;
