@@ -3287,11 +3287,11 @@ fn canonicalize_return_value(
         return value;
     }
 
+    if let AbiParamType::Enum { variants, .. } = ty {
+        builder.validate_enum_value(*variants, value);
+    }
     match ty {
-        AbiParamType::Scalar(ty) => AbiWordValidator::from_return_mir_type(*ty)
-            .map_or(value, |validator| validator.cleanup(builder, value)),
-        AbiParamType::Enum { ty, variants } => {
-            builder.validate_enum_value(*variants, value);
+        AbiParamType::Scalar(ty) | AbiParamType::Enum { ty, .. } => {
             AbiWordValidator::from_return_mir_type(*ty)
                 .map_or(value, |validator| validator.cleanup(builder, value))
         }

@@ -90,40 +90,29 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-struct SizeOnly<P>(P);
+struct OptimizationOnly<P, const GAS: bool>(P);
 
-impl<P: MirPass> MirPass for SizeOnly<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
+type SizeOnly<P> = OptimizationOnly<P, false>;
+type GasOnly<P> = OptimizationOnly<P, true>;
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
-        self.0.run_pass(gcx, module, analyses)
+impl<P, const GAS: bool> OptimizationOnly<P, GAS> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
     }
 }
 
-struct GasOnly<P>(P);
-
-impl<P: MirPass> MirPass for GasOnly<P> {
+impl<P: MirPass, const GAS: bool> MirPass for OptimizationOnly<P, GAS> {
     fn name(&self) -> &'static str {
         self.0.name()
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        let optimization_matches = if GAS {
+            gcx.sess.opts.optimization.is_gas()
+        } else {
+            gcx.sess.opts.optimization.is_size()
+        };
+        optimization_matches && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -146,9 +135,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.
-    &SizeOnly(cfg_simplify::CfgSimplify),
-    &SizeOnly(frame_promotion::FrameSlotPromotion),
-    &SizeOnly(sroa::Sroa),
+    &SizeOnly::new(cfg_simplify::CfgSimplify),
+    &SizeOnly::new(frame_promotion::FrameSlotPromotion),
+    &SizeOnly::new(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
@@ -181,7 +170,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
-    &GasOnly(inline::InlineTinyLeaves),
+    &GasOnly::new(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
@@ -202,8 +191,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_abi::LowerAbi,
     // ABI lowering leaves tiny canonical-word helpers after the earlier
     // inlining pass; expand those leaves before encoding wrappers.
-    &GasOnly(inline::InlineTinyLeaves),
-    &SizeOnly(inline::InlineTinyLeaves),
+    &GasOnly::new(inline::InlineTinyLeaves),
+    &SizeOnly::new(inline::InlineTinyLeaves),
     &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
@@ -217,7 +206,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly(cse::Cse),
+    &GasOnly::new(cse::Cse),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
     &lower_frame_slots::LowerFrameSlots,
@@ -226,8 +215,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // boundary.
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
-    &GasOnly(cse::Cse),
-    &SizeOnly(cse::Cse),
+    &GasOnly::new(cse::Cse),
+    &SizeOnly::new(cse::Cse),
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.

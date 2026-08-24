@@ -140,6 +140,14 @@ impl<'gcx> TypeLowerer<'gcx> {
         1
     }
 
+    fn abi_slice_location(ty: Ty<'_>) -> SliceLocation {
+        if ty.is_ref_at(DataLocation::Calldata) {
+            SliceLocation::Calldata
+        } else {
+            SliceLocation::Memory
+        }
+    }
+
     fn abi_param_type_inner(
         &mut self,
         ty: Ty<'gcx>,
@@ -220,14 +228,9 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
 
         Some(match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => (
-                AbiType::Bytes(if ty.is_ref_at(DataLocation::Calldata) {
-                    SliceLocation::Calldata
-                } else {
-                    SliceLocation::Memory
-                }),
-                AbiParamType::Bytes,
-            ),
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
+                (AbiType::Bytes(Self::abi_slice_location(ty)), AbiParamType::Bytes)
+            }
             TyKind::Elementary(_) => {
                 (AbiType::Word, AbiParamType::Scalar(Self::mir_type(param_ty)))
             }
@@ -251,11 +254,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                 (
                     AbiType::DynamicArray {
                         element: Box::new(abi_element),
-                        location: if ty.is_ref_at(DataLocation::Calldata) {
-                            SliceLocation::Calldata
-                        } else {
-                            SliceLocation::Memory
-                        },
+                        location: Self::abi_slice_location(ty),
                     },
                     AbiParamType::DynamicArray(Box::new(param_element)),
                 )
@@ -310,22 +309,14 @@ impl<'gcx> TypeLowerer<'gcx> {
     fn abi_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
         Some(match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
-                AbiType::Bytes(if ty.is_ref_at(DataLocation::Calldata) {
-                    SliceLocation::Calldata
-                } else {
-                    SliceLocation::Memory
-                })
+                AbiType::Bytes(Self::abi_slice_location(ty))
             }
             TyKind::Elementary(_) => AbiType::Word,
             TyKind::Fn(function) if function.is_external() => AbiType::Function,
             TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Super(_) => AbiType::Word,
             TyKind::DynArray(element) => AbiType::DynamicArray {
                 element: Box::new(self.abi_type_inner(element)?),
-                location: if ty.is_ref_at(DataLocation::Calldata) {
-                    SliceLocation::Calldata
-                } else {
-                    SliceLocation::Memory
-                },
+                location: Self::abi_slice_location(ty),
             },
             TyKind::Slice(element) => return self.abi_type_inner(element),
             TyKind::Array(element, len) => AbiType::FixedArray {

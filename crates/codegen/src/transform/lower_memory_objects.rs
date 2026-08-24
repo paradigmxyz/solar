@@ -208,26 +208,15 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
                     }
                     InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                        let Some(stride) = P::element_stride(layout) else {
-                            break 'keep;
-                        };
-                        debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
                         // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
                         // Solidity bounds-checks the index before forming the address.
-                        let base_offset = P::object_data_offset(layout.kind());
-                        let kind = if let Some(index) = builder.func().value_u64(index)
-                            && let Some(offset) = index.checked_mul(stride)
-                            && let Some(offset) = base_offset.checked_add(offset)
-                        {
-                            let offset = builder.imm_u64(offset);
-                            InstKind::Add(object, offset)
-                        } else {
-                            let base = builder.add_u64_offset(object, base_offset);
-                            let stride = builder.imm_u64(stride);
-                            let offset = builder.mul(index, stride);
-                            InstKind::Add(base, offset)
+                        let Some((base, offset)) =
+                            memory_element_address_parts::<P>(&mut builder, object, index, layout)
+                        else {
+                            break 'keep;
                         };
-                        builder.func_mut().inst_mut(inst).kind = kind;
+                        let offset = offset.unwrap_or_else(|| builder.imm_u64(0));
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
                     }
                     InstKind::MemoryObjectLoadField { object, layout, field } => {
                         let Some(offset) = P::field_offset(layout, field) else {
@@ -338,21 +327,21 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
                     }
                     InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
-                        let destination =
-                            builder.add_u64_offset(object, P::object_data_offset(kind));
                         let Some(physical) =
-                            lower_slice_copy::<P>(&mut builder, destination, source)
+                            lower_object_copy::<P>(&mut builder, object, kind, None, source)
                         else {
                             break 'keep;
                         };
                         builder.func_mut().inst_mut(inst).kind = physical;
                     }
                     InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
-                        let base = builder.add_u64_offset(object, P::object_data_offset(kind));
-                        let destination = builder.add(base, offset);
-                        let Some(physical) =
-                            lower_slice_copy::<P>(&mut builder, destination, source)
-                        else {
+                        let Some(physical) = lower_object_copy::<P>(
+                            &mut builder,
+                            object,
+                            kind,
+                            Some(offset),
+                            source,
+                        ) else {
                             break 'keep;
                         };
                         builder.func_mut().inst_mut(inst).kind = physical;
@@ -598,22 +587,30 @@ fn memory_element_address<P: MemoryLayoutPolicy>(
     index: crate::mir::ValueId,
     layout: MemoryObjectLayout,
 ) -> Option<crate::mir::ValueId> {
+    let (base, offset) = memory_element_address_parts::<P>(builder, object, index, layout)?;
+    Some(offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset)))
+}
+
+fn memory_element_address_parts<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    object: crate::mir::ValueId,
+    index: crate::mir::ValueId,
+    layout: MemoryObjectLayout,
+) -> Option<(crate::mir::ValueId, Option<crate::mir::ValueId>)> {
     let stride = P::element_stride(layout)?;
     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
     let base_offset = P::object_data_offset(layout.kind());
-    Some(
-        if let Some(index) = builder.func().value_u64(index)
-            && let Some(offset) = index.checked_mul(stride)
-            && let Some(offset) = base_offset.checked_add(offset)
-        {
-            builder.add_u64_offset(object, offset)
-        } else {
-            let base = builder.add_u64_offset(object, base_offset);
-            let stride = builder.imm_u64(stride);
-            let offset = builder.mul(index, stride);
-            builder.add(base, offset)
-        },
-    )
+    if let Some(index) = builder.func().value_u64(index)
+        && let Some(offset) = index.checked_mul(stride)
+        && let Some(offset) = base_offset.checked_add(offset)
+    {
+        Some((object, (offset != 0).then(|| builder.imm_u64(offset))))
+    } else {
+        let base = builder.add_u64_offset(object, base_offset);
+        let stride = builder.imm_u64(stride);
+        let offset = builder.mul(index, stride);
+        Some((base, Some(offset)))
+    }
 }
 
 fn lower_slice_copy<P: MemoryLayoutPolicy>(
@@ -646,6 +643,18 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
         }
         _ => None,
     }
+}
+
+fn lower_object_copy<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    object: crate::mir::ValueId,
+    kind: MemoryObjectKind,
+    offset: Option<crate::mir::ValueId>,
+    source: crate::mir::ValueId,
+) -> Option<InstKind> {
+    let base = builder.add_u64_offset(object, P::object_data_offset(kind));
+    let destination = offset.map_or(base, |offset| builder.add(base, offset));
+    lower_slice_copy::<P>(builder, destination, source)
 }
 
 fn erase_object_types(func: &mut Function) {

@@ -681,9 +681,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length: ValueId,
         stride: ValueId,
     ) {
-        let max_length = self.builder.imm_u64(u64::MAX);
-        let too_large = self.builder.gt(length, max_length);
-        self.revert_if_invalid(too_large);
+        self.validate_calldata_length(length);
 
         let size = self.builder.mul(length, stride);
         let data = self.builder.add_u64_offset(value_pos, 32);
@@ -761,13 +759,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
-        let max_length = self.builder.imm_u64(u64::MAX);
-        let too_large = self.builder.gt(length, max_length);
-        self.revert_if_invalid(too_large);
+        self.validate_calldata_length(length);
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, length);
         let out_of_bounds = self.builder.sgt(pointer, limit);
         self.revert_if_invalid(out_of_bounds);
+    }
+
+    fn validate_calldata_length(&mut self, length: ValueId) {
+        let max_length = self.builder.imm_u64(u64::MAX);
+        let too_large = self.builder.gt(length, max_length);
+        self.revert_if_invalid(too_large);
     }
 
     fn materialize_calldata_fixed_array(
