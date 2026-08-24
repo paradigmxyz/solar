@@ -77,6 +77,30 @@ fn new_slice_inst(
     ))
 }
 
+fn split_slice_incoming(
+    func: &mut Function,
+    incoming: Vec<(BlockId, ValueId)>,
+) -> (Vec<(BlockId, ValueId)>, Vec<(BlockId, ValueId)>) {
+    let mut ptr_incoming = Vec::with_capacity(incoming.len());
+    let mut len_incoming = Vec::with_capacity(incoming.len());
+    for (pred, value) in incoming {
+        let (pointer, length) = if func.value_slice_location(value).is_some() {
+            let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
+            let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
+            func.blocks[pred].instructions.push(ptr_inst);
+            func.blocks[pred].instructions.push(len_inst);
+            (pointer, length)
+        } else {
+            let (len_inst, length) = new_word_inst(func, InstKind::MLoad(value));
+            func.blocks[pred].instructions.push(len_inst);
+            (value, length)
+        };
+        ptr_incoming.push((pred, pointer));
+        len_incoming.push((pred, length));
+    }
+    (ptr_incoming, len_incoming)
+}
+
 impl LowerSlices {
     /// Splits a pointer phi whose incoming values still mix memory objects and
     /// logical slices. Inlining can erase the pointer type on one incoming
@@ -125,23 +149,7 @@ impl LowerSlices {
                     continue;
                 }
 
-                let mut ptr_incoming = Vec::with_capacity(incoming.len());
-                let mut len_incoming = Vec::with_capacity(incoming.len());
-                for (pred, value) in incoming {
-                    let (pointer, length) = if func.value_slice_location(value).is_some() {
-                        let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
-                        let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
-                        func.blocks[pred].instructions.push(ptr_inst);
-                        func.blocks[pred].instructions.push(len_inst);
-                        (pointer, length)
-                    } else {
-                        let (len_inst, length) = new_word_inst(func, InstKind::MLoad(value));
-                        func.blocks[pred].instructions.push(len_inst);
-                        (value, length)
-                    };
-                    ptr_incoming.push((pred, pointer));
-                    len_incoming.push((pred, length));
-                }
+                let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
 
                 let (ptr_phi, pointer) = new_word_inst(func, InstKind::Phi(ptr_incoming));
                 let (len_phi, length) = new_word_inst(func, InstKind::Phi(len_incoming));
@@ -287,23 +295,7 @@ impl LowerSlices {
                     InstKind::Phi(incoming) => std::mem::take(incoming),
                     _ => unreachable!(),
                 };
-                let mut ptr_incoming = Vec::with_capacity(incoming.len());
-                let mut len_incoming = Vec::with_capacity(incoming.len());
-                for (pred, value) in incoming {
-                    let (pv, lv) = if func.value_slice_location(value).is_some() {
-                        let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
-                        let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
-                        func.blocks[pred].instructions.push(pi);
-                        func.blocks[pred].instructions.push(li);
-                        (pv, lv)
-                    } else {
-                        let (li, lv) = new_word_inst(func, InstKind::MLoad(value));
-                        func.blocks[pred].instructions.push(li);
-                        (value, lv)
-                    };
-                    ptr_incoming.push((pred, pv));
-                    len_incoming.push((pred, lv));
-                }
+                let (ptr_incoming, len_incoming) = split_slice_incoming(func, incoming);
                 let (ptr_phi, sp) = new_word_inst(func, InstKind::Phi(ptr_incoming));
                 let (len_phi, sl) = new_word_inst(func, InstKind::Phi(len_incoming));
                 let (make, new_slice) = new_slice_inst(func, sp, sl, location);
