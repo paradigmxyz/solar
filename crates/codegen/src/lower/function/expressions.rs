@@ -54,8 +54,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         name: Ident,
     ) -> Option<ValueId> {
-        // Pseudo IR: resolve builtin/function/storage members first; otherwise
-        // load a struct field from calldata or a memory object and normalize it.
+        // value = member(receiver)
         if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
             return self.lower_builtin_value(expr, builtin);
         }
@@ -165,8 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         what: &'static str,
     ) -> Option<ValueId> {
-        // Pseudo IR: return a static length, `sload(slot)`, `slice.len`, or the
-        // memory-object length selected by the receiver's location and layout.
+        // length = sload(slot); length = slice.len
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;

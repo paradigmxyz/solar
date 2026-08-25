@@ -34,8 +34,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        // Pseudo IR: `branch(condition, then, else)`; lower both blocks, jump
-        // live exits to `merge`, and merge value/storage maps with phis.
+        // branch(condition, then, else); merge
         self.materialize_default_bindings();
         let first_block = self.builder.create_block();
         let second_block = self.builder.create_block();
@@ -113,8 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
-        // Pseudo IR: `switch(selector, cases...)`; each case starts from the
-        // pre-switch state and live exits join at one merge block.
+        // switch(selector, cases...)
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -166,8 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
-        // Pseudo IR: `ok = CALL/CREATE`; branch to success/catch handlers, bind
-        // decoded returns or error payloads, then merge live states.
+        // ok = CALL/CREATE
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
             return report_unsupported(self.context.gcx, try_stmt.expr.span, "try expression");
         };
@@ -543,8 +540,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // Pseudo IR: lower both arms behind a conditional branch and return a
-        // merged value phi when their results differ.
+        // value = phi(lower(then), lower(else))
         let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -569,8 +565,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // Pseudo IR: short-circuit `lhs && rhs`/`lhs || rhs`; only evaluate rhs
-        // on its required branch, then merge the boolean result.
+        // result = lhs && rhs; result = lhs || rhs
         let lhs = self.lower_expr(lhs_expr)?;
         let is_and = op == BinOpKind::And;
         let (then_branch, else_branch) = self.lower_branches(
@@ -598,8 +593,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<Vec<ValueId>> {
-        // Pseudo IR: branch to two value tuples and merge each differing slot
-        // with a phi, preserving omitted/terminated arms.
+        // values = phi(then_values, else_values)
         let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -641,8 +635,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut block: hir::Block<'_>,
         source: LoopSource<'_>,
     ) -> Option<()> {
-        // Pseudo IR: create `preheader -> header -> body/update -> header`,
-        // thread variable/storage phis, and merge `break` states at `exit`.
+        // preheader -> header -> body/update -> header; break; exit
         self.materialize_default_bindings();
         let update_stmt = match source {
             LoopSource::For { update } => update,
@@ -811,8 +804,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         incoming: Vec<(BlockId, StorageAccess)>,
     ) -> Option<StorageAccess> {
-        // Pseudo IR: merge storage slots and offsets independently with phis;
-        // keep the first access location as the shared storage encoding.
+        // slot = phi(slots); offset = phi(offsets)
         let first = incoming.first().map(|&(_, access)| access)?;
         if incoming.iter().all(|&(_, access)| access == first) {
             return Some(first);

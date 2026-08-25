@@ -11,8 +11,7 @@ enum StorageArrayElement {
 
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
 fn build_storage_bytes_helper(function: &mut Function) {
-    // Pseudo IR helper: `load_storage_bytes(slot) -> bytes_object` by decoding
-    // the short/long storage header and copying its payload.
+    // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new(function);
     let slot = builder.add_param(MirType::uint256());
     builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
@@ -21,7 +20,7 @@ fn build_storage_bytes_helper(function: &mut Function) {
 }
 
 fn build_storage_array_helper(function: &mut Function, element: StorageArrayElement) {
-    // Pseudo IR helper: `array = alloc(sload(slot)); for i { array[i] = load(slot[i]) }`.
+    // array = alloc(sload(slot)); for i { array[i] = load(slot[i]) }
     let mut builder = FunctionBuilder::new(function);
     let slot = builder.add_param(MirType::uint256());
     builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
@@ -77,8 +76,7 @@ fn load_packed_storage_array_element(
     bytes: u8,
     encoding: StorageEncoding,
 ) -> ValueId {
-    // Pseudo IR: map `index` to `(storage_slot, packed_offset)`, load the word,
-    // and extract the encoded element at that offset.
+    // (storage_slot, packed_offset) = locate(index)
     let per_slot = u64::from(32 / bytes);
     let per_slot_value = builder.imm_u64(per_slot);
     let (slot_index, index_in_slot) = if per_slot.is_power_of_two() {
@@ -108,7 +106,7 @@ fn load_packed_storage_array_element(
 
 /// Builds the helper for clearing the data words of a storage bytes value.
 fn build_storage_clear_helper(function: &mut Function) {
-    // Pseudo IR helper: `for i in first_word..words { sstore(data_slot + i, 0) }`.
+    // for i in first_word..words { sstore(data_slot + i, 0) }
     let mut builder = FunctionBuilder::new(function);
     let slot = builder.add_param(MirType::uint256());
     let first_word = builder.add_param(MirType::uint256());
@@ -125,7 +123,7 @@ fn emit_clear_storage_words(
     words: ValueId,
     zero: ValueId,
 ) {
-    // Pseudo IR: loop over storage data slots and write the supplied zero word.
+    // for slot in range { sstore(slot, 0) }
     let data_slot = builder.storage_array_data_slot(slot);
     let preheader = builder.current_block();
     let header = builder.create_block();
@@ -444,8 +442,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // Pseudo IR: compute the old length and new element slot, store the
-        // optional value, then `sstore(array_slot, old_length + 1)`.
+        // sstore(array_slot, old_length + 1)
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "storage array push target");
         };
@@ -494,8 +491,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // Pseudo IR: load bytes, append one byte in a fresh object, and encode
-        // the resulting short/long bytes value back to storage.
+        // object = append(load_bytes(slot), byte)
         let access = self.storage_access(receiver)?;
         let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
@@ -526,8 +522,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // Pseudo IR: require a non-empty array, decrement its length, and clear
-        // the removed element; bytes use the same operation on a copied object.
+        // require(length > 0); length -= 1; clear(element)
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "storage array pop target");
         };
@@ -612,8 +607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         dynamic: bool,
         span: Span,
     ) -> Option<StorageAccess> {
-        // Pseudo IR: dynamic arrays add the data base, then packed elements use
-        // `slot = base + index / per_slot` and `offset = index % per_slot * bytes`.
+        // slot = base + index / per_slot; offset = index % per_slot * bytes
         let slot_base =
             if dynamic { self.builder.storage_array_data_slot(base_slot) } else { base_slot };
         if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
@@ -741,8 +735,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         slot: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        // Pseudo IR: recursively allocate a memory object and load each struct,
-        // fixed-array, or dynamic-array element from its storage slot.
+        // object = load_object(ty, slot)
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 Some(self.load_storage_bytes(slot))
@@ -871,7 +864,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_storage_struct_array_helper(&mut self, element: Ty<'gcx>) -> Option<()> {
-        // Pseudo IR helper: `array = alloc(sload(slot)); for i { array[i] = load_struct(slot+i) }`.
+        // array = alloc(sload(slot)); for i { array[i] = load_struct(slot+i) }
         let slot = self.builder.add_param(MirType::uint256());
         self.builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
@@ -914,7 +907,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         slot: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        // Pseudo IR: `length = sload(slot); array = alloc(length); for i { array[i] = load(i) }`.
+        // length = sload(slot); array = alloc(length); for i { array[i] = load(i) }
         let element_words = self.types.element_words(element);
         if let Some(helper) = self.ensure_storage_array_helper(element) {
             let layout = MemoryObjectLayout::DynamicArray { element_words };
@@ -968,8 +961,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         object: ValueId,
         span: Span,
     ) -> Option<()> {
-        // Pseudo IR: recursively copy a memory object into storage, clearing or
-        // defaulting elements when source and destination shapes differ.
+        // store_object(slot, object)
         // MIR object values retain only their coarse kind; HIR types preserve
         // the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
@@ -1062,8 +1054,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
-        // Pseudo IR: decode old header, clear truncated long data, then branch
-        // to short inline storage or long word-by-word storage writes.
+        // header = sload(slot); branch(is_long, short, long)
         let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         let data_ptr = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
@@ -1156,8 +1147,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
-        // Pseudo IR: clear old long words when shrinking, then emit a constant
-        // short header or a constant long header followed by data words.
+        // clear(old_words); sstore(slot, header)
         let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let length = self.builder.imm_u64(bytes.len() as u64);
         let shrunk = self.builder.gt(old_length, length);
@@ -1212,8 +1202,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         object: ValueId,
         span: Span,
     ) -> Option<()> {
-        // Pseudo IR: clear destination elements past the new length, store the
-        // new length, and copy each source element into its storage slot.
+        // clear(old_length - new_length); sstore(slot, new_length)
         let source_ty = source_ty.peel_refs();
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length) = match source_ty.kind {
@@ -1351,8 +1340,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         access: StorageAccess,
         span: Span,
     ) -> Option<()> {
-        // Pseudo IR: clear bytes, arrays, structs, or packed words recursively;
-        // dynamic aggregates loop over their storage elements.
+        // clear_object(slot, ty)
         let zero = self.builder.imm_u256(U256::ZERO);
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -1525,8 +1513,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {
-        // Pseudo IR: if the bytes value is long, clear its data words; then
-        // `sstore(slot, 0)` clears the header.
+        // sstore(slot, 0)
         let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
         let zero = self.builder.imm_u64(0);
         let word_size = self.builder.imm_u64(32);
@@ -1550,8 +1537,8 @@ fn decode_storage_bytes_header(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,
 ) -> (ValueId, ValueId, ValueId) {
-    // Pseudo IR: `header = sload(slot); is_long = header & 1; length = is_long
-    // ? header >> 1 : (header >> 1) & 0x7f`.
+    // header = sload(slot); is_long = header & 1; length = is_long ? header >> 1 : (header >> 1) &
+    // 0x7f
     let header = builder.sload(slot);
     let one = builder.imm_u64(1);
     let flag = builder.and(header, one);

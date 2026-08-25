@@ -11,8 +11,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bits: u16,
         is_add: bool,
     ) -> ValueId {
-        // Pseudo IR: compare operand/result signs and add a signed-width range
-        // check for sub-256-bit integers.
+        // overflow = check_width(lhs, rhs, result)
         let zero = self.builder.imm_u256(U256::ZERO);
         let lhs_negative = self.builder.slt(lhs, zero);
         let rhs_negative = self.builder.slt(rhs, zero);
@@ -35,8 +34,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // Pseudo IR: `overflow = !(rhs == 0 || result / rhs == lhs)` plus signed
-        // bounds and the `min * -1` exception.
+        // overflow = !(rhs == 0 || result / rhs == lhs); min * -1
         let rhs_zero = self.builder.iszero(rhs);
         let quotient = match kind {
             ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),
@@ -113,8 +111,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exponent: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // Pseudo IR: exponentiation by squaring in a MIR loop; check each odd
-        // product and each required square before feeding the next iteration.
+        // result = pow(base, exponent)
         let one = self.builder.imm_u256(U256::ONE);
         let zero = self.builder.imm_u256(U256::ZERO);
         let preheader = self.builder.current_block();
@@ -161,8 +158,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: ValueId,
         ty: Option<Ty<'gcx>>,
     ) -> ValueId {
-        // Pseudo IR: select the EVM arithmetic/comparison opcode, then emit
-        // width cleanup and checked-operation panic guards when required.
+        // result = opcode(lhs, rhs)
         let arithmetic = ty.and_then(arithmetic_kind);
         match op {
             BinOpKind::Add => {

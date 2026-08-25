@@ -46,8 +46,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // Pseudo IR: resolve storage first; otherwise bounds-check the index and
-        // load from fixed bytes, calldata slices, memory objects, or byte arrays.
+        // value = load(receiver[index])
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             return self.load_lvalue_place(&place);
         }
@@ -157,8 +156,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // Pseudo IR: `start/end` are bounds-checked, then return
-        // `slice(base + start * stride, end - start, location)`.
+        // start/end; slice(base + start * stride, end - start, location)
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
