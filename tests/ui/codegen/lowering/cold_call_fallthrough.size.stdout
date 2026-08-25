@@ -8,12 +8,12 @@ bb0:
   calldataload
   push 224
   shr
-  dup 1
+  dup1
   push 0x161e4029
   eq
   push bb5
   jumpi
-  dup 1
+  dup1
   push 0x4b692dff
   eq
   push bb10
@@ -21,10 +21,10 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  dup1
   revert
 bb5:
-  push 160
+  push 256
   push 64
   mstore
   push 4
@@ -53,17 +53,21 @@ bb9 [cold]:
   calldataload
   jump bb15
 bb15 [cold]:
-  dup 1
+  dup1
+  push 160
+  mstore
   push bb17
   jumpi
-  pop
+  push 4
   push 0x7a65726f
   push 224
   shl
-  push 4
-  swap 1
   jump bb22
 bb22 [cold]:
+  push 224
+  mstore
+  push 192
+  mstore
   push 0x8c379a0
   push 224
   shl
@@ -72,18 +76,15 @@ bb22 [cold]:
   push 32
   push 4
   mstore
-  dup 2
+  push 64
+  push 192
   push 36
-  mstore
-  swap 1
-  pop
-  push 68
-  mstore
+  mcopy
   push 100
   push 0
   revert
 bb10:
-  push 160
+  push 256
   push 64
   mstore
   push 4
@@ -105,30 +106,31 @@ bb14 [cold]:
   jump bb15
 bb17 [cold]:
   push 1
-  dup 2
+  push 160
+  mload
   sub
   push bb19
   jumpi
-  pop
   push 0x6f6e65
   jump bb24
 bb24 [cold]:
   push 232
   shl
   push 3
-  swap 1
+  swap1
   jump bb22
 bb19 [cold]:
   push 2
+  push 160
+  mload
   sub
   push bb21
   jumpi
   push 0x74776f
   jump bb24
 bb21 [cold]:
+  push 5
   push 0x6f74686572
   push 216
   shl
-  push 5
-  swap 1
   jump bb22

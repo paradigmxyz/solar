@@ -525,6 +525,51 @@ pub(crate) const fn is_pure(op: u8) -> bool {
     )
 }
 
+/// Returns whether an opcode only reads its operands or EVM state.
+///
+/// Unlike [`is_pure`], this includes memory, storage, and environment reads whose result can vary
+/// without the opcode changing any state. Position and gas observations are excluded.
+#[must_use]
+pub(crate) const fn is_read_only(op: u8) -> bool {
+    is_pure(op)
+        || matches!(
+            op,
+            KECCAK256
+                | ADDRESS
+                | BALANCE
+                | ORIGIN
+                | CALLER
+                | CALLVALUE
+                | CALLDATALOAD
+                | CALLDATASIZE
+                | CODESIZE
+                | GASPRICE
+                | EXTCODESIZE
+                | RETURNDATASIZE
+                | EXTCODEHASH
+                | BLOCKHASH
+                | COINBASE
+                | TIMESTAMP
+                | NUMBER
+                | PREVRANDAO
+                | GASLIMIT
+                | CHAINID
+                | SELFBALANCE
+                | BASEFEE
+                | BLOBHASH
+                | BLOBBASEFEE
+                | MLOAD
+                | SLOAD
+                | MSIZE
+                | TLOAD
+                | PUSH0
+                | DATALOAD
+                | DATALOADN
+                | DATASIZE
+                | RETURNDATALOAD
+        )
+}
+
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.
 #[must_use]
 pub(crate) const fn writes_memory(op: u8) -> bool {

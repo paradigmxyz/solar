@@ -1,0 +1,68 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/patterns.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/patterns.evmir (after reorder-pushes) ===
+  @module module
+  bb0:
++   push 10
+    push 0
+    calldataload
+-   push 10
+-   swap1
+    sub
+    stop
+  bb1:
+-   calldatasize
+    push 3
+-   swap1
++   calldatasize
+    mod
+    stop
+  bb2:
++   push 10
+    push 0
+    calldataload
+    push 31
+    add
+-   push 10
+-   swap1
+    sub
+    stop
+  bb3:
+    gas
+    push 10
+    swap1
+    sub
+    stop
+  bb4:
+    pc
+    push 10
+    swap1
+    sub
+    stop
+  bb5:
+    push 1
+    dup1
+    push 10
+    swap1
+    sub
+    stop
+  bb6:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    call
+    push 10
+    swap1
+    sub
+    stop
+  bb7:
+-   returndatasize
+    push 3
+-   swap1
++   returndatasize
+    mod
+    stop
+  

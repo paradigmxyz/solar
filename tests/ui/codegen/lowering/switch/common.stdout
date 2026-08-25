@@ -21,10 +21,9 @@ bb0:
   callvalue
   push bb2
   jumpi
+  push 3
   push 0
   calldataload
-  push 3
-  swap 1
   mod
   dup 1
   push 128

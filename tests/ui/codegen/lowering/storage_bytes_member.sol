@@ -72,7 +72,6 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[LEN]]:
-    // CHECK: keccak256
     // CHECK: jump [[LOAD_BYTES]]
     // CHECK: mload
     // CHECK: jump [[RETURN:bb[0-9]+]]
@@ -84,7 +83,6 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[AT]]:
-    // CHECK: keccak256
     // CHECK: jump [[LOAD_BYTES]]
     // CHECK: mload
     // CHECK: mload
@@ -107,7 +105,6 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[WHOLE]]:
-    // CHECK: keccak256
     // CHECK: jump [[LOAD_BYTES]]
     // CHECK: mcopy
     // CHECK: return
