@@ -2681,6 +2681,7 @@ impl LowerAbiCx {
         matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(element)
+                | crate::mir::AbiParamType::FixedArray { element, .. }
                 if Self::is_scalar_or_enum(element) && !Self::is_full_word_scalar(element)
         )
     }
