@@ -386,7 +386,5 @@ bb40:
   add
   push 224
   mload
-  swap 1
-  swap 3
-  swap 1
+  exchange 1, 3
   jump bb40

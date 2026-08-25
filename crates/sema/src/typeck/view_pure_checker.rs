@@ -277,7 +277,9 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall
             | YulExtstaticcall | YulChainid | YulBasefee | YulBlobbasefee | YulBlobhash
             | YulCoinbase | YulDifficulty | YulPrevrandao | YulGaslimit | YulNumber
-            | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => StateMutability::View,
+            | YulSlotnum | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => {
+                StateMutability::View
+            }
             YulCallvalue => StateMutability::View,
             _ => StateMutability::Pure,
         };

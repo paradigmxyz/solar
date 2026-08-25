@@ -24,6 +24,12 @@ impl Assembler<'_> {
 
         let input_is_valid = cfg!(debug_assertions) && ir::builder::is_valid(&ir_program);
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
+        if self.gcx.dcx().has_errors().is_err() {
+            return PreparedAssembly {
+                evm_ir: capture_evm_ir.then_some(ir_program),
+                ..PreparedAssembly::default()
+            };
+        }
         debug_assert!(!input_is_valid || ir::builder::is_valid(&ir_program));
 
         let program = lower_evm_ir(self, &mut ir_program, &mut labels);
@@ -104,8 +110,7 @@ fn lower_evm_ir_once(
         }
 
         for inst in &block.instructions {
-            let inst = lower_instruction(assembler, inst, module, labels);
-            program.push(inst);
+            lower_instruction(assembler, &mut program, inst, module, labels);
         }
 
         if let Some(terminator) = &block.terminator {
@@ -172,11 +177,12 @@ fn reset_assembler_labels(labels: &mut [Option<Label>]) {
 
 fn lower_instruction(
     assembler: &mut Assembler<'_>,
+    program: &mut Program,
     inst: &ir::Instruction,
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-) -> AsmInst {
-    if let Some(id) = inst.deferred_push() {
+) {
+    let inst = if let Some(id) = inst.deferred_push() {
         AsmInst::push_deferred(id)
     } else if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
@@ -190,9 +196,28 @@ fn lower_instruction(
             Some(ir::PushValue::Data(data)) => AsmInst::push_data(*data),
             _ => unreachable!("push must have one immediate, block, or data operand"),
         }
+    } else if let Some(stack_op) = inst.as_stack_op() {
+        match stack_op
+            .lowering(assembler.gcx.sess.opts.evm_version)
+            .expect("stack operation must support the target EVM version")
+        {
+            op::StackOpLowering::Direct(opcode, immediate) => {
+                program.push(immediate.map_or_else(
+                    || AsmInst::op(opcode),
+                    |value| AsmInst::op_immediate(opcode, value),
+                ))
+            }
+            op::StackOpLowering::LegacyExchange(opcodes) => {
+                for opcode in opcodes {
+                    program.push_op(opcode);
+                }
+            }
+        }
+        return;
     } else {
         AsmInst::op(inst.opcode)
-    }
+    };
+    program.push(inst);
 }
 
 fn lower_terminator(

@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
@@ -9,11 +10,16 @@ use std::fmt;
 /// EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
+    evm_version: Option<EvmVersion>,
 }
 
 impl<'a> Verifier<'a> {
     const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx }
+        Self { dcx, evm_version: None }
+    }
+
+    const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+        Self { dcx, evm_version: Some(evm_version) }
     }
 
     #[track_caller]
@@ -120,6 +126,35 @@ impl<'a> Verifier<'a> {
         } else {
             if inst.value.is_some() {
                 self.error_in_block(block_id, "only `push` instructions can carry a value");
+            }
+            if let Some(stack_op) = inst.as_stack_op() {
+                if inst.opcode != stack_op.ir_opcode() {
+                    self.error_in_block(block_id, "logical stack operation has the wrong opcode");
+                }
+                if !stack_op.is_valid() {
+                    self.error_in_block(block_id, "logical stack operation has invalid depths");
+                } else if let Some(evm_version) = self.evm_version
+                    && stack_op.assembled_len(evm_version).is_none()
+                {
+                    self.error_in_block(
+                        block_id,
+                        format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                    );
+                }
+            } else if op::StackOp::from_legacy_opcode(inst.opcode).is_some()
+                || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!("`{}` must use the logical stack-op form", inst.mnemonic()),
+                );
+            } else if inst.opcode == op::PUSH0 {
+                self.error_in_block(block_id, "`push0` must use the logical push form");
+            } else if let Some(evm_version) = self.evm_version
+                && inst.opcode == op::SLOTNUM
+                && !evm_version.has_slot_num()
+            {
+                self.error_in_block(block_id, "`slotnum` requires Amsterdam-compatible EVM");
             }
             if (op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
                 self.error_in_block(
@@ -241,7 +276,7 @@ impl<'a> Verifier<'a> {
             let mut valid = true;
             for (index, inst) in block.instructions.iter().enumerate() {
                 if inst.is_physical_stack_op() {
-                    if self.apply_physical_stack_op(block_id, inst.opcode, &mut stack).is_err() {
+                    if self.apply_physical_stack_op(block_id, inst, &mut stack).is_err() {
                         valid = false;
                         break;
                     }
@@ -337,12 +372,12 @@ impl<'a> Verifier<'a> {
     fn apply_physical_stack_op(
         &self,
         block_id: BlockId,
-        opcode: u8,
+        inst: &Instruction,
         stack: &mut usize,
     ) -> Result<(), ErrorGuaranteed> {
-        let name = match opcode {
-            op::DUP1..=op::DUP16 => {
-                let n = opcode - op::DUP1 + 1;
+        let stack_op = inst.as_stack_op().expect("checked physical stack operation");
+        let name = match stack_op {
+            op::StackOp::Dup(n) => {
                 if *stack < usize::from(n) {
                     return Err(self.error_in_block(
                         block_id,
@@ -352,8 +387,7 @@ impl<'a> Verifier<'a> {
                 *stack += 1;
                 "dup"
             }
-            op::SWAP1..=op::SWAP16 => {
-                let n = opcode - op::SWAP1 + 1;
+            op::StackOp::Swap(n) => {
                 if *stack < usize::from(n) + 1 {
                     return Err(self.error_in_block(
                         block_id,
@@ -362,14 +396,22 @@ impl<'a> Verifier<'a> {
                 }
                 "swap"
             }
-            op::POP => {
+            op::StackOp::Exchange(_, m) => {
+                if *stack < usize::from(m) + 1 {
+                    return Err(self.error_in_block(
+                        block_id,
+                        format_args!("`exchange` reaches depth {m} but the stack has {}", *stack),
+                    ));
+                }
+                "exchange"
+            }
+            op::StackOp::Pop => {
                 if *stack == 0 {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
                 *stack -= 1;
                 "pop"
             }
-            _ => unreachable!("checked physical stack opcode"),
         };
         self.ensure_stack_limit(block_id, name, *stack)
     }
@@ -415,6 +457,10 @@ pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
 }
 
+pub(super) fn validate_for_evm_version(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
+    Verifier::for_evm_version(dcx, evm_version).verify_module(module);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,5 +483,25 @@ mod tests {
             validate(&dcx, &module);
             assert_eq!(dcx.err_count(), expected_errors);
         }
+    }
+
+    #[test]
+    fn gates_amsterdam_instructions() {
+        let mut module = Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry]
+            .instructions
+            .extend((0..17).map(|_| Instruction::push_value(U256::ZERO)));
+        module.blocks[entry].instructions.push(Instruction::stack_op(op::StackOp::Dup(17)));
+        module.blocks[entry].instructions.push(Instruction::opcode(op::SLOTNUM));
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let osaka = DiagCtxt::with_silent_emitter(None);
+        validate_for_evm_version(&osaka, &module, EvmVersion::Osaka);
+        assert_eq!(osaka.err_count(), 2);
+
+        let amsterdam = DiagCtxt::with_silent_emitter(None);
+        validate_for_evm_version(&amsterdam, &module, EvmVersion::Amsterdam);
+        assert_eq!(amsterdam.err_count(), 0);
     }
 }

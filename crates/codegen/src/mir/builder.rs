@@ -676,6 +676,10 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::GasLimit, Some(MirType::uint256()))
     }
 
+    pub(crate) fn slotnum(&mut self) -> ValueId {
+        self.emit_inst(InstKind::SlotNum, Some(MirType::uint256()))
+    }
+
     /// Emits a chainid instruction.
     pub(crate) fn chainid(&mut self) -> ValueId {
         self.emit_inst(InstKind::ChainId, Some(MirType::uint256()))

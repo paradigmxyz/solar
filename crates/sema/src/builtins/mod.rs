@@ -105,6 +105,7 @@ macro_rules! declare_builtins {
                         Some(EvmVersion::Cancun)
                     }
                     Self::YulClz if !target.has_clz() => Some(EvmVersion::Osaka),
+                    Self::YulSlotnum if !target.has_slot_num() => Some(EvmVersion::Amsterdam),
                     _ => None,
                 }
             }
@@ -128,6 +129,7 @@ macro_rules! declare_builtins {
                     Self::YulMcopy => Some(error_code!(7755)),
                     Self::YulTload | Self::YulTstore => Some(error_code!(6243)),
                     Self::YulClz => Some(error_code!(4948)),
+                    Self::YulSlotnum => Some(error_code!(1049)),
                     _ => None,
                 }
             }
@@ -395,6 +397,7 @@ declare_builtins! {
     YulDifficulty          => kw::Difficulty       => gcx.mk_yul_builtin_fn(0, 1);
     YulPrevrandao          => kw::Prevrandao       => gcx.mk_yul_builtin_fn(0, 1);
     YulGaslimit            => kw::Gaslimit         => gcx.mk_yul_builtin_fn(0, 1);
+    YulSlotnum             => kw::Slotnum          => gcx.mk_yul_builtin_fn(0, 1);
     YulNumber              => kw::Number           => gcx.mk_yul_builtin_fn(0, 1);
     YulTimestamp           => kw::Timestamp        => gcx.mk_yul_builtin_fn(0, 1);
     YulGasprice            => kw::Gasprice         => gcx.mk_yul_builtin_fn(0, 1);

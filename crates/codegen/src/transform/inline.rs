@@ -690,6 +690,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::BlockNumber
         | InstKind::PrevRandao
         | InstKind::GasLimit
+        | InstKind::SlotNum
         | InstKind::ChainId
         | InstKind::Address
         | InstKind::SelfBalance

@@ -1,8 +1,8 @@
 //! Physical EVM stack scheduling at the MIR-to-EVM lowering boundary.
 //!
 //! MIR names SSA values and leaves their physical placement unspecified. EVM
-//! instructions instead consume an ordered stack head. `DUP1..16` can read the
-//! top 16 words, while `SWAP1..16` can exchange the top with any of the next 16.
+//! instructions instead consume an ordered stack head. The target EVM version
+//! controls how deep DUP and SWAP can reach and whether EXCHANGE is available.
 //! This module owns the target-specific state needed to bridge those
 //! representations: the current physical layout, local operand preparation,
 //! control-flow-edge layout transitions, and memory-backed spill locations.
@@ -124,10 +124,11 @@
 //! other. Gas mode also uses verified one-action and unary fast paths. Longer
 //! unambiguous plans use a deterministic walk only when its cost reaches the
 //! admissible lower bound; ambiguous layouts use bounded A*. Before A*, a required value with no
-//! reload route below `SWAP16` sends control directly to the spilling fallback. The same preflight
-//! rejects every dead operand copy below `SWAP16` in size mode because that action set cannot
-//! shorten the stack. Gas mode may search only when an accessible surplus copy can be popped to
-//! expose the buried copy. The search stores parent links instead of cloned action histories and
+//! reload route below the target's SWAP reach sends control directly to the spilling fallback. The
+//! same preflight rejects every dead operand copy below that reach in size mode because that action
+//! set cannot shorten the stack. Gas mode may search only when an accessible surplus copy can be
+//! popped to expose the buried copy. The search stores parent links instead of cloned action
+//! histories and
 //! independently caps expansions, created states, visited states, the open frontier, and estimated
 //! retained bytes. A function-wide expansion budget bounds the sum of otherwise independent A*
 //! searches, and repeated capped failures disable later A* calls while leaving the exact and linear
@@ -140,9 +141,9 @@
 //! operand copy remains below it. The final condition prevents a locally cheap
 //! rematerialization such as `PUSH0` from deferring a more expensive cleanup
 //! until immediately after the instruction. Every build replays an accepted
-//! tier against that complete goal, rejects stack operations outside `DUP1..16` and `SWAP1..16`,
-//! and verifies that each push or load materializes its claimed MIR value. Validation failure
-//! falls back without applying the plan. Exhaustive
+//! tier against that complete goal, rejects stack operations outside the target's direct-access
+//! window, and verifies that each push or load materializes its claimed MIR value. Validation
+//! failure falls back without applying the plan. Exhaustive
 //! small-layout tests compare the selected plan with a reference Dijkstra search
 //! under the full cost order and separately check that the heuristic never
 //! exceeds exact remaining cost when anonymous slots are present.
@@ -218,7 +219,8 @@ mod scheduler;
 pub(crate) mod shuffler;
 mod spill;
 
-pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel, StackOp};
+pub(crate) use super::op::StackOp;
+pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
     OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler,
 };

@@ -1,0 +1,10 @@
+error[1049]: Yul builtin `slotnum` requires Amsterdam-compatible EVM
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_slotnum.sol:LL:CC
+   │
+LL │             result := slotnum()
+   │                       ━━━━━━━
+   │
+   ╰ help: compile with `--evm-version amsterdam` or newer
+
+error: aborting due to 1 previous error
+

@@ -63,6 +63,18 @@ fn optimize(
 }
 
 fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
+    // `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
+    if let [.., first, second, third] = instructions.as_slice()
+        && let (Some(first), Some(second), Some(third)) =
+            (swap_depth(first), swap_depth(second), swap_depth(third))
+        && let Some(exchange) = op::StackOp::from_swaps(first, second, third)
+    {
+        let start = instructions.len() - 3;
+        instructions[start] = Instruction::stack_op(exchange);
+        instructions.truncate(start + 1);
+        return true;
+    }
+
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -125,11 +137,11 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
     if let [.., first, second] = instructions.as_slice()
-        && let Some(a) = raw_opcode(first)
-        && let Some(b) = raw_opcode(second)
-        && ((a, b) == (op::NOT, op::NOT)
-            || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
-            || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
+        && ((raw_opcode(first), raw_opcode(second)) == (Some(op::NOT), Some(op::NOT))
+            || (second.as_stack_op() == Some(op::StackOp::Pop)
+                && matches!(first.as_stack_op(), Some(op::StackOp::Dup(_))))
+            || (first.as_stack_op() == second.as_stack_op()
+                && matches!(first.as_stack_op(), Some(op::StackOp::Swap(_)))))
     {
         return rewrite(instructions, 2, Edit::Keep(0), block);
     }
@@ -395,12 +407,20 @@ impl Edit {
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     debug_assert!(raw_opcode(inst).is_some());
-    inst.opcode = opcode;
+    let metadata = std::mem::take(&mut inst.metadata);
+    *inst = op::StackOp::from_legacy_opcode(opcode)
+        .map_or_else(|| Instruction::opcode(opcode), Instruction::stack_op);
+    inst.metadata = metadata;
     inst.metadata.stack = None;
 }
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    (!inst.is_encoded_push()).then_some(inst.opcode)
+    inst.as_legacy_opcode()
+}
+
+fn swap_depth(inst: &Instruction) -> Option<u8> {
+    let op::StackOp::Swap(depth) = inst.as_stack_op()? else { return None };
+    Some(depth)
 }
 
 const fn is_commutative(opcode: u8) -> bool {

@@ -192,7 +192,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::opcode(op::swap(depth as u8)));
+            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
         }
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
@@ -259,7 +259,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     for value in values {
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
-        stub.instructions.push(Instruction::opcode(op::SWAP1));
+        stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
@@ -311,7 +311,9 @@ fn split_outline_site(
     let continuation = module.add_block(continuation);
     module.blocks[block].instructions.push(Instruction::push_block(continuation));
     for depth in (1..=inputs).rev() {
-        module.blocks[block].instructions.push(Instruction::opcode(op::swap(depth as u8)));
+        module.blocks[block]
+            .instructions
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
     }
     module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
 }
@@ -320,8 +322,16 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
     }
+    if let Some(stack_op) = inst.as_stack_op() {
+        return Some(match stack_op {
+            op::StackOp::Dup(depth) => (u16::from(depth), 0, 1),
+            op::StackOp::Swap(depth) => (u16::from(depth) + 1, 0, 0),
+            op::StackOp::Exchange(_, depth) => (u16::from(depth) + 1, 0, 0),
+            op::StackOp::Pop => (1, 1, 0),
+        });
+    }
     Some(match inst.opcode {
-        op::CALLDATASIZE | op::PUSH0 | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
+        op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
         op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
         op::ADD
         | op::SUB
@@ -338,9 +348,6 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         | op::EQ
         | op::DIV => (2, 2, 1),
         op::MSTORE => (2, 2, 0),
-        op::POP => (1, 1, 0),
-        dup if (op::DUP1..=op::DUP16).contains(&dup) => (u16::from(dup - op::DUP1) + 1, 0, 1),
-        swap if (op::SWAP1..=op::SWAP16).contains(&swap) => (u16::from(swap - op::SWAP1) + 2, 0, 0),
         _ => return None,
     })
 }
@@ -368,11 +375,11 @@ struct ChosenGroup {
 
 /// The identity of an instruction for outlining: what a run must match on.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct InstKey(u8, u8, Option<PushValue>);
+struct InstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
 
 impl InstKey {
     fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value)
+        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
     }
 }
 
@@ -454,7 +461,10 @@ impl PartialEq for MachineInstSlice<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.insts.len() == other.insts.len()
             && self.insts.iter().zip(other.insts).all(|(a, b)| {
-                a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
+                a.opcode == b.opcode
+                    && a.encoding == b.encoding
+                    && a.value == b.value
+                    && a.as_stack_op() == b.as_stack_op()
             })
     }
 }

@@ -159,6 +159,15 @@ impl EvmVersion {
     pub fn has_clz(self) -> bool {
         self >= Self::Osaka
     }
+    pub fn has_slot_num(self) -> bool {
+        self >= Self::Amsterdam
+    }
+    pub fn has_extended_stack_ops(self) -> bool {
+        self >= Self::Amsterdam
+    }
+    pub fn reachable_stack_depth(self) -> usize {
+        if self.has_extended_stack_ops() { 235 } else { 16 }
+    }
 }
 
 str_enum! {

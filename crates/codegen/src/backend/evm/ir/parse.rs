@@ -204,8 +204,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 PushValue::Block(block) => Instruction::push_block(block),
                 PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
             },
-            sym::dup => Instruction::opcode(op::dup(self.parse_stack_depth("dup")?)),
-            sym::swap => Instruction::opcode(op::swap(self.parse_stack_depth("swap")?)),
             sym::push_data => {
                 let id = self.parse_assembly_id("program data")?;
                 Instruction::push_data(DataId::from_usize(id as usize))
@@ -223,9 +221,42 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 })?;
                 Instruction::push_immutable(id, type_size)
             }
-            _ => Instruction::opcode(op::from_ir_symbol(mnemonic).ok_or_else(|| {
-                self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
-            })?),
+            sym::dup | sym::swap => {
+                let depth = self.parse_u8()?;
+                let stack_op = if mnemonic == sym::dup {
+                    op::StackOp::Dup(depth)
+                } else {
+                    op::StackOp::Swap(depth)
+                };
+                if !stack_op.is_valid() {
+                    return Err(self.parser.error("stack depth must be between 1 and 235"));
+                }
+                Instruction::stack_op(stack_op)
+            }
+            sym::exchange => {
+                let n = self.parse_u8()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let m = self.parse_u8()?;
+                let stack_op = op::StackOp::Exchange(n, m);
+                if !stack_op.is_valid() {
+                    return Err(self
+                        .parser
+                        .error("exchange depths must satisfy `1 <= n < m` and `n + m <= 30`"));
+                }
+                Instruction::stack_op(stack_op)
+            }
+            _ => {
+                let opcode = op::from_ir_symbol(mnemonic).ok_or_else(|| {
+                    self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
+                })?;
+                if opcode == op::PUSH0 {
+                    Instruction::push_value(U256::ZERO)
+                } else if let Some(stack_op) = op::StackOp::from_legacy_opcode(opcode) {
+                    Instruction::stack_op(stack_op)
+                } else {
+                    Instruction::opcode(opcode)
+                }
+            }
         };
         inst.metadata = self.parse_metadata()?;
         module.blocks[block].instructions.push(inst);
@@ -390,14 +421,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u8")))
     }
 
-    fn parse_stack_depth(&mut self, op: &str) -> PResult<'sess, u8> {
-        let depth = self.parse_u8()?;
-        if !(1..=16).contains(&depth) {
-            return Err(self.parser.error(format!("`{op}` depth must be between 1 and 16")));
-        }
-        Ok(depth)
-    }
-
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
         Ok(self.current_block_label()?.is_some()
             && !matches!(
@@ -434,7 +457,7 @@ mod tests {
     fn legacy_stack_ops_print_with_operands() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         let output = sess.enter(|| {
-            parse_module(&sess, "@module legacy\nbb0:\n  push 1\n  dup1\n  swap16\n  stop\n")
+            parse_module(&sess, "@module legacy\nbb0:\n  push0\n  dup1\n  swap16\n  stop\n")
                 .unwrap()
                 .to_text()
                 .to_string()
@@ -445,7 +468,7 @@ mod tests {
             str![[r#"
 @module legacy
 bb0:
-  push 1
+  push 0
   dup 1
   swap 16
   stop

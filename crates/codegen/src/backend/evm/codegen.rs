@@ -1112,7 +1112,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         Self {
             gcx,
             asm: Assembler::new(gcx),
-            scheduler: StackScheduler::new(),
+            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),
@@ -1308,14 +1308,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Emits a stack manipulation operation (DUP, SWAP, POP) and updates the scheduler.
     fn emit_stack_op(&mut self, op: StackOp) {
-        self.asm.emit_op(op.opcode());
-        match op {
-            StackOp::Dup(n) => self.scheduler.stack.dup(n),
-            StackOp::Swap(n) => self.scheduler.stack.swap(n),
-            StackOp::Pop => {
-                self.scheduler.stack.pop();
-            }
-        }
+        self.emit_stack_opcode(op);
+        self.scheduler.stack.apply(op);
+    }
+
+    /// Emits a stack manipulation operation without updating the stack model.
+    fn emit_stack_opcode(&mut self, op: StackOp) {
+        self.asm.emit_stack_op(op);
     }
 
     /// Emits an opcode with known stack effects and updates the scheduler.
@@ -1546,7 +1545,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
-        self.asm.emit_op(op::dup(1));
+        self.emit_stack_opcode(StackOp::Dup(1));
         self.asm.emit_push_deferred(runtime_offset);
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
@@ -1734,7 +1733,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
-                self.asm.emit_op(op::dup(1));
+                self.emit_stack_opcode(StackOp::Dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
@@ -2276,7 +2275,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.global_stack_aliases = global_stack_plan.aliases.clone();
 
         // Reset scheduler
-        self.scheduler = StackScheduler::new();
+        self.scheduler = StackScheduler::for_evm_version(self.gcx.sess.opts.evm_version);
         self.spill_addr_consts.clear();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
@@ -2954,7 +2953,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "global-stack edge layout mismatch"
         );
         for op in shuffle.ops {
-            self.asm.emit_op(op.opcode());
+            self.emit_stack_opcode(op);
         }
 
         true
@@ -2994,7 +2993,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .shuffle_to_layout(&target)
             .unwrap_or_else(|| panic!("could not construct edge-specific branch layout"));
         for op in shuffle.ops {
-            self.asm.emit_op(op.opcode());
+            self.emit_stack_opcode(op);
         }
         Some(union)
     }
@@ -3019,7 +3018,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .shuffle_to_layout(&target)
             .unwrap_or_else(|| panic!("could not construct edge-specific resident stack layout"));
         for op in shuffle.ops {
-            self.asm.emit_op(op.opcode());
+            self.emit_stack_opcode(op);
         }
     }
 
@@ -3173,7 +3172,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "stack-phi edge layout mismatch"
         );
         for op in shuffle.ops {
-            self.asm.emit_op(op.opcode());
+            self.emit_stack_opcode(op);
         }
 
         self.set_stack_to_values(&edge.results);
@@ -3712,7 +3711,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn pop_stack_values_not_needed_by(&mut self, needed: &[ValueId]) {
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
             if depth > 0 {
-                assert!(depth <= MAX_STACK_ACCESS, "resident stack discard exceeded SWAP16 reach");
+                assert!(
+                    depth <= self.stack_access_limit(),
+                    "resident stack discard exceeded SWAP reach"
+                );
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);
@@ -3792,13 +3794,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Duplicates a stack-only operand before earlier fresh operands would bury it past DUP16.
+    /// Duplicates a stack-only operand before earlier fresh operands bury it past `DUP` reach.
     /// `operands` are ordered deepest-first, exactly as the following emission sequence pushes
     /// them.
     fn stage_stack_only_fresh_operands(&mut self, operands: &[ValueId]) {
         if !self.scheduler.has_stack_only_values() {
             return;
         }
+        let stack_access_limit = self.stack_access_limit();
 
         loop {
             let mut stack = self.scheduler.stack.clone();
@@ -3806,7 +3809,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &operand in operands {
                 if self.scheduler.is_stack_only_value(operand) {
                     match stack.find(operand) {
-                        Some(depth) if depth < MAX_STACK_ACCESS => {
+                        Some(depth) if depth < stack_access_limit => {
                             stack.dup((depth + 1) as u8);
                         }
                         _ => {
@@ -3822,9 +3825,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
                 panic!("stack-only CALL operand {operand:?} was lost before its use")
             });
-            assert!(depth < MAX_STACK_ACCESS, "stack-only CALL operand exceeded DUP16 reach");
+            assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
         }
+    }
+
+    fn stack_access_limit(&self) -> usize {
+        self.gcx.sess.opts.evm_version.reachable_stack_depth()
     }
 
     /// Spills an instruction result if it is on the stack and not already stored.
@@ -3839,7 +3846,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if let Some(depth) = self.scheduler.stack.find(val) {
             let slot = self.scheduler.spills.allocate(val);
-            if depth >= MAX_STACK_ACCESS {
+            if depth >= self.stack_access_limit() {
                 self.spill_deep_stack_value(func, val, slot, depth);
                 return;
             }
@@ -3857,7 +3864,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         let slot = self.scheduler.spills.allocate(val);
-        if depth >= MAX_STACK_ACCESS {
+        if depth >= self.stack_access_limit() {
             self.spill_deep_stack_value(func, val, slot, depth);
         } else {
             self.spill_accessible_stack_value(func, val, slot, depth);
@@ -3894,15 +3901,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         slot: SpillSlot,
         depth: usize,
     ) {
-        debug_assert!(depth < MAX_STACK_ACCESS);
+        debug_assert!(depth < self.stack_access_limit());
 
         // DUP the value to top of stack for storing.
         // We need to DUP (not just use ensure_on_top) because:
         // 1. If value is on top, ensure_on_top does nothing but we need a copy
         // 2. MSTORE will consume the value, and we want to preserve the original
         let dup_n = (depth + 1) as u8;
-        self.asm.emit_op(op::dup(dup_n));
-        self.scheduler.stack.dup(dup_n);
+        self.emit_stack_op(StackOp::Dup(dup_n));
 
         self.store_stack_top_to_spill(func, val, slot);
     }
@@ -3914,10 +3920,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         slot: SpillSlot,
         depth: usize,
     ) {
-        debug_assert!(depth >= MAX_STACK_ACCESS);
+        let stack_access_limit = self.stack_access_limit();
+        debug_assert!(depth >= stack_access_limit);
 
-        let mut saved_above = Vec::with_capacity(depth + 1 - MAX_STACK_ACCESS);
-        for _ in 0..(depth + 1 - MAX_STACK_ACCESS) {
+        let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
+        for _ in 0..(depth + 1 - stack_access_limit) {
             let Some(top) = self.scheduler.stack.top() else {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
@@ -3983,7 +3990,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// measured to REGRESS every bench contract's size (erc20 +61 B, maple
     /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
     /// runtime. The one exception is a stack-only argument that sinks below
-    /// DUP16 reach: [`Self::emit_value_impl`] gives that otherwise stranded
+    /// the target's DUP reach: [`Self::emit_value_impl`] gives that otherwise stranded
     /// word a spill slot. Do not make ordinary frame-backed arguments own
     /// slots without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
@@ -4014,6 +4021,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::BlockNumber => op::NUMBER,
             InstKind::PrevRandao => op::PREVRANDAO,
             InstKind::GasLimit => op::GASLIMIT,
+            InstKind::SlotNum => op::SLOTNUM,
             InstKind::ChainId => op::CHAINID,
             InstKind::BaseFee => op::BASEFEE,
             InstKind::BlobBaseFee => op::BLOBBASEFEE,
@@ -4031,7 +4039,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// not live out of the block, and more stack copies exist at this point
     /// than the instruction will consume net of the emissions still to come
     /// (`consumed`). Later in-block uses DUP the survivor, or deep-spill it
-    /// on demand if it sinks past `MAX_STACK_ACCESS`, so skipping the store
+    /// on demand if it sinks past the target's `DUP` reach, so skipping the store
     /// cannot strand the value and adds no stack depth.
     fn block_local_copy_survives(
         &self,
@@ -4557,6 +4565,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::GASLIMIT);
                 self.scheduler.instruction_executed(0, result_value);
             }
+            InstKind::SlotNum => {
+                self.asm.emit_op(op::SLOTNUM);
+                self.scheduler.instruction_executed(0, result_value);
+            }
             InstKind::PrevRandao => {
                 self.asm.emit_op(op::PREVRANDAO);
                 self.scheduler.instruction_executed(0, result_value);
@@ -5054,7 +5066,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Drop dead values after the instruction
         let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
         for op in dead_ops {
-            self.asm.emit_op(op.opcode());
+            self.emit_stack_opcode(op);
         }
         #[cfg(debug_assertions)]
         {
@@ -5573,8 +5585,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if uses < padding * 2 {
             return None;
         }
-        let padded_entry =
-            ScheduleCost::stack_op(StackOp::Swap(1)).plus(ScheduleCost::stack_op(StackOp::Pop));
+        let evm_version = self.gcx.sess.opts.evm_version;
+        let padded_entry = ScheduleCost::stack_op(StackOp::Swap(1), evm_version)
+            .plus(ScheduleCost::stack_op(StackOp::Pop, evm_version));
         let mut overhead = padded_entry.times(padding);
         for block in &func.blocks {
             match block.terminator.as_ref() {
@@ -5650,7 +5663,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let frame_store = ScheduleCost::memory_store(OperandCostModel::DIRECT);
         let frame_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
-        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let resident_access =
+            ScheduleCost::stack_op(StackOp::Dup(1), self.gcx.sess.opts.evm_version);
         let memory_cost = |value: ValueId| {
             let uses = use_counts.get(&value).copied().unwrap_or_default();
             let blocks = use_blocks.get(&value).copied().unwrap_or_default();
@@ -5822,7 +5836,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let spill_store = ScheduleCost::spill_store(OperandCostModel::DIRECT);
         let spill_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
-        let resident_access = ScheduleCost::stack_op(StackOp::Dup(1));
+        let resident_access =
+            ScheduleCost::stack_op(StackOp::Dup(1), self.gcx.sess.opts.evm_version);
         let memory_cost = |value: ValueId| {
             let uses = use_counts.get(&value).copied().unwrap_or_default();
             let blocks = use_blocks.get(&value).map_or(0, FxHashSet::len);
@@ -6330,7 +6345,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 dup <= MAX_STACK_ACCESS,
                 "resident caller argument exceeded DUP16 reach at an internal call"
             );
-            self.asm.emit_op(op::dup(dup as u8));
+            self.emit_stack_opcode(StackOp::Dup(dup as u8));
             return;
         }
 
@@ -6404,7 +6419,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .expect("non-resident stack argument disappeared in the callee prologue");
                 if depth != 0 {
                     assert!(depth <= MAX_STACK_ACCESS, "stack argument exceeded SWAP16 reach");
-                    self.asm.emit_op(op::swap(depth as u8));
+                    self.emit_stack_opcode(StackOp::Swap(depth as u8));
                     incoming.swap(depth as u8);
                 }
                 let addr = self.static_frame_addr(
@@ -6417,13 +6432,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 incoming.pop();
             }
             let target: Vec<_> = resident.iter().copied().map(TargetSlot::Value).collect();
-            let mut scheduler = StackScheduler::new();
+            let mut scheduler = StackScheduler::for_evm_version(self.gcx.sess.opts.evm_version);
             scheduler.stack = incoming;
             let shuffle = scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
                 panic!("could not construct selective resident entry layout for `{}`", func.name)
             });
             for op in shuffle.ops {
-                self.asm.emit_op(op.opcode());
+                self.emit_stack_opcode(op);
             }
             debug_assert_eq!(
                 scheduler.stack.as_slice(),
@@ -7266,7 +7281,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             });
             for op in shuffle.ops {
-                self.asm.emit_op(op.opcode());
+                self.emit_stack_opcode(op);
             }
             Some(self.scheduler.stack.clone())
         };
@@ -7715,7 +7730,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             });
             for op in shuffle.ops {
-                self.asm.emit_op(op.opcode());
+                self.emit_stack_opcode(op);
             }
             Some(self.scheduler.stack.clone())
         } else {
@@ -7760,7 +7775,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(plan) = &retention_plan {
             for &op in &plan.shuffle_ops {
                 debug_assert!(matches!(op, StackOp::Swap(_)));
-                self.asm.emit_op(op.opcode());
+                self.emit_stack_opcode(op);
             }
         }
         self.asm.emit_push_label(callee_label);
@@ -7879,7 +7894,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.stack.push(result);
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         } else {
-            self.asm.emit_op(op::POP);
+            self.emit_stack_opcode(StackOp::Pop);
         }
     }
 
@@ -8113,7 +8128,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
-                    self.asm.emit_op(stack_op.opcode());
+                    self.emit_stack_opcode(stack_op);
                 }
                 ScheduledOp::PushImmediate(imm) => {
                     self.asm.emit_push(imm);
@@ -8148,7 +8163,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if let Some(depth) = self.scheduler.stack.find(val)
-            && depth >= MAX_STACK_ACCESS
+            && depth >= self.gcx.sess.opts.evm_version.reachable_stack_depth()
             && self.scheduler.reloadable_spill(val).is_none()
             && (self.scheduler.is_stack_only_value(val)
                 || !matches!(
@@ -8201,12 +8216,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                             func.name
                         )
                     });
-                    assert!(depth < MAX_STACK_ACCESS, "stack-only argument exceeded DUP16 reach");
+                    assert!(
+                        depth < self.stack_access_limit(),
+                        "stack-only argument exceeded DUP reach"
+                    );
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
                 }
                 if let Some(depth) = self.scheduler.stack.find(val)
-                    && depth < MAX_STACK_ACCESS
+                    && depth < self.stack_access_limit()
                 {
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
@@ -8229,7 +8247,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // recomputing a definition such as an FMP load would observe
                 // memory that changed since the definition executed.
                 if let Some(depth) = self.scheduler.stack.find(val)
-                    && depth < MAX_STACK_ACCESS
+                    && depth < self.stack_access_limit()
                 {
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
@@ -8383,9 +8401,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // than re-running it. If it is buried too deep to
                             // `DUP`, spill it to a reserved slot and reload.
                             if let Some(depth) = self.scheduler.stack.find(val) {
-                                if depth < 16 {
-                                    self.asm.emit_op(op::DUP1 + depth as u8);
-                                    self.scheduler.stack.push(val);
+                                if depth < self.stack_access_limit() {
+                                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                                 } else {
                                     let slot = self.scheduler.spills.allocate(val);
                                     self.spill_deep_stack_value(func, val, slot, depth);
@@ -8504,8 +8521,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             }
             // DUP for the second operand
-            self.asm.emit_op(op::DUP1);
-            self.scheduler.stack.dup(1);
+            self.emit_stack_op(StackOp::Dup(1));
             self.asm.emit_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
@@ -8554,8 +8570,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.block_local_copy_survives(liveness, block, b, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
-            self.asm.emit_op(op::SWAP1);
-            self.scheduler.stack_swapped();
+            self.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
@@ -8573,8 +8588,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.block_local_copy_survives(liveness, block, b, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
-            self.asm.emit_op(op::SWAP1);
-            self.scheduler.stack_swapped();
+            self.emit_stack_op(StackOp::Swap(1));
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
@@ -8588,8 +8602,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
             // a is an untracked value at depth 1, b is tracked on top
             // Stack is [b, a_untracked], need [a, b]
-            self.asm.emit_op(op::SWAP1);
-            self.scheduler.stack_swapped();
+            self.emit_stack_op(StackOp::Swap(1));
         } else {
             // Normal case: emit b first (bottom), then a (top)
             self.emit_value(func, b);
@@ -8722,8 +8735,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if self.scheduler.stack.top() == Some(val) && self.scheduler.stack.peek(1) == Some(addr)
             {
-                self.asm.emit_op(op::SWAP1);
-                self.scheduler.stack_swapped();
+                self.emit_stack_op(StackOp::Swap(1));
                 self.asm.emit_op(opcode);
                 self.scheduler.instruction_executed(2, None);
                 return;
@@ -8842,8 +8854,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // DUP the temp value to top of stack
                     if let Some(depth) = self.scheduler.stack.find(temp_val) {
                         let dup_n = (depth + 1) as u8;
-                        self.asm.emit_op(op::dup(dup_n));
-                        self.scheduler.stack.dup(dup_n);
+                        self.emit_stack_op(StackOp::Dup(dup_n));
                     }
                 }
             }
@@ -8876,8 +8887,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// This ensures the stack is empty before control flow transfer to another block.
     fn pop_all_stack_values(&mut self) {
         while self.scheduler.stack_depth() > 0 {
-            self.asm.emit_op(op::POP);
-            self.scheduler.stack.pop();
+            self.emit_stack_op(StackOp::Pop);
         }
     }
 
@@ -8914,14 +8924,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             };
             for op in shuffle.ops {
-                self.asm.emit_op(op.opcode());
+                self.emit_stack_opcode(op);
             }
 
             // Rotate the untracked return address from below the result tuple to the top without
             // disturbing result order: SWAP1, SWAP2, ..., SWAPN maps
             // [return, r0, ..., rN] to [r0, ..., rN, return].
             for depth in 1..=plan.arity {
-                self.asm.emit_op(op::swap(depth as u8));
+                self.emit_stack_opcode(StackOp::Swap(depth as u8));
             }
             self.asm.emit_op(op::JUMP);
             self.scheduler.clear_stack();
@@ -9017,7 +9027,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             return;
                         };
                         for op in shuffle.ops {
-                            self.asm.emit_op(op.opcode());
+                            self.emit_stack_opcode(op);
                         }
                     }
                 }
@@ -9179,7 +9189,7 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
-    use solar_config::CompileOpts;
+    use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
 
@@ -9582,7 +9592,6 @@ mod tests {
     #[test]
     fn nullary_reads_have_expected_rematerialization_opcodes() {
         let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-
         for (kind, expected_op) in [
             (InstKind::CalldataSize, op::CALLDATASIZE),
             (InstKind::CodeSize, op::CODESIZE),
@@ -9596,6 +9605,7 @@ mod tests {
             (InstKind::BlockNumber, op::NUMBER),
             (InstKind::PrevRandao, op::PREVRANDAO),
             (InstKind::GasLimit, op::GASLIMIT),
+            (InstKind::SlotNum, op::SLOTNUM),
             (InstKind::ChainId, op::CHAINID),
             (InstKind::BaseFee, op::BASEFEE),
             (InstKind::BlobBaseFee, op::BLOBBASEFEE),
@@ -9613,6 +9623,37 @@ mod tests {
                 function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
             assert!(EvmCodegen::can_own_spill_slot(&function, value));
+        }
+    }
+
+    #[test]
+    fn deep_spill_exposes_one_word_at_each_target_limit() {
+        for evm_version in [EvmVersion::Osaka, EvmVersion::Amsterdam] {
+            let opts = CompileOpts { evm_version, ..Default::default() };
+            with_codegen(opts, |mut codegen| {
+                let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+                let lhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+                let rhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ONE)));
+                let (_, target) = function.alloc_value_inst(Instruction::new(
+                    InstKind::Add(lhs, rhs),
+                    Some(MirType::uint256()),
+                ));
+                codegen.scheduler.stack.push(target);
+                for _ in 0..evm_version.reachable_stack_depth() {
+                    let (_, filler) = function.alloc_value_inst(Instruction::new(
+                        InstKind::Add(lhs, rhs),
+                        Some(MirType::uint256()),
+                    ));
+                    codegen.scheduler.stack.push(filler);
+                }
+                let before = codegen.scheduler.stack.as_slice().to_vec();
+
+                codegen.spill_value_if_needed(&function, target);
+
+                assert_eq!(codegen.scheduler.stack.as_slice(), before);
+                assert!(codegen.scheduler.spills.is_stored(target));
+                assert_eq!(codegen.scheduler.spills.spill_area_size(), 64);
+            });
         }
     }
 

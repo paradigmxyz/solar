@@ -51,9 +51,7 @@ bb5:
   push 4
   calldataload
   swap 3
-  swap 1
-  swap 2
-  swap 1
+  exchange 1, 2
   push bb4
   jumpi
   push 36

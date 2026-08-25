@@ -198,7 +198,10 @@ fn common_suffix(a: &Block, b: &Block) -> usize {
 }
 
 fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
-    a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
+    a.opcode == b.opcode
+        && a.encoding == b.encoding
+        && a.value == b.value
+        && a.as_stack_op() == b.as_stack_op()
 }
 
 fn suffix_lower_bound(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
