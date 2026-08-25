@@ -16,7 +16,7 @@ use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    kw, sym,
+    error_code, kw, sym,
 };
 use std::ops::ControlFlow;
 
@@ -110,10 +110,27 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_res_evm_version(&self, res: hir::Res, span: Span) {
-        if let hir::Res::Builtin(builtin) = res
-            && let Some(required) = builtin.required_evm_version(self.gcx.sess.opts.evm_version)
-        {
-            self.emit_evm_version_error(span, &format!("builtin `{}`", builtin.name()), required);
+        if let hir::Res::Builtin(builtin) = res {
+            let target = self.gcx.sess.opts.evm_version;
+            if let Some(required) = builtin.required_evm_version(target) {
+                self.emit_evm_version_error(
+                    span,
+                    &format!("builtin `{}`", builtin.name()),
+                    required,
+                );
+            } else if builtin == Builtin::BlockPrevrandao && !target.has_prev_randao() {
+                self.dcx()
+                    .warn("`block.prevrandao` is not supported by this EVM version and will be treated as `block.difficulty`")
+                    .code(error_code!(9432))
+                    .span(span)
+                    .emit();
+            } else if builtin == Builtin::BlockDifficulty && target.has_prev_randao() {
+                self.dcx()
+                    .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
+                    .code(error_code!(8417))
+                    .span(span)
+                    .emit();
+            }
         }
     }
 
@@ -2775,6 +2792,19 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     }
                 }
                 return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Try(try_) => {
+                if !self.gcx.sess.opts.evm_version.supports_returndata() {
+                    for clause in &try_.clauses[1..] {
+                        if clause.name.is_some() || !clause.args.is_empty() {
+                            self.emit_evm_version_error(
+                                clause.span,
+                                "typed catch clause",
+                                EvmVersion::Byzantium,
+                            );
+                        }
+                    }
+                }
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
                 let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));

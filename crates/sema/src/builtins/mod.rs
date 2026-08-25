@@ -61,6 +61,9 @@ macro_rules! declare_builtins {
             /// `target`.
             pub(crate) fn required_evm_version(self, target: EvmVersion) -> Option<EvmVersion> {
                 match self {
+                    Self::AddressStaticcall if !target.has_static_call() => {
+                        Some(EvmVersion::Byzantium)
+                    }
                     Self::AddressCodehash if !target.has_ext_code_hash() => {
                         Some(EvmVersion::Constantinople)
                     }
