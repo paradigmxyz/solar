@@ -42,8 +42,7 @@ fn reorder(instructions: &mut Vec<Instruction>, scratch: &mut Vec<Instruction>) 
         };
         if let Some(start) = start {
             instructions.pop();
-            let pushed = instructions.pop().expect("matched push must exist");
-            instructions.insert(start, pushed);
+            instructions[start..].rotate_right(1);
             changed = true;
         }
     }
