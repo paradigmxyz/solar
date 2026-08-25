@@ -412,7 +412,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<(ValueId, ValueId, ValueId)> {
-        // gas = gas(); value = 0; zero = 0
+        // gas = gas()
+        // value = 0
+        // zero = 0
         let zero = self.builder.imm_u256(U256::ZERO);
         let mut gas = self.builder.gas();
         let mut value = zero;

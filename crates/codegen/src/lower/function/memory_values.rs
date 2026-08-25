@@ -50,7 +50,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // if value == 0 { value = default_object(element); object[i] = value }
+        // is_zero = value == 0
+        // if is_zero { value = default_object(element) }
+        // object[i] = value
         let zero = self.builder.imm_u256(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -74,7 +76,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: hir::StructId,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // object = struct(); for field { object[field] = decode(...) }
+        // object = struct()
+        // for field { object[field] = decode(...) }
         let struct_fields = self.context.gcx.hir.strukt(struct_id).fields;
         let fields = struct_fields.len() as u64;
         if args.len() != fields as usize {
@@ -160,7 +163,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        // bytes(word, length) -> object; object[0] = word; return object
+        // object = bytes(word, length)
+        // object[0] = word
+        // return object
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
             let mut builder = FunctionBuilder::new(function);
             let word = builder.add_param(MirType::bytes32());
@@ -186,7 +191,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bytes: &[u8],
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
-        // object = bytes(len); for chunks { object[offset] = padded_word(chunk) }
+        // object = bytes(len)
+        // for chunks { object[offset] = padded_word(chunk) }
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm_u64(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);

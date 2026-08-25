@@ -34,7 +34,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // overflow = !(rhs == 0 || result / rhs == lhs); min * -1
+        // overflow = !(rhs == 0 || result / rhs == lhs)
+        // overflow = min * -1
         let rhs_zero = self.builder.iszero(rhs);
         let quotient = match kind {
             ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),

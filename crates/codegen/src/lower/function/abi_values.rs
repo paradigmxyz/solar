@@ -381,7 +381,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_struct(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        // output = struct(); for field { output[field] = canonicalize(field) }
+        // output = struct()
+        // for field { output[field] = canonicalize(field) }
         if self.value_is_canonical(value, &mut FxHashSet::default()) {
             return value;
         }
@@ -593,7 +594,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
-        // object = bytes(slice.len); copy(slice, object.data); return object
+        // object = bytes(slice.len)
+        // copy(slice, object.data)
+        // return object
         let length = self.builder.slice_len(slice);
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
@@ -601,7 +604,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
-        // object = bytes(returndatasize); copy(returndata(0), object)
+        // object = bytes(returndatasize)
+        // copy(returndata(0), object)
         let length = self.current_returndata_size();
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         let zero = self.builder.imm_u256(U256::ZERO);
@@ -918,7 +922,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exprs: &[hir::Expr<'_>],
         checked: bool,
     ) -> Option<(Vec<PackedPiece<'gcx>>, ValueId)> {
-        // pieces = encode_packed_shape(args); total += piece.size
+        // pieces = encode_packed_shape(args)
+        // total += piece.size
         let mut total = self.builder.imm_u64(0);
         let mut pieces = Vec::with_capacity(exprs.len());
         for expr in exprs {
@@ -1092,7 +1097,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // words = count_inline(value); output = bytes(words * 32)
+        // words = count_inline(value)
+        // output = bytes(words * 32)
         if !self.inplace_dynamic_shape(ty)
             || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemoryObject(_)))
                 && !matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
@@ -1165,7 +1171,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn count_inplace_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
-        // total = 0; for i { total += count(element[i]) }
+        // total = 0
+        // for i { total += count(element[i]) }
         let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -1308,7 +1315,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn copy_inplace_bytes(&mut self, value: ValueId, output: ValueId, offset: ValueId) -> ValueId {
-        // padded_length = round_up(length, 32); return_offset = offset + padded_length
+        // padded_length = round_up(length, 32)
+        // return_offset = offset + padded_length
         let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
         let word = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
@@ -1348,7 +1356,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: &PackedArrayElement<'gcx>,
         source: PackedArraySource,
     ) -> ValueId {
-        // for i { load packed element[i]; normalize; store(output, offset + i * width) }
+        // for i {
+        //     value = load packed element[i]
+        //     value = normalize(value)
+        //     store(output, offset + i * width, value)
+        // }
         let element_bytes =
             Self::packed_array_element_bytes(&element.abi).expect("packed array shape");
         let element_bytes_value = self.builder.imm_u64(element_bytes);
@@ -1587,7 +1599,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // input = (hash, v, r, s); result = precompile(1, input)
+        // input = (hash, v, r, s)
+        // result = precompile(1, input)
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
         let hash = &values[0];
         let v = &values[1];
@@ -1644,7 +1657,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output_ptr: ValueId,
         output_size: ValueId,
     ) {
-        // staticcall(precompile_gas, address, input, output); call(..., value=0)
+        // staticcall(precompile_gas, address, input, output)
+        // call(..., value=0)
         let evm_version = self.context.gcx.sess.opts.evm_version;
         let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
         if evm_version.has_static_call() {

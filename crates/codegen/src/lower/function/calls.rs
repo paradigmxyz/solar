@@ -154,8 +154,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // init = creation_bytecode ++ abi_encode(constructor_args); create|create2(value,
-        // init.data, init.len[, salt]) -> address
+        // init = creation_bytecode ++ abi_encode(constructor_args)
+        // address = create|create2(value, init.data, init.len[, salt])
         let contract = self.context.gcx.hir.contract(contract_id);
         let bytecode = self.context.child_bytecodes.get(&contract_id).ok_or_else(|| {
             self.context
@@ -742,7 +742,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // input = abi_encode(selector, args); ok = CALL/STATICCALL
+        // input = abi_encode(selector, args)
+        // ok = CALL/STATICCALL(input)
         let ExprKind::Member(receiver, _) = callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "external function target");
         };
@@ -1026,7 +1027,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
-        // require(returndatasize >= returns * 32); validate each return word
+        // required = returns * 32
+        // require(returndatasize >= required)
+        // validate(return_words)
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm_u64(words.saturating_mul(32));
         self.revert_if_short_returndata(size);

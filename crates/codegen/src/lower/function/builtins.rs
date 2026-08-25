@@ -121,7 +121,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
         capture_returndata: bool,
     ) -> Option<(ValueId, Option<ValueId>)> {
-        // ok = call(gas, to, value, in, len); data = returndata()
+        // ok = call(gas, to, value, in, len)
+        // data = returndata()
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let data_span = data.span;
@@ -162,7 +163,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // gas = amount == 0 ? 2300 : 0; ok = call(gas, to, amount); transfer; send; ok
+        // gas = amount == 0 ? 2300 : 0
+        // ok = call(gas, to, amount)
+        // transfer -> revert(!ok)
+        // send -> ok
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_expr(amount)?;
@@ -294,7 +298,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             Builtin::AddressCode | Builtin::AddressCodehash => {
-                // codehash(to) -> extcodehash(to); code(to) -> alloc(extcodesize(to));
+                // hash = extcodehash(to)
+                // data = alloc(extcodesize(to))
                 // extcodecopy(to, data)
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "environment builtin");
@@ -712,7 +717,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // inner = keccak256(name) - 1; outer = keccak256(abi.encode(inner)); outer &= !0xff
+        // inner = keccak256(name) - 1
+        // outer = keccak256(abi.encode(inner))
+        // outer &= !0xff
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
         let literal = match &argument.kind {
             ExprKind::Lit(lit) => match &lit.kind {
@@ -865,7 +872,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<()> {
-        // mstore(...); sstore(...); logN(...); return(...); revert(...)
+        // mstore(...)
+        // sstore(...)
+        // logN(...)
+        // return(...)
+        // revert(...)
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;

@@ -310,7 +310,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn emit_revert_payload(&mut self, payload: PreparedRevertPayload) {
-        // payload = Error(string); revert(pointer, length)
+        // payload = Error(string)
+        // revert(pointer, length)
         match payload {
             PreparedRevertPayload::ShortString { length, data } => {
                 let helper = self.ensure_revert_error_helper();
@@ -375,7 +376,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        // payload = Error(string); revert(payload.ptr, payload.len)
+        // payload = Error(string)
+        // revert(payload.ptr, payload.len)
         self.lazy_helper(sym::revert_error, |_, function| {
             let mut builder = FunctionBuilder::new(function);
             let length = builder.add_param(MirType::uint256());

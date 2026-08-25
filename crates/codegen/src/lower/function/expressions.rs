@@ -164,7 +164,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         what: &'static str,
     ) -> Option<ValueId> {
-        // length = sload(slot); length = slice.len
+        // length = sload(slot)
+        // length = slice.len
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;

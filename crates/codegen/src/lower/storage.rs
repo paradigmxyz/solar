@@ -206,7 +206,8 @@ impl<'gcx> StorageLayout<'gcx> {
         slot: ValueId,
         offset: ValueId,
     ) -> ValueId {
-        // word = load(slot); field = load_word(word, offset * 8)
+        // word = load(slot)
+        // field = load_word(word, offset * 8)
         let word = location.load(builder, slot);
         if !location.packed() {
             return word;
@@ -267,8 +268,10 @@ impl<'gcx> StorageLayout<'gcx> {
         shift: Option<ValueId>,
         value: ValueId,
     ) {
-        // old = load(slot); cleared = old & !field_mask; updated = cleared | ((value & field_mask)
-        // << shift); store(slot, updated)
+        // old = load(slot)
+        // cleared = old & !field_mask
+        // updated = cleared | ((value & field_mask) << shift)
+        // store(slot, updated)
         let field_mask = location.mask();
         let field_mask_value = builder.imm_u256(field_mask);
         let shifted_mask =

@@ -34,7 +34,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        // branch(condition, then, else); merge
+        // branch(condition, then, else)
+        // merge = phi(then, else)
         self.materialize_default_bindings();
         let first_block = self.builder.create_block();
         let second_block = self.builder.create_block();
@@ -565,7 +566,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // result = lhs && rhs; result = lhs || rhs
+        // result = lhs && rhs
+        // result = lhs || rhs
         let lhs = self.lower_expr(lhs_expr)?;
         let is_and = op == BinOpKind::And;
         let (then_branch, else_branch) = self.lower_branches(
@@ -635,7 +637,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut block: hir::Block<'_>,
         source: LoopSource<'_>,
     ) -> Option<()> {
-        // preheader -> header -> body/update -> header; break; exit
+        // preheader -> header
+        // header -> body/update -> header
+        // break -> exit
         self.materialize_default_bindings();
         let update_stmt = match source {
             LoopSource::For { update } => update,
@@ -804,7 +808,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         incoming: Vec<(BlockId, StorageAccess)>,
     ) -> Option<StorageAccess> {
-        // slot = phi(slots); offset = phi(offsets)
+        // slot = phi(slots)
+        // offset = phi(offsets)
         let first = incoming.first().map(|&(_, access)| access)?;
         if incoming.iter().all(|&(_, access)| access == first) {
             return Some(first);

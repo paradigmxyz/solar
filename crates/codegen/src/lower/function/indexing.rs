@@ -156,7 +156,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // start/end; slice(base + start * stride, end - start, location)
+        // start = checked_start
+        // end = checked_end
+        // slice(base + start * stride, end - start, location)
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {

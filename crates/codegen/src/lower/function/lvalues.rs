@@ -325,7 +325,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
-        // (pointer, length) = calldata_slice; (address, selector) = function; slot = storage_ref
+        // (pointer, length) = calldata_slice
+        // (address, selector) = function
+        // slot = storage_ref
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata) {
             let base = self.lower_expr(receiver)?;

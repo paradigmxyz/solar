@@ -58,7 +58,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         needs_validation: bool,
     ) -> bool {
-        // valid = len >= abi_head; check_range(base, head); validate_words(base)
+        // valid = len >= abi_head
+        // check_range(base, head)
+        // validate_words(base)
         if self.is_external_abi_argument(value) || !needs_validation {
             return false;
         }
@@ -139,7 +141,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         abi_type: &AbiType,
     ) {
-        // bytes = length * element_head_size; check_range(data, bytes)
+        // bytes = length * element_head_size
+        // check_range(data, bytes)
         if self.is_external_abi_argument(value) {
             return;
         }
@@ -416,7 +419,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn copy_calldata_word_array(&mut self, data: ValueId, length: ValueId) -> ValueId {
-        // object = bytes_array(length); copy(data, object.data, length * 32)
+        // object = bytes_array(length)
+        // copy(data, object.data, length * 32)
         let word = self.builder.imm_u64(32);
         let byte_length = self.builder.checked_mul(length, word);
         let size = self.builder.checked_add(word, byte_length);
@@ -669,7 +673,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {
-        // end = start + size; invalid = overflow(end) || end > calldatasize()
+        // end = start + size
+        // invalid = overflow(end) || end > calldatasize()
         let end = self.builder.add(start, size);
         let overflow = self.builder.lt(end, start);
         let calldata_size = self.builder.calldatasize();
@@ -691,7 +696,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length: ValueId,
         stride: ValueId,
     ) {
-        // validate(length); data = value_pos + 32; check_tail(data, length * stride)
+        // validate(length)
+        // data = value_pos + 32
+        // check_tail(data, length * stride)
         self.validate_calldata_length(length);
 
         let size = self.builder.mul(length, stride);
@@ -719,7 +726,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         position: ValueId,
         validate_bounds: bool,
     ) -> ValueId {
-        // word = calldataload(position); validate(word); return clean(word)
+        // word = calldataload(position)
+        // validate(word)
+        // return clean(word)
         let is_external_function =
             matches!(ty.kind, TyKind::Fn(function) if function.is_external());
         let word = self.builder.imm_u64(32);
@@ -758,7 +767,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         position: ValueId,
         validate_bounds: bool,
     ) -> ValueId {
-        // len = calldataload(position); slice = calldata(position + 32, len)
+        // len = calldataload(position)
+        // slice = calldata(position + 32, len)
         let word = self.builder.imm_u64(32);
         let length = self.builder.calldataload(position);
         if validate_bounds {
@@ -771,7 +781,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
-        // check(length <= u64::MAX); check(pointer + length <= calldatasize())
+        // check(length <= u64::MAX)
+        // check(pointer + length <= calldatasize())
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
         self.validate_calldata_length(length);
