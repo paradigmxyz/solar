@@ -168,6 +168,10 @@ jobs:
           fi
           python3 benches/runtime/report.py "${args[@]}"
 
+      - name: Add report to job summary
+        if: always()
+        run: cat target/codegen-bench/report.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Comment on PR
         if: >-
           github.event_name == 'pull_request' &&
