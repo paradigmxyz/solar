@@ -27,7 +27,13 @@ contract StressEvents {
         bytes data;
     }
 
+    struct IndexedFunctionPayload {
+        function() external callback;
+        bytes data;
+    }
+
     event IndexedStructArray(IndexedStruct[] indexed values);
+    event IndexedFunctionPayloadEvent(IndexedFunctionPayload indexed payload);
     
     // ========== Mixed indexed and non-indexed ==========
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -132,6 +138,12 @@ contract StressEvents {
 
     function emitIndexedExternalFunction() public {
         emit IndexedExternalFunction(this.functionPointerTarget);
+    }
+
+    function emitIndexedFunctionPayload() public {
+        IndexedFunctionPayload memory payload =
+            IndexedFunctionPayload(this.functionPointerTarget, "x");
+        emit IndexedFunctionPayloadEvent(payload);
     }
 
     function functionPointerTarget() external {}

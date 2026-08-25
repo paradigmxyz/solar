@@ -788,6 +788,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         StorageAccess { slot: field_slot, location, offset: None },
                         span,
                     )?;
+                    let value = self.encode_memory_scalar(field_ty, value);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
                 }
                 Some(object)
@@ -809,6 +810,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let access =
                         self.storage_array_element_access(slot, index_value, element, false, span)?;
                     let value = self.load_storage_value(element, access, span)?;
+                    let value = self.encode_memory_scalar(element, value);
                     self.builder.memory_object_store_element(object, layout, index_value, value);
                 }
                 Some(object)
@@ -839,6 +841,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let solar_sema::ty::TyKind::Struct(struct_id) = element.peel_refs().kind {
             return self.ensure_storage_struct_array_helper(element, struct_id);
+        }
+        if matches!(element.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
+            return None;
         }
         if let Some((size, encoding)) = self.context.storage.packed_encoding(element)
             && size.bits() < 256
@@ -985,6 +990,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(body);
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
         let value = self.load_storage_value(element, access, span)?;
+        let value = self.encode_memory_scalar(element, value);
         self.builder.memory_object_store_element(object, layout, index, value);
         let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
@@ -1054,6 +1060,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if index < source_len {
                         let value =
                             self.builder.memory_object_load_element(object, layout, index_value);
+                        let value = self.decode_memory_scalar(source_element, value);
                         self.store_storage_value_with_source(
                             element,
                             source_element,
@@ -1314,7 +1321,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = if self.types.memory_layout(source_element).is_some() {
             self.materialize_array_element(object, source_layout, index, source_element, value)?
         } else {
-            value
+            self.decode_memory_scalar(source_element, value)
         };
         let access = self.storage_array_element_access(slot, index, element, true, span)?;
         self.store_storage_value_with_source(element, source_element, access, value, span)?;
@@ -1343,6 +1350,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.builder.memory_object_load_field(object, layout, index as u64);
             let source_field = self.context.gcx.hir.strukt(source_struct_id).fields[index];
             let source_field_ty = self.context.gcx.type_of_item(source_field.into());
+            let value = self.decode_memory_scalar(source_field_ty, value);
             let access = StorageAccess { slot: field_slot, location, offset: None };
             self.store_storage_value_with_source(field_ty, source_field_ty, access, value, span)?;
         }
