@@ -16,32 +16,38 @@ impl EvmPass for ReorderPushes {
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
+        let mut scratch = Vec::new();
         for block in &mut module.blocks {
-            while reorder_one(&mut block.instructions) {
-                changed = true;
-            }
+            changed |= reorder(&mut block.instructions, &mut scratch);
         }
         changed
     }
 }
 
-fn reorder_one(instructions: &mut Vec<Instruction>) -> bool {
-    for end in 2..instructions.len() {
-        if !instructions[end - 1].is_encoded_push()
-            || raw_opcode(&instructions[end]) != Some(op::SWAP1)
-        {
-            continue;
-        }
-        let Some(start) = self_contained_producer_start(&instructions[..end - 1]) else {
-            continue;
-        };
+fn reorder(instructions: &mut Vec<Instruction>, scratch: &mut Vec<Instruction>) -> bool {
+    scratch.clear();
+    std::mem::swap(instructions, scratch);
+    instructions.reserve(scratch.len());
 
-        instructions.remove(end);
-        let pushed = instructions.remove(end - 1);
-        instructions.insert(start, pushed);
-        return true;
+    let mut changed = false;
+    for inst in scratch.drain(..) {
+        instructions.push(inst);
+        let start = if let [.., pushed, swap] = instructions.as_slice()
+            && pushed.is_encoded_push()
+            && raw_opcode(swap) == Some(op::SWAP1)
+        {
+            self_contained_producer_start(&instructions[..instructions.len() - 2])
+        } else {
+            None
+        };
+        if let Some(start) = start {
+            instructions.pop();
+            let pushed = instructions.pop().expect("matched push must exist");
+            instructions.insert(start, pushed);
+            changed = true;
+        }
     }
-    false
+    changed
 }
 
 fn self_contained_producer_start(instructions: &[Instruction]) -> Option<usize> {

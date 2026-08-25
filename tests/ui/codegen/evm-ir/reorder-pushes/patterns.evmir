@@ -72,3 +72,13 @@ bb7:
   swap1
   mod
   stop
+
+// A single streaming pass handles chained candidates.
+bb8:
+  calldatasize
+  push 1
+  swap1
+  push 2
+  swap1
+  sub
+  stop

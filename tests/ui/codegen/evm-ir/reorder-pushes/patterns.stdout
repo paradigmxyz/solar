@@ -65,4 +65,13 @@
 +   returndatasize
     mod
     stop
+  bb8:
+-   calldatasize
+    push 1
+-   swap1
+    push 2
+-   swap1
++   calldatasize
+    sub
+    stop
   
