@@ -1139,11 +1139,17 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     fn can_plan_branching_loop(&self, loop_info: &Loop) -> bool {
-        if self.loops.iter().any(|other| {
-            other.header != loop_info.header
-                && (loop_info.blocks.contains(other.header)
-                    || other.blocks.contains(loop_info.header))
-        }) {
+        let mut nesting_depth = 0;
+        for other in &self.loops {
+            if other.header == loop_info.header {
+                continue;
+            }
+            if loop_info.blocks.contains(other.header) {
+                return false;
+            }
+            nesting_depth += usize::from(other.blocks.contains(loop_info.header));
+        }
+        if nesting_depth != 0 && nesting_depth != 2 {
             return false;
         }
         for block_id in loop_info.blocks.iter() {
