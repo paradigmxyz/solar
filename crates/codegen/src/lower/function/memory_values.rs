@@ -8,6 +8,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         elements: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
+        // Pseudo IR: allocate the array object, set its dynamic length, and
+        // emit `object[i] = coerce(element_i)` for every literal element.
         let ty = self.context.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
             return report_unsupported(self.context.gcx, expr.span, "array literal");
@@ -49,6 +51,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: `if value == 0 { value = default_object(element); object[i] = value }`.
         let zero = self.builder.imm_u256(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -72,6 +75,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: hir::StructId,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: allocate a struct object and store each named constructor
+        // argument into its field slot after type/location materialization.
         let struct_fields = self.context.gcx.hir.strukt(struct_id).fields;
         let fields = struct_fields.len() as u64;
         if args.len() != fields as usize {
@@ -104,6 +109,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         values: &[Option<&hir::Expr<'_>>],
     ) -> Option<ValueId> {
+        // Pseudo IR: allocate a tuple-as-struct object and store present values;
+        // omitted tuple entries remain Solidity-zeroed.
         let ty = self.context.gcx.type_of_expr(expr.id)?;
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
             return report_unsupported(self.context.gcx, expr.span, "tuple object");
@@ -156,6 +163,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
+        // Pseudo IR helper: `bytes(word, length) -> object; object[0] = word; return object`.
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
             let mut builder = FunctionBuilder::new(function);
             let word = builder.add_param(MirType::bytes32());
@@ -181,6 +189,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bytes: &[u8],
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
+        // Pseudo IR: `object = bytes(len); for chunks { object[offset] = padded_word(chunk) }`.
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm_u64(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
@@ -197,6 +206,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
+        // Pseudo IR helper: `literal_bytes() -> immutable bytes object`.
         self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |_, function| {
             let mut builder = FunctionBuilder::new(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
@@ -244,6 +254,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
+        // Pseudo IR: allocate a zero/default object for the layout, recursively
+        // initialize aggregate fields/elements, and optionally preserve the FMP.
         let layout = self.types.memory_layout(ty)?;
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })

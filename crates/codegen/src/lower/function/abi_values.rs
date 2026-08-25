@@ -65,6 +65,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         exprs: &[hir::Expr<'_>],
     ) -> Option<(Arc<AbiLayout>, Box<[ValueId]>)> {
+        // Pseudo IR: lower each argument to its ABI representation, validate
+        // calldata-backed aggregates, then build `abi_encode(layout, values)`.
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for expr in exprs {
@@ -121,6 +123,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_signature_selector(&mut self, signature: &hir::Expr<'_>) -> Option<ValueId> {
+        // Pseudo IR: `selector = shl(224, shr(224, keccak256(signature_bytes)))`;
+        // literal signatures and ternaries fold to immediates/selects first.
         if let ExprKind::Lit(lit) = &signature.kind
             && let LitKind::Str(_, value, _) = &lit.kind
         {
@@ -154,6 +158,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        // Pseudo IR: resolve `function.selector`, ABI-prepare the tuple, and
+        // emit `abi_encode_bytes(parameter_layout, selector, values)`.
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
@@ -271,6 +277,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        // Pseudo IR: allocate a same-shaped array and emit
+        // `for i { output[i] = canonicalize(element, input[i]) }`.
         if self.is_external_abi_argument(value)
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External
         {
@@ -377,6 +385,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn canonicalize_abi_struct(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        // Pseudo IR: `output = struct(); for field { output[field] = canonicalize(field) }`.
         if self.value_is_canonical(value, &mut FxHashSet::default()) {
             return value;
         }
@@ -440,6 +449,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        // Pseudo IR: materialize input bytes, intern the target ABI layout, and
+        // emit `abi_decode(layout, data)`.
         let args = self.builtin_args::<2>(Builtin::AbiDecode, &args)?;
         let types = match args[1].kind {
             ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
@@ -504,6 +515,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<Vec<ValueId>> {
+        // Pseudo IR: decode static tuples with one ABI instruction; for dynamic
+        // tuples, decode the memory payload and reuse repeated dynamic helpers.
         let memory_types = types
             .iter()
             .copied()
@@ -576,6 +589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {
+        // Pseudo IR: `if !success { revert_returndata() }`.
         let revert = self.builder.create_block();
         let continue_block = self.builder.create_block();
         self.builder.branch(success, continue_block, revert);
@@ -585,6 +599,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
+        // Pseudo IR: `object = bytes(slice.len); copy(slice, object.data); return object`.
         let length = self.builder.slice_len(slice);
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
@@ -592,6 +607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
+        // Pseudo IR: `object = bytes(returndatasize); copy(returndata(0), object)`.
         let length = self.current_returndata_size();
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
         let zero = self.builder.imm_u256(U256::ZERO);
@@ -610,6 +626,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
+        // Pseudo IR: skip the four-byte Error selector, copy the string payload,
+        // and decode it as `abi.decode(bytes)`.
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let four = self.builder.imm_u64(4);
@@ -631,6 +649,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         data_len: ValueId,
         selector_matches: ValueId,
     ) -> ValueId {
+        // Pseudo IR: `selector_matches ? try_decode_error_message(data) : false`;
+        // merge both paths with a boolean phi.
         let validate = self.builder.create_block();
         let no_match = self.builder.create_block();
         let done = self.builder.create_block();
@@ -655,6 +675,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// <https://github.com/ethereum/solidity/blob/develop/libsolidity/codegen/YulUtilFunctions.cpp#L4676-L4714>
     fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
+        // Pseudo IR: `if len < 68 return false; check offset and string length;
+        // return true only when the complete Error(string) payload fits.`
         self.lazy_helper(sym::try_decode_error_message, |_, function| {
             let mut builder = FunctionBuilder::new(function);
             let data_ptr = builder.add_param(MirType::MemPtr);
@@ -708,6 +730,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        // Pseudo IR: classify packed pieces, allocate `bytes(total)`, and copy
+        // literals, scalars, dynamic slices, and arrays at a running offset.
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         let (pieces, total) = self.lower_packed_pieces(exprs, true)?;
 
@@ -771,6 +795,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: write packed pieces into scratch memory without allocating
+        // a bytes object, then return `keccak256(base, total_size)`.
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         if !exprs.iter().all(|expr| self.is_scratch_packed_expr(expr)) {
             return None;
@@ -903,6 +929,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exprs: &[hir::Expr<'_>],
         checked: bool,
     ) -> Option<(Vec<PackedPiece<'gcx>>, ValueId)> {
+        // Pseudo IR: `pieces = encode_packed_shape(args); total += piece.size`;
+        // retain enough source/type data for the copy pass to normalize words.
         let mut total = self.builder.imm_u64(0);
         let mut pieces = Vec::with_capacity(exprs.len());
         for expr in exprs {
@@ -1054,6 +1082,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: allocate `bytes(length * element_width)` and reuse the
+        // packed-array copy loop to fill it.
         let (length, element, element_bytes, source) = self.packed_array_shape(ty, value)?;
         let word = self.builder.imm_u64(32);
         let element_bytes_value = self.builder.imm_u64(element_bytes);
@@ -1075,6 +1105,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: `words = count_inline(value); output = bytes(words * 32);`
+        // recursively copy the dynamic value into ABI-packed memory.
         if !self.inplace_dynamic_shape(ty)
             || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemoryObject(_)))
                 && !matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
@@ -1119,6 +1151,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn count_inplace_dynamic_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        // Pseudo IR: recursively sum the 32-byte words needed by each inline
+        // dynamic child, preserving array and struct traversal order.
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => self.count_inplace_array(ty, value),
@@ -1146,6 +1180,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn count_inplace_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> Option<ValueId> {
+        // Pseudo IR: `total = 0; for i { total += count(element[i]) }`.
         let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
@@ -1175,6 +1210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn count_inplace_bytes(&mut self, value: ValueId) -> ValueId {
+        // Pseudo IR: `ceil(bytes.length / 32)` using checked word rounding.
         let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
         let word = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
@@ -1191,6 +1227,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output: ValueId,
         offset: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: recursively copy inline dynamic children and return the
+        // next word offset; scalars become one stored word.
         let ty = ty.peel_refs();
         let value = match ty.kind {
             TyKind::DynArray(_) | TyKind::Array(..) => {
@@ -1255,6 +1293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output: ValueId,
         offset: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: `for i { offset = copy(element[i], offset) }` with a MIR loop.
         let ty = ty.peel_refs();
         let (element, length, layout) = self.inplace_array_info(ty, value)?;
         let preheader = self.builder.current_block();
@@ -1285,6 +1324,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn copy_inplace_bytes(&mut self, value: ValueId, output: ValueId, offset: ValueId) -> ValueId {
+        // Pseudo IR: round the byte length to words, zero the empty-tail word,
+        // copy bytes at `offset`, and return `offset + padded_length`.
         let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
         let word = self.builder.imm_u64(32);
         let thirty_one = self.builder.imm_u64(31);
@@ -1324,6 +1365,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: &PackedArrayElement<'gcx>,
         source: PackedArraySource,
     ) -> ValueId {
+        // Pseudo IR: `for i { load packed element[i]; normalize; store(output, offset + i * width)
+        // }`.
         let element_bytes =
             Self::packed_array_element_bytes(&element.abi).expect("packed array shape");
         let element_bytes_value = self.builder.imm_u64(element_bytes);
@@ -1537,6 +1580,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: allocate precompile output, `staticcall(hash_address, input)`,
+        // load the result word, and scale RIPEMD-160 into its ABI position.
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.context.gcx.types.bytes_ref.memory;
@@ -1561,6 +1606,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        // Pseudo IR: pack `(hash, v, r, s)` into the precompile input, call
+        // address 1, and load the 32-byte output word.
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
         let hash = &values[0];
         let v = &values[1];
@@ -1617,6 +1664,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output_ptr: ValueId,
         output_size: ValueId,
     ) {
+        // Pseudo IR: `staticcall(precompile_gas, address, input, output)`;
+        // use `call(..., value=0)` on EVMs without STATICCALL.
         let evm_version = self.context.gcx.sess.opts.evm_version;
         let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
         if evm_version.has_static_call() {

@@ -34,6 +34,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        // Pseudo IR: classify the callee as constructor, conversion, builtin,
+        // pointer, external, or internal, then dispatch to its call shape.
         if let Some(struct_id) = self.context.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
@@ -153,6 +155,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        // Pseudo IR: `init = creation_bytecode ++ abi_encode(constructor_args)`;
+        // `create|create2(value, init.data, init.len[, salt]) -> address`.
         let contract = self.context.gcx.hir.contract(contract_id);
         let bytecode = self.context.child_bytecodes.get(&contract_id).ok_or_else(|| {
             self.context
@@ -274,6 +278,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<Vec<ValueId>> {
+        // Pseudo IR: split `(address, selector)` from the function word, encode
+        // arguments, perform CALL/STATICCALL, then decode or frame returns.
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, args.span, "external function arguments");
@@ -362,6 +368,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: `dispatcher(function_ptr, typed_args) -> returns`; materialize
+        // each argument before the shared internal dispatcher call.
         if args.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "internal function arguments");
         }
@@ -420,6 +428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         function: &TyFn<'gcx>,
     ) -> FunctionId {
+        // Pseudo IR helper signature: `dispatch(function_ptr, params...) -> returns...`.
         let shape = InternalFunctionPointerShape::from_ty(function);
         let name = shape.helper_name();
         let InternalFunctionPointerShape { params, returns } = shape;
@@ -439,6 +448,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
+        // Pseudo IR: normalize the source word, then apply the destination
+        // width/sign/location conversion, including bytes-slice extraction.
         let value = if from.peel_refs() != to.peel_refs() {
             self.normalize_dirty_scalar(value, from)
         } else {
@@ -601,6 +612,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        // Pseudo IR: resolve dispatch/receiver/storage arguments, then emit
+        // `internal_call(function, args...)` or fall through to external ABI.
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.context.gcx.hir.function(function_id);
         let attached =
@@ -734,6 +747,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        // Pseudo IR: `input = abi_encode(selector, args); ok = CALL/STATICCALL`;
+        // revert on failure and decode the selected return-buffer strategy.
         let ExprKind::Member(receiver, _) = callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "external function target");
         };
@@ -867,6 +882,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
+        // Pseudo IR: encode selector/args, `ok = DELEGATECALL(library, input)`,
+        // then decode returndata into the caller's return shape.
         let function = self.context.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "linked library arguments");
@@ -939,6 +956,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
     ) -> (Option<(ValueId, ValueId, ValueId)>, ValueId, ValueId, bool) {
+        // Pseudo IR: choose a static aggregate buffer, direct word slots, or
+        // returndata decoding; return `(buffer, offset, size, decode)`.
         let returns = return_tys.len();
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let static_return_buffer =
@@ -967,6 +986,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         zero: ValueId,
     ) -> Option<ValueId> {
+        // Pseudo IR: `values = abi_decode(return_data)`; spill values after the
+        // first into the multi-return frame and return the first (or zero).
         let values = self.lower_abi_decode_values(data, return_types, span)?;
         if values.len() > 1 {
             let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
@@ -982,6 +1003,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId, ValueId)> {
+        // Pseudo IR: allocate `bytes(head_size)` for aggregate returns, or a
+        // raw word buffer for a single static aggregate.
         let size = layout.checked_head_size()?;
         if layout.types.len() != 1 {
             let object_size = self.builder.imm_u64(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
@@ -1013,6 +1036,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
+        // Pseudo IR: `require(returndatasize >= returns * 32); validate each return word`.
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm_u64(words.saturating_mul(32));
         self.revert_if_short_returndata(size);

@@ -11,6 +11,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        // Pseudo IR: `builtin(args)` routes to `yul|solidity × value|unit`; call-like
+        // builtins and storage mutators are lowered before the four-way matrix.
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
                 let ExprKind::Member(receiver, _) = callee.kind else {
@@ -120,6 +122,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
         capture_returndata: bool,
     ) -> Option<(ValueId, Option<ValueId>)> {
+        // Pseudo IR: `call(gas, to, value, in, len) -> ok`; optionally
+        // materialize `returndata()` as a memory bytes object.
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let data_span = data.span;
@@ -167,6 +171,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: `gas = amount == 0 ? 2300 : 0; ok = call(gas, to, amount)`;
+        // `transfer` reverts on failure, while `send` returns `ok`.
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_expr(amount)?;
@@ -208,6 +214,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         count: usize,
         first_is_omitted: bool,
     ) -> Option<Vec<ValueId>> {
+        // Pseudo IR: lower one low-level call to `(ok, returndata)` and project
+        // the tuple shape required by the assignment, including omitted values.
         let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
         let ExprKind::Member(receiver, _) = callee.kind else { return None };
         let capture_returndata = count > 1 || first_is_omitted;
@@ -234,6 +242,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         builtin: Builtin,
     ) -> Option<ValueId> {
+        // Pseudo IR: `member` or environment builtin becomes one MIR value,
+        // including memory objects for code, calldata, and dynamic data.
         match builtin {
             Builtin::AddressBalance => {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
@@ -252,6 +262,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::ContractCreationCode
             | Builtin::ContractRuntimeCode
             | Builtin::ContractName => {
+                // Pseudo IR: `type(C).creationCode|runtimeCode|name -> bytes(C)`.
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "environment builtin");
                 };
@@ -295,6 +306,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             Builtin::AddressCode | Builtin::AddressCodehash => {
+                // Pseudo IR: `codehash(to) -> extcodehash(to)` or
+                // `code(to) -> alloc(extcodesize(to)); extcodecopy(to, data)`.
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "environment builtin");
                 };
@@ -327,6 +340,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             Builtin::FunctionSelector => {
+                // Pseudo IR: a static item selector is an immediate word; a
+                // function value is masked to four bytes and shifted left 224.
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "function selector");
                 };
@@ -543,6 +558,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<()> {
+        // Pseudo IR: assertions branch to panic/revert paths; revert and
+        // selfdestruct terminate the current block.
         match builtin {
             Builtin::Assert => {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
@@ -603,6 +620,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: Solidity value builtins produce scalar words, ABI bytes,
+        // precompile results, or newly allocated memory objects.
         match builtin {
             Builtin::Keccak256 => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
@@ -708,6 +727,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+        // Pseudo IR: `inner = keccak256(name) - 1; outer = keccak256(abi.encode(inner));`
+        // clear the low byte of `outer` before returning the namespace slot.
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
         let literal = match &argument.kind {
             ExprKind::Lit(lit) => match &lit.kind {
@@ -750,6 +771,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: collect literal/dynamic/fixed parts, allocate `bytes(total)`,
+        // then copy each part at its running output offset.
         enum Part {
             Literal(Vec<u8>),
             Dynamic { value: ValueId, length: ValueId },
@@ -859,6 +882,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<()> {
+        // Pseudo IR: lower a Yul side effect directly, such as
+        // `mstore`, `sstore`, `logN`, `return`, or `revert`.
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
@@ -903,6 +928,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
+        // Pseudo IR: lower a Yul expression directly to one EVM-shaped value;
+        // version-gated external calls validate the EVM before emission.
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;

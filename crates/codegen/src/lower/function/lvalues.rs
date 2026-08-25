@@ -325,6 +325,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        // Pseudo IR: rewrite calldata slice `(pointer, length)`, external
+        // function `(address, selector)`, or storage reference `slot` fields.
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata) {
             let base = self.lower_expr(receiver)?;

@@ -385,6 +385,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         name: Symbol,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
+        // Pseudo IR helper lifecycle: `lookup(name)`, build once into a fresh
+        // function, publish the function id, and discard failed constructions.
         if let Some(&id) = self.context.state.helpers.get(&name) {
             return Some(id);
         }
@@ -411,6 +413,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<(ValueId, ValueId, ValueId)> {
+        // Pseudo IR: initialize `(gas, value, zero)` from `gas()` and zero,
+        // then overwrite the named call options that the target permits.
         let zero = self.builder.imm_u256(U256::ZERO);
         let mut gas = self.builder.gas();
         let mut value = zero;
@@ -689,6 +693,8 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
 ) {
+    // Pseudo IR: for each pointer shape, emit a selector chain
+    // `if function_id == target { internal_call(target) }`; panic if unmatched.
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)

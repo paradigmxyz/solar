@@ -271,6 +271,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         modifiers: &'gcx [hir::Modifier<'gcx>],
         body: hir::Block<'gcx>,
     ) -> Option<()> {
+        // Pseudo IR: lower the body directly, or route modifier exits through
+        // one return block that merges all live value/storage states.
         if modifiers.is_empty() {
             self.lower_block(body)
         } else {
