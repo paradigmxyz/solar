@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=data
 //@ filecheck:
 @module subslices
 

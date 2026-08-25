@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/data/reuse.evmir (before data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/data/reuse.evmir (after data) ===
+  @module reuse
+  bb0:
+    push_data 0
+    pop
+    push 128
+-   push 0
+-   dup2
+-   mstore
+-   push 32
+-   dup2
+-   add
+-   push 0
+-   swap1
+-   mstore
++   push 64
++   push_data 0
++   dup3
++   codecopy
+    stop
+  
+  @data 0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  

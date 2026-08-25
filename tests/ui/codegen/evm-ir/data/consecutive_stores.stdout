@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/constant-data/consecutive_stores.evmir (before constant-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/constant-data/consecutive_stores.evmir (after constant-data) ===
+- // === ROOT/tests/ui/codegen/evm-ir/data/consecutive_stores.evmir (before data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/data/consecutive_stores.evmir (after data) ===
   @module module
   bb0:
     push 128

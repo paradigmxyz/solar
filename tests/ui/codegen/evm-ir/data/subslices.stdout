@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (after pack-data) ===
+- // === ROOT/tests/ui/codegen/evm-ir/data/subslices.evmir (before data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/data/subslices.evmir (after data) ===
   @module subslices
   bb0:
 -   push_data 0

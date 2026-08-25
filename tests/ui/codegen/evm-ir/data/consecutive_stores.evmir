@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=data
 //@ filecheck:
 @module module
 

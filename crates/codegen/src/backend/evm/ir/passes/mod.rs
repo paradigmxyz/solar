@@ -9,10 +9,9 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
-mod constant_data;
+mod data;
 mod dce;
 mod outline;
-mod pack_data;
 mod peephole;
 mod share_reverts;
 mod tail_merge;
@@ -56,11 +55,11 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
+    &data::Data,
     &dce::Dce,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
-    &pack_data::PackData,
+    &data::FinalizeData,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
@@ -71,7 +70,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
+    &data::Data,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &cfg_simplify::CfgSimplify,
@@ -100,7 +99,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     // Finalize the referenced data pool after all code transforms.
-    &pack_data::PackData,
+    &data::FinalizeData,
 ];
 
 /// Finds an EVM IR pass by command-line name.
