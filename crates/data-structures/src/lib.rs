@@ -5,7 +5,6 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
-#![cfg_attr(feature = "nightly", feature(never_type))]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
 #![cfg_attr(feature = "nightly", feature(extern_types))]
 #![cfg_attr(feature = "nightly", allow(internal_features))]
