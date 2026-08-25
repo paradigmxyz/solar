@@ -1,9 +1,10 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
-    MirType, StorageLayout, StorageLayoutRef,
+    AbiLayout, AbiLayoutRef, DataId, Disambiguator, Function, FunctionId, ImmutableId,
+    MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
 };
+use alloy_primitives::{Bytes, hex};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -107,6 +108,8 @@ pub struct Module {
     pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
+    /// Constant byte strings embedded in generated code.
+    data: IndexVec<DataId, Bytes>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// The lowering phase this module is in.
@@ -132,6 +135,7 @@ impl Module {
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
+            data: IndexVec::new(),
             is_interface: false,
             phase: MirPhase::Built,
         }
@@ -249,6 +253,30 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
+    /// Interns constant data and returns its stable identifier.
+    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataId {
+        if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
+            return id;
+        }
+        self.add_data(data)
+    }
+
+    /// Adds constant data without interning it.
+    pub(crate) fn add_data(&mut self, data: Bytes) -> DataId {
+        self.data.push(data)
+    }
+
+    /// Returns the number of constant data entries.
+    #[must_use]
+    pub(crate) fn data_count(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns all constant data entries.
+    pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
+        self.data.iter_enumerated()
+    }
+
     /// Returns an iterator over all functions.
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
@@ -260,6 +288,13 @@ impl Module {
             writeln!(f, "@module {}", self.name)?;
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
+            }
+            if !self.data.is_empty() {
+                writeln!(f, "data:")?;
+                for (id, data) in self.iter_data() {
+                    writeln!(f, "  {}: hex\"{}\"", id.index(), hex::encode(data))?;
+                }
+                writeln!(f)?;
             }
             if !self.immutables.is_empty() {
                 writeln!(f, "immutables:")?;

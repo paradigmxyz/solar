@@ -16,8 +16,11 @@ impl Module {
                     .iter()
                     .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
             )?;
+            if !self.data.is_empty() {
+                writeln!(f)?;
+            }
             for (id, data) in self.data.iter_enumerated() {
-                write!(f, "@code_data {} hex\"", id.index())?;
+                write!(f, "@data {} hex\"", id.index())?;
                 for byte in data {
                     write!(f, "{byte:02x}")?;
                 }

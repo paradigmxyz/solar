@@ -348,6 +348,13 @@ fn display_inst_kind<'a>(
         InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
+        InstKind::DataCopy(id, dest, size) => write!(
+            f,
+            "data_copy {}, {}, {}",
+            id.index(),
+            display_val(*dest, func),
+            display_val(*size, func)
+        ),
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
                 crate::mir::AllocationKind::Raw => "raw".to_string(),

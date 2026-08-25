@@ -58,7 +58,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut current_block = None;
         while !self.parser.is_eof() {
             if self.parser.eat(TokenKind::At) {
-                self.parse_code_data(module)?;
+                self.parse_data(module)?;
                 current_block = None;
                 continue;
             }
@@ -83,8 +83,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_code_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::code_data)?;
+    fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::data)?;
         let id = self.parse_assembly_id("program data")? as usize;
         if id != module.data.len() {
             return Err(self

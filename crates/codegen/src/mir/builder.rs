@@ -549,6 +549,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))
     }
 
+    /// Emits a constant-data copy.
+    pub(crate) fn data_copy(&mut self, data: crate::mir::DataId, dest: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::DataCopy(data, dest, size))
+    }
+
     /// Emits a codesize instruction.
     pub(crate) fn codesize(&mut self) -> ValueId {
         self.emit_inst(InstKind::CodeSize, Some(MirType::uint256()))

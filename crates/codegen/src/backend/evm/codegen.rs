@@ -1671,6 +1671,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
+        self.asm.load_data(module);
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1890,6 +1891,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn reset_runtime_codegen(&mut self, module: &Module) {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
+        self.asm.load_data(module);
         self.block_labels.clear();
         self.function_labels.clear();
         self.empty_stop_functions = DenseBitSet::new_empty(module.functions.len());
@@ -4905,6 +4907,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     block,
                     inst_idx,
                 );
+            }
+
+            InstKind::DataCopy(data, dest, size) => {
+                self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
             }
 
             InstKind::CodeCopy(dest, offset, size) => {
@@ -8750,6 +8756,39 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(operands.len(), None);
+    }
+
+    /// Emits a copy from relocatable module data to memory.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_data_copy(
+        &mut self,
+        func: &Function,
+        data: crate::mir::DataId,
+        dest: ValueId,
+        size: ValueId,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        let operands = [size, dest];
+        self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+
+        self.emit_value(func, size);
+        if !self.block_local_copy_survives(liveness, block, size, 1) {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, size);
+        }
+
+        self.asm.emit_push_data(data);
+        self.scheduler.stack.push_unknown();
+
+        self.emit_operand(func, dest);
+        let dest_consumed = if dest == size { 2 } else { 1 };
+        if !self.block_local_copy_survives(liveness, block, dest, dest_consumed) {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, dest);
+        }
+
+        self.asm.emit_op(op::CODECOPY);
+        self.scheduler.instruction_executed(3, None);
     }
 
     /// Emits an operation with liveness awareness.

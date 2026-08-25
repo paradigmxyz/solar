@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/none/parser.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) ===
   @module Parser
+  data:
+    0: hex"11223344"
+  
   immutables:
     fn: u8
   
@@ -28,6 +31,12 @@
       mstore 32, 2
       v0 = keccak256 0, 64
       ret v0
+  }
+  
+  fn @copy_data() {
+    bb0:
+      data_copy 0, 0, 4
+      stop
   }
   
   fn @environment() -> u256 {

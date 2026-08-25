@@ -69,6 +69,9 @@ newtype_index! {
 
     /// A unique identifier for an immutable in the MIR module.
     pub(crate) struct ImmutableId;
+
+    /// A unique identifier for constant data in the MIR module.
+    pub(crate) struct DataId;
 }
 
 impl BlockId {
