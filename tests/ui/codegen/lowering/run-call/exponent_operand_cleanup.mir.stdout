@@ -250,4 +250,3 @@ fn @fullWidthOperands() -> u256 [selector=0xd0e127e5, pure, abi_params=[], abi_r
     v0 = exp 2, 4
     ret v0
 }
-

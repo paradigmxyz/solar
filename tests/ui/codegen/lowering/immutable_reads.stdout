@@ -46,4 +46,3 @@ fn @end() -> u256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word]]
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -90,4 +90,3 @@ fn @emitDynamicArray(arg0: memoryarray) [selector=0xf38510d4, abi_params=[array<
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

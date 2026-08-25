@@ -70,4 +70,3 @@ fn @abiEncoding() -> bool [selector=0xe9e87e69, view, abi_params=[], abi_returns
     v31 = eq v23, v30
     ret v31
 }
-

@@ -162,4 +162,3 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
   bb1:
     revert 0, 0
 }
-

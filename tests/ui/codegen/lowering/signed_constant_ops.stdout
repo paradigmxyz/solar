@@ -35,4 +35,3 @@ fn @shr() -> i256 [selector=0xb87f777a, pure, abi_params=[], abi_returns=[word]]
     v1 = sar 1, v0
     ret v1
 }
-

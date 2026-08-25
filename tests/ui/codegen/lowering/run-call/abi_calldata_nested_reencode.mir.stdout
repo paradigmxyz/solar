@@ -529,4 +529,3 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

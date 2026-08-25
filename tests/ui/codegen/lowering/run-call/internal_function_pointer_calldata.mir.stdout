@@ -98,4 +98,3 @@ fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: function, arg1: calldatas
     v1 = internal_call @read, 1, arg1
     ret v1
 }
-

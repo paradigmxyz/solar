@@ -45,4 +45,3 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_params=[
   bb1:
     revert 0, 0
 }
-

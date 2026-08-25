@@ -9,4 +9,3 @@ fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_retu
   bb0:
     ret arg0
 }
-

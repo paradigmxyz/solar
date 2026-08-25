@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
 @module Math
-
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
 fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -35,4 +34,3 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) [pure] {
     v2 = iszero v1
     ret v2, v0
 }
-

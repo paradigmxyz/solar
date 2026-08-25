@@ -73,4 +73,3 @@ fn @fixedArray() -> (u256, u256) [selector=0x391e2457, pure, abi_params=[], abi_
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -828,4 +828,3 @@ fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memorystruct {
   bb2:
     revert 0, 0
 }
-

@@ -36,4 +36,3 @@ fn @wide(arg0: bytes10) -> bool [selector=0x353c5c3d, pure, abi_params=[bytes10]
     v1 = eq arg0, v0
     ret v1
 }
-

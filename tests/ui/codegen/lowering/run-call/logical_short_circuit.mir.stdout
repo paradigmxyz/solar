@@ -178,4 +178,3 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns
     v17 = sload 0 !metadata(storage=slot(0))
     ret v17, v16
 }
-

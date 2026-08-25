@@ -59,4 +59,3 @@ fn @constructor() [constructor] {
     sstore 0, v11 !metadata(storage=slot(0))
     stop
 }
-

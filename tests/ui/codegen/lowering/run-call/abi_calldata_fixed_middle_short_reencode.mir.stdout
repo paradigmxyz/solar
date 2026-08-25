@@ -247,4 +247,3 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -512,4 +512,3 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

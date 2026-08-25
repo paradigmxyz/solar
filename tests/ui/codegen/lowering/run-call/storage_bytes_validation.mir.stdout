@@ -189,4 +189,3 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -8,4 +8,3 @@ fn @shortOutput() -> (bool, u256) [selector=0x66ec2a88, abi_params=[], abi_retur
     v2 = mload 0 !metadata(memory=scratch)
     ret v1, v2
 }
-

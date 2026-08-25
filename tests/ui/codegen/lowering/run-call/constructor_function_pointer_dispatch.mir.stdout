@@ -87,4 +87,3 @@ fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg
     v1 = internal_call @leftByteShift, 1, arg1, arg2
     ret v1
 }
-

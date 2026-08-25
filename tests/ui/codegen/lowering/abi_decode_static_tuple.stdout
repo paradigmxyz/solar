@@ -10,4 +10,3 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [selector=0xe5c5e9a3, pur
     v5 = mload v4
     ret v0, v3, v5
 }
-

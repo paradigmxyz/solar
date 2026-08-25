@@ -13,4 +13,3 @@ fn @shorten(arg0: memorybytes, arg1: u256) -> bytes16 [selector=0xe05b43e0, pure
     v7 = and v0, v6
     ret v7
 }
-

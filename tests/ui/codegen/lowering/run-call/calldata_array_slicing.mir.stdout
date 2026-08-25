@@ -364,4 +364,3 @@ fn @bytesSlice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
   bb1:
     revert 0, 0
 }
-

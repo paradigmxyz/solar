@@ -39,4 +39,3 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
   bb1:
     revert 0, 0
 }
-

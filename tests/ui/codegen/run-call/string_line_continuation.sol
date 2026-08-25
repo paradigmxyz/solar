@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: unicodeLine() => "😃, 😭, and 😈"
 //@ run-call: asciiLine() => "a   b"
 // ported-from: test/libsolidity/semanticTests/strings/unicode_string.sol

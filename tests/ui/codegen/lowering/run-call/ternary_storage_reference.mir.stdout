@@ -70,4 +70,3 @@ fn @chooseArray(arg0: bool) -> u256 [selector=0x08ef7a67, view, abi_params=[bool
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

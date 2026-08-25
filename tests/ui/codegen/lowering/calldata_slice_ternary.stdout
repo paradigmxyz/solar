@@ -55,4 +55,3 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, 
   bb4:
     revert 0, 0
 }
-

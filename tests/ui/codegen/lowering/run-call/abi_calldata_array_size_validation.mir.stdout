@@ -4,4 +4,3 @@ fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_params=[array
   bb0:
     ret 7
 }
-

@@ -54,4 +54,3 @@ fn @get_allowance(arg0: address, arg1: address) -> u256 [selector=0x18836994, vi
     v2 = sload v1 !metadata(storage=symbolic(v1))
     ret v2
 }
-

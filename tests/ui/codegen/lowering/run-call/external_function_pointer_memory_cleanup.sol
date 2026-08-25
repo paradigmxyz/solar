@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: memoryLayout() => true
 //@ run-call: cleanup(uint256) 1 => 0, 0
 // dirtyReturn(uint256) cleans the low eight padding bytes of the memory word.

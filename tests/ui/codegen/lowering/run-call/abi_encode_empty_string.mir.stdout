@@ -16,4 +16,3 @@ fn @encodePacked() -> memorybytes [selector=0x53d9c506, pure, abi_params=[], abi
     set_memory_object_len memorybytes, v2, 0
     ret v2
 }
-

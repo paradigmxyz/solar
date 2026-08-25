@@ -329,4 +329,3 @@ fn @encodeLength(arg0: calldataslice) -> u256 [selector=0xb50dc8e6, pure, abi_pa
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

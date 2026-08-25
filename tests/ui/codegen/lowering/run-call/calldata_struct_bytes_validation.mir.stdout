@@ -742,4 +742,3 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

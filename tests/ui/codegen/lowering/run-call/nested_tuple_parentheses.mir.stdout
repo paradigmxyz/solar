@@ -34,4 +34,3 @@ fn @scalarParens() -> u256 [selector=0x2d8b3eca, pure, abi_params=[], abi_return
   bb0:
     ret 7
 }
-

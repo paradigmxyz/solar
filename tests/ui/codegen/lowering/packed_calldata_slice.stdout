@@ -128,4 +128,3 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
   bb1:
     revert 0, 0
 }
-

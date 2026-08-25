@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: test() => 7, 8
 //@ run-call: hasExpectedLength() => true
 //@ run-call: read(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffff => 0

@@ -346,4 +346,3 @@ fn @test() -> (u16, u16, u16) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

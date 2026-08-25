@@ -560,4 +560,3 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

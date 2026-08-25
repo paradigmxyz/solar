@@ -18,7 +18,6 @@ fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
     sstore 1, arg1 !metadata(storage=slot(1))
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_diamond_forwarding.sol:DiamondSide ===
 @module DiamondSide
 fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
@@ -43,7 +42,6 @@ fn @k() -> u256 [selector=0xb4f40c61, view, abi_params=[], abi_returns=[word]] {
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_diamond_forwarding.sol:DiamondDerived ===
 @module DiamondDerived
 fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
@@ -82,4 +80,3 @@ fn @k() -> u256 [selector=0xb4f40c61, view, abi_params=[], abi_returns=[word]] {
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
-

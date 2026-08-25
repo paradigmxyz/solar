@@ -83,4 +83,3 @@ fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_par
     v6 = slice_len v5
     ret v6
 }
-

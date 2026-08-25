@@ -289,4 +289,3 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-

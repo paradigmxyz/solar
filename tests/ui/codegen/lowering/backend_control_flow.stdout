@@ -224,4 +224,3 @@ fn @phiWithTernary() -> u256 [selector=0x2318217a, abi_params=[], abi_returns=[w
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

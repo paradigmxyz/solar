@@ -10,4 +10,3 @@ fn @test_cleanup() -> bool [selector=0x2b63198c, abi_params=[], abi_returns=[wor
     v4 = eq v3, 3
     ret v4
 }
-

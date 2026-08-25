@@ -61,4 +61,3 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
   bb1:
     revert 0, 0
 }
-

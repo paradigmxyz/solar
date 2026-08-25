@@ -9,4 +9,3 @@ fn @f(arg0: memorystruct) -> (u256, u256, u256) [selector=0x9a869a74, pure, abi_
     v4 = mload v3
     ret v0, v2, v4
 }
-

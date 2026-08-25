@@ -30,4 +30,3 @@ fn @read(arg0: calldataslice) -> u256 [selector=0xfbb1e83c, pure, abi_params=[ar
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

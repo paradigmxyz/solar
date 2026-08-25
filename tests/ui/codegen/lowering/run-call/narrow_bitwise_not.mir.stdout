@@ -73,4 +73,3 @@ fn @notLiteralEqualsNegativeOne() -> bool [selector=0x5055348d, pure, abi_params
     v2 = eq v0, v1
     ret v2
 }
-

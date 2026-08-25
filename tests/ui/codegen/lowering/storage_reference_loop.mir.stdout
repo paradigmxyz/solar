@@ -47,4 +47,3 @@ fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

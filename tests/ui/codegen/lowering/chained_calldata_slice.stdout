@@ -97,4 +97,3 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_params
   bb1:
     revert 0, 0
 }
-

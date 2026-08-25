@@ -23,4 +23,3 @@ fn @count(arg0: u256, arg1: calldataslice) -> u256 [selector=0xd6c2a588, pure, a
     v6 = add v0, 1
     jump bb1
 }
-

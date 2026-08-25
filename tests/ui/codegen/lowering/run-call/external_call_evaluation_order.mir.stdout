@@ -156,4 +156,3 @@ fn @callOptions() -> u256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
     v9 = sload 0 !metadata(storage=slot(0))
     ret v9
 }
-

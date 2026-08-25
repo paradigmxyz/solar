@@ -197,4 +197,3 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

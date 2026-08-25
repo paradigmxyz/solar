@@ -34,4 +34,3 @@ fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, pure, abi_params=[bytes
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
-

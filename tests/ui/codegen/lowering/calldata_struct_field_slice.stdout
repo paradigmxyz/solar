@@ -9,7 +9,6 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase evm-shaped
@@ -281,4 +280,3 @@ fn @entry() [entry] {
   bb5:
     revert 0, 0
 }
-

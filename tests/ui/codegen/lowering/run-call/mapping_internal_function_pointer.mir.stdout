@@ -90,4 +90,3 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     internal_call @stage0, 0
     ret
 }
-

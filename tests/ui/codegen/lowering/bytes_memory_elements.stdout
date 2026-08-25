@@ -102,4 +102,3 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -6,4 +6,3 @@ fn @encode() -> memorybytes [selector=0xbd14598f, pure, abi_params=[], abi_retur
     v1 = abi_encode [word, word], object, args 1, v0
     ret v1
 }
-

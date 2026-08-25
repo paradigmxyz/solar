@@ -25,4 +25,3 @@ fn @setName(arg0: bytes3) {
     sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
-

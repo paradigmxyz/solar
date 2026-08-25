@@ -40,4 +40,3 @@ fn @abs_diff(arg0: u256, arg1: u256) -> u256 [selector=0xef0baf7e, pure, abi_par
   bb3:
     invalid
 }
-

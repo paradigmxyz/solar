@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerBase ===
 @module PointerBase
-
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerDerived ===
 @module PointerDerived
 fn @target.0() -> u256 [pure] {
@@ -54,4 +53,3 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
-

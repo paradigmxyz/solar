@@ -48,7 +48,6 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
-
 // === ROOT/tests/ui/codegen/lowering/modifier_creation_context.sol:C ===
 @module C
 fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {
@@ -112,4 +111,3 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
-

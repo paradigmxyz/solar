@@ -115,4 +115,3 @@ fn @accept(arg0: calldataslice) -> bool [selector=0x50104649, pure, abi_params=[
     v1 = eq v0, 1
     ret v1
 }
-

@@ -119,4 +119,3 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc26b6b9a, pure, abi
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

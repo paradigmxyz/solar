@@ -531,4 +531,3 @@ fn @readWide(arg0: calldataslice) -> u256 [selector=0xb44a60df, pure, abi_params
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

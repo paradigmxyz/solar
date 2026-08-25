@@ -220,4 +220,3 @@ fn @read() -> (u8, u32, u120) [selector=0x57de26a4, abi_params=[], abi_returns=[
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

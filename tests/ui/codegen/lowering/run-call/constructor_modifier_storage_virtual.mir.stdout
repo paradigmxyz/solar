@@ -27,7 +27,6 @@ fn @value() -> u256 [pure] {
   bb0:
     ret 1
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtual ===
 @module ConstructorModifierStorageVirtual
 fn @value() -> u256 [pure] {
@@ -77,4 +76,3 @@ fn @constructor() [constructor] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

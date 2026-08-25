@@ -1,0 +1,65 @@
+// === ROOT/tests/ui/codegen/lowering/try_catch_unused_return.sol:C ===
+@module C
+fn @unusedReturn() -> u256 [selector=0x1df86abb, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = staticcall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
+    jumpi v4, bb1, bb2
+  bb2:
+    v13 = returndatasize
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    jumpi v15, bb6, bb7
+  bb7:
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = make_returndata_slice 0, v13
+    memory_object_copy_from_slice memorybytes, v18, v19
+    v20 = memory_object_data memorybytes, v18
+    v21 = memory_object_len memorybytes, v18
+    v22 = make_memory_slice v20, v21
+    v23 = memory_slice_load_word memory, v22, 0
+    v24 = lt v21, 4
+    v25 = iszero v24
+    v26 = shr 224, v23
+    v27 = eq v26, 0x8c379a0
+    v28 = and v25, v27
+    v29 = lt v21, 36
+    v30 = iszero v29
+    v31 = eq v26, 0x4e487b71
+    v32 = and v30, v31
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v20, v21
+  bb8:
+    ret 2
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v5 = returndatasize
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    jumpi v7, bb4, bb5
+  bb5:
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v10, v11
+    v12 = abi_decode [u256], v10
+    ret 1
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+}

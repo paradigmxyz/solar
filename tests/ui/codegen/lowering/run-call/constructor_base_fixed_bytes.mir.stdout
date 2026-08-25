@@ -19,7 +19,6 @@ fn @_anonymous(arg0: bytes3) [constructor, abi_params=[bytes3]] {
     sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytes ===
 @module ConstructorBaseFixedBytes
 fn @value() -> bytes3 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -43,4 +42,3 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
-

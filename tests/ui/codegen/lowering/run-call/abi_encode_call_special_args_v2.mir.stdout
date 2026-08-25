@@ -48,4 +48,3 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v16 = phi [bb4: v15], [bb5: 0]
     ret v16
 }
-

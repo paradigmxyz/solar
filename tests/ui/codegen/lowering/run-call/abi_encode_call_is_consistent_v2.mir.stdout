@@ -151,4 +151,3 @@ fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
     memory_object_store_word memorybytes, v0, 0, arg0
     ret v0
 }
-
