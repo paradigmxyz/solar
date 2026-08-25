@@ -885,7 +885,7 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [fn0] [bb0, inst0] data_copy offset 5 exceeds data size 4
+error: [fn0] [bb0, inst0] data_copy range 5..6 exceeds data size 4
 
 
 "#]]
