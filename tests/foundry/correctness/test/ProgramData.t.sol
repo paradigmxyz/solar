@@ -66,6 +66,8 @@ contract ProgramDataTest is MetadataStrings {
 
     function testOverlappingMetadata() public {
         MetadataFactory factory = new MetadataFactory();
+        string memory document = _callString(address(factory), MetadataFactory.document.selector);
+        string memory excerpt = _callString(address(factory), MetadataFactory.excerpt.selector);
 
         assert(bytes(_document()).length == 357);
         assert(bytes(_excerpt()).length == 182);
@@ -73,10 +75,10 @@ contract ProgramDataTest is MetadataStrings {
         assert(keccak256(bytes(_excerpt())) == EXPECTED_EXCERPT_HASH);
         assert(factory.documentHash() == EXPECTED_DOCUMENT_HASH);
         assert(factory.excerptHash() == EXPECTED_EXCERPT_HASH);
-        assert(bytes(factory.document()).length == 357);
-        assert(bytes(factory.excerpt()).length == 182);
-        assert(keccak256(bytes(factory.document())) == EXPECTED_DOCUMENT_HASH);
-        assert(keccak256(bytes(factory.excerpt())) == EXPECTED_EXCERPT_HASH);
+        assert(bytes(document).length == 357);
+        assert(bytes(excerpt).length == 182);
+        assert(keccak256(bytes(document)) == EXPECTED_DOCUMENT_HASH);
+        assert(keccak256(bytes(excerpt)) == EXPECTED_EXCERPT_HASH);
     }
 
     function testOverlappingMetadataAcrossFactoryAndChild() public {
@@ -94,10 +96,24 @@ contract ProgramDataTest is MetadataStrings {
         assert(second.factory() == address(factory));
         assert(first.expectedDocumentHash() == EXPECTED_DOCUMENT_HASH);
         assert(second.expectedDocumentHash() == EXPECTED_DOCUMENT_HASH);
-        assert(keccak256(bytes(first.document())) == EXPECTED_DOCUMENT_HASH);
-        assert(keccak256(bytes(second.document())) == EXPECTED_DOCUMENT_HASH);
-        assert(keccak256(bytes(first.excerpt())) == EXPECTED_EXCERPT_HASH);
-        assert(keccak256(bytes(second.excerpt())) == EXPECTED_EXCERPT_HASH);
+        assert(
+            keccak256(bytes(_callString(address(first), MetadataRenderer.document.selector))) == EXPECTED_DOCUMENT_HASH
+        );
+        assert(
+            keccak256(bytes(_callString(address(second), MetadataRenderer.document.selector))) == EXPECTED_DOCUMENT_HASH
+        );
+        assert(
+            keccak256(bytes(_callString(address(first), MetadataRenderer.excerpt.selector))) == EXPECTED_EXCERPT_HASH
+        );
+        assert(
+            keccak256(bytes(_callString(address(second), MetadataRenderer.excerpt.selector))) == EXPECTED_EXCERPT_HASH
+        );
         assert(factory.rendererCreationCodeHash() == keccak256(type(MetadataRenderer).creationCode));
+    }
+
+    function _callString(address target, bytes4 selector) private view returns (string memory value) {
+        (bool success, bytes memory returndata) = target.staticcall(abi.encodeWithSelector(selector));
+        assert(success);
+        value = abi.decode(returndata, (string));
     }
 }
