@@ -14,6 +14,7 @@ use super::{
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
+    materialize::{is_cheap_expression, nullary_opcode},
     op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
@@ -4154,7 +4155,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_cross_block_recomputable_inst(func: &Function, value: ValueId) -> bool {
-        if StackScheduler::is_cheap_recomputable_value(func, value) {
+        if let crate::mir::Value::Inst(inst_id) = func.value(value)
+            && is_cheap_expression(&func.inst(*inst_id).kind)
+        {
             return true;
         }
         let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
@@ -4536,33 +4539,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn is_always_rematerializable_value(func: &Function, value: ValueId) -> bool {
         let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
-        func.inst(*inst_id).kind.is_always_rematerializable()
+        nullary_opcode(&func.inst(*inst_id).kind).is_some()
     }
 
     fn always_rematerializable_op(func: &Function, value: ValueId) -> Option<u8> {
         let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
-        let kind = &func.inst(*inst_id).kind;
-        if !kind.is_always_rematerializable() {
-            return None;
-        }
-        Some(match kind {
-            InstKind::CalldataSize => op::CALLDATASIZE,
-            InstKind::CodeSize => op::CODESIZE,
-            InstKind::Caller => op::CALLER,
-            InstKind::CallValue => op::CALLVALUE,
-            InstKind::Address => op::ADDRESS,
-            InstKind::Origin => op::ORIGIN,
-            InstKind::GasPrice => op::GASPRICE,
-            InstKind::Coinbase => op::COINBASE,
-            InstKind::Timestamp => op::TIMESTAMP,
-            InstKind::PrevRandao => op::PREVRANDAO,
-            InstKind::GasLimit => op::GASLIMIT,
-            InstKind::SlotNum => op::SLOTNUM,
-            InstKind::ChainId => op::CHAINID,
-            InstKind::BaseFee => op::BASEFEE,
-            InstKind::BlobBaseFee => op::BLOBBASEFEE,
-            _ => unreachable!("always-rematerializable MIR instruction without EVM opcode"),
-        })
+        nullary_opcode(&func.inst(*inst_id).kind)
     }
 
     fn can_own_spill_slot(func: &Function, value: ValueId) -> bool {
@@ -6991,9 +6973,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
             crate::mir::Value::Arg(_) => raw_leaves_ok,
-            crate::mir::Value::Inst(inst_id) => {
-                func.inst(*inst_id).kind.is_always_rematerializable()
-            }
+            crate::mir::Value::Inst(inst_id) => nullary_opcode(&func.inst(*inst_id).kind).is_some(),
             _ => false,
         }
     }

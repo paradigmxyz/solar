@@ -104,6 +104,7 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::op::StackOp,
+    backend::evm::materialize::is_cheap_expression,
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
@@ -1977,22 +1978,8 @@ impl StackScheduler {
 
     /// Returns whether an instruction result is cheap enough to recompute from its operands.
     pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else {
-            return false;
-        };
-        matches!(
-            func.inst(*inst_id).kind,
-            crate::mir::InstKind::Add(_, _)
-                | crate::mir::InstKind::Sub(_, _)
-                | crate::mir::InstKind::Mul(_, _)
-                | crate::mir::InstKind::And(_, _)
-                | crate::mir::InstKind::Or(_, _)
-                | crate::mir::InstKind::Xor(_, _)
-                | crate::mir::InstKind::Shl(_, _)
-                | crate::mir::InstKind::Shr(_, _)
-                | crate::mir::InstKind::Sar(_, _)
-                | crate::mir::InstKind::ConstructorArgsBase
-        )
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
+        is_cheap_expression(&func.inst(*inst_id).kind)
     }
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.

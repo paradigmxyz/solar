@@ -26,6 +26,8 @@ pub use disasm::{disassemble, disassemble_standard_json};
 
 mod layout;
 
+mod materialize;
+
 pub mod ir;
 
 pub(crate) mod op;

@@ -196,6 +196,11 @@ impl<'gcx> Assembler<'gcx> {
         self.program.enable_size_outlining = enable;
     }
 
+    /// Records whether MIR lowering left one transient stack word for EVM IR rewrites.
+    pub(crate) fn set_evm_ir_stack_headroom(&mut self, available: bool) {
+        self.program.set_stack_headroom(available);
+    }
+
     /// Returns the conservative indexed-jump target width for this artifact.
     pub(crate) fn indexed_jump_target_width_bound(&self) -> usize {
         assembly::indexed_jump_target_width_bound(

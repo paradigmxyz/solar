@@ -19,14 +19,19 @@ impl EvmPass for ReorderPushes {
         if !module.blocks.iter().any(|block| has_candidate(&block.instructions)) {
             return false;
         }
-        let Some(depths) = StackDepths::new(module) else { return false };
+        let depths = StackDepths::new(module);
+        let guaranteed_headroom = module.has_stack_headroom();
         let mut changed = false;
         let mut scratch = Vec::new();
         for block_index in 0..module.blocks.len() {
             let block_id = BlockId::from_usize(block_index);
-            let Some(entry_depth) = depths.entry_depth(block_id) else { continue };
-            changed |=
-                reorder(&mut module.blocks[block_id].instructions, entry_depth, &mut scratch);
+            let entry_depth = depths.as_ref().and_then(|depths| depths.entry_depth(block_id));
+            changed |= reorder(
+                &mut module.blocks[block_id].instructions,
+                entry_depth,
+                guaranteed_headroom,
+                &mut scratch,
+            );
         }
         changed
     }
@@ -40,7 +45,8 @@ fn has_candidate(instructions: &[Instruction]) -> bool {
 
 fn reorder(
     instructions: &mut Vec<Instruction>,
-    entry_depth: usize,
+    entry_depth: Option<usize>,
+    guaranteed_headroom: bool,
     scratch: &mut Vec<Instruction>,
 ) -> bool {
     scratch.clear();
@@ -52,12 +58,13 @@ fn reorder(
     for inst in scratch.drain(..) {
         let effect = stack_effect(&inst);
         instructions.push(inst);
-        if let Some(effect) = effect {
-            let Some(after_inputs) = depth.checked_sub(usize::from(effect.inputs)) else {
-                return changed;
-            };
-            depth = after_inputs + usize::from(effect.outputs);
-        }
+        depth = effect.and_then(|effect| {
+            depth.and_then(|before| {
+                before
+                    .checked_sub(usize::from(effect.inputs))
+                    .map(|after_inputs| after_inputs + usize::from(effect.outputs))
+            })
+        });
         let producer = if let [.., pushed, swap] = instructions.as_slice()
             && pushed.is_encoded_push()
             && raw_opcode(swap) == Some(op::SWAP1)
@@ -67,10 +74,12 @@ fn reorder(
             None
         };
         if let Some((start, peak)) = producer
-            && depth
-                .checked_sub(2)
-                .and_then(|producer_depth| producer_depth.checked_add(peak + 1))
-                .is_some_and(|peak| peak <= MAX_STACK_DEPTH)
+            && (peak == 1
+                || guaranteed_headroom
+                || depth
+                    .and_then(|depth| depth.checked_sub(2))
+                    .and_then(|producer_depth| producer_depth.checked_add(peak + 1))
+                    .is_some_and(|peak| peak <= MAX_STACK_DEPTH))
         {
             instructions.pop();
             instructions[start..].rotate_right(1);
