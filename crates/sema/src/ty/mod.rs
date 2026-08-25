@@ -1354,6 +1354,17 @@ impl<'gcx> Gcx<'gcx> {
         }
         Some(self.resolve_virtual_function(contract, function))
     }
+    /// Returns whether `function` transitively overrides `base`.
+    pub(crate) fn function_overrides(
+        self,
+        function: hir::FunctionId,
+        base: hir::FunctionId,
+    ) -> bool {
+        self.base_override_items(function.into()).iter().any(|item| {
+            let hir::ItemId::Function(overridden) = item else { return false };
+            *overridden == base || self.function_overrides(*overridden, base)
+        })
+    }
 
     /// Resolves a `super` function call in the context of the most-derived contract.
     pub fn resolve_super_function(
@@ -1530,18 +1541,11 @@ fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)
 ) -> hir::FunctionId {
-    fn function_overrides(gcx: Gcx<'_>, function: hir::FunctionId, base: hir::FunctionId) -> bool {
-        gcx.base_override_items(function.into()).iter().any(|item| {
-            let hir::ItemId::Function(overridden) = item else { return false };
-            *overridden == base || function_overrides(gcx, *overridden, base)
-        })
-    }
-
     let (contract, function) = key;
     debug_assert!(gcx.hir.function(function).virtual_);
     for &base in gcx.hir.contract(contract).linearized_bases {
         for candidate in gcx.hir.contract(base).functions() {
-            if candidate == function || function_overrides(gcx, candidate, function) {
+            if candidate == function || gcx.function_overrides(candidate, function) {
                 return candidate;
             }
         }

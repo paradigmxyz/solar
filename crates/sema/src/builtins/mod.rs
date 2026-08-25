@@ -5,7 +5,7 @@ use crate::{
 };
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Span, Symbol, kw, sym};
+use solar_interface::{Span, Symbol, config::EvmVersion, kw, sym};
 use std::sync::OnceLock;
 
 pub(crate) mod members;
@@ -54,6 +54,25 @@ macro_rules! declare_builtins {
                     $(
                         Builtin::$variant_name => $sym::$name,
                     )*
+                }
+            }
+
+            /// Returns the EVM version required when this high-level builtin is unavailable for
+            /// `target`.
+            pub(crate) fn required_evm_version(self, target: EvmVersion) -> Option<EvmVersion> {
+                match self {
+                    Self::AddressStaticcall if !target.has_static_call() => {
+                        Some(EvmVersion::Byzantium)
+                    }
+                    Self::AddressCodehash if !target.has_ext_code_hash() => {
+                        Some(EvmVersion::Constantinople)
+                    }
+                    Self::BlockChainid if !target.has_chain_id() => Some(EvmVersion::Istanbul),
+                    Self::BlockBasefee if !target.has_base_fee() => Some(EvmVersion::London),
+                    Self::Blobhash | Self::BlockBlobbasefee if !target.has_blob_base_fee() => {
+                        Some(EvmVersion::Cancun)
+                    }
+                    _ => None,
                 }
             }
 

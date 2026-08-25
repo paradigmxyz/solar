@@ -1,8 +1,10 @@
-error: codegen cannot use `staticcall` before Byzantium
+error: builtin `staticcall` requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:LL:CC
    │
 LL │         (bool success,) = target.staticcall("");
-   ╰╴                          ━━━━━━━━━━━━━━━━━
+   │                           ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version byzantium` or newer
 
 error: codegen cannot bind low-level call returndata before Byzantium
    ╭▸ ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:LL:CC

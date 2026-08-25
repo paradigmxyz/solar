@@ -1,0 +1,18 @@
+error: builtin `codehash` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/constantinople.sol:LL:CC
+   │
+LL │         return address(this).codehash;
+   │                ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error: call option `salt` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/typeck/evm_version/constantinople.sol:LL:CC
+   │
+LL │         return new Created{salt: bytes32(0)}();
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error: aborting due to 2 previous errors
+

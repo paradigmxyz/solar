@@ -145,13 +145,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.call(gas, address, value, input, input_size, zero, zero)
             }
             Builtin::AddressStaticcall => {
-                if !self.context.gcx.sess.opts.evm_version.has_static_call() {
-                    return report_error(
-                        self.context.gcx,
-                        call_span,
-                        "codegen cannot use `staticcall` before Byzantium",
-                    );
-                }
                 self.builder.staticcall(gas, address, input, input_size, zero, zero)
             }
             Builtin::AddressDelegatecall => {
