@@ -2048,6 +2048,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let constructor =
             module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
 
+        // An absent MIR constructor represents Solidity's implicit nonpayable
+        // constructor. Explicit and synthetic constructors carry their guard
+        // in MIR, where `lower-abi` can preserve payable constructors.
+        let implicit_constructor_revert = constructor.is_none().then(|| self.asm.new_label());
+        if let Some(revert) = implicit_constructor_revert {
+            self.asm.emit_op(op::CALLVALUE);
+            self.asm.emit_push_label(revert);
+            self.asm.emit_op(op::JUMPI);
+        }
+
         let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
             // Generate constructor bytecode
             // Clear state and generate function body
@@ -2183,6 +2193,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             copy_base,
             immutable_refs,
         );
+        if let Some(revert) = implicit_constructor_revert {
+            self.asm.define_label(revert);
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_op(op::REVERT);
+        }
         PreparedDeploymentPrefix {
             assembly: self.asm.prepare(self.capture_evm_ir),
             constructor_arg_offset,

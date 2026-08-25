@@ -139,6 +139,7 @@ impl LowerAbiCx {
         let mut bytes_fallback = None;
         let mut has_decodes = false;
         let mut has_revert_returndata = false;
+        let mut rejecting_constructor = None;
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
@@ -149,13 +150,18 @@ impl LowerAbiCx {
                     return false;
                 }
             }
-            if func.attributes.is_constructor && func.abi_params.is_some() {
-                if Self::can_decode_constructor_params(func) {
-                    constructors.push(id);
-                } else if Self::can_wrap_constructor_params(func) {
-                    wrapped_constructors.push(id);
-                } else {
-                    return false;
+            if func.attributes.is_constructor {
+                if super::utils::rejects_callvalue(func) {
+                    rejecting_constructor = Some(id);
+                }
+                if func.abi_params.is_some() {
+                    if Self::can_decode_constructor_params(func) {
+                        constructors.push(id);
+                    } else if Self::can_wrap_constructor_params(func) {
+                        wrapped_constructors.push(id);
+                    } else {
+                        return false;
+                    }
                 }
             }
             if func.attributes.is_fallback && is_bytes_fallback(func) {
@@ -182,6 +188,7 @@ impl LowerAbiCx {
             && !has_decodes
             && !has_revert_returndata
             && bytes_fallback.is_none()
+            && rejecting_constructor.is_none()
         {
             let has_selectorless_entry = module.functions.iter().any(|func| {
                 func.attributes.is_constructor
@@ -238,6 +245,9 @@ impl LowerAbiCx {
             let layout = module.function_mut(id).abi_params.take();
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false);
             Self::clear_abi_inputs(module.function_mut(id));
+        }
+        if let Some(id) = rejecting_constructor {
+            Self::inject_callvalue_check(module.function_mut(id));
         }
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -2683,11 +2693,11 @@ impl LowerAbiCx {
         value
     }
 
-    /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.
+    /// Prepends `if callvalue() != 0 { revert(0, 0) }` to an external entry.
     ///
     /// The new guard block becomes the entry and falls through into the old
-    /// body, so the check costs no extra jump. Injected after the `.body` copy
-    /// is taken: internal callers never pay the check.
+    /// body, so the check costs no extra jump. Function bodies have already
+    /// been extracted, so internal callers never pay the check.
     fn inject_callvalue_check(func: &mut Function) {
         let old_entry = BlockId::ENTRY;
         let mut builder = FunctionBuilder::new(func);

@@ -36,22 +36,22 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 366, v1
+    v2 = and 374, v1
     v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 303
-    memory_object_store_word memorybytes, v3, 0, 0x61012580600a5f395ff3346028575f3560e01c8063b3de648b146020578063e4
-    memory_object_store_word memorybytes, v3, 32, 0x20264a146024576028565b602c565b60a5565b5f80fd5b36602490101560a157
-    memory_object_store_word memorybytes, v3, 64, 0x609d565b6002600435028060a0528060a0526002156002820460043590148117
-    memory_object_store_word memorybytes, v3, 96, 0x905015156089577f4e487b710000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v3, 128, 0x5f52601160045260245ffd5b8060a0526080526020608001
-    memory_object_store_word memorybytes, v3, 160, 0x608090036080f35b5f80fd5b6039565b60e06040523660249010156101215761
-    memory_object_store_word memorybytes, v3, 192, 0x11d565b6001600435018060c0528060c05260043581101560fd577f4e487b71
-    memory_object_store_word memorybytes, v3, 224, 0x5f526011
-    memory_object_store_word memorybytes, v3, 256, 0x60045260245ffd5b6004356080526020608001818060c0528152905060209001
-    memory_object_store_word memorybytes, v3, 288, 0x608090036080f35b5f80fd5b60b9560000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 303, v0
+    set_memory_object_len memorybytes, v3, 311
+    memory_object_store_word memorybytes, v3, 0, 0x34600e576101258060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
+    memory_object_store_word memorybytes, v3, 32, 0x8b146020578063e420264a146024576028565b602c565b60a5565b5f80fd5b36
+    memory_object_store_word memorybytes, v3, 64, 0x602490101560a157609d565b6002600435028060a0528060a052600215600282
+    memory_object_store_word memorybytes, v3, 96, 0x460043590148117905015156089577f4e487b71000000000000000000000000
+    memory_object_store_word memorybytes, v3, 128, 0x5f52601160045260245ffd5b8060a052
+    memory_object_store_word memorybytes, v3, 160, 0x6080526020608001608090036080f35b5f80fd5b6039565b60e0604052366024
+    memory_object_store_word memorybytes, v3, 192, 0x9010156101215761011d565b6001600435018060c0528060c052600435811015
+    memory_object_store_word memorybytes, v3, 224, 0x60fd577f4e487b71000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v3, 256, 0x5f52601160045260245ffd5b6004356080526020608001818060c052
+    memory_object_store_word memorybytes, v3, 288, 0x8152905060209001608090036080f35b5f80fd5b60b956000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v3, 311, v0
     v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 303
+    v5 = create 0, v4, 311
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
@@ -496,22 +496,22 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v235 = phi [bb77: v211], [bb83: v233]
     v236 = abi_encode []
     v237 = not 31
-    v238 = and 366, v237
+    v238 = and 374, v237
     v239 = alloc memorybytes, exact, uninitialized, infallible, v238
-    set_memory_object_len memorybytes, v239, 303
-    memory_object_store_word memorybytes, v239, 0, 0x61012580600a5f395ff3346028575f3560e01c8063b3de648b146020578063e4
-    memory_object_store_word memorybytes, v239, 32, 0x20264a146024576028565b602c565b60a5565b5f80fd5b36602490101560a157
-    memory_object_store_word memorybytes, v239, 64, 0x609d565b6002600435028060a0528060a0526002156002820460043590148117
-    memory_object_store_word memorybytes, v239, 96, 0x905015156089577f4e487b710000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v239, 128, 0x5f52601160045260245ffd5b8060a0526080526020608001
-    memory_object_store_word memorybytes, v239, 160, 0x608090036080f35b5f80fd5b6039565b60e06040523660249010156101215761
-    memory_object_store_word memorybytes, v239, 192, 0x11d565b6001600435018060c0528060c05260043581101560fd577f4e487b71
-    memory_object_store_word memorybytes, v239, 224, 0x5f526011
-    memory_object_store_word memorybytes, v239, 256, 0x60045260245ffd5b6004356080526020608001818060c0528152905060209001
-    memory_object_store_word memorybytes, v239, 288, 0x608090036080f35b5f80fd5b60b9560000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v239, 303, v236
+    set_memory_object_len memorybytes, v239, 311
+    memory_object_store_word memorybytes, v239, 0, 0x34600e576101258060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
+    memory_object_store_word memorybytes, v239, 32, 0x8b146020578063e420264a146024576028565b602c565b60a5565b5f80fd5b36
+    memory_object_store_word memorybytes, v239, 64, 0x602490101560a157609d565b6002600435028060a0528060a052600215600282
+    memory_object_store_word memorybytes, v239, 96, 0x460043590148117905015156089577f4e487b71000000000000000000000000
+    memory_object_store_word memorybytes, v239, 128, 0x5f52601160045260245ffd5b8060a052
+    memory_object_store_word memorybytes, v239, 160, 0x6080526020608001608090036080f35b5f80fd5b6039565b60e0604052366024
+    memory_object_store_word memorybytes, v239, 192, 0x9010156101215761011d565b6001600435018060c0528060c052600435811015
+    memory_object_store_word memorybytes, v239, 224, 0x60fd577f4e487b71000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v239, 256, 0x5f52601160045260245ffd5b6004356080526020608001818060c052
+    memory_object_store_word memorybytes, v239, 288, 0x8152905060209001608090036080f35b5f80fd5b60b956000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v239, 311, v236
     v240 = memory_object_data memorybytes, v239
-    v241 = create 0, v240, 303
+    v241 = create 0, v240, 311
     v242 = eq v241, 0
     v243 = iszero v242
     jumpi v243, bb84, bb85

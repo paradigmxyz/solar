@@ -11,14 +11,14 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 103, v1
+    v2 = and 111, v1
     v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 40
-    memory_object_store_word memorybytes, v3, 0, 0x601f8060095f395ff334601a575f3560e01c80635c36b18614601657601a565b
-    memory_object_store_word memorybytes, v3, 32, 0x601e565b5f80fd5b000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 40, v0
+    set_memory_object_len memorybytes, v3, 48
+    memory_object_store_word memorybytes, v3, 0, 0x34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c80635c36b186
+    memory_object_store_word memorybytes, v3, 32, 0x14601657601a565b601e565b5f80fd5b00000000000000000000000000000000
+    memory_object_copy_from_slice_at memorybytes, v3, 48, v0
     v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 40
+    v5 = create 0, v4, 48
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
