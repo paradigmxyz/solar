@@ -28,10 +28,6 @@ fn @declared() -> u256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word]] 
     v13 = or v10, v12
     v14 = iszero v13
     jumpi v14, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v15 = memory_object_load_field memorystruct<2>, v5, 0
     v16 = mul v15, 10
@@ -41,29 +37,33 @@ fn @declared() -> u256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word]] 
     v20 = or v17, v19
     v21 = iszero v20
     jumpi v21, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v22 = add v9, v16
     v23 = lt v22, v9
     jumpi v23, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v24 = memory_object_load_field memorystruct<2>, v5, 1
     v25 = add v22, v24
     v26 = lt v25, v22
     jumpi v26, bb7, bb8
+  bb8:
+    ret v25
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    ret v25
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] {
@@ -95,10 +95,6 @@ fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] 
     v16 = or v13, v15
     v17 = iszero v16
     jumpi v17, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v18 = memory_object_load_field memorystruct<2>, v6, 0
     v19 = mul v18, 100
@@ -108,28 +104,32 @@ fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] 
     v23 = or v20, v22
     v24 = iszero v23
     jumpi v24, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v25 = add v12, v19
     v26 = lt v25, v12
     jumpi v26, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v27 = memory_object_load_field memorystruct<2>, v6, 1
     v28 = add v25, v27
     v29 = lt v28, v25
     jumpi v29, bb7, bb8
+  bb8:
+    ret v28
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    ret v28
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 

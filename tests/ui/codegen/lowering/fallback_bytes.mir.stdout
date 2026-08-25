@@ -11,10 +11,6 @@ fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_param
     v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = not 31
     v9 = and v6, v8
@@ -24,12 +20,16 @@ fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_param
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = iszero v4
     jumpi v12, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v13 = memory_object_len memorybytes, v10
     v14 = keccak256_bytes v10
     ret v13, v14
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @_anonymous(arg0: calldataslice) -> memorybytes [fallback] {
@@ -38,24 +38,16 @@ fn @_anonymous(arg0: calldataslice) -> memorybytes [fallback] {
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
     jumpi v5, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v9 = not 31
     v10 = and v7, v9
@@ -63,5 +55,13 @@ fn @_anonymous(arg0: calldataslice) -> memorybytes [fallback] {
     set_memory_object_len memorybytes, v11, v6
     memory_object_copy_from_slice memorybytes, v11, arg0
     ret v11
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

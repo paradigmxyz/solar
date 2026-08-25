@@ -7,22 +7,22 @@ fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_params=[u256]
     v1 = lt 0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, arg0
     v3 = lt 0, 2
     v4 = iszero v3
     jumpi v4, bb3, bb4
+  bb4:
+    v5 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    ret v5
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v5 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
@@ -31,24 +31,16 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
     jumpi v5, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v9 = not 31
     v10 = and v7, v9
@@ -56,6 +48,14 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_
     set_memory_object_len memorybytes, v11, v6
     memory_object_copy_from_slice memorybytes, v11, arg0
     ret v11
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, pure, abi_params=[], abi_returns=[word, word, word, word]] {

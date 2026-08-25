@@ -34,9 +34,9 @@ bb4:
   push 320
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 64

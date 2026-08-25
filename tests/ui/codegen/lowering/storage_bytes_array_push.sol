@@ -35,8 +35,8 @@ contract StorageBytesArrayPush {
 
     // SBAP-LABEL: fn @blobAt
     // Indexed bytes elements materialize into memory.
-    // SBAP: keccak256
     // SBAP: sload
+    // SBAP: keccak256
     function blobAt(uint256 i) public view returns (bytes memory) {
         return blobs[i];
     }

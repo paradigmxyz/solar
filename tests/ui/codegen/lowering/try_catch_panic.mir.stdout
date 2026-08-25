@@ -9,12 +9,12 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = iszero 0
     jumpi v0, bb1, bb2
+  bb2:
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    stop
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
@@ -60,24 +60,14 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v6 = extcodesize v1
     v7 = iszero v6
     jumpi v7, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb6, bb7
-  bb5:
-    ret 7
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v12 = not 31
     v13 = and v10, v12
@@ -99,14 +89,24 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v27 = eq v22, 0x4e487b71
     v28 = and v26, v27
     jumpi v28, bb8, bb9
+  bb9:
+    revert v16, v17
   bb8:
     v29 = memory_object_data memorybytes, v14
     v30 = add v29, 4
     v31 = make_memory_slice v30, 32
     v32 = memory_slice_load_word memory, v31, 0
     ret v32
-  bb9:
-    revert v16, v17
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    ret 7
+  bb1:
+    revert 0, 0
 }
 
 fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
@@ -120,24 +120,14 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v6 = extcodesize v1
     v7 = iszero v6
     jumpi v7, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb6, bb7
-  bb5:
-    ret 0
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v12 = not 31
     v13 = and v10, v12
@@ -159,13 +149,23 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v27 = eq v22, 0x4e487b71
     v28 = and v26, v27
     jumpi v28, bb8, bb9
+  bb9:
+    revert v16, v17
   bb8:
     v29 = memory_object_data memorybytes, v14
     v30 = add v29, 4
     v31 = make_memory_slice v30, 32
     v32 = memory_slice_load_word memory, v31, 0
     ret v32
-  bb9:
-    revert v16, v17
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    ret 0
+  bb1:
+    revert 0, 0
 }
 

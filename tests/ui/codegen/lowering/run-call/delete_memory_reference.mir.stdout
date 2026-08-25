@@ -8,10 +8,6 @@ fn @array() -> (u256, u256, u256) [selector=0xb0ec2ae1, pure, abi_params=[], abi
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
@@ -22,13 +18,17 @@ fn @array() -> (u256, u256, u256) [selector=0xb0ec2ae1, pure, abi_params=[], abi
     v8 = lt 0, v7
     v9 = iszero v8
     jumpi v9, bb3, bb4
+  bb4:
+    v10 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v5, v6, v10
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v10 = memory_object_load_element memoryarray<1>, v0, 0
-    ret v5, v6, v10
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word]] {

@@ -12,13 +12,13 @@ fn @add_to_value(arg0: u256) [selector=0x7ca7a078, abi_params=[u256], abi_return
     v1 = add v0, arg0
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    stop
 }
 
 fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, abi_params=[u256], abi_returns=[]] {
@@ -27,13 +27,13 @@ fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, abi_params=[u256], abi_retu
     v1 = sub v0, arg0
     v2 = lt v0, arg0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    stop
 }
 
 fn @mul_value(arg0: u256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[]] {
@@ -46,13 +46,13 @@ fn @mul_value(arg0: u256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    stop
 }
 
 fn @bump_post() -> u256 [selector=0xf05c34d1, abi_params=[], abi_returns=[word]] {
@@ -61,13 +61,13 @@ fn @bump_post() -> u256 [selector=0xf05c34d1, abi_params=[], abi_returns=[word]]
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    ret v0
 }
 
 fn @bump_pre() -> u256 [selector=0xe9063fd9, abi_params=[], abi_returns=[word]] {
@@ -76,12 +76,12 @@ fn @bump_pre() -> u256 [selector=0xe9063fd9, abi_params=[], abi_returns=[word]] 
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret v1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    ret v1
 }
 

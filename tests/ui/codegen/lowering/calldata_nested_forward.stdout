@@ -9,8 +9,6 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params
     v4 = extcodesize arg1
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, arg1, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
@@ -18,6 +16,8 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi_params=[array<_, tuple<u256, bytes>>, address], abi_returns=[]] {
@@ -32,17 +32,11 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v7 = or v4, v6
     v8 = iszero v7
     jumpi v8, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v9 = add v2, v3
     v10 = calldatasize
     v11 = gt v9, v10
     jumpi v11, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v12 = mul v1, 32
     v13 = iszero 32
@@ -51,18 +45,10 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v16 = or v13, v15
     v17 = iszero v16
     jumpi v17, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v18 = add 32, v12
     v19 = lt v18, 32
     jumpi v19, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
     set_memory_object_len memoryarray, v20, v1
@@ -71,6 +57,22 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v21 = phi [bb8: 0], [bb29: v77]
     v22 = lt v21, v1
     jumpi v22, bb10, bb11
+  bb11:
+    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v20
+    v79 = slice_ptr v78
+    v80 = slice_len v78
+    v81 = extcodesize arg1
+    v82 = iszero v81
+    jumpi v82, bb30, bb31
+  bb31:
+    v83 = call v0, arg1, 0, v79, v80, 0, 0
+    jumpi v83, bb33, bb32
+  bb32:
+    revert_returndata
+  bb33:
+    stop
+  bb30:
+    revert 0, 0
   bb10:
     v23 = mul v21, 32
     v24 = iszero 32
@@ -79,17 +81,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v27 = or v24, v26
     v28 = iszero v27
     jumpi v28, bb12, bb13
-  bb11:
-    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v20
-    v79 = slice_ptr v78
-    v80 = slice_len v78
-    v81 = extcodesize arg1
-    v82 = iszero v81
-    jumpi v82, bb30, bb31
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     v29 = add v2, v23
     v30 = add v29, 32
@@ -98,8 +89,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v33 = gt v30, v32
     v34 = or v31, v33
     jumpi v34, bb14, bb15
-  bb14:
-    revert 0, 0
   bb15:
     v35 = calldataload v29
     v36 = add v2, v35
@@ -109,8 +98,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v40 = slt v35, v39
     v41 = iszero v40
     jumpi v41, bb16, bb17
-  bb16:
-    revert 0, 0
   bb17:
     v42 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v43 = add v36, 32
@@ -119,8 +106,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v46 = gt v43, v45
     v47 = or v44, v46
     jumpi v47, bb18, bb19
-  bb18:
-    revert 0, 0
   bb19:
     v48 = calldataload v36
     memory_object_store_field memorystruct<2>, v42, 0, v48
@@ -131,8 +116,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v53 = gt v50, v52
     v54 = or v51, v53
     jumpi v54, bb20, bb21
-  bb20:
-    revert 0, 0
   bb21:
     v55 = calldataload v49
     v56 = add v36, v55
@@ -142,14 +125,10 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v60 = slt v55, v59
     v61 = iszero v60
     jumpi v61, bb22, bb23
-  bb22:
-    revert 0, 0
   bb23:
     v62 = calldataload v56
     v63 = gt v62, 0xffffffffffffffff
     jumpi v63, bb24, bb25
-  bb24:
-    revert 0, 0
   bb25:
     v64 = mul v62, 1
     v65 = add v56, 32
@@ -157,8 +136,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v67 = sub v66, v64
     v68 = sgt v65, v67
     jumpi v68, bb26, bb27
-  bb26:
-    revert 0, 0
   bb27:
     v69 = add v56, 32
     v70 = make_calldata_slice v69, v62
@@ -166,10 +143,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v72 = add v71, 63
     v73 = lt v72, v71
     jumpi v73, bb28, bb29
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb29:
     v74 = not 31
     v75 = and v72, v74
@@ -180,14 +153,41 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     memory_object_store_element memoryarray<1>, v20, v21, v42
     v77 = add v21, 1
     jump bb9
-  bb30:
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb26:
     revert 0, 0
-  bb31:
-    v83 = call v0, arg1, 0, v79, v80, 0, 0
-    jumpi v83, bb33, bb32
-  bb32:
-    revert_returndata
-  bb33:
-    stop
+  bb24:
+    revert 0, 0
+  bb22:
+    revert 0, 0
+  bb20:
+    revert 0, 0
+  bb18:
+    revert 0, 0
+  bb16:
+    revert 0, 0
+  bb14:
+    revert 0, 0
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

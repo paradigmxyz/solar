@@ -23,8 +23,6 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
@@ -32,6 +30,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
@@ -48,8 +48,6 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
     v9 = extcodesize v4
     v10 = iszero v9
     jumpi v10, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v11 = call v5, v4, 0, v7, v8, 0, 0
     jumpi v11, bb4, bb3
@@ -57,6 +55,8 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
@@ -68,8 +68,6 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v6, bb4, bb3
@@ -77,6 +75,8 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
@@ -88,24 +88,14 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v6, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb6, bb7
-  bb5:
-    stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v10 = not 31
     v11 = and v8, v10
@@ -127,10 +117,20 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
     jumpi 1, bb8, bb9
-  bb8:
-    jump bb5
   bb9:
     revert v14, v15
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
@@ -147,24 +147,14 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
     v9 = extcodesize v4
     v10 = iszero v9
     jumpi v10, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v11 = call v5, v4, 0, v7, v8, 0, 0
     jumpi v11, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
     jumpi v14, bb6, bb7
-  bb5:
-    stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v15 = not 31
     v16 = and v13, v15
@@ -186,10 +176,20 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
     v30 = eq v25, 0x4e487b71
     v31 = and v29, v30
     jumpi 1, bb8, bb9
-  bb8:
-    jump bb5
   bb9:
     revert v19, v20
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
@@ -201,24 +201,14 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = staticcall v0, 0, v2, v3, 0, 0
     jumpi v6, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb6, bb7
-  bb5:
-    stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v10 = not 31
     v11 = and v8, v10
@@ -240,10 +230,20 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
     jumpi 1, bb8, bb9
-  bb8:
-    jump bb5
   bb9:
     revert v14, v15
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
@@ -255,19 +255,11 @@ fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
     v4 = slice_len v2
     v5 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
-  bb1:
-    ret 1
   bb2:
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb4, bb5
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v9 = not 31
     v10 = and v7, v9
@@ -289,10 +281,18 @@ fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
     v24 = eq v19, 0x4e487b71
     v25 = and v23, v24
     jumpi 1, bb6, bb7
-  bb6:
-    ret 0
   bb7:
     revert v13, v14
+  bb6:
+    ret 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret 1
+  bb3:
+    ret 0
 }
 
 fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {
@@ -332,37 +332,37 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 441, v1
+    v2 = and 427, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x6101c06040523461016c57308060c0528060c0525a8060e0528060e052604051
+    mstore v3, 0x6101c06040523461015e575a8060e0528060e052604051806101805280610180
     v4 = add v3, 32
-    mstore v4, 0x80610180528061018052602081016040527f5dfc2e4a00000000000000000000
+    mstore v4, 0x52602081016040527f5dfc2e4a00000000000000000000000000000000000000
     v5 = add v3, 64
-    mstore v5, 0x81526004810150828060c0523b15
+    mstore v5, 0x81526004810150303b1515605a575f80fd5b5f5f600483
     v6 = add v3, 96
-    mstore v6, 0x156067575f80fd5b5f5f6004835f8787f19250505015607c5760a5565b3d8061
+    mstore v6, 0x5f3087f191505015606e576097565b3d80610100528061010052603f81018061
     v7 = add v3, 128
-    mstore v7, 0x100528061010052603f81018061012052806101205281806101005281101560
+    mstore v7, 0x12052806101205281806101005281101560c957609c565b610162565b7f4e48
     v8 = add v3, 160
-    mstore v8, 0xd75760aa565b610170565b7f4e487b7100000000000000000000000000000000
+    mstore v8, 0x7b71000000000000000000000000000000000000000000000000000000005f52
     v9 = add v3, 192
-    mstore v9, 0x5f52604160045260245ffd5b601f198116905060
+    mstore v9, 0x604160045260245ffd5b601f1981169050604051806101a05281810191508160
     v10 = add v3, 224
-    mstore v10, 0x4051806101a05281810191508160405290508180610100528152602081018280
+    mstore v10, 0x405290508180610100528152602081018280610100525f823e50905060208101
     v11 = add v3, 256
-    mstore v11, 0x610100525f823e509050602081018061014052806101405281806101a0525180
+    mstore v11, 0x8061014052806101405281806101a05251806101605291508161016052806101
     v12 = add v3, 288
-    mstore v12, 0x610160529150816101605280610140525160048210158160e01c91506308c379
+    mstore v12, 0x40525160048210158160e01c91506308c379a08214811650506024821015634e
     v13 = add v3, 320
-    mstore v13, 0xa08214811650506024821015634e487b71821491501650506001156101625760
+    mstore v13, 0x487b7182149150165050600115610154576097565b6101605161014051fd5b5f
     v14 = add v3, 352
-    mstore v14, 0xa5565b6101605161014051fd5b5f80fd5b601f8061017b5f395ff334601a575f
+    mstore v14, 0x80fd5b601f8061016d5f395ff334601a575f3560e01c80635dfc2e4a14601657
     v15 = add v3, 384
-    mstore v15, 0x3560e01c80635dfc2e4a14601657601a565b601e565b5f80fd5b000000000000
+    mstore v15, 0x601a565b601e565b5f80fd5b0000000000000000000000000000000000000000
     v16 = slice_ptr v0
-    v17 = add v3, 410
+    v17 = add v3, 396
     mcopy v17, v16, 0
-    v18 = create 0, v3, 410
+    v18 = create 0, v3, 396
     jumpi v18, bb2, bb1
   bb1:
     revert_returndata
@@ -382,24 +382,14 @@ fn @_anonymous() [constructor] {
     v5 = extcodesize v0
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb3, bb4
-  bb3:
-    jump bb5
   bb4:
     v8 = returndatasize
     v9 = add v8, 63
     v10 = lt v9, v8
     jumpi v10, bb6, bb7
-  bb5:
-    stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v11 = not 31
     v12 = and v9, v11
@@ -421,10 +411,20 @@ fn @_anonymous() [constructor] {
     v26 = eq v21, 0x4e487b71
     v27 = and v25, v26
     jumpi 1, bb8, bb9
-  bb8:
-    jump bb5
   bb9:
     revert v15, v16
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {

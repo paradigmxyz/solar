@@ -6,10 +6,6 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v1 = lt 0, v0
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -19,8 +15,6 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v8 = gt v5, v7
     v9 = or v6, v8
     jumpi v9, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v10 = calldataload v4
     v11 = add v3, v10
@@ -30,15 +24,11 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v15 = slt v10, v14
     v16 = iszero v15
     jumpi v16, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v17 = add v11, 32
     v18 = calldatasize
     v19 = gt v17, v18
     jumpi v19, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v20 = make_calldata_slice v11, 32
     v21 = slice_ptr v20
@@ -49,8 +39,6 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v26 = gt v23, v25
     v27 = or v24, v26
     jumpi v27, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v28 = calldataload v22
     v29 = add v21, v28
@@ -60,14 +48,10 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v33 = slt v28, v32
     v34 = iszero v33
     jumpi v34, bb11, bb12
-  bb11:
-    revert 0, 0
   bb12:
     v35 = calldataload v29
     v36 = gt v35, 0xffffffffffffffff
     jumpi v36, bb13, bb14
-  bb13:
-    revert 0, 0
   bb14:
     v37 = mul v35, 1
     v38 = add v29, 32
@@ -75,12 +59,28 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[ar
     v40 = sub v39, v37
     v41 = sgt v38, v40
     jumpi v41, bb15, bb16
-  bb15:
-    revert 0, 0
   bb16:
     v42 = add v29, 32
     v43 = make_calldata_slice v42, v35
     v44 = slice_len v43
     ret v44
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

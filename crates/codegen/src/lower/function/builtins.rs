@@ -986,20 +986,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulIszero => lower!(iszero(value)),
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
-            Builtin::YulClz => {
-                let [value] = self.lower_builtin_args(builtin, &args)?;
-                match self.context.gcx.sess.opts.evm_version.has_clz() {
-                    true => {}
-                    false => {
-                        return self.unsupported_yul_version(
-                            "codegen requires Osaka-compatible EVM for `clz`",
-                            "compile with `--evm-version osaka` or newer",
-                            args.span,
-                        );
-                    }
-                }
-                Some(self.builder.clz(value))
-            }
+            Builtin::YulClz => lower!(clz(value)),
             Builtin::YulMload => lower!(mload(offset)),
             Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),

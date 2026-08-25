@@ -52,10 +52,10 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
 
-    /// Whether the parser is in Yul mode.
-    ///
-    /// Currently, this can only happen when parsing a Yul "assembly" block.
+    /// Whether the parser is in a Yul block.
     in_yul: bool,
+    /// Whether the parser is parsing a standalone Yul file.
+    pure_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
     /// Whether the parser is currently parsing a modifier body.
@@ -160,6 +160,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             docs: Vec::with_capacity(4),
             tokens: tokens.into_iter(),
             in_yul: false,
+            pure_yul: false,
             in_contract: false,
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
@@ -868,6 +869,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         res
     }
 
+    /// Runs `f` while parsing a standalone Yul file.
+    #[inline]
+    fn in_pure_yul<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let old = std::mem::replace(&mut self.pure_yul, true);
+        let res = f(self);
+        self.pure_yul = old;
+        res
+    }
+
     /// Runs `f` with recursion depth tracking and limit enforcement.
     #[inline]
     pub fn with_recursion_limit<T>(
@@ -949,7 +959,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_builtin() && ident.is_reserved(true) {
+        if !ident.is_yul_builtin() && self.is_reserved_yul_ident(ident) {
             self.expected_ident_found_err().emit();
         }
         self.bump();
@@ -1005,7 +1015,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if ident.is_reserved(self.in_yul) {
+        if self.in_yul && ident.is_future_yul_builtin(self.sess.opts.evm_version) {
+            self.dcx()
+                .warn(format!(
+                    "`{ident}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
+                ))
+                .span(ident.span)
+                .code(error_code!(5470))
+                .emit();
+        } else if if self.in_yul {
+            self.is_reserved_yul_ident(ident)
+        } else {
+            ident.is_reserved(false)
+        } {
             let err = self.expected_ident_found_err();
             if recover {
                 err.emit();
@@ -1015,6 +1037,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         self.bump();
         Ok(ident)
+    }
+
+    #[inline]
+    fn is_reserved_yul_ident(&self, ident: Ident) -> bool {
+        ident.is_yul_keyword()
+            || (ident.is_yul_builtin()
+                && !ident.is_future_yul_builtin(self.sess.opts.evm_version)
+                && (self.pure_yul || ident.is_reserved_yul_builtin_in(self.sess.opts.evm_version)))
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.

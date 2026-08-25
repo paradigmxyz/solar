@@ -6,12 +6,12 @@ fn @doAdd() [selector=0xe9148a2a, pure] {
     v1 = calldatasize
     v2 = lt v1, 68
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v0 = internal_call @add, 1, arg0, arg1
     mstore 128, v0
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @doNeg() [selector=0x8fa81b4e, pure] {
@@ -19,12 +19,12 @@ fn @doNeg() [selector=0x8fa81b4e, pure] {
     v1 = calldatasize
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v0 = internal_call @neg, 1, arg0
     mstore 128, v0
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @doFlip() [selector=0x7cf9d6d4, pure] {
@@ -32,11 +32,11 @@ fn @doFlip() [selector=0x7cf9d6d4, pure] {
     v2 = calldatasize
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     mstore 128, 7
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
@@ -50,21 +50,21 @@ fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
     v6 = iszero v4
     v7 = and v6, v5
     jumpi v7, bb1, bb2
-  bb1:
-    tail_call @revert_stub
   bb2:
     ret v0
+  bb1:
+    tail_call @revert_stub
 }
 
 fn @neg(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
-  bb1:
-    tail_call @revert_stub
   bb2:
     v1 = sub 0, arg0
     ret v1
+  bb1:
+    tail_call @revert_stub
 }
 
 fn @revert_stub() {
@@ -82,12 +82,12 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb5, [0x7cf9d6d4 => bb2, 0x8fa81b4e => bb3, 0xe9148a2a => bb4]
-  bb2:
-    tail_call @doFlip
-  bb3:
-    tail_call @doNeg
   bb4:
     tail_call @doAdd
+  bb3:
+    tail_call @doNeg
+  bb2:
+    tail_call @doFlip
   bb5:
     revert 0, 0
 }

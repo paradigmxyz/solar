@@ -31,9 +31,9 @@ bb9 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 100
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 36
@@ -75,8 +75,8 @@ bb4:
   push 192
   mload
   sload
-  caller
   push 255
+  caller
   and
   dup2
   add
@@ -126,9 +126,9 @@ bb12 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 4
@@ -181,8 +181,8 @@ bb4:
   push 320
   mload
   sload
-  caller
   push 255
+  caller
   and
   dup2
   add

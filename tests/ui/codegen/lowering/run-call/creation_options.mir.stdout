@@ -30,19 +30,11 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     v14 = eq v13, 0
     v15 = iszero v14
     jumpi v15, bb3, bb4
-  bb3:
-    ret 0
   bb4:
     v16 = returndatasize
     v17 = add v16, 63
     v18 = lt v17, v16
     jumpi v18, bb6, bb7
-  bb5:
-    ret 0
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v19 = not 31
     v20 = and v17, v19
@@ -64,10 +56,18 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
     jumpi 1, bb8, bb9
-  bb8:
-    ret 1
   bb9:
     revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
 }
 
 fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_returns=[word]] {
@@ -97,19 +97,11 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     v14 = eq v13, 0
     v15 = iszero v14
     jumpi v15, bb3, bb4
-  bb3:
-    ret 0
   bb4:
     v16 = returndatasize
     v17 = add v16, 63
     v18 = lt v17, v16
     jumpi v18, bb6, bb7
-  bb5:
-    ret 0
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v19 = not 31
     v20 = and v17, v19
@@ -131,10 +123,18 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
     jumpi 1, bb8, bb9
-  bb8:
-    ret 1
   bb9:
     revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
 }
 
 fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_returns=[word]] {
@@ -164,19 +164,11 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     v14 = eq v13, 0
     v15 = iszero v14
     jumpi v15, bb3, bb4
-  bb3:
-    ret 0
   bb4:
     v16 = returndatasize
     v17 = add v16, 63
     v18 = lt v17, v16
     jumpi v18, bb6, bb7
-  bb5:
-    ret 0
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v19 = not 31
     v20 = and v17, v19
@@ -198,10 +190,18 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
     jumpi 1, bb8, bb9
-  bb8:
-    ret 1
   bb9:
     revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
 }
 
 fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_returns=[word]] {

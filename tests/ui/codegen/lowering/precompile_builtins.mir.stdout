@@ -28,10 +28,6 @@ fn @recover() [selector=0xce746024, pure] {
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
     jumpi v28, bb4, bb3
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 64, v25 !metadata(memory=scratch)
     v30 = calldatasize
@@ -45,6 +41,10 @@ fn @recover() [selector=0xce746024, pure] {
     mstore 128, v9
     returndata 128, 32
   bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -77,10 +77,6 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
     v26 = gt v24, 0xffffffffffffffff
     v27 = or v25, v26
     jumpi v27, bb4, bb3
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 64, v24 !metadata(memory=scratch)
     v29 = calldatasize
@@ -94,6 +90,10 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
     mstore 128, v8
     returndata 128, 32
   bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -296,22 +296,22 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb10, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x4aa7a4c7 => bb5, 0x65707d6f => bb6, 0xa1e754ea => bb7, 0xce746024 => bb8, 0xf1609893 => bb9]
-  bb2:
-    tail_call @recoverInvalid
-  bb3:
-    tail_call @ripemdLiteral
-  bb4:
-    tail_call @ripemdEmpty
-  bb5:
-    tail_call @shaLiteral
-  bb6:
-    tail_call @sha
-  bb7:
-    tail_call @ripemd
-  bb8:
-    tail_call @recover
   bb9:
     tail_call @shaEmpty
+  bb8:
+    tail_call @recover
+  bb7:
+    tail_call @ripemd
+  bb6:
+    tail_call @sha
+  bb5:
+    tail_call @shaLiteral
+  bb4:
+    tail_call @ripemdEmpty
+  bb3:
+    tail_call @ripemdLiteral
+  bb2:
+    tail_call @recoverInvalid
   bb10:
     revert 0, 0
 }

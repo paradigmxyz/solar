@@ -21,10 +21,6 @@ fn @_anonymous() [constructor] {
     v13 = lt 0, 4
     v14 = iszero v13
     jumpi v14, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v15 = div 0, 32
     v16 = add 2, v15
@@ -42,10 +38,6 @@ fn @_anonymous() [constructor] {
     v27 = lt 1, 4
     v28 = iszero v27
     jumpi v28, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v29 = div 1, 32
     v30 = add 2, v29
@@ -63,10 +55,6 @@ fn @_anonymous() [constructor] {
     v41 = lt 2, 4
     v42 = iszero v41
     jumpi v42, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v43 = div 2, 32
     v44 = add 2, v43
@@ -84,10 +72,6 @@ fn @_anonymous() [constructor] {
     v55 = lt 3, 4
     v56 = iszero v55
     jumpi v56, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v57 = div 3, 32
     v58 = add 2, v57
@@ -145,10 +129,6 @@ fn @_anonymous() [constructor] {
     v104 = lt 1, 2
     v105 = iszero v104
     jumpi v105, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v106 = div 1, 8
     v107 = add 5, v106
@@ -168,10 +148,6 @@ fn @_anonymous() [constructor] {
     v120 = lt 1, 2
     v121 = iszero v120
     jumpi v121, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v122 = div 1, 32
     v123 = add 6, v122
@@ -187,6 +163,30 @@ fn @_anonymous() [constructor] {
     v133 = or v130, v132
     sstore v123, v133 !metadata(storage=offset(v122, 6))
     stop
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @read() -> (u8, u8, u256) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, word, word]] {
@@ -296,10 +296,6 @@ fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], a
     v0 = lt arg0, 4
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = div arg0, 32
     v3 = add 2, v2
@@ -310,6 +306,10 @@ fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], a
     v8 = shr v7, v6
     v9 = and v8, 255
     ret v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u256, u8], abi_returns=[word]] {
@@ -317,10 +317,6 @@ fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u25
     v0 = lt arg0, 4
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = div arg0, 32
     v3 = add 2, v2
@@ -338,10 +334,6 @@ fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u25
     v14 = lt arg0, 4
     v15 = iszero v14
     jumpi v15, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v16 = div arg0, 32
     v17 = add 2, v16
@@ -352,6 +344,14 @@ fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u25
     v22 = shr v21, v20
     v23 = and v22, 255
     ret v23
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @mixedRead() -> (address, bool, u16) [selector=0x3e58c576, view, abi_params=[], abi_returns=[word, word, word]] {
@@ -411,10 +411,6 @@ fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi
     v0 = lt arg0, 2
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = div arg0, 8
     v3 = add 5, v2
@@ -428,10 +424,6 @@ fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi
     v11 = lt arg0, 2
     v12 = iszero v11
     jumpi v12, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v13 = div arg0, 32
     v14 = add 6, v13
@@ -443,6 +435,14 @@ fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi
     v20 = and v19, 255
     v21 = signextend 0, v20
     ret v10, v21
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selector=0xe381ba9e, abi_params=[u256, bytes4, i8], abi_returns=[word, word]] {
@@ -450,10 +450,6 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     v0 = lt arg0, 2
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = div arg0, 8
     v3 = add 5, v2
@@ -472,10 +468,6 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     v15 = lt arg0, 2
     v16 = iszero v15
     jumpi v16, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v17 = div arg0, 32
     v18 = add 6, v17
@@ -493,10 +485,6 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     v29 = lt arg0, 2
     v30 = iszero v29
     jumpi v30, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v31 = div arg0, 8
     v32 = add 5, v31
@@ -510,10 +498,6 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     v40 = lt arg0, 2
     v41 = iszero v40
     jumpi v41, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v42 = div arg0, 32
     v43 = add 6, v42
@@ -525,6 +509,22 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     v49 = and v48, 255
     v50 = signextend 0, v49
     ret v39, v50
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_returns=[word, word, word, word]] {
@@ -534,37 +534,21 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v1 = lt 0, 4
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 5
     v3 = lt 1, 4
     v4 = iszero v3
     jumpi v4, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     memory_object_store_element memoryfixedarray<4, 1>, v0, 1, 6
     v5 = lt 2, 4
     v6 = iszero v5
     jumpi v6, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     memory_object_store_element memoryfixedarray<4, 1>, v0, 2, 7
     v7 = lt 3, 4
     v8 = iszero v7
     jumpi v8, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 8
     v9 = div 0, 32
@@ -626,10 +610,6 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v61 = lt 0, 4
     v62 = iszero v61
     jumpi v62, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v63 = div 0, 32
     v64 = add 2, v63
@@ -642,10 +622,6 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v71 = lt 1, 4
     v72 = iszero v71
     jumpi v72, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v73 = div 1, 32
     v74 = add 2, v73
@@ -658,10 +634,6 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v81 = lt 2, 4
     v82 = iszero v81
     jumpi v82, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v83 = div 2, 32
     v84 = add 2, v83
@@ -674,10 +646,6 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v91 = lt 3, 4
     v92 = iszero v91
     jumpi v92, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v93 = div 3, 32
     v94 = add 2, v93
@@ -688,5 +656,37 @@ fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_
     v99 = shr v98, v97
     v100 = and v99, 255
     ret v70, v80, v90, v100
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

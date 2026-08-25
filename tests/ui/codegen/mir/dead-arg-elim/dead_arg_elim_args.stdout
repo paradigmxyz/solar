@@ -21,12 +21,12 @@
 + fn @recursive(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
+    bb2:
+      ret arg1
     bb1:
 -     v0 = internal_call @recursive, 1, 0, arg1, arg2
 +     v0 = internal_call @recursive, 1, 0, arg1
       ret v0
-    bb2:
-      ret arg1
   }
   
   fn @external_keeps_abi(arg0: u256, arg1: u256) -> u256 [selector=0x01020304] {

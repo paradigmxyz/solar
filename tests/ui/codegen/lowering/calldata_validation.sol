@@ -74,9 +74,9 @@ contract CalldataValidation {
     // wider unsigned ABI type, so no second cleanup is needed.
     // CHECK-LABEL: fn @vWidened{{[( ]}}
     // CHECK-NOT: and arg0
-    // CHECK: mstore 128, arg0
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: {{v[0-9]+}} = shr 8, [[RAW]]
+    // CHECK: mstore 128, arg0
     function vWidened(uint8 x) external pure returns (uint16) {
         return x;
     }

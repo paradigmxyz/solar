@@ -151,6 +151,18 @@ impl Ident {
         self.name.is_reserved_yul_builtin()
     }
 
+    /// Returns `true` if the identifier is a Yul EVM builtin reserved by `evm_version`.
+    #[inline]
+    pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_reserved_yul_builtin_in(evm_version)
+    }
+
+    /// Returns `true` if the identifier is a future Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_future_yul_builtin(evm_version)
+    }
+
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
     /// for possible future use.
     #[inline]
@@ -318,7 +330,27 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+    }
+
+    /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
+    #[inline]
+    pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.is_reserved_yul_builtin() && !self.is_future_yul_builtin(evm_version)
+    }
+
+    /// Returns `true` if the symbol is a future Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+        match self {
+            kw::Basefee => !evm_version.has_base_fee(),
+            kw::Prevrandao => !evm_version.has_prev_randao(),
+            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
+                !evm_version.has_blob_base_fee()
+            }
+            kw::Clz => !evm_version.has_clz(),
+            _ => false,
+        }
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for

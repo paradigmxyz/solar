@@ -49,6 +49,9 @@ struct CopyElisionCx {
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function) -> bool {
+        if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
+            return false;
+        }
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
@@ -60,21 +63,27 @@ impl CopyElisionCx {
         if allocs.is_empty() {
             return false;
         }
-        self.index_uses(func);
+        let mut changed = false;
+        loop {
+            self.uses.clear();
+            self.terminator_uses.clear();
+            self.index_uses(func);
 
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
-        for object in allocs {
-            let Some(writes) = self.write_only_writes(func, object) else { continue };
-            dead.extend(writes);
-            self.eliminated += 1;
+            let mut dead = FxHashSet::default();
+            for &object in &allocs {
+                let Some(writes) = self.write_only_writes(func, object) else { continue };
+                dead.extend(writes);
+                self.eliminated += 1;
+            }
+            if dead.is_empty() {
+                break;
+            }
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|inst| !dead.contains(inst));
+            }
+            changed = true;
         }
-        if dead.is_empty() {
-            return false;
-        }
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|inst| !dead.contains(inst));
-        }
-        true
+        changed
     }
 
     fn index_uses(&mut self, func: &Function) {
@@ -143,10 +152,56 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MStore8(addr, _)
-                    | InstKind::MemoryZero(addr, _)
-                    | InstKind::SetMemoryObjectLen(addr, _, _) => {
+                    InstKind::MStore8(addr, _) | InstKind::MemoryZero(addr, _) => {
                         if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::SetMemoryObjectLen(addr, len, _) => {
+                        if derived.contains(len) {
+                            return None;
+                        }
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectStoreField { object, value, .. } => {
+                        if derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
+                        if derived.contains(index) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectStoreByte { object, index, value } => {
+                        if derived.contains(index) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
+                        if derived.contains(offset) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectCopy { destination, source, length, .. } => {
+                        if derived.contains(source) || derived.contains(length) {
+                            return None;
+                        }
+                        if derived.contains(destination) {
                             writes.push(inst_id);
                         }
                     }

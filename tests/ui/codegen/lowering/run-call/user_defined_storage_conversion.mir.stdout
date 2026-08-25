@@ -7,8 +7,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v2 = calldatasize
     v3 = gt v1, v2
     jumpi v3, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v4 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v5 = calldataload v0
@@ -16,8 +14,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v7 = eq v5, v6
     v8 = iszero v7
     jumpi v8, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     memory_object_store_field memorystruct<4>, v4, 0, v5
     v9 = add v0, 32
@@ -26,8 +22,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v12 = eq v10, v11
     v13 = iszero v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     memory_object_store_field memorystruct<4>, v4, 1, v10
     v14 = add v0, 64
@@ -36,8 +30,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v17 = eq v15, v16
     v18 = iszero v17
     jumpi v18, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     memory_object_store_field memorystruct<4>, v4, 2, v15
     v19 = add v0, 96
@@ -46,8 +38,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v22 = eq v20, v21
     v23 = iszero v22
     jumpi v23, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     memory_object_store_field memorystruct<4>, v4, 3, v20
     v24 = memory_object_load_field memorystruct<4>, v4, 0
@@ -94,10 +84,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v61 = or v58, v60
     v62 = iszero v61
     jumpi v62, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v63 = sload 0 !metadata(storage=slot(0))
     v64 = shr 8, v63
@@ -109,18 +95,10 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v70 = or v67, v69
     v71 = iszero v70
     jumpi v71, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v72 = add v57, v66
     v73 = lt v72, v57
     jumpi v73, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v74 = sload 0 !metadata(storage=slot(0))
     v75 = shr 24, v74
@@ -131,10 +109,6 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v80 = add v72, v79
     v81 = lt v80, v72
     jumpi v81, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     v82 = sload 0 !metadata(storage=slot(0))
     v83 = shr 40, v82
@@ -142,12 +116,38 @@ fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=
     v85 = add v80, v84
     v86 = lt v85, v80
     jumpi v86, bb19, bb20
+  bb20:
+    ret v85
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb20:
-    ret v85
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
@@ -196,10 +196,6 @@ fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tu
     v37 = or v34, v36
     v38 = iszero v37
     jumpi v38, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v39 = sload 0 !metadata(storage=slot(0))
     v40 = shr 8, v39
@@ -211,18 +207,10 @@ fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tu
     v46 = or v43, v45
     v47 = iszero v46
     jumpi v47, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v48 = add v33, v42
     v49 = lt v48, v33
     jumpi v49, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = shr 24, v50
@@ -233,10 +221,6 @@ fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tu
     v56 = add v48, v55
     v57 = lt v56, v48
     jumpi v57, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v58 = sload 0 !metadata(storage=slot(0))
     v59 = shr 40, v58
@@ -244,12 +228,28 @@ fn @storeMemory(arg0: memorystruct) -> u256 [selector=0xdb1ba0ba, abi_params=[tu
     v61 = add v56, v60
     v62 = lt v61, v56
     jumpi v62, bb9, bb10
+  bb10:
+    ret v61
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    ret v61
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[array<_, u16>], abi_returns=[word]] {
@@ -263,17 +263,11 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     v6 = or v3, v5
     v7 = iszero v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v1, v2
     v9 = calldatasize
     v10 = gt v8, v9
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = mul v0, 32
     v12 = iszero 32
@@ -282,18 +276,10 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     v15 = or v12, v14
     v16 = iszero v15
     jumpi v16, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v17 = add 32, v11
     v18 = lt v17, 32
     jumpi v18, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
@@ -302,68 +288,46 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     v20 = phi [bb8: 0], [bb15: v33]
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
-  bb10:
-    v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = iszero v26
-    jumpi v27, bb12, bb13
   bb11:
     v34 = memory_object_len memoryarray, v19
     v35 = sload 1 !metadata(storage=slot(1))
     v36 = gt v35, v34
     jumpi v36, bb16, bb17
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    v28 = add v1, v22
-    v29 = calldataload v28
-    v30 = and v29, 0xffff
-    v31 = eq v29, v30
-    v32 = iszero v31
-    jumpi v32, bb14, bb15
-  bb14:
-    revert 0, 0
-  bb15:
-    memory_object_store_element memoryarray<1>, v19, v20, v29
-    v33 = add v20, 1
-    jump bb9
   bb16:
     jump bb18
-  bb17:
-    sstore 1, v34 !metadata(storage=slot(1))
-    jump bb21
   bb18:
     v37 = phi [bb16: v34], [bb19: v52]
     v38 = lt v37, v35
     jumpi v38, bb19, bb20
-  bb19:
-    v39 = storage_array_data_slot 1
-    v40 = div v37, 16
-    v41 = add v39, v40
-    v42 = mod v37, 16
-    v43 = mul v42, 2
-    v44 = mul v43, 8
-    v45 = shl v44, 0xffff
-    v46 = sload v41 !metadata(storage=symbolic(v41))
-    v47 = not v45
-    v48 = and v46, v47
-    v49 = and 0, 0xffff
-    v50 = shl v44, v49
-    v51 = or v48, v50
-    sstore v41, v51 !metadata(storage=symbolic(v41))
-    v52 = add v37, 1
-    jump bb18
   bb20:
     jump bb17
+  bb17:
+    sstore 1, v34 !metadata(storage=slot(1))
+    jump bb21
   bb21:
     v53 = phi [bb17: 0], [bb22: v69]
     v54 = lt v53, v34
     jumpi v54, bb22, bb23
+  bb23:
+    v70 = sload 1 !metadata(storage=slot(1))
+    v71 = lt 1, v70
+    v72 = iszero v71
+    jumpi v72, bb24, bb25
+  bb25:
+    v73 = storage_array_data_slot 1
+    v74 = div 1, 16
+    v75 = add v73, v74
+    v76 = mod 1, 16
+    v77 = mul v76, 2
+    v78 = sload v75 !metadata(storage=symbolic(v75))
+    v79 = mul v77, 8
+    v80 = shr v79, v78
+    v81 = and v80, 0xffff
+    ret v81
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb22:
     v55 = memory_object_load_element memoryarray<1>, v19, v53
     v56 = storage_array_data_slot 1
@@ -382,26 +346,62 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     sstore v58, v68 !metadata(storage=symbolic(v58))
     v69 = add v53, 1
     jump bb21
-  bb23:
-    v70 = sload 1 !metadata(storage=slot(1))
-    v71 = lt 1, v70
-    v72 = iszero v71
-    jumpi v72, bb24, bb25
-  bb24:
+  bb19:
+    v39 = storage_array_data_slot 1
+    v40 = div v37, 16
+    v41 = add v39, v40
+    v42 = mod v37, 16
+    v43 = mul v42, 2
+    v44 = mul v43, 8
+    v45 = shl v44, 0xffff
+    v46 = sload v41 !metadata(storage=symbolic(v41))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = and 0, 0xffff
+    v50 = shl v44, v49
+    v51 = or v48, v50
+    sstore v41, v51 !metadata(storage=symbolic(v41))
+    v52 = add v37, 1
+    jump bb18
+  bb10:
+    v22 = mul v20, 32
+    v23 = iszero 32
+    v24 = div v22, 32
+    v25 = eq v24, v20
+    v26 = or v23, v25
+    v27 = iszero v26
+    jumpi v27, bb12, bb13
+  bb13:
+    v28 = add v1, v22
+    v29 = calldataload v28
+    v30 = and v29, 0xffff
+    v31 = eq v29, v30
+    v32 = iszero v31
+    jumpi v32, bb14, bb15
+  bb15:
+    memory_object_store_element memoryarray<1>, v19, v20, v29
+    v33 = add v20, 1
+    jump bb9
+  bb14:
+    revert 0, 0
+  bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb25:
-    v73 = storage_array_data_slot 1
-    v74 = div 1, 16
-    v75 = add v73, v74
-    v76 = mod 1, 16
-    v77 = mul v76, 2
-    v78 = sload v75 !metadata(storage=symbolic(v75))
-    v79 = mul v77, 8
-    v80 = shr v79, v78
-    v81 = and v80, 0xffff
-    ret v81
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word]] {
@@ -415,17 +415,11 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     v6 = or v3, v5
     v7 = iszero v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v1, v2
     v9 = calldatasize
     v10 = gt v8, v9
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = mul v0, 32
     v12 = iszero 32
@@ -434,18 +428,10 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     v15 = or v12, v14
     v16 = iszero v15
     jumpi v16, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v17 = add 32, v11
     v18 = lt v17, 32
     jumpi v18, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
@@ -454,69 +440,49 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     v20 = phi [bb8: 0], [bb15: v33]
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
-  bb10:
-    v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = iszero v26
-    jumpi v27, bb12, bb13
   bb11:
     v34 = memory_object_len memoryarray, v19
     v35 = sload 2 !metadata(storage=slot(2))
     v36 = gt v35, v34
     jumpi v36, bb16, bb17
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    v28 = add v1, v22
-    v29 = calldataload v28
-    v30 = and v29, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v31 = eq v29, v30
-    v32 = iszero v31
-    jumpi v32, bb14, bb15
-  bb14:
-    revert 0, 0
-  bb15:
-    memory_object_store_element memoryarray<1>, v19, v20, v29
-    v33 = add v20, 1
-    jump bb9
   bb16:
     jump bb18
-  bb17:
-    sstore 2, v34 !metadata(storage=slot(2))
-    jump bb21
   bb18:
     v37 = phi [bb16: v34], [bb19: v53]
     v38 = lt v37, v35
     jumpi v38, bb19, bb20
-  bb19:
-    v39 = storage_array_data_slot 2
-    v40 = div v37, 16
-    v41 = add v39, v40
-    v42 = mod v37, 16
-    v43 = mul v42, 2
-    v44 = mul v43, 8
-    v45 = shl v44, 0xffff
-    v46 = sload v41 !metadata(storage=symbolic(v41))
-    v47 = not v45
-    v48 = and v46, v47
-    v49 = shr 240, 0
-    v50 = and v49, 0xffff
-    v51 = shl v44, v50
-    v52 = or v48, v51
-    sstore v41, v52 !metadata(storage=symbolic(v41))
-    v53 = add v37, 1
-    jump bb18
   bb20:
     jump bb17
+  bb17:
+    sstore 2, v34 !metadata(storage=slot(2))
+    jump bb21
   bb21:
     v54 = phi [bb17: 0], [bb22: v71]
     v55 = lt v54, v34
     jumpi v55, bb22, bb23
+  bb23:
+    v72 = sload 2 !metadata(storage=slot(2))
+    v73 = lt 1, v72
+    v74 = iszero v73
+    jumpi v74, bb24, bb25
+  bb25:
+    v75 = storage_array_data_slot 2
+    v76 = div 1, 16
+    v77 = add v75, v76
+    v78 = mod 1, 16
+    v79 = mul v78, 2
+    v80 = sload v77 !metadata(storage=symbolic(v77))
+    v81 = mul v79, 8
+    v82 = shr v81, v80
+    v83 = and v82, 0xffff
+    v84 = shl 240, v83
+    v85 = and v84, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v86 = shr 248, v85
+    ret v86
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb22:
     v56 = memory_object_load_element memoryarray<1>, v19, v54
     v57 = storage_array_data_slot 2
@@ -536,28 +502,62 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     sstore v59, v70 !metadata(storage=symbolic(v59))
     v71 = add v54, 1
     jump bb21
-  bb23:
-    v72 = sload 2 !metadata(storage=slot(2))
-    v73 = lt 1, v72
-    v74 = iszero v73
-    jumpi v74, bb24, bb25
-  bb24:
+  bb19:
+    v39 = storage_array_data_slot 2
+    v40 = div v37, 16
+    v41 = add v39, v40
+    v42 = mod v37, 16
+    v43 = mul v42, 2
+    v44 = mul v43, 8
+    v45 = shl v44, 0xffff
+    v46 = sload v41 !metadata(storage=symbolic(v41))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = shr 240, 0
+    v50 = and v49, 0xffff
+    v51 = shl v44, v50
+    v52 = or v48, v51
+    sstore v41, v52 !metadata(storage=symbolic(v41))
+    v53 = add v37, 1
+    jump bb18
+  bb10:
+    v22 = mul v20, 32
+    v23 = iszero 32
+    v24 = div v22, 32
+    v25 = eq v24, v20
+    v26 = or v23, v25
+    v27 = iszero v26
+    jumpi v27, bb12, bb13
+  bb13:
+    v28 = add v1, v22
+    v29 = calldataload v28
+    v30 = and v29, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v31 = eq v29, v30
+    v32 = iszero v31
+    jumpi v32, bb14, bb15
+  bb15:
+    memory_object_store_element memoryarray<1>, v19, v20, v29
+    v33 = add v20, 1
+    jump bb9
+  bb14:
+    revert 0, 0
+  bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb25:
-    v75 = storage_array_data_slot 2
-    v76 = div 1, 16
-    v77 = add v75, v76
-    v78 = mod 1, 16
-    v79 = mul v78, 2
-    v80 = sload v77 !metadata(storage=symbolic(v77))
-    v81 = mul v79, 8
-    v82 = shr v81, v80
-    v83 = and v82, 0xffff
-    v84 = shl 240, v83
-    v85 = and v84, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v86 = shr 248, v85
-    ret v86
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

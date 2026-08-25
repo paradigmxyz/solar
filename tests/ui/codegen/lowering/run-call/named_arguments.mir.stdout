@@ -9,10 +9,6 @@ fn @a(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
     v4 = or v1, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v6 = mul arg1, 10
     v7 = iszero 10
@@ -21,28 +17,32 @@ fn @a(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = lt v12, v0
     jumpi v13, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v14 = add v12, arg2
     v15 = lt v14, v12
     jumpi v15, bb7, bb8
+  bb8:
+    ret v14
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    ret v14
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @b() -> u256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word]] {
@@ -62,14 +62,14 @@ fn @d() -> u256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word]] {
     v0 = gt 5, 0
     v1 = iszero v0
     jumpi v1, bb2, bb3
-  bb1:
-    ret v2
-  bb2:
-    revert 0, 0
   bb3:
     v2 = internal_call @a, 1, 0, 0, 7
     jump bb4
   bb4:
     jump bb1
+  bb1:
+    ret v2
+  bb2:
+    revert 0, 0
 }
 

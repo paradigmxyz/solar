@@ -76,20 +76,9 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "broken_version_1"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
-        // TODO: EVM version-aware parsing.
-        | "basefee_pre_london"
-        | "basefee_berlin_function"
-        | "prevrandao_allowed_function_pre_paris"
-        | "blobbasefee_shanghai_function"
-        | "blobhash_pre_cancun"
-        | "mcopy_as_identifier_pre_cancun"
-        | "tload_tstore_not_reserved_before_cancun"
-        | "blobhash_pre_cancun_not_reserved"
-        | "clz_reserved_osaka"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
         | "experimental_test_warning"
         // "." is not a valid import path.
-        | "boost_filesystem_bug"
         // Invalid UTF-8 is not supported.
         | "invalid_utf8_sequence"
         // Validation is in solar's AST stage (https://github.com/paradigmxyz/solar/pull/120).

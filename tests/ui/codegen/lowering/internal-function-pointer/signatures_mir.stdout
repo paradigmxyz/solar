@@ -44,12 +44,12 @@ fn @pair(arg0: u256) -> (u256, u256) [pure] {
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
+  bb2:
+    ret arg0, v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret arg0, v0
 }
 
 fn @callZero() [selector=0x46e2b562, abi_params=[], abi_returns=[]] {
@@ -63,12 +63,12 @@ fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
     v0 = add arg0, arg1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
+  bb2:
+    ret v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @callTwoArgs() -> u256 [selector=0xc406c3a3, abi_params=[], abi_returns=[word]] {
@@ -81,42 +81,42 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @setFlag, 0
-    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    internal_call @setFlag, 0
+    ret
 }
 
 fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> (u256, u256) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
   bb1:
     v1 = internal_call @pair, 2, arg1
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3
     ret v1, v4
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u256) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @sum, 1, arg1, arg2
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @sum, 1, arg1, arg2
+    ret v1
 }
 
 fn @constructor() [constructor] {

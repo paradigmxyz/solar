@@ -10,22 +10,22 @@ fn @receiver() -> address {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 1
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = address
     ret v9
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @arg() -> u256 {
@@ -38,21 +38,21 @@ fn @arg() -> u256 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 4
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 7
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret 7
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @gasOpt() -> u256 {
@@ -65,22 +65,22 @@ fn @gasOpt() -> u256 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 2
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = gas
     ret v9
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @valueOpt() -> u256 {
@@ -93,21 +93,21 @@ fn @valueOpt() -> u256 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 3
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[]] {
@@ -126,8 +126,6 @@ fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=
     v6 = extcodesize v0
     v7 = iszero v6
     jumpi v7, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v8 = call v1, v0, 0, v4, v5, 0, 0
     jumpi v8, bb4, bb3
@@ -136,6 +134,8 @@ fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=
   bb4:
     v9 = sload 0 !metadata(storage=slot(0))
     ret v9
+  bb1:
+    revert 0, 0
 }
 
 fn @callOptions() -> u256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word]] {

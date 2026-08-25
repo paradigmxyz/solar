@@ -21,11 +21,12 @@ contract CoalesceAllocsFixture {
     // structs back to back. The group fuses into one free-memory-pointer bump
     // of the summed size, and the inner pointers become constant offsets.
     // CHECK-LABEL: fn @combine
-    // CHECK: returndata
+    // CHECK-NOT: mstore 64,
     // CHECK: [[BASE:v[0-9]+]] = alloc {{.*}}, 224
     // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 96
     // CHECK: [[SECOND:v[0-9]+]] = add [[BASE]], 160
     // CHECK-NOT: mstore 64,
+    // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);
         return outer.first.lo + outer.second.hi + outer.tag;

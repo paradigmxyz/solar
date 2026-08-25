@@ -70,10 +70,10 @@ fn @cross_block_dead_store(arg0: u256) {
 // CHECK-LABEL: @cross_block_read_path
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 7
 // CHECK: {{^ +}}jumpi arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
-// CHECK: {{^ +}}[[READ]]:
-// CHECK: {{^ +}}returndata [[ADDR]]
 // CHECK: {{^ +}}[[OVERWRITE]]:
 // CHECK: {{^ +}}mstore [[ADDR]], 9
+// CHECK: {{^ +}}[[READ]]:
+// CHECK: {{^ +}}returndata [[ADDR]]
 fn @cross_block_read_path(arg0: u256) {
   bb0:
     mstore 128, 7

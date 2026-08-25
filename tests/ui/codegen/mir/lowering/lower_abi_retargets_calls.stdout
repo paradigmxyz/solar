@@ -8,6 +8,8 @@
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
@@ -17,8 +19,6 @@
 +     returndata 128, v4
 +   bb2:
 +     revert 0, 0
-+   bb3:
-+     jump bb1
   }
   
 - fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
@@ -28,6 +28,8 @@
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
 +   bb1:
 +     v0 = internal_call @pub.body, 1, arg0
 +     mstore 128, v0
@@ -36,8 +38,6 @@
 +     returndata 128, v4
 +   bb2:
 +     revert 0, 0
-+   bb3:
-+     jump bb1
 + }
 + 
 + fn @pub.body(arg0: u256) -> u256 {

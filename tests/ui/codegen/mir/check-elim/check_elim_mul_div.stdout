@@ -5,6 +5,8 @@
     bb0:
       v0 = lt arg0, 100
       jumpi v0, bb1, bb2
+    bb2:
+      ret 0
     bb1:
       v1 = mul arg0, 3
       v2 = div v1, 3
@@ -12,12 +14,10 @@
       v4 = iszero v3
 -     jumpi v4, bb3, bb4
 +     jump bb4
-    bb2:
-      ret 0
-    bb3:
-      revert 0, 0
     bb4:
       ret v1
+    bb3:
+      revert 0, 0
   }
   
   fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
@@ -27,9 +27,9 @@
       v2 = eq v1, arg0
       v3 = iszero v2
       jumpi v3, bb1, bb2
-    bb1:
-      revert 0, 0
     bb2:
       ret v0
+    bb1:
+      revert 0, 0
   }
   
