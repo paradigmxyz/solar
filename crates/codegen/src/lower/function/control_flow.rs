@@ -7,6 +7,7 @@ use super::*;
 enum TryCallee<'a> {
     Creation { ty: &'a hir::Type<'a>, contract_id: hir::ContractId },
     Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
+    LinkedLibrary { address: U256, function: hir::FunctionId, receiver: Option<&'a hir::Expr<'a>> },
     FunctionPointer { address: ValueId, selector: ValueId },
 }
 
@@ -214,25 +215,71 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_unsupported(self.context.gcx, try_stmt.expr.span, "try target");
             };
             let function = self.context.gcx.hir.function(function_id);
+            let is_external_library = function.contract.is_some_and(|contract| {
+                self.context.gcx.hir.contract(contract).kind == hir::ContractKind::Library
+            }) && matches!(
+                function.visibility,
+                hir::Visibility::Public | hir::Visibility::External
+            );
+            let (callee, parameter_types, parameter_names, static_call) = if is_external_library {
+                let Some(address) = self.linked_library_address(function_id) else {
+                    return report_error(
+                        self.context.gcx,
+                        try_stmt.expr.span,
+                        "library calls in try/catch require a configured library address",
+                    );
+                };
+                let attached = self
+                    .context
+                    .gcx
+                    .resolved_callee(callee.id)
+                    .is_some_and(|callee| callee.attached);
+                (
+                    TryCallee::LinkedLibrary {
+                        address,
+                        function: function_id,
+                        receiver: attached.then_some(receiver),
+                    },
+                    function
+                        .parameters
+                        .iter()
+                        .skip(usize::from(attached))
+                        .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
+                        .collect(),
+                    self.context
+                        .gcx
+                        .call_param_source(callee)
+                        .map(|source| self.context.gcx.callable_param_names(source)),
+                    false,
+                )
+            } else {
+                (
+                    TryCallee::Member {
+                        receiver,
+                        selector: self.context.gcx.function_selector(function_id).0,
+                    },
+                    function
+                        .parameters
+                        .iter()
+                        .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
+                        .collect(),
+                    Some(self.context.gcx.callable_param_names(CallableParamSource::Function {
+                        id: function_id,
+                        skips_receiver: false,
+                    })),
+                    self.uses_static_call(function.state_mutability),
+                )
+            };
             TryTarget {
-                callee: TryCallee::Member {
-                    receiver,
-                    selector: self.context.gcx.function_selector(function_id).0,
-                },
-                parameter_types: function
-                    .parameters
-                    .iter()
-                    .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
-                    .collect(),
+                callee,
+                parameter_types,
                 return_types: function
                     .returns
                     .iter()
                     .map(|&return_id| self.context.gcx.type_of_item(return_id.into()))
                     .collect(),
-                parameter_names: Some(self.context.gcx.callable_param_names(
-                    CallableParamSource::Function { id: function_id, skips_receiver: false },
-                )),
-                static_call: self.uses_static_call(function.state_mutability),
+                parameter_names,
+                static_call,
             }
         } else if let Some(TyKind::Fn(function)) =
             self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -327,21 +374,55 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
+                TryCallee::LinkedLibrary { address, .. } => self.builder.imm_u256(address),
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let (gas, call_value, zero) =
                 self.lower_call_options(*call_opts, true, "try call option")?;
-            let (values, types) = self.lower_abi_call_arguments(
+            let (mut values, mut types) =
+                if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
+                    let capacity = args.len() + usize::from(receiver.is_some());
+                    let mut values = Vec::with_capacity(capacity);
+                    let mut types = Vec::with_capacity(capacity);
+                    if let Some(receiver) = receiver {
+                        let function = self.context.gcx.hir.function(function);
+                        let Some(&parameter) = function.parameters.first() else {
+                            return report_unsupported(
+                                self.context.gcx,
+                                receiver.span,
+                                "attached library receiver",
+                            );
+                        };
+                        let parameter_ty = self.context.gcx.type_of_item(parameter.into());
+                        let (value, ty) = if Self::is_storage_parameter(parameter_ty) {
+                            (self.storage_access(receiver)?.slot, AbiType::Word)
+                        } else {
+                            self.lower_abi_call_argument(receiver, parameter_ty)?
+                        };
+                        values.push(value);
+                        types.push(ty);
+                    }
+                    (values, types)
+                } else {
+                    (Vec::new(), Vec::new())
+                };
+            let (argument_values, argument_types) = self.lower_abi_call_arguments(
                 *args,
                 target.parameter_types.iter().copied(),
                 target.parameter_names.as_ref(),
                 args.span,
                 "try argument",
-                false,
+                matches!(target.callee, TryCallee::LinkedLibrary { .. }),
             )?;
+            values.extend(argument_values);
+            types.extend(argument_types);
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
+                    self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
+                }
+                TryCallee::LinkedLibrary { function, .. } => {
+                    let selector = self.context.gcx.function_selector(function).0;
                     self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
                 }
                 TryCallee::FunctionPointer { selector, .. } => selector,
@@ -354,10 +435,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
             let ret_size = self.builder.imm_u64(0);
-            let success = if target.static_call {
-                self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
-            } else {
-                self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
+            let success = match target.callee {
+                TryCallee::LinkedLibrary { .. } => {
+                    if target.return_types.is_empty() {
+                        self.revert_if_no_code(address);
+                    }
+                    self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
+                }
+                _ if target.static_call => {
+                    self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+                }
+                _ => self
+                    .builder
+                    .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
             };
             (success, None)
         };
