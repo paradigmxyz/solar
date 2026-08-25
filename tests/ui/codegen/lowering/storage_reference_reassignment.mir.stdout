@@ -7,26 +7,26 @@ fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605
     v1 = add arg1, 1
     v2 = lt v1, arg1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = add v0, 1
     sstore v3, v1 !metadata(storage=offset(v0, 1))
     v4 = sload v0 !metadata(storage=symbolic(v0))
     v5 = internal_call @readB, 1, v0
     ret v4, v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg1, 0
     jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     v1 = mapping_slot arg2, 0
-    jump bb3
-  bb2:
     jump bb3
   bb3:
     v2 = phi [bb1: v1], [bb2: v0]
@@ -66,10 +66,10 @@ fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [sele
   bb0:
     v0 = mapping_slot arg1, 1
     jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     v1 = mapping_slot arg2, 1
-    jump bb3
-  bb2:
     jump bb3
   bb3:
     v2 = phi [bb1: v1], [bb2: v0]
@@ -98,9 +98,9 @@ fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [sele
 fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3c827d72, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb1:
-    jump bb3
   bb2:
+    jump bb3
+  bb1:
     jump bb3
   bb3:
     v0 = phi [bb1: 2], [bb2: 1]

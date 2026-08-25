@@ -1,0 +1,42 @@
+error[6612]: Yul builtin `shl` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/constantinople.sol:LL:CC
+   │
+LL │             result := shl(1, value)
+   │                       ━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error[7458]: Yul builtin `shr` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/constantinople.sol:LL:CC
+   │
+LL │             result := shr(1, value)
+   │                       ━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error[2054]: Yul builtin `sar` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/constantinople.sol:LL:CC
+   │
+LL │             result := sar(1, value)
+   │                       ━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error[6166]: Yul builtin `create2` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/constantinople.sol:LL:CC
+   │
+LL │             result := create2(0, 0, 0, 0)
+   │                       ━━━━━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error[7110]: Yul builtin `extcodehash` requires Constantinople-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/constantinople.sol:LL:CC
+   │
+LL │             result := extcodehash(address())
+   │                       ━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version constantinople` or newer
+
+error: aborting due to 5 previous errors
+

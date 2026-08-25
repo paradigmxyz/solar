@@ -1,56 +1,54 @@
-error: tag @title can only be given once
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │ /// @title Second title
-   ╰╴     ━━━━━
-
-error: tag @inheritdoc can only be given once
+warning[5142]: tag @inheritdoc can only be given once
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @inheritdoc DuplicateInheritdocBase
    ╰╴         ━━━━━━━━━━
 
-error: tag `@author` not valid for functions
+warning[6546]: tag `@author` not valid for functions
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @author Invalid author on function
    ╰╴         ━━━━━━
 
-error: tag `@title` not valid for functions
+warning[6546]: tag `@title` not valid for functions
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @title Invalid title on function
    ╰╴         ━━━━━
 
-error: tag `@param` references non-existent parameter 'y'
+warning[3881]: tag `@param` references non-existent parameter 'y'
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @param y Invalid parameter name
    ╰╴         ━━━━━
 
-error: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
+warning[4682]: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @inheritdoc SelfInheritdoc
    ╰╴         ━━━━━━━━━━
 
-error: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
+warning[9397]: tag `@inheritdoc` references inexistent contract "DoesNotExist"
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @inheritdoc DoesNotExist
+   ╰╴         ━━━━━━━━━━
+
+warning[4682]: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @inheritdoc InheritdocIntermediate
    ╰╴         ━━━━━━━━━━
 
-error: tag `@return` not valid for events
+warning[6546]: tag `@return` not valid for events
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @return Invalid return on event
    ╰╴         ━━━━━━
 
-error: tag `@inheritdoc` not valid for events
+warning[6546]: tag `@inheritdoc` not valid for events
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
 LL │     /// @inheritdoc InvalidInheritdocBase
    ╰╴         ━━━━━━━━━━
-
-error: aborting due to 9 previous errors
 

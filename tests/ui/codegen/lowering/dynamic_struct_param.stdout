@@ -9,18 +9,18 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     v4 = eq v2, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = add v2, arg1
     v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v7, bb3, bb4
+  bb4:
+    ret v6
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v6
+  bb1:
+    revert 0, 0
 }
 
 fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_params=[tuple<u256, address>], abi_returns=[word]] {
@@ -41,8 +41,6 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v5 = gt v2, v4
     v6 = or v3, v5
     jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = calldataload v1
     v8 = add v0, v7
@@ -52,14 +50,10 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v12 = slt v7, v11
     v13 = iszero v12
     jumpi v13, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v14 = calldataload v8
     v15 = gt v14, 0xffffffffffffffff
     jumpi v15, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v16 = mul v14, 32
     v17 = add v8, 32
@@ -67,8 +61,6 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v19 = sub v18, v16
     v20 = sgt v17, v19
     jumpi v20, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v21 = add v8, 32
     v22 = make_calldata_slice v21, v14
@@ -79,12 +71,20 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v27 = add v23, v26
     v28 = lt v27, v23
     jumpi v28, bb9, bb10
+  bb10:
+    ret v27
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    ret v27
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
@@ -97,8 +97,6 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v5 = gt v2, v4
     v6 = or v3, v5
     jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = calldataload v1
     v8 = add v0, v7
@@ -108,14 +106,10 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v12 = slt v7, v11
     v13 = iszero v12
     jumpi v13, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v14 = calldataload v8
     v15 = gt v14, 0xffffffffffffffff
     jumpi v15, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v16 = mul v14, 32
     v17 = add v8, 32
@@ -123,8 +117,6 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v19 = sub v18, v16
     v20 = sgt v17, v19
     jumpi v20, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v21 = add v8, 32
     v22 = make_calldata_slice v21, v14
@@ -135,12 +127,20 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v27 = add v23, v26
     v28 = lt v27, v23
     jumpi v28, bb9, bb10
+  bb10:
+    ret v27
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    ret v27
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
@@ -153,8 +153,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v5 = gt v2, v4
     v6 = or v3, v5
     jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = calldataload v1
     v8 = add v0, v7
@@ -164,14 +162,10 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v12 = slt v7, v11
     v13 = iszero v12
     jumpi v13, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v14 = calldataload v8
     v15 = gt v14, 0xffffffffffffffff
     jumpi v15, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v16 = mul v14, 32
     v17 = add v8, 32
@@ -179,8 +173,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v19 = sub v18, v16
     v20 = sgt v17, v19
     jumpi v20, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v21 = add v8, 32
     v22 = make_calldata_slice v21, v14
@@ -193,8 +185,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v29 = gt v26, v28
     v30 = or v27, v29
     jumpi v30, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v31 = calldataload v25
     v32 = add v24, v31
@@ -204,14 +194,10 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v36 = slt v31, v35
     v37 = iszero v36
     jumpi v37, bb11, bb12
-  bb11:
-    revert 0, 0
   bb12:
     v38 = calldataload v32
     v39 = gt v38, 0xffffffffffffffff
     jumpi v39, bb13, bb14
-  bb13:
-    revert 0, 0
   bb14:
     v40 = mul v38, 32
     v41 = add v32, 32
@@ -219,8 +205,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v43 = sub v42, v40
     v44 = sgt v41, v43
     jumpi v44, bb15, bb16
-  bb15:
-    revert 0, 0
   bb16:
     v45 = add v32, 32
     v46 = make_calldata_slice v45, v38
@@ -228,10 +212,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v48 = lt 0, v47
     v49 = iszero v48
     jumpi v49, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     v50 = slice_ptr v46
     v51 = add v50, 0
@@ -241,8 +221,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v55 = gt v52, v54
     v56 = or v53, v55
     jumpi v56, bb19, bb20
-  bb19:
-    revert 0, 0
   bb20:
     v57 = calldataload v51
     v58 = add v50, v57
@@ -252,14 +230,10 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v62 = slt v57, v61
     v63 = iszero v62
     jumpi v63, bb21, bb22
-  bb21:
-    revert 0, 0
   bb22:
     v64 = calldataload v58
     v65 = gt v64, 0xffffffffffffffff
     jumpi v65, bb23, bb24
-  bb23:
-    revert 0, 0
   bb24:
     v66 = mul v64, 32
     v67 = add v58, 32
@@ -267,8 +241,6 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v69 = sub v68, v66
     v70 = sgt v67, v69
     jumpi v70, bb25, bb26
-  bb25:
-    revert 0, 0
   bb26:
     v71 = add v58, 32
     v72 = make_calldata_slice v71, v64
@@ -276,11 +248,39 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v74 = add v23, v73
     v75 = lt v74, v23
     jumpi v75, bb27, bb28
+  bb28:
+    ret v74
   bb27:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb28:
-    ret v74
+  bb25:
+    revert 0, 0
+  bb23:
+    revert 0, 0
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

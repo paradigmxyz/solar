@@ -7,12 +7,6 @@ fn @_anonymous() [constructor] {
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
-  bb1:
-    stop
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
@@ -21,6 +15,12 @@ fn @_anonymous() [constructor] {
     jump bb4
   bb4:
     jump bb1
+  bb1:
+    stop
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @value() -> u256 [pure] {
@@ -42,15 +42,15 @@ fn @result() -> (u256, u256) [selector=0x65372147, view, abi_params=[], abi_retu
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = storage_array_data_slot 0
     v5 = add v4, 0
     v6 = sload v5 !metadata(storage=symbolic(v4))
     ret v0, v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @constructor() [constructor] {
@@ -60,14 +60,6 @@ fn @constructor() [constructor] {
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb3, bb4
-  bb1:
-    stop
-  bb2:
-    jump bb1
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
@@ -76,5 +68,13 @@ fn @constructor() [constructor] {
     jump bb5
   bb5:
     jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    stop
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

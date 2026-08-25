@@ -8,8 +8,6 @@ fn @encPackedBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = add v0, arg1
@@ -18,32 +16,20 @@ fn @encPackedBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = slice_len v7
     v15 = add 0, v14
     v16 = lt v15, 0
     jumpi v16, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v17 = add v15, 63
     v18 = lt v17, v15
     jumpi v18, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v19 = not 31
     v20 = and v17, v19
@@ -53,12 +39,26 @@ fn @encPackedBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v22 = add 0, v14
     v23 = lt v22, 0
     jumpi v23, bb11, bb12
+  bb12:
+    ret v21
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    ret v21
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x31b229fc, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -69,8 +69,6 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memo
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = add v0, arg1
@@ -79,32 +77,20 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memo
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = slice_len v7
     v15 = add 0, v14
     v16 = lt v15, 0
     jumpi v16, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v17 = add v15, 63
     v18 = lt v17, v15
     jumpi v18, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v19 = not 31
     v20 = and v17, v19
@@ -114,12 +100,26 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memo
     v22 = add 0, v14
     v23 = lt v22, 0
     jumpi v23, bb11, bb12
+  bb12:
+    ret v21
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    ret v21
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -130,8 +130,6 @@ fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [select
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = add v0, arg1
@@ -140,18 +138,20 @@ fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [select
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = abi_encode [calldata_bytes], object, args v7
     ret v14
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -162,8 +162,6 @@ fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybyte
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = add v0, arg1
@@ -172,18 +170,20 @@ fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybyte
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = abi_encode [calldata_bytes], object, args v7
     ret v14
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -194,8 +194,6 @@ fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
@@ -205,15 +203,17 @@ fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = abi_encode [calldata_array<word>], object, args v13
     ret v14
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xea73d5ef, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -224,8 +224,6 @@ fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memoryby
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
@@ -235,15 +233,17 @@ fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memoryby
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = abi_encode [calldata_array<word>], object, args v13
     ret v14
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x0d7d5d61, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -254,8 +254,6 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
@@ -265,10 +263,6 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
@@ -280,26 +274,14 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v19 = or v16, v18
     v20 = iszero v19
     jumpi v20, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v21 = add 0, v15
     v22 = lt v21, 0
     jumpi v22, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v23 = add v21, 63
     v24 = lt v23, v21
     jumpi v24, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v25 = not 31
     v26 = and v23, v25
@@ -312,18 +294,10 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v32 = or v29, v31
     v33 = iszero v32
     jumpi v33, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v34 = add 0, v28
     v35 = lt v34, 0
     jumpi v35, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v36 = slice_ptr v13
     jump bb15
@@ -331,6 +305,8 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v37 = phi [bb14: 0], [bb21: v48]
     v38 = lt v37, v14
     jumpi v38, bb16, bb17
+  bb17:
+    ret v27
   bb16:
     v39 = mul v37, 32
     v40 = iszero 32
@@ -339,25 +315,49 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     v43 = or v40, v42
     v44 = iszero v43
     jumpi v44, bb18, bb19
-  bb17:
-    ret v27
-  bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb19:
     v45 = add 0, v39
     v46 = lt v45, 0
     jumpi v46, bb20, bb21
-  bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb21:
     v47 = calldata_slice_load_word calldata, v13, v39
     memory_object_store_word memorybytes, v27, v45, v47
     v48 = add v37, 1
     jump bb15
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xf98ab314, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -368,8 +368,6 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
@@ -379,10 +377,6 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
@@ -394,26 +388,14 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v19 = or v16, v18
     v20 = iszero v19
     jumpi v20, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v21 = add 0, v15
     v22 = lt v21, 0
     jumpi v22, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v23 = add v21, 63
     v24 = lt v23, v21
     jumpi v24, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v25 = not 31
     v26 = and v23, v25
@@ -426,18 +408,10 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v32 = or v29, v31
     v33 = iszero v32
     jumpi v33, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v34 = add 0, v28
     v35 = lt v34, 0
     jumpi v35, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v36 = slice_ptr v13
     jump bb15
@@ -445,6 +419,8 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v37 = phi [bb14: 0], [bb21: v48]
     v38 = lt v37, v14
     jumpi v38, bb16, bb17
+  bb17:
+    ret v27
   bb16:
     v39 = mul v37, 32
     v40 = iszero 32
@@ -453,25 +429,49 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     v43 = or v40, v42
     v44 = iszero v43
     jumpi v44, bb18, bb19
-  bb17:
-    ret v27
-  bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb19:
     v45 = add 0, v39
     v46 = lt v45, 0
     jumpi v46, bb20, bb21
-  bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb21:
     v47 = calldata_slice_load_word calldata, v13, v39
     memory_object_store_word memorybytes, v27, v45, v47
     v48 = add v37, 1
     jump bb15
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x7ae711bd, pure, abi_params=[array<_, u8>, u256, u256], abi_returns=[memory_bytes]] {
@@ -482,8 +482,6 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
@@ -493,10 +491,6 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v10 = or v7, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
@@ -509,17 +503,11 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v20 = or v17, v19
     v21 = iszero v20
     jumpi v21, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v22 = add v15, v16
     v23 = calldatasize
     v24 = gt v22, v23
     jumpi v24, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v25 = mul v14, 32
     v26 = iszero 32
@@ -528,18 +516,10 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v29 = or v26, v28
     v30 = iszero v29
     jumpi v30, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v31 = add 32, v25
     v32 = lt v31, 32
     jumpi v32, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v31
     set_memory_object_len memoryarray, v33, v14
@@ -548,14 +528,6 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v34 = phi [bb12: 0], [bb19: v47]
     v35 = lt v34, v14
     jumpi v35, bb14, bb15
-  bb14:
-    v36 = mul v34, 32
-    v37 = iszero 32
-    v38 = div v36, 32
-    v39 = eq v38, v34
-    v40 = or v37, v39
-    v41 = iszero v40
-    jumpi v41, bb16, bb17
   bb15:
     v48 = memory_object_len memoryarray, v33
     v49 = mul v48, 32
@@ -565,43 +537,14 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v53 = or v50, v52
     v54 = iszero v53
     jumpi v54, bb20, bb21
-  bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    v42 = add v15, v36
-    v43 = calldataload v42
-    v44 = and v43, 255
-    v45 = eq v43, v44
-    v46 = iszero v45
-    jumpi v46, bb18, bb19
-  bb18:
-    revert 0, 0
-  bb19:
-    memory_object_store_element memoryarray<1>, v33, v34, v43
-    v47 = add v34, 1
-    jump bb13
-  bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb21:
     v55 = add 0, v49
     v56 = lt v55, 0
     jumpi v56, bb22, bb23
-  bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb23:
     v57 = add v55, 63
     v58 = lt v57, v55
     jumpi v58, bb24, bb25
-  bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb25:
     v59 = not 31
     v60 = and v57, v59
@@ -614,24 +557,18 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v66 = or v63, v65
     v67 = iszero v66
     jumpi v67, bb26, bb27
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb27:
     v68 = add 0, v62
     v69 = lt v68, 0
     jumpi v69, bb28, bb29
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb29:
     jump bb30
   bb30:
     v70 = phi [bb29: 0], [bb36: v82]
     v71 = lt v70, v48
     jumpi v71, bb31, bb32
+  bb32:
+    ret v61
   bb31:
     v72 = mul v70, 32
     v73 = iszero 32
@@ -640,26 +577,89 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v76 = or v73, v75
     v77 = iszero v76
     jumpi v77, bb33, bb34
-  bb32:
-    ret v61
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb34:
     v78 = add 0, v72
     v79 = lt v78, 0
     jumpi v79, bb35, bb36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb36:
     v80 = memory_object_load_element memoryarray<1>, v33, v70
     v81 = and v80, 255
     memory_object_store_word memorybytes, v61, v78, v81
     v82 = add v70, 1
     jump bb30
+  bb35:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb33:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb26:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb22:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v36 = mul v34, 32
+    v37 = iszero 32
+    v38 = div v36, 32
+    v39 = eq v38, v34
+    v40 = or v37, v39
+    v41 = iszero v40
+    jumpi v41, bb16, bb17
+  bb17:
+    v42 = add v15, v36
+    v43 = calldataload v42
+    v44 = and v43, 255
+    v45 = eq v43, v44
+    v46 = iszero v45
+    jumpi v46, bb18, bb19
+  bb19:
+    memory_object_store_element memoryarray<1>, v33, v34, v43
+    v47 = add v34, 1
+    jump bb13
+  bb18:
+    revert 0, 0
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
@@ -669,10 +669,6 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     v2 = eq v0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     jump bb3
   bb3:
@@ -682,25 +678,15 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     v7 = memory_object_len memorybytes, v6
     v8 = lt v5, v7
     jumpi v8, bb6, bb7
+  bb7:
+    jump bb4
   bb4:
     stop
-  bb5:
-    v21 = add v5, 1
-    v22 = lt v21, v5
-    jumpi v22, bb15, bb16
   bb6:
     v9 = memory_object_len memorybytes, v6
     v10 = lt v5, v9
     v11 = iszero v10
     jumpi v11, bb9, bb10
-  bb7:
-    jump bb4
-  bb8:
-    jump bb5
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v12 = memory_object_load_byte memorybytes, v6, v5
     v13 = shl 248, v12
@@ -708,28 +694,42 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     v15 = lt v5, v14
     v16 = iszero v15
     jumpi v16, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v17 = memory_object_load_byte memorybytes, v4, v5
     v18 = shl 248, v17
     v19 = eq v13, v18
     v20 = iszero v19
     jumpi v20, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     jump bb8
+  bb8:
+    jump bb5
+  bb5:
+    v21 = add v5, 1
+    v22 = lt v21, v5
+    jumpi v22, bb15, bb16
+  bb16:
+    jump bb3
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb16:
-    jump bb3
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
@@ -743,10 +743,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v5 = lt 0, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = byte 0, v3
     memory_object_store_byte memorybytes, v2, 0, v7
@@ -755,10 +751,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v10 = lt 1, v9
     v11 = iszero v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = byte 0, v8
     memory_object_store_byte memorybytes, v2, 1, v12
@@ -767,10 +759,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v15 = lt 2, v14
     v16 = iszero v15
     jumpi v16, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v17 = byte 0, v13
     memory_object_store_byte memorybytes, v2, 2, v17
@@ -781,18 +769,12 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v20 = memory_object_len memorybytes, v18
     v21 = lt v19, v20
     jumpi v21, bb10, bb11
-  bb8:
-    stop
-  bb9:
-    v86 = add v23, 1
-    v87 = lt v86, v23
-    jumpi v87, bb37, bb38
-  bb10:
-    jump bb13
   bb11:
     jump bb8
-  bb12:
-    jump bb9
+  bb8:
+    stop
+  bb10:
+    jump bb13
   bb13:
     v22 = phi [bb10: v18], [bb36: v22]
     v23 = phi [bb10: v19], [bb36: v23]
@@ -801,12 +783,22 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v26 = gt v24, v25
     v27 = iszero v26
     jumpi v27, bb16, bb17
+  bb17:
+    jump bb14
   bb14:
     jump bb12
-  bb15:
-    v84 = add v24, 1
-    v85 = lt v84, v24
-    jumpi v85, bb35, bb36
+  bb12:
+    jump bb9
+  bb9:
+    v86 = add v23, 1
+    v87 = lt v86, v23
+    jumpi v87, bb37, bb38
+  bb38:
+    jump bb7
+  bb37:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb16:
     v28 = address
     v29 = gas
@@ -815,10 +807,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v32 = slice_len v30
     v33 = staticcall v29, v28, v31, v32, 0, 0
     jumpi v33, bb20, bb19
-  bb17:
-    jump bb14
-  bb18:
-    jump bb15
   bb19:
     revert_returndata
   bb20:
@@ -826,10 +814,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v35 = add v34, 63
     v36 = lt v35, v34
     jumpi v36, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     v37 = not 31
     v38 = and v35, v37
@@ -852,10 +836,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v49 = add v48, 63
     v50 = lt v49, v48
     jumpi v50, bb25, bb26
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb26:
     v51 = not 31
     v52 = and v49, v51
@@ -879,10 +859,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v63 = add v62, 63
     v64 = lt v63, v62
     jumpi v64, bb29, bb30
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb30:
     v65 = not 31
     v66 = and v63, v65
@@ -905,10 +881,6 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v77 = add v76, 63
     v78 = lt v77, v76
     jumpi v78, bb33, bb34
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb34:
     v79 = not 31
     v80 = and v77, v79
@@ -919,18 +891,46 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v83 = abi_decode [bytes], v81
     internal_call @compare, 0, v69, v83
     jump bb18
+  bb18:
+    jump bb15
+  bb15:
+    v84 = add v24, 1
+    v85 = lt v84, v24
+    jumpi v85, bb35, bb36
+  bb36:
+    jump bb13
   bb35:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb36:
-    jump bb13
-  bb37:
+  bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb38:
-    jump bb7
+  bb29:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
@@ -941,30 +941,18 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, 0, 65
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
     jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     memory_object_store_element memoryarray<1>, v0, 1, 66
     v7 = memory_object_len memoryarray, v0
     v8 = lt 2, v7
     v9 = iszero v8
     jumpi v9, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     memory_object_store_element memoryarray<1>, v0, 2, 66
     jump bb7
@@ -974,18 +962,12 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v12 = memory_object_len memoryarray, v10
     v13 = lt v11, v12
     jumpi v13, bb10, bb11
-  bb8:
-    stop
-  bb9:
-    v78 = add v15, 1
-    v79 = lt v78, v15
-    jumpi v79, bb37, bb38
-  bb10:
-    jump bb13
   bb11:
     jump bb8
-  bb12:
-    jump bb9
+  bb8:
+    stop
+  bb10:
+    jump bb13
   bb13:
     v14 = phi [bb10: v10], [bb36: v14]
     v15 = phi [bb10: v11], [bb36: v15]
@@ -994,12 +976,22 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v18 = gt v16, v17
     v19 = iszero v18
     jumpi v19, bb16, bb17
+  bb17:
+    jump bb14
   bb14:
     jump bb12
-  bb15:
-    v76 = add v16, 1
-    v77 = lt v76, v16
-    jumpi v77, bb35, bb36
+  bb12:
+    jump bb9
+  bb9:
+    v78 = add v15, 1
+    v79 = lt v78, v15
+    jumpi v79, bb37, bb38
+  bb38:
+    jump bb7
+  bb37:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
   bb16:
     v20 = address
     v21 = gas
@@ -1008,10 +1000,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v24 = slice_len v22
     v25 = staticcall v21, v20, v23, v24, 0, 0
     jumpi v25, bb20, bb19
-  bb17:
-    jump bb14
-  bb18:
-    jump bb15
   bb19:
     revert_returndata
   bb20:
@@ -1019,10 +1007,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v27 = add v26, 63
     v28 = lt v27, v26
     jumpi v28, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     v29 = not 31
     v30 = and v27, v29
@@ -1045,10 +1029,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v41 = add v40, 63
     v42 = lt v41, v40
     jumpi v42, bb25, bb26
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb26:
     v43 = not 31
     v44 = and v41, v43
@@ -1072,10 +1052,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v55 = add v54, 63
     v56 = lt v55, v54
     jumpi v56, bb29, bb30
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb30:
     v57 = not 31
     v58 = and v55, v57
@@ -1098,10 +1074,6 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v69 = add v68, 63
     v70 = lt v69, v68
     jumpi v70, bb33, bb34
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb34:
     v71 = not 31
     v72 = and v69, v71
@@ -1112,17 +1084,45 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v75 = abi_decode [bytes], v73
     internal_call @compare, 0, v61, v75
     jump bb18
+  bb18:
+    jump bb15
+  bb15:
+    v76 = add v16, 1
+    v77 = lt v76, v16
+    jumpi v77, bb35, bb36
+  bb36:
+    jump bb13
   bb35:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb36:
-    jump bb13
-  bb37:
+  bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb38:
-    jump bb7
+  bb29:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

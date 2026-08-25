@@ -28,12 +28,12 @@ fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], ab
     v4 = or v1, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
+  bb2:
+    ret v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @use(arg0: u256) -> u256 [selector=0xab5b4456, abi_params=[u256], abi_returns=[word]] {
@@ -48,12 +48,12 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @double, 1, arg1
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @double, 1, arg1
+    ret v1
 }
 

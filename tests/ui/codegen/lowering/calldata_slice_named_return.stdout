@@ -14,8 +14,6 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr [pure] {
     v33 = phi [bb1: v2], [bb0: arg1]
     v15 = gt v33, 0xffffffffffffffff
     jumpi v15, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v16 = calldatasize
     v17 = sub v16, v33
@@ -31,6 +29,8 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr [pure] {
     v25 = add v24, 32
     calldatacopy v25, v32, v33
     ret v24
+  bb3:
+    revert 0, 0
 }
 
 fn @use() [selector=0x01bd03f7, pure] {
@@ -38,8 +38,6 @@ fn @use() [selector=0x01bd03f7, pure] {
     v2 = calldatasize
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v4 = calldataload 4
     v5 = add v4, 4
@@ -57,6 +55,8 @@ fn @use() [selector=0x01bd03f7, pure] {
     v1 = mload v0
     mstore 128, v1
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

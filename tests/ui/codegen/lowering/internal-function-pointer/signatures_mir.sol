@@ -58,8 +58,8 @@ contract FunctionPointerSignatures {
 
     // CHECK: fn @[[DISPATCHER_0]](
     // CHECK: eq arg0, 2
-    // CHECK: internal_call @setFlag, 0
     // CHECK: mstore 4, 81
+    // CHECK: internal_call @setFlag, 0
     // CHECK: fn @[[DISPATCHER_1]](
     // CHECK: eq arg0, [[PAIR]]
     // CHECK: internal_call @pair, 2, arg1

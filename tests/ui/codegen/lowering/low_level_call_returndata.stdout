@@ -12,10 +12,6 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v7 = add v6, 63
     v8 = lt v7, v6
     jumpi v8, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v9 = not 31
     v10 = and v7, v9
@@ -24,16 +20,12 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v12 = make_returndata_slice 0, v6
     memory_object_copy_from_slice memorybytes, v11, v12
     jumpi v5, bb3, bb4
+  bb4:
+    jump bb5
   bb3:
     v13 = memory_object_len memorybytes, v11
     v14 = eq v13, 0
     jumpi v14, bb7, bb6
-  bb4:
-    jump bb5
-  bb5:
-    v17 = phi [bb8: v16], [bb4: 0]
-    v18 = iszero v17
-    jumpi v18, bb9, bb10
   bb6:
     v15 = abi_decode [bool], v11
     jump bb8
@@ -42,11 +34,19 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
   bb8:
     v16 = phi [bb6: v15], [bb7: 1]
     jump bb5
+  bb5:
+    v17 = phi [bb8: v16], [bb4: 0]
+    v18 = iszero v17
+    jumpi v18, bb9, bb10
+  bb10:
+    stop
   bb9:
     internal_call @revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb10:
-    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word]] {
@@ -62,10 +62,6 @@ fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_params=[add
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v10 = not 31
     v11 = and v8, v10
@@ -75,11 +71,15 @@ fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_params=[add
     memory_object_copy_from_slice memorybytes, v12, v13
     v14 = iszero v6
     jumpi v14, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v15 = abi_decode [u256], v12
     ret v15
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes]] {
@@ -92,10 +92,6 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf7
     v5 = add v4, 63
     v6 = lt v5, v4
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = not 31
     v8 = and v5, v7
@@ -105,10 +101,14 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf7
     memory_object_copy_from_slice memorybytes, v9, v10
     v11 = iszero v3
     jumpi v11, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     ret v9
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

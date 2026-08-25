@@ -28,7 +28,7 @@ fn @keeps_branch_self_loop(arg0: bool) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @removes_nested_transparent_diamond{{[( ]}}
 // CHECK: - jumpi arg0, bb1, bb2
-// CHECK: + jump bb5
+// CHECK: {{^ +}}jump bb5
 fn @removes_nested_transparent_diamond(arg0: bool, arg1: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

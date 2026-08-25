@@ -3,8 +3,8 @@
 @module Adce
 // CHECK-LABEL: {{^[ +].*}}fn @removes_dead_branch_region{{[( ]}}
 // CHECK: - jumpi arg0, bb1, bb2
-// CHECK: - {{v[0-9]+}} = add 1, 2
 // CHECK: - {{v[0-9]+}} = mul 3, 4
+// CHECK: - {{v[0-9]+}} = add 1, 2
 fn @removes_dead_branch_region(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

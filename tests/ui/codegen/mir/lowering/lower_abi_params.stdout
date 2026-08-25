@@ -9,6 +9,8 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 132
 +     jumpi v1, bb2, bb3
++   bb3:
++     jump bb1
 +   bb1:
 +     mstore 128, arg3
 +     v2 = add 128, 32
@@ -16,8 +18,6 @@
 +     returndata 128, v3
 +   bb2:
 +     revert 0, 0
-+   bb3:
-+     jump bb1
   }
   
 - fn @read_words(arg0: memorystruct) -> u256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
@@ -27,21 +27,6 @@
 +     v6 = calldatasize
 +     v7 = lt v6, 36
 +     jumpi v7, bb2, bb3
-+   bb1:
-+     v0 = memory_object_field_addr memorystruct<0>, v14, 0
-      v1 = mload v0
-      v2 = memory_object_len memoryarray, v1
--     v3 = memory_object_field_addr memorystruct<0>, arg0, 1
-+     v3 = memory_object_field_addr memorystruct<0>, v14, 1
-      v4 = mload v3
-      v5 = add v2, v4
--     ret v5
-+     mstore 128, v5
-+     v32 = add 128, 32
-+     v33 = sub v32, 128
-+     returndata 128, v33
-+   bb2:
-+     revert 0, 0
 +   bb3:
 +     v8 = calldataload 4
 +     v9 = add 4, v8
@@ -52,8 +37,6 @@
 +     v12 = sub v6, v9
 +     v13 = gt 64, v12
 +     jumpi v13, bb7, bb6
-+   bb5:
-+     revert 0, 0
 +   bb6:
 +     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
 +     v15 = calldataload v9
@@ -63,8 +46,6 @@
 +     v19 = gt v17, v6
 +     v20 = or v18, v19
 +     jumpi v20, bb9, bb8
-+   bb7:
-+     revert 0, 0
 +   bb8:
 +     v21 = calldataload v16
 +     v22 = add v16, 32
@@ -72,8 +53,6 @@
 +     v24 = shr 5, v23
 +     v25 = gt v21, v24
 +     jumpi v25, bb11, bb10
-+   bb9:
-+     revert 0, 0
 +   bb10:
 +     v26 = mul v21, 32
 +     v27 = add v26, 32
@@ -87,7 +66,28 @@
 +     memory_object_store_field memorystruct<3>, v14, 1, v31
 +     memory_object_store_field memorystruct<3>, v14, 2, v9
 +     jump bb1
++   bb1:
++     v0 = memory_object_field_addr memorystruct<0>, v14, 0
+      v1 = mload v0
+      v2 = memory_object_len memoryarray, v1
+-     v3 = memory_object_field_addr memorystruct<0>, arg0, 1
++     v3 = memory_object_field_addr memorystruct<0>, v14, 1
+      v4 = mload v3
+      v5 = add v2, v4
+-     ret v5
++     mstore 128, v5
++     v32 = add 128, 32
++     v33 = sub v32, 128
++     returndata 128, v33
 +   bb11:
++     revert 0, 0
++   bb9:
++     revert 0, 0
++   bb7:
++     revert 0, 0
++   bb5:
++     revert 0, 0
++   bb2:
 +     revert 0, 0
   }
   

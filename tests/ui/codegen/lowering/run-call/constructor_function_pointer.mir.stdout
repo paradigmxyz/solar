@@ -23,8 +23,6 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
     v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v10 = add 0, 0
     v11 = mload v10
@@ -32,6 +30,8 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
     v13 = mload v12
     sstore 0, v13 !metadata(storage=slot(0))
     stop
+  bb3:
+    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
@@ -86,14 +86,14 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v25 = returndatasize
     v26 = lt v25, 32
     jumpi v26, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v27 = add 0, 0
     v28 = mload v27
     v29 = add 0, 0
     v30 = mload v29
     ret v30
+  bb5:
+    revert 0, 0
 }
 
 fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {

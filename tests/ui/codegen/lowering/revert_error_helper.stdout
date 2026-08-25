@@ -165,9 +165,9 @@ bb13:
   push 160
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb12
   jumpi
   push 5
@@ -216,9 +216,9 @@ bb18:
   push 160
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb12
   jumpi
   push 5
@@ -241,9 +241,9 @@ bb23:
   push 160
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb12
   jumpi
   push 5
@@ -264,9 +264,9 @@ bb28:
   push 224
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb12
   jumpi
   push 5
@@ -280,9 +280,9 @@ bb33:
   push 160
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb12
   jumpi
   push 5

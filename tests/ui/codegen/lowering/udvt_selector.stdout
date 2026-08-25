@@ -23,9 +23,9 @@ bb0:
   sub
   push bb3
   jumpi
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 36

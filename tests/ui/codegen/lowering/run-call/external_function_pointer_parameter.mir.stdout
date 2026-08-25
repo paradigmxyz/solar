@@ -18,14 +18,14 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v9 = returndatasize
     v10 = lt v9, 32
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = add 0, 0
     v12 = mload v11
     v13 = add 0, 0
     v14 = mload v13
     ret v14
+  bb3:
+    revert 0, 0
 }
 
 fn @f2(arg0: u256) -> u256 [selector=0xbf3724af, abi_params=[u256], abi_returns=[word]] {
@@ -54,14 +54,14 @@ fn @eval(arg0: function, arg1: u256) -> u256 [selector=0xc61581a0, abi_params=[f
     v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
     v13 = mload v12
     ret v13
+  bb3:
+    revert 0, 0
 }
 
 fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
@@ -69,11 +69,11 @@ fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256],
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
+  bb2:
+    ret v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 

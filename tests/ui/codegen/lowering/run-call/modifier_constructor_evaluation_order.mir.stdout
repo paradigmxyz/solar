@@ -37,14 +37,14 @@ fn @_anonymous() [constructor] {
     v5 = internal_call @f, 1, 5
     v6 = internal_call @f, 1, 7
     jump bb7
-  bb4:
-    stop
-  bb5:
-    jump bb4
-  bb6:
-    jump bb5
   bb7:
     jump bb6
+  bb6:
+    jump bb5
+  bb5:
+    jump bb4
+  bb4:
+    stop
 }
 
 fn @query() -> memoryarray [selector=0x2c46b205, view, abi_params=[], abi_returns=[memory_array<word>]] {
@@ -59,16 +59,16 @@ fn @f(arg0: u256) -> u256 {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     sstore 0, v1 !metadata(storage=slot(0))
     ret 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @load_storage_word_array(arg0: u256) -> memoryarray {
@@ -77,10 +77,6 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = mul v1, 32
     v4 = iszero 32
@@ -89,10 +85,6 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     v7 = or v4, v6
     v8 = iszero v7
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
@@ -102,13 +94,21 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     v11 = phi [bb4: 0], [bb6: v15]
     v12 = lt v11, v0
     jumpi v12, bb6, bb7
+  bb7:
+    ret v9
   bb6:
     v13 = add v10, v11
     v14 = sload v13 !metadata(storage=symbolic(v13))
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v15 = add v11, 1
     jump bb5
-  bb7:
-    ret v9
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

@@ -81,11 +81,13 @@
       v0 = lt 0, arg0
       v1 = iszero v0
 -     jumpi v1, bb1, bb2
+-   bb2:
+-     stop
 +     jumpi arg0, bb2, bb1
     bb1:
       stop
-    bb2:
-      stop
++   bb2:
++     stop
   }
   
   fn @masked_own_balance() -> u256 {

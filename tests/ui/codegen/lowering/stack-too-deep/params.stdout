@@ -50,9 +50,9 @@ bb25 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 644
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 36

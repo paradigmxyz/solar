@@ -41,11 +41,11 @@ contract C {
 
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
-    // CHECK: ret arg0
     // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
     // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = internal_call @fillImpl, 1, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
+    // CHECK: ret arg0
     function fillImpl(uint256[] memory a, uint256 i) internal pure returns (uint256[] memory) {
         if (i == a.length) return a;
         a[i] = i * i;

@@ -16,10 +16,6 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array
     v1 = lt 0, v0
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -28,11 +24,15 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array
     v7 = eq v5, v6
     v8 = iszero v7
     jumpi v8, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v9 = shr 64, v5
     ret 3
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @m(arg0: memoryarray) -> u256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word]] {
@@ -69,20 +69,16 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v5 = lt 0, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, 0, v3
     v7 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb3, bb4
+  bb4:
+    jump bb5
   bb3:
     v8 = add v7, 32
     v9 = add v8, 92
     mstore8 v9, 88
-    jump bb5
-  bb4:
     jump bb5
   bb5:
     v10 = address
@@ -94,10 +90,6 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v16 = add v15, 63
     v17 = lt v16, v15
     jumpi v17, bb6, bb7
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v18 = not 31
     v19 = and v16, v18
@@ -107,16 +99,24 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     memory_object_copy_from_slice memorybytes, v20, v21
     v22 = iszero v14
     jumpi v22, bb8, bb9
-  bb8:
-    revert 0, 0
   bb9:
     v23 = abi_decode [u256], v20
     v24 = eq v23, arg2
     v25 = iszero v24
     jumpi v25, bb10, bb11
-  bb10:
-    revert 0, 0
   bb11:
     ret v23
+  bb10:
+    revert 0, 0
+  bb8:
+    revert 0, 0
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

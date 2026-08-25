@@ -4,7 +4,7 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol, kw};
+use solar_interface::{Ident, Span, Symbol, error_code, kw};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -126,9 +126,7 @@ bitflags::bitflags! {
     /// Tracks which tags have been seen during validation.
     #[derive(Clone, Copy, Default)]
     struct SeenTags: u8 {
-        const TITLE      = 1 << 0;
-        const AUTHOR     = 1 << 1;
-        const INHERITDOC = 1 << 2;
+        const INHERITDOC = 1 << 0;
     }
 }
 
@@ -301,20 +299,15 @@ impl<'gcx> Resolver<'gcx> {
                         local_tags.push(*natspec);
                     }
                     NatSpecKind::Title => {
-                        if self.validate_tag_once(
-                            "@title",
-                            tag_span,
-                            permissions.contains(TagPermissions::TITLE_AUTHOR),
-                            &mut state.seen_tags,
-                            SeenTags::TITLE,
-                            item_id,
-                        ) {
+                        if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
+                            self.emit_forbidden_tag_warning("@title", tag_span, item_id);
+                        } else {
                             local_tags.push(*natspec);
                         }
                     }
                     NatSpecKind::Author => {
                         if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
-                            self.emit_forbidden_tag_error("@author", tag_span, item_id);
+                            self.emit_forbidden_tag_warning("@author", tag_span, item_id);
                         } else {
                             local_tags.push(*natspec);
                         }
@@ -340,7 +333,7 @@ impl<'gcx> Resolver<'gcx> {
                     }
                     NatSpecKind::Param { name } => {
                         if !permissions.contains(TagPermissions::PARAM) {
-                            self.emit_forbidden_tag_error("@param", tag_span, item_id);
+                            self.emit_forbidden_tag_warning("@param", tag_span, item_id);
                             continue;
                         }
 
@@ -381,13 +374,15 @@ impl<'gcx> Resolver<'gcx> {
                         if params.contains(&name.name) {
                             local_tags.push(*natspec);
                         } else {
-                            self.gcx.dcx().emit_err(
-                                tag_span,
-                                format!(
+                            self.gcx
+                                .dcx()
+                                .warn(format!(
                                     "tag `@param` references non-existent parameter '{}'",
                                     name.name
-                                ),
-                            );
+                                ))
+                                .code(error_code!(3881))
+                                .span(tag_span)
+                                .emit();
                         };
                     }
                     NatSpecKind::Return { .. } => {
@@ -396,7 +391,7 @@ impl<'gcx> Resolver<'gcx> {
                                 .as_variable()
                                 .is_some_and(|id| !self.gcx.hir.variable(id).is_public())
                         {
-                            self.emit_forbidden_tag_error("@return", tag_span, item_id);
+                            self.emit_forbidden_tag_warning("@return", tag_span, item_id);
                             continue;
                         }
 
@@ -415,12 +410,17 @@ impl<'gcx> Resolver<'gcx> {
                         let return_count = rets.len();
 
                         let return_valid = if state.return_count > return_count {
-                            self.gcx.dcx().emit_err(tag_span, format!(
-                                "too many `@return` tags: function has {} return value{}, found {}",
-                                return_count,
-                                if return_count == 1 { "" } else { "s" },
-                                state.return_count
-                            ));
+                            self.gcx
+                                .dcx()
+                                .warn(format!(
+                                    "too many `@return` tags: function has {} return value{}, found {}",
+                                    return_count,
+                                    if return_count == 1 { "" } else { "s" },
+                                    state.return_count
+                                ))
+                                .code(error_code!(2604))
+                                .span(tag_span)
+                                .emit();
                             false
                         } else {
                             true
@@ -457,10 +457,12 @@ impl<'gcx> Resolver<'gcx> {
             natspec.content_start as usize,
             natspec.content_end as usize,
         ) else {
-            self.gcx.dcx().emit_err(
-                natspec.span,
-                "tag `@return` does not contain the name of its return parameter",
-            );
+            self.gcx
+                .dcx()
+                .warn("tag `@return` does not contain the name of its return parameter")
+                .code(error_code!(5856))
+                .span(natspec.span)
+                .emit();
             return None;
         };
 
@@ -476,20 +478,24 @@ impl<'gcx> Resolver<'gcx> {
             if rets.iter().any(|&id| {
                 self.gcx.hir.variable(id).name.is_some_and(|name| name.name == documented_name)
             }) {
-                self.gcx.dcx().emit_err(
-                    name_span,
-                    format!(
+                self.gcx
+                    .dcx()
+                    .warn(format!(
                         "mismatched `@return` parameter: expected `{}`, found `{documented_name}`",
                         expected.name
-                    ),
-                );
+                    ))
+                    .code(error_code!(5856))
+                    .span(name_span)
+                    .emit();
             } else {
-                self.gcx.dcx().emit_err(
-                    natspec.span,
-                    format!(
+                self.gcx
+                    .dcx()
+                    .warn(format!(
                         "tag `@return` references non-existent return parameter '{documented_name}'"
-                    ),
-                );
+                    ))
+                    .code(error_code!(5856))
+                    .span(natspec.span)
+                    .emit();
             }
             return None;
         }
@@ -501,14 +507,24 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     #[cold]
-    fn emit_forbidden_tag_error(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
+    fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
-        self.gcx.dcx().emit_err(tag_span, format!("tag `{tag_name}` not valid for {item_desc}s"));
+        self.gcx
+            .dcx()
+            .warn(format!("tag `{tag_name}` not valid for {item_desc}s"))
+            .code(error_code!(6546))
+            .span(tag_span)
+            .emit();
     }
 
     #[cold]
-    fn emit_duplicate_tag_error(&self, tag_name: &str, tag_span: Span) {
-        self.gcx.dcx().emit_err(tag_span, format!("tag {tag_name} can only be given once"));
+    fn emit_duplicate_tag_warning(&self, tag_name: &str, tag_span: Span) {
+        self.gcx
+            .dcx()
+            .warn(format!("tag {tag_name} can only be given once"))
+            .code(error_code!(5142))
+            .span(tag_span)
+            .emit();
     }
 
     /// Helper to validate tags that can only be defined once.
@@ -524,11 +540,11 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
     ) -> bool {
         if !allowed {
-            self.emit_forbidden_tag_error(tag_name, tag_span, item_id);
+            self.emit_forbidden_tag_warning(tag_name, tag_span, item_id);
             return false;
         }
         if seen_tags.contains(tag_flag) {
-            self.emit_duplicate_tag_error(tag_name, tag_span);
+            self.emit_duplicate_tag_warning(tag_name, tag_span);
             return false;
         }
         seen_tags.insert(tag_flag);
@@ -551,13 +567,13 @@ impl<'gcx> Resolver<'gcx> {
         let contract_id = self.gcx.natspec_contract_in_source(cache_key);
 
         let Some(contract_id) = contract_id else {
-            dcx.emit_err(
-                tag_span,
-                format!(
-                    "tag `@inheritdoc` references inexistent contract \"{}\"",
-                    contract_ident.name
-                ),
-            );
+            dcx.warn(format!(
+                "tag `@inheritdoc` references inexistent contract \"{}\"",
+                contract_ident.name
+            ))
+            .code(error_code!(9397))
+            .span(tag_span)
+            .emit();
             return None;
         };
 
@@ -570,19 +586,25 @@ impl<'gcx> Resolver<'gcx> {
         if let Some(contract) = item_contract {
             let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;
             if contract == contract_id || !linearized_bases.contains(&contract_id) {
-                dcx.emit_err(tag_span, format!(
+                dcx.warn(format!(
                     "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
                     contract_ident.name
-                ));
+                ))
+                .code(error_code!(4682))
+                .span(tag_span)
+                .emit();
                 return None;
             }
         }
 
         let Some(inherited_item) = self.find_inherited_item(item_id, contract_id) else {
-            dcx.emit_err(tag_span, format!(
+            dcx.warn(format!(
                 "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
                 contract_ident.name
-            ));
+            ))
+            .code(error_code!(4682))
+            .span(tag_span)
+            .emit();
             return None;
         };
 

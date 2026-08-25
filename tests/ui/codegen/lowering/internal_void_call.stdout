@@ -17,10 +17,10 @@ fn @writeIfNonZero(arg0: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     sstore 0, arg0 !metadata(storage=slot(0))
-    jump bb3
-  bb2:
     jump bb3
   bb3:
     stop
@@ -30,12 +30,12 @@ fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_retur
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb1:
-    stop
   bb2:
     jump bb3
   bb3:
     sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+  bb1:
     stop
 }
 
@@ -53,11 +53,11 @@ fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[]] {
 fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb1:
-    internal_call @writeIfNonZero, 0, arg1
-    jump bb3
   bb2:
     internal_call @clear, 0
+    jump bb3
+  bb1:
+    internal_call @writeIfNonZero, 0, arg1
     jump bb3
   bb3:
     stop

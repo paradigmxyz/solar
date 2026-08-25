@@ -6,6 +6,7 @@ use super::{
     BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
     InstKind, Instruction, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
+use crate::analysis::CfgInfo;
 use arrayvec::ArrayVec;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
@@ -264,13 +265,15 @@ pub(crate) fn display_function_text<'a>(
         write!(f, "{}", display_function_attributes(func))?;
         writeln!(f, " {{")?;
 
-        write!(
-            f,
-            "{}",
-            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
-                write!(f, "{}", display_text_block(func, module, block_id, block))
-            })
-        )?;
+        let cfg = CfgInfo::new(func);
+        for &block_id in cfg.rpo() {
+            write!(f, "{}", display_text_block(func, module, block_id, &func.blocks[block_id]))?;
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !cfg.is_reachable(block_id) {
+                write!(f, "{}", display_text_block(func, module, block_id, block))?;
+            }
+        }
 
         writeln!(f, "}}")
     })

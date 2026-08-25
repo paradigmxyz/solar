@@ -16,20 +16,6 @@
 -     v4 = lt v3, arg0
 +     v4 = lt v29, arg0
       jumpi v4, bb2, bb3
-    bb2:
-      v5 = internal_frame_addr 128
--     v6 = mload v5
--     v7 = add v6, 1
-+     v7 = add v27, 1
-      v8 = internal_frame_addr 128
--     mstore v8, v7
-      v9 = internal_frame_addr 160
--     v10 = mload v9
--     v11 = add v10, 1
-+     v11 = add v29, 1
-      v12 = internal_frame_addr 160
--     mstore v12, v11
-      jump bb1
     bb3:
       v13 = internal_frame_addr 192
 -     mstore v13, 0
@@ -42,6 +28,11 @@
 -     v16 = lt v15, arg0
 +     v16 = lt v30, arg0
       jumpi v16, bb5, bb6
+    bb6:
+      v25 = internal_frame_addr 128
+-     v26 = mload v25
+-     ret v26
++     ret v28
     bb5:
       v17 = internal_frame_addr 128
 -     v18 = mload v17
@@ -56,11 +47,20 @@
       v24 = internal_frame_addr 192
 -     mstore v24, v23
       jump bb4
-    bb6:
-      v25 = internal_frame_addr 128
--     v26 = mload v25
--     ret v26
-+     ret v28
+    bb2:
+      v5 = internal_frame_addr 128
+-     v6 = mload v5
+-     v7 = add v6, 1
++     v7 = add v27, 1
+      v8 = internal_frame_addr 128
+-     mstore v8, v7
+      v9 = internal_frame_addr 160
+-     v10 = mload v9
+-     v11 = add v10, 1
++     v11 = add v29, 1
+      v12 = internal_frame_addr 160
+-     mstore v12, v11
+      jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before cfg-simplify) ===
@@ -77,14 +77,6 @@
       v2 = internal_frame_addr 160
       v4 = lt v29, arg0
       jumpi v4, bb2, bb3
-    bb2:
-      v5 = internal_frame_addr 128
-      v7 = add v27, 1
-      v8 = internal_frame_addr 128
-      v9 = internal_frame_addr 160
-      v11 = add v29, 1
-      v12 = internal_frame_addr 160
-      jump bb1
     bb3:
       v13 = internal_frame_addr 192
       jump bb4
@@ -94,6 +86,9 @@
       v14 = internal_frame_addr 192
       v16 = lt v30, arg0
       jumpi v16, bb5, bb6
+    bb6:
+      v25 = internal_frame_addr 128
+      ret v28
     bb5:
       v17 = internal_frame_addr 128
       v19 = add v28, 1
@@ -102,9 +97,14 @@
       v23 = add v30, 1
       v24 = internal_frame_addr 192
       jump bb4
-    bb6:
-      v25 = internal_frame_addr 128
-      ret v28
+    bb2:
+      v5 = internal_frame_addr 128
+      v7 = add v27, 1
+      v8 = internal_frame_addr 128
+      v9 = internal_frame_addr 160
+      v11 = add v29, 1
+      v12 = internal_frame_addr 160
+      jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before dce) ===
@@ -121,14 +121,6 @@
 -     v2 = internal_frame_addr 160
       v4 = lt v29, arg0
       jumpi v4, bb2, bb3
-    bb2:
--     v5 = internal_frame_addr 128
-      v7 = add v27, 1
--     v8 = internal_frame_addr 128
--     v9 = internal_frame_addr 160
-      v11 = add v29, 1
--     v12 = internal_frame_addr 160
-      jump bb1
     bb3:
 -     v13 = internal_frame_addr 192
       jump bb4
@@ -138,6 +130,9 @@
 -     v14 = internal_frame_addr 192
       v16 = lt v30, arg0
       jumpi v16, bb5, bb6
+    bb6:
+-     v25 = internal_frame_addr 128
+      ret v28
     bb5:
 -     v17 = internal_frame_addr 128
       v19 = add v28, 1
@@ -146,8 +141,13 @@
       v23 = add v30, 1
 -     v24 = internal_frame_addr 192
       jump bb4
-    bb6:
--     v25 = internal_frame_addr 128
-      ret v28
+    bb2:
+-     v5 = internal_frame_addr 128
+      v7 = add v27, 1
+-     v8 = internal_frame_addr 128
+-     v9 = internal_frame_addr 160
+      v11 = add v29, 1
+-     v12 = internal_frame_addr 160
+      jump bb1
   }
   

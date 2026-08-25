@@ -33,11 +33,6 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_para
     v7 = eq v6, 0
     v8 = iszero v7
     jumpi v8, bb1, bb2
-  bb1:
-    v9 = returndatasize
-    returndatacopy v0, 0, v9
-    v10 = returndatasize
-    revert v0, v10
   bb2:
     jump bb3
   bb3:
@@ -46,5 +41,10 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_para
     v13 = and v2, v12
     mstore 64, v0 !metadata(memory=scratch)
     ret v13
+  bb1:
+    v9 = returndatasize
+    returndatacopy v0, 0, v9
+    v10 = returndatasize
+    revert v0, v10
 }
 

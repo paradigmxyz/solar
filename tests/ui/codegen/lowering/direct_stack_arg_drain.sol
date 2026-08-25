@@ -3,6 +3,8 @@
 //@ run-call: h 10 => 25
 //@ run-call: i 10 => 30
 //@ run-call: j 10 => 31
+//@ run-call: k => 4
+//@ run-call: l => 5
 
 // A static-frame internal callee whose `resident` selection bails on a `Switch`
 // terminator can fall through to the `direct` stack-argument convention, which
@@ -52,4 +54,17 @@ contract C {
 
     function i(uint256 x) external pure returns (uint256) { return switchOnly(x); }
     function j(uint256 x) external pure returns (uint256) { return switchOnly(x) + 1; }
+
+    // Always-rematerializable reads have no spill slot. A selected stack argument must be
+    // re-emitted after the caller stack drains instead of requiring a computed-value spill.
+    function calldataLength(uint256 length) internal pure returns (uint256 out) {
+        assembly {
+            switch length
+            case 0 { out := 1 }
+            default { out := length }
+        }
+    }
+
+    function k() external pure returns (uint256) { return calldataLength(msg.data.length); }
+    function l() external pure returns (uint256) { return calldataLength(msg.data.length) + 1; }
 }

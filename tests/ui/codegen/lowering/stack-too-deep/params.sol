@@ -10,7 +10,8 @@ contract StackTooDeepParams {
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
     // CHECK: push 644
-    // CHECK-NEXT: gt
+    // CHECK-NEXT: calldatasize
+    // CHECK-NEXT: lt
     // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK: push 612

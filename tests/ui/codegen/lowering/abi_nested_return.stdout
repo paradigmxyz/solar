@@ -9,23 +9,23 @@ fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     v2 = add arg0, 1
     v3 = lt v2, arg0
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_field memorystruct<2>, v1, 1, v2
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4
     v6 = iszero v5
     jumpi v6, bb3, bb4
+  bb4:
+    memory_object_store_element memoryarray<1>, v0, 0, v1
+    ret v0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>]] {
@@ -39,18 +39,10 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 1
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v9 = mul v7, 32
     v10 = iszero 32
@@ -59,10 +51,6 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v13 = or v10, v12
     v14 = iszero v13
     jumpi v14, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v15 = alloc memoryarray<1>, exact, zeroed, panic, v9
     set_memory_object_len memoryarray, v15, arg0
@@ -70,12 +58,24 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v17 = lt 0, v16
     v18 = iszero v17
     jumpi v18, bb7, bb8
+  bb8:
+    memory_object_store_element memoryarray<1>, v0, 0, v15
+    ret v0
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    memory_object_store_element memoryarray<1>, v0, 0, v15
-    ret v0
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

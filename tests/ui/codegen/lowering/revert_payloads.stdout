@@ -4,23 +4,23 @@ fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
+  bb2:
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    stop
 }
 
 fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
+  bb2:
+    stop
   bb1:
     internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
-  bb2:
-    stop
 }
 
 fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {

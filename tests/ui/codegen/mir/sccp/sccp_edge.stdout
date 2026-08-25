@@ -5,24 +5,25 @@
     bb0:
 -     v0 = eq 1, 1
 -     jumpi v0, bb1, bb2
+-   bb2:
+-     jump bb3
 +     jump bb1
     bb1:
       jump bb3
-    bb2:
--     jump bb3
-+     invalid
     bb3:
 -     v1 = phi [bb1: 11], [bb2: 22]
 -     ret v1
 +     ret 11
++   bb2:
++     invalid
   }
   
   fn @unknown_branch_keeps_phi(arg0: bool) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      jump bb3
     bb2:
+      jump bb3
+    bb1:
       jump bb3
     bb3:
       v0 = phi [bb1: 11], [bb2: 22]
@@ -32,14 +33,15 @@
   fn @constant_switch_selects_one_case() -> u256 {
     bb0:
 -     switch 2, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+-   bb3:
+-     ret 33
 +     jump bb2
+    bb2:
+      ret 22
     bb1:
 -     ret 11
 +     invalid
-    bb2:
-      ret 22
-    bb3:
--     ret 33
++   bb3:
 +     invalid
     bb4:
 -     ret 44

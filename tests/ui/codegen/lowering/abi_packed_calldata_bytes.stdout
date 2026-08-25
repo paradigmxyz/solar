@@ -27,17 +27,15 @@ bb5:
   push 352
   push 64
   mstore
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb4
   jumpi
   push bb7
   push 4
   jump bb14
 bb14:
-  calldatasize
-  swap1
   calldataload
   push 4
   dup2
@@ -54,7 +52,7 @@ bb14:
   push 192
   shr
   lt
-  dup4
+  calldatasize
   dup4
   gt
   or
@@ -64,14 +62,16 @@ bb14:
   push 320
   mstore
   dup3
-  swap1
-  swap4
+  calldatasize
   sub
-  dup4
+  dup2
   gt
+  swap1
+  swap2
   or
   push bb16
   jumpi
+  swap1
   swap2
   jump
 bb7:
@@ -116,9 +116,9 @@ bb9:
   push 352
   push 64
   mstore
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb4
   jumpi
   push 36
