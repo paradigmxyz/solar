@@ -35,33 +35,33 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
     set_memory_object_len memoryarray, v21, v2
     jump bb9
   bb9:
-    v22 = phi [bb8: 0], [bb15: v36]
+    v22 = phi [bb8: 0], [bb15: v37]
     v23 = lt v22, v2
     jumpi v23, bb10, bb11
   bb11:
-    v37 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v21
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = staticcall v1, v0, v38, v39, 0, 32
-    jumpi v40, bb17, bb16
+    v38 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v21
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = staticcall v1, v0, v39, v40, 0, 32
+    jumpi v41, bb17, bb16
   bb16:
     revert_returndata
   bb17:
-    v41 = returndatasize
-    v42 = lt v41, 32
-    jumpi v42, bb18, bb19
+    v42 = returndatasize
+    v43 = lt v42, 32
+    jumpi v43, bb18, bb19
   bb19:
-    v43 = add 0, 0
-    v44 = mload v43
-    v45 = iszero v44
+    v44 = add 0, 0
+    v45 = mload v44
     v46 = iszero v45
-    v47 = eq v44, v46
-    v48 = iszero v47
-    jumpi v48, bb20, bb21
+    v47 = iszero v46
+    v48 = eq v45, v47
+    v49 = iszero v48
+    jumpi v49, bb20, bb21
   bb21:
-    v49 = add 0, 0
-    v50 = mload v49
-    ret v50
+    v50 = add 0, 0
+    v51 = mload v50
+    ret v51
   bb20:
     revert 0, 0
   bb18:
@@ -83,8 +83,9 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
     jumpi v34, bb14, bb15
   bb15:
     v35 = shr 64, v31
-    memory_object_store_element memoryarray<1>, v21, v22, v35
-    v36 = add v22, 1
+    v36 = shl 64, v35
+    memory_object_store_element memoryarray<1>, v21, v22, v36
+    v37 = add v22, 1
     jump bb9
   bb14:
     revert 0, 0

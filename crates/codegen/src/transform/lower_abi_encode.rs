@@ -2,9 +2,9 @@
 
 use crate::{
     mir::{
-        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind,
-        MemoryObjectLayout, MirType, Module, SliceLocation, Terminator, Value, ValueId,
-        utils::resolve_replacement,
+        AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder, InstKind,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Terminator, Value,
+        ValueId, utils::resolve_replacement,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
@@ -44,6 +44,12 @@ struct AbiValueDest {
     head_addr: ValueId,
     tuple_base: ValueId,
     tail: ValueId,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AbiValueSource {
+    Scalar,
+    Memory,
 }
 
 fn lower_function(func: &mut Function) -> bool {
@@ -215,19 +221,10 @@ pub(crate) fn encode_static_tuple(
 ) -> ValueId {
     let mut head = dest;
     for (&value, ty) in values.iter().zip(types) {
-        encode_static_impl(builder, ty, value, head, false);
+        encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar);
         head = offset_ptr(builder, head, ty.head_size());
     }
     builder.sub(head, dest)
-}
-
-fn encode_static(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiType,
-    value: ValueId,
-    head_addr: ValueId,
-) {
-    encode_static_impl(builder, ty, value, head_addr, true);
 }
 
 fn encode_static_impl(
@@ -236,6 +233,7 @@ fn encode_static_impl(
     value: ValueId,
     head_addr: ValueId,
     allow_slice_fast_path: bool,
+    source: AbiValueSource,
 ) {
     if allow_slice_fast_path
         && let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
@@ -254,7 +252,14 @@ fn encode_static_impl(
                     MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
-                encode_static_impl(builder, field, field_value, field_head, allow_slice_fast_path);
+                encode_static_impl(
+                    builder,
+                    field,
+                    field_value,
+                    field_head,
+                    allow_slice_fast_path,
+                    AbiValueSource::Memory,
+                );
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
@@ -273,13 +278,20 @@ fn encode_static_impl(
                     element_value,
                     element_head,
                     allow_slice_fast_path,
+                    AbiValueSource::Memory,
                 );
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
         }
         AbiType::Function => {
-            let shift = builder.imm_u64(64);
-            let value = builder.shl(shift, value);
+            let value = if source == AbiValueSource::Scalar {
+                let shift = builder.imm_u64(64);
+                builder.shl(shift, value)
+            } else {
+                AbiWordValidator::from_mir_type(MirType::Function)
+                    .expect("function words always require cleanup")
+                    .cleanup(builder, value)
+            };
             builder.mstore(head_addr, value);
         }
         _ => builder.mstore(head_addr, value),
@@ -292,12 +304,22 @@ pub(crate) fn encode_tuple(
     types: &[AbiType],
     dest: ValueId,
 ) -> ValueId {
+    encode_tuple_impl(builder, values, types, dest, AbiValueSource::Scalar)
+}
+
+fn encode_tuple_impl(
+    builder: &mut FunctionBuilder<'_>,
+    values: &[ValueId],
+    types: &[AbiType],
+    dest: ValueId,
+    source: AbiValueSource,
+) -> ValueId {
     let head_size: u64 = types.iter().map(AbiType::head_size).sum();
     if !types.iter().any(AbiType::is_dynamic) {
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
             let head = offset_ptr(builder, dest, head_offset);
-            encode_static(builder, ty, value, head);
+            encode_static_impl(builder, ty, value, head, true, source);
             head_offset += ty.head_size();
         }
         return builder.imm_u64(head_size);
@@ -308,7 +330,13 @@ pub(crate) fn encode_tuple(
     let mut head_offset = 0;
     for (&value, ty) in values.iter().zip(types) {
         let head_addr = offset_ptr(builder, dest, head_offset);
-        tail = encode_value(builder, ty, value, AbiValueDest { head_addr, tuple_base: dest, tail });
+        tail = encode_value(
+            builder,
+            ty,
+            value,
+            AbiValueDest { head_addr, tuple_base: dest, tail },
+            source,
+        );
         head_offset += ty.head_size();
     }
     builder.sub(tail, dest)
@@ -319,13 +347,14 @@ fn encode_value(
     ty: &AbiType,
     value: ValueId,
     dest: AbiValueDest,
+    source: AbiValueSource,
 ) -> ValueId {
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.mstore(dest.head_addr, relative);
         encode_dynamic_body(builder, ty, value, dest.tail)
     } else {
-        encode_static(builder, ty, value, dest.head_addr);
+        encode_static_impl(builder, ty, value, dest.head_addr, true, source);
         dest.tail
     }
 }
@@ -358,7 +387,18 @@ fn encode_static_slice(
                 head = offset_ptr(builder, head, element.head_size());
             }
         }
-        AbiType::Function | AbiType::Word => {
+        AbiType::Function => {
+            let value = load_slice_word(builder, source, location);
+            let value = if location == SliceLocation::Memory {
+                AbiWordValidator::from_mir_type(MirType::Function)
+                    .expect("function words always require cleanup")
+                    .cleanup(builder, value)
+            } else {
+                value
+            };
+            builder.mstore(head_addr, value);
+        }
+        AbiType::Word => {
             let value = load_slice_word(builder, source, location);
             builder.mstore(head_addr, value);
         }
@@ -430,7 +470,7 @@ fn encode_dynamic_body(
                 values.push(element_value);
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            let size = encode_tuple(builder, &values, &types, dest);
+            let size = encode_tuple_impl(builder, &values, &types, dest, AbiValueSource::Memory);
             builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
@@ -443,7 +483,7 @@ fn encode_dynamic_body(
                 );
                 values.push(field_value);
             }
-            let size = encode_tuple(builder, &values, fields, dest);
+            let size = encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory);
             builder.add(dest, size)
         }
         AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
@@ -519,6 +559,7 @@ fn encode_dynamic_array(
         element,
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
+        AbiValueSource::Memory,
     );
 
     let one = builder.imm_u64(1);
@@ -583,6 +624,7 @@ fn encode_calldata_bytes_array(
         element,
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
+        AbiValueSource::Scalar,
     );
 
     let one = builder.imm_u64(1);
@@ -657,9 +699,10 @@ fn encode_word_array(
         let source = builder.add(data_source, offset);
         let destination = builder.add(data_dest, offset);
         let value = builder.mload(source);
-        let shift = builder.imm_u64(64);
-        let encoded = builder.shl(shift, value);
-        builder.mstore(destination, encoded);
+        let value = AbiWordValidator::from_mir_type(MirType::Function)
+            .expect("function words always require cleanup")
+            .cleanup(builder, value);
+        builder.mstore(destination, value);
         let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();
         builder.jump(cond);

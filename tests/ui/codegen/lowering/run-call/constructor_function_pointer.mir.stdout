@@ -34,6 +34,21 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
     revert 0, 0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
+@module ArrayTarget
+fn @raw() -> u256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @_anonymous(arg0: memoryfixedarray) [constructor, abi_params=[array<1, function>]] {
+  bb0:
+    v0 = mload arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    stop
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
@@ -94,6 +109,76 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     ret v30
   bb5:
     revert 0, 0
+}
+
+fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    memory_zero v0, 32
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0x990227f1
+    v4 = lt 0, 1
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = shl 64, v3
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
+    v7 = abi_encode [array<1, function>], args v0
+    v8 = not 31
+    v9 = and 274, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x60d338038060d360e03960e001601f017fffffffffffffffffffffffffffffff
+    v11 = add v10, 32
+    mstore v11, 0xffffffffffffffffffffffffffffffffe0166040523460955760e060e060d338
+    v12 = add v10, 64
+    mstore v12, 0x3016020820191508111905015606157607d565b60c0518060c052515f556099
+    v13 = add v10, 96
+    mstore v13, 0x565b6040518060c0526020810160405260e05160c01b156081576091565b5f80
+    v14 = add v10, 128
+    mstore v14, 0xfd5b60e05160401c60401b8152506053565b5f80fd5b5f80fd5b60308060a35f
+    v15 = add v10, 160
+    mstore v15, 0x395ff334601a575f3560e01c8063c096a63214601657601a565b601e565b5f80
+    v16 = add v10, 192
+    mstore v16, 0xfd5b5f546080526020608001608090036080f300000000000000000000000000
+    v17 = slice_ptr v7
+    v18 = add v10, 211
+    mcopy v18, v17, 32
+    v19 = create 0, v10, 243
+    jumpi v19, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v20 = address
+    v21 = shl 96, v20
+    v22 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
+    v23 = shl 64, v22
+    v24 = or v21, v23
+    v25 = gas
+    v26 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = staticcall v25, v19, v27, v28, 0, 32
+    jumpi v29, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v30 = returndatasize
+    v31 = lt v30, 32
+    jumpi v31, bb7, bb8
+  bb8:
+    v32 = add 0, 0
+    v33 = mload v32
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = eq v35, v24
+    ret v36
+  bb7:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {
