@@ -6,8 +6,6 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -27,8 +25,6 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v13 = memory_object_data memorybytes, v9
     v14 = lt v12, 96
     jumpi v14, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v15 = mload v13
     v16 = add v13, 32
@@ -38,8 +34,6 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v20 = eq v17, v19
     v21 = iszero v20
     jumpi v21, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v22 = add v13, 64
     v23 = mload v22
@@ -47,8 +41,6 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v25 = eq v23, v24
     v26 = iszero v25
     jumpi v26, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v27 = fmp
     v28 = add v27, 32
@@ -62,5 +54,13 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [abi_returns=[word, word,
     v33 = add v30, 64
     v34 = mload v33
     ret v15, v32, v34
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

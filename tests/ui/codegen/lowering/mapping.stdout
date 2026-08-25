@@ -6,12 +6,12 @@ fn @balances(arg0: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v4
+  bb1:
+    revert 0, 0
 }
 
 fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
@@ -20,8 +20,6 @@ fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -41,6 +39,8 @@ fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
     ret v11
+  bb1:
+    revert 0, 0
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
@@ -49,12 +49,12 @@ fn @set_balance(arg0: u256, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
     sstore v3, arg1 !metadata(storage=symbolic(v3))
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @add_balance(arg0: u256, arg1: u256) {
@@ -63,22 +63,22 @@ fn @add_balance(arg0: u256, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = add v4, arg1
     v6 = lt v5, v4
     jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v7 = mapping_slot arg0, 0
     sstore v7, v5 !metadata(storage=symbolic(v7))
     stop
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @approve(arg0: address, arg1: address, arg2: u256) {
@@ -87,8 +87,6 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -108,6 +106,8 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
     v10 = mapping_slot arg1, v9
     sstore v10, arg2 !metadata(storage=symbolic(v10))
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
@@ -116,8 +116,6 @@ fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -137,5 +135,7 @@ fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
     ret v11
+  bb1:
+    revert 0, 0
 }
 

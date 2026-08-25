@@ -12,8 +12,6 @@ fn @items(arg0: u256) -> (address, u256, address) [abi_returns=[word, word, word
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     mstore 128, 0
     mstore 160, 0
@@ -25,5 +23,7 @@ fn @items(arg0: u256) -> (address, u256, address) [abi_returns=[word, word, word
     v7 = add v3, 2
     v8 = sload v7 !metadata(storage=offset(v3, 2))
     ret v4, v6, v8
+  bb1:
+    revert 0, 0
 }
 

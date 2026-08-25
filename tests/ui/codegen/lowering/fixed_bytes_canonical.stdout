@@ -6,8 +6,6 @@ fn @fromUint(arg0: u8) -> bytes1 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 255
@@ -19,6 +17,8 @@ fn @fromUint(arg0: u8) -> bytes1 [abi_returns=[word]] {
     v6 = shl 248, arg0
     v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @fromHex() -> bytes1 [abi_returns=[word]] {
@@ -32,8 +32,6 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -63,6 +61,8 @@ fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
     v20 = and v19, 0xff00000000000000000000000000000000000000000000000000000000000000
     v21 = eq v17, v20
     ret v21
+  bb1:
+    revert 0, 0
 }
 
 fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
@@ -71,8 +71,6 @@ fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -83,5 +81,7 @@ fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
   bb4:
     v6 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     ret v6
+  bb1:
+    revert 0, 0
 }
 

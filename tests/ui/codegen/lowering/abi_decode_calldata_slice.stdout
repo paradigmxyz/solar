@@ -6,15 +6,11 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, 4
     jumpi v5, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v6 = sub v4, 4
     v7 = add v3, 4
@@ -23,10 +19,6 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v10 = add v9, 31
     v11 = lt v10, v9
     jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v12 = not 31
     v13 = and v10, v12
@@ -35,10 +27,6 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v16 = add 32, v15
     v17 = lt v16, v15
     jumpi v17, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v18 = alloc memorybytes, exact, uninitialized, infallible, v16
     set_memory_object_len memorybytes, v18, v9
@@ -52,10 +40,22 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v24 = memory_object_data memorybytes, v18
     v25 = lt v23, 32
     jumpi v25, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v26 = mload v24
     ret v26
+  bb9:
+    revert 0, 0
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

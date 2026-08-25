@@ -31,17 +31,11 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_len arg0
     v4 = add v3, 31
     v5 = lt v4, v3
     jumpi v5, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v6 = not 31
     v7 = and v4, v6
@@ -50,10 +44,6 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v10 = add 32, v9
     v11 = lt v10, v9
     jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v12 = alloc memorybytes, exact, uninitialized, infallible, v10
     set_memory_object_len memorybytes, v12, v3
@@ -69,6 +59,16 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v19 = keccak256 0, 32 !metadata(memory=scratch)
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     ret v20
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @storageValue() -> u256 [abi_returns=[word]] {
@@ -111,14 +111,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23

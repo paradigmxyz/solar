@@ -7,8 +7,6 @@ fn @use() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v19 = add arg0, 36
     v20 = add arg0, 4
@@ -23,6 +21,8 @@ fn @use() {
     v18 = phi [bb2: v21], [bb3: v7]
     mstore 128, v18
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

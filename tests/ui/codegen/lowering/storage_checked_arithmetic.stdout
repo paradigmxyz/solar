@@ -6,8 +6,6 @@ fn @storage_sub(arg0: address, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -21,14 +19,16 @@ fn @storage_sub(arg0: address, arg1: u256) {
     v8 = sub v7, arg1
     v9 = lt v7, arg1
     jumpi v9, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v10 = mapping_slot arg0, 0
     sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @storage_binary_sub(arg0: address, arg1: u256) {
@@ -37,8 +37,6 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -52,14 +50,16 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
     v8 = sub v7, arg1
     v9 = lt v7, arg1
     jumpi v9, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v10 = mapping_slot arg0, 0
     sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @storage_struct_add(arg0: address, arg1: u128) {
@@ -68,8 +68,6 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -90,14 +88,16 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
     v11 = add v10, arg1
     v12 = gt v11, 0xffffffffffffffffffffffffffffffff
     jumpi v12, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v13 = mapping_slot arg0, 1
     sstore v13, v11 !metadata(storage=symbolic(v13))
     stop
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
@@ -106,8 +106,6 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -131,14 +129,16 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
     v14 = sgt v12, 127
     v15 = or v13, v14
     jumpi v15, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v16 = mapping_slot arg0, 1
     v17 = add v16, 1
     sstore v17, v12 !metadata(storage=offset(v16, 1))
     stop
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 

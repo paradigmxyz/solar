@@ -17,37 +17,37 @@
 contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow{{[( ]}}
     // CHECK: eq arg0, 2
-    // CHECK: shl arg1, 1
-    // CHECK: exp arg0, arg1
     // CHECK: {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: shr 1,
+    // CHECK: exp arg0, arg1
+    // CHECK: shl arg1, 1
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @spow{{[( ]}}
     // CHECK: eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    // CHECK: exp arg0, arg1
     // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: exp arg0, arg1
     function spow(int256 a, uint256 b) public pure returns (int256) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @upow8{{[( ]}}
-    // CHECK: shl arg1, 1
-    // CHECK: gt {{v[0-9]+}}, 255
-    // CHECK: exp arg0, arg1
-    // CHECK: gt {{v[0-9]+}}, 255
+    // CHECK: [[POWER:v[0-9]+]] = exp arg0, arg1
+    // CHECK: gt [[POWER]], 255
+    // CHECK: [[SHIFT:v[0-9]+]] = shl arg1, 1
+    // CHECK: gt [[SHIFT]], 255
     function upow8(uint8 a, uint8 b) public pure returns (uint8) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @spow8{{[( ]}}
-    // CHECK: exp arg0, arg1
-    // CHECK: gt {{v[0-9]+}}, 127
     // CHECK: sdiv 127, arg0
     // CHECK: sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80,
+    // CHECK: [[POWER:v[0-9]+]] = exp arg0, arg1
+    // CHECK: gt [[POWER]], 127
     function spow8(int8 a, uint8 b) public pure returns (int8) {
         return a ** b;
     }
@@ -68,8 +68,8 @@ contract CheckedPowShapes {
 
     // CHECK-LABEL: fn @const_neg2{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = sub 0, 2
-    // CHECK: exp [[BASE]], arg0
     // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[BASE]]
+    // CHECK: exp [[BASE]], arg0
     function const_neg2(uint256 b) public pure returns (int256) {
         return (-2) ** b;
     }

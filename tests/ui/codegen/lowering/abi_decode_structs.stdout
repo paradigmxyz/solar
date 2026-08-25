@@ -7,8 +7,6 @@ fn @dFlat() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add arg0, 4
     v4 = calldataload v3
@@ -55,6 +53,8 @@ fn @dFlat() {
     mstore 160, v31
     mstore 192, v23
     returndata 128, 96
+  bb1:
+    revert 0, 0
 }
 
 fn @dNested() {
@@ -63,8 +63,6 @@ fn @dNested() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add arg0, 4
     v4 = calldataload v3
@@ -123,8 +121,6 @@ fn @dNested() {
     v40 = add v39, 31
     v41 = lt v40, v39
     jumpi v41, bb6, bb7
-  bb6:
-    tail_call @__revert_stub0
   bb7:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = iszero v43
@@ -229,6 +225,10 @@ fn @dNested() {
     v126 = add v118, v117
     mstore 64, v126 !metadata(memory=scratch)
     returndata v118, v113
+  bb6:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @dDynArr() {
@@ -237,8 +237,6 @@ fn @dDynArr() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add arg0, 4
     v4 = calldataload v3
@@ -263,8 +261,6 @@ fn @dDynArr() {
     v18 = add v16, 32
     v19 = shr 251, v17
     jumpi v19, bb4, bb5
-  bb4:
-    tail_call @__revert_stub0
   bb5:
     v20 = shl 5, v17
     v21 = add v20, 32
@@ -286,6 +282,10 @@ fn @dDynArr() {
   bb7:
     v73 = phi [bb6: v17], [bb12: v66]
     jumpi v73, bb8, bb9
+  bb9:
+    v71 = mload v23
+    mstore 128, v71
+    returndata 128, 32
   bb8:
     v30 = mload v25
     v31 = mload v30
@@ -302,10 +302,6 @@ fn @dDynArr() {
     v39 = add v38, 31
     v40 = lt v39, v38
     jumpi v40, bb4, bb10
-  bb9:
-    v71 = mload v23
-    mstore 128, v71
-    returndata 128, 32
   bb10:
     v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v43 = iszero v42
@@ -356,6 +352,10 @@ fn @dDynArr() {
     v70 = add v69, 32
     mstore v26, v70
     jump bb7
+  bb4:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @__revert_stub0() {
@@ -373,12 +373,12 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb5, [0x6644232b => bb2, 0xaca542ca => bb3, 0xfc7ec666 => bb4]
-  bb2:
-    tail_call @dFlat
-  bb3:
-    tail_call @dDynArr
   bb4:
     tail_call @dNested
+  bb3:
+    tail_call @dDynArr
+  bb2:
+    tail_call @dFlat
   bb5:
     revert 0, 0
 }

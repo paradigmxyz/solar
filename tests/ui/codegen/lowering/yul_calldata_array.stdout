@@ -6,8 +6,6 @@ fn @probe(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     mstore 128, 0
     mstore 160, 0
@@ -19,5 +17,7 @@ fn @probe(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
     v6 = mload 128
     v7 = mload 160
     ret v6, v7
+  bb1:
+    revert 0, 0
 }
 

@@ -7,8 +7,6 @@ fn @assign() {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -26,21 +24,6 @@ fn @assign() {
     v43 = gt v41, 0xffffffffffffffff
     v44 = or v42, v43
     jumpi v44, bb9, bb8
-  bb5:
-    v28 = phi [bb8: 0], [bb6: v34]
-    v35 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb6: v36]
-    v37 = phi [bb8: v27], [bb6: v38]
-    v29 = lt v28, v25
-    jumpi v29, bb6, bb7
-  bb6:
-    v32 = mload v37
-    sstore v35, v32 !metadata(storage=symbolic(v35))
-    v34 = add v28, 1
-    v36 = add v35, 1
-    v38 = add v37, 32
-    jump bb5
-  bb7:
-    stop
   bb8:
     mstore 64, v41 !metadata(memory=scratch)
     v46 = calldatasize
@@ -62,10 +45,27 @@ fn @assign() {
     mstore 0, 1 !metadata(memory=scratch)
     v27 = add v14, 32
     jump bb5
+  bb5:
+    v28 = phi [bb8: 0], [bb6: v34]
+    v35 = phi [bb8: 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6], [bb6: v36]
+    v37 = phi [bb8: v27], [bb6: v38]
+    v29 = lt v28, v25
+    jumpi v29, bb6, bb7
+  bb7:
+    stop
+  bb6:
+    v32 = mload v37
+    sstore v35, v32 !metadata(storage=symbolic(v35))
+    v34 = add v28, 1
+    v36 = add v35, 1
+    v38 = add v37, 32
+    jump bb5
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @push() {
@@ -74,8 +74,6 @@ fn @push() {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -93,10 +91,25 @@ fn @push() {
     v50 = gt v48, 0xffffffffffffffff
     v51 = or v49, v50
     jumpi v51, bb11, bb10
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+  bb10:
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = calldatasize
+    calldatacopy v14, v53, 64
+    mstore v14, 1
+    v46 = add v14, 32
+    v47 = mul 0, 32
+    v17 = add v46, v47
+    mstore v17, arg1
+    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v52 = add v18, 64
+    mstore 64, v52 !metadata(memory=scratch)
+    mstore v18, arg0
+    v20 = add v18, 32
+    mstore v20, v14
+    v21 = sload 2 !metadata(storage=slot(2))
+    v22 = add v21, 1
+    v23 = lt v22, v21
+    jumpi v23, bb5, bb6
   bb6:
     mstore 0, 2 !metadata(memory=scratch)
     v25 = shl 1, v21
@@ -117,6 +130,9 @@ fn @push() {
     v44 = phi [bb6: v33], [bb8: v45]
     v36 = lt v35, v32
     jumpi v36, bb8, bb9
+  bb9:
+    sstore 2, v22 !metadata(storage=slot(2))
+    stop
   bb8:
     v39 = mload v42
     sstore v44, v39 !metadata(storage=symbolic(v44))
@@ -124,32 +140,16 @@ fn @push() {
     v43 = add v42, 32
     v45 = add v44, 1
     jump bb7
-  bb9:
-    sstore 2, v22 !metadata(storage=slot(2))
-    stop
-  bb10:
-    mstore 64, v48 !metadata(memory=scratch)
-    v53 = calldatasize
-    calldatacopy v14, v53, 64
-    mstore v14, 1
-    v46 = add v14, 32
-    v47 = mul 0, 32
-    v17 = add v46, v47
-    mstore v17, arg1
-    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v52 = add v18, 64
-    mstore 64, v52 !metadata(memory=scratch)
-    mstore v18, arg0
-    v20 = add v18, 32
-    mstore v20, v14
-    v21 = sload 2 !metadata(storage=slot(2))
-    v22 = add v21, 1
-    v23 = lt v22, v21
-    jumpi v23, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @pop() {
@@ -180,12 +180,12 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb5, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4]
-  bb2:
-    tail_call @assign
-  bb3:
-    tail_call @pop
   bb4:
     tail_call @push
+  bb3:
+    tail_call @pop
+  bb2:
+    tail_call @assign
   bb5:
     revert 0, 0
 }

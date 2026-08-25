@@ -6,8 +6,6 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -28,5 +26,7 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
     revert 0, v11
   bb6:
     stop
+  bb1:
+    revert 0, 0
 }
 
