@@ -1363,20 +1363,7 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulSgt => lower!(sgt(lhs, rhs)),
             Builtin::YulEq => lower!(eq(lhs, rhs)),
             Builtin::YulIszero => lower!(iszero(value)),
-            Builtin::YulClz => {
-                let [value] = self.lower_builtin_args(builder, builtin, call_args)?;
-                if self.gcx.sess.opts.evm_version.has_clz() {
-                    builder.clz(value)
-                } else {
-                    return Err(self
-                        .gcx
-                        .dcx()
-                        .err("codegen requires Osaka-compatible EVM for `clz`")
-                        .span(call_args.span)
-                        .help("compile with `--evm-version osaka` or newer")
-                        .emit());
-                }
-            }
+            Builtin::YulClz => lower!(clz(value)),
             Builtin::YulMload => lower!(mload(offset)),
             Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),
@@ -1534,16 +1521,6 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(builtin) = builtin
             && let Some(kind) = ExternalCallKind::from_low_level_builtin(builtin)
         {
-            if builtin == Builtin::AddressStaticcall
-                && !self.gcx.sess.opts.evm_version.has_static_call()
-            {
-                return self.err_call_result(
-                    builder,
-                    callee,
-                    member.span,
-                    "codegen cannot use `staticcall` before Byzantium".to_string(),
-                );
-            }
             let [data_arg] = match self.builtin_args(builtin, args) {
                 Ok(exprs) => exprs,
                 Err(guar) => return self.call_error_result(builder, callee, guar),

@@ -59,7 +59,7 @@ contract C {
      * @param nope Not a parameter anywhere.
      */
     function bad(uint256 a) public pure returns (uint256) {
-        //~^^^ ERROR: tag `@param` references non-existent parameter 'nope'
+        //~^^^ WARN: tag `@param` references non-existent parameter 'nope'
         return a;
     }
 }
