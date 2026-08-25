@@ -2317,6 +2317,19 @@ impl LowerAbiCx {
         if !matches!(arg_type, MirType::MemoryObject(_)) || !Self::can_encode_calldata_slice(ty) {
             return false;
         }
+        if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
+            InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) => true,
+            InstKind::MLoad(address)
+            | InstKind::MStore(address, _)
+            | InstKind::MStore8(address, _)
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                true
+            }
+            _ => false,
+        }) {
+            return false;
+        }
         if uses.is_empty()
             && matches!(
                 ty,
@@ -2396,9 +2409,15 @@ impl LowerAbiCx {
                 | InstKind::ExtCall { .. }
                 | InstKind::ExtDelegateCall { .. }
                 | InstKind::ExtStaticCall { .. }
-                | InstKind::FrameStore { .. }
-                | InstKind::MappingSlotMemory(..)
-                | InstKind::MappingSlotCalldata(..) => (true, false),
+                | InstKind::FrameStore { .. } => (true, false),
+                InstKind::MappingSlotMemory(key, _)
+                    if tainted.contains(*key) && Self::can_encode_calldata_slice(ty) =>
+                {
+                    (false, false)
+                }
+                InstKind::MappingSlotMemory(..) | InstKind::MappingSlotCalldata(..) => {
+                    (true, false)
+                }
                 InstKind::InternalCall { function, args, .. }
                     if args.iter().enumerate().any(|(index, value)| {
                         tainted.contains(*value)

@@ -57,7 +57,13 @@ impl MirPass for LowerMappingSlots {
                             lower_word_mapping_slot(&mut builder, key, slot)
                         }
                         InstKind::MappingSlotMemory(key, slot) => {
-                            lower_slice_mapping_slot(&mut builder, SliceLocation::Memory, key, slot)
+                            let location = match builder.func().value_ty(key) {
+                                Some(crate::mir::MirType::Slice(SliceLocation::Calldata)) => {
+                                    SliceLocation::Calldata
+                                }
+                                _ => SliceLocation::Memory,
+                            };
+                            lower_slice_mapping_slot(&mut builder, location, key, slot)
                         }
                         InstKind::MappingSlotCalldata(key, slot) => lower_slice_mapping_slot(
                             &mut builder,

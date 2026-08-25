@@ -3,6 +3,7 @@
 //@ codegen-matrix: standard
 //@ run-call: readCalldata(string) "abc" => 7
 //@ run-call: readMemory(string) "abc" => 7
+//@ run-call: readMemoryFmp(string) "abc" => true
 //@ run-call: callReadMemory(string) "abc" => 7
 //@ run-call: readStorage() => 7
 //@ run-call: readLongLiteral() => 11
@@ -24,6 +25,14 @@ contract MappingDynamicLiteral {
 
     function readMemory(string memory query) external view returns (uint256) {
         return values[query];
+    }
+
+    function readMemoryFmp(string memory query) external view returns (bool) {
+        uint256 pointer;
+        assembly {
+            pointer := mload(0x40)
+        }
+        return pointer > 0x80 && values[query] == 7;
     }
 
     function readMemoryPublic(string memory query) public view returns (uint256) {

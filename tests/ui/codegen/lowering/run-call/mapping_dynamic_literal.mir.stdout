@@ -99,6 +99,23 @@ fn @readMemory(arg0: memorybytes) -> u256 [selector=0xfa397925, view, abi_params
     ret v1
 }
 
+fn @readMemoryFmp(arg0: memorybytes) -> bool [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = gt v0, 128
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = mapping_slot_memory arg0, 1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = eq v3, 7
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: 0]
+    ret v5
+}
+
 fn @readMemoryPublic(arg0: memorybytes) -> u256 [selector=0x32851fa7, view, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
