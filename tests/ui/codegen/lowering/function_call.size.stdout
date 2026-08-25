@@ -36,9 +36,8 @@ bb19 [cold]:
   push 0
   revert
 bb5:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -78,9 +77,8 @@ bb7:
   push bb8
   jump bb16
 bb10:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt

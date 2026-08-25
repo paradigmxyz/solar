@@ -3990,8 +3990,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
+    fn is_always_rematerializable_value(func: &Function, value: ValueId) -> bool {
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
+        func.inst(*inst_id).kind.is_always_rematerializable()
+    }
+
+    fn always_rematerializable_op(func: &Function, value: ValueId) -> Option<u8> {
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
+        let kind = &func.inst(*inst_id).kind;
+        if !kind.is_always_rematerializable() {
+            return None;
+        }
+        Some(match kind {
+            InstKind::CalldataSize => op::CALLDATASIZE,
+            InstKind::CodeSize => op::CODESIZE,
+            InstKind::Caller => op::CALLER,
+            InstKind::CallValue => op::CALLVALUE,
+            InstKind::Address => op::ADDRESS,
+            InstKind::Origin => op::ORIGIN,
+            InstKind::GasPrice => op::GASPRICE,
+            InstKind::Coinbase => op::COINBASE,
+            InstKind::Timestamp => op::TIMESTAMP,
+            InstKind::BlockNumber => op::NUMBER,
+            InstKind::PrevRandao => op::PREVRANDAO,
+            InstKind::GasLimit => op::GASLIMIT,
+            InstKind::ChainId => op::CHAINID,
+            InstKind::BaseFee => op::BASEFEE,
+            InstKind::BlobBaseFee => op::BLOBBASEFEE,
+            _ => unreachable!("always-rematerializable MIR instruction without EVM opcode"),
+        })
+    }
+
     fn can_own_spill_slot(func: &Function, value: ValueId) -> bool {
         matches!(func.value(value), crate::mir::Value::Inst(_))
+            && !Self::is_always_rematerializable_value(func, value)
     }
 
     /// Returns true when `value` needs no spill before the instruction that
@@ -4096,6 +4128,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         result_value: Option<ValueId>,
     ) {
+        if result_value.is_some_and(|value| Self::is_always_rematerializable_value(func, value)) {
+            return;
+        }
+
         let operands = kind.operands();
         self.materialize_lazy_stack_args(func_id, kind, block, inst_idx);
         let transient_growth = Self::instruction_transient_growth(kind, operands.len());
@@ -5229,9 +5265,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Computes which arguments of each static-frame callee pass on the
     /// stack. A site can deliver a stack argument through raw re-emission after
-    /// the drain for immediates and position-independently reloadable caller
-    /// arguments, or through a freshness-validated spill reload for computed
-    /// values. The per-argument choice is scored across all sites — raw and
+    /// the drain for immediates, position-independently reloadable caller
+    /// arguments, and always-rematerializable reads, or through a
+    /// freshness-validated spill reload for other computed values. The
+    /// per-argument choice is scored across all sites — raw and
     /// already-stored (cross-block) values save the four-byte frame store,
     /// while a fresh block-local value must first pay its own spill — and an
     /// argument passes on the stack when the sites' savings outweigh the
@@ -6248,12 +6285,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns true when the caller can re-emit `val` raw (untracked) after
-    /// its stack drain: an immediate, or a caller argument whose reload is
-    /// position independent.
+    /// its stack drain.
     fn raw_arg_emittable(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
             crate::mir::Value::Arg(_) => raw_leaves_ok,
+            crate::mir::Value::Inst(inst_id) => {
+                func.inst(*inst_id).kind.is_always_rematerializable()
+            }
             _ => false,
         }
     }
@@ -6280,6 +6319,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         caller_stack: Option<&StackModel>,
         words_above: usize,
     ) {
+        if let Some(op) = Self::always_rematerializable_op(func, val) {
+            self.asm.emit_op(op);
+            return;
+        }
+
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
             let dup = depth + words_above + 1;
             assert!(
@@ -7639,6 +7683,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                    && !Self::is_always_rematerializable_value(func, arg)
                 {
                     let slot = if let Some(slot) = self.scheduler.reloadable_spill(arg) {
                         slot
@@ -8097,6 +8142,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
+        if Self::is_always_rematerializable_value(func, val) {
+            self.emit_value_fresh(func, val);
+            return;
+        }
+
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= MAX_STACK_ACCESS
             && self.scheduler.reloadable_spill(val).is_none()
@@ -8130,6 +8180,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// This is used for CALL operands where we need to guarantee correct values
     /// regardless of scheduler stack tracking state.
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
+        if let Some(op) = Self::always_rematerializable_op(func, val) {
+            self.asm.emit_op(op);
+            self.scheduler.stack.push(val);
+            return;
+        }
+
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 if let Some(u256) = imm.as_u256() {
@@ -8201,36 +8257,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.emit_load_immutable(*id);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::CallValue => {
-                            self.asm.emit_op(op::CALLVALUE);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Caller => {
-                            self.asm.emit_op(op::CALLER);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Origin => {
-                            self.asm.emit_op(op::ORIGIN);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::CalldataSize => {
-                            self.asm.emit_op(op::CALLDATASIZE);
-                            self.scheduler.stack.push(val);
-                        }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
                             self.emit_own_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::ConstructorArgsBase => {
                             self.emit_constructor_args_base();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Timestamp => {
-                            self.asm.emit_op(op::TIMESTAMP);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::BlockNumber => {
-                            self.asm.emit_op(op::NUMBER);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::MLoad(offset) => {
@@ -9270,7 +9302,7 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_frame_stack_args_require_reloadable_values() {
+    fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
         let argument = function.alloc_param(MirType::uint256());
         let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
@@ -9278,12 +9310,20 @@ mod tests {
             InstKind::Add(argument, immediate),
             Some(MirType::uint256()),
         ));
+        let (_, calldata_size) = function
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
 
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
         assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, computed));
+        assert!(EvmCodegen::raw_arg_emittable(&function, false, calldata_size));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
+
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
+        });
     }
 
     #[test]
@@ -9537,6 +9577,25 @@ mod tests {
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
+    }
+
+    #[test]
+    fn stable_nullary_reads_are_always_rematerializable() {
+        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+        let (_, calldata_size) = function
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
+        let (_, block_number) = function
+            .alloc_value_inst(Instruction::new(InstKind::BlockNumber, Some(MirType::uint256())));
+        let (_, returndata_size) = function
+            .alloc_value_inst(Instruction::new(InstKind::ReturnDataSize, Some(MirType::uint256())));
+        let (_, gas) =
+            function.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::uint256())));
+
+        assert!(EvmCodegen::is_always_rematerializable_value(&function, calldata_size));
+        assert!(EvmCodegen::is_always_rematerializable_value(&function, block_number));
+        assert!(!EvmCodegen::can_own_spill_slot(&function, calldata_size));
+        assert!(!EvmCodegen::is_always_rematerializable_value(&function, returndata_size));
+        assert!(!EvmCodegen::is_always_rematerializable_value(&function, gas));
     }
 
     #[test]

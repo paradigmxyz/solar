@@ -44,9 +44,8 @@ bb6:
   push 384
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -179,9 +178,8 @@ bb6:
   push 128
   return
 bb13:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt

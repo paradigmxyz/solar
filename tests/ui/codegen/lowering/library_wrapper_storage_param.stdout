@@ -32,9 +32,8 @@ bb10 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt

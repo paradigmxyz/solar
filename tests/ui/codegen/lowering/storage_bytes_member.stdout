@@ -84,9 +84,8 @@ bb15:
   push 832
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -916,9 +915,8 @@ bb51:
   push 832
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -962,9 +960,8 @@ bb53:
   and
   jump bb78
 bb57:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
