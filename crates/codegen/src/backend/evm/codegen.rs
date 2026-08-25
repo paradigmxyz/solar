@@ -8163,7 +8163,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if let Some(depth) = self.scheduler.stack.find(val)
-            && depth >= self.gcx.sess.opts.evm_version.reachable_stack_depth()
+            && depth >= self.stack_access_limit()
             && self.scheduler.reloadable_spill(val).is_none()
             && (self.scheduler.is_stack_only_value(val)
                 || !matches!(

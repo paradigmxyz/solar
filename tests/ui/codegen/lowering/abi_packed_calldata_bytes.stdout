@@ -46,6 +46,9 @@ bb5:
   sgt
   push bb4
   jumpi
+  push bb23
+  jump bb21
+bb21:
   push 4
   dup 1
   calldataload
@@ -59,37 +62,6 @@ bb5:
   add
   dup 1
   push 160
-  mstore
-  lt
-  push bb18
-  jumpi
-  push bb21
-  jump bb20
-bb20:
-  push 31
-  not
-  push 160
-  mload
-  and
-  dup 1
-  iszero
-  push 32
-  swap 1
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
-  dup 1
-  push 160
-  mstore
-  push 32
-  dup 2
-  add
-  dup 1
-  push 224
   mstore
   lt
   swap 1
@@ -116,26 +88,9 @@ bb11:
   sub
   push bb4
   jumpi
-  push 4
-  dup 1
-  calldataload
-  add
-  calldataload
-  dup 1
-  push 192
-  mstore
-  push 31
-  dup 2
-  add
-  dup 1
-  push 160
-  mstore
-  lt
-  push bb18
-  jumpi
-  push bb22
-  jump bb20
-bb21:
+  push bb25
+  jump bb21
+bb22:
   push bb18
   jumpi
   push 64
@@ -211,7 +166,41 @@ bb19:
   push 32
   push 128
   return
-bb22:
+bb23:
+  push bb18
+  jumpi
+  push bb22
+  jump bb20
+bb20:
+  push 31
+  not
+  push 160
+  mload
+  and
+  dup 1
+  iszero
+  push 32
+  swap 1
+  dup 3
+  dup 3
+  sub
+  mul
+  swap 1
+  pop
+  add
+  dup 1
+  push 160
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 224
+  mstore
+  lt
+  swap 1
+  jump
+bb24:
   push bb18
   jumpi
   push 64
@@ -286,3 +275,8 @@ bb22:
   mstore
   push 20
   jump bb19
+bb25:
+  push bb18
+  jumpi
+  push bb24
+  jump bb20

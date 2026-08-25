@@ -150,8 +150,9 @@
   bb17:
     push 1
     dup 1
-    dup 1
-    exchange 1, 2
-    pop
+-   dup 1
+-   exchange 1, 2
+-   pop
++   swap 1
     stop
   

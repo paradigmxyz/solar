@@ -154,7 +154,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let run_size = lower_bound(gcx, &body);
         let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
-        if free.len() * run_size < free.len() * site_size + stub_size + 2 {
+        if free.len() * run_size < free.len() * site_size + stub_size + 1 {
             continue;
         }
         for site in &free {

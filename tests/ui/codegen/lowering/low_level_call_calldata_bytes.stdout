@@ -57,6 +57,9 @@ bb5:
   sub
   push bb4
   jumpi
+  push bb26
+  jump bb22
+bb22:
   push 4
   push 36
   calldataload
@@ -70,37 +73,6 @@ bb5:
   add
   dup 1
   push 160
-  mstore
-  lt
-  push bb19
-  jumpi
-  push bb24
-  jump bb21
-bb21:
-  push 31
-  not
-  push 160
-  mload
-  and
-  dup 1
-  iszero
-  push 32
-  swap 1
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
-  dup 1
-  push 160
-  mstore
-  push 32
-  dup 2
-  add
-  dup 1
-  push 224
   mstore
   lt
   swap 1
@@ -127,26 +99,9 @@ bb12:
   sub
   push bb4
   jumpi
-  push 4
-  push 36
-  calldataload
-  add
-  calldataload
-  dup 1
-  push 192
-  mstore
-  push 31
-  dup 2
-  add
-  dup 1
-  push 160
-  mstore
-  lt
-  push bb19
-  jumpi
-  push bb26
-  jump bb21
-bb23:
+  push bb29
+  jump bb22
+bb24:
   push 32
   dup 2
   add
@@ -201,12 +156,12 @@ bb20:
   push 32
   push 128
   return
-bb24:
+bb25:
   push bb19
   jumpi
-  push bb23
-  jump bb22
-bb22:
+  push bb24
+  jump bb23
+bb23:
   push 64
   mload
   dup 1
@@ -224,7 +179,41 @@ bb22:
   mstore
   swap 1
   jump
-bb25:
+bb26:
+  push bb19
+  jumpi
+  push bb25
+  jump bb21
+bb21:
+  push 31
+  not
+  push 160
+  mload
+  and
+  dup 1
+  iszero
+  push 32
+  swap 1
+  dup 3
+  dup 3
+  sub
+  mul
+  swap 1
+  pop
+  add
+  dup 1
+  push 160
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 224
+  mstore
+  lt
+  swap 1
+  jump
+bb27:
   push 32
   dup 2
   add
@@ -268,8 +257,13 @@ bb25:
   dup 6
   delegatecall
   jump bb20
-bb26:
+bb28:
   push bb19
   jumpi
-  push bb25
-  jump bb22
+  push bb27
+  jump bb23
+bb29:
+  push bb19
+  jumpi
+  push bb28
+  jump bb21

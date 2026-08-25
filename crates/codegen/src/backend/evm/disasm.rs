@@ -33,13 +33,12 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
                     write_stack_immediate(&mut output, instruction.opcode, immediate)
                 }
                 DecodedOpcode::InvalidStackImmediate => {
-                    output.push_str(invalid_extended_stack_name(instruction.opcode))
+                    output.push_str("INVALID_");
+                    write_opcode_name(&mut output, instruction.opcode);
                 }
                 DecodedOpcode::Opcode => {
                     if let Some(mnemonic) = versioned_mnemonic(instruction.opcode, evm_version) {
-                        output.extend(
-                            mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())),
-                        );
+                        write_mnemonic(&mut output, mnemonic);
                     } else {
                         write!(output, "UNKNOWN 0x{:02x}", instruction.opcode).unwrap();
                     }
@@ -196,13 +195,12 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
                     write_stack_immediate(&mut output, instruction.opcode, immediate)
                 }
                 DecodedOpcode::InvalidStackImmediate => {
-                    output.push_str(invalid_extended_stack_name(instruction.opcode))
+                    output.push_str("INVALID_");
+                    write_opcode_name(&mut output, instruction.opcode);
                 }
                 DecodedOpcode::Opcode => {
                     if let Some(mnemonic) = versioned_mnemonic(instruction.opcode, evm_version) {
-                        output.extend(
-                            mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())),
-                        );
+                        write_mnemonic(&mut output, mnemonic);
                     } else {
                         write!(output, "0x{:X}", instruction.opcode).unwrap();
                     }
@@ -221,15 +219,24 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
 fn write_stack_immediate(output: &mut String, opcode: u8, immediate: u8) {
     match opcode {
         op::DUPN | op::SWAPN => {
-            let name = if opcode == op::DUPN { "DUPN" } else { "SWAPN" };
-            write!(output, "{name} {}", op::decode_stack_depth(immediate).unwrap()).unwrap();
+            write_opcode_name(output, opcode);
+            write!(output, " {}", op::decode_stack_depth(immediate).unwrap()).unwrap();
         }
         op::EXCHANGE => {
             let (n, m) = op::decode_exchange(immediate).unwrap();
-            write!(output, "EXCHANGE {n}, {m}").unwrap();
+            write_opcode_name(output, opcode);
+            write!(output, " {n}, {m}").unwrap();
         }
         _ => unreachable!(),
     }
+}
+
+fn write_opcode_name(output: &mut String, opcode: u8) {
+    write_mnemonic(output, op::mnemonic(opcode).expect("known opcode"));
+}
+
+fn write_mnemonic(output: &mut String, mnemonic: &str) {
+    output.extend(mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())));
 }
 
 struct DecodedInstruction<'a> {
@@ -286,15 +293,6 @@ fn instructions(
         offset = end;
         Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data, kind })
     })
-}
-
-fn invalid_extended_stack_name(opcode: u8) -> &'static str {
-    match opcode {
-        op::DUPN => "INVALID_DUPN",
-        op::SWAPN => "INVALID_SWAPN",
-        op::EXCHANGE => "INVALID_EXCHANGE",
-        _ => unreachable!(),
-    }
 }
 
 fn opcode_is_available(opcode: u8, evm_version: EvmVersion) -> bool {

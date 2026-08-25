@@ -3,10 +3,10 @@
 //! This module converts a source stack layout to a target layout using DUP, SWAP, and POP
 //! operations. Layouts of up to four words compare nontrivial greedy results with a bounded
 //! shortest-action search and take the searched sequence only when it improves one objective
-//! without worsening action count or static gas. Larger layouts use the verified greedy result,
-//! with the bounded search as the correctness fallback when the greedy pass cannot reach the
-//! target. When exact search reaches its state cap it stops enqueueing successors but drains the
-//! existing frontier, preserving targets that were discovered before the cap.
+//! without worsening action count, static gas, or encoded size. Larger layouts use the verified
+//! greedy result, with the bounded search as the correctness fallback when the greedy pass cannot
+//! reach the target. When exact search reaches its state cap it stops enqueueing successors but
+//! drains the existing frontier, preserving targets that were discovered before the cap.
 //!
 //! ## Algorithm overview
 //!
@@ -119,18 +119,17 @@ impl<'a> StackShuffler<'a> {
                 Self::search_exact(original, self.target, &self.multiplicities, max_stack_access);
             return match (greedy, exact) {
                 (Some(greedy), Some(exact)) => {
-                    let (exact_actions, exact_gas) =
+                    let (exact_actions, exact_gas, exact_size) =
                         Self::lowered_cost(&exact.ops, self.evm_version);
-                    let (greedy_actions, greedy_gas) =
+                    let (greedy_actions, greedy_gas, greedy_size) =
                         Self::lowered_cost(&greedy.ops, self.evm_version);
-                    if exact_actions <= greedy_actions
+                    let use_exact = exact_actions <= greedy_actions
                         && exact_gas <= greedy_gas
-                        && (exact_actions < greedy_actions || exact_gas < greedy_gas)
-                    {
-                        Some(exact)
-                    } else {
-                        Some(greedy)
-                    }
+                        && exact_size <= greedy_size
+                        && (exact_actions < greedy_actions
+                            || exact_gas < greedy_gas
+                            || exact_size < greedy_size);
+                    if use_exact { Some(exact) } else { Some(greedy) }
                 }
                 (None, Some(exact)) => Some(exact),
                 (greedy, None) => greedy,
@@ -214,10 +213,14 @@ impl<'a> StackShuffler<'a> {
         None
     }
 
-    fn lowered_cost(ops: &[StackOp], evm_version: EvmVersion) -> (usize, usize) {
-        ops.iter().fold((0, 0), |(instructions, gas), op| {
+    fn lowered_cost(ops: &[StackOp], evm_version: EvmVersion) -> (usize, usize, usize) {
+        ops.iter().fold((0, 0, 0), |(instructions, gas, size), op| {
             let metrics = op.metrics(evm_version).expect("valid shuffle operation");
-            (instructions + metrics.instruction_count, gas + metrics.static_gas)
+            (
+                instructions + metrics.instruction_count,
+                gas + metrics.static_gas,
+                size + metrics.assembled_len,
+            )
         })
     }
 
@@ -277,50 +280,36 @@ impl<'a> StackShuffler<'a> {
     fn arrange_positions(&mut self) {
         // Work from top of stack downward.
         for target_depth in 0..self.target.len().min(self.source.len()) {
-            let target_slot = &self.target[target_depth];
+            let TargetSlot::Value(target_value) = self.target[target_depth];
+            if self.source.get(target_depth) == Some(&Some(target_value)) {
+                continue;
+            }
+            let Some(source_depth) = self.find_value_from(target_value, target_depth) else {
+                continue;
+            };
+            let max_stack_access = self.max_stack_access();
+            if source_depth == target_depth || source_depth > max_stack_access {
+                continue;
+            }
+            if target_depth == 0 {
+                self.swap(source_depth);
+                continue;
+            }
+            if target_depth > max_stack_access {
+                continue;
+            }
 
-            match target_slot {
-                TargetSlot::Value(target_val) => {
-                    // Check if the correct value is already at this position.
-                    if self.source.get(target_depth) == Some(&Some(*target_val)) {
-                        continue;
-                    }
-
-                    // Find where the target value currently is.
-                    if let Some(source_depth) = self.find_value_from(*target_val, target_depth)
-                        && source_depth != target_depth
-                        && source_depth <= self.max_stack_access()
-                    {
-                        // Move the selected value into place.
-                        if target_depth == 0 {
-                            // The top position needs one swap.
-                            let swap_n = source_depth as u8;
-                            if usize::from(swap_n) <= self.max_stack_access() {
-                                self.swap(source_depth);
-                            }
-                        } else {
-                            if target_depth <= self.max_stack_access()
-                                && source_depth <= self.max_stack_access()
-                            {
-                                let target_depth = target_depth as u8;
-                                let source_depth = source_depth as u8;
-                                if let Some(exchange) =
-                                    StackOp::from_swaps(target_depth, source_depth, target_depth)
-                                {
-                                    self.ops.push(exchange);
-                                    self.source
-                                        .swap(usize::from(target_depth), usize::from(source_depth));
-                                } else {
-                                    // Bring the selected value through the top when `EXCHANGE`
-                                    // cannot encode these two depths.
-                                    self.swap(usize::from(target_depth));
-                                    self.swap(usize::from(source_depth));
-                                    self.swap(usize::from(target_depth));
-                                }
-                            }
-                        }
-                    }
-                }
+            let target_depth = target_depth as u8;
+            let source_depth = source_depth as u8;
+            if let Some(exchange) = StackOp::from_swaps(target_depth, source_depth, target_depth) {
+                self.ops.push(exchange);
+                self.source.swap(usize::from(target_depth), usize::from(source_depth));
+            } else {
+                // Bring the selected value through the top when `EXCHANGE` cannot encode these
+                // two depths.
+                self.swap(usize::from(target_depth));
+                self.swap(usize::from(source_depth));
+                self.swap(usize::from(target_depth));
             }
         }
     }
@@ -494,6 +483,22 @@ mod tests {
 
         // Should use swaps to rearrange.
         assert!(result.ops.iter().any(|op| matches!(op, StackOp::Swap(_))));
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_amsterdam_shuffle_prefers_smaller_encoding() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+        let source = make_model(&[Some(v0), Some(v1), Some(v2)]);
+        let target = [TargetSlot::Value(v1), TargetSlot::Value(v2), TargetSlot::Value(v0)];
+
+        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
+            .shuffle()
+            .unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(2), StackOp::Swap(1)]);
         assert_reaches(&source, &target, &result);
     }
 

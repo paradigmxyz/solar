@@ -272,18 +272,23 @@ fn find_candidate(
                 slots.push(Slot { aliases_copy: selected.aliases_copy, is_ghost: false });
             }
             Some(StackOp::Swap(depth)) => {
-                let stack_depth = usize::from(depth) + 1;
-                ensure_depth(&mut slots, stack_depth);
-                let top = slots.len() - 1;
-                let selected = slots.len() - stack_depth;
-                let replacement = swap_replacement(&slots, selected, top, max_stack_access)?;
+                let mut replacement = Vec::new();
+                retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
                 if replacement.iter().any(|op| op.assembled_len(evm_version).is_none()) {
                     return None;
                 }
                 candidate.replace(index, StackOp::Swap(depth), replacement, evm_version);
-                slots.swap(selected, top);
             }
-            Some(StackOp::Exchange(..)) => return None,
+            Some(StackOp::Exchange(n, m)) => {
+                let mut replacement = Vec::new();
+                for depth in [n, m, n] {
+                    retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
+                }
+                if replacement.iter().any(|op| op.assembled_len(evm_version).is_none()) {
+                    return None;
+                }
+                candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
+            }
             None => {
                 if inst.as_legacy_opcode().is_some_and(is_analysis_boundary) {
                     return None;
@@ -327,6 +332,37 @@ fn nearest_alias_depth(slots: &[Slot], max_stack_access: usize) -> Option<usize>
         }
     }
     None
+}
+
+fn retarget_swap(
+    slots: &mut Vec<Slot>,
+    depth: u8,
+    max_stack_access: usize,
+    replacement: &mut Vec<StackOp>,
+) -> Option<()> {
+    let stack_depth = usize::from(depth) + 1;
+    ensure_depth(slots, stack_depth);
+    let top = slots.len() - 1;
+    let selected = slots.len() - stack_depth;
+    for stack_op in swap_replacement(slots, selected, top, max_stack_access)? {
+        push_simplified_stack_op(replacement, stack_op);
+    }
+    slots.swap(selected, top);
+    Some(())
+}
+
+fn push_simplified_stack_op(ops: &mut Vec<StackOp>, stack_op: StackOp) {
+    if ops.last() == Some(&stack_op) && matches!(stack_op, StackOp::Swap(_)) {
+        ops.pop();
+        return;
+    }
+    ops.push(stack_op);
+    if let [.., StackOp::Swap(first), StackOp::Swap(second), StackOp::Swap(third)] = ops.as_slice()
+        && let Some(exchange) = StackOp::from_swaps(*first, *second, *third)
+    {
+        ops.truncate(ops.len() - 3);
+        ops.push(exchange);
+    }
 }
 
 fn swap_replacement(

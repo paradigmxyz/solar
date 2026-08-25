@@ -251,8 +251,10 @@ bb16:
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb17:
-// COMMON: {{^[ +].*}}dup 1
-// COMMON: {{^[ +].*}}exchange 1, 2
+// COMMON: -   dup 1
+// COMMON-NEXT: -   exchange 1, 2
+// COMMON-NEXT: -   pop
+// COMMON-NEXT: +   swap 1
 bb17:
   push 1
   dup 1
