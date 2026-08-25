@@ -1,11 +1,8 @@
-//@compile-flags: -O none -Zdump=mir
-
 contract CalldataArraySubsliceDynamic {
-    // A sub-slice of a dynamic-element array keeps element offsets relative to
-    // the original base, which a rebuild cannot recover, so it is rejected
-    // rather than miscompiled.
+    // Range access on arrays with dynamically encoded base types is rejected
+    // by solc itself, so the compiler matches that semantics instead of
+    // carrying a codegen bail.
     function dynamic(bytes[] calldata data) external pure returns (bytes[] memory) {
-        return data[1:]; //~ ERROR: codegen does not support slicing a calldata array of dynamic elements yet
-        //~^ ERROR: codegen does not support slicing a calldata array of dynamic elements yet
+        return data[1:]; //~ ERROR: index range access is not supported for arrays with dynamically encoded base types
     }
 }
