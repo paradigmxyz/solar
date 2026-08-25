@@ -7,8 +7,8 @@
 
 @module OutlineReverts
 
-// CHECK-DAG: {{^[ +].*}}fn @first{{[( ]}}
-// CHECK-DAG: {{[+-]?}} tail_call @[[STUB:__revert_stub[0-9]+]]
+// CHECK-LABEL: {{^[ +].*}}fn @first{{[( ]}}
+// CHECK: + tail_call @[[STUB:__revert_stub[0-9]+]]
 fn @first(arg0: u256) {
   bb0:
     v1 = add arg0, 1
@@ -23,8 +23,8 @@ fn @first(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-DAG: {{^[ +].*}}fn @second{{[( ]}}
-// CHECK-DAG: {{[+-]?}} tail_call @[[STUB]]
+// CHECK-LABEL: {{^[ +].*}}fn @second{{[( ]}}
+// CHECK: + tail_call @[[STUB]]
 fn @second(arg0: u256) {
   bb0:
     v1 = mul arg0, 2
@@ -39,9 +39,9 @@ fn @second(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-DAG: {{^[ +].*}}fn @third{{[( ]}}
-// CHECK-DAG: {{^[ +].*}}mstore 4, 18
-// CHECK-DAG: {{^[ +].*}}revert 0, 36
+// CHECK-LABEL: {{^[ +].*}}fn @third{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 4, 18
+// CHECK: {{^[ +].*}}revert 0, 36
 fn @third(arg0: u256) {
   bb0:
     v1 = sub arg0, 1
@@ -56,6 +56,6 @@ fn @third(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-DAG: {{[+-]?}} fn @__revert_stub{{[0-9]+}}
-// CHECK-DAG: {{[+-]?}} mstore 4, 17
-// CHECK-DAG: {{[+-]?}} revert 0, 36
+// CHECK-LABEL: + fn @__revert_stub{{[0-9]+}}
+// CHECK: + mstore 4, 17
+// CHECK: {{^ +}}revert 0, 36

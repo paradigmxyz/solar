@@ -6,13 +6,13 @@
 // be hoisted. Receive is payable and needs no check.
 @module DispatchParity
 @phase abi
-// CHECK-DAG: {{^[ +].*}}after lower-dispatch
-// CHECK-DAG: + fn @entry{{[( ]}}
-// CHECK-DAG: + tail_call @recv
-// CHECK-DAG: + switch {{.*}}default bb6, [1 => bb4, 2 => bb5]
-// CHECK-DAG: + tail_call @pay
-// CHECK-DAG: + tail_call @nopay
-// CHECK-DAG: + tail_call @fb
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
+// CHECK: + tail_call @recv
+// CHECK: + switch {{.*}}default bb6, [1 => bb4, 2 => bb5]
+// CHECK: + tail_call @nopay
+// CHECK: + tail_call @pay
+// CHECK: + tail_call @fb
 fn @pay() [selector=0x00000001, payable] {
   bb0:
     stop

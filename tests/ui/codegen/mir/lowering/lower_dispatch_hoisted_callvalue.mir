@@ -5,14 +5,14 @@
 // receive/fallback: empty calldata and unknown selectors both revert.
 @module DispatchHoisted
 @phase abi
-// CHECK-DAG: {{^[ +].*}}after lower-dispatch
-// CHECK-DAG: + fn @entry{{[( ]}}
-// CHECK-DAG: + [[VALUE:v[0-9]+]] = callvalue
-// CHECK-DAG: + jumpi [[VALUE]]
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
+// CHECK: + [[VALUE:v[0-9]+]] = callvalue
+// CHECK: + jumpi [[VALUE]]
 // CHECK-NOT: calldatasize
-// CHECK-DAG: + switch {{.*}}[1 => {{.*}}2 =>
-// CHECK-DAG: + tail_call @a
-// CHECK-DAG: + tail_call @b
+// CHECK: + switch {{.*}}[1 => {{.*}}2 =>
+// CHECK: + tail_call @b
+// CHECK: + tail_call @a
 fn @a() [selector=0x00000001] {
   bb0:
     stop

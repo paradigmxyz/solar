@@ -6,15 +6,15 @@
 // wrappers are already argument-free.
 @module LowerDispatch
 @phase abi
-// CHECK-DAG: after lower-dispatch
-// CHECK-DAG: + fn @entry{{[( ]}}
-// CHECK-DAG: + [[SIZE:v[0-9]+]] = calldatasize
-// CHECK-DAG: + [[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 4
-// CHECK-DAG: + jumpi [[SHORT]]
-// CHECK-DAG: + [[SELECTOR:v[0-9]+]] = shr 224
-// CHECK-DAG: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
-// CHECK-DAG: + tail_call @ping
-// CHECK-DAG: + tail_call @pong
+// CHECK-LABEL: after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
+// CHECK: + [[SIZE:v[0-9]+]] = calldatasize
+// CHECK: + [[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 4
+// CHECK: + jumpi [[SHORT]]
+// CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
+// CHECK: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
+// CHECK: + tail_call @pong
+// CHECK: + tail_call @ping
 fn @ping() [selector=0x12000000] {
   bb0:
     stop

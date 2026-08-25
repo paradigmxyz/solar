@@ -1,9 +1,9 @@
 //@compile-flags: -Zmir-pipeline=loop-canonicalize
 //@filecheck:
 @module LoopCanonicalize
-// CHECK-DAG: {{^[ +].*}}fn @insert_preheader{{[( ]}}
-// CHECK-DAG: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY:v[0-9]+]]]
-// CHECK-DAG: + [[ENTRY]] = phi [bb1: 10], [bb2: 20]
+// CHECK-LABEL: {{^[ +].*}}fn @insert_preheader{{[( ]}}
+// CHECK: + [[ENTRY:v[0-9]+]] = phi [bb1: 10], [bb2: 20]
+// CHECK: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY]]]
 fn @insert_preheader(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -20,9 +20,9 @@ fn @insert_preheader(arg0: bool) -> u256 {
     ret v1
 }
 
-// CHECK-DAG: {{^[ +].*}}fn @split_conditional_predecessor{{[( ]}}
-// CHECK-DAG: + jumpi arg0, bb4, bb3
-// CHECK-DAG: + {{v[0-9]+}} = phi [bb2: 1], [bb4: 0]
+// CHECK-LABEL: {{^[ +].*}}fn @split_conditional_predecessor{{[( ]}}
+// CHECK: + jumpi arg0, bb4, bb3
+// CHECK: + {{v[0-9]+}} = phi [bb2: 1], [bb4: 0]
 fn @split_conditional_predecessor(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb3

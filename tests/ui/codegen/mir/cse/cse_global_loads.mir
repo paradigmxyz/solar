@@ -1,13 +1,12 @@
 //@compile-flags: -Zmir-pipeline=cse
-//@filecheck: --check-prefix=RPO
+//@filecheck:
 @module CseGlobalLoads
-// RPO: @module CseGlobalLoads
 immutables:
   value: u256
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
-// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = mload 0
-// CHECK-DAG: {{[+-]?}} ret {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = mload 0
+// CHECK: + ret {{v[0-9]+}}
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0:
     mstore 0, 11
@@ -23,8 +22,8 @@ fn @dominating_mload(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_sload{{[( ]}}
-// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = sload 0
-// CHECK-DAG: {{[+-]?}} ret {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + ret {{v[0-9]+}}
 fn @dominating_sload(arg0: bool) -> u256 {
   bb0:
     v1 = sload 0
@@ -39,11 +38,11 @@ fn @dominating_sload(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_loadimmutable{{[( ]}}
-// CHECK-DAG: {{^[ +].*}}[[LOAD:v[0-9]+]] = loadimmutable value
-// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = loadimmutable value
-// CHECK-DAG: {{[+-]?}} ret [[LOAD]]
-// CHECK-DAG: {{^[ +].*}}storeimmutable value, 7
-// CHECK-DAG: {{^[ +-].*}}{{v[0-9]+}} = loadimmutable value
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = loadimmutable value
+// CHECK: {{^[ +].*}}storeimmutable value, 7
+// CHECK-NEXT: {{^[ +].*}}{{v[0-9]+}} = loadimmutable value
+// CHECK: - {{v[0-9]+}} = loadimmutable value
+// CHECK: + ret [[LOAD]]
 fn @dominating_loadimmutable(arg0: bool) -> u256 {
   bb0:
     v1 = loadimmutable value
@@ -58,11 +57,11 @@ fn @dominating_loadimmutable(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_phi_immutable_loads_before_branch_stores{{[( ]}}
-// CHECK-DAG: {{^[ +].*}}[[LEFT:v[0-9]+]] = loadimmutable value
-// CHECK-DAG: {{^[ +].*}}storeimmutable value, 1
-// CHECK-DAG: {{^[ +].*}}[[RIGHT:v[0-9]+]] = loadimmutable value
-// CHECK-DAG: {{^[ +].*}}storeimmutable value, 2
-// CHECK-DAG: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = loadimmutable value
+// CHECK: {{^[ +].*}}storeimmutable value, 2
+// CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = loadimmutable value
+// CHECK: {{^[ +].*}}storeimmutable value, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
 fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
