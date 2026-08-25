@@ -7,19 +7,32 @@
 +     mstore 192, v4
 +     mstore 224, 0
       jump bb6
+    bb6:
+      jumpi 1, bb7, bb8
+    bb8:
++     v5 = mload 224
++     jumpi v5, bb12, bb11
++   bb12:
++     v6 = mload 192
++     sstore 0, v6
++     jump bb11
++   bb11:
+      stop
+    bb7:
++     mstore 160, 0
+      jump bb1
     bb1:
       jumpi 1, bb2, bb4
-    bb2:
--     sstore 0, 7
-+     mstore 128, 7
-+     mstore 160, 1
-      jump bb3
-    bb3:
-      jump bb1
     bb4:
--     jump bb5
 +     v2 = mload 160
 +     jumpi v2, bb10, bb9
++   bb10:
++     v3 = mload 128
++     mstore 192, v3
++     mstore 224, 1
++     jump bb9
++   bb9:
+      jump bb5
     bb5:
 -     v0 = sload 0
 +     v0 = mload 192
@@ -28,45 +41,36 @@
 +     mstore 192, v1
 +     mstore 224, 1
       jump bb6
-    bb6:
-      jumpi 1, bb7, bb8
-    bb7:
-+     mstore 160, 0
-      jump bb1
-    bb8:
-+     v5 = mload 224
-+     jumpi v5, bb12, bb11
-+   bb9:
-+     jump bb5
-+   bb10:
-+     v3 = mload 128
-+     mstore 192, v3
-+     mstore 224, 1
-+     jump bb9
-+   bb11:
-      stop
-+   bb12:
-+     v6 = mload 192
-+     sstore 0, v6
-+     jump bb11
-  }
-  
-  fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
-    bb0:
-      jump bb6
-    bb1:
-      jumpi 1, bb2, bb4
     bb2:
--     sstore arg0, 7
+-     sstore 0, 7
 +     mstore 128, 7
 +     mstore 160, 1
       jump bb3
     bb3:
       jump bb1
+  }
+  
+  fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
+    bb0:
+      jump bb6
+    bb6:
+      jumpi 1, bb7, bb8
+    bb8:
+      stop
+    bb7:
++     mstore 160, 0
+      jump bb1
+    bb1:
+      jumpi 1, bb2, bb4
     bb4:
--     jump bb5
 +     v2 = mload 160
 +     jumpi v2, bb10, bb9
++   bb10:
++     v3 = mload 128
++     sstore arg0, v3
++     jump bb9
++   bb9:
+      jump bb5
     bb5:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
@@ -74,18 +78,12 @@
 -     sstore 0, v1
 +     sstore 0, v1 !metadata(storage=slot(0))
       jump bb6
-    bb6:
-      jumpi 1, bb7, bb8
-    bb7:
-+     mstore 160, 0
+    bb2:
+-     sstore arg0, 7
++     mstore 128, 7
++     mstore 160, 1
+      jump bb3
+    bb3:
       jump bb1
-    bb8:
-      stop
-+   bb9:
-+     jump bb5
-+   bb10:
-+     v3 = mload 128
-+     sstore arg0, v3
-+     jump bb9
   }
   

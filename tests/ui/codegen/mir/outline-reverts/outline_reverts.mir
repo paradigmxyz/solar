@@ -58,4 +58,4 @@ fn @third(arg0: u256) {
 
 // CHECK-LABEL: + fn @revert_stub{{.*}}
 // CHECK: + mstore 4, 17
-// CHECK: + revert 0, 36
+// CHECK: {{^ +}}revert 0, 36

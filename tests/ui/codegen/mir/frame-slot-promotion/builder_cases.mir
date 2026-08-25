@@ -14,6 +14,11 @@
 // CHECK: -     {{v[0-9]+}} = lt [[OLD_INDEX]], 4
 // CHECK:       [[COND:v[0-9]+]] = lt [[INDEX]], 4
 // CHECK:       jumpi [[COND]], [[BODY]], [[EXIT:bb[0-9]+]]
+// CHECK:       [[EXIT]]:
+// CHECK:       [[EXIT_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     [[OLD_RESULT:v[0-9]+]] = mload [[EXIT_FRAME]]
+// CHECK: -     ret [[OLD_RESULT]]
+// CHECK:       ret [[INDEX]]
 // CHECK:       [[BODY]]:
 // CHECK:       [[BODY_LOAD_FRAME:v[0-9]+]] = internal_frame_addr
 // CHECK: -     [[OLD_BODY_INDEX:v[0-9]+]] = mload [[BODY_LOAD_FRAME]]
@@ -22,11 +27,6 @@
 // CHECK:       [[BODY_STORE_FRAME:v[0-9]+]] = internal_frame_addr
 // CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
 // CHECK:       jump [[HEADER]]
-// CHECK:       [[EXIT]]:
-// CHECK:       [[EXIT_FRAME:v[0-9]+]] = internal_frame_addr
-// CHECK: -     [[OLD_RESULT:v[0-9]+]] = mload [[EXIT_FRAME]]
-// CHECK: -     ret [[OLD_RESULT]]
-// CHECK:       ret [[INDEX]]
 fn @loop_carried() -> u256 {
   bb0:
     v0 = internal_frame_addr 128

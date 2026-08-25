@@ -6,20 +6,6 @@ fn @combine() [selector=0xd9171e32, pure] {
     v12 = calldatasize
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v9 = mload v20
-    v10 = add v7, v9
-    v11 = lt v10, v7
-    jumpi v11, bb1, bb3
-  bb3:
-    mstore 128, v10
-    returndata 128, 32
-  bb4:
-    revert 0, 0
   bb5:
     v0 = alloc raw, exact, uninitialized, infallible, 224 !metadata(deferred_alloc)
     v1 = add v0, 96
@@ -43,6 +29,20 @@ fn @combine() [selector=0xd9171e32, pure] {
     v7 = add v4, v6
     v8 = lt v7, v4
     jumpi v8, bb1, bb2
+  bb2:
+    v9 = mload v20
+    v10 = add v7, v9
+    v11 = lt v10, v7
+    jumpi v11, bb1, bb3
+  bb3:
+    mstore 128, v10
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

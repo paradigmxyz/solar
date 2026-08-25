@@ -13,20 +13,29 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// See: <https://github.com/argotorg/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
-        let docs = self.parse_doc_comments();
-        let object = if self.check_keyword(sym::object) {
-            self.parse_yul_object(docs)
-        } else {
-            let lo = self.token.span;
-            self.parse_yul_block().map(|code| {
-                let span = lo.to(self.prev_token.span);
-                let name = StrLit { span, value: sym::object };
-                let code = CodeBlock { span, code };
-                Object { docs, span, name, code, children: Box::default(), data: Box::default() }
-            })
-        }?;
-        self.expect(TokenKind::Eof)?;
-        Ok(object)
+        self.in_pure_yul(|this| {
+            let docs = this.parse_doc_comments();
+            let object = if this.check_keyword(sym::object) {
+                this.parse_yul_object(docs)
+            } else {
+                let lo = this.token.span;
+                this.parse_yul_block().map(|code| {
+                    let span = lo.to(this.prev_token.span);
+                    let name = StrLit { span, value: sym::object };
+                    let code = CodeBlock { span, code };
+                    Object {
+                        docs,
+                        span,
+                        name,
+                        code,
+                        children: Box::default(),
+                        data: Box::default(),
+                    }
+                })
+            }?;
+            this.expect(TokenKind::Eof)?;
+            Ok(object)
+        })
     }
 
     /// Parses a Yul object.
@@ -287,7 +296,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
-            } else if path.segments().len() == 1 && path.first().is_reserved_yul_builtin() {
+            } else if path.segments().len() == 1 && self.is_reserved_yul_ident(*path.first()) {
                 let name = path.first();
                 self.dcx()
                     .emit_err(path.span(), format!("builtin function `{name}` must be called"));
@@ -303,7 +312,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'sess, ExprCall<'ast>> {
-        if !name.is_yul_builtin() && name.is_reserved(true) {
+        if !name.is_yul_builtin() && self.is_reserved_yul_ident(name) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }
         let arguments = self.parse_paren_comma_seq(true, Self::parse_yul_expr)?;
@@ -331,7 +340,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         // We allow EVM builtins in any position if multiple segments are present:
         // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
-        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_reserved_yul_builtin())
+        if first.is_yul_keyword()
+            || (path.segments().len() == 1 && self.is_reserved_yul_ident(first))
         {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }

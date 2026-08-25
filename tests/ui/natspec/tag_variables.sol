@@ -5,10 +5,10 @@ contract ValidVariableTags {
 
 contract InvalidVariableTags {
     /// @return Invalid return on private variable
-    //~^ ERROR: tag `@return` not valid for variables
+    //~^ WARN: tag `@return` not valid for variables
     uint private privateVariable;
 
     /// @param owner Invalid parameter on variable
-    //~^ ERROR: tag `@param` not valid for variables
+    //~^ WARN: tag `@param` not valid for variables
     mapping(address owner => uint) public balanceOf;
 }

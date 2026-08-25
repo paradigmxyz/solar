@@ -12,12 +12,12 @@
   fn @recursive(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      v0 = internal_call @recursive, 1, 0, arg1
-      ret v0
     bb2:
       sstore 1, arg1
       ret arg1
+    bb1:
+      v0 = internal_call @recursive, 1, 0, arg1
+      ret v0
   }
   
   fn @kept(arg0: u256) -> u256 {

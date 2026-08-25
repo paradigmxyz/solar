@@ -49,10 +49,10 @@ contract FunctionPointerSelection {
 
     // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, 2
-    // CHECK: internal_call @increment, 1, arg1
     // CHECK: eq arg0, 3
-    // CHECK: internal_call @decrement, 1, arg1
     // CHECK: eq arg0, 7
-    // CHECK: internal_call @incrementView, 1, arg1
     // CHECK: mstore 4, 81
+    // CHECK: internal_call @incrementView, 1, arg1
+    // CHECK: internal_call @decrement, 1, arg1
+    // CHECK: internal_call @increment, 1, arg1
 }

@@ -23,9 +23,9 @@ bb3 [cold]:
   dup1
   revert
 bb4:
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb6
   jumpi
   jump bb5

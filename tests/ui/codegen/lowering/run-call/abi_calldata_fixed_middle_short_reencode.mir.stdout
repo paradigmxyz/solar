@@ -18,17 +18,11 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v8 = or v5, v7
     v9 = iszero v8
     jumpi v9, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v10 = add v3, v4
     v11 = calldatasize
     v12 = gt v10, v11
     jumpi v12, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v13 = mul v2, 32
     v14 = iszero 32
@@ -37,18 +31,10 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v17 = or v14, v16
     v18 = iszero v17
     jumpi v18, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v19 = add 32, v13
     v20 = lt v19, 32
     jumpi v20, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
     set_memory_object_len memoryarray, v21, v2
@@ -57,6 +43,26 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v22 = phi [bb8: 0], [bb43: v109]
     v23 = lt v22, v2
     jumpi v23, bb10, bb11
+  bb11:
+    v110 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v21
+    v111 = slice_ptr v110
+    v112 = slice_len v110
+    v113 = staticcall v1, v0, v111, v112, 0, 32
+    jumpi v113, bb45, bb44
+  bb44:
+    revert_returndata
+  bb45:
+    v114 = returndatasize
+    v115 = lt v114, 32
+    jumpi v115, bb46, bb47
+  bb47:
+    v116 = add 0, 0
+    v117 = mload v116
+    v118 = add 0, 0
+    v119 = mload v118
+    ret v119
+  bb46:
+    revert 0, 0
   bb10:
     v24 = mul v22, 32
     v25 = iszero 32
@@ -65,16 +71,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v28 = or v25, v27
     v29 = iszero v28
     jumpi v29, bb12, bb13
-  bb11:
-    v110 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v21
-    v111 = slice_ptr v110
-    v112 = slice_len v110
-    v113 = staticcall v1, v0, v111, v112, 0, 32
-    jumpi v113, bb45, bb44
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     v30 = add v3, v24
     v31 = add v30, 32
@@ -83,8 +79,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v34 = gt v31, v33
     v35 = or v32, v34
     jumpi v35, bb14, bb15
-  bb14:
-    revert 0, 0
   bb15:
     v36 = calldataload v30
     v37 = add v3, v36
@@ -94,15 +88,11 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v41 = slt v36, v40
     v42 = iszero v41
     jumpi v42, bb16, bb17
-  bb16:
-    revert 0, 0
   bb17:
     v43 = add v37, 64
     v44 = calldatasize
     v45 = gt v43, v44
     jumpi v45, bb18, bb19
-  bb18:
-    revert 0, 0
   bb19:
     v46 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v47 = add v37, 0
@@ -112,8 +102,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v51 = gt v48, v50
     v52 = or v49, v51
     jumpi v52, bb20, bb21
-  bb20:
-    revert 0, 0
   bb21:
     v53 = calldataload v47
     v54 = add v37, v53
@@ -123,14 +111,10 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v58 = slt v53, v57
     v59 = iszero v58
     jumpi v59, bb22, bb23
-  bb22:
-    revert 0, 0
   bb23:
     v60 = calldataload v54
     v61 = gt v60, 0xffffffffffffffff
     jumpi v61, bb24, bb25
-  bb24:
-    revert 0, 0
   bb25:
     v62 = mul v60, 32
     v63 = add v54, 32
@@ -138,8 +122,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v65 = sub v64, v62
     v66 = sgt v63, v65
     jumpi v66, bb26, bb27
-  bb26:
-    revert 0, 0
   bb27:
     v67 = add v54, 32
     v68 = mul v60, 32
@@ -149,18 +131,10 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v72 = or v69, v71
     v73 = iszero v72
     jumpi v73, bb28, bb29
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb29:
     v74 = add 32, v68
     v75 = lt v74, 32
     jumpi v75, bb30, bb31
-  bb30:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb31:
     v76 = alloc memoryarray<1>, exact, uninitialized, infallible, v74
     set_memory_object_len memoryarray, v76, v60
@@ -174,8 +148,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v82 = gt v79, v81
     v83 = or v80, v82
     jumpi v83, bb32, bb33
-  bb32:
-    revert 0, 0
   bb33:
     v84 = calldataload v78
     v85 = add v37, v84
@@ -185,14 +157,10 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v89 = slt v84, v88
     v90 = iszero v89
     jumpi v90, bb34, bb35
-  bb34:
-    revert 0, 0
   bb35:
     v91 = calldataload v85
     v92 = gt v91, 0xffffffffffffffff
     jumpi v92, bb36, bb37
-  bb36:
-    revert 0, 0
   bb37:
     v93 = mul v91, 32
     v94 = add v85, 32
@@ -200,8 +168,6 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v96 = sub v95, v93
     v97 = sgt v94, v96
     jumpi v97, bb38, bb39
-  bb38:
-    revert 0, 0
   bb39:
     v98 = add v85, 32
     v99 = mul v91, 32
@@ -211,18 +177,10 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v103 = or v100, v102
     v104 = iszero v103
     jumpi v104, bb40, bb41
-  bb40:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb41:
     v105 = add 32, v99
     v106 = lt v105, 32
     jumpi v106, bb42, bb43
-  bb42:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb43:
     v107 = alloc memoryarray<1>, exact, uninitialized, infallible, v105
     set_memory_object_len memoryarray, v107, v91
@@ -232,19 +190,61 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     memory_object_store_element memoryarray<1>, v21, v22, v46
     v109 = add v22, 1
     jump bb9
-  bb44:
-    revert_returndata
-  bb45:
-    v114 = returndatasize
-    v115 = lt v114, 32
-    jumpi v115, bb46, bb47
-  bb46:
+  bb42:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb40:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb38:
     revert 0, 0
-  bb47:
-    v116 = add 0, 0
-    v117 = mload v116
-    v118 = add 0, 0
-    v119 = mload v118
-    ret v119
+  bb36:
+    revert 0, 0
+  bb34:
+    revert 0, 0
+  bb32:
+    revert 0, 0
+  bb30:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb26:
+    revert 0, 0
+  bb24:
+    revert 0, 0
+  bb22:
+    revert 0, 0
+  bb20:
+    revert 0, 0
+  bb18:
+    revert 0, 0
+  bb16:
+    revert 0, 0
+  bb14:
+    revert 0, 0
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

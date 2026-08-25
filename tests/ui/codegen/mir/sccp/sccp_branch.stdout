@@ -5,11 +5,12 @@
     bb0:
 -     v0 = lt 5, 10
 -     jumpi v0, bb1, bb2
+-   bb2:
+-     ret 0
 +     jump bb1
     bb1:
       ret 1
-    bb2:
--     ret 0
++   bb2:
 +     invalid
   }
   

@@ -9,10 +9,10 @@ fn @_anonymous() [constructor] {
     v3 = or v2, 2
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb2
-  bb1:
-    stop
   bb2:
     jump bb1
+  bb1:
+    stop
 }
 
 fn @getData() -> u256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word]] {
@@ -38,11 +38,11 @@ fn @constructor() [constructor] {
     v3 = or v2, 2
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
-  bb1:
-    stop
-  bb2:
-    jump bb1
   bb3:
     jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    stop
 }
 

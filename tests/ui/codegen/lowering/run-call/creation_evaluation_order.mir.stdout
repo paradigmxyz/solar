@@ -17,21 +17,21 @@ fn @valueOpt() -> u256 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 2
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @saltOpt() -> bytes32 {
@@ -44,21 +44,21 @@ fn @saltOpt() -> bytes32 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 3
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @arg() -> u256 {
@@ -71,21 +71,21 @@ fn @arg() -> u256 {
     v5 = or v2, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v7 = add v1, 4
     v8 = lt v7, v1
     jumpi v8, bb3, bb4
+  bb4:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 1
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret 1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {

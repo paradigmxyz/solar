@@ -6,12 +6,12 @@ fn @f() -> u256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word]
     v1 = gt v0, 0
     v2 = iszero v1
     jumpi v2, bb1, bb2
+  bb2:
+    ret 1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret 1
 }
 
 fn @g() -> u256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]] {
@@ -20,12 +20,12 @@ fn @g() -> u256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]
     v1 = gt v0, 0
     v2 = iszero v1
     jumpi v2, bb1, bb2
+  bb2:
+    ret 2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret 2
 }
 
 fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]] {
@@ -42,10 +42,6 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v7 = lt 0, 2
     v8 = iszero v7
     jumpi v8, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v9 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -64,13 +60,17 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v19 = returndatasize
     v20 = lt v19, 32
     jumpi v20, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v21 = add 0, 0
     v22 = mload v21
     v23 = add 0, 0
     v24 = mload v23
     ret v24
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

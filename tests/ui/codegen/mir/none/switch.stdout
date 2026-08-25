@@ -4,12 +4,12 @@
   fn @dispatch(arg0: u256) -> u256 {
     bb0:
       switch arg0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
-    bb1:
-      ret arg0
-    bb2:
-      ret 0
     bb3:
       ret 1
+    bb2:
+      ret 0
+    bb1:
+      ret arg0
     bb4:
       ret 2
   }

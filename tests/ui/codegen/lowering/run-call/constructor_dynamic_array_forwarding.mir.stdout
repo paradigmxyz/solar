@@ -15,36 +15,21 @@ fn @_anonymous(arg0: u256, arg1: memoryarray) [constructor, abi_params=[u256, ar
     jumpi v2, bb1, bb2
   bb1:
     jump bb3
-  bb2:
-    sstore 1, v0 !metadata(storage=slot(1))
-    jump bb6
   bb3:
     v3 = phi [bb1: v0], [bb4: v18]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
-  bb4:
-    v5 = storage_array_data_slot 1
-    v6 = div v3, 1
-    v7 = add v5, v6
-    v8 = mod v3, 1
-    v9 = mul v8, 20
-    v10 = mul v9, 8
-    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = sload v7 !metadata(storage=symbolic(v7))
-    v13 = not v11
-    v14 = and v12, v13
-    v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = shl v10, v15
-    v17 = or v14, v16
-    sstore v7, v17 !metadata(storage=symbolic(v7))
-    v18 = add v3, 1
-    jump bb3
   bb5:
     jump bb2
+  bb2:
+    sstore 1, v0 !metadata(storage=slot(1))
+    jump bb6
   bb6:
     v19 = phi [bb2: 0], [bb7: v35]
     v20 = lt v19, v0
     jumpi v20, bb7, bb8
+  bb8:
+    stop
   bb7:
     v21 = memory_object_load_element memoryarray<1>, arg1, v19
     v22 = storage_array_data_slot 1
@@ -63,8 +48,23 @@ fn @_anonymous(arg0: u256, arg1: memoryarray) [constructor, abi_params=[u256, ar
     sstore v24, v34 !metadata(storage=symbolic(v24))
     v35 = add v19, 1
     jump bb6
-  bb8:
-    stop
+  bb4:
+    v5 = storage_array_data_slot 1
+    v6 = div v3, 1
+    v7 = add v5, v6
+    v8 = mod v3, 1
+    v9 = mul v8, 20
+    v10 = mul v9, 8
+    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = sload v7 !metadata(storage=symbolic(v7))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = shl v10, v15
+    v17 = or v14, v16
+    sstore v7, v17 !metadata(storage=symbolic(v7))
+    v18 = add v3, 1
+    jump bb3
 }
 
 fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word]] {
@@ -73,10 +73,6 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v1 = lt arg0, v0
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = storage_array_data_slot 1
     v4 = div arg0, 1
@@ -88,6 +84,10 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v10 = shr v9, v8
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     ret v11
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main ===
@@ -100,40 +100,27 @@ fn @_anonymous(arg0: memoryarray, arg1: u256) [constructor, abi_params=[array<_,
     v2 = sload 1 !metadata(storage=slot(1))
     v3 = gt v2, v1
     jumpi v3, bb2, bb3
-  bb1:
-    jump bb10
   bb2:
     jump bb4
-  bb3:
-    sstore 1, v1 !metadata(storage=slot(1))
-    jump bb7
   bb4:
     v4 = phi [bb2: v1], [bb5: v19]
     v5 = lt v4, v2
     jumpi v5, bb5, bb6
-  bb5:
-    v6 = storage_array_data_slot 1
-    v7 = div v4, 1
-    v8 = add v6, v7
-    v9 = mod v4, 1
-    v10 = mul v9, 20
-    v11 = mul v10, 8
-    v12 = shl v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = sload v8 !metadata(storage=symbolic(v8))
-    v14 = not v12
-    v15 = and v13, v14
-    v16 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = shl v11, v16
-    v18 = or v15, v17
-    sstore v8, v18 !metadata(storage=symbolic(v8))
-    v19 = add v4, 1
-    jump bb4
   bb6:
     jump bb3
+  bb3:
+    sstore 1, v1 !metadata(storage=slot(1))
+    jump bb7
   bb7:
     v20 = phi [bb3: 0], [bb8: v36]
     v21 = lt v20, v1
     jumpi v21, bb8, bb9
+  bb9:
+    jump bb1
+  bb1:
+    jump bb10
+  bb10:
+    stop
   bb8:
     v22 = memory_object_load_element memoryarray<1>, v0, v20
     v23 = storage_array_data_slot 1
@@ -152,10 +139,23 @@ fn @_anonymous(arg0: memoryarray, arg1: u256) [constructor, abi_params=[array<_,
     sstore v25, v35 !metadata(storage=symbolic(v25))
     v36 = add v20, 1
     jump bb7
-  bb9:
-    jump bb1
-  bb10:
-    stop
+  bb5:
+    v6 = storage_array_data_slot 1
+    v7 = div v4, 1
+    v8 = add v6, v7
+    v9 = mod v4, 1
+    v10 = mul v9, 20
+    v11 = mul v10, 8
+    v12 = shl v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = sload v8 !metadata(storage=symbolic(v8))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = shl v11, v16
+    v18 = or v15, v17
+    sstore v8, v18 !metadata(storage=symbolic(v8))
+    v19 = add v4, 1
+    jump bb4
 }
 
 fn @forward(arg0: memoryarray) -> memoryarray [pure] {
@@ -175,10 +175,6 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v1 = lt arg0, v0
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = storage_array_data_slot 1
     v4 = div arg0, 1
@@ -190,6 +186,10 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v10 = shr v9, v8
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     ret v11
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
@@ -198,32 +198,24 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
   bb0:
     v0 = abi_encode [memory_array<word>, word], args arg1, arg0
     v1 = slice_len v0
-    v2 = add 0x493, v1
-    v3 = lt v2, 0x493
+    v2 = add 0x492, v1
+    v3 = lt v2, 0x492
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = add v2, 31
     v5 = lt v4, v2
     jumpi v5, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc raw, exact, uninitialized, infallible, v7
-    mstore v8, 0x6104933803806104936103603961036001601f017fffffffffffffffffffffff
+    mstore v8, 0x6104923803806104926103603961036001601f017fffffffffffffffffffffff
     v9 = add v8, 32
     mstore v9, 0xffffffffffffffffffffffffffffffffffffffffe016604052604c565b60a051
     v10 = add v8, 64
     mstore v10, 0x6040015160a05160600152565b346103ac57610360806101a052806101a05261
     v11 = add v8, 96
-    mstore v11, 0x360610493380301806101c052806101c0526040820181806101c05290111561
+    mstore v11, 0x360610492380301806101c052806101c0526040820181806101c05290111561
     v12 = add v8, 128
     mstore v12, 0x23f5761023b565b60405160a05181602001526102405181604001528060a052
     v13 = add v8, 160
@@ -275,23 +267,23 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
     v36 = add v8, 896
     mstore v36, 0x5260016102a051018061032052806103205282610260528161028052806102a0
     v37 = add v8, 928
-    mstore v37, 0x5250505061030b565b5f80fd5b5f80fd5b60d8806103bb5f395ff3346028575f
+    mstore v37, 0x5250505061030b565b5f80fd5b5f80fd5b60d7806103bb5f395ff3346028575f
     v38 = add v8, 960
     mstore v38, 0x3560e01c80633fa4f245146020578063e2095c07146024576028565b602c565b
     v39 = add v8, 992
-    mstore v39, 0x603e565b5f80fd5b5f546080526020608001608090036080f35b366024901015
+    mstore v39, 0x603e565b5f80fd5b5f546080526020608001608090036080f35b602436101560
     v40 = add v8, 0x400
-    mstore v40, 0x60d45760d0565b6001546004351015156084577f4e487b710000000000000000
+    mstore v40, 0xd35760cf565b6001546004351015156083577f4e487b71000000000000000000
     v41 = add v8, 0x420
-    mstore v41, 0x5f52603260045260245ffd5b
+    mstore v41, 0x5f52603260045260245ffd5b60
     v42 = add v8, 0x440
-    mstore v42, 0x60015f5260205f20600160043504810190506001600435066014900281549150
+    mstore v42, 0x15f5260205f2060016004350481019050600160043506601490028154915060
     v43 = add v8, 0x460
-    mstore v43, 0x600890021c73ffffffffffffffffffffffffffffffffffffffff901660805260
+    mstore v43, 0x890021c73ffffffffffffffffffffffffffffffffffffffff90166080526020
     v44 = add v8, 0x480
-    mstore v44, 0x20608001608090036080f35b5f80fd5b604b5600000000000000000000000000
+    mstore v44, 0x608001608090036080f35b5f80fd5b604a560000000000000000000000000000
     v45 = slice_ptr v0
-    v46 = add v8, 0x493
+    v46 = add v8, 0x492
     mcopy v46, v45, v1
     v47 = create 0, v8, v2
     jumpi v47, bb6, bb5
@@ -310,8 +302,6 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
     v53 = returndatasize
     v54 = lt v53, 32
     jumpi v54, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v55 = add 0, 0
     v56 = mload v55
@@ -329,8 +319,6 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
     v64 = returndatasize
     v65 = lt v64, 32
     jumpi v65, bb13, bb14
-  bb13:
-    revert 0, 0
   bb14:
     v66 = add 0, 0
     v67 = mload v66
@@ -338,11 +326,23 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
     v69 = eq v67, v68
     v70 = iszero v69
     jumpi v70, bb15, bb16
-  bb15:
-    revert 0, 0
   bb16:
     v71 = add 0, 0
     v72 = mload v71
     ret v58, v72
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

@@ -27,9 +27,9 @@ bb5:
   push 256
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb4
   jumpi
   push 4
@@ -86,9 +86,9 @@ bb10:
   push 256
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb4
   jumpi
   push 100

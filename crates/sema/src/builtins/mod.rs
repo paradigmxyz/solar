@@ -5,7 +5,7 @@ use crate::{
 };
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Span, Symbol, config::EvmVersion, kw, sym};
+use solar_interface::{Span, Symbol, config::EvmVersion, diagnostics::DiagId, error_code, kw, sym};
 use std::sync::OnceLock;
 
 pub(crate) mod members;
@@ -57,21 +57,77 @@ macro_rules! declare_builtins {
                 }
             }
 
-            /// Returns the EVM version required when this high-level builtin is unavailable for
-            /// `target`.
+            /// Returns the EVM version required when this builtin is unavailable for `target`.
             pub(crate) fn required_evm_version(self, target: EvmVersion) -> Option<EvmVersion> {
                 match self {
                     Self::AddressStaticcall if !target.has_static_call() => {
                         Some(EvmVersion::Byzantium)
                     }
+                    Self::YulReturndatacopy | Self::YulReturndatasize
+                        if !target.supports_returndata() =>
+                    {
+                        Some(EvmVersion::Byzantium)
+                    }
+                    Self::YulStaticcall if !target.has_static_call() => {
+                        Some(EvmVersion::Byzantium)
+                    }
                     Self::AddressCodehash if !target.has_ext_code_hash() => {
                         Some(EvmVersion::Constantinople)
                     }
-                    Self::BlockChainid if !target.has_chain_id() => Some(EvmVersion::Istanbul),
-                    Self::BlockBasefee if !target.has_base_fee() => Some(EvmVersion::London),
-                    Self::Blobhash | Self::BlockBlobbasefee if !target.has_blob_base_fee() => {
+                    Self::YulShl | Self::YulShr | Self::YulSar
+                        if !target.has_bitwise_shifting() =>
+                    {
+                        Some(EvmVersion::Constantinople)
+                    }
+                    Self::YulCreate2 if !target.has_create2() => Some(EvmVersion::Constantinople),
+                    Self::YulExtcodehash if !target.has_ext_code_hash() => {
+                        Some(EvmVersion::Constantinople)
+                    }
+                    Self::BlockChainid | Self::YulChainid if !target.has_chain_id() => {
+                        Some(EvmVersion::Istanbul)
+                    }
+                    Self::YulSelfbalance if !target.has_self_balance() => {
+                        Some(EvmVersion::Istanbul)
+                    }
+                    Self::BlockBasefee | Self::YulBasefee if !target.has_base_fee() => {
+                        Some(EvmVersion::London)
+                    }
+                    Self::Blobhash
+                    | Self::BlockBlobbasefee
+                    | Self::YulBlobbasefee
+                    | Self::YulBlobhash
+                        if !target.has_blob_base_fee() =>
+                    {
                         Some(EvmVersion::Cancun)
                     }
+                    Self::YulMcopy if !target.has_mcopy() => Some(EvmVersion::Cancun),
+                    Self::YulTload | Self::YulTstore if target < EvmVersion::Cancun => {
+                        Some(EvmVersion::Cancun)
+                    }
+                    Self::YulClz if !target.has_clz() => Some(EvmVersion::Osaka),
+                    _ => None,
+                }
+            }
+
+            /// Returns the solc EVM-version diagnostic code for this Yul builtin.
+            pub(crate) fn evm_version_error_code(self) -> Option<DiagId> {
+                match self {
+                    Self::YulReturndatacopy => Some(error_code!(7756)),
+                    Self::YulReturndatasize => Some(error_code!(4778)),
+                    Self::YulStaticcall => Some(error_code!(1503)),
+                    Self::YulShl => Some(error_code!(6612)),
+                    Self::YulShr => Some(error_code!(7458)),
+                    Self::YulSar => Some(error_code!(2054)),
+                    Self::YulCreate2 => Some(error_code!(6166)),
+                    Self::YulExtcodehash => Some(error_code!(7110)),
+                    Self::YulChainid => Some(error_code!(1561)),
+                    Self::YulSelfbalance => Some(error_code!(7721)),
+                    Self::YulBasefee => Some(error_code!(5430)),
+                    Self::YulBlobbasefee => Some(error_code!(6679)),
+                    Self::YulBlobhash => Some(error_code!(8314)),
+                    Self::YulMcopy => Some(error_code!(7755)),
+                    Self::YulTload | Self::YulTstore => Some(error_code!(6243)),
+                    Self::YulClz => Some(error_code!(4948)),
                     _ => None,
                 }
             }

@@ -10,7 +10,6 @@
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
 // CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
-// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg4
 // CHECK: + [[OUTER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
 // CHECK: + [[FIRST:v[0-9]+]] = alloc memoryfixedarray<2, 1>
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[FIRST]], 0, arg0
@@ -20,6 +19,7 @@
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[SECOND]], 0, arg2
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[SECOND]], 1, arg3
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], 1, [[SECOND]]
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg4
 @module LowerAbiConstructorParams
 
 fn @constructor(arg0: memoryfixedarray, arg1: u256) [abi_params=[array<2, array<2, u256>>, u256]] {

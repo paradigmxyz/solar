@@ -20,13 +20,13 @@ fn @div() -> i256 [selector=0xf9fa48c3, pure, abi_params=[], abi_returns=[word]]
     v2 = eq 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
     jumpi v3, bb3, bb4
+  bb4:
+    v4 = sdiv v0, 2
+    ret v4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v4 = sdiv v0, 2
-    ret v4
 }
 
 fn @shr() -> i256 [selector=0xb87f777a, pure, abi_params=[], abi_returns=[word]] {

@@ -33,9 +33,8 @@ bb5:
   push 256
   push 64
   mstore
-  calldatasize
   push 36
-  swap1
+  calldatasize
   lt
   iszero
   push bb10
@@ -77,9 +76,8 @@ bb11:
   push 256
   push 64
   mstore
-  calldatasize
   push 36
-  swap1
+  calldatasize
   lt
   iszero
   push bb16

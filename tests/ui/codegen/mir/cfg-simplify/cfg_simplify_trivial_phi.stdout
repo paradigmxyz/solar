@@ -4,10 +4,10 @@
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb1:
+    bb2:
       log0 0, 0
       jump bb3
-    bb2:
+    bb1:
       log0 0, 0
       jump bb3
     bb3:
@@ -22,12 +22,12 @@
     bb1:
 -     v0 = phi [bb0: arg0], [bb2: v0]
       jumpi arg1, bb2, bb3
-    bb2:
-      log0 0, 0
-      jump bb1
     bb3:
 -     ret v0
 +     ret arg0
+    bb2:
+      log0 0, 0
+      jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir (before dce) ===
@@ -36,10 +36,10 @@
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb1:
+    bb2:
       log0 0, 0
       jump bb3
-    bb2:
+    bb1:
       log0 0, 0
       jump bb3
     bb3:
@@ -51,10 +51,10 @@
       jump bb1
     bb1:
       jumpi arg1, bb2, bb3
+    bb3:
+      ret arg0
     bb2:
       log0 0, 0
       jump bb1
-    bb3:
-      ret arg0
   }
   

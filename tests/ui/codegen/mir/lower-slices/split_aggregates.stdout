@@ -17,9 +17,9 @@
     bb0:
 -     jumpi arg2, bb1, bb2
 +     jumpi arg4, bb1, bb2
-    bb1:
-      jump bb3
     bb2:
+      jump bb3
+    bb1:
       jump bb3
     bb3:
 -     v0 = phi [bb1: arg0], [bb2: arg1]

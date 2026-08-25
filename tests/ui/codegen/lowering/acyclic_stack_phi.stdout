@@ -10,24 +10,15 @@ bb0:
   shr
   dup1
   push 0x341fda35
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  dup1
-  revert
-bb4:
   push 448
   push 64
   mstore
-  calldatasize
-  dup1
-  push 160
-  mstore
   push 36
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 4
@@ -39,7 +30,7 @@ bb4:
   dup3
   add
   dup1
-  push 192
+  push 160
   mstore
   swap2
   push 0
@@ -47,19 +38,17 @@ bb4:
   push 192
   shr
   lt
-  push 160
-  mload
+  calldatasize
   dup4
   gt
   or
   swap1
   calldataload
   dup1
-  push 224
+  push 192
   mstore
   dup3
-  push 160
-  mload
+  calldatasize
   sub
   dup2
   gt
@@ -72,9 +61,9 @@ bb4:
   push bb3
   jumpi
   push bb7
-  push 192
+  push 160
   mload
-  push 224
+  push 192
   mload
   push 4
   dup2
@@ -103,10 +92,9 @@ bb4:
   pop
   push bb3
   jumpi
-  calldatasize
   push 352
   mload
-  swap1
+  calldatasize
   sub
   push 384
   mload
@@ -146,9 +134,13 @@ bb4:
   pop
   swap1
   jump
+bb3 [cold]:
+  push 0
+  dup1
+  revert
 bb7:
   dup1
-  push 256
+  push 224
   mstore
   mload
   push 128
@@ -157,9 +149,8 @@ bb7:
   push 128
   return
 bb13:
+  dup1
   calldatasize
-  dup2
-  swap1
   sub
   dup3
   sgt

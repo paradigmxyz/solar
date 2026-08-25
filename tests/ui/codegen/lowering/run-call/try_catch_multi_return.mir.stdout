@@ -4,9 +4,6 @@ fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_par
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
-    invalid
   bb2:
     jump bb3
   bb3:
@@ -14,6 +11,9 @@ fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_par
     set_memory_object_len memorybytes, v1, 2
     memory_object_store_word memorybytes, v1, 0, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     ret 13, v1
+  bb1:
+    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    invalid
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
@@ -31,31 +31,31 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 351, v1
+    v2 = and 350, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761012e8060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47e
+    mstore v3, 0x34600e5761012d8060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47e
     v4 = add v3, 32
-    mstore v4, 0xd114601657601a565b601e565b5f80fd5b61010060405236602490101560e657
+    mstore v4, 0xd114601657601a565b601e565b5f80fd5b610100604052602436101560e55760
     v5 = add v3, 64
-    mstore v5, 0x60e2565b6004351515606657600260c0527f6e6f000000000000000000000000
+    mstore v5, 0xe1565b6004351515606557600260c0527f6e6f00000000000000000000000000
     v6 = add v3, 96
-    mstore v6, 0x60e05260f5565b60405180608052
+    mstore v6, 0x60e05260f4565b6040518060805260
     v7 = add v3, 128
-    mstore v7, 0x60408101600d82526020820182806080528203905260028152602090015f8101
+    mstore v7, 0x408101600d82526020820182806080528203905260028152602090015f81017f
     v8 = add v3, 160
-    mstore v8, 0x7f6f6b0000000000000000000000000000000000000000000000000000000000
+    mstore v8, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v9 = add v3, 192
-    mstore v9, 0x815250602090018180608052900390505f9001601f8101601f198116905060
+    mstore v9, 0x815250602090018180608052900390505f9001601f8101601f19811690506040
     v10 = add v3, 224
-    mstore v10, 0x40518060a05281810191508160405290508181f35b5f80fd5b60043560029010
+    mstore v10, 0x518060a05281810191508160405290508181f35b5f80fd5b6004356002901015
     v11 = add v3, 256
-    mstore v11, 0x1560e2576031565b7f08c379a000000000000000000000000000000000000000
+    mstore v11, 0x60e1576030565b7f08c379a00000000000000000000000000000000000000000
     v12 = add v3, 288
-    mstore v12, 0x5f52602060045260c05160245260e05160445260645ffd
+    mstore v12, 0x5f52602060045260c05160245260e05160445260645ffd00
     v13 = slice_ptr v0
-    v14 = add v3, 320
+    v14 = add v3, 319
     mcopy v14, v13, 0
-    v15 = create 0, v3, 320
+    v15 = create 0, v3, 319
     jumpi v15, bb2, bb1
   bb1:
     revert_returndata
@@ -81,46 +81,11 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v7 = slice_len v5
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
-  bb1:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    jumpi v11, bb4, bb5
   bb2:
     v22 = returndatasize
     v23 = add v22, 63
     v24 = lt v23, v22
     jumpi v24, bb8, bb9
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = abi_decode [u256, bytes], v14
-    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    v19 = memory_object_len memorybytes, v18
-    v20 = add v16, v19
-    v21 = lt v20, v16
-    jumpi v21, bb6, bb7
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    ret v20
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v25 = not 31
     v26 = and v23, v25
@@ -142,10 +107,45 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v40 = eq v35, 0x4e487b71
     v41 = and v39, v40
     jumpi 1, bb10, bb11
-  bb10:
-    ret 0
   bb11:
     revert v29, v30
+  bb10:
+    ret 0
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = abi_decode [u256, bytes], v14
+    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v19 = memory_object_len memorybytes, v18
+    v20 = add v16, v19
+    v21 = lt v20, v16
+    jumpi v21, bb6, bb7
+  bb7:
+    ret v20
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
 }
 
 fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
@@ -160,37 +160,11 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v7 = slice_len v5
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
-  bb1:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    jumpi v11, bb4, bb5
   bb2:
     v19 = returndatasize
     v20 = add v19, 63
     v21 = lt v20, v19
     jumpi v21, bb6, bb7
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = abi_decode [u256, bytes], v14
-    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    ret 0
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v22 = not 31
     v23 = and v20, v22
@@ -212,9 +186,35 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v37 = eq v32, 0x4e487b71
     v38 = and v36, v37
     jumpi 1, bb8, bb9
-  bb8:
-    ret 9
   bb9:
     revert v26, v27
+  bb8:
+    ret 9
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = abi_decode [u256, bytes], v14
+    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    ret 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
 }
 

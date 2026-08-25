@@ -9,8 +9,6 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
     v4 = extcodesize arg0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, arg0, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
@@ -18,6 +16,8 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[]] {
@@ -29,8 +29,6 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
     v4 = extcodesize arg0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, arg0, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
@@ -38,5 +36,7 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 

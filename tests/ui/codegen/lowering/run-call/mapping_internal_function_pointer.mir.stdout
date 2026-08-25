@@ -70,24 +70,24 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @stage0, 0
-    ret
   bb2:
     v1 = eq arg0, 3
     jumpi v1, bb3, bb4
-  bb3:
-    internal_call @stage1, 0
-    ret
   bb4:
     v2 = eq arg0, 4
     jumpi v2, bb5, bb6
-  bb5:
-    internal_call @stage2, 0
-    ret
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb5:
+    internal_call @stage2, 0
+    ret
+  bb3:
+    internal_call @stage1, 0
+    ret
+  bb1:
+    internal_call @stage0, 0
+    ret
 }
 

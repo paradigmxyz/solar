@@ -14,14 +14,14 @@
     bb0:
       v0 = mapping_slot arg0, 7
       jumpi arg1, bb1, bb2
-    bb1:
-      mstore 0, 1
-      revert 0, 0
     bb2:
 -     v1 = mapping_slot arg0, 7
 -     v2 = add v0, v1
 +     v2 = add v0, v0
       ret v2
+    bb1:
+      mstore 0, 1
+      revert 0, 0
   }
   
   fn @memory(arg0: memptr) -> u256 {
@@ -63,13 +63,13 @@
 +     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
       jumpi arg1, bb1, bb2
-    bb1:
-      mstore 0, 1
-      revert 0, 0
     bb2:
 -     v2 = add v0, v0
 +     v2 = add v3, v3
       ret v2
+    bb1:
+      mstore 0, 1
+      revert 0, 0
   }
   
   fn @memory(arg0: memptr) -> u256 {
@@ -132,12 +132,12 @@
       mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
       jumpi arg1, bb1, bb2
-    bb1:
-      mstore 0, 1
-      revert 0, 0
     bb2:
       v2 = add v3, v3
       ret v2
+    bb1:
+      mstore 0, 1
+      revert 0, 0
   }
   
   fn @memory(arg0: memptr) -> u256 {

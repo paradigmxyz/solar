@@ -39,8 +39,8 @@ contract CheckedArithmeticPanic {
     // CHECK: phi [bb0: 1]
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore 4, 17
     // CHECK: shr 1,
+    // CHECK: mstore 4, 17
     function pow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
@@ -57,8 +57,8 @@ contract CheckedArithmeticPanic {
 
     // CHECK-LABEL: fn @signed_neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    // CHECK: mstore 4, 17
     // CHECK: sub 0, arg0
+    // CHECK: mstore 4, 17
     function signed_neg(int256 a) public pure returns (int256) {
         return -a;
     }

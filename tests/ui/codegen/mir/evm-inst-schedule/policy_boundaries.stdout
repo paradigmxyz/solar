@@ -116,9 +116,9 @@
   fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
     bb0:
       jumpi arg3, bb1, bb2
-    bb1:
-      jump bb3
     bb2:
+      jump bb3
+    bb1:
       jump bb3
     bb3:
       v0 = phi [bb1: arg0], [bb2: arg1]
@@ -149,17 +149,17 @@
       v2 = sub v0, v1
       v3 = iszero v2
       jumpi v3, bb1, bb2
-    bb1:
--     v4 = add arg0, arg2
-      v5 = mul arg1, arg3
-+     v4 = add arg0, arg2
-      v6 = div v4, v5
-      ret v6
     bb2:
 -     v7 = add arg0, arg3
       v8 = mul arg1, arg2
 +     v7 = add arg0, arg3
       v9 = mod v7, v8
       ret v9
+    bb1:
+-     v4 = add arg0, arg2
+      v5 = mul arg1, arg3
++     v4 = add arg0, arg2
+      v6 = div v4, v5
+      ret v6
   }
   

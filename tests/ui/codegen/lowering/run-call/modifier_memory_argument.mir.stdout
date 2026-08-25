@@ -11,19 +11,11 @@ fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_params=[array
     v6 = or v3, v5
     v7 = iszero v6
     jumpi v7, bb2, bb3
-  bb1:
-    ret v29
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     v8 = add v1, v2
     v9 = calldatasize
     v10 = gt v8, v9
     jumpi v10, bb4, bb5
-  bb4:
-    revert 0, 0
   bb5:
     v11 = mul v0, 32
     v12 = iszero 32
@@ -32,18 +24,10 @@ fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_params=[array
     v15 = or v12, v14
     v16 = iszero v15
     jumpi v16, bb6, bb7
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v17 = add 32, v11
     v18 = lt v17, 32
     jumpi v18, bb8, bb9
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
@@ -53,26 +37,42 @@ fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_params=[array
     v22 = lt 0, v21
     v23 = iszero v22
     jumpi v23, bb10, bb11
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb11:
     memory_object_store_element memoryarray<1>, v19, 0, 9
     v24 = slice_len arg0
     v25 = lt 0, v24
     v26 = iszero v25
     jumpi v26, bb13, bb14
-  bb12:
-    jump bb1
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v27 = slice_ptr arg0
     v28 = add v27, 0
     v29 = calldataload v28
     jump bb12
+  bb12:
+    jump bb1
+  bb1:
+    ret v29
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    revert 0, 0
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

@@ -5,8 +5,13 @@ fn @foo() -> u256 [selector=0xc2985578, abi_params=[], abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     jumpi v1, bb3, bb4
-  bb1:
-    ret v10
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v2 = phi [bb3: 1], [bb4: 0]
+    jump bb2
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = not 255
@@ -17,22 +22,17 @@ fn @foo() -> u256 [selector=0xc2985578, abi_params=[], abi_returns=[word]] {
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = and v8, 255
     jumpi v9, bb7, bb8
-  bb3:
-    jump bb5
-  bb4:
-    jump bb5
-  bb5:
-    v2 = phi [bb3: 1], [bb4: 0]
-    jump bb2
-  bb6:
-    jump bb1
-  bb7:
-    jump bb9
   bb8:
+    jump bb9
+  bb7:
     jump bb9
   bb9:
     v10 = phi [bb7: 1], [bb8: 0]
     jump bb6
+  bb6:
+    jump bb1
+  bb1:
+    ret v10
 }
 
 fn @constructor() [constructor] {

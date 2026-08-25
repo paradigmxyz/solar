@@ -9,18 +9,18 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     v4 = eq v2, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = add v2, arg1
     v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v7, bb3, bb4
+  bb4:
+    ret v6
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v6
+  bb1:
+    revert 0, 0
 }
 
 fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes]] {
@@ -33,8 +33,6 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v5 = gt v2, v4
     v6 = or v3, v5
     jumpi v6, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = calldataload v1
     v8 = add v0, v7
@@ -44,14 +42,10 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v12 = slt v7, v11
     v13 = iszero v12
     jumpi v13, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v14 = calldataload v8
     v15 = gt v14, 0xffffffffffffffff
     jumpi v15, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v16 = mul v14, 1
     v17 = add v8, 32
@@ -59,8 +53,6 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v19 = sub v18, v16
     v20 = sgt v17, v19
     jumpi v20, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v21 = add v8, 32
     v22 = make_calldata_slice v21, v14
@@ -70,8 +62,6 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v26 = lt v24, 1
     v27 = or v25, v26
     jumpi v27, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v28 = sub v24, 1
     v29 = add v23, 1
@@ -80,24 +70,16 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v32 = slice_len v30
     v33 = gt v32, 0xffffffffffffffff
     jumpi v33, bb11, bb12
-  bb11:
-    revert 0, 0
   bb12:
     v34 = calldatasize
     v35 = sub v34, v32
     v36 = sgt v31, v35
     jumpi v36, bb13, bb14
-  bb13:
-    revert 0, 0
   bb14:
     v37 = slice_len v30
     v38 = add v37, 63
     v39 = lt v38, v37
     jumpi v39, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v40 = not 31
     v41 = and v38, v40
@@ -105,6 +87,24 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     set_memory_object_len memorybytes, v42, v37
     memory_object_copy_from_slice memorybytes, v42, v30
     ret v42
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word]] {
@@ -115,10 +115,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = memory_object_load_element memoryarray<1>, v0, 0
     v5 = eq v4, 0
@@ -144,10 +140,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v12 = lt 0, v11
     v13 = iszero v12
     jumpi v13, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v14 = memory_object_load_element memoryarray<1>, v0, 0
     v15 = eq v14, 0
@@ -172,10 +164,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v22 = lt 0, v21
     v23 = iszero v22
     jumpi v23, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v24 = memory_object_load_element memoryarray<1>, v0, 0
     v25 = eq v24, 0
@@ -198,10 +186,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v31 = lt 0, v30
     v32 = iszero v31
     jumpi v32, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v33 = memory_object_load_element memoryarray<1>, v0, 0
     v34 = eq v33, 0
@@ -224,20 +208,12 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v41 = lt 0, v40
     v42 = iszero v41
     jumpi v42, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     memory_object_store_element memoryarray<1>, v39, 0, 3
     v43 = memory_object_len memoryarray, v0
     v44 = lt 0, v43
     v45 = iszero v44
     jumpi v45, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb20:
     v46 = memory_object_load_element memoryarray<1>, v0, 0
     v47 = eq v46, 0
@@ -260,20 +236,12 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v54 = lt 1, v53
     v55 = iszero v54
     jumpi v55, bb23, bb24
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb24:
     memory_object_store_element memoryarray<1>, v52, 1, 4
     v56 = memory_object_len memoryarray, v0
     v57 = lt 1, v56
     v58 = iszero v57
     jumpi v58, bb25, bb26
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb26:
     v59 = memory_object_load_element memoryarray<1>, v0, 1
     v60 = eq v59, 0
@@ -299,10 +267,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v67 = lt 1, v66
     v68 = iszero v67
     jumpi v68, bb29, bb30
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb30:
     v69 = memory_object_load_element memoryarray<1>, v0, 1
     v70 = eq v69, 0
@@ -327,10 +291,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v77 = lt 1, v76
     v78 = iszero v77
     jumpi v78, bb33, bb34
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb34:
     v79 = memory_object_load_element memoryarray<1>, v0, 1
     v80 = eq v79, 0
@@ -353,10 +313,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v86 = lt 1, v85
     v87 = iszero v86
     jumpi v87, bb37, bb38
-  bb37:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb38:
     v88 = memory_object_load_element memoryarray<1>, v0, 1
     v89 = eq v88, 0
@@ -379,10 +335,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v96 = lt 0, v95
     v97 = iszero v96
     jumpi v97, bb41, bb42
-  bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb42:
     memory_object_store_element memoryarray<1>, v94, 0, 8
     v98 = memory_object_len memoryarray, v0
@@ -390,10 +342,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v100 = lt 0, v99
     v101 = iszero v100
     jumpi v101, bb43, bb44
-  bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb44:
     v102 = memory_object_load_element memoryarray<1>, v0, 0
     v103 = eq v102, 0
@@ -416,10 +364,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v110 = lt 1, v109
     v111 = iszero v110
     jumpi v111, bb47, bb48
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb48:
     v112 = memory_object_load_element memoryarray<1>, v0, 1
     v113 = eq v112, 0
@@ -441,19 +385,11 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v119 = add v108, v118
     v120 = lt v119, v108
     jumpi v120, bb51, bb52
-  bb51:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb52:
     v121 = memory_object_len memoryarray, v0
     v122 = lt 0, v121
     v123 = iszero v122
     jumpi v123, bb53, bb54
-  bb53:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb54:
     v124 = memory_object_load_element memoryarray<1>, v0, 0
     v125 = eq v124, 0
@@ -477,10 +413,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v133 = lt 1, v132
     v134 = iszero v133
     jumpi v134, bb57, bb58
-  bb57:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb58:
     v135 = memory_object_load_element memoryarray<1>, v0, 1
     v136 = eq v135, 0
@@ -503,19 +435,11 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v143 = add v131, v142
     v144 = lt v143, v131
     jumpi v144, bb61, bb62
-  bb61:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb62:
     v145 = memory_object_len memoryarray, v0
     v146 = lt 0, v145
     v147 = iszero v146
     jumpi v147, bb63, bb64
-  bb63:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb64:
     v148 = memory_object_load_element memoryarray<1>, v0, 0
     v149 = eq v148, 0
@@ -539,10 +463,6 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v157 = lt 1, v156
     v158 = iszero v157
     jumpi v158, bb67, bb68
-  bb67:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb68:
     v159 = memory_object_load_element memoryarray<1>, v0, 1
     v160 = eq v159, 0
@@ -565,13 +485,93 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     v167 = lt 0, v166
     v168 = iszero v167
     jumpi v168, bb71, bb72
+  bb72:
+    v169 = memory_object_load_element memoryarray<1>, v165, 0
+    ret v98, v119, v143, v155, v169
   bb71:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb72:
-    v169 = memory_object_load_element memoryarray<1>, v165, 0
-    ret v98, v119, v143, v155, v169
+  bb67:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb63:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb61:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb57:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb53:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb51:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb47:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb43:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb41:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb37:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb33:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb29:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c7c111, pure, abi_params=[], abi_returns=[word, word, word, word, word]] {
@@ -590,10 +590,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v3 = lt 0, 2
     v4 = iszero v3
     jumpi v4, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v5 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v6 = eq v5, 0
@@ -618,10 +614,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v12 = lt 0, 2
     v13 = iszero v12
     jumpi v13, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v14 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v15 = eq v14, 0
@@ -645,10 +637,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v21 = lt 0, 2
     v22 = iszero v21
     jumpi v22, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v23 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v24 = eq v23, 0
@@ -670,10 +658,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v29 = lt 0, 2
     v30 = iszero v29
     jumpi v30, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     v31 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v32 = eq v31, 0
@@ -696,19 +680,11 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v39 = lt 0, v38
     v40 = iszero v39
     jumpi v40, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     memory_object_store_element memoryarray<1>, v37, 0, 6
     v41 = lt 1, 2
     v42 = iszero v41
     jumpi v42, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb20:
     v43 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v44 = eq v43, 0
@@ -733,10 +709,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v50 = lt 1, 2
     v51 = iszero v50
     jumpi v51, bb23, bb24
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb24:
     v52 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v53 = eq v52, 0
@@ -760,10 +732,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v59 = lt 1, 2
     v60 = iszero v59
     jumpi v60, bb27, bb28
-  bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb28:
     v61 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v62 = eq v61, 0
@@ -785,10 +753,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v67 = lt 1, 2
     v68 = iszero v67
     jumpi v68, bb31, bb32
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb32:
     v69 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v70 = eq v69, 0
@@ -811,19 +775,11 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v77 = lt 0, v76
     v78 = iszero v77
     jumpi v78, bb35, bb36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb36:
     memory_object_store_element memoryarray<1>, v75, 0, 8
     v79 = lt 1, 2
     v80 = iszero v79
     jumpi v80, bb37, bb38
-  bb37:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb38:
     v81 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v82 = eq v81, 0
@@ -846,19 +802,11 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v89 = lt 1, v88
     v90 = iszero v89
     jumpi v90, bb41, bb42
-  bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb42:
     memory_object_store_element memoryarray<1>, v87, 1, 9
     v91 = lt 0, 2
     v92 = iszero v91
     jumpi v92, bb43, bb44
-  bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb44:
     v93 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v94 = eq v93, 0
@@ -880,10 +828,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v100 = lt 1, 2
     v101 = iszero v100
     jumpi v101, bb47, bb48
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb48:
     v102 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v103 = eq v102, 0
@@ -905,18 +849,10 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v109 = add v99, v108
     v110 = lt v109, v99
     jumpi v110, bb51, bb52
-  bb51:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb52:
     v111 = lt 0, 2
     v112 = iszero v111
     jumpi v112, bb53, bb54
-  bb53:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb54:
     v113 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v114 = eq v113, 0
@@ -939,10 +875,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v121 = lt 1, 2
     v122 = iszero v121
     jumpi v122, bb57, bb58
-  bb57:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb58:
     v123 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v124 = eq v123, 0
@@ -965,18 +897,10 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v131 = add v120, v130
     v132 = lt v131, v120
     jumpi v132, bb61, bb62
-  bb61:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb62:
     v133 = lt 1, 2
     v134 = iszero v133
     jumpi v134, bb63, bb64
-  bb63:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb64:
     v135 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v136 = eq v135, 0
@@ -999,10 +923,6 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v143 = lt 1, 2
     v144 = iszero v143
     jumpi v144, bb67, bb68
-  bb67:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb68:
     v145 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v146 = eq v145, 0
@@ -1025,13 +945,93 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     v153 = lt 1, v152
     v154 = iszero v153
     jumpi v154, bb71, bb72
+  bb72:
+    v155 = memory_object_load_element memoryarray<1>, v151, 1
+    ret 2, v109, v131, v142, v155
   bb71:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb72:
-    v155 = memory_object_load_element memoryarray<1>, v151, 1
-    ret 2, v109, v131, v142, v155
+  bb67:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb63:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb61:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb57:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb53:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb51:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb47:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb43:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb41:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb37:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb35:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb27:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, pure, abi_params=[], abi_returns=[word, word, word, word]] {
@@ -1043,10 +1043,6 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v3 = lt 0, v2
     v4 = iszero v3
     jumpi v4, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = eq v5, 0
@@ -1069,10 +1065,6 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v13 = lt 1, v12
     v14 = iszero v13
     jumpi v14, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v15 = memory_object_load_element memoryarray<1>, v0, 1
     v16 = eq v15, 0
@@ -1094,19 +1086,11 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v22 = add v11, v21
     v23 = lt v22, v11
     jumpi v23, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v24 = memory_object_len memoryarray, v0
     v25 = lt 0, v24
     v26 = iszero v25
     jumpi v26, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v27 = memory_object_load_element memoryarray<1>, v0, 0
     v28 = eq v27, 0
@@ -1130,10 +1114,6 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v36 = lt 1, v35
     v37 = iszero v36
     jumpi v37, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v38 = memory_object_load_element memoryarray<1>, v0, 1
     v39 = eq v38, 0
@@ -1156,19 +1136,11 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v46 = add v34, v45
     v47 = lt v46, v34
     jumpi v47, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb20:
     v48 = memory_object_len memoryarray, v0
     v49 = lt 0, v48
     v50 = iszero v49
     jumpi v50, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     v51 = memory_object_load_element memoryarray<1>, v0, 0
     v52 = eq v51, 0
@@ -1192,10 +1164,6 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v60 = lt 1, v59
     v61 = iszero v60
     jumpi v61, bb25, bb26
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb26:
     v62 = memory_object_load_element memoryarray<1>, v0, 1
     v63 = eq v62, 0
@@ -1218,12 +1186,44 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     v70 = add v58, v69
     v71 = lt v70, v58
     jumpi v71, bb29, bb30
+  bb30:
+    ret v1, v22, v46, v70
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb30:
-    ret v1, v22, v46, v70
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pure, abi_params=[], abi_returns=[word, word, word, word]] {
@@ -1237,10 +1237,6 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     v4 = lt 0, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v6 = memory_object_load_element memoryarray<1>, v0, 0
     v7 = eq v6, 0
@@ -1257,10 +1253,6 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     v12 = lt 1, v11
     v13 = iszero v12
     jumpi v13, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v14 = memory_object_load_element memoryarray<1>, v0, 1
     v15 = eq v14, 0
@@ -1276,20 +1268,12 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     v19 = add v10, v18
     v20 = lt v19, v10
     jumpi v20, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v21 = memory_object_len memoryarray, v1
     v22 = memory_object_len memoryarray, v1
     v23 = lt 0, v22
     v24 = iszero v23
     jumpi v24, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v25 = memory_object_load_element memoryarray<1>, v1, 0
     v26 = eq v25, 0
@@ -1306,10 +1290,6 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     v31 = lt 1, v30
     v32 = iszero v31
     jumpi v32, bb15, bb16
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v33 = memory_object_load_element memoryarray<1>, v1, 1
     v34 = eq v33, 0
@@ -1325,12 +1305,32 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     v38 = add v29, v37
     v39 = lt v38, v29
     jumpi v39, bb19, bb20
+  bb20:
+    ret v2, v19, v21, v38
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb20:
-    ret v2, v19, v21, v38
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pure, abi_params=[], abi_returns=[word, word]] {
@@ -1342,10 +1342,6 @@ fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pu
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = memory_object_load_element memoryarray<1>, v0, 0
     v5 = eq v4, 0
@@ -1360,6 +1356,10 @@ fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pu
     v8 = memory_object_len memorybytes, v7
     v9 = memory_object_len memoryarray, v0
     ret v8, v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word]] {
@@ -1371,10 +1371,6 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure,
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = memory_object_load_element memoryarray<1>, v0, 0
     v5 = eq v4, 0
@@ -1395,5 +1391,9 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure,
     v10 = memory_object_load_field memorystruct<3>, v9, 1
     v11 = memory_object_len memorybytes, v10
     ret v11
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

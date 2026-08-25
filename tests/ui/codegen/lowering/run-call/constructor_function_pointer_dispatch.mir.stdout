@@ -24,14 +24,14 @@ fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure
     v4 = or v1, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v6 = shl v0, arg0
     v7 = and v6, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     ret v7
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @applyShift(arg0: function, arg1: u256) {
@@ -66,25 +66,25 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @setName, 0, arg1
-    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    internal_call @setName, 0, arg1
+    ret
 }
 
 fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg2: u256) -> bytes6 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @leftByteShift, 1, arg1, arg2
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @leftByteShift, 1, arg1, arg2
+    ret v1
 }
 
