@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptionsChild ===
 @module CreationOptionsChild
-
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
 fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_returns=[word]] {
@@ -236,4 +235,3 @@ fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_ret
     v15 = iszero v14
     ret v15
 }
-

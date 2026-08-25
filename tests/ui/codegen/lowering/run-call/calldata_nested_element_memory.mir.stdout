@@ -931,4 +931,3 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -534,4 +534,3 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     v21 = add v18, 1
     jump bb1
 }
-

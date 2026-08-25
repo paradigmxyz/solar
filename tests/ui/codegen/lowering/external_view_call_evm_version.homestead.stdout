@@ -34,4 +34,3 @@ fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[
     v9 = mload v8
     ret v9
 }
-

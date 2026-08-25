@@ -310,4 +310,3 @@ fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_params=[
   bb8:
     invalid
 }
-

@@ -17,4 +17,3 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
 }
-

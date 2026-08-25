@@ -872,4 +872,3 @@ fn @clear_recursive_storage_0(arg0: u256) {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-

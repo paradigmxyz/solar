@@ -303,4 +303,3 @@ fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

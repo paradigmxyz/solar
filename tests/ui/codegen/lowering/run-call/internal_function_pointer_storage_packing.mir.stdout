@@ -140,4 +140,3 @@ fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word]
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
 }
-

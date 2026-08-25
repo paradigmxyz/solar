@@ -35,4 +35,3 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v2 = and v1, 255
     ret v2
 }
-

@@ -35,4 +35,3 @@ fn @_anonymous(arg0: u256, arg1: memoryfixedarray) [constructor, abi_params=[u25
     sstore v4, v5 !metadata(storage=slot(3))
     stop
 }
-

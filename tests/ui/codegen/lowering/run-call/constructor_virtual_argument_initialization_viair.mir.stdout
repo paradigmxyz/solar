@@ -17,7 +17,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, 4 !metadata(storage=slot(0))
     ret 0
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentInitialization ===
 @module ConstructorVirtualArgumentInitialization
 fn @_anonymous() [constructor] {
@@ -42,4 +41,3 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, 4 !metadata(storage=slot(0))
     ret 0
 }
-

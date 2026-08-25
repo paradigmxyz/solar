@@ -75,4 +75,3 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

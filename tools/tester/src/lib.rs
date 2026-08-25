@@ -374,7 +374,7 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     let mut unscoped_run_call = false;
     let mut base_mir_dump = false;
     if codegen_matrix::is_standard(src) {
-        declared_revisions.extend(codegen_matrix::revisions().map(str::to_owned));
+        declared_revisions.extend(codegen_matrix::revisions(src).into_iter().map(str::to_owned));
         mir_revisions.push("mir".to_owned());
         emitted_revisions.extend(["none", "gas", "size"].map(str::to_owned));
     }

@@ -32,4 +32,3 @@ fn @get() -> u256 [selector=0x6d4ce63c, view, abi_params=[], abi_returns=[word]]
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
-

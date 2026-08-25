@@ -443,4 +443,3 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

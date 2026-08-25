@@ -422,4 +422,3 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

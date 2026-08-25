@@ -414,4 +414,3 @@ fn @readFixed(arg0: memoryfixedarray) -> u256 [pure] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

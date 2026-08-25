@@ -14,4 +14,3 @@ fn @numeric() -> (u16, u32, u48) [selector=0x9d8f2cea, pure, abi_params=[], abi_
     v3 = shr 208, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v1, v2, v3
 }
-

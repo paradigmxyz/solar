@@ -1720,4 +1720,3 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

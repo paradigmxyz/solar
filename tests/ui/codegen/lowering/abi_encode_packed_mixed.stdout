@@ -198,4 +198,3 @@ fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0xc5
     v8 = keccak256 0, 6 !metadata(memory=scratch)
     ret v8
 }
-

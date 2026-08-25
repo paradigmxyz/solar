@@ -13,4 +13,3 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, p
     v6 = keccak256 0, 55 !metadata(memory=scratch)
     ret v6
 }
-

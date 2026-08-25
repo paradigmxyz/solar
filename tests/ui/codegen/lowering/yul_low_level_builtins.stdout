@@ -47,4 +47,3 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_para
     v10 = returndatasize
     revert v0, v10
 }
-

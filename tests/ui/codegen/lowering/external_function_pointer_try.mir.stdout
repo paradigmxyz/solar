@@ -198,4 +198,3 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
-

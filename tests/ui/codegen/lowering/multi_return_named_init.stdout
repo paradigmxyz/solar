@@ -68,4 +68,3 @@ fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi
     v7 = mload v6
     ret v0, v4
 }
-

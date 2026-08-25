@@ -45,4 +45,3 @@ fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word]] {
   bb3:
     revert 0, 0
 }
-

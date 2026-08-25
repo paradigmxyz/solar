@@ -283,4 +283,3 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
   bb1:
     revert 0, 0
 }
-

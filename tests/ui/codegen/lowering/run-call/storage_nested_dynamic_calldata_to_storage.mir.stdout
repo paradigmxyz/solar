@@ -1174,4 +1174,3 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v23 = add v20, 1
     jump bb9
 }
-

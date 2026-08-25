@@ -212,4 +212,3 @@ fn @vFull() [selector=0x76fef307, pure] {
   bb6:
     revert 0, 0
 }
-

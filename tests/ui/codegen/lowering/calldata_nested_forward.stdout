@@ -190,4 +190,3 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

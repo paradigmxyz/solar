@@ -18,4 +18,3 @@ fn @tupleTernary() -> (bool, u256) [selector=0x75466b3a, pure, abi_params=[], ab
     v2 = phi [bb1: 3], [bb2: 5]
     ret 1, v0
 }
-

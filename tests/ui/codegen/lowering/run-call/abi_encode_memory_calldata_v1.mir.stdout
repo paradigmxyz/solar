@@ -14,4 +14,3 @@ fn @g(arg0: memoryarray, arg1: calldataslice) -> bytes32 [selector=0x876f6047, p
     v0 = internal_call @f, 1, arg0, arg1
     ret v0
 }
-

@@ -173,4 +173,3 @@ fn @freeMemoryPointer() -> u256 [pure] {
     v0 = mload 64 !metadata(memory=scratch)
     ret v0
 }
-

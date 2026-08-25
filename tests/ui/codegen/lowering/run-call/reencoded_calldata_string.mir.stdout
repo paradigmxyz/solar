@@ -121,4 +121,3 @@ fn @encodeStatic(arg0: u256) -> memorybytes [selector=0x815736ce, pure, abi_para
   bb1:
     revert 0, 0
 }
-

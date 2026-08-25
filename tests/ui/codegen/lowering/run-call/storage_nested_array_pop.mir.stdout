@@ -591,4 +591,3 @@ fn @constructor() [constructor] {
     v18 = add v3, 1
     jump bb3
 }
-

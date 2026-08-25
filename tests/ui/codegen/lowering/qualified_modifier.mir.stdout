@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/qualified_modifier.sol:Base ===
 @module Base
-
 // === ROOT/tests/ui/codegen/lowering/qualified_modifier.sol:Derived ===
 @module Derived
 fn @qualified() -> (u256, u256) [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word]] {
@@ -29,4 +28,3 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
-

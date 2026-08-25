@@ -66,4 +66,3 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v1 = internal_call @higher0, 1
     ret v1
 }
-

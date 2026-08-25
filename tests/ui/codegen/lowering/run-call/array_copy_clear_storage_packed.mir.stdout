@@ -794,4 +794,3 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word]] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

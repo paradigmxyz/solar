@@ -17,4 +17,3 @@ fn @f(arg0: bool) -> u256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_ret
   bb1:
     ret v0
 }
-

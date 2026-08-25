@@ -588,4 +588,3 @@ fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi
     v16 = sload v0 !metadata(storage=slot(4))
     ret v10, v13, v16, v15
 }
-

@@ -228,4 +228,3 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

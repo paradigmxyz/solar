@@ -48,4 +48,3 @@ fn @fullWidth(arg0: i256) -> u256 [selector=0x6f5032e7, pure, abi_params=[i256],
   bb0:
     ret arg0
 }
-

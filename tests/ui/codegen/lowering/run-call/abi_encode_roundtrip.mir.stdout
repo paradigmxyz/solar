@@ -341,4 +341,3 @@ fn @hash(arg0: u256) -> bytes32 [selector=0xb189fd4c, pure, abi_params=[u256], a
     v3 = keccak256 v1, v2
     ret v3
 }
-

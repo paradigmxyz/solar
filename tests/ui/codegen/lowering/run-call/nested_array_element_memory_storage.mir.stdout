@@ -450,4 +450,3 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

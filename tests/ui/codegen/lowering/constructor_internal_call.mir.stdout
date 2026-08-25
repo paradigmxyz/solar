@@ -54,4 +54,3 @@ fn @helper(arg0: u256) -> u256 [pure] {
   bb1:
     ret 1
 }
-

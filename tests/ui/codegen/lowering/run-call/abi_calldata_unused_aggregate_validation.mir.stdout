@@ -22,4 +22,3 @@ fn @readNested(arg0: calldataslice) -> u256 [selector=0xee08554b, pure, abi_para
     v2 = calldataload v1
     ret v2
 }
-

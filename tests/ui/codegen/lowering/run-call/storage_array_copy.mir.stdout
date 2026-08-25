@@ -139,7 +139,6 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
 fn @copyAggregate() -> (u256, u256, u256) [selector=0x515a112e, abi_params=[], abi_returns=[word, word, word]] {
@@ -277,4 +276,3 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -63,4 +63,3 @@ fn @clear(arg0: u256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[]] {
     sstore v3, 0 !metadata(storage=offset(v0, 3))
     stop
 }
-

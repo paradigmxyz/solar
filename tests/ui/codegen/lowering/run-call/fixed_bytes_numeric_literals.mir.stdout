@@ -78,4 +78,3 @@ fn @orByte(arg0: bytes1, arg1: bytes1) -> bytes1 [pure] {
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v1
 }
-

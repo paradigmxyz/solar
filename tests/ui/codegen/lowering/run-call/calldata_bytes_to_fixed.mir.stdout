@@ -63,4 +63,3 @@ fn @sliced(arg0: calldataslice, arg1: u256, arg2: u256) -> bytes16 [selector=0x1
   bb1:
     revert 0, 0
 }
-

@@ -656,4 +656,3 @@ fn @echoScalar(arg0: u8) -> u256 [selector=0x1f3c3a7b, pure, abi_params=[u8], ab
   bb0:
     ret arg0
 }
-

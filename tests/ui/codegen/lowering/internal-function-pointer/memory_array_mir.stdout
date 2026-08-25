@@ -169,4 +169,3 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
     v1 = internal_call @arrayA, 1, arg1
     ret v1
 }
-

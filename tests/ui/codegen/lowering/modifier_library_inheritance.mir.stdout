@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
 @module L
-
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
@@ -39,4 +38,3 @@ fn @libFun(arg0: storageptr) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

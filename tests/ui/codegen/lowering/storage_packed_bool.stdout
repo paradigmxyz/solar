@@ -50,4 +50,3 @@ fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word]
     v5 = phi [bb1: v4], [bb2: 0]
     ret v5
 }
-

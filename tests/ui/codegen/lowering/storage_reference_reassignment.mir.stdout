@@ -196,4 +196,3 @@ fn @rebindParameterInner(arg0: storageptr, arg1: u256, arg2: u256) {
     sstore v0, arg2 !metadata(storage=symbolic(v0))
     stop
 }
-

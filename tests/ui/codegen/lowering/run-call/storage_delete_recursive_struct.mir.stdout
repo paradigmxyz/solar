@@ -237,4 +237,3 @@ fn @clear_recursive_storage_2(arg0: u256) {
     v7 = add v2, 1
     jump bb1
 }
-

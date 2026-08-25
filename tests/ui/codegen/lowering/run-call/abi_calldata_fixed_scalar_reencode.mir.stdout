@@ -50,4 +50,3 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
   bb1:
     revert 0, 0
 }
-

@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: ConstructorCallvalue::rejectsExplicit(); value=1 => true
 //@ run-call: ConstructorCallvalue::rejectsImplicit(); value=1 => true
 //@ run-call: ConstructorCallvalue::rejectsSynthetic(); value=1 => true

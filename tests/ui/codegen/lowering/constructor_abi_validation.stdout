@@ -88,4 +88,3 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
   bb13:
     revert 0, 0
 }
-

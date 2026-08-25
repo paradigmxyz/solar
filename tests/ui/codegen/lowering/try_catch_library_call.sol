@@ -1,9 +1,8 @@
-//@ revisions: mir runtime unlinked
-//@[mir] compile-flags: -O none --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=mir
+//@ codegen-matrix: standard unlinked
+//@[none, gas, size, mir] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111
 //@[mir] filecheck: --check-prefix=LINKED
-//@[mir] normalize-stdout-test: "\n(\n)$" -> "$1"
-//@[runtime] compile-flags: -O none --libraries Lib=0x1111111111111111111111111111111111111111 --emit=abi,bin
-//@[runtime] run-call-fail: C::emptyCode() => 0x
+//@[unlinked] compile-flags: -O none
+//@[none, gas, size] run-call-fail: C::emptyCode() => 0x
 // ported-from: test/libsolidity/semanticTests/tryCatch/try_catch_library_call.sol
 
 library Lib {

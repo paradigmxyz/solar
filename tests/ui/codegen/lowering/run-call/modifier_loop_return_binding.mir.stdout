@@ -40,4 +40,3 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

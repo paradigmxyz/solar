@@ -69,4 +69,3 @@ fn @rawAssembly() -> u256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns
     mstore 64, v0 !metadata(memory=scratch)
     ret v0
 }
-

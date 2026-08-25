@@ -25,4 +25,3 @@ fn @builtin() -> bytes32 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=
     v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
     ret v0
 }
-

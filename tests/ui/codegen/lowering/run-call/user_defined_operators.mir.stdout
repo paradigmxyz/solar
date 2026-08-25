@@ -53,4 +53,3 @@ fn @eq(arg0: u256, arg1: u256) -> bool [pure] {
     v0 = eq arg0, arg1
     ret v0
 }
-

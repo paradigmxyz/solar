@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: uncheckedI8(int8) -128 => -128
 //@ run-call: uncheckedI8(int8) -127 => 127
 //@ run-call: uncheckedI8(int8) 1 => -1

@@ -315,4 +315,3 @@ fn @entry() [entry] {
   bb10:
     revert 0, 0
 }
-

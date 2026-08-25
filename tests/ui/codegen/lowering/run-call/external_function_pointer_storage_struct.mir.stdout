@@ -191,4 +191,3 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[wor
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

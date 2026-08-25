@@ -503,4 +503,3 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -161,4 +161,3 @@ fn @unused(arg0: calldataslice) -> u256 [selector=0x642b2333, pure, abi_params=[
   bb0:
     ret 1
 }
-

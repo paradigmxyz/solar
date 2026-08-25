@@ -1,6 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibraryUtils ===
 @module InternalFunctionPointerLibraryUtils
-
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
 fn @f(arg0: memoryarray) -> u256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word]] {
@@ -77,4 +76,3 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     v1 = internal_call @sum, 1, arg1, arg2
     ret v1
 }
-

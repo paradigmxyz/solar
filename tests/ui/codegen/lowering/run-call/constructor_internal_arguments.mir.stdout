@@ -35,7 +35,6 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v2 = and v1, 255
     ret v2
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
 @module ConstructorInternalArguments
 fn @_anonymous() [constructor] {
@@ -149,4 +148,3 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
   bb3:
     revert 0, 0
 }
-

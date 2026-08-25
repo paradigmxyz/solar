@@ -1,6 +1,5 @@
 //@ compile-flags: -O none -Zdump=mir
 //@ filecheck:
-//@ normalize-stdout-test: "\n(\n)$" -> "$1"
 
 contract NarrowBitwiseNot {
     // CHECK-LABEL: fn @notUint8{{[( ]}}

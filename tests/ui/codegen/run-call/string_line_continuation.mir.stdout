@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/run-call/string_line_continuation.sol:StringLineContinuation ===
+@module StringLineContinuation
+fn @unicodeLine() -> memorybytes [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 20
+    memory_object_store_word memorybytes, v0, 0, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
+    ret v0
+}
+
+fn @asciiLine() -> memorybytes [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 5
+    memory_object_store_word memorybytes, v0, 0, 0x6120202062000000000000000000000000000000000000000000000000000000
+    ret v0
+}

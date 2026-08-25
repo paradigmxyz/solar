@@ -28,4 +28,3 @@ fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[
     v3 = abi_encode [word, word], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args v0, v2
     ret v3
 }
-

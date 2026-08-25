@@ -7,4 +7,3 @@ fn @probe(arg0: calldataslice) -> (u256, u256) [selector=0xaf74ef39, pure, abi_p
     v2 = calldataload v1
     ret v0, v2
 }
-

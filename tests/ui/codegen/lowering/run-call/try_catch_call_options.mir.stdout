@@ -4,7 +4,6 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
 fn @_anonymous() [constructor] {
@@ -88,4 +87,3 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
   bb5:
     ret 0
 }
-

@@ -76,4 +76,3 @@ fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256],
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

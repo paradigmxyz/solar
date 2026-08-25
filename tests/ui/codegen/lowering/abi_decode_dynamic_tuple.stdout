@@ -24,4 +24,3 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, pure, ab
     v0 = abi_decode [bytes], arg0
     ret v0
 }
-

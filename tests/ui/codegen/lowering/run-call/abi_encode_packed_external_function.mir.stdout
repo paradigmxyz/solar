@@ -23,4 +23,3 @@ fn @matches() -> bool [selector=0x55590d58, view, abi_params=[], abi_returns=[wo
     v10 = eq v4, v9
     ret v10
 }
-

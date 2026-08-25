@@ -4,7 +4,6 @@ fn @_anonymous(arg0: u256) [constructor, payable, abi_params=[u256]] {
   bb0:
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
 fn @valueOpt() -> u256 {
@@ -115,4 +114,3 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v13 = sload 0 !metadata(storage=slot(0))
     ret v13
 }
-
