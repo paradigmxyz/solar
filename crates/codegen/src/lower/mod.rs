@@ -274,7 +274,9 @@ impl<'gcx> Lowerer<'gcx> {
         if padded_size == 0 {
             return;
         }
-        if data.iter().all(|&byte| byte == 0) {
+        if !data.is_empty() && padded_size <= EvmMemoryLayout::WORD_SIZE as usize {
+            self.store_data_words(builder, dest, data);
+        } else if data.iter().all(|&byte| byte == 0) {
             let size = builder.imm_u64(padded_size as u64);
             builder.memory_zero(dest, size);
         } else if data_is_inline(padded_size) {

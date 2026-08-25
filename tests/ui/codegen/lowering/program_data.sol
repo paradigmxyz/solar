@@ -7,6 +7,7 @@
 //@[runtime] run-call: dataHash() => 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
 //@[runtime] run-call: subsliceHash() => 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
 //@[runtime] run-call: zeroHash() => 0xdfded4ed5ac76ba7379cfe7b3b0f53e768dca8d45a34854e649cfc3c18cbd9cd
+//@[runtime] run-call: zeroWordHash() => 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
 //@[runtime] run-call: splatHash() => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
 
 // CHECK-LABEL: data:
@@ -15,6 +16,8 @@
 // CHECK: data_copy literal_0,
 // CHECK: data_copy literal_0+64,
 // CHECK: memory_zero
+// CHECK-LABEL: fn @zeroWord{{[( ]}}
+// CHECK: mstore
 // SPLAT: mcopy
 contract C {
     function data() external pure returns (bytes memory) {
@@ -37,12 +40,20 @@ contract C {
         return hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     }
 
+    function zeroWord() public pure returns (bytes memory) {
+        return hex"0000000000000000000000000000000000000000000000000000000000000000";
+    }
+
     function splatData() public pure returns (bytes memory) {
         return hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00";
     }
 
     function zeroHash() external pure returns (bytes32) {
         return keccak256(zeroData());
+    }
+
+    function zeroWordHash() external pure returns (bytes32) {
+        return keccak256(zeroWord());
     }
 
     function splatHash() external pure returns (bytes32) {
