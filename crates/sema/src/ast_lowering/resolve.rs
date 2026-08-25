@@ -1417,6 +1417,15 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(&*functions);
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
+            if builtin == Builtin::YulClz && !self.lcx.sess.opts.evm_version.has_clz() {
+                return Err(self
+                    .dcx()
+                    .err("Yul builtin `clz` requires Osaka-compatible EVM")
+                    .code(error_code!(4948))
+                    .span(name.span)
+                    .help("compile with `--evm-version osaka` or newer")
+                    .emit());
+            }
             if self.lcx.sess.opts.evm_version < EvmVersion::Cancun
                 && matches!(
                     builtin,
