@@ -195,12 +195,15 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb1:
-    ret 13
-  bb2:
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
     jumpi v11, bb4, bb5
+  bb2:
+    v17 = returndatasize
+    v18 = add v17, 63
+    v19 = lt v18, v17
+    jumpi v19, bb6, bb7
   bb3:
     ret 0
   bb4:
@@ -214,23 +217,36 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     set_memory_object_len memorybytes, v14, v9
     v15 = make_returndata_slice 0, v9
     memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    v24 = and v21, v23
-    v25 = lt v17, 36
-    v26 = iszero v25
-    v27 = eq v22, 0x4e487b71
-    v28 = and v26, v27
-    jumpi 1, bb6, bb7
+    v16 = abi_decode [u256], v14
+    ret 13
   bb6:
-    ret 9
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb7:
-    revert v16, v17
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    v23 = make_returndata_slice 0, v17
+    memory_object_copy_from_slice memorybytes, v22, v23
+    v24 = memory_object_data memorybytes, v22
+    v25 = memory_object_len memorybytes, v22
+    v26 = make_memory_slice v24, v25
+    v27 = memory_slice_load_word memory, v26, 0
+    v28 = lt v25, 4
+    v29 = iszero v28
+    v30 = shr 224, v27
+    v31 = eq v30, 0x8c379a0
+    v32 = and v29, v31
+    v33 = lt v25, 36
+    v34 = iszero v33
+    v35 = eq v30, 0x4e487b71
+    v36 = and v34, v35
+    jumpi 1, bb8, bb9
+  bb8:
+    ret 9
+  bb9:
+    revert v24, v25
 }
 
