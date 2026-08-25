@@ -1,0 +1,26 @@
+error: library calls in try/catch require a configured library address
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:LL:CC
+   │
+LL │         try Lib.direct({fail: fail, value: 8}) returns (uint256 value) {
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: library calls in try/catch require a configured library address
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:LL:CC
+   │
+LL │         try state.attached({fail: fail, value: 9}) returns (uint256 value) {
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: library calls in try/catch require a configured library address
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:LL:CC
+   │
+LL │         try self.add({fail: fail, value: 10}) returns (uint256 value) {
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: library calls in try/catch require a configured library address
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:LL:CC
+   │
+LL │         try Lib.empty() {} catch {
+   ╰╴            ━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+
