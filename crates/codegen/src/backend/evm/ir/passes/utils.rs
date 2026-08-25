@@ -270,7 +270,7 @@ impl StackDepths {
 
     /// Returns the maximum reachable depth on entry to a block.
     pub(super) fn entry_depth(&self, block: BlockId) -> Option<usize> {
-        if self.unbounded.contains(block) {
+        if self.has_unknown_target || self.unbounded.contains(block) {
             return None;
         }
         match self.before.get(block).and_then(Option::as_ref) {

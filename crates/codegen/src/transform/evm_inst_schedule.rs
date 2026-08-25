@@ -298,27 +298,22 @@ impl EvmInstSchedule {
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
         let mut counts = index_vec![0u32; func.num_values()];
+        let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut distinct = SmallVec::<[ValueId; 8]>::new();
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
         // look shared and disable scheduling for its whole segment.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                let operands = func.inst(inst_id).kind.operands();
-                for (index, &operand) in operands.iter().enumerate() {
-                    if operands[..index].contains(&operand) {
-                        continue;
-                    }
-                    counts[operand] += 1;
-                }
+                count_distinct_users(
+                    func.inst(inst_id).kind.operands(),
+                    &mut counts,
+                    &mut seen,
+                    &mut distinct,
+                );
             }
             if let Some(terminator) = &block.terminator {
-                let operands = SmallVec::<[ValueId; 8]>::from_iter(terminator.operands());
-                for (index, &operand) in operands.iter().enumerate() {
-                    if operands[..index].contains(&operand) {
-                        continue;
-                    }
-                    counts[operand] += 1;
-                }
+                count_distinct_users(terminator.operands(), &mut counts, &mut seen, &mut distinct);
             }
         }
 
@@ -363,6 +358,23 @@ impl EvmInstSchedule {
                 }
             }
         }
+    }
+}
+
+fn count_distinct_users(
+    operands: impl IntoIterator<Item = ValueId>,
+    counts: &mut IndexVec<ValueId, u32>,
+    seen: &mut DenseBitSet<ValueId>,
+    distinct: &mut SmallVec<[ValueId; 8]>,
+) {
+    for operand in operands {
+        if seen.insert(operand) {
+            counts[operand] += 1;
+            distinct.push(operand);
+        }
+    }
+    for operand in distinct.drain(..) {
+        seen.remove(operand);
     }
 }
 

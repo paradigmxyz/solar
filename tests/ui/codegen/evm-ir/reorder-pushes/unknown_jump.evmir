@@ -1,0 +1,26 @@
+//@ compile-flags: -Zevm-ir-pipeline=reorder-pushes
+//@ filecheck:
+@module UnknownJump
+
+// An unknown dynamic edge can carry this prefix into any block, so a
+// peak-raising rewrite cannot rely on the block's structural entry depth.
+// CHECK-NOT: -   swap 1
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push bb1
+  push 0
+  add
+  jump
+bb1:
+  calldatasize
+  calldatasize
+  add
+  push 1
+  swap 1
+  sub
+  stop

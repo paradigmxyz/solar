@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/unknown_jump.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/unknown_jump.evmir (after reorder-pushes) ===
+  @module UnknownJump
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push bb1
+    push 0
+    add
+    jump
+  bb1:
+    calldatasize
+    calldatasize
+    add
+    push 1
+    swap 1
+    sub
+    stop
+  

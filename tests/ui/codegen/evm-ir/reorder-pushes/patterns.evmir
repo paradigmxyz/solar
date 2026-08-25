@@ -5,14 +5,14 @@ bb0:
   push 0
   calldataload
   push 10
-  swap1
+  swap 1
   sub
   stop
 
 bb1:
   calldatasize
   push 3
-  swap1
+  swap 1
   mod
   stop
 
@@ -23,7 +23,7 @@ bb2:
   push 31
   add
   push 10
-  swap1
+  swap 1
   sub
   stop
 
@@ -31,23 +31,23 @@ bb2:
 bb3:
   gas
   push 10
-  swap1
+  swap 1
   sub
   stop
 
 bb4:
   pc
   push 10
-  swap1
+  swap 1
   sub
   stop
 
 // Physical stack operations can depend on values below the candidate producer.
 bb5:
   push 1
-  dup1
+  dup 1
   push 10
-  swap1
+  swap 1
   sub
   stop
 
@@ -62,14 +62,14 @@ bb6:
   push 0
   call
   push 10
-  swap1
+  swap 1
   sub
   stop
 
 bb7:
   returndatasize
   push 3
-  swap1
+  swap 1
   mod
   stop
 
@@ -77,9 +77,9 @@ bb7:
 bb8:
   calldatasize
   push 1
-  swap1
+  swap 1
   push 2
-  swap1
+  swap 1
   sub
   stop
 
@@ -94,6 +94,23 @@ bb9:
   calldatasize
   add
   push 1
-  swap1
+  swap 1
+  sub
+  stop
+
+// Chained rewrites must account for headroom already spent by an earlier push.
+bb10:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  calldatasize
+  calldatasize
+  add
+  push 1
+  swap 1
+  push 2
+  swap 1
   sub
   stop

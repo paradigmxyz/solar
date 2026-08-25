@@ -19,19 +19,14 @@ impl EvmPass for ReorderPushes {
         if !module.blocks.iter().any(|block| has_candidate(&block.instructions)) {
             return false;
         }
-        let guaranteed_headroom = module.has_stack_headroom();
-        let depths = (!guaranteed_headroom).then(|| StackDepths::new(module)).flatten();
+        let depths = needs_depths(module).then(|| StackDepths::new(module)).flatten();
         let mut changed = false;
         let mut scratch = Vec::new();
         for block_index in 0..module.blocks.len() {
             let block_id = BlockId::from_usize(block_index);
             let entry_depth = depths.as_ref().and_then(|depths| depths.entry_depth(block_id));
-            changed |= reorder(
-                &mut module.blocks[block_id].instructions,
-                entry_depth,
-                guaranteed_headroom,
-                &mut scratch,
-            );
+            changed |=
+                reorder(&mut module.blocks[block_id].instructions, entry_depth, &mut scratch);
         }
         changed
     }
@@ -43,10 +38,21 @@ fn has_candidate(instructions: &[Instruction]) -> bool {
         .any(|pair| pair[0].is_encoded_push() && raw_opcode(&pair[1]) == Some(op::SWAP1))
 }
 
+fn needs_depths(module: &Module) -> bool {
+    module.blocks.iter().any(|block| {
+        block.instructions.iter().enumerate().any(|(index, inst)| {
+            index >= 2
+                && raw_opcode(inst) == Some(op::SWAP1)
+                && block.instructions[index - 1].is_encoded_push()
+                && self_contained_producer(&block.instructions[..index - 1])
+                    .is_some_and(|(_, peak)| peak > 1)
+        })
+    })
+}
+
 fn reorder(
     instructions: &mut Vec<Instruction>,
     entry_depth: Option<usize>,
-    guaranteed_headroom: bool,
     scratch: &mut Vec<Instruction>,
 ) -> bool {
     scratch.clear();
@@ -75,7 +81,6 @@ fn reorder(
         };
         if let Some((start, peak)) = producer
             && (peak == 1
-                || guaranteed_headroom
                 || depth
                     .and_then(|depth| depth.checked_sub(2))
                     .and_then(|producer_depth| producer_depth.checked_add(peak + 1))

@@ -87,4 +87,20 @@
     swap 1
     sub
     stop
+  bb10:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
++   push 1
+    calldatasize
+    calldatasize
+    add
+-   push 1
+-   swap 1
+    push 2
+    swap 1
+    sub
+    stop
   
