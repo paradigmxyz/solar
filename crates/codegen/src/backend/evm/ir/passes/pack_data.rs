@@ -3,7 +3,8 @@
 use super::EvmPass;
 use crate::backend::evm::ir::{DataId, DataRef, Module, PushValue};
 use alloy_primitives::Bytes;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use memchr::memmem;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 pub(super) struct PackData;
@@ -23,16 +24,15 @@ impl EvmPass for PackData {
 }
 
 fn pack_data(module: &mut Module) -> bool {
-    let mut referenced = Vec::new();
+    let mut referenced = DenseBitSet::new_empty(module.data.len());
     for block in &module.blocks {
         for inst in &block.instructions {
-            if let Some(PushValue::Data(data)) = inst.value
-                && !referenced.contains(&data.id)
-            {
-                referenced.push(data.id);
+            if let Some(PushValue::Data(data)) = inst.value {
+                referenced.insert(data.id);
             }
         }
     }
+    let mut referenced = referenced.iter().collect::<Vec<_>>();
     referenced.sort_unstable_by(|&a, &b| {
         module.data[b].len().cmp(&module.data[a].len()).then_with(|| a.cmp(&b))
     });
@@ -45,7 +45,7 @@ fn pack_data(module: &mut Module) -> bool {
             if data.is_empty() {
                 Some(DataRef::new(new_id, 0))
             } else {
-                known.windows(data.len()).position(|window| window == data.as_ref()).map(|offset| {
+                memmem::find(known, data).map(|offset| {
                     DataRef::new(new_id, u32::try_from(offset).expect("data offset exceeds `u32`"))
                 })
             }

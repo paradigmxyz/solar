@@ -1545,20 +1545,12 @@ impl<'gcx> Lowerer<'gcx> {
         let len_val = builder.imm_u64(bytecode_len as u64);
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        // Copy bytecode to ptr+32 using MSTORE loop
+        // Copy bytecode to the object payload.
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-
-        let mut offset = 0u64;
-        for chunk in bytecode.chunks(32) {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let value = U256::from_be_bytes(padded);
-            let val_id = builder.imm_u256(value);
-            let offset_id = builder.imm_u64(offset);
-            let dest = builder.add(data_start, offset_id);
-            builder.mstore(dest, val_id);
-            offset += 32;
-        }
+        let mut data = Vec::with_capacity(aligned_data_len);
+        data.extend_from_slice(&bytecode);
+        data.resize(aligned_data_len, 0);
+        self.copy_data_to_memory(builder, data_start, data.into());
 
         // Return ptr (the bytes memory value)
         ptr

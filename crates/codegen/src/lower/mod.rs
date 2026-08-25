@@ -42,6 +42,9 @@ use self::storage::StorageLocation;
 /// Minimum contiguous zero-word count where bulk zeroing beats individual stores.
 const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
 
+/// Maximum constant word count emitted as individual stores.
+const MAX_INLINE_DATA_WORDS: usize = 4;
+
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
 pub(crate) struct LoopContext {
@@ -245,6 +248,47 @@ pub(crate) struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Copies constant module data into memory.
+    pub(super) fn copy_data_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: Bytes,
+    ) {
+        if data.is_empty() {
+            return;
+        }
+        let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+        if data.len() <= word_size * MAX_INLINE_DATA_WORDS {
+            self.store_data_words(builder, dest, &data);
+            return;
+        }
+        let size = builder.imm_u64(data.len() as u64);
+        let data = self.module.intern_data(data);
+        builder.data_copy(data, dest, size);
+    }
+
+    pub(super) fn store_data_words(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: &[u8],
+    ) {
+        let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+        for (index, chunk) in data.chunks(word_size).enumerate() {
+            let mut word = [0; EvmMemoryLayout::WORD_SIZE as usize];
+            word[..chunk.len()].copy_from_slice(chunk);
+            let value = builder.imm_u256(U256::from_be_bytes(word));
+            let address = if index == 0 {
+                dest
+            } else {
+                let offset = builder.imm_u64((index * word_size) as u64);
+                builder.add(dest, offset)
+            };
+            builder.mstore(address, value);
+        }
+    }
+
     /// Returns an existing error guarantee or emits a codegen diagnostic when
     /// lowering encounters invalid HIR without a prior error.
     pub(super) fn recovery_error(

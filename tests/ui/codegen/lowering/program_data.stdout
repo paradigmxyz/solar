@@ -1,0 +1,23 @@
+// === ROOT/tests/ui/codegen/lowering/program_data.sol:C ===
+@module C
+data:
+  0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+
+fn @data() -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 288
+    set_memory_object_len memorybytes, v0, 256
+    v1 = memory_object_data memorybytes, v0
+    data_copy 0, v1, 256
+    ret v0
+}
+
+fn @subslice() -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 192
+    set_memory_object_len memorybytes, v0, 160
+    v1 = memory_object_data memorybytes, v0
+    data_copy 0+64, v1, 160
+    ret v0
+}
+

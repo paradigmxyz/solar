@@ -8,7 +8,7 @@ use crate::{
         ValueId,
     },
 };
-use alloy_primitives::{U256, keccak256};
+use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
@@ -966,17 +966,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
-        // Copy bytecode to memory using MSTORE
-        // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
-        for (i, chunk) in bytecode.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let value = U256::from_be_bytes(padded);
-            let val_id = builder.imm_u256(value);
-            let chunk_offset = builder.imm_u64((i as u64) * 32);
-            let dest = builder.add(mem_offset, chunk_offset);
-            builder.mstore(dest, val_id);
-        }
+        self.store_data_words(builder, mem_offset, &bytecode);
 
         // Append constructor arguments after bytecode
         let mut args_offset = bytecode_len as u64;
@@ -2856,18 +2846,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let ptr = builder.fmp();
-            for (i, chunk) in bytes.chunks(32).enumerate() {
-                let mut padded = [0u8; 32];
-                padded[..chunk.len()].copy_from_slice(chunk);
-                let value = builder.imm_u256(U256::from_be_bytes(padded));
-                let dest = if i == 0 {
-                    ptr
-                } else {
-                    let offset = builder.imm_u64((i * 32) as u64);
-                    builder.add(ptr, offset)
-                };
-                builder.mstore(dest, value);
-            }
+            self.copy_data_to_memory(builder, ptr, Bytes::copy_from_slice(bytes));
             return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
         }
 
