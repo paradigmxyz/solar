@@ -137,6 +137,7 @@ jobs:
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar target/release/solar \
             --suite all \
+            --include-heavy \
             --compile-repeats 5 \
             --gas \
             --gas-profile hot \

@@ -6,9 +6,9 @@ cases from the same upstream project. The runner selects only each entrypoint's 
 import closure before compiling it. Keeping the inputs here makes the benchmark reproducible from this
 checkout and removes the CI dependency on a second repository and its recursive submodules.
 
-The separate `benches/runtime/benchmark.py --suite heavy` suite passes the full archived
-Standard JSON inputs to both compilers and measures compile time without deployment or runtime
-workloads.
+The `heavy` suite passes full archived Standard JSON inputs to both compilers and measures compile
+time without deployment or runtime workloads. `--suite all` omits it by default. CI includes it
+with `--include-heavy`.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)

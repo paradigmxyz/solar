@@ -85,6 +85,17 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(payload, archive)
         self.assertEqual(len(payload["sources"]), 208)
 
+    def test_select_suite_tests(self) -> None:
+        heavy = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
+        default = [case for case in benchmark.TEST_CASES if case.suite != "heavy"]
+
+        self.assertEqual(benchmark.select_suite_tests("all"), default)
+        self.assertEqual(
+            benchmark.select_suite_tests("all", include_heavy=True),
+            list(benchmark.TEST_CASES),
+        )
+        self.assertEqual(benchmark.select_suite_tests("heavy"), heavy)
+
     def test_parse_full_project_output_counts_contract_artifacts(self) -> None:
         case = next(case for case in benchmark.TEST_CASES if case.whole_project)
         stdout = json.dumps(
