@@ -571,5 +571,17 @@ mod tests {
         assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Osaka), None);
         assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Amsterdam), Some(2));
         assert_eq!(StackOp::from_swaps(2, 3, 2), Some(StackOp::Exchange(2, 3)));
+
+        for depth in 17..=235 {
+            assert_eq!(decode_stack_depth(encode_stack_depth(depth)), Some(depth));
+        }
+        for immediate in u8::MIN..=u8::MAX {
+            if let Some(depth) = decode_stack_depth(immediate) {
+                assert_eq!(encode_stack_depth(depth), immediate);
+            }
+            if let Some((n, m)) = decode_exchange(immediate) {
+                assert_eq!(encode_exchange(n, m), immediate);
+            }
+        }
     }
 }
