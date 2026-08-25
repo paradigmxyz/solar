@@ -483,6 +483,13 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(expr.span, "can only slice arrays");
                 } else if !is_calldata_sliceable(ty) {
                     self.dcx().emit_err(expr.span, "can only slice dynamic calldata arrays");
+                } else if let Some(element) = slice_element_type(ty)
+                    && element.is_dynamically_encoded(self.gcx)
+                {
+                    self.dcx().emit_err(
+                        expr.span,
+                        "index range access is not supported for arrays with dynamically encoded base types",
+                    );
                 }
                 if self.index_types(ty).is_some() || is_string_or_string_slice(ty) {
                     if let Some(start) = start {
@@ -2981,6 +2988,16 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
     ty.is_ref_at(DataLocation::Calldata)
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
+}
+
+/// The element type of an array-typed expression, descending through slices.
+/// Returns `None` for bytes and string, whose range access is always allowed.
+fn slice_element_type(ty: Ty<'_>) -> Option<Ty<'_>> {
+    match ty.peel_refs().kind {
+        TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
+        TyKind::Slice(array) => slice_element_type(array),
+        _ => None,
+    }
 }
 
 fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
