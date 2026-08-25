@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/event_indexed_calldata_validation.sol:EventIndexedCalldataValidation ===
 @module EventIndexedCalldataValidation
-fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_args=lazy, abi_params=[array<_, u8>], abi_returns=[word]] {
+fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_params=[array<_, u8>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

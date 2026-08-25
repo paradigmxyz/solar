@@ -4,19 +4,19 @@ immutables:
   start: u256
   duration: u256
 
-fn @start() -> u256 [selector=0xbe9a6555, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @start() -> u256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     ret v0
 }
 
-fn @duration() -> u256 [selector=0x0fb5a6b4, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @duration() -> u256 [selector=0x0fb5a6b4, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable duration
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
+fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     storeimmutable start, arg0
     v0 = loadimmutable start
@@ -32,7 +32,7 @@ fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
     stop
 }
 
-fn @end() -> u256 [selector=0xefbe1c1c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @end() -> u256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration

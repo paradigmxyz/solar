@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_dynamic_calldata_to_storage.sol:StorageNestedDynamicCalldataToStorage ===
 @module StorageNestedDynamicCalldataToStorage
-fn @test(arg0: calldataslice) [selector=0x787210b9, abi_args=lazy, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[]] {
+fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -470,7 +470,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_args=lazy, abi_params=[a
     stop
 }
 
-fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_args=lazy, abi_params=[array<_, array<_, u8>>], abi_returns=[]] {
+fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<_, u8>>], abi_returns=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

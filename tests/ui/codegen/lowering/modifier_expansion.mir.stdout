@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_expansion.sol:ModifierExpansion ===
 @module ModifierExpansion
-fn @value() -> u256 [selector=0x3fa4f245, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -30,7 +30,7 @@ fn @value() -> u256 [selector=0x3fa4f245, abi_args=lazy, abi_params=[], abi_retu
     jump bb1
 }
 
-fn @valueWithArg() -> u256 [selector=0x121de20b, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @valueWithArg() -> u256 [selector=0x121de20b, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 2
@@ -60,7 +60,7 @@ fn @valueWithArg() -> u256 [selector=0x121de20b, abi_args=lazy, abi_params=[], a
     jump bb1
 }
 
-fn @valueWithTwo() -> u256 [selector=0xcd1b4309, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @valueWithTwo() -> u256 [selector=0xcd1b4309, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -112,7 +112,7 @@ fn @valueWithTwo() -> u256 [selector=0xcd1b4309, abi_args=lazy, abi_params=[], a
     jump bb1
 }
 
-fn @valueWithTwoPlaceholders() -> u256 [selector=0xb6093d3f, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @valueWithTwoPlaceholders() -> u256 [selector=0xb6093d3f, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -145,7 +145,7 @@ fn @valueWithTwoPlaceholders() -> u256 [selector=0xb6093d3f, abi_args=lazy, abi_
     jump bb5
 }
 
-fn @repeatFalse() -> u256 [selector=0x39a40f90, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @repeatFalse() -> u256 [selector=0x39a40f90, abi_params=[], abi_returns=[word]] {
   bb0:
     jumpi 0, bb2, bb3
   bb1:
@@ -199,7 +199,7 @@ fn @repeatFalse() -> u256 [selector=0x39a40f90, abi_args=lazy, abi_params=[], ab
     jump bb10
 }
 
-fn @repeatTrue() -> u256 [selector=0x7cf22419, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @repeatTrue() -> u256 [selector=0x7cf22419, abi_params=[], abi_returns=[word]] {
   bb0:
     jumpi 1, bb2, bb3
   bb1:
@@ -253,7 +253,7 @@ fn @repeatTrue() -> u256 [selector=0x7cf22419, abi_args=lazy, abi_params=[], abi
     jump bb10
 }
 
-fn @modifierMutates(arg0: u256) -> u256 [selector=0x0c3d6b6e, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @modifierMutates(arg0: u256) -> u256 [selector=0x0c3d6b6e, abi_params=[u256], abi_returns=[word]] {
   bb0:
     jump bb2
   bb1:

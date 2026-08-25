@@ -462,12 +462,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
     ) -> FunctionId {
         let shape = InternalFunctionPointerShape::from_ty(function);
-        let index = self.context.state.pointer_registry.dispatchers.len();
-        *self.context.state.pointer_registry.dispatchers.entry(shape).or_insert_with(|| {
-            self.context.module.add_function(Function::new(Ident::from_str(&format!(
-                "__internal_dispatch_{index}"
-            ))))
+        let name = shape.helper_name();
+        let InternalFunctionPointerShape { params, returns } = shape;
+        self.lazy_helper(name, |_, function| {
+            function.attributes.is_function_pointer_dispatcher = true;
+            let mut builder = FunctionBuilder::new(function);
+            builder.add_param(MirType::Function);
+            for ty in params {
+                builder.add_param(ty);
+            }
+            for ty in returns {
+                builder.add_return(ty);
+            }
+            Some(())
         })
+        .expect("internal dispatcher helper construction cannot fail")
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {

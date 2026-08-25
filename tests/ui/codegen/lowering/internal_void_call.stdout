@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @set(arg0: u256) [selector=0x60fe47b1, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @set(arg0: u256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[]] {
   bb0:
     internal_call @writeIfNonZero, 0, arg0
     stop
@@ -26,7 +26,7 @@ fn @writeIfNonZero(arg0: u256) {
     stop
 }
 
-fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_returns=[]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -39,18 +39,18 @@ fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_args=lazy, abi_params=[u
     stop
 }
 
-fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_args=lazy, abi_params=[u256], abi_returns=[]] {
+fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_params=[u256], abi_returns=[]] {
   bb0:
     internal_call @writeIfNonZero, 0, arg0
     stop
 }
 
-fn @returnRevert() [selector=0xdcdb78bc, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[]] {
   bb0:
     revert 0, 0
 }
 
-fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_args=lazy, abi_params=[bool, u256], abi_returns=[]] {
+fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

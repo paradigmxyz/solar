@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn ===
 @module LongReturn
-fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[array<20, word>]] {
+fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>]] {
   bb0:
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640
     memory_zero v0, 640
@@ -27,14 +27,14 @@ fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_args=lazy, abi_param
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn ===
 @module ShortReturn
-fn @f() -> u256 [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 42
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
-fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -89,7 +89,7 @@ fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_args=lazy, abi_params=
     ret v19, v17
 }
 
-fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -149,7 +149,7 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_args=lazy, abi_params
     ret v24, v22
 }
 
-fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -210,7 +210,7 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_args=lazy, abi_p
     ret v24, v19, v22
 }
 
-fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -275,7 +275,7 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_args=lazy, abi_
     ret v28, v24, v26
 }
 
-fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -319,7 +319,7 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_args=lazy, abi_param
     ret v18, v21
 }
 
-fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -367,7 +367,7 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_args=lazy, abi_para
     ret v23, v25
 }
 
-fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -413,7 +413,7 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_args=lazy, abi_params=
     ret v20
 }
 
-fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

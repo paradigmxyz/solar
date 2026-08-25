@@ -6,9 +6,17 @@
 + fn @givesBytes() [selector=0x0dead001] {
     bb0:
 -     ret arg0
-+     v0 = abi_encode [memory_bytes], args arg0
-+     v1 = slice_ptr v0
-+     v2 = slice_len v0
-+     returndata v1, v2
++     v0 = calldatasize
++     v1 = lt v0, 36
++     jumpi v1, bb2, bb3
++   bb1:
++     v2 = abi_encode [memory_bytes], args arg0
++     v3 = slice_ptr v2
++     v4 = slice_len v2
++     returndata v3, v4
++   bb2:
++     revert 0, 0
++   bb3:
++     jump bb1
   }
   

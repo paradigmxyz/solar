@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_args=lazy, abi_params=[bool, u256], abi_returns=[word]] {
+fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -9,7 +9,7 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_args=lazy, 
     jump bb3
   bb3:
     v0 = phi [bb1: 2], [bb2: 3]
-    v1 = internal_call @__internal_dispatch_0, 1, v0, arg1
+    v1 = internal_call @internal_dispatcher_p_u256_r_u256, 1, v0, arg1
     ret v1
 }
 
@@ -39,16 +39,16 @@ fn @decrement(arg0: u256) -> u256 [pure] {
     ret v0
 }
 
-fn @callConstant(arg0: u256) -> u256 [selector=0x0560cf94, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @callConstant(arg0: u256) -> u256 [selector=0x0560cf94, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @__internal_dispatch_0, 1, 2, arg0
+    v0 = internal_call @internal_dispatcher_p_u256_r_u256, 1, 2, arg0
     ret v0
 }
 
-fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @castViewToPure, 1, 7
-    v1 = internal_call @__internal_dispatch_0, 1, v0, arg0
+    v1 = internal_call @internal_dispatcher_p_u256_r_u256, 1, v0, arg0
     ret v1
 }
 
@@ -78,7 +78,7 @@ fn @incrementView(arg0: u256) -> u256 [view] {
     ret v2
 }
 
-fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

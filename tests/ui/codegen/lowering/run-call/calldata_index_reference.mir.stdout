@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_index_reference.sol:CalldataIndexReference ===
 @module CalldataIndexReference
-fn @dynamicFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0x71cafd78, pure, abi_args=lazy, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word]] {
+fn @dynamicFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -20,7 +20,7 @@ fn @dynamicFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0x71cafd78
     ret v0, v1, v8
 }
 
-fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3, pure, abi_args=lazy, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word]] {
+fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -62,7 +62,7 @@ fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3,
     ret v6, v12, v18
 }
 
-fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f6, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word]] {
+fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -129,7 +129,7 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     ret v26, v27, v33
 }
 
-fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10, pure, abi_args=lazy, abi_params=[array<_, bytes>], abi_returns=[word, word, word]] {
+fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0

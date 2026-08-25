@@ -5,13 +5,21 @@
 + @phase abi
 + fn @pair() [selector=0x1f6a26ff] {
     bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb1:
       v0 = add arg0, 1
 -     ret arg0, v0
 +     mstore 128, arg0
-+     v1 = add 128, 32
-+     mstore v1, v0
-+     v2 = add v1, 32
-+     v3 = sub v2, 128
-+     returndata 128, v3
++     v3 = add 128, 32
++     mstore v3, v0
++     v4 = add v3, 32
++     v5 = sub v4, 128
++     returndata 128, v5
++   bb2:
++     revert 0, 0
++   bb3:
++     jump bb1
   }
   

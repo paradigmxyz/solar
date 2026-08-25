@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
@@ -54,7 +54,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_args=lazy, a
     ret v17
 }
 
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -88,7 +88,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], ab
     ret v14
 }
 
-fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [calldata_bytes], object, args arg0
@@ -105,7 +105,7 @@ fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure
     ret v1
 }
 
-fn @encodeStatic(arg0: u256) -> memorybytes [selector=0x815736ce, pure, abi_args=lazy, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @encodeStatic(arg0: u256) -> memorybytes [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [word], object, args arg0

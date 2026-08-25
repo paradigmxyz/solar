@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_copy.sol:InternalFunctionPointerStorageCopy ===
 @module InternalFunctionPointerStorageCopy
-fn @one() -> u256 [selector=0x901717d1, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @one() -> u256 [selector=0x901717d1, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640
     memory_zero v0, 640
@@ -287,7 +287,7 @@ fn @one() -> u256 [selector=0x901717d1, abi_args=lazy, abi_params=[], abi_return
     ret 3
 }
 
-fn @two() -> u256 [selector=0x5fdf05d7, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     v1 = sgt v0, 0
@@ -314,11 +314,11 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_args=lazy, abi_params=[], abi_return
     v9 = mul v7, 8
     v10 = shr v9, v8
     v11 = and v10, 0xffffffffffffffff
-    v12 = internal_call @__internal_dispatch_0, 1, v11
+    v12 = internal_call @internal_dispatcher_p_none_r_u256, 1, v11
     ret 2
 }
 
-fn @__internal_dispatch_0(arg0: function) [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: function) [function_pointer_dispatcher] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)

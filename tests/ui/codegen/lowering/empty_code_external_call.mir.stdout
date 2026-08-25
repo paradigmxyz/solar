@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTarget ===
 @module EmptyCodeTarget
-fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
 @module EmptyCodeLibrary
-fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===
 @module EmptyCodeCalls
-fn @direct() [selector=0x222b1407, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
@@ -34,7 +34,7 @@ fn @direct() [selector=0x222b1407, abi_args=lazy, abi_params=[], abi_returns=[]]
     stop
 }
 
-fn @pointer() [selector=0x2f5f3b3c, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = shl 32, 0
     v1 = or v0, 0x5dfc2e4a
@@ -59,7 +59,7 @@ fn @pointer() [selector=0x2f5f3b3c, abi_args=lazy, abi_params=[], abi_returns=[]
     stop
 }
 
-fn @libraryCall() [selector=0x239b86e9, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v1 = slice_ptr v0
@@ -79,7 +79,7 @@ fn @libraryCall() [selector=0x239b86e9, abi_args=lazy, abi_params=[], abi_return
     stop
 }
 
-fn @lowLevel() -> bool [selector=0x5e4fa723, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
@@ -90,7 +90,7 @@ fn @lowLevel() -> bool [selector=0x5e4fa723, abi_args=lazy, abi_params=[], abi_r
     ret v4
 }
 
-fn @selfCall() -> bool [selector=0x8dae0159, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -105,7 +105,7 @@ fn @selfCall() -> bool [selector=0x8dae0159, abi_args=lazy, abi_params=[], abi_r
     ret 1
 }
 
-fn @noop() [selector=0x5dfc2e4a, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }

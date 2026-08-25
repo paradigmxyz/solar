@@ -14,8 +14,16 @@
 + @phase abi
 + fn @get() [selector=0x9507d39a] {
     bb0:
++     v0 = calldatasize
++     v1 = lt v0, 36
++     jumpi v1, bb2, bb3
++   bb1:
       mstore 128, arg0
       returndata 128, 32
++   bb2:
++     revert 0, 0
++   bb3:
++     jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
@@ -25,8 +33,16 @@
 + @phase dispatch
   fn @get() [selector=0x9507d39a] {
     bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+      jumpi v1, bb2, bb3
+    bb1:
       mstore 128, arg0
       returndata 128, 32
+    bb2:
+      revert 0, 0
+    bb3:
+      jump bb1
 + }
 + 
 + fn @entry() [entry] {
@@ -49,8 +65,16 @@
   @phase dispatch
   fn @get() [selector=0x9507d39a] {
     bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+      jumpi v1, bb2, bb3
+    bb1:
       mstore 128, arg0
       returndata 128, 32
+    bb2:
+      revert 0, 0
+    bb3:
+      jump bb1
   }
   
   fn @entry() [entry] {

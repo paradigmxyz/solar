@@ -1,27 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
 @module AbiEncodeV2
-fn @f0() -> memorybytes [selector=0xa5850475, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f0() -> memorybytes [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
 }
 
-fn @f1() -> memorybytes [selector=0xc27fc305, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f1() -> memorybytes [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
 }
 
-fn @f2() -> memorybytes [selector=0x9942ec6f, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f2() -> memorybytes [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     ret v1
 }
 
-fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 3
@@ -47,7 +47,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_args=lazy, abi_params=[]
   bb3:
     revert 0, 0
   bb4:
-    v12 = internal_call @__literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v12 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v13 = memory_object_load_element memorybytes, v12, 0
     v14 = memory_object_len memorybytes, v2
     v15 = lt 0, v14
@@ -71,7 +71,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_args=lazy, abi_params=[]
   bb8:
     v21 = memory_object_load_byte memorybytes, v2, 0
     v22 = shl 248, v21
-    v23 = internal_call @__literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v23 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v24 = memory_object_load_element memorybytes, v23, 0
     v25 = eq v22, v24
     v26 = iszero v25
@@ -82,9 +82,9 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_args=lazy, abi_params=[]
     ret v1
 }
 
-fn @f4() -> memorybytes [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
     v1 = add 0, 1
     v2 = sload v1 !metadata(storage=slot(1))
@@ -118,7 +118,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_
     v14 = sload 0 !metadata(storage=slot(0))
     memory_object_store_field memorystruct<2>, v13, 0, v14
     v15 = add 0, 1
-    v16 = internal_call @__load_storage_word_array, 1, v15
+    v16 = internal_call @load_storage_word_array, 1, v15
     memory_object_store_field memorystruct<2>, v13, 1, v16
     v17 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
     v18 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -145,7 +145,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_
   bb7:
     revert 0, 0
   bb8:
-    v28 = internal_call @__literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v28 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v29 = memory_object_load_element memorybytes, v28, 0
     v30 = memory_object_len memorybytes, v18
     v31 = lt 0, v30
@@ -169,7 +169,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_
   bb12:
     v37 = memory_object_load_byte memorybytes, v18, 0
     v38 = shl 248, v37
-    v39 = internal_call @__literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v39 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v40 = memory_object_load_element memorybytes, v39, 0
     v41 = eq v38, v40
     v42 = iszero v41
@@ -180,7 +180,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_
     ret v17
 }
 
-fn @__literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
+fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, arg1
@@ -188,7 +188,7 @@ fn @__literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
     ret v0
 }
 
-fn @__load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

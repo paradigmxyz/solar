@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
-fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     ret 7, 0, 7, 1, 8, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
-fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_args=lazy, abi_params=[u256], abi_returns=[word, word]] {
+fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = sload 42 !metadata(storage=slot(42))
@@ -27,7 +27,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
-fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     ret 2, 3, 4
 }
@@ -39,14 +39,14 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
-fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     ret 0, 7
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
-fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 12

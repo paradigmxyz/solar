@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
-fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -55,7 +55,7 @@ fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_args=lazy, abi_params=[],
     jump bb7
 }
 
-fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_args=lazy, abi_params=[bytes], abi_returns=[]] {
+fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -91,7 +91,7 @@ fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_args=lazy, abi_params=[byt
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 0, v17, v12
+    internal_call @clear_storage_words, 0, 0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -130,7 +130,7 @@ fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_args=lazy, abi_params=[byt
     jump bb9
 }
 
-fn @poke() [selector=0x18178358, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = shl 248, 170
     v1 = sload 0 !metadata(storage=slot(0))
@@ -228,7 +228,7 @@ fn @poke() [selector=0x18178358, abi_args=lazy, abi_params=[], abi_returns=[]] {
     v47 = and v30, v46
     jumpi v47, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, 0, v45, v40
+    internal_call @clear_storage_words, 0, 0, v45, v40
     jump bb18
   bb18:
     jumpi v44, bb19, bb20
@@ -267,7 +267,7 @@ fn @poke() [selector=0x18178358, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb21
 }
 
-fn @hashB() -> bytes32 [selector=0xdf45d88e, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @hashB() -> bytes32 [selector=0xdf45d88e, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -323,7 +323,7 @@ fn @hashB() -> bytes32 [selector=0xdf45d88e, view, abi_args=lazy, abi_params=[],
     jump bb7
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -342,19 +342,19 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes, bytes]] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -390,7 +390,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 0, v17, v12
+    internal_call @clear_storage_words, 0, 0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -460,7 +460,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     v57 = and v40, v56
     jumpi v57, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, 1, v55, v50
+    internal_call @clear_storage_words, 0, 1, v55, v50
     jump bb18
   bb18:
     jumpi v54, bb19, bb20
@@ -499,7 +499,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     jump bb21
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -554,7 +554,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb7
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -573,19 +573,19 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy, abi_params=[bytes, bytes]] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -621,7 +621,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 0, v17, v12
+    internal_call @clear_storage_words, 0, 0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -691,7 +691,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     v57 = and v40, v56
     jumpi v57, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, 1, v55, v50
+    internal_call @clear_storage_words, 0, 1, v55, v50
     jump bb18
   bb18:
     jumpi v54, bb19, bb20
@@ -730,7 +730,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_args=lazy
     jump bb21
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -785,7 +785,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     jump bb7
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -848,7 +848,7 @@ fn @_anonymous() [constructor] {
     v21 = and v4, v20
     jumpi v21, bb6, bb7
   bb6:
-    internal_call @__clear_storage_words, 0, 0, v19, v14
+    internal_call @clear_storage_words, 0, 0, v19, v14
     jump bb7
   bb7:
     jumpi v18, bb8, bb9
@@ -918,7 +918,7 @@ fn @_anonymous() [constructor] {
     v59 = and v42, v58
     jumpi v59, bb18, bb19
   bb18:
-    internal_call @__clear_storage_words, 0, 1, v57, v52
+    internal_call @clear_storage_words, 0, 1, v57, v52
     jump bb19
   bb19:
     jumpi v56, bb20, bb21
@@ -959,19 +959,19 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -988,7 +988,7 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     stop
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -1045,19 +1045,19 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -1156,7 +1156,7 @@ fn @constructor() [constructor] {
     v21 = and v4, v20
     jumpi v21, bb6, bb7
   bb6:
-    internal_call @__clear_storage_words, 0, 0, v19, v14
+    internal_call @clear_storage_words, 0, 0, v19, v14
     jump bb7
   bb7:
     jumpi v18, bb8, bb9
@@ -1226,7 +1226,7 @@ fn @constructor() [constructor] {
     v59 = and v42, v58
     jumpi v59, bb18, bb19
   bb18:
-    internal_call @__clear_storage_words, 0, 1, v57, v52
+    internal_call @clear_storage_words, 0, 1, v57, v52
     jump bb19
   bb19:
     jumpi v56, bb20, bb21
@@ -1265,7 +1265,7 @@ fn @constructor() [constructor] {
     jump bb22
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

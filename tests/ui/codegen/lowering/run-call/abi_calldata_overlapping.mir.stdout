@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_overlapping.sol:AbiCalldataOverlapping ===
 @module AbiCalldataOverlapping
-fn @memoryRead(arg0: calldataslice) -> u256 [selector=0xba65adf9, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+fn @memoryRead(arg0: calldataslice) -> u256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -197,7 +197,7 @@ fn @memoryRead(arg0: calldataslice) -> u256 [selector=0xba65adf9, pure, abi_args
     ret v82
 }
 
-fn @encodeLength(arg0: calldataslice) -> u256 [selector=0xb50dc8e6, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+fn @encodeLength(arg0: calldataslice) -> u256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

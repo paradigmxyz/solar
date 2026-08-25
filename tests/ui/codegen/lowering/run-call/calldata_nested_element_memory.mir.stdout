@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_memory.sol:CalldataNestedElementMemory ===
 @module CalldataNestedElementMemory
-fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_args=lazy, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word]] {
+fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -314,7 +314,7 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_args=lazy
     ret v137
 }
 
-fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_args=lazy, abi_params=[array<_, array<2, array<_, u8>>>], abi_returns=[word]] {
+fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[array<_, array<2, array<_, u8>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -652,7 +652,7 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_args=lazy
     ret v149
 }
 
-fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_args=lazy, abi_params=[array<2, array<_, array<2, u8>>>], abi_returns=[word]] {
+fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[array<2, array<_, array<2, u8>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

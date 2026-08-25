@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
 @module TransientStorage
-fn @temporary() -> u256 [selector=0x52099d8b, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @temporary() -> u256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
-fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x9ef32708, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word]] {
+fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     tstore 0, arg1
@@ -17,7 +17,7 @@ fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u25
     ret v0, v1, v2, v3, 0, 0
 }
 
-fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -42,7 +42,7 @@ fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_args=lazy, abi_params
     ret v14, v17, v12
 }
 
-fn @signed() -> i16 [selector=0x232a6b9d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sub 0, 2
     v1 = shl 32, 0xffff
@@ -60,7 +60,7 @@ fn @signed() -> i16 [selector=0x232a6b9d, abi_args=lazy, abi_params=[], abi_retu
     ret v11
 }
 
-fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word]] {
   bb0:
     tstore 0, 42
     tstore 0, 0
@@ -69,7 +69,7 @@ fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_args=lazy, abi_params=[], 
     ret v0, v1
 }
 
-fn @getter() -> u256 [selector=0x993a04b7, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
   bb0:
     tstore 0, 77
     v0 = address
@@ -97,7 +97,7 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_args=lazy, abi_params=[], abi_ret
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
-fn @run() -> u16 [selector=0xc0406226, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = tload 0
     v1 = and v0, 0xffff

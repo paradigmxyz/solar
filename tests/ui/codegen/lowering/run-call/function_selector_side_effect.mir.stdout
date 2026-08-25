@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_selector_side_effect.sol:FunctionSelectorSideEffect ===
 @module FunctionSelectorSideEffect
-fn @f() [selector=0x26121ff0, view, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @h() -> address [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @h() -> address [selector=0xb8c9d365, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = address
     ret v0
 }
 
-fn @read() -> u256 [selector=0x57de26a4, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @read() -> u256 [selector=0x57de26a4, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @h, 1
     v1 = sload 0 !metadata(storage=slot(0))

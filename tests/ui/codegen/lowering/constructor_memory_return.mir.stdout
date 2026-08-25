@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
 @module ConstructorMemoryReturn
-fn @value() -> memorybytes [selector=0x3fa4f245, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @value() -> memorybytes [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -93,7 +93,7 @@ fn @_anonymous() [constructor] {
     v21 = and v4, v20
     jumpi v21, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, 0, v19, v14
+    internal_call @clear_storage_words, 0, 0, v19, v14
     jump bb6
   bb6:
     jumpi v18, bb7, bb8
@@ -132,7 +132,7 @@ fn @_anonymous() [constructor] {
     jump bb9
 }
 
-fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
@@ -145,7 +145,7 @@ fn @consume(arg0: memorybytes) -> memorybytes [pure] {
     ret arg0
 }
 
-fn @direct() -> u256 [selector=0x222b1407, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @direct() -> u256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
@@ -174,7 +174,7 @@ fn @makePair(arg0: u256) -> memorystruct [pure] {
     ret v1
 }
 
-fn @pairValue() -> u256 [selector=0x393eabbf, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pairValue() -> u256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 2
@@ -191,7 +191,7 @@ fn @pairValue() -> u256 [selector=0x393eabbf, pure, abi_args=lazy, abi_params=[]
     ret v3
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

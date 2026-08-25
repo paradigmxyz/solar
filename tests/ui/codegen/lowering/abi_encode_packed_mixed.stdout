@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
 @module AbiEncodePackedMixed
-fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [selector=0x795867e4, pure, abi_args=lazy, abi_params=[u256, address, bytes2], abi_returns=[word]] {
+fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [selector=0x795867e4, pure, abi_params=[u256, address, bytes2], abi_returns=[word]] {
   bb0:
     v0 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
@@ -15,7 +15,7 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) -> bytes32 [selector=
     ret v6
 }
 
-fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d, pure, abi_args=lazy, abi_params=[bytes32, bytes], abi_returns=[word]] {
+fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d, pure, abi_params=[bytes32, bytes], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memorybytes, arg1
     v1 = add 32, v0
@@ -33,7 +33,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d
     ret v10
 }
 
-fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selector=0x16cbcf25, pure, abi_args=lazy, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
+fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selector=0x16cbcf25, pure, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes]] {
   bb0:
     v0 = and arg0, 0xffff
     v1 = memory_object_len memorybytes, arg1
@@ -93,7 +93,7 @@ fn @materialized(arg0: u16, arg1: memorybytes, arg2: bool) -> memorybytes [selec
     ret v14
 }
 
-fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_args=lazy, abi_params=[array<_, bytes32>], abi_returns=[word]] {
+fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_params=[array<_, bytes32>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = mul v0, 32
@@ -183,7 +183,7 @@ fn @hashArray(arg0: memoryarray) -> bytes32 [selector=0x42233547, pure, abi_args
     jump bb11
 }
 
-fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0xc570e197, pure, abi_args=lazy, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
+fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0xc570e197, pure, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 1, arg1

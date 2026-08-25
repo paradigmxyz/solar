@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget ===
 @module TryMultiReturnTarget
-fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_args=lazy, abi_params=[bool], abi_returns=[word, memory_bytes]] {
+fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb1:
-    internal_call @__revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
   bb2:
     jump bb3
@@ -16,7 +16,7 @@ fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_arg
     ret 13, v1
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @revert_error(arg0: u256, arg1: u256) {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
@@ -60,7 +60,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -139,7 +139,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], 
     revert v29, v30
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

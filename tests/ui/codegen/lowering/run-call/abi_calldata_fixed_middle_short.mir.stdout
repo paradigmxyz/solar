@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_middle_short.sol:AbiCalldataFixedMiddleShort ===
 @module AbiCalldataFixedMiddleShort
-fn @read(arg0: calldataslice) -> u256 [selector=0xae6a5262, pure, abi_args=lazy, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word]] {
+fn @read(arg0: calldataslice) -> u256 [selector=0xae6a5262, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

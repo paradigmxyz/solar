@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/stack_phi_recomputed_source.sol:StackPhiRecomputedSource ===
 @module StackPhiRecomputedSource
-fn @count(arg0: u256, arg1: calldataslice) -> u256 [selector=0xd6c2a588, pure, abi_args=lazy, abi_params=[u256, bytes], abi_returns=[word]] {
+fn @count(arg0: u256, arg1: calldataslice) -> u256 [selector=0xd6c2a588, pure, abi_params=[u256, bytes], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:

@@ -53,20 +53,20 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     revert v15, v16
 }
 
-fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[]] {
+fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     sstore 0, v0 !metadata(storage=slot(0))
     stop
 }
 
-fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[]] {
+fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
-    internal_call @__revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @pair(arg0: memorystruct) -> (u256, memorybytes) [selector=0x76ea4d37, pure, abi_args=lazy, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes]] {
+fn @pair(arg0: memorystruct) -> (u256, memorybytes) [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -147,7 +147,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     revert v25, v26
 }
 
-fn @trySuccess() -> u256 [selector=0x3984eec7, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -159,7 +159,7 @@ fn @trySuccess() -> u256 [selector=0x3984eec7, abi_args=lazy, abi_params=[], abi
     ret v4
 }
 
-fn @tryFailure() -> u256 [selector=0x86763122, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @tryFailure() -> u256 [selector=0x86763122, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -171,7 +171,7 @@ fn @tryFailure() -> u256 [selector=0x86763122, abi_args=lazy, abi_params=[], abi
     ret v4
 }
 
-fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -184,7 +184,7 @@ fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_args=lazy, abi_pa
     ret v4, v6
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @revert_error(arg0: u256, arg1: u256) {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)

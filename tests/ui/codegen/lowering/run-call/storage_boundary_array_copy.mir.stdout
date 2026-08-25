@@ -11,7 +11,7 @@ fn @getY() -> storageptr [pure] {
     ret 5
 }
 
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @getX, 1
     v1 = internal_call @getY, 1

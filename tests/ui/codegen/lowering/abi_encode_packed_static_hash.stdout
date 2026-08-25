@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_static_hash.sol:AbiEncodePackedStaticHash ===
 @module AbiEncodePackedStaticHash
-fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, pure, abi_args=lazy, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
+fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, pure, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffff
     v1 = and arg1, 0xffffffffffffffff

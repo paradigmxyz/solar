@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol:AbiCalldataV1Validation ===
 @module AbiCalldataV1Validation
-fn @f(arg0: calldataslice) [selector=0x7bc5bbbf, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[]] {
+fn @f(arg0: calldataslice) [selector=0x7bc5bbbf, pure, abi_params=[array<_, u256>], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @g(arg0: u256, arg1: calldataslice, arg2: u256) -> u256 [selector=0x338620c8, pure, abi_args=lazy, abi_params=[u256, array<_, u256>, u256], abi_returns=[word]] {
+fn @g(arg0: u256, arg1: calldataslice, arg2: u256) -> u256 [selector=0x338620c8, pure, abi_params=[u256, array<_, u256>, u256], abi_returns=[word]] {
   bb0:
     ret 7
 }

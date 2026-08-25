@@ -1,21 +1,21 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_special_args_v2.sol:AbiEncodeCallSpecialArgs ===
 @module AbiEncodeCallSpecialArgs
-fn @fNoArgs() [selector=0x1af93581, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @fArray(arg0: memoryarray) [selector=0x0a326c0c, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[]] {
+fn @fArray(arg0: memoryarray) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @fUint(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x432672b2, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @fUint(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x432672b2, abi_params=[u256, u256], abi_returns=[word, word]] {
   bb0:
     ret 0, 0
 }
 
-fn @test() -> bool [selector=0xf8a8fd6d, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
     v1 = keccak256_bytes v0

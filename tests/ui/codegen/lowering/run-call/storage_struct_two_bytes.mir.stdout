@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_two_bytes.sol:StorageStructTwoBytes ===
 @module StorageStructTwoBytes
-fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -62,7 +62,7 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_p
     v30 = and v13, v29
     jumpi v30, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, v9, v28, v23
+    internal_call @clear_storage_words, 0, v9, v28, v23
     jump bb6
   bb6:
     jumpi v27, bb7, bb8
@@ -142,7 +142,7 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_p
     v77 = and v60, v76
     jumpi v77, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, v56, v75, v70
+    internal_call @clear_storage_words, 0, v56, v75, v70
     jump bb18
   bb18:
     jumpi v74, bb19, bb20
@@ -166,9 +166,9 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_p
     jump bb22
   bb21:
     v96 = add 1, 1
-    v97 = internal_call @__load_storage_bytes, 1, v96
+    v97 = internal_call @load_storage_bytes, 1, v96
     v98 = add 1, 3
-    v99 = internal_call @__load_storage_bytes, 1, v98
+    v99 = internal_call @load_storage_bytes, 1, v98
     ret v97, v99
   bb22:
     v90 = phi [bb20: 0], [bb23: v95]
@@ -185,7 +185,7 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_args=lazy, abi_p
     jump bb21
 }
 
-fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -247,7 +247,7 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_p
     v30 = and v13, v29
     jumpi v30, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, v9, v28, v23
+    internal_call @clear_storage_words, 0, v9, v28, v23
     jump bb6
   bb6:
     jumpi v27, bb7, bb8
@@ -327,7 +327,7 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_p
     v77 = and v60, v76
     jumpi v77, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, v56, v75, v70
+    internal_call @clear_storage_words, 0, v56, v75, v70
     jump bb18
   bb18:
     jumpi v74, bb19, bb20
@@ -351,9 +351,9 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_p
     jump bb22
   bb21:
     v96 = add 1, 1
-    v97 = internal_call @__load_storage_bytes, 1, v96
+    v97 = internal_call @load_storage_bytes, 1, v96
     v98 = add 1, 3
-    v99 = internal_call @__load_storage_bytes, 1, v98
+    v99 = internal_call @load_storage_bytes, 1, v98
     ret v97, v99
   bb22:
     v90 = phi [bb20: 0], [bb23: v95]
@@ -370,7 +370,7 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_args=lazy, abi_p
     jump bb21
 }
 
-fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, 0
@@ -420,7 +420,7 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_p
     v28 = and v11, v27
     jumpi v28, bb5, bb6
   bb5:
-    internal_call @__clear_storage_words, 0, v7, v26, v21
+    internal_call @clear_storage_words, 0, v7, v26, v21
     jump bb6
   bb6:
     jumpi v25, bb7, bb8
@@ -500,7 +500,7 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_p
     v75 = and v58, v74
     jumpi v75, bb17, bb18
   bb17:
-    internal_call @__clear_storage_words, 0, v54, v73, v68
+    internal_call @clear_storage_words, 0, v54, v73, v68
     jump bb18
   bb18:
     jumpi v72, bb19, bb20
@@ -524,9 +524,9 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_p
     jump bb22
   bb21:
     v94 = add 1, 1
-    v95 = internal_call @__load_storage_bytes, 1, v94
+    v95 = internal_call @load_storage_bytes, 1, v94
     v96 = add 1, 3
-    v97 = internal_call @__load_storage_bytes, 1, v96
+    v97 = internal_call @load_storage_bytes, 1, v96
     ret v95, v97
   bb22:
     v88 = phi [bb20: 0], [bb23: v93]
@@ -543,7 +543,7 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_args=lazy, abi_p
     jump bb21
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -560,7 +560,7 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     stop
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1

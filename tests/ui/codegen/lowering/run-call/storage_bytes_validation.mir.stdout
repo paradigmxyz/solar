@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_validation.sol:StorageBytesValidation ===
 @module StorageBytesValidation
-fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -56,7 +56,7 @@ fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_args=lazy, abi_param
     jump bb7
 }
 
-fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -112,7 +112,7 @@ fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_args=lazy, abi_params
     jump bb7
 }
 
-fn @invalidShortDelete() [selector=0x1cba07c2, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -151,7 +151,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_args=lazy, abi_params=[], abi
     jump bb4
 }
 
-fn @invalidLongDelete() [selector=0x7dd42e48, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))

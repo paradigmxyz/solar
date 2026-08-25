@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_static_middle.sol:AbiCalldataNestedStaticMiddle ===
 @module AbiCalldataNestedStaticMiddle
-fn @f(arg0: calldataslice) -> u256 [selector=0x6ab0914c, pure, abi_args=lazy, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+fn @f(arg0: calldataslice) -> u256 [selector=0x6ab0914c, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     ret 42
 }
 
-fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_args=lazy, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -49,7 +49,7 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_args=lazy, ab
     ret 42
 }
 
-fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_args=lazy, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -141,7 +141,7 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_args=lazy, ab
     ret 42
 }
 
-fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_args=lazy, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -275,7 +275,7 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_arg
     ret v63
 }
 
-fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_args=lazy, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

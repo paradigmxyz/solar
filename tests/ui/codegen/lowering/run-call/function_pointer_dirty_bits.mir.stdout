@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_dirty_bits.sol:FunctionPointerDirtyBits ===
 @module FunctionPointerDirtyBits
-fn @g() [selector=0xe2179b8e, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @comparison() -> bool [selector=0xaae103ad, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @comparison() -> bool [selector=0xaae103ad, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -34,7 +34,7 @@ fn @comparison() -> bool [selector=0xaae103ad, view, abi_args=lazy, abi_params=[
     ret v23
 }
 
-fn @abiEncoding() -> bool [selector=0xe9e87e69, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @abiEncoding() -> bool [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

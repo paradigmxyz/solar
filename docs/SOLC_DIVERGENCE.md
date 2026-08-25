@@ -46,6 +46,21 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Cancun Yul builtin names are reserved across EVM versions
+
+Status: intentional.
+
+Difference: `solar` reserves the Cancun-only Yul builtin names `mcopy`,
+`blobhash`, `blobbasefee`, `tload`, and `tstore` independently of the selected
+EVM version. `solc` allows these names to be declared as identifiers when
+targeting an older EVM.
+
+Rationale: `solar` keeps the Yul grammar independent of the target EVM version.
+Builtin calls are parsed uniformly and their availability is validated during
+name resolution, where the selected EVM version is available.
+
+Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol`.
+
 ## AST Validation
 
 No intentional divergences documented yet.
@@ -74,6 +89,20 @@ not preserved.
 
 Coverage: `tests/ui/typeck/view_pure_checker/yul_functions.sol` and
 `tests/ui/typeck/view_pure_checker/yul_parity.sol`.
+
+### TYPECK-002: Standalone call-option function values
+
+Status: intentional.
+
+Difference: `solc` permits call options such as `{gas: ...}` and `{value: ...}`
+to form a function value, including when accessing its `.address` or `.selector`
+member. `solar` requires call options to be part of a call expression.
+
+Rationale: `solar` models call options on HIR call expressions and intentionally
+does not represent an option-bearing function value as a separate HIR node.
+
+Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
+[#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
 
 ## Contract-Level Checks
 

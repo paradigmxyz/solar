@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_dynamic_memory.sol:CalldataStructDynamicMemory ===
 @module CalldataStructDynamicMemory
-fn @copy(arg0: calldataslice) -> u256 [selector=0x2f4f3794, pure, abi_args=lazy, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
+fn @copy(arg0: calldataslice) -> u256 [selector=0x2f4f3794, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

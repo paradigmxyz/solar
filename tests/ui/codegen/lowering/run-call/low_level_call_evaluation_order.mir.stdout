@@ -117,7 +117,7 @@ fn @_anonymous() [receive, payable] {
     stop
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @receiver, 1
     v1 = gas

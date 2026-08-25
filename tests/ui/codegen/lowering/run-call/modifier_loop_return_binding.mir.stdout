@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_loop_return_binding.sol:ModifierLoopReturnBinding ===
 @module ModifierLoopReturnBinding
-fn @f() -> u256 [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb2
   bb1:

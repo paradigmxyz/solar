@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
 @module CheckedArithmeticPanic
-fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, pure, abi_args=laz
     ret v0
 }
 
-fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = lt arg0, arg1
@@ -26,7 +26,7 @@ fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, pure, abi_args=laz
     ret v0
 }
 
-fn @mul(arg0: u256, arg1: u256) -> u256 [selector=0xc8a4ac9c, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @mul(arg0: u256, arg1: u256) -> u256 [selector=0xc8a4ac9c, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, arg1
     v1 = iszero arg1
@@ -43,7 +43,7 @@ fn @mul(arg0: u256, arg1: u256) -> u256 [selector=0xc8a4ac9c, pure, abi_args=laz
     ret v0
 }
 
-fn @div_zero(arg0: u256, arg1: u256) -> u256 [selector=0xf37348f3, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @div_zero(arg0: u256, arg1: u256) -> u256 [selector=0xf37348f3, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -55,7 +55,7 @@ fn @div_zero(arg0: u256, arg1: u256) -> u256 [selector=0xf37348f3, pure, abi_arg
     ret v0
 }
 
-fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -100,7 +100,7 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_args=laz
     jump bb1
 }
 
-fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_args=lazy, abi_params=[i256, i256], abi_returns=[word]] {
+fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
@@ -119,7 +119,7 @@ fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_a
     ret v0
 }
 
-fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_args=lazy, abi_params=[i256], abi_returns=[word]] {
+fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256], abi_returns=[word]] {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
@@ -132,7 +132,7 @@ fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_args=lazy, ab
     ret v1
 }
 
-fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_args=lazy, abi_params=[u8, u8], abi_returns=[word]] {
+fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     v1 = gt v0, 255
@@ -145,25 +145,25 @@ fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_args=la
     ret v0
 }
 
-fn @unchecked_add(arg0: u256, arg1: u256) -> u256 [selector=0xda71cb6d, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @unchecked_add(arg0: u256, arg1: u256) -> u256 [selector=0xda71cb6d, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, arg1
     ret v0
 }
 
-fn @unchecked_neg(arg0: i256) -> i256 [selector=0xd00932b4, pure, abi_args=lazy, abi_params=[i256], abi_returns=[word]] {
+fn @unchecked_neg(arg0: i256) -> i256 [selector=0xd00932b4, pure, abi_params=[i256], abi_returns=[word]] {
   bb0:
     v0 = sub 0, arg0
     ret v0
 }
 
-fn @unchecked_pow(arg0: u256, arg1: u256) -> u256 [selector=0xef90b373, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @unchecked_pow(arg0: u256, arg1: u256) -> u256 [selector=0xef90b373, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = exp arg0, arg1
     ret v0
 }
 
-fn @unchecked_call(arg0: u256, arg1: u256) -> u256 [selector=0x27805c8b, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @unchecked_call(arg0: u256, arg1: u256) -> u256 [selector=0x27805c8b, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @checked_inner, 1, arg0, arg1
     ret v0

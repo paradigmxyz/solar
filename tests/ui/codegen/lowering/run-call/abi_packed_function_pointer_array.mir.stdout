@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_function_pointer_array.sol:AbiPackedFunctionPointerArray ===
 @module AbiPackedFunctionPointerArray
-fn @target() [selector=0xd4b83992, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -109,7 +109,7 @@ fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_args=lazy, abi
     jump bb13
 }
 
-fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[memory_bytes]] {
+fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

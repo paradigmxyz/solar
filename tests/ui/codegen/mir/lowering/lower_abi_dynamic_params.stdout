@@ -5,9 +5,17 @@
 + @phase abi
 + fn @takesBytes() [selector=0x0dead002] {
     bb0:
++     v2 = calldatasize
++     v3 = lt v2, 68
++     jumpi v3, bb2, bb3
++   bb1:
       v0 = mload arg0
       v1 = add v0, arg1
       mstore 128, v1
       returndata 128, 32
++   bb2:
++     revert 0, 0
++   bb3:
++     jump bb1
   }
   

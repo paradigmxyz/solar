@@ -55,7 +55,7 @@ fn @peel(arg0: calldataslice) -> memorybytes [pure] {
     ret v23
 }
 
-fn @use(arg0: calldataslice) -> u256 [selector=0x01bd03f7, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @use(arg0: calldataslice) -> u256 [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = internal_call @peel, 1, arg0
     v1 = memory_object_len memorybytes, v0

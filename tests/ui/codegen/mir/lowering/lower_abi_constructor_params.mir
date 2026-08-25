@@ -3,7 +3,6 @@
 
 // CHECK: + @phase abi
 // CHECK: + fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256)
-// CHECK-NOT: abi_args
 // CHECK-NOT: abi_params
 // CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
@@ -21,7 +20,7 @@
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], 1, [[SECOND]]
 @module LowerAbiConstructorParams
 
-fn @constructor(arg0: memoryfixedarray, arg1: u256) [abi_args=lazy, abi_params=[array<2, array<2, u256>>, u256]] {
+fn @constructor(arg0: memoryfixedarray, arg1: u256) [abi_params=[array<2, array<2, u256>>, u256]] {
   bb0:
     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
     v1 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0

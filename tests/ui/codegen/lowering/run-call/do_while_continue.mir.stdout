@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
 @module DoWhileContinue
-fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +34,7 @@ fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_args=lazy, abi_para
     invalid
 }
 
-fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -61,7 +61,7 @@ fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_args=lazy, abi_params
     invalid
 }
 
-fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jump bb1
   bb1:
@@ -97,7 +97,7 @@ fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_args=l
     invalid
 }
 
-fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -141,7 +141,7 @@ fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_args=lazy, abi_param
     invalid
 }
 
-fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -201,7 +201,7 @@ fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_args=lazy, abi_params=[], a
     invalid
 }
 
-fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -226,7 +226,7 @@ fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_args=lazy, abi_params
     jump bb1
 }
 
-fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -275,7 +275,7 @@ fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_args=lazy
     jump bb5
 }
 
-fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:

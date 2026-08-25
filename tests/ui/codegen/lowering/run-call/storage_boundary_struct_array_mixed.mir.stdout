@@ -16,7 +16,7 @@ fn @getCanary() -> storageptr [pure] {
     ret 20
 }
 
-fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = internal_call @getCanary, 1
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))

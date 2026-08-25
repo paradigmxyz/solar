@@ -9,7 +9,7 @@ fn @lastWord() [selector=0x3955f902, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call @__decode_calldata_slice_3, 2, 4
+    v3 = internal_call @decode_calldata_slice, 2, 4
     v10 = mload 32 !metadata(memory=scratch)
     v5 = add v10, 32
     v6 = mload v5
@@ -33,7 +33,7 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
     mstore 128, v10
     returndata 128, 32
   bb3:
-    v13 = internal_call @__decode_calldata_slice_3, 2, 4
+    v13 = internal_call @decode_calldata_slice, 2, 4
     v20 = mload 32 !metadata(memory=scratch)
     v15 = add v20, 32
     v16 = mload v15
@@ -49,7 +49,7 @@ fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure] {
     ret v4
 }
 
-fn @__decode_calldata_slice_3(arg0: u256) -> (u256, u256) {
+fn @decode_calldata_slice(arg0: u256) -> (u256, u256) {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

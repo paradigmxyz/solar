@@ -1188,7 +1188,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @copyDynamic() -> u256 [selector=0x902a0a84, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copyDynamic() -> u256 [selector=0x902a0a84, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt 1, v0
@@ -1244,7 +1244,7 @@ fn @copyDynamic() -> u256 [selector=0x902a0a84, abi_args=lazy, abi_params=[], ab
   bb10:
     v23 = storage_array_data_slot v4
     v24 = add v23, v21
-    v25 = internal_call @__load_storage_packed_array_1_0, 1, v24
+    v25 = internal_call @load_storage_packed_array_1_0, 1, v24
     memory_object_store_element memoryarray<1>, v20, v21, v25
     v26 = add v21, 1
     jump bb9
@@ -1506,7 +1506,7 @@ fn @copyDynamic() -> u256 [selector=0x902a0a84, abi_args=lazy, abi_params=[], ab
     ret v163
 }
 
-fn @copyFixed() -> u256 [selector=0x23235673, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copyFixed() -> u256 [selector=0x23235673, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -1560,7 +1560,7 @@ fn @copyFixed() -> u256 [selector=0x23235673, abi_args=lazy, abi_params=[], abi_
   bb10:
     v21 = storage_array_data_slot v2
     v22 = add v21, v19
-    v23 = internal_call @__load_storage_packed_array_1_0, 1, v22
+    v23 = internal_call @load_storage_packed_array_1_0, 1, v22
     memory_object_store_element memoryarray<1>, v18, v19, v23
     v24 = add v19, 1
     jump bb9
@@ -1822,7 +1822,7 @@ fn @copyFixed() -> u256 [selector=0x23235673, abi_args=lazy, abi_params=[], abi_
     ret v161
 }
 
-fn @copyMixed() -> u256 [selector=0x0eb8f89e, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copyMixed() -> u256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = lt 0, v0
@@ -1838,10 +1838,10 @@ fn @copyMixed() -> u256 [selector=0x0eb8f89e, abi_args=lazy, abi_params=[], abi_
     v5 = add v3, v4
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
     v7 = add v5, 0
-    v8 = internal_call @__load_storage_packed_array_1_0, 1, v7
+    v8 = internal_call @load_storage_packed_array_1_0, 1, v7
     memory_object_store_element memoryfixedarray<2, 1>, v6, 0, v8
     v9 = add v5, 1
-    v10 = internal_call @__load_storage_packed_array_1_0, 1, v9
+    v10 = internal_call @load_storage_packed_array_1_0, 1, v9
     memory_object_store_element memoryfixedarray<2, 1>, v6, 1, v10
     v11 = add 5, 0
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v6, 0
@@ -2092,7 +2092,7 @@ fn @copyMixed() -> u256 [selector=0x0eb8f89e, abi_args=lazy, abi_params=[], abi_
     ret v151
 }
 
-fn @__load_storage_packed_array_1_0(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_1_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

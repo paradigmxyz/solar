@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
-fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99, abi_args=lazy, abi_params=[address, address, u256], abi_returns=[]] {
+fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
@@ -43,13 +43,13 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v16 = phi [bb6: v15], [bb7: 1]
     jump bb5
   bb9:
-    internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    internal_call @revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     invalid
   bb10:
     stop
 }
 
-fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_args=lazy, abi_params=[address], abi_returns=[word]] {
+fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word]] {
   bb0:
     v0 = gas
     v1 = address
@@ -82,7 +82,7 @@ fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_args=lazy, 
     ret v15
 }
 
-fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_args=lazy, abi_params=[address, bytes], abi_returns=[memory_bytes]] {
+fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = gas
     v1 = memory_object_data memorybytes, arg1
@@ -111,7 +111,7 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf7
     ret v9
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @revert_error(arg0: u256, arg1: u256) {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)

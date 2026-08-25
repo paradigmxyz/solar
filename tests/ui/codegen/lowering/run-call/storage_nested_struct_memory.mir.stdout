@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_memory.sol:StorageNestedStructMemory ===
 @module StorageNestedStructMemory
-fn @copy(arg0: memoryarray) -> u256 [selector=0xc58b68ae, abi_args=lazy, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
+fn @copy(arg0: memoryarray) -> u256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -371,7 +371,7 @@ fn @copy(arg0: memoryarray) -> u256 [selector=0xc58b68ae, abi_args=lazy, abi_par
     ret v203
 }
 
-fn @copyFixed(arg0: memoryfixedarray) -> u256 [selector=0x39bd9a66, abi_args=lazy, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
+fn @copyFixed(arg0: memoryfixedarray) -> u256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
   bb0:
     v0 = add 1, 0
     v1 = memory_object_load_element memoryfixedarray<1, 1>, arg0, 0
@@ -663,7 +663,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> u256 [selector=0x39bd9a66, abi_args=laz
     ret v163
 }
 
-fn @copyDynamicFixed(arg0: memoryarray) -> u256 [selector=0x62d70355, abi_args=lazy, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
+fn @copyDynamicFixed(arg0: memoryarray) -> u256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 2 !metadata(storage=slot(2))

@@ -11,7 +11,7 @@ fn @_anonymous() [constructor] {
     jump bb1
 }
 
-fn @f1() [selector=0xc27fc305, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @f3, 0
     jumpi 0, bb2, bb3
@@ -30,7 +30,7 @@ fn @f1() [selector=0xc27fc305, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb4
 }
 
-fn @f2() [selector=0x9942ec6f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 32
@@ -38,12 +38,12 @@ fn @f2() [selector=0x9942ec6f, abi_args=lazy, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @f3() [selector=0xaaf05f3d, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -51,7 +51,7 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_creation_context.sol:C ===
 @module C
-fn @f3() [selector=0xaaf05f3d, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 768
@@ -59,7 +59,7 @@ fn @f3() [selector=0xaaf05f3d, abi_args=lazy, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @f4() [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 0x4000
@@ -67,7 +67,7 @@ fn @f4() [selector=0xc3f90202, abi_args=lazy, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @f1() [selector=0xc27fc305, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @f3, 0
     jumpi 0, bb2, bb3
@@ -86,7 +86,7 @@ fn @f1() [selector=0xc27fc305, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb4
 }
 
-fn @f2() [selector=0x9942ec6f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 32
@@ -94,7 +94,7 @@ fn @f2() [selector=0x9942ec6f, abi_args=lazy, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @getData() -> u256 [selector=0x3bc5de30, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

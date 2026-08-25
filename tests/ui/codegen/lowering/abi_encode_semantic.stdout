@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9, abi_args=lazy, abi_params=[address, u256, bytes], abi_returns=[]] {
+fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9, abi_params=[address, u256, bytes], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
@@ -20,7 +20,7 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
     stop
 }
 
-fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_args=lazy, abi_params=[address, array<_, u8>], abi_returns=[]] {
+fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[]] {
   bb0:
     v0 = gas
     v1 = abi_encode [calldata_array<word>], selector 0xd55990ff00000000000000000000000000000000000000000000000000000000, args arg1

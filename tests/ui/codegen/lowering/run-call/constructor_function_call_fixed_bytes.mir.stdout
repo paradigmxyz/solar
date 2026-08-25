@@ -6,7 +6,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff

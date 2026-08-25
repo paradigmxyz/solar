@@ -35,7 +35,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
         match kind {
-            LitKind::Str(_, value, _) => self.lower_bytes_literal(value.as_byte_str()),
+            LitKind::Str(_, value, _) => self.lower_shared_bytes_literal(value),
             LitKind::Number(value) => Some(self.builder.imm_u256(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
             LitKind::Address(value) => {
@@ -575,7 +575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     ) {
                         Some(self.lower_string_literal_word(bytes))
                     } else {
-                        self.lower_bytes_literal(bytes)
+                        self.lower_shared_bytes_literal(*value)
                     }
                 }
             };

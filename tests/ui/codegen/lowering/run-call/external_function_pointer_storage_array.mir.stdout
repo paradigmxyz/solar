@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_array.sol:ExternalFunctionPointerStorageArray ===
 @module ExternalFunctionPointerStorageArray
-fn @a() [selector=0x0dbe671f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = add 0, 0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -101,7 +101,7 @@ fn @a() [selector=0x0dbe671f, abi_args=lazy, abi_params=[], abi_returns=[]] {
     v54 = and v37, v53
     jumpi v54, bb15, bb16
   bb15:
-    internal_call @__clear_storage_words, 0, 0, v52, v47
+    internal_call @clear_storage_words, 0, 0, v52, v47
     jump bb16
   bb16:
     jumpi v51, bb17, bb18
@@ -140,7 +140,7 @@ fn @a() [selector=0x0dbe671f, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb19
 }
 
-fn @b() [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = add 0, 0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -241,7 +241,7 @@ fn @b() [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
     v54 = and v37, v53
     jumpi v54, bb15, bb16
   bb15:
-    internal_call @__clear_storage_words, 0, 0, v52, v47
+    internal_call @clear_storage_words, 0, 0, v52, v47
     jump bb16
   bb16:
     jumpi v51, bb17, bb18
@@ -280,7 +280,7 @@ fn @b() [selector=0x4df7e3d0, abi_args=lazy, abi_params=[], abi_returns=[]] {
     jump bb19
 }
 
-fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[]] {
+fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_, function>], abi_returns=[]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -415,7 +415,7 @@ fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_args=lazy, abi_
     stop
 }
 
-fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -654,7 +654,7 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_args=lazy, abi_params=[], 
   bb37:
     revert_returndata
   bb38:
-    v143 = internal_call @__load_storage_packed_array_24_0, 1, 1
+    v143 = internal_call @load_storage_packed_array_24_0, 1, 1
     v144 = memory_object_len memoryarray, v143
     v145 = sload 2 !metadata(storage=slot(2))
     v146 = gt v145, v144
@@ -835,7 +835,7 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_args=lazy, abi_params=[], 
     jump bb65
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1
@@ -852,7 +852,7 @@ fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     stop
 }
 
-fn @__load_storage_packed_array_24_0(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_24_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

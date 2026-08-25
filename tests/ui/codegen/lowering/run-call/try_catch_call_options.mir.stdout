@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptionsTarget ===
 @module TryCallOptionsTarget
-fn @ping() [selector=0x5c36b186, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
@@ -32,7 +32,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @highLevelGas() -> bool [selector=0x480be654, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

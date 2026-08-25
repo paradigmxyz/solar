@@ -37,14 +37,14 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v0, 0, v2
     v3 = add 0, 1
-    v4 = internal_call @__load_storage_packed_array_4_2, 1, v3
+    v4 = internal_call @load_storage_packed_array_4_2, 1, v3
     memory_object_store_field memorystruct<2>, v0, 1, v4
     v5 = memory_object_load_field memorystruct<2>, v0, 0
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
@@ -63,14 +63,14 @@ fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_args=lazy, a
     ret v6, v12
 }
 
-fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v0, 0, v2
     v3 = add 0, 1
-    v4 = internal_call @__load_storage_packed_array_4_2, 1, v3
+    v4 = internal_call @load_storage_packed_array_4_2, 1, v3
     memory_object_store_field memorystruct<2>, v0, 1, v4
     v5 = memory_object_load_field memorystruct<2>, v0, 0
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
@@ -89,7 +89,7 @@ fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_args=lazy,
     ret v6, v12
 }
 
-fn @__load_storage_packed_array_4_2(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_4_2(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1

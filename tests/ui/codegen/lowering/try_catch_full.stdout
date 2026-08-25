@@ -17,7 +17,7 @@ fn @full() [selector=0xd17b272f, view] {
     v19 = lt v18, v17
     jumpi v19, bb3, bb5
   bb3:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -26,7 +26,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v12, v7
     v161 = add v12, 32
     returndatacopy v161, 0, v7
-    v55 = internal_call @__decode_aggregate_4, 2, v12
+    v55 = internal_call @decode_aggregate.4, 2, v12
     v160 = mload 32 !metadata(memory=scratch)
     v164 = add v160, 32
     v16 = mload v164
@@ -56,7 +56,7 @@ fn @full() [selector=0xd17b272f, view] {
     v31 = eq v30, 0x8c379a0
     jumpi v31, bb6, bb7
   bb6:
-    v32 = internal_call @__try_decode_error_message, 1, v165, v25
+    v32 = internal_call @try_decode_error_message, 1, v165, v25
     jump bb7
   bb7:
     v33 = phi [bb6: v32], [bb5: 0]
@@ -81,7 +81,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v48, v41
     v169 = add v48, 32
     mcopy v169, v40, v41
-    v56 = internal_call @__decode_aggregate_5, 1, v48
+    v56 = internal_call @decode_aggregate.5, 1, v48
     v95 = mload 64 !metadata(memory=scratch)
     v96 = add v95, 64
     mstore v95, 1
@@ -226,7 +226,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore 128, v50
     returndata 128, 32
   bb4:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb5:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -235,7 +235,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v12, v7
     v60 = add v12, 32
     returndatacopy v60, 0, v7
-    v51 = internal_call @__decode_aggregate_4, 2, v12
+    v51 = internal_call @decode_aggregate.4, 2, v12
     jump bb3
   bb6:
     v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -251,7 +251,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     v31 = eq v30, 0x8c379a0
     jumpi v31, bb7, bb9
   bb7:
-    v32 = internal_call @__try_decode_error_message, 1, v63, v25
+    v32 = internal_call @try_decode_error_message, 1, v63, v25
     jumpi v32, bb8, bb9
   bb8:
     v40 = add v63, 4
@@ -269,7 +269,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v48, v41
     v67 = add v48, 32
     mcopy v67, v40, v41
-    v52 = internal_call @__decode_aggregate_5, 1, v48
+    v52 = internal_call @decode_aggregate.5, 1, v48
     jump bb3
   bb11:
     revert 0, 0
@@ -287,7 +287,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     jumpi v6, bb1, bb2
 }
 
-fn @__try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
   bb0:
     v0 = lt arg1, 68
     jumpi v0, bb3, bb1
@@ -312,14 +312,14 @@ fn @__try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     ret 0
 }
 
-fn @__revert_stub0() {
+fn @revert_stub() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @__decode_aggregate_4(arg0: memptr) -> (u256, memptr) {
+fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0
@@ -360,7 +360,7 @@ fn @__decode_aggregate_4(arg0: memptr) -> (u256, memptr) {
     ret v6, v22
 }
 
-fn @__decode_aggregate_5(arg0: memptr) -> memptr {
+fn @decode_aggregate.5(arg0: memptr) -> memptr {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0

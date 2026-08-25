@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_args=lazy, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
@@ -69,7 +69,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_args=lazy, a
     ret v32
 }
 
-fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_args=lazy, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes]] {
+fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = address
     v1 = gas

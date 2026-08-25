@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_dynamic_storage_copy.sol:InternalFunctionPointerDynamicStorageCopy ===
 @module InternalFunctionPointerDynamicStorageCopy
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
     set_memory_object_len memoryarray, v0, 10
@@ -82,7 +82,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_retur
     v51 = shl v45, v50
     v52 = or v49, v51
     sstore v42, v52 !metadata(storage=symbolic(v42))
-    v53 = internal_call @__load_storage_packed_array_8_0, 1, 0
+    v53 = internal_call @load_storage_packed_array_8_0, 1, 0
     v54 = memory_object_len memoryarray, v53
     v55 = sload 1 !metadata(storage=slot(1))
     v56 = gt v55, v54
@@ -156,16 +156,16 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_retur
     v99 = mul v97, 8
     v100 = shr v99, v98
     v101 = and v100, 0xffffffffffffffff
-    v102 = internal_call @__internal_dispatch_0, 1, v101
+    v102 = internal_call @internal_dispatcher_p_none_r_u256, 1, v101
     ret v102
 }
 
-fn @a() -> u256 [selector=0x0dbe671f, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @a() -> u256 [selector=0x0dbe671f, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 7
 }
 
-fn @__load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -211,7 +211,7 @@ fn @__load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
     ret v9
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

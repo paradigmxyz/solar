@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_inline_array_options.sol:FunctionPointerInlineArrayOptions ===
 @module FunctionPointerInlineArrayOptions
-fn @f() -> u256 [selector=0x26121ff0, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = callvalue
     v1 = gt v0, 0
@@ -14,7 +14,7 @@ fn @f() -> u256 [selector=0x26121ff0, payable, abi_args=lazy, abi_params=[], abi
     ret 1
 }
 
-fn @g() -> u256 [selector=0xe2179b8e, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @g() -> u256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = callvalue
     v1 = gt v0, 0
@@ -28,7 +28,7 @@ fn @g() -> u256 [selector=0xe2179b8e, payable, abi_args=lazy, abi_params=[], abi
     ret 2
 }
 
-fn @h() -> u256 [selector=0xb8c9d365, payable, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = address

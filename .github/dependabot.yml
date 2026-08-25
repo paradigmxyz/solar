@@ -29,3 +29,25 @@ updates:
       npm-weekly:
         patterns:
           - "*"
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: UTC
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: syn
+      - dependency-name: lsp-types
+      - dependency-name: idna_adapter
+      - dependency-name: solang-parser
+      - dependency-name: slang_solidity
+      - dependency-name: tree-sitter
+      - dependency-name: tree-sitter-solidity
+    groups:
+      cargo-weekly:
+        patterns:
+          - "*"

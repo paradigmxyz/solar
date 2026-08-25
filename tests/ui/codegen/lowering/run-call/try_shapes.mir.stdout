@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
-fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, 2
     v1 = iszero 2
@@ -17,7 +17,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_args=lazy, abi_params=
     ret v0
 }
 
-fn @g(arg0: u256) -> (u256, u256) [selector=0xe420264a, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word, word]] {
+fn @g(arg0: u256) -> (u256, u256) [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -65,18 +65,18 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @ok() -> u256 [selector=0xd909b403, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @bad() [selector=0x9c3674fc, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @__revert_error, 0, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
+    internal_call @revert_error, 0, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -138,7 +138,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     v28 = eq v27, 0x8c379a0
     jumpi v28, bb8, bb9
   bb8:
-    v29 = internal_call @__try_decode_error_message, 1, v21, v22
+    v29 = internal_call @try_decode_error_message, 1, v21, v22
     jump bb10
   bb9:
     jump bb10
@@ -235,7 +235,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     v78 = eq v77, 0x8c379a0
     jumpi v78, bb24, bb25
   bb24:
-    v79 = internal_call @__try_decode_error_message, 1, v71, v72
+    v79 = internal_call @try_decode_error_message, 1, v71, v72
     jump bb26
   bb25:
     jump bb26
@@ -713,7 +713,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_args=lazy, abi_params=[], abi_r
     jump bb97
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @revert_error(arg0: u256, arg1: u256) {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
@@ -722,7 +722,7 @@ fn @__revert_error(arg0: u256, arg1: u256) {
     revert 0, 100
 }
 
-fn @__try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
   bb0:
     v0 = lt arg1, 68
     v1 = iszero v0

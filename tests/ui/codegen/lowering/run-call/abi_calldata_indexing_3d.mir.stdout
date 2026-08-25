@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
 @module AbiCalldataIndexing3d
-fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256, u256) [selector=0xe272a16e, pure, abi_args=lazy, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word]] {
+fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256, u256) [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0

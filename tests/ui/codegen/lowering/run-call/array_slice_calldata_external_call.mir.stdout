@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_external_call.sol:ArraySliceCalldataExternalCall ===
 @module ArraySliceCalldataExternalCall
-fn @sink(arg0: calldataslice) -> u256 [selector=0xe55582b7, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @sink(arg0: calldataslice) -> u256 [selector=0xe55582b7, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1f0a4b, view, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
+fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1f0a4b, view, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas

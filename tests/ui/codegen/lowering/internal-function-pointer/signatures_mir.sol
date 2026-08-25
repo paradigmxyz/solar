@@ -6,7 +6,7 @@ contract FunctionPointerSignatures {
     function() internal stateFn = setFlag;
 
     // CHECK-LABEL: fn @callVoid(
-    // CHECK: internal_call @__internal_dispatch_0, 0, 2
+    // CHECK: internal_call @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 0, 2
     function callVoid() public returns (bool) {
         function() internal fn = setFlag;
         fn();
@@ -21,14 +21,14 @@ contract FunctionPointerSignatures {
     // CHECK: [[STORED:v[0-9]+]] = sload 0
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[STORED]]
     // CHECK: [[MASKED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
-    // CHECK: internal_call @__internal_dispatch_0, 0, [[MASKED]]
+    // CHECK: internal_call @[[DISPATCHER_0]], 0, [[MASKED]]
     function callState() public returns (bool) {
         stateFn();
         return flag;
     }
 
     // CHECK-LABEL: fn @callPair(
-    // CHECK: internal_call @__internal_dispatch_1, 2, [[PAIR:[0-9]+]], arg0
+    // CHECK: internal_call @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], 2, [[PAIR:[0-9]+]], arg0
     function callPair(uint256 value) public returns (uint256, uint256) {
         function(uint256) internal returns (uint256, uint256) fn = pair;
         return fn(value);
@@ -39,7 +39,7 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callZero(
-    // CHECK: internal_call @__internal_dispatch_0, 0, 0
+    // CHECK: internal_call @[[DISPATCHER_0]], 0, 0
     function callZero() public {
         function() internal fn;
         fn();
@@ -50,23 +50,23 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callTwoArgs(
-    // CHECK: internal_call @__internal_dispatch_2, 1, [[SUM:[0-9]+]], 5, 1
+    // CHECK: internal_call @[[DISPATCHER_2:internal_dispatcher_[A-Za-z0-9_]+]], 1, [[SUM:[0-9]+]], 5, 1
     function callTwoArgs() public returns (uint256) {
         function(uint256, uint256) internal returns (uint256) sumFn = sum;
         return sumFn(5, 1);
     }
 
-    // CHECK-LABEL: fn @__internal_dispatch_0(
+    // CHECK: fn @[[DISPATCHER_0]](
     // CHECK: eq arg0, 2
     // CHECK: internal_call @setFlag, 0
     // CHECK: mstore 4, 81
-    // CHECK-LABEL: fn @__internal_dispatch_1(
+    // CHECK: fn @[[DISPATCHER_1]](
     // CHECK: eq arg0, [[PAIR]]
     // CHECK: internal_call @pair, 2, arg1
     // CHECK: frame_load multi_return, word, 0
     // CHECK: [[PAIR_OFFSET:v[0-9]+]] = add
     // CHECK: mload [[PAIR_OFFSET]]
-    // CHECK-LABEL: fn @__internal_dispatch_2(
+    // CHECK: fn @[[DISPATCHER_2]](
     // CHECK: eq arg0, 7
     // CHECK: internal_call @sum, 1, arg1, arg2
     // CHECK-LABEL: fn @constructor(

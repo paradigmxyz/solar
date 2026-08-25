@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_aggregates.sol:IndexedAggregates ===
 @module IndexedAggregates
-fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_args=lazy, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -194,7 +194,7 @@ fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_args=lazy, ab
     jump bb34
 }
 
-fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

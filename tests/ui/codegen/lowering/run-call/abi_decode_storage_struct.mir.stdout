@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_struct.sol:AbiDecodeStorageStruct ===
 @module AbiDecodeStorageStruct
-fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -77,7 +77,7 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_args=lazy, abi_par
     v34 = and v17, v33
     jumpi v34, bb11, bb12
   bb11:
-    internal_call @__clear_storage_words, 0, 0, v32, v27
+    internal_call @clear_storage_words, 0, 0, v32, v27
     jump bb12
   bb12:
     jumpi v31, bb13, bb14
@@ -192,7 +192,7 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_args=lazy, abi_par
     ret v77, v79, v84, v89
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

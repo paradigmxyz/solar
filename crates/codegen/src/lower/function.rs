@@ -17,7 +17,7 @@ use crate::{
 use alloy_primitives::{Bytes, U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
-use solar_interface::{ByteSymbol, Ident, Span, kw, sym};
+use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -25,7 +25,7 @@ use solar_sema::{
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
@@ -54,8 +54,8 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
     pub(super) child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
     pub(super) state: &'ctx mut LoweringState,
-    pub(super) shared_literals: &'ctx FxHashSet<Vec<u8>>,
-    pub(super) shared_word_literals: &'ctx FxHashSet<Vec<u8>>,
+    pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
+    pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
 }
 
@@ -89,17 +89,7 @@ pub(super) enum RecursiveStorageHelper {
 pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
-    pub(super) storage_bytes_helper: Option<FunctionId>,
-    pub(super) storage_bytes_array_helper: Option<FunctionId>,
-    pub(super) storage_word_array_helper: Option<FunctionId>,
-    pub(super) packed_array_helpers: FxHashMap<(u8, StorageEncoding), FunctionId>,
-    pub(super) storage_struct_array_helpers: FxHashMap<hir::StructId, FunctionId>,
-    pub(super) recursive_storage_helpers: FxHashMap<RecursiveStorageHelper, FunctionId>,
-    pub(super) storage_clear_helper: Option<FunctionId>,
-    pub(super) revert_error_helper: Option<FunctionId>,
-    pub(super) error_catch_match_helper: Option<FunctionId>,
-    pub(super) literal_helpers: FxHashMap<Vec<u8>, FunctionId>,
-    pub(super) literal_word_helper: Option<FunctionId>,
+    pub(super) helpers: FxHashMap<Symbol, FunctionId>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -141,7 +131,6 @@ pub(super) fn lower(
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
         );
-        mir.abi_args_lazy = true;
         if mir.selector.is_some() {
             let mut output_shapes = Vec::with_capacity(hir_function.returns.len());
             let mut output_param_shapes = Vec::with_capacity(hir_function.returns.len());
@@ -333,12 +322,35 @@ impl InternalFunctionPointerShape {
                 .collect(),
         }
     }
+
+    fn from_function(function: &Function) -> Self {
+        Self {
+            params: function.params.iter().copied().skip(1).collect(),
+            returns: function.returns.clone(),
+        }
+    }
+
+    fn helper_name(&self) -> Symbol {
+        let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
+        let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
+        helper_name(
+            sym::internal_dispatcher,
+            format!(
+                "p_{}_r_{}",
+                if params.is_empty() { "none" } else { &params },
+                if returns.is_empty() { "none" } else { &returns },
+            ),
+        )
+    }
+}
+
+fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
+    Symbol::intern(&format!("{prefix}_{suffix}"))
 }
 
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
-    dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -366,6 +378,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
         }
+    }
+
+    fn lazy_helper(
+        &mut self,
+        name: Symbol,
+        build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
+    ) -> Option<FunctionId> {
+        if let Some(&id) = self.context.state.helpers.get(&name) {
+            return Some(id);
+        }
+
+        let ident = Ident::with_dummy_span(name);
+        let id = self.context.module.add_function(Function::new(ident));
+        self.context.state.helpers.insert(name, id);
+
+        let mut function = Function::new(ident);
+        if build(self, &mut function).is_none() {
+            FunctionBuilder::new(&mut function).invalid();
+            *self.context.module.function_mut(id) = function;
+            self.context.state.helpers.remove(&name);
+            return None;
+        }
+        function.name = self.context.module.function(id).name;
+        *self.context.module.function_mut(id) = function;
+        Some(id)
     }
 
     fn lower_call_options(
@@ -650,15 +687,16 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     gcx: Gcx<'_>,
     module: &mut Module,
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
-    registry: &InternalFunctionPointerRegistry,
+    state: &LoweringState,
 ) {
-    let dispatchers = registry
-        .dispatchers
-        .iter()
-        .map(|(shape, &dispatcher)| (shape.clone(), dispatcher))
+    let dispatchers = module
+        .iter_functions()
+        .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
+        .map(|(id, function)| (InternalFunctionPointerShape::from_function(function), id))
         .collect::<Vec<_>>();
     for (shape, dispatcher) in dispatchers {
-        let mut candidates = registry
+        let mut candidates = state
+            .pointer_registry
             .targets
             .iter()
             .filter_map(|&function_id| {
@@ -675,9 +713,8 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         candidates.sort_by_key(|(function_id, _)| function_id.index());
 
         let reserved = module.function(dispatcher);
-        let name = reserved.name;
-        let mut function = Function::new(Ident::new(name.symbol, reserved.name_span));
-        function.name = name;
+        let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
+        function.name = reserved.name;
         function.attributes.is_function_pointer_dispatcher = true;
         {
             let mut builder = FunctionBuilder::new(&mut function);

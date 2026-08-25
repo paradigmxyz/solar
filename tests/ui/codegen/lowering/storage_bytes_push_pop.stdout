@@ -110,7 +110,7 @@ fn @_anonymous() [constructor] {
     v51 = and v34, v50
     jumpi v51, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 0, v49, v44
+    internal_call @clear_storage_words, 0, 0, v49, v44
     jump bb20
   bb20:
     jumpi v48, bb21, bb22
@@ -254,7 +254,7 @@ fn @_anonymous() [constructor] {
     v121 = and v104, v120
     jumpi v121, bb45, bb46
   bb45:
-    internal_call @__clear_storage_words, 0, 0, v119, v114
+    internal_call @clear_storage_words, 0, 0, v119, v114
     jump bb46
   bb46:
     jumpi v118, bb47, bb48
@@ -293,7 +293,7 @@ fn @_anonymous() [constructor] {
     jump bb49
 }
 
-fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_args=lazy, abi_params=[bytes1], abi_returns=[]] {
+fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_params=[bytes1], abi_returns=[]] {
   bb0:
     v0 = shr 248, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -403,7 +403,7 @@ fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_args=lazy, abi_params=[byt
     v51 = and v34, v50
     jumpi v51, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 0, v49, v44
+    internal_call @clear_storage_words, 0, 0, v49, v44
     jump bb20
   bb20:
     jumpi v48, bb21, bb22
@@ -442,7 +442,7 @@ fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_args=lazy, abi_params=[byt
     jump bb23
 }
 
-fn @pushZero() [selector=0xe83b401e, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -551,7 +551,7 @@ fn @pushZero() [selector=0xe83b401e, abi_args=lazy, abi_params=[], abi_returns=[
     v50 = and v33, v49
     jumpi v50, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 0, v48, v43
+    internal_call @clear_storage_words, 0, 0, v48, v43
     jump bb20
   bb20:
     jumpi v47, bb21, bb22
@@ -590,7 +590,7 @@ fn @pushZero() [selector=0xe83b401e, abi_args=lazy, abi_params=[], abi_returns=[
     jump bb23
 }
 
-fn @popValue() [selector=0x2aea892f, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @popValue() [selector=0x2aea892f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -698,7 +698,7 @@ fn @popValue() [selector=0x2aea892f, abi_args=lazy, abi_params=[], abi_returns=[
     v50 = and v33, v49
     jumpi v50, bb19, bb20
   bb19:
-    internal_call @__clear_storage_words, 0, 0, v48, v43
+    internal_call @clear_storage_words, 0, 0, v48, v43
     jump bb20
   bb20:
     jumpi v47, bb21, bb22
@@ -737,7 +737,7 @@ fn @popValue() [selector=0x2aea892f, abi_args=lazy, abi_params=[], abi_returns=[
     jump bb23
 }
 
-fn @get() -> memorybytes [selector=0x6d4ce63c, view, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @get() -> memorybytes [selector=0x6d4ce63c, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -792,7 +792,7 @@ fn @get() -> memorybytes [selector=0x6d4ce63c, view, abi_args=lazy, abi_params=[
     jump bb7
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

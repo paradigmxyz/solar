@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget ===
 @module TryCatchReturnTarget
-fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = iszero arg0
     jumpi v0, bb1, bb2
@@ -41,7 +41,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -110,7 +110,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_args=lazy, abi_params=[], 
     revert v24, v25
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -179,7 +179,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_args=lazy, abi_params=[], 
     revert v24, v25
 }
 
-fn @ignored() -> u256 [selector=0x0c77db80, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_dynamic_struct.sol:AbiDynamicStruct ===
 @module AbiDynamicStruct
-fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure, abi_args=lazy, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word]] {
+fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -23,7 +23,7 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     ret v6
 }
 
-fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_args=lazy, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes]] {
+fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 96
@@ -107,7 +107,7 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_arg
     ret v42
 }
 
-fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word]] {
+fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -574,7 +574,7 @@ fn @allocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0x9619e572
     ret v98, v119, v143, v155, v169
 }
 
-fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c7c111, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word]] {
+fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c7c111, pure, abi_params=[], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -1034,7 +1034,7 @@ fn @fixedAllocatedAggregates() -> (u256, u256, u256, u256, u256) [selector=0xf0c
     ret 2, v109, v131, v142, v155
 }
 
-fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -1226,7 +1226,7 @@ fn @zeroAllocatedAggregates() -> (u256, u256, u256, u256) [selector=0x57863f65, 
     ret v1, v22, v46, v70
 }
 
-fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -1333,7 +1333,7 @@ fn @zeroDynamicAggregates() -> (u256, u256, u256, u256) [selector=0x962f75a4, pu
     ret v2, v19, v21, v38
 }
 
-fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -1362,7 +1362,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> (u256, u256) [selector=0x7d3c2623, pu
     ret v8, v9
 }
 
-fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

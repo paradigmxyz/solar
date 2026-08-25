@@ -655,14 +655,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// <https://github.com/ethereum/solidity/blob/develop/libsolidity/codegen/YulUtilFunctions.cpp#L4676-L4714>
     fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
-        if let Some(id) = self.context.state.error_catch_match_helper {
-            return id;
-        }
-
-        let mut function = Function::new(Ident::from_str("__try_decode_error_message"));
-        function.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
+        self.lazy_helper(sym::try_decode_error_message, |_, function| {
+            let mut builder = FunctionBuilder::new(function);
             let data_ptr = builder.add_param(MirType::MemPtr);
             let data_len = builder.add_param(MirType::uint256());
             builder.add_return(MirType::Bool);
@@ -699,10 +693,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.switch_to_block(no_match);
             let no_match = builder.imm_bool(false);
             builder.ret([no_match]);
-        }
-        let id = self.context.module.add_function(function);
-        self.context.state.error_catch_match_helper = Some(id);
-        id
+            Some(())
+        })
+        .expect("error catch match helper construction cannot fail")
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {

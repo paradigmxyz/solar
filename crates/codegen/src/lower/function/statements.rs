@@ -373,14 +373,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        if let Some(id) = self.context.state.revert_error_helper {
-            return id;
-        }
-
-        let mut function = Function::new(Ident::with_dummy_span(sym::__revert_error));
-        function.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
+        self.lazy_helper(sym::revert_error, |_, function| {
+            let mut builder = FunctionBuilder::new(function);
             let length = builder.add_param(MirType::uint256());
             let value = builder.add_param(MirType::uint256());
             let selector = keccak256("Error(string)");
@@ -396,10 +390,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.mstore(data_offset, value);
             let size = builder.imm_u64(100);
             builder.revert(zero, size);
-        }
-        let id = self.context.module.add_function(function);
-        self.context.state.revert_error_helper = Some(id);
-        id
+            Some(())
+        })
+        .expect("revert error helper construction cannot fail")
     }
 
     fn prepare_custom_error_payload(

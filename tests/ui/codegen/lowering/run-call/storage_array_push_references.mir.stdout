@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_references.sol:StorageArrayPushReferences ===
 @module StorageArrayPushReferences
-fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_args=lazy, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -92,7 +92,7 @@ fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_args=
     ret v26, v32, v38
 }
 
-fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -183,7 +183,7 @@ fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_args=la
     ret v34
 }
 
-fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jump bb1
   bb1:
@@ -321,7 +321,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_param
     v57 = and v40, v56
     jumpi v57, bb25, bb26
   bb25:
-    internal_call @__clear_storage_words, 0, 2, v55, v50
+    internal_call @clear_storage_words, 0, 2, v55, v50
     jump bb26
   bb26:
     jumpi v54, bb27, bb28
@@ -462,7 +462,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_param
     v128 = and v111, v127
     jumpi v128, bb53, bb54
   bb53:
-    internal_call @__clear_storage_words, 0, 2, v126, v121
+    internal_call @clear_storage_words, 0, 2, v126, v121
     jump bb54
   bb54:
     jumpi v125, bb55, bb56
@@ -613,7 +613,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_args=lazy, abi_param
     ret v170, v198
 }
 
-fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
   bb1:
@@ -741,7 +741,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_args=lazy, abi_params=[]
     v55 = and v38, v54
     jumpi v55, bb25, bb26
   bb25:
-    internal_call @__clear_storage_words, 0, 2, v53, v48
+    internal_call @clear_storage_words, 0, 2, v53, v48
     jump bb26
   bb26:
     jumpi v52, bb27, bb28
@@ -1093,7 +1093,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_args=lazy, abi_params=[]
     jump bb77
 }
 
-fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -1125,7 +1125,7 @@ fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_args=lazy, abi_para
     ret v11
 }
 
-fn @__clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = storage_array_data_slot arg0
     jump bb1

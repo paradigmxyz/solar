@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/array_bounds_panic.sol:ArrayBoundsPanic ===
 @module ArrayBoundsPanic
-fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -25,7 +25,7 @@ fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, pure, abi_args=lazy, abi_pa
     ret v5
 }
 
-fn @memFixConst() -> u256 [selector=0x50d13ed0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @memFixConst() -> u256 [selector=0x50d13ed0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -50,7 +50,7 @@ fn @memFixConst() -> u256 [selector=0x50d13ed0, pure, abi_args=lazy, abi_params=
     ret v5
 }
 
-fn @memFixConstOob() -> u256 [selector=0xba496133, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @memFixConstOob() -> u256 [selector=0xba496133, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -66,7 +66,7 @@ fn @memFixConstOob() -> u256 [selector=0xba496133, pure, abi_args=lazy, abi_para
     ret v3
 }
 
-fn @memDyn(arg0: u256, arg1: u256) -> u256 [selector=0x24828414, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @memDyn(arg0: u256, arg1: u256) -> u256 [selector=0x24828414, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, 1
     v1 = iszero 1
@@ -115,7 +115,7 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [selector=0x24828414, pure, abi_args=
     ret v18
 }
 
-fn @stDyn(arg0: u256) -> u256 [selector=0x392580ee, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @stDyn(arg0: u256) -> u256 [selector=0x392580ee, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -132,7 +132,7 @@ fn @stDyn(arg0: u256) -> u256 [selector=0x392580ee, view, abi_args=lazy, abi_par
     ret v5
 }
 
-fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_args=lazy, abi_params=[u256, u256], abi_returns=[]] {
+fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_params=[u256, u256], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -149,7 +149,7 @@ fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_args=lazy, abi_
     stop
 }
 
-fn @stFix(arg0: u256) -> u256 [selector=0xd0c9a47e, view, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @stFix(arg0: u256) -> u256 [selector=0xd0c9a47e, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = lt arg0, 3
     v1 = iszero v0
@@ -164,7 +164,7 @@ fn @stFix(arg0: u256) -> u256 [selector=0xd0c9a47e, view, abi_args=lazy, abi_par
     ret v3
 }
 
-fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [selector=0x1406a581, pure, abi_args=lazy, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [selector=0x1406a581, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0
@@ -193,7 +193,7 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [selector=0x1406a581, pure, a
     ret v11
 }
 
-fn @cdFix(arg0: calldataslice, arg1: u256) -> u256 [selector=0xe21341a4, pure, abi_args=lazy, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @cdFix(arg0: calldataslice, arg1: u256) -> u256 [selector=0xe21341a4, pure, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0
@@ -222,7 +222,7 @@ fn @cdFix(arg0: calldataslice, arg1: u256) -> u256 [selector=0xe21341a4, pure, a
     ret v11
 }
 
-fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, pure, abi_args=lazy, abi_params=[bytes, u256], abi_returns=[word]] {
+fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, pure, abi_params=[bytes, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0

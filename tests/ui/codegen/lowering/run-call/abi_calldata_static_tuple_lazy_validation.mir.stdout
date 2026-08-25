@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_tuple_lazy_validation.sol:AbiCalldataStaticTupleLazyValidation ===
 @module AbiCalldataStaticTupleLazyValidation
-fn @use(arg0: calldataslice) -> u256 [selector=0x4637216b, pure, abi_args=lazy, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
+fn @use(arg0: calldataslice) -> u256 [selector=0x4637216b, pure, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -15,12 +15,12 @@ fn @use(arg0: calldataslice) -> u256 [selector=0x4637216b, pure, abi_args=lazy, 
     ret v2
 }
 
-fn @unused(arg0: calldataslice) -> u256 [selector=0xb7a18a02, pure, abi_args=lazy, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
+fn @unused(arg0: calldataslice) -> u256 [selector=0xb7a18a02, pure, abi_params=[tuple<u8, u8>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @encodeWords(arg0: calldataslice) -> u256 [selector=0x5d8a4779, pure, abi_args=lazy, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+fn @encodeWords(arg0: calldataslice) -> u256 [selector=0x5d8a4779, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [tuple<word, word>], object, args arg0
     v1 = memory_object_len memorybytes, v0

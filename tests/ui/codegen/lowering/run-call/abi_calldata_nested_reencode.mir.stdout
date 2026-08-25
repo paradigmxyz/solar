@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_reencode.sol:AbiCalldataNestedReencode ===
 @module AbiCalldataNestedReencode
-fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_args=lazy, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word]] {
+fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -245,7 +245,7 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_arg
     jump bb43
 }
 
-fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_args=lazy, abi_params=[array<_, array<2, array<_, u16>>>], abi_returns=[word]] {
+fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_params=[array<_, array<2, array<_, u16>>>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

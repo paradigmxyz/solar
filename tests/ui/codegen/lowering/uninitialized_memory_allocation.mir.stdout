@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/uninitialized_memory_allocation.sol:UninitializedMemoryAllocation ===
 @module UninitializedMemoryAllocation
-fn @fixedArray() -> u256 [selector=0x391e2457, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @fixedArray() -> u256 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
@@ -17,7 +17,7 @@ fn @fixedArray() -> u256 [selector=0x391e2457, pure, abi_args=lazy, abi_params=[
     ret v3
 }
 
-fn @structure() -> u256 [selector=0x6c92f462, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @structure() -> u256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -35,7 +35,7 @@ fn @structure() -> u256 [selector=0x6c92f462, pure, abi_args=lazy, abi_params=[]
     ret v3
 }
 
-fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -52,7 +52,7 @@ fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_args=lazy, ab
     ret v3
 }
 
-fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = internal_call @freeMemoryPointer, 1
@@ -77,7 +77,7 @@ fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, ab
     ret v2, 96, 96, v6
 }
 
-fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -106,18 +106,18 @@ fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pu
     ret v3, v6, v8, v13
 }
 
-fn @defaultBytesReturn() -> memorybytes [selector=0x2a63b10a, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @defaultBytesReturn() -> memorybytes [selector=0x2a63b10a, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     ret 96
 }
 
-fn @defaultThroughInternalCall() -> bool [selector=0x62fbef79, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @defaultThroughInternalCall() -> bool [selector=0x62fbef79, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @isEmpty, 1, 96
     ret v0
 }
 
-fn @fixedArrayDynamicDefaults() -> (u256, u256, u256) [selector=0x94633452, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @fixedArrayDynamicDefaults() -> (u256, u256, u256) [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -138,7 +138,7 @@ fn @fixedArrayDynamicDefaults() -> (u256, u256, u256) [selector=0x94633452, pure
     ret v3, v5, v7
 }
 
-fn @nestedStaticDefaults() -> u256 [selector=0x1ebfa70d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @nestedStaticDefaults() -> u256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64

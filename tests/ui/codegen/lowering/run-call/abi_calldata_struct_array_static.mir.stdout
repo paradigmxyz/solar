@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
 @module AbiCalldataStructArrayStatic
-fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a7, pure, abi_args=lazy, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word]] {
+fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0

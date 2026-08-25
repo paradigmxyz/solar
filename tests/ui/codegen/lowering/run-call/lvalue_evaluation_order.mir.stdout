@@ -31,7 +31,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -92,7 +92,7 @@ fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_args=lazy, abi_pa
     ret v11, v17, v23
 }
 
-fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -153,7 +153,7 @@ fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_args=lazy, a
     ret v11, v17, v23
 }
 
-fn @value() -> u256 [selector=0x3fa4f245, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = add v0, 1
@@ -171,7 +171,7 @@ fn @value() -> u256 [selector=0x3fa4f245, abi_args=lazy, abi_params=[], abi_retu
     ret 7
 }
 
-fn @pushSideEffect() -> (u256, u256, u256) [selector=0x0753e3a7, abi_args=lazy, abi_params=[], abi_returns=[word, word, word]] {
+fn @pushSideEffect() -> (u256, u256, u256) [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = address
     v1 = gas

@@ -167,8 +167,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
-        self.builder.func().abi_args_lazy
-            && self.builder.func().selector.is_some()
+        self.builder.func().selector.is_some()
             && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
@@ -250,7 +249,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_bytes_literal(bytes.as_byte_str());
+            return self.lower_shared_bytes_literal(*bytes);
         }
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()

@@ -6,7 +6,7 @@ fn @getArray() -> storageptr [pure] {
     ret v0
 }
 
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @getArray, 1
     v1 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320

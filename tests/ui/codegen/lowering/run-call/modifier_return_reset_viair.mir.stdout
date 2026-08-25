@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reset_viair.sol:ModifierReturnResetViaIr ===
 @module ModifierReturnResetViaIr
-fn @foo() -> u256 [selector=0xc2985578, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @foo() -> u256 [selector=0xc2985578, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255

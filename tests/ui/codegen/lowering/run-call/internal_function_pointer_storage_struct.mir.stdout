@@ -113,7 +113,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -127,7 +127,7 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], a
     v3 = sload v2 !metadata(storage=slot(0))
     v4 = shr 16, v3
     v5 = and v4, 0xffffffffffffffff
-    v6 = internal_call @__internal_dispatch_0, 1, v5
+    v6 = internal_call @internal_dispatcher_p_none_r_u256, 1, v5
     v7 = lt 1, 2
     v8 = iszero v7
     jumpi v8, bb3, bb4
@@ -140,11 +140,11 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_args=lazy, abi_params=[], a
     v10 = sload v9 !metadata(storage=slot(1))
     v11 = shr 16, v10
     v12 = and v11, 0xffffffffffffffff
-    v13 = internal_call @__internal_dispatch_0, 1, v12
+    v13 = internal_call @internal_dispatcher_p_none_r_u256, 1, v12
     ret v6, v13
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

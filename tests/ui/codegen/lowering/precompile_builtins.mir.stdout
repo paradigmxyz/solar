@@ -101,7 +101,7 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
 
 fn @sha() [selector=0x65707d6f, pure] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -129,7 +129,7 @@ fn @sha() [selector=0x65707d6f, pure] {
 
 fn @ripemd() [selector=0xa1e754ea, pure] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -159,7 +159,7 @@ fn @ripemd() [selector=0xa1e754ea, pure] {
 
 fn @shaLiteral() [selector=0x4aa7a4c7, pure] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -187,7 +187,7 @@ fn @shaLiteral() [selector=0x4aa7a4c7, pure] {
 
 fn @ripemdLiteral() [selector=0x062c5650, pure] {
   bb0:
-    v0 = internal_call @__literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
     v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
@@ -277,7 +277,7 @@ fn @ripemdEmpty() [selector=0x0c4b170a, pure] {
     revert 0, 36
 }
 
-fn @__literal_bytes_word(arg0: bytes32, arg1: u256) -> memptr {
+fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memptr {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v3 = add v0, 64

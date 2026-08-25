@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_struct_memory_storage.sol:ArrayStructMemoryStorage ===
 @module ArrayStructMemoryStorage
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3

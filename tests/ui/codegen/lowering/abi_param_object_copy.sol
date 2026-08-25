@@ -5,7 +5,7 @@ contract AbiParamObjectCopy {
     uint256[] public storedWords;
     bytes public storedBytes;
 
-    // CHECK-LABEL: fn @_anonymous{{.*abi_args=lazy.*}}
+    // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: memory_object_len memoryarray
     // CHECK: memory_object_load_element memoryarray
     // CHECK: memory_object_len memorybytes

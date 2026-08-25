@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/require_modulo_chain.sol:RequireModuloCases ===
 @module RequireModuloCases
-fn @chain(arg0: u256, arg1: u256) -> u256 [selector=0x1ea77144, pure, abi_args=lazy, abi_params=[u256, u256], abi_returns=[word]] {
+fn @chain(arg0: u256, arg1: u256) -> u256 [selector=0x1ea77144, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:

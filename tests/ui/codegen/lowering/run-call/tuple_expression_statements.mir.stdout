@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_expression_statements.sol:C ===
 @module C
-fn @tupleLiteral() -> bool [selector=0xd176547e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @tupleLiteral() -> bool [selector=0xd176547e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @tupleTernary() -> (bool, u256) [selector=0x75466b3a, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @tupleTernary() -> (bool, u256) [selector=0x75466b3a, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jumpi 1, bb1, bb2
   bb1:

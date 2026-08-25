@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/memory_allocation_panic.sol:MemoryAllocationPanic ===
 @module MemoryAllocationPanic
-fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -18,7 +18,7 @@ fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_args=lazy, abi
     ret v5
 }
 
-fn @makeArray(arg0: u256) -> u256 [selector=0x9510f212, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @makeArray(arg0: u256) -> u256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul arg0, 1
     v1 = iszero 1

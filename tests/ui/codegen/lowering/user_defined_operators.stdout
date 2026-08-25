@@ -51,7 +51,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
     v7 = and v6, v5
     jumpi v7, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb2:
     ret v0
 }
@@ -61,13 +61,13 @@ fn @neg(arg0: i256) -> i256 [pure] {
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
   bb1:
-    tail_call @__revert_stub0
+    tail_call @revert_stub
   bb2:
     v1 = sub 0, arg0
     ret v1
 }
 
-fn @__revert_stub0() {
+fn @revert_stub() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -1,21 +1,21 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_unused_aggregate_validation.sol:AbiCalldataUnusedAggregateValidation ===
 @module AbiCalldataUnusedAggregateValidation
-fn @unusedBytes(arg0: calldataslice) -> u256 [selector=0x46e5c92b, pure, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @unusedBytes(arg0: calldataslice) -> u256 [selector=0x46e5c92b, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @unusedStruct(arg0: calldataslice) -> u256 [selector=0xf3a326f8, pure, abi_args=lazy, abi_params=[tuple<u256, bytes, u256>], abi_returns=[word]] {
+fn @unusedStruct(arg0: calldataslice) -> u256 [selector=0xf3a326f8, pure, abi_params=[tuple<u256, bytes, u256>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @unusedNested(arg0: calldataslice) -> u256 [selector=0x4cdbec5f, pure, abi_args=lazy, abi_params=[tuple<array<_, array<_, u256>>, u256>], abi_returns=[word]] {
+fn @unusedNested(arg0: calldataslice) -> u256 [selector=0x4cdbec5f, pure, abi_params=[tuple<array<_, array<_, u256>>, u256>], abi_returns=[word]] {
   bb0:
     ret 1
 }
 
-fn @readNested(arg0: calldataslice) -> u256 [selector=0xee08554b, pure, abi_args=lazy, abi_params=[tuple<array<_, array<_, u256>>, u256>], abi_returns=[word]] {
+fn @readNested(arg0: calldataslice) -> u256 [selector=0xee08554b, pure, abi_params=[tuple<array<_, array<_, u256>>, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32

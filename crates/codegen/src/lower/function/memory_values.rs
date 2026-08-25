@@ -123,9 +123,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
+        Self::build_bytes_literal(&mut self.builder, bytes, AllocationSemantics::INTERNAL)
+    }
+
+    pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
+        let bytes = symbol.as_byte_str();
         let value = if !bytes.is_empty()
             && bytes.len() <= 32
-            && self.context.shared_word_literals.contains(bytes)
+            && self.context.shared_word_literals.contains(&symbol)
         {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
@@ -136,8 +141,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
                 1,
             )
-        } else if self.context.shared_literals.contains(bytes) {
-            let helper = self.ensure_bytes_literal_helper(bytes);
+        } else if self.context.shared_literals.contains(&symbol) {
+            let helper = self.ensure_bytes_literal_helper(symbol);
             self.builder.internal_call(
                 helper,
                 Vec::new(),
@@ -145,19 +150,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 1,
             )
         } else {
-            Self::build_bytes_literal(&mut self.builder, bytes, AllocationSemantics::INTERNAL)?
+            self.lower_bytes_literal(bytes)?
         };
         Some(value)
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        if let Some(id) = self.context.state.literal_word_helper {
-            return id;
-        }
-        let mut function = Function::new(Ident::from_str("__literal_bytes_word"));
-        function.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
+        self.lazy_helper(sym::literal_bytes_word, |_, function| {
+            let mut builder = FunctionBuilder::new(function);
             let word = builder.add_param(MirType::bytes32());
             let length = builder.add_param(MirType::uint256());
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
@@ -171,10 +171,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = builder.imm_u64(0);
             builder.memory_object_store_word(object, zero, word);
             builder.ret([object]);
-        }
-        let id = self.context.module.add_function(function);
-        self.context.state.literal_word_helper = Some(id);
-        id
+            Some(())
+        })
+        .expect("literal word helper construction cannot fail")
     }
 
     pub(super) fn build_bytes_literal(
@@ -197,24 +196,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    fn ensure_bytes_literal_helper(&mut self, bytes: &[u8]) -> FunctionId {
-        if let Some(&id) = self.context.state.literal_helpers.get(bytes) {
-            return id;
-        }
-        let index = self.context.state.literal_helpers.len();
-        let mut function = Function::new(Ident::from_str(&format!("__literal_bytes_{index}")));
-        function.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
+    fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
+        self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |_, function| {
+            let mut builder = FunctionBuilder::new(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            let object =
-                Self::build_bytes_literal(&mut builder, bytes, AllocationSemantics::INTERNAL)
-                    .expect("literal length fits in a memory object");
+            let object = Self::build_bytes_literal(
+                &mut builder,
+                symbol.as_byte_str(),
+                AllocationSemantics::INTERNAL,
+            )
+            .expect("literal length fits in a memory object");
             builder.ret([object]);
-        }
-        let id = self.context.module.add_function(function);
-        self.context.state.literal_helpers.insert(bytes.to_vec(), id);
-        id
+            Some(())
+        })
+        .expect("literal helper construction cannot fail")
     }
 
     pub(super) fn default_value(&mut self, ty: Ty<'gcx>) -> ValueId {

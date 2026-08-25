@@ -39,12 +39,6 @@ pub(crate) struct Function {
     pub(crate) abi_params: Option<AbiParamLayout>,
     /// Source locations for the ABI parameters retained until `lower-abi`.
     pub(crate) abi_param_locations: Option<Box<[AbiParamLocation]>>,
-    /// Whether external arguments remain typed MIR arguments until `lower-abi`.
-    ///
-    /// This is an internal lowering marker. It lets the ABI pass add calldata
-    /// guards and canonical-word checks without putting physical calldata
-    /// operations in built MIR.
-    pub(crate) abi_args_lazy: bool,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -91,7 +85,6 @@ impl Function {
             abi_return_params: None,
             abi_params: None,
             abi_param_locations: None,
-            abi_args_lazy: false,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),

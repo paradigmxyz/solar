@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_bytes_validation.sol:CalldataStructBytesValidation ===
 @module CalldataStructBytesValidation
-fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -82,7 +82,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_args=lazy,
     ret v39
 }
 
-fn @encodeField(arg0: calldataslice) -> u256 [selector=0xbd1dd83b, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @encodeField(arg0: calldataslice) -> u256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -153,7 +153,7 @@ fn @encodeField(arg0: calldataslice) -> u256 [selector=0xbd1dd83b, pure, abi_arg
     ret v35
 }
 
-fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -253,7 +253,7 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
     ret v44
 }
 
-fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -326,7 +326,7 @@ fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_ar
     ret v35
 }
 
-fn @indexField(arg0: calldataslice) -> u256 [selector=0xec2824a8, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @indexField(arg0: calldataslice) -> u256 [selector=0xec2824a8, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -384,7 +384,7 @@ fn @indexField(arg0: calldataslice) -> u256 [selector=0xec2824a8, pure, abi_args
     ret v30
 }
 
-fn @fixedField(arg0: calldataslice) -> u256 [selector=0x4d20e66c, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @fixedField(arg0: calldataslice) -> u256 [selector=0x4d20e66c, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -437,7 +437,7 @@ fn @fixedField(arg0: calldataslice) -> u256 [selector=0x4d20e66c, pure, abi_args
     ret v31
 }
 
-fn @copyField(arg0: calldataslice) -> u256 [selector=0xda205eee, pure, abi_args=lazy, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
+fn @copyField(arg0: calldataslice) -> u256 [selector=0xda205eee, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -510,7 +510,7 @@ fn @copyField(arg0: calldataslice) -> u256 [selector=0xda205eee, pure, abi_args=
     ret v35
 }
 
-fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -579,7 +579,7 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_args=
     ret v26
 }
 
-fn @emitBytes(arg0: calldataslice) -> u256 [selector=0xc76f0635, abi_args=lazy, abi_params=[bytes], abi_returns=[word]] {
+fn @emitBytes(arg0: calldataslice) -> u256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = add v0, 63
@@ -601,7 +601,7 @@ fn @emitBytes(arg0: calldataslice) -> u256 [selector=0xc76f0635, abi_args=lazy, 
     ret v7
 }
 
-fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_args=lazy, abi_params=[array<_, bytes>], abi_returns=[word]] {
+fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

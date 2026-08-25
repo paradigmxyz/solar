@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
 @module AbiCalldataDynamicArrayMemory
-fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_args=lazy, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>]] {
+fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -131,13 +131,13 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_args=l
     jump bb9
 }
 
-fn @lengthMemory(arg0: memoryarray) -> u256 [selector=0xdefa62e9, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @lengthMemory(arg0: memoryarray) -> u256 [selector=0xdefa62e9, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @sumMemory(arg0: memoryarray) -> u256 [selector=0x13201b5d, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @sumMemory(arg0: memoryarray) -> u256 [selector=0x13201b5d, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0

@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_function_bytes.sol:IndexedEventFunctionBytes ===
 @module IndexedEventFunctionBytes
-fn @target() [selector=0xd4b83992, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @emitEvent() [selector=0x7b0cb839, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0

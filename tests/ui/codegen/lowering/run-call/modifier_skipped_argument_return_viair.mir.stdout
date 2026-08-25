@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_skipped_argument_return_viair.sol:ModifierSkippedArgumentReturnViaIr ===
 @module ModifierSkippedArgumentReturnViaIr
-fn @f() -> u256 [selector=0x26121ff0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = eq 7, 7
     jumpi v0, bb2, bb3

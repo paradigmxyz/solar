@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/bytes_memory_elements.sol:BytesMemoryElements ===
 @module BytesMemoryElements
-fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 159, v0
@@ -37,7 +37,7 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_args=lazy, abi_params=[],
     ret v14
 }
 
-fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
@@ -58,7 +58,7 @@ fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_args=lazy, abi_params=[
     ret v6
 }
 
-fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, pure, abi_args=lazy, abi_params=[u256], abi_returns=[word]] {
+fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -76,7 +76,7 @@ fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, pure, abi_args=lazy, 
     ret v5
 }
 
-fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0x4b25a5a7, pure, abi_args=lazy, abi_params=[bytes, u256, bytes1], abi_returns=[word]] {
+fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt arg1, v0

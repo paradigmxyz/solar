@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/packed_calldata_slice.sol:PackedCalldataSlice ===
 @module PackedCalldataSlice
-fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xe0041396, pure, abi_args=lazy, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -78,7 +78,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=
     ret v23
 }
 
-fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_args=lazy, abi_params=[], abi_returns=[memory_bytes]] {
+fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
 @module AbiCalldataDynamicBytesArray
-fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_args=lazy, abi_params=[array<_, bytes>], abi_returns=[word]] {
+fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [calldata_array<memory_bytes>], args arg0
     v1 = slice_ptr v0
@@ -9,7 +9,7 @@ fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_args=
     ret v3
 }
 
-fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u256) [selector=0x9d6ce1dc, pure, abi_args=lazy, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word]] {
+fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u256) [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0

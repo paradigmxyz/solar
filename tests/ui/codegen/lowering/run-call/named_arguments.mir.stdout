@@ -45,19 +45,19 @@ fn @a(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
     ret v14
 }
 
-fn @b() -> u256 [selector=0x4df7e3d0, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @b() -> u256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @a, 1, 1, 2, 3
     ret v0
 }
 
-fn @c() -> u256 [selector=0xc3da42b8, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @c() -> u256 [selector=0xc3da42b8, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @a, 1, 1, 2, 3
     ret v0
 }
 
-fn @d() -> u256 [selector=0x8a054ac2, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @d() -> u256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = gt 5, 0
     v1 = iszero v0

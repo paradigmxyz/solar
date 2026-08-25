@@ -49,7 +49,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_args=lazy, abi_params=[], abi_returns=[word, word, word, word, word]] {
+fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, word, word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -75,13 +75,13 @@ fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_args=lazy, 
     ret v3, v6, v11, v15, v20
 }
 
-fn @raw() -> bytes32 [selector=0xc096a632, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @selector() -> (bytes4, u32) [selector=0xea3d508a, pure, abi_args=lazy, abi_params=[], abi_returns=[word, word]] {
+fn @selector() -> (bytes4, u32) [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = calldataload 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000

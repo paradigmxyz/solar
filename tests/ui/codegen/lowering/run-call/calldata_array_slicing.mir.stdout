@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_slicing.sol:CalldataArraySlicing ===
 @module CalldataArraySlicing
-fn @sliceLength(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x3d277245, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
+fn @sliceLength(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x3d277245, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -30,7 +30,7 @@ fn @sliceLength(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0
     ret v14
 }
 
-fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x4fc857f6, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256, u256], abi_returns=[word]] {
+fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x4fc857f6, pure, abi_params=[array<_, u256>, u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -83,7 +83,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 
     ret v25
 }
 
-fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_args=lazy, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -124,7 +124,7 @@ fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_ar
     ret v21
 }
 
-fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x4b325b31, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256, u256, u256], abi_returns=[word]] {
+fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x4b325b31, pure, abi_params=[array<_, u256>, u256, u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -178,7 +178,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     ret v28
 }
 
-fn @startSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaedb6eba, pure, abi_args=lazy, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @startSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaedb6eba, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -208,7 +208,7 @@ fn @startSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaedb6e
     ret v14
 }
 
-fn @endSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0x478be0ed, pure, abi_args=lazy, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @endSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0x478be0ed, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -226,7 +226,7 @@ fn @endSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0x478be0ed
     ret v8
 }
 
-fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xbb59bf0c, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
+fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xbb59bf0c, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -279,7 +279,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [select
     ret v25
 }
 
-fn @endSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x0420e48e, pure, abi_args=lazy, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
+fn @endSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x0420e48e, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -320,7 +320,7 @@ fn @endSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector
     ret v19
 }
 
-fn @bytesSlice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x165cd355, pure, abi_args=lazy, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @bytesSlice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x165cd355, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

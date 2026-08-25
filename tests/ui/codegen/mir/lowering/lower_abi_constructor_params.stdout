@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (after lower-abi) ===
   @module LowerAbiConstructorParams
-- fn @constructor(arg0: memoryfixedarray, arg1: u256) [constructor, abi_args=lazy, abi_params=[array<2, array<2, u256>>, u256]] {
+- fn @constructor(arg0: memoryfixedarray, arg1: u256) [constructor, abi_params=[array<2, array<2, u256>>, u256]] {
 + @phase abi
 + fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [constructor] {
     bb0:

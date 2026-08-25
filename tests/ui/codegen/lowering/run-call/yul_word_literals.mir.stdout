@@ -1,26 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_word_literals.sol:C ===
 @module C
-fn @direct() -> bytes32 [selector=0x222b1407, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @direct() -> bytes32 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 }
 
-fn @shortDirect() -> bytes32 [selector=0xca89fa65, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @shortDirect() -> bytes32 [selector=0xca89fa65, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0x1234000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @local() -> bytes32 [selector=0x0f166ad4, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @local() -> bytes32 [selector=0x0f166ad4, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
 }
 
-fn @stringDirect() -> bytes32 [selector=0x13f2673d, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @stringDirect() -> bytes32 [selector=0x13f2673d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0x68656c6c6f000000000000000000000000000000000000000000000000000000
 }
 
-fn @builtin() -> bytes32 [selector=0x44d2c8a8, pure, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @builtin() -> bytes32 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
     ret v0

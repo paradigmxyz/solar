@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_array_validation.sol:AbiFunctionPointerArrayValidation ===
 @module AbiFunctionPointerArrayValidation
-fn @target() [selector=0xd4b83992, pure, abi_args=lazy, abi_params=[], abi_returns=[]] {
+fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
 
-fn @g(arg0: calldataslice) -> u256 [selector=0xc16ea9d4, pure, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @g(arg0: calldataslice) -> u256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word]] {
   bb0:
     ret 2
 }
 
-fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -35,24 +35,24 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_args=lazy, ab
     ret 3
 }
 
-fn @m(arg0: memoryarray) -> u256 [selector=0x4d6e4a29, pure, abi_args=lazy, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @m(arg0: memoryarray) -> u256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word]] {
   bb0:
     ret 4
 }
 
-fn @checkG(arg0: bool) -> u256 [selector=0xb89497e4, view, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @checkG(arg0: bool) -> u256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = internal_call @invoke, 1, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
     ret v0
 }
 
-fn @checkH(arg0: bool) -> u256 [selector=0x5137faa5, view, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @checkH(arg0: bool) -> u256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = internal_call @invoke, 1, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
     ret v0
 }
 
-fn @checkM(arg0: bool) -> u256 [selector=0xfad9a4f1, view, abi_args=lazy, abi_params=[bool], abi_returns=[word]] {
+fn @checkM(arg0: bool) -> u256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = internal_call @invoke, 1, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
     ret v0

@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrameBase ===
 @module ConstructorModifierParameterFrameBase
-fn @observed() -> u256 [selector=0xba210709, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_args=lazy, abi_params=[u256]] {
+fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -70,7 +70,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @observed() -> u256 [selector=0xba210709, view, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_struct.sol:StorageMemoryNestedStruct ===
 @module StorageMemoryNestedStruct
-fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_returns=[word]] {
+fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -416,7 +416,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     v201 = and v200, 255
     memory_object_store_field memorystruct<3>, v196, 1, v201
     v202 = add v195, 1
-    v203 = internal_call @__load_storage_word_array, 1, v202
+    v203 = internal_call @load_storage_word_array, 1, v202
     memory_object_store_field memorystruct<3>, v196, 2, v203
     memory_object_store_element memoryfixedarray<3, 1>, v193, 0, v196
     v204 = mul 1, 2
@@ -430,7 +430,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     v211 = and v210, 255
     memory_object_store_field memorystruct<3>, v206, 1, v211
     v212 = add v205, 1
-    v213 = internal_call @__load_storage_word_array, 1, v212
+    v213 = internal_call @load_storage_word_array, 1, v212
     memory_object_store_field memorystruct<3>, v206, 2, v213
     memory_object_store_element memoryfixedarray<3, 1>, v193, 1, v206
     v214 = mul 2, 2
@@ -444,7 +444,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     v221 = and v220, 255
     memory_object_store_field memorystruct<3>, v216, 1, v221
     v222 = add v215, 1
-    v223 = internal_call @__load_storage_word_array, 1, v222
+    v223 = internal_call @load_storage_word_array, 1, v222
     memory_object_store_field memorystruct<3>, v216, 2, v223
     memory_object_store_element memoryfixedarray<3, 1>, v193, 2, v216
     memory_object_store_element memoryarray<1>, v187, v188, v193
@@ -890,7 +890,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_args=lazy, abi_params=[], abi_retur
     ret v371
 }
 
-fn @__load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
