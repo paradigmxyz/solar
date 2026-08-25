@@ -1,6 +1,0 @@
-warning[6546]: tag `@author` not valid for functions
-   ╭▸ ROOT/tests/ui/natspec/doc_comment_units.sol:LL:CC
-   │
-LL │     /// @author Someone
-   ╰╴         ━━━━━━
-
