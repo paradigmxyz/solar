@@ -104,7 +104,7 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::op::StackOp,
-    backend::evm::materialize::is_cheap_expression,
+    backend::evm::materialize::is_cheap_recomputable_kind,
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
@@ -1979,7 +1979,7 @@ impl StackScheduler {
     /// Returns whether an instruction result is cheap enough to recompute from its operands.
     pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
         let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
-        is_cheap_expression(&func.inst(*inst_id).kind)
+        is_cheap_recomputable_kind(&func.inst(*inst_id).kind)
     }
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.

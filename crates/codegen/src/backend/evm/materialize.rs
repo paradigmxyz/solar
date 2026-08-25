@@ -4,7 +4,7 @@ use super::op;
 use crate::mir::InstKind;
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
-pub(super) const fn nullary_opcode(kind: &InstKind) -> Option<u8> {
+pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
     Some(match kind {
         InstKind::CalldataSize => op::CALLDATASIZE,
         InstKind::CodeSize => op::CODESIZE,
@@ -26,7 +26,7 @@ pub(super) const fn nullary_opcode(kind: &InstKind) -> Option<u8> {
 }
 
 /// Returns whether an instruction result can be cheaply rebuilt from stable operands.
-pub(super) const fn is_cheap_expression(kind: &InstKind) -> bool {
+pub(super) const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
     matches!(
         kind,
         InstKind::Add(_, _)

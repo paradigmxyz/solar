@@ -297,23 +297,29 @@ impl EvmInstSchedule {
     }
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
-        let mut counts = index_vec![0u32; func.num_values()];
-        let mut seen = DenseBitSet::new_empty(func.num_values());
-        let mut distinct = SmallVec::<[ValueId; 8]>::new();
+        let mut user_counts = index_vec![0u32; func.num_values()];
+        let mut seen_operands = DenseBitSet::new_empty(func.num_values());
+        let mut distinct_operands = SmallVec::<[ValueId; 8]>::new();
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
-        // look shared and disable scheduling for its whole segment.
+        // look shared and disable scheduling for its whole segment. Repeated operands in one
+        // consumer count as one user.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 count_distinct_users(
                     func.inst(inst_id).kind.operands(),
-                    &mut counts,
-                    &mut seen,
-                    &mut distinct,
+                    &mut user_counts,
+                    &mut seen_operands,
+                    &mut distinct_operands,
                 );
             }
             if let Some(terminator) = &block.terminator {
-                count_distinct_users(terminator.operands(), &mut counts, &mut seen, &mut distinct);
+                count_distinct_users(
+                    terminator.operands(),
+                    &mut user_counts,
+                    &mut seen_operands,
+                    &mut distinct_operands,
+                );
             }
         }
 
@@ -321,7 +327,7 @@ impl EvmInstSchedule {
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 if let Some(result) = func.inst_result_value(inst_id)
-                    && counts[result] > 1
+                    && user_counts[result] > 1
                 {
                     shared.insert(inst_id);
                 }

@@ -19,14 +19,27 @@ impl EvmPass for ReorderPushes {
         if !module.blocks.iter().any(|block| has_candidate(&block.instructions)) {
             return false;
         }
-        let depths = needs_depths(module).then(|| StackDepths::new(module)).flatten();
         let mut changed = false;
+        let mut needs_depths = false;
         let mut scratch = Vec::new();
         for block_index in 0..module.blocks.len() {
             let block_id = BlockId::from_usize(block_index);
-            let entry_depth = depths.as_ref().and_then(|depths| depths.entry_depth(block_id));
-            changed |=
-                reorder(&mut module.blocks[block_id].instructions, entry_depth, &mut scratch);
+            let instructions = &mut module.blocks[block_id].instructions;
+            if has_candidate(instructions) {
+                let result = reorder(instructions, None, &mut scratch);
+                changed |= result.changed;
+                needs_depths |= result.needs_depths;
+            }
+        }
+        if needs_depths && let Some(depths) = StackDepths::new(module) {
+            for block_index in 0..module.blocks.len() {
+                let block_id = BlockId::from_usize(block_index);
+                let instructions = &mut module.blocks[block_id].instructions;
+                if has_candidate(instructions) {
+                    let entry_depth = depths.entry_depth(block_id);
+                    changed |= reorder(instructions, entry_depth, &mut scratch).changed;
+                }
+            }
         }
         changed
     }
@@ -35,37 +48,25 @@ impl EvmPass for ReorderPushes {
 fn has_candidate(instructions: &[Instruction]) -> bool {
     instructions
         .windows(2)
-        .any(|pair| pair[0].is_encoded_push() && raw_opcode(&pair[1]) == Some(op::SWAP1))
+        .any(|pair| pair[0].is_encoded_push() && pair[1].raw_opcode() == Some(op::SWAP1))
 }
 
-fn needs_depths(module: &Module) -> bool {
-    module.blocks.iter().any(|block| {
-        let mut candidates = 0usize;
-        block.instructions.iter().enumerate().any(|(index, inst)| {
-            if index < 2
-                || raw_opcode(inst) != Some(op::SWAP1)
-                || !block.instructions[index - 1].is_encoded_push()
-            {
-                return false;
-            }
-            candidates += 1;
-            candidates > 1
-                || self_contained_producer(&block.instructions[..index - 1])
-                    .is_some_and(|(_, peak)| peak > 1)
-        })
-    })
+struct ReorderResult {
+    changed: bool,
+    needs_depths: bool,
 }
 
 fn reorder(
     instructions: &mut Vec<Instruction>,
     entry_depth: Option<usize>,
     scratch: &mut Vec<Instruction>,
-) -> bool {
+) -> ReorderResult {
     scratch.clear();
     std::mem::swap(instructions, scratch);
     instructions.reserve(scratch.len());
 
     let mut changed = false;
+    let mut needs_depths = false;
     let mut depth = entry_depth;
     for inst in scratch.drain(..) {
         let effect = stack_effect(&inst);
@@ -79,37 +80,41 @@ fn reorder(
         });
         let producer = if let [.., pushed, swap] = instructions.as_slice()
             && pushed.is_encoded_push()
-            && raw_opcode(swap) == Some(op::SWAP1)
+            && swap.raw_opcode() == Some(op::SWAP1)
         {
             self_contained_producer(&instructions[..instructions.len() - 2])
         } else {
             None
         };
-        if let Some((start, peak)) = producer
-            && (peak == 1
-                || depth
-                    .and_then(|depth| depth.checked_sub(2))
-                    .and_then(|producer_depth| producer_depth.checked_add(peak + 1))
-                    .is_some_and(|peak| peak <= MAX_STACK_DEPTH))
-        {
-            instructions.pop();
-            instructions[start..].rotate_right(1);
-            changed = true;
+        if let Some((start, peak)) = producer {
+            if peak == 1 || reordered_peak_fits(depth, peak) {
+                instructions.pop();
+                instructions[start..].rotate_right(1);
+                changed = true;
+            } else if depth.is_none() {
+                needs_depths = true;
+            }
         }
     }
-    changed
+    ReorderResult { changed, needs_depths }
+}
+
+fn reordered_peak_fits(depth: Option<usize>, producer_peak: usize) -> bool {
+    depth
+        .and_then(|depth| depth.checked_add(producer_peak - 1))
+        .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
 }
 
 fn self_contained_producer(instructions: &[Instruction]) -> Option<(usize, usize)> {
     let mut needed = 1usize;
     for (index, inst) in instructions.iter().enumerate().rev() {
         if inst.is_physical_stack_op()
-            || raw_opcode(inst).is_some_and(|opcode| !op::is_read_only(opcode))
+            || inst.raw_opcode().is_some_and(|opcode| !op::is_read_only(opcode))
         {
             return None;
         }
 
-        let effect = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
+        let effect = stack_effect(inst)?;
         let outputs = usize::from(effect.outputs);
         if outputs > needed {
             return None;
@@ -132,8 +137,4 @@ fn self_contained_producer(instructions: &[Instruction]) -> Option<(usize, usize
 
 fn stack_effect(inst: &Instruction) -> Option<StackEffect> {
     inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-}
-
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    (!inst.is_encoded_push()).then_some(inst.opcode)
 }

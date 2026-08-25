@@ -391,6 +391,12 @@ impl Instruction {
         self.stack_op
     }
 
+    /// Returns the opcode when this is not an encoded push.
+    #[must_use]
+    pub(crate) const fn raw_opcode(&self) -> Option<u8> {
+        if self.is_encoded_push() { None } else { Some(self.opcode) }
+    }
+
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
