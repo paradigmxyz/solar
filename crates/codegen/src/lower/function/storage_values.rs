@@ -343,9 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     });
                 }
                 let (element, dynamic, length) = match ty.kind {
-                    TyKind::Array(element, len) => {
-                        (element, false, self.builder.imm_u64(u64::try_from(len).ok()?))
-                    }
+                    TyKind::Array(element, len) => (element, false, self.builder.imm_u256(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
                     _ => return None,
                 };
