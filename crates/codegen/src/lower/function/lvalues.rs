@@ -131,11 +131,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 None => self.store_storage_value(ty, access, value, span),
             },
-            LValuePlace::MemoryField { object, layout, field, .. } => {
+            LValuePlace::MemoryField { object, layout, field, ty } => {
+                let value = self.encode_memory_scalar(ty, value);
                 self.builder.memory_object_store_field(object, layout, field, value);
                 Some(())
             }
-            LValuePlace::MemoryElement { object, layout, index, .. } => {
+            LValuePlace::MemoryElement { object, layout, index, ty } => {
+                let value = self.encode_memory_scalar(ty, value);
                 self.builder.memory_object_store_element(object, layout, index, value);
                 Some(())
             }

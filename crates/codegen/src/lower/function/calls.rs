@@ -617,13 +617,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.normalize_abi_scalar(value, ty)
     }
 
+    // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
+    // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shr(shift, value);
+        }
+        self.normalize_abi_scalar(value, ty)
+    }
+
+    pub(super) fn decode_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
-            return self.mask_to_bits(value, 192);
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shr(shift, value);
         }
-        self.normalize_abi_scalar(value, ty)
+        value
+    }
+
+    pub(super) fn encode_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
+        if let TyKind::Fn(function) = ty.peel_refs().kind
+            && function.is_external()
+        {
+            let shift = self.builder.imm_u64(64);
+            return self.builder.shl(shift, value);
+        }
+        value
     }
 
     pub(super) fn lower_function_call(

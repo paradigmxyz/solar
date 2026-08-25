@@ -104,6 +104,12 @@ struct DecodeOptions<'a> {
     has_bitwise_shifting: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReturnValueSource {
+    Scalar,
+    Memory,
+}
+
 impl DecodeOptions<'_> {
     fn new(constructor: bool, input_end: ValueId, has_bitwise_shifting: bool) -> Self {
         Self {
@@ -604,7 +610,8 @@ impl LowerAbiCx {
             let mut builder = FunctionBuilder::new(&mut function);
             let value = builder.add_param(ty.mir_type());
             builder.add_return(ty.mir_type());
-            let value = canonicalize_return_value(&mut builder, ty, value, None);
+            let value =
+                canonicalize_return_value(&mut builder, ty, value, None, ReturnValueSource::Scalar);
             builder.ret([value]);
         }
         module.add_function(function)
@@ -959,6 +966,7 @@ impl LowerAbiCx {
                 physical_index,
                 has_bitwise_shifting,
             );
+            let value = Self::encode_memory_scalar(builder, element, value);
             let index = builder.imm_u64(index);
             builder.memory_object_store_element(ptr, layout, index, value);
         }
@@ -1732,6 +1740,7 @@ impl LowerAbiCx {
                             options.checked(),
                         )
                     };
+                    let value = Self::encode_memory_scalar(builder, element, value);
                     let elem_index = builder.imm_u64(index);
                     builder.memory_object_store_element(ptr, layout, elem_index, value);
                     offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
@@ -1861,6 +1870,7 @@ impl LowerAbiCx {
                     &mut element_current,
                     options.checked(),
                 );
+                let value = Self::encode_memory_scalar(builder, element, value);
                 builder.memory_object_store_element(ptr, layout, destination_index, value);
                 let one = builder.imm_u64(1);
                 let next_remaining = builder.sub(remaining, one);
@@ -1964,6 +1974,7 @@ impl LowerAbiCx {
                         current,
                         options.checked(),
                     );
+                    let value = Self::encode_memory_scalar(builder, field, value);
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
                     offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
@@ -2033,6 +2044,7 @@ impl LowerAbiCx {
                 for index in 0..*len {
                     let field = builder.add_u64_offset(head, offset);
                     let value = decode(builder, element, field);
+                    let value = Self::encode_memory_scalar(builder, element, value);
                     let index_value = builder.imm_u64(index);
                     builder.memory_object_store_element(object, layout, index_value, value);
                     offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
@@ -2048,6 +2060,7 @@ impl LowerAbiCx {
                 for (index, field) in fields.iter().enumerate() {
                     let field_head = builder.add_u64_offset(head, offset);
                     let value = decode(builder, field, field_head);
+                    let value = Self::encode_memory_scalar(builder, field, value);
                     builder.memory_object_store_field(object, layout, index as u64, value);
                     offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
@@ -2717,6 +2730,18 @@ impl LowerAbiCx {
         }
     }
 
+    fn encode_memory_scalar(
+        builder: &mut FunctionBuilder<'_>,
+        ty: &AbiParamType,
+        value: ValueId,
+    ) -> ValueId {
+        if matches!(ty, AbiParamType::Scalar(MirType::Function)) {
+            let shift = builder.imm_u64(64);
+            return builder.shl(shift, value);
+        }
+        value
+    }
+
     fn validate_abi_word(
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
@@ -2930,13 +2955,17 @@ fn is_canonical_return_value(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
+    source: ReturnValueSource,
 ) -> bool {
-    if !ty.needs_return_cleanup() || reuses_validated_input(func, value, input_params, ty) {
+    if !ty.needs_return_cleanup()
+        || (source == ReturnValueSource::Scalar
+            && reuses_validated_input(func, value, input_params, ty))
+    {
         return true;
     }
 
     let mut visiting = FxHashSet::default();
-    is_canonical_return_value_inner(func, ty, value, input_params, &mut visiting)
+    is_canonical_return_value_inner(func, ty, value, input_params, source, &mut visiting)
 }
 
 fn is_canonical_return_value_inner(
@@ -2944,9 +2973,13 @@ fn is_canonical_return_value_inner(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
+    source: ReturnValueSource,
     visiting: &mut FxHashSet<ValueId>,
 ) -> bool {
-    if !ty.needs_return_cleanup() || reuses_validated_input(func, value, input_params, ty) {
+    if !ty.needs_return_cleanup()
+        || (source == ReturnValueSource::Scalar
+            && reuses_validated_input(func, value, input_params, ty))
+    {
         return true;
     }
     if !visiting.insert(value) {
@@ -2954,7 +2987,7 @@ fn is_canonical_return_value_inner(
     }
 
     let result = match ty {
-        AbiParamType::Scalar(ty) => is_canonical_return_scalar(func, *ty, value),
+        AbiParamType::Scalar(ty) => is_canonical_return_scalar(func, *ty, value, source),
         AbiParamType::Enum { .. } => false,
         AbiParamType::Bytes => true,
         AbiParamType::Tuple(fields) => {
@@ -2971,18 +3004,31 @@ fn is_canonical_return_value_inner(
     result
 }
 
-fn is_canonical_return_scalar(func: &Function, ty: MirType, value: ValueId) -> bool {
-    let Some(expected) = return_cleanup_mask(ty) else {
+fn is_canonical_return_scalar(
+    func: &Function,
+    ty: MirType,
+    value: ValueId,
+    source: ReturnValueSource,
+) -> bool {
+    let Some(expected) = return_cleanup_mask(ty, source) else {
         if let MirType::Int(size) = ty
             && size.bits() < 256
             && let Value::Inst(inst) = func.value(value)
-            && let InstKind::SignExtend(byte, source) = func.inst(*inst).kind
+            && let InstKind::SignExtend(byte, input) = func.inst(*inst).kind
         {
             return func.value_u64(byte) == Some(u64::from(size.bits() / 8 - 1))
-                && is_canonical_return_scalar(func, ty, source);
+                && is_canonical_return_scalar(func, ty, input, source);
         }
         return matches!(ty, MirType::Int(size) if size.bits() >= 256);
     };
+    if ty == MirType::Function
+        && source == ReturnValueSource::Memory
+        && let Value::Inst(inst) = func.value(value)
+        && let InstKind::Shl(shift, _) = func.inst(*inst).kind
+        && func.value_u64(shift) == Some(64)
+    {
+        return true;
+    }
     if let MirType::FixedBytes(size) = ty
         && size.bytes() < 32
         && let Value::Inst(inst) = func.value(value)
@@ -3017,8 +3063,13 @@ fn is_canonical_low_bits(func: &Function, value: ValueId, bits: u64) -> bool {
         || func.value_u256(rhs).is_some_and(|value| value == mask)
 }
 
-fn return_cleanup_mask(ty: MirType) -> Option<U256> {
-    AbiWordValidator::from_return_mir_type(ty).and_then(AbiWordValidator::canonical_mask)
+fn return_cleanup_mask(ty: MirType, source: ReturnValueSource) -> Option<U256> {
+    let validator = if source == ReturnValueSource::Memory {
+        AbiWordValidator::from_mir_type(ty)
+    } else {
+        AbiWordValidator::from_return_mir_type(ty)
+    };
+    validator.and_then(AbiWordValidator::canonical_mask)
 }
 
 fn is_canonical_return_object(
@@ -3065,7 +3116,14 @@ fn is_canonical_return_object(
     }
     fields.iter().enumerate().all(|(index, ty)| {
         let canonical = stores.get(&(index as u64)).is_some_and(|&value| {
-            is_canonical_return_value_inner(func, ty, value, input_params, visiting)
+            is_canonical_return_value_inner(
+                func,
+                ty,
+                value,
+                input_params,
+                ReturnValueSource::Memory,
+                visiting,
+            )
         });
         let zero = zeroed && !ty.needs_return_cleanup();
         canonical || zero
@@ -3104,7 +3162,14 @@ fn is_canonical_return_array(
     }
     (0..len).all(|index| {
         stores.get(&index).is_some_and(|&value| {
-            is_canonical_return_value_inner(func, element, value, input_params, visiting)
+            is_canonical_return_value_inner(
+                func,
+                element,
+                value,
+                input_params,
+                ReturnValueSource::Memory,
+                visiting,
+            )
         })
     })
 }
@@ -3152,7 +3217,14 @@ fn is_canonical_return_dynamic_array(
     let (Some(length), Some((store_inst, index, value))) = (length, store) else {
         return false;
     };
-    if !is_canonical_return_value_inner(func, element, value, input_params, visiting) {
+    if !is_canonical_return_value_inner(
+        func,
+        element,
+        value,
+        input_params,
+        ReturnValueSource::Memory,
+        visiting,
+    ) {
         return false;
     }
 
@@ -3235,9 +3307,10 @@ fn canonicalize_return_value(
     ty: &AbiParamType,
     value: ValueId,
     input_params: Option<&AbiParamLayout>,
+    source: ReturnValueSource,
 ) -> ValueId {
     if !ty.needs_return_cleanup()
-        || is_canonical_return_value(builder.func(), ty, value, input_params)
+        || is_canonical_return_value(builder.func(), ty, value, input_params, source)
     {
         return value;
     }
@@ -3247,8 +3320,12 @@ fn canonicalize_return_value(
     }
     match ty {
         AbiParamType::Scalar(ty) | AbiParamType::Enum { ty, .. } => {
-            AbiWordValidator::from_return_mir_type(*ty)
-                .map_or(value, |validator| validator.cleanup(builder, value))
+            let validator = if source == ReturnValueSource::Memory {
+                AbiWordValidator::from_mir_type(*ty)
+            } else {
+                AbiWordValidator::from_return_mir_type(*ty)
+            };
+            validator.map_or(value, |validator| validator.cleanup(builder, value))
         }
         AbiParamType::Bytes => value,
         AbiParamType::Tuple(fields) => {
@@ -3256,8 +3333,13 @@ fn canonicalize_return_value(
                 builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
             for (index, field_ty) in fields.iter().enumerate() {
                 let field_value = builder.memory_object_load_field(value, layout, index as u64);
-                let field_value =
-                    canonicalize_return_value(builder, field_ty, field_value, input_params);
+                let field_value = canonicalize_return_value(
+                    builder,
+                    field_ty,
+                    field_value,
+                    input_params,
+                    ReturnValueSource::Memory,
+                );
                 builder.memory_object_store_field(output, layout, index as u64, field_value);
             }
             output
@@ -3267,8 +3349,13 @@ fn canonicalize_return_value(
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
                 let element_value = builder.memory_object_load_element(value, layout, index_value);
-                let element_value =
-                    canonicalize_return_value(builder, element, element_value, input_params);
+                let element_value = canonicalize_return_value(
+                    builder,
+                    element,
+                    element_value,
+                    input_params,
+                    ReturnValueSource::Memory,
+                );
                 builder.memory_object_store_element(output, layout, index_value, element_value);
             }
             output
@@ -3298,8 +3385,13 @@ fn canonicalize_return_value(
 
             builder.switch_to_block(body);
             let element_value = builder.memory_object_load_element(value, layout, index);
-            let element_value =
-                canonicalize_return_value(builder, element, element_value, input_params);
+            let element_value = canonicalize_return_value(
+                builder,
+                element,
+                element_value,
+                input_params,
+                ReturnValueSource::Memory,
+            );
             builder.memory_object_store_element(output, layout, index, element_value);
             let next = builder.add(index, one);
             let backedge = builder.current_block();
@@ -3462,13 +3554,25 @@ fn encode_live_returns(
                 if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
-                    if is_canonical_return_value(builder.func(), &ty, value, input_params) {
+                    if is_canonical_return_value(
+                        builder.func(),
+                        &ty,
+                        value,
+                        input_params,
+                        ReturnValueSource::Scalar,
+                    ) {
                         value
                     } else {
                         builder.internal_call(helper, vec![value], ty.mir_type(), 1)
                     }
                 } else {
-                    canonicalize_return_value(&mut builder, &ty, value, input_params)
+                    canonicalize_return_value(
+                        &mut builder,
+                        &ty,
+                        value,
+                        input_params,
+                        ReturnValueSource::Scalar,
+                    )
                 }
             })
             .collect::<Vec<_>>()
