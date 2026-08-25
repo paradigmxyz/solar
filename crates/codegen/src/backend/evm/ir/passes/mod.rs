@@ -100,7 +100,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // tail merging can make otherwise-identical blocks context-dependent and
     // lose more shared bytes than the local CSE removes.
     &block_cse::BlockCseCleanup,
-    &dce::Dce,
+    &dce::DceCleanup,
     // DCE retargets physical stack operations and exposes local rewrites.
     &peephole::Peephole,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
