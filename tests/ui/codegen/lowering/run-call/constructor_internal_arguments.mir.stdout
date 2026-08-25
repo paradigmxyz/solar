@@ -99,8 +99,6 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v7 = returndatasize
     v8 = lt v7, 32
     jumpi v8, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v9 = add 0, 0
     v10 = mload v9
@@ -109,12 +107,14 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v13 = eq v10, v12
     v14 = iszero v13
     jumpi v14, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v15 = add 0, 0
     v16 = mload v15
     ret v16
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
 }
 
 fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
@@ -133,8 +133,6 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     v7 = returndatasize
     v8 = lt v7, 32
     jumpi v8, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v9 = add 0, 0
     v10 = mload v9
@@ -142,11 +140,13 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     v12 = eq v10, v11
     v13 = iszero v12
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = add 0, 0
     v15 = mload v14
     ret v15
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
 }
 

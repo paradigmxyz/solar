@@ -13,9 +13,9 @@ bb0:
   sub
   push bb3
   jumpi
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push 36
   calldataload
   swap1

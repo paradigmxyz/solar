@@ -9,22 +9,22 @@ fn @count_down(arg0: u256) -> u256 [selector=0x454297e4, pure, abi_params=[u256]
     v2 = phi [bb0: arg0], [bb5: v2]
     v3 = gt v0, 0
     jumpi v3, bb3, bb4
+  bb4:
+    jump bb2
   bb2:
     ret v0
   bb3:
     v4 = sub v0, 1
     v5 = lt v0, 1
     jumpi v5, bb6, bb7
-  bb4:
-    jump bb2
+  bb7:
+    jump bb5
   bb5:
     jump bb1
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb7:
-    jump bb5
 }
 
 fn @do_at_least_once(arg0: u256) -> u256 [selector=0x0cf92500, pure, abi_params=[u256], abi_returns=[word]] {
@@ -37,21 +37,21 @@ fn @do_at_least_once(arg0: u256) -> u256 [selector=0x0cf92500, pure, abi_params=
     v3 = add v1, 1
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
-  bb2:
-    ret v3
+  bb5:
+    jump bb3
   bb3:
     v5 = lt v3, v0
     jumpi v5, bb6, bb7
+  bb7:
+    jump bb2
+  bb2:
+    ret v3
+  bb6:
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb5:
-    jump bb3
-  bb6:
-    jump bb1
-  bb7:
-    jump bb2
   bb8:
     invalid
 }
@@ -66,28 +66,28 @@ fn @break_when_found(arg0: u256, arg1: u256) -> u256 [selector=0x4e11eeda, pure,
     v3 = phi [bb0: 0], [bb5: v3]
     v4 = lt v1, v2
     jumpi v4, bb3, bb4
-  bb2:
-    ret v1
+  bb4:
+    jump bb2
   bb3:
     v5 = eq v1, v0
     jumpi v5, bb6, bb7
-  bb4:
-    jump bb2
-  bb5:
-    jump bb1
-  bb6:
-    jump bb2
   bb7:
     jump bb8
   bb8:
     v6 = add v1, 1
     v7 = lt v6, v1
     jumpi v7, bb9, bb10
+  bb10:
+    jump bb5
+  bb5:
+    jump bb1
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    jump bb5
+  bb6:
+    jump bb2
+  bb2:
+    ret v1
 }
 

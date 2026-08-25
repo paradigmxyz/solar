@@ -9,10 +9,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
@@ -25,10 +21,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v12 = lt v11, 32
     v13 = eq v8, v12
     jumpi v13, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v14 = memory_object_len memorybytes, v0
     v15 = memory_object_data memorybytes, v0
@@ -38,10 +30,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v19 = add v14, 31
     v20 = lt v19, v14
     jumpi v20, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v21 = div v19, 32
     v22 = lt v14, 32
@@ -54,6 +42,25 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb8
   bb8:
     jumpi v22, bb9, bb10
+  bb10:
+    v35 = shl 1, v14
+    v36 = or v35, 1
+    sstore v5, v36 !metadata(storage=symbolic(v5))
+    v37 = storage_array_data_slot v5
+    jump bb12
+  bb12:
+    v38 = phi [bb10: 0], [bb13: v43]
+    v39 = lt v38, v21
+    jumpi v39, bb13, bb14
+  bb14:
+    jump bb11
+  bb13:
+    v40 = mul v38, 32
+    v41 = memory_slice_load_word memory, v16, v40
+    v42 = add v37, v38
+    sstore v42, v41 !metadata(storage=symbolic(v42))
+    v43 = add v38, 1
+    jump bb12
   bb9:
     v26 = memory_slice_load_word memory, v16, 0
     v27 = sub 32, v14
@@ -66,12 +73,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v34 = or v32, v33
     sstore v5, v34 !metadata(storage=symbolic(v5))
     jump bb11
-  bb10:
-    v35 = shl 1, v14
-    v36 = or v35, 1
-    sstore v5, v36 !metadata(storage=symbolic(v5))
-    v37 = storage_array_data_slot v5
-    jump bb12
   bb11:
     sstore 0, v2 !metadata(storage=slot(0))
     v44 = not 31
@@ -86,23 +87,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v50 = lt 39, v49
     v51 = iszero v50
     jumpi v51, bb15, bb16
-  bb12:
-    v38 = phi [bb10: 0], [bb13: v43]
-    v39 = lt v38, v21
-    jumpi v39, bb13, bb14
-  bb13:
-    v40 = mul v38, 32
-    v41 = memory_slice_load_word memory, v16, v40
-    v42 = add v37, v38
-    sstore v42, v41 !metadata(storage=symbolic(v42))
-    v43 = add v38, 1
-    jump bb12
-  bb14:
-    jump bb11
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     v52 = byte 0, v48
     memory_object_store_byte memorybytes, v46, 39, v52
@@ -110,10 +94,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v54 = add v53, 1
     v55 = lt v54, v53
     jumpi v55, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     v56 = storage_array_data_slot 0
     v57 = add v56, v53
@@ -126,10 +106,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v64 = lt v63, 32
     v65 = eq v60, v64
     jumpi v65, bb19, bb20
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb20:
     v66 = memory_object_len memorybytes, v46
     v67 = memory_object_data memorybytes, v46
@@ -139,10 +115,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v71 = add v66, 31
     v72 = lt v71, v66
     jumpi v72, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     v73 = div v71, 32
     v74 = lt v66, 32
@@ -155,6 +127,25 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb24
   bb24:
     jumpi v74, bb25, bb26
+  bb26:
+    v87 = shl 1, v66
+    v88 = or v87, 1
+    sstore v57, v88 !metadata(storage=symbolic(v57))
+    v89 = storage_array_data_slot v57
+    jump bb28
+  bb28:
+    v90 = phi [bb26: 0], [bb29: v95]
+    v91 = lt v90, v73
+    jumpi v91, bb29, bb30
+  bb30:
+    jump bb27
+  bb29:
+    v92 = mul v90, 32
+    v93 = memory_slice_load_word memory, v68, v92
+    v94 = add v89, v90
+    sstore v94, v93 !metadata(storage=symbolic(v94))
+    v95 = add v90, 1
+    jump bb28
   bb25:
     v78 = memory_slice_load_word memory, v68, 0
     v79 = sub 32, v66
@@ -167,12 +158,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v86 = or v84, v85
     sstore v57, v86 !metadata(storage=symbolic(v57))
     jump bb27
-  bb26:
-    v87 = shl 1, v66
-    v88 = or v87, 1
-    sstore v57, v88 !metadata(storage=symbolic(v57))
-    v89 = storage_array_data_slot v57
-    jump bb28
   bb27:
     sstore 0, v54 !metadata(storage=slot(0))
     v96 = internal_call @load_storage_bytes_array, 1, 0
@@ -180,23 +165,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v98 = lt 0, v97
     v99 = iszero v98
     jumpi v99, bb31, bb32
-  bb28:
-    v90 = phi [bb26: 0], [bb29: v95]
-    v91 = lt v90, v73
-    jumpi v91, bb29, bb30
-  bb29:
-    v92 = mul v90, 32
-    v93 = memory_slice_load_word memory, v68, v92
-    v94 = add v89, v90
-    sstore v94, v93 !metadata(storage=symbolic(v94))
-    v95 = add v90, 1
-    jump bb28
-  bb30:
-    jump bb27
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb32:
     v100 = memory_object_load_element memoryarray<1>, v96, 0
     v101 = eq v100, 0
@@ -213,10 +181,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v106 = lt 1, v105
     v107 = iszero v106
     jumpi v107, bb35, bb36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb36:
     v108 = memory_object_load_element memoryarray<1>, v96, 1
     v109 = eq v108, 0
@@ -232,19 +196,11 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v113 = add v104, v112
     v114 = lt v113, v104
     jumpi v114, bb39, bb40
-  bb39:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb40:
     v115 = memory_object_len memoryarray, v96
     v116 = lt 0, v115
     v117 = iszero v116
     jumpi v117, bb41, bb42
-  bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb42:
     v118 = memory_object_load_element memoryarray<1>, v96, 0
     v119 = eq v118, 0
@@ -260,10 +216,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v123 = lt 1, v122
     v124 = iszero v123
     jumpi v124, bb45, bb46
-  bb45:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb46:
     v125 = memory_object_load_byte memorybytes, v121, 1
     v126 = shl 248, v125
@@ -271,19 +223,11 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v128 = add v113, v127
     v129 = lt v128, v113
     jumpi v129, bb47, bb48
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb48:
     v130 = memory_object_len memoryarray, v96
     v131 = lt 1, v130
     v132 = iszero v131
     jumpi v132, bb49, bb50
-  bb49:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb50:
     v133 = memory_object_load_element memoryarray<1>, v96, 1
     v134 = eq v133, 0
@@ -299,10 +243,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v138 = lt 39, v137
     v139 = iszero v138
     jumpi v139, bb53, bb54
-  bb53:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb54:
     v140 = memory_object_load_byte memorybytes, v136, 39
     v141 = shl 248, v140
@@ -310,12 +250,72 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v143 = add v128, v142
     v144 = lt v143, v128
     jumpi v144, bb55, bb56
+  bb56:
+    ret v143
   bb55:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb56:
-    ret v143
+  bb53:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb49:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb47:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb45:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb41:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb39:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb35:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -326,13 +326,13 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v1 = phi [bb0: arg1], [bb2: v4]
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
+  bb3:
+    stop
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
     v4 = add v1, 1
     jump bb1
-  bb3:
-    stop
 }
 
 fn @load_storage_bytes_array(arg0: u256) -> memoryarray {
@@ -341,10 +341,6 @@ fn @load_storage_bytes_array(arg0: u256) -> memoryarray {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = mul v1, 32
     v4 = iszero 32
@@ -353,10 +349,6 @@ fn @load_storage_bytes_array(arg0: u256) -> memoryarray {
     v7 = or v4, v6
     v8 = iszero v7
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
@@ -366,14 +358,22 @@ fn @load_storage_bytes_array(arg0: u256) -> memoryarray {
     v11 = phi [bb4: 0], [bb6: v15]
     v12 = lt v11, v0
     jumpi v12, bb6, bb7
+  bb7:
+    ret v9
   bb6:
     v13 = add v10, v11
     v14 = internal_call @load_storage_bytes, 1, v13
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v15 = add v11, 1
     jump bb5
-  bb7:
-    ret v9
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @load_storage_bytes(arg0: u256) -> memorybytes {
@@ -387,20 +387,12 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     v6 = lt v5, 32
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v5, 31
     v9 = div v8, 32
     v10 = add v5, 63
     v11 = lt v10, v5
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = not 31
     v13 = and v10, v12
@@ -414,12 +406,14 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb6:
     v16 = storage_array_data_slot arg0
     jump bb8
-  bb7:
-    ret v14
   bb8:
     v17 = phi [bb6: 0], [bb9: v22]
     v18 = lt v17, v9
     jumpi v18, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v14
   bb9:
     v19 = add v16, v17
     v20 = sload v19 !metadata(storage=symbolic(v19))
@@ -427,7 +421,13 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     memory_object_store_word memorybytes, v14, v21, v20
     v22 = add v17, 1
     jump bb8
-  bb10:
-    jump bb7
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }
 

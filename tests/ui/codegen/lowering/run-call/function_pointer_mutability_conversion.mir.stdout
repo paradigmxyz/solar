@@ -67,10 +67,6 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v33 = lt 0, 1
     v34 = iszero v33
     jumpi v34, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v35 = div 0, 1
     v36 = add 0, v35
@@ -95,8 +91,6 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v51 = returndatasize
     v52 = lt v51, 32
     jumpi v52, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v53 = add 0, 0
     v54 = mload v53
@@ -105,10 +99,6 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v57 = lt 0, 1
     v58 = iszero v57
     jumpi v58, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v59 = div 0, 4
     v60 = add 3, v59
@@ -120,6 +110,16 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v66 = and v65, 0xffffffffffffffff
     v67 = internal_call @internal_dispatcher_p_none_r_u256, 1, v66
     ret v56, v67
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi_returns=[word, word]] {
@@ -164,10 +164,6 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v33 = lt 0, 1
     v34 = iszero v33
     jumpi v34, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v35 = div 0, 1
     v36 = add 0, v35
@@ -192,8 +188,6 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v51 = returndatasize
     v52 = lt v51, 32
     jumpi v52, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v53 = add 0, 0
     v54 = mload v53
@@ -202,10 +196,6 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v57 = lt 0, 1
     v58 = iszero v57
     jumpi v58, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v59 = div 0, 4
     v60 = add 3, v59
@@ -217,6 +207,16 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v66 = and v65, 0xffffffffffffffff
     v67 = internal_call @internal_dispatcher_p_none_r_u256, 1, v66
     ret v56, v67
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_returns=[word, word]] {
@@ -261,10 +261,6 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v33 = lt 0, 1
     v34 = iszero v33
     jumpi v34, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v35 = div 0, 1
     v36 = add 1, v35
@@ -289,8 +285,6 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v51 = returndatasize
     v52 = lt v51, 32
     jumpi v52, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v53 = add 0, 0
     v54 = mload v53
@@ -299,10 +293,6 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v57 = lt 0, 1
     v58 = iszero v57
     jumpi v58, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v59 = div 0, 4
     v60 = add 4, v59
@@ -314,24 +304,34 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v66 = and v65, 0xffffffffffffffff
     v67 = internal_call @internal_dispatcher_p_none_r_u256, 1, v66
     ret v56, v67
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @internalViewTarget, 1
-    ret v1
   bb2:
     v2 = eq arg0, 6
     jumpi v2, bb3, bb4
-  bb3:
-    v3 = internal_call @internalPureTarget, 1
-    ret v3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb3:
+    v3 = internal_call @internalPureTarget, 1
+    ret v3
+  bb1:
+    v1 = internal_call @internalViewTarget, 1
+    ret v1
 }
 

@@ -16,10 +16,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -38,8 +34,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v11 = returndatasize
     v12 = lt v11, 64
     jumpi v12, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v13 = add v8, 0
     v14 = mload v13
@@ -63,8 +57,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb9:
     v26 = phi [bb7: v25], [bb8: 1]
     jumpi v26, bb10, bb11
-  bb10:
-    ret 1
   bb11:
     jump bb12
   bb12:
@@ -91,15 +83,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v39 = lt 0, v38
     v40 = iszero v39
     jumpi v40, bb19, bb20
-  bb17:
-    jump bb18
-  bb18:
-    v46 = phi [bb20: v45], [bb17: 1]
-    jumpi v46, bb21, bb22
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb20:
     v41 = storage_array_data_slot v32
     v42 = add v41, 0
@@ -107,8 +90,15 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v44 = eq v43, 3
     v45 = iszero v44
     jump bb18
-  bb21:
-    ret 2
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    jump bb18
+  bb18:
+    v46 = phi [bb20: v45], [bb17: 1]
+    jumpi v46, bb21, bb22
   bb22:
     jump bb23
   bb23:
@@ -124,8 +114,6 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb26:
     v51 = phi [bb24: v50], [bb25: 1]
     jumpi v51, bb27, bb28
-  bb27:
-    ret 3
   bb28:
     jump bb29
   bb29:
@@ -141,11 +129,23 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb32:
     v56 = phi [bb30: v55], [bb31: 1]
     jumpi v56, bb33, bb34
-  bb33:
-    ret 4
   bb34:
     jump bb35
   bb35:
     ret 0
+  bb33:
+    ret 4
+  bb27:
+    ret 3
+  bb21:
+    ret 2
+  bb10:
+    ret 1
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

@@ -11,12 +11,10 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
     v4 = phi [bb0: arg1], [bb12: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
   bb2:
     ret v3, v0
-  bb3:
-    v19 = add v2, 1
-    v20 = lt v19, v2
-    jumpi v20, bb11, bb12
   bb4:
     v6 = shl 8, v3
     v7 = and v6, 0xffffffffffffffff
@@ -24,14 +22,6 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
     v9 = lt v0, v8
     v10 = iszero v9
     jumpi v10, bb7, bb8
-  bb5:
-    jump bb2
-  bb6:
-    jump bb3
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v11 = slice_ptr v1
     v12 = calldata_slice_load_word calldata, v1, v0
@@ -42,18 +32,28 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
     v17 = add v0, 1
     v18 = lt v17, v0
     jumpi v18, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v19 = add v2, 1
+    v20 = lt v19, v2
+    jumpi v20, bb11, bb12
+  bb12:
+    jump bb1
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
-    jump bb1
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word, word]] {

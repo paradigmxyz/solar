@@ -19,9 +19,9 @@ bb0:
   sub
   push bb3
   jumpi
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 4
@@ -84,9 +84,9 @@ bb0:
   push 288
   push 64
   mstore
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 36
@@ -258,9 +258,9 @@ bb0:
   push 288
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb3
   jumpi
   push 64

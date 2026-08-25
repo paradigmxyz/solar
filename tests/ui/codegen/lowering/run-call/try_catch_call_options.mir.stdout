@@ -43,19 +43,11 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v5 = slice_len v3
     v6 = call 0, v1, 0, v4, v5, 0, 0
     jumpi v6, bb1, bb2
-  bb1:
-    ret 0
   bb2:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb4, bb5
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v10 = not 31
     v11 = and v8, v10
@@ -77,9 +69,17 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
     jumpi 1, bb6, bb7
-  bb6:
-    ret 1
   bb7:
     revert v14, v15
+  bb6:
+    ret 1
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret 0
+  bb3:
+    ret 0
 }
 

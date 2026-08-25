@@ -7,9 +7,9 @@
 // CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
 // CHECK:   fn @derived_chain{{.*}}
 // CHECK: -     {{v[0-9]+}} = alloc raw, exact, uninitialized, infallible, 32
+// CHECK: +     {{v[0-9]+}} = add 128, 0
 // CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK:       ret [[LOAD]]
-// CHECK: +     {{v[0-9]+}} = add 128, 0
 fn @derived_chain() -> u256 [selector=0x01020304] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32

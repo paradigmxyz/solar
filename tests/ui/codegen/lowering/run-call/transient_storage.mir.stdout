@@ -85,14 +85,14 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
     v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0
     v11 = mload v10
     ret v11
+  bb3:
+    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
@@ -106,12 +106,6 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v4 = add v3, 10
     v5 = gt v4, 0xffff
     jumpi v5, bb2, bb3
-  bb1:
-    ret v27
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     v6 = tload 0
     v7 = not 0xffff
@@ -130,12 +124,6 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v19 = gt v13, 0xffff
     v20 = or v18, v19
     jumpi v20, bb5, bb6
-  bb4:
-    jump bb1
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v21 = tload 0
     v22 = not 0xffff
@@ -146,5 +134,17 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v26 = tload 0
     v27 = and v26, 0xffff
     jump bb4
+  bb4:
+    jump bb1
+  bb1:
+    ret v27
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 

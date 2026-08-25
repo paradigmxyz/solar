@@ -12,13 +12,13 @@ fn @increment() [selector=0xd09de08a, abi_params=[], abi_returns=[]] {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    stop
 }
 
 fn @set(arg0: u256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[]] {

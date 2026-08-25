@@ -57,10 +57,10 @@ fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v32 = keccak256_bytes v18
     v33 = eq v31, v32
     jumpi v33, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     v34 = or 0, 1
-    jump bb3
-  bb2:
     jump bb3
   bb3:
     v35 = phi [bb1: v34], [bb2: 0]
@@ -68,10 +68,10 @@ fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v37 = keccak256_bytes v25
     v38 = eq v36, v37
     jumpi v38, bb4, bb5
+  bb5:
+    jump bb6
   bb4:
     v39 = or v35, 2
-    jump bb6
-  bb5:
     jump bb6
   bb6:
     v40 = phi [bb4: v39], [bb5: v35]
@@ -79,20 +79,20 @@ fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v42 = keccak256_bytes v30
     v43 = eq v41, v42
     jumpi v43, bb7, bb8
+  bb8:
+    jump bb9
   bb7:
     v44 = or v40, 4
-    jump bb9
-  bb8:
     jump bb9
   bb9:
     v45 = phi [bb7: v44], [bb8: v40]
     v46 = sload 0 !metadata(storage=slot(0))
     v47 = and v46, 255
     jumpi v47, bb10, bb11
+  bb11:
+    jump bb12
   bb10:
     v48 = or v45, 8
-    jump bb12
-  bb11:
     jump bb12
   bb12:
     v49 = phi [bb10: v48], [bb11: v45]

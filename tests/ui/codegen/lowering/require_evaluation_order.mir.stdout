@@ -6,14 +6,14 @@ fn @customError() -> u256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word
     v0 = internal_call @increment, 1
     v1 = iszero 1
     jumpi v1, bb1, bb2
+  bb2:
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
   bb1:
     v2 = abi_encode [word], selector 0x2ff06700000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
-  bb2:
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
 }
 
 fn @stringError() -> u256 [selector=0x277dd25f, abi_params=[], abi_returns=[word]] {
@@ -22,14 +22,14 @@ fn @stringError() -> u256 [selector=0x277dd25f, abi_params=[], abi_returns=[word
     v0 = internal_call @reason, 1
     v1 = iszero 1
     jumpi v1, bb1, bb2
+  bb2:
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
   bb1:
     v2 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
-  bb2:
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
 }
 
 fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns=[word]] {
@@ -37,13 +37,13 @@ fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns
     v0 = internal_call @returnSeven, 1
     v1 = iszero 1
     jumpi v1, bb1, bb2
+  bb2:
+    ret 42
   bb1:
     v2 = abi_encode [word], selector 0x2ff06700000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
-  bb2:
-    ret 42
 }
 
 fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
@@ -52,13 +52,13 @@ fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
     v0 = internal_call @increment, 1
     v1 = iszero 0
     jumpi v1, bb1, bb2
+  bb2:
+    stop
   bb1:
     v2 = abi_encode [word], selector 0x2ff06700000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
-  bb2:
-    stop
 }
 
 fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
@@ -67,13 +67,13 @@ fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
     v0 = internal_call @reason, 1
     v1 = iszero 0
     jumpi v1, bb1, bb2
+  bb2:
+    stop
   bb1:
     v2 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
     v4 = slice_len v2
     revert v3, v4
-  bb2:
-    stop
 }
 
 fn @increment() -> u256 {
@@ -82,13 +82,13 @@ fn @increment() -> u256 {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret v1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    ret v1
 }
 
 fn @reason() -> memorybytes {
@@ -97,16 +97,16 @@ fn @reason() -> memorybytes {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
     v3 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v3, 1
     memory_object_store_word memorybytes, v3, 0, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @returnSeven() [pure] {

@@ -6,11 +6,12 @@
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb1
-+     jump bb2
-    bb1:
+-   bb1:
       jump bb2
     bb2:
       ret v0
++   bb1:
++     jump bb2
   }
   
 - // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before cfg-simplify) ===
@@ -21,10 +22,10 @@
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb2
--   bb1:
--     jump bb2
 -   bb2:
       ret v0
+-   bb1:
+-     jump bb2
   }
   
 - // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before dce) ===

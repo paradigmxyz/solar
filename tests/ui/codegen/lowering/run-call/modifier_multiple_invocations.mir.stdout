@@ -6,42 +6,18 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v1 = add v0, 2
     v2 = lt v1, v0
     jumpi v2, bb2, bb3
-  bb1:
-    ret v9
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     sstore 0, v1 !metadata(storage=slot(0))
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = add v3, 5
     v5 = lt v4, v3
     jumpi v5, bb5, bb6
-  bb4:
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = sub v20, 2
-    v22 = lt v20, 2
-    jumpi v22, bb19, bb20
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     sstore 0, v4 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = add v6, arg0
     v8 = lt v7, v6
     jumpi v8, bb8, bb9
-  bb7:
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = sub v15, 5
-    v17 = lt v15, 5
-    jumpi v17, bb15, bb16
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = sload 0 !metadata(storage=slot(0))
@@ -51,50 +27,74 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v11 = sub v10, arg0
     v12 = lt v10, arg0
     jumpi v12, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     sstore 0, v11 !metadata(storage=slot(0))
     v13 = eq arg0, arg0
     v14 = iszero v13
     jumpi v14, bb13, bb14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
   bb14:
     jump bb7
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+  bb7:
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = sub v15, 5
+    v17 = lt v15, 5
+    jumpi v17, bb15, bb16
   bb16:
     sstore 0, v16 !metadata(storage=slot(0))
     v18 = eq 5, 5
     v19 = iszero v18
     jumpi v19, bb17, bb18
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
   bb18:
     jump bb4
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+  bb4:
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = sub v20, 2
+    v22 = lt v20, 2
+    jumpi v22, bb19, bb20
   bb20:
     sstore 0, v21 !metadata(storage=slot(0))
     v23 = eq 2, 2
     v24 = iszero v23
     jumpi v24, bb21, bb22
+  bb22:
+    jump bb1
+  bb1:
+    ret v9
   bb21:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
-  bb22:
-    jump bb1
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 

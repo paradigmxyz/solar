@@ -29,9 +29,9 @@ bb5 [cold]:
   dup1
   revert
 bb6:
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb5
   jumpi
   push 36
@@ -155,9 +155,9 @@ bb45 [cold]:
   push 0
   revert
 bb19:
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb5
   jumpi
   push 0
@@ -288,9 +288,9 @@ bb28:
   jumpi
   jump bb45
 bb32:
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb5
   jumpi
   push 0

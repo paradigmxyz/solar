@@ -523,6 +523,10 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
             config.program.input_file_flag = Some("-I".into());
         }
     }
+    if let Some(evm_version) = solc::yul::evm_version(src) {
+        config.program.args.push("--evm-version".into());
+        config.program.args.push(evm_version.to_string().into());
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

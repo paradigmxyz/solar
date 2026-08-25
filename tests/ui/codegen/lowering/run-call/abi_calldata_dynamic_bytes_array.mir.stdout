@@ -16,10 +16,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = slice_ptr arg0
     v5 = add v4, 0
@@ -29,8 +25,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v9 = gt v6, v8
     v10 = or v7, v9
     jumpi v10, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v11 = calldataload v5
     v12 = add v4, v11
@@ -40,14 +34,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v16 = slt v11, v15
     v17 = iszero v16
     jumpi v17, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v18 = calldataload v12
     v19 = gt v18, 0xffffffffffffffff
     jumpi v19, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v20 = mul v18, 1
     v21 = add v12, 32
@@ -55,8 +45,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v23 = sub v22, v20
     v24 = sgt v21, v23
     jumpi v24, bb9, bb10
-  bb9:
-    revert 0, 0
   bb10:
     v25 = add v12, 32
     v26 = make_calldata_slice v25, v18
@@ -65,10 +53,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v29 = lt 0, v28
     v30 = iszero v29
     jumpi v30, bb11, bb12
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v31 = slice_ptr arg0
     v32 = add v31, 0
@@ -78,8 +62,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v36 = gt v33, v35
     v37 = or v34, v36
     jumpi v37, bb13, bb14
-  bb13:
-    revert 0, 0
   bb14:
     v38 = calldataload v32
     v39 = add v31, v38
@@ -89,14 +71,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v43 = slt v38, v42
     v44 = iszero v43
     jumpi v44, bb15, bb16
-  bb15:
-    revert 0, 0
   bb16:
     v45 = calldataload v39
     v46 = gt v45, 0xffffffffffffffff
     jumpi v46, bb17, bb18
-  bb17:
-    revert 0, 0
   bb18:
     v47 = mul v45, 1
     v48 = add v39, 32
@@ -104,8 +82,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v50 = sub v49, v47
     v51 = sgt v48, v50
     jumpi v51, bb19, bb20
-  bb19:
-    revert 0, 0
   bb20:
     v52 = add v39, 32
     v53 = make_calldata_slice v52, v45
@@ -113,10 +89,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v55 = lt 0, v54
     v56 = iszero v55
     jumpi v56, bb21, bb22
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     v57 = slice_ptr v53
     v58 = calldata_slice_load_word calldata, v53, 0
@@ -127,10 +99,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v63 = lt 0, v62
     v64 = iszero v63
     jumpi v64, bb23, bb24
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb24:
     v65 = slice_ptr arg0
     v66 = add v65, 0
@@ -140,8 +108,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v70 = gt v67, v69
     v71 = or v68, v70
     jumpi v71, bb25, bb26
-  bb25:
-    revert 0, 0
   bb26:
     v72 = calldataload v66
     v73 = add v65, v72
@@ -151,14 +117,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v77 = slt v72, v76
     v78 = iszero v77
     jumpi v78, bb27, bb28
-  bb27:
-    revert 0, 0
   bb28:
     v79 = calldataload v73
     v80 = gt v79, 0xffffffffffffffff
     jumpi v80, bb29, bb30
-  bb29:
-    revert 0, 0
   bb30:
     v81 = mul v79, 1
     v82 = add v73, 32
@@ -166,8 +128,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v84 = sub v83, v81
     v85 = sgt v82, v84
     jumpi v85, bb31, bb32
-  bb31:
-    revert 0, 0
   bb32:
     v86 = add v73, 32
     v87 = make_calldata_slice v86, v79
@@ -175,10 +135,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v89 = lt 1, v88
     v90 = iszero v89
     jumpi v90, bb33, bb34
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb34:
     v91 = slice_ptr v87
     v92 = calldata_slice_load_word calldata, v87, 1
@@ -189,10 +145,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v97 = lt 1, v96
     v98 = iszero v97
     jumpi v98, bb35, bb36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb36:
     v99 = slice_ptr arg0
     v100 = add v99, 32
@@ -202,8 +154,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v104 = gt v101, v103
     v105 = or v102, v104
     jumpi v105, bb37, bb38
-  bb37:
-    revert 0, 0
   bb38:
     v106 = calldataload v100
     v107 = add v99, v106
@@ -213,14 +163,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v111 = slt v106, v110
     v112 = iszero v111
     jumpi v112, bb39, bb40
-  bb39:
-    revert 0, 0
   bb40:
     v113 = calldataload v107
     v114 = gt v113, 0xffffffffffffffff
     jumpi v114, bb41, bb42
-  bb41:
-    revert 0, 0
   bb42:
     v115 = mul v113, 1
     v116 = add v107, 32
@@ -228,8 +174,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v118 = sub v117, v115
     v119 = sgt v116, v118
     jumpi v119, bb43, bb44
-  bb43:
-    revert 0, 0
   bb44:
     v120 = add v107, 32
     v121 = make_calldata_slice v120, v113
@@ -238,10 +182,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v124 = lt 1, v123
     v125 = iszero v124
     jumpi v125, bb45, bb46
-  bb45:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb46:
     v126 = slice_ptr arg0
     v127 = add v126, 32
@@ -251,8 +191,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v131 = gt v128, v130
     v132 = or v129, v131
     jumpi v132, bb47, bb48
-  bb47:
-    revert 0, 0
   bb48:
     v133 = calldataload v127
     v134 = add v126, v133
@@ -262,14 +200,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v138 = slt v133, v137
     v139 = iszero v138
     jumpi v139, bb49, bb50
-  bb49:
-    revert 0, 0
   bb50:
     v140 = calldataload v134
     v141 = gt v140, 0xffffffffffffffff
     jumpi v141, bb51, bb52
-  bb51:
-    revert 0, 0
   bb52:
     v142 = mul v140, 1
     v143 = add v134, 32
@@ -277,8 +211,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v145 = sub v144, v142
     v146 = sgt v143, v145
     jumpi v146, bb53, bb54
-  bb53:
-    revert 0, 0
   bb54:
     v147 = add v134, 32
     v148 = make_calldata_slice v147, v140
@@ -286,10 +218,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v150 = lt 0, v149
     v151 = iszero v150
     jumpi v151, bb55, bb56
-  bb55:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb56:
     v152 = slice_ptr v148
     v153 = calldata_slice_load_word calldata, v148, 0
@@ -300,10 +228,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v158 = lt 1, v157
     v159 = iszero v158
     jumpi v159, bb57, bb58
-  bb57:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb58:
     v160 = slice_ptr arg0
     v161 = add v160, 32
@@ -313,8 +237,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v165 = gt v162, v164
     v166 = or v163, v165
     jumpi v166, bb59, bb60
-  bb59:
-    revert 0, 0
   bb60:
     v167 = calldataload v161
     v168 = add v160, v167
@@ -324,14 +246,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v172 = slt v167, v171
     v173 = iszero v172
     jumpi v173, bb61, bb62
-  bb61:
-    revert 0, 0
   bb62:
     v174 = calldataload v168
     v175 = gt v174, 0xffffffffffffffff
     jumpi v175, bb63, bb64
-  bb63:
-    revert 0, 0
   bb64:
     v176 = mul v174, 1
     v177 = add v168, 32
@@ -339,8 +257,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v179 = sub v178, v176
     v180 = sgt v177, v179
     jumpi v180, bb65, bb66
-  bb65:
-    revert 0, 0
   bb66:
     v181 = add v168, 32
     v182 = make_calldata_slice v181, v174
@@ -348,10 +264,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v184 = lt 1, v183
     v185 = iszero v184
     jumpi v185, bb67, bb68
-  bb67:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb68:
     v186 = slice_ptr v182
     v187 = calldata_slice_load_word calldata, v182, 1
@@ -362,10 +274,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v192 = lt 1, v191
     v193 = iszero v192
     jumpi v193, bb69, bb70
-  bb69:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb70:
     v194 = slice_ptr arg0
     v195 = add v194, 32
@@ -375,8 +283,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v199 = gt v196, v198
     v200 = or v197, v199
     jumpi v200, bb71, bb72
-  bb71:
-    revert 0, 0
   bb72:
     v201 = calldataload v195
     v202 = add v194, v201
@@ -386,14 +292,10 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v206 = slt v201, v205
     v207 = iszero v206
     jumpi v207, bb73, bb74
-  bb73:
-    revert 0, 0
   bb74:
     v208 = calldataload v202
     v209 = gt v208, 0xffffffffffffffff
     jumpi v209, bb75, bb76
-  bb75:
-    revert 0, 0
   bb76:
     v210 = mul v208, 1
     v211 = add v202, 32
@@ -401,8 +303,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v213 = sub v212, v210
     v214 = sgt v211, v213
     jumpi v214, bb77, bb78
-  bb77:
-    revert 0, 0
   bb78:
     v215 = add v202, 32
     v216 = make_calldata_slice v215, v208
@@ -410,10 +310,6 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v218 = lt 2, v217
     v219 = iszero v218
     jumpi v219, bb79, bb80
-  bb79:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb80:
     v220 = slice_ptr v216
     v221 = calldata_slice_load_word calldata, v216, 2
@@ -421,5 +317,109 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v223 = shl 248, v222
     v224 = shr 248, v223
     ret v0, v27, v61, v95, v122, v156, v190, v224
+  bb79:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb77:
+    revert 0, 0
+  bb75:
+    revert 0, 0
+  bb73:
+    revert 0, 0
+  bb71:
+    revert 0, 0
+  bb69:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb67:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb65:
+    revert 0, 0
+  bb63:
+    revert 0, 0
+  bb61:
+    revert 0, 0
+  bb59:
+    revert 0, 0
+  bb57:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb55:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb53:
+    revert 0, 0
+  bb51:
+    revert 0, 0
+  bb49:
+    revert 0, 0
+  bb47:
+    revert 0, 0
+  bb45:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb43:
+    revert 0, 0
+  bb41:
+    revert 0, 0
+  bb39:
+    revert 0, 0
+  bb37:
+    revert 0, 0
+  bb35:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb33:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    revert 0, 0
+  bb29:
+    revert 0, 0
+  bb27:
+    revert 0, 0
+  bb25:
+    revert 0, 0
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    revert 0, 0
+  bb17:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

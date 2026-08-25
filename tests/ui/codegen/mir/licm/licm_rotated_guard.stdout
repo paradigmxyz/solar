@@ -11,11 +11,11 @@
       v2 = mload 320
       v3 = lt v0, 10
       jumpi v3, bb2, bb3
+    bb3:
+      ret v2
     bb2:
       v4 = add v0, 1
       jump bb1
-    bb3:
-      ret v2
   }
   
   fn @dowhile_latch_guard_overlap() -> u256 {
@@ -41,14 +41,14 @@
       v0 = phi [bb0: 0], [bb2: v4]
       v1 = lt v0, 10
       jumpi v1, bb2, bb3
+    bb3:
+      ret v3
     bb2:
       v2 = mul v0, 32
       mstore v2, 1
 -     v3 = mload 320
       v4 = add v0, 1
       jump bb1
-    bb3:
-      ret v3
   }
   
   fn @disjoint_past_widened_range() -> u256 {
@@ -62,10 +62,10 @@
 -     v2 = mload 384
       v3 = lt v0, 10
       jumpi v3, bb2, bb3
+    bb3:
+      ret v2
     bb2:
       v4 = add v0, 1
       jump bb1
-    bb3:
-      ret v2
   }
   

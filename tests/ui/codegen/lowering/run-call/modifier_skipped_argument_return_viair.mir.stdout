@@ -4,16 +4,16 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = eq 7, 7
     jumpi v0, bb2, bb3
-  bb1:
-    v1 = phi [bb2: 0], [bb5: 7]
-    ret v1
-  bb2:
-    jump bb1
   bb3:
     jump bb4
   bb4:
     jump bb5
   bb5:
     jump bb1
+  bb2:
+    jump bb1
+  bb1:
+    v1 = phi [bb2: 0], [bb5: 7]
+    ret v1
 }
 

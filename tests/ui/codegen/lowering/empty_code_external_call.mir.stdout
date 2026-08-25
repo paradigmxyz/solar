@@ -23,8 +23,6 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
@@ -32,6 +30,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
@@ -48,8 +48,6 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
     v9 = extcodesize v4
     v10 = iszero v9
     jumpi v10, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v11 = call v5, v4, 0, v7, v8, 0, 0
     jumpi v11, bb4, bb3
@@ -57,6 +55,8 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
@@ -68,8 +68,6 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v6, bb4, bb3
@@ -77,6 +75,8 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {

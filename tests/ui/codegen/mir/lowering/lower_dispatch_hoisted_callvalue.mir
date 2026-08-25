@@ -11,8 +11,8 @@
 // CHECK: + jumpi [[VALUE]]
 // CHECK-NOT: calldatasize
 // CHECK: + switch {{.*}}[1 => {{.*}}2 =>
-// CHECK: + tail_call @a
 // CHECK: + tail_call @b
+// CHECK: + tail_call @a
 fn @a() [selector=0x00000001] {
   bb0:
     stop

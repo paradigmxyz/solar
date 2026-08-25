@@ -23,8 +23,6 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
     v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v10 = add 0, 0
     v11 = mload v10
@@ -32,6 +30,8 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
     v13 = mload v12
     sstore 0, v13 !metadata(storage=slot(0))
     stop
+  bb3:
+    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
@@ -101,14 +101,14 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v25 = returndatasize
     v26 = lt v25, 32
     jumpi v26, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v27 = add 0, 0
     v28 = mload v27
     v29 = add 0, 0
     v30 = mload v29
     ret v30
+  bb5:
+    revert 0, 0
 }
 
 fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
@@ -121,10 +121,6 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
     v4 = lt 0, 1
     v5 = iszero v4
     jumpi v5, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v6 = shl 64, v3
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
@@ -170,8 +166,6 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
     v30 = returndatasize
     v31 = lt v30, 32
     jumpi v31, bb7, bb8
-  bb7:
-    revert 0, 0
   bb8:
     v32 = add 0, 0
     v33 = mload v32
@@ -179,6 +173,12 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
     v35 = mload v34
     v36 = eq v35, v24
     ret v36
+  bb7:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {

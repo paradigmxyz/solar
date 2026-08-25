@@ -54,13 +54,13 @@ fn @negativeDivision() -> i256 [selector=0x1a6ca939, pure, abi_params=[], abi_re
     v3 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v4 = and v2, v3
     jumpi v4, bb3, bb4
+  bb4:
+    v5 = sdiv v0, v1
+    ret v5
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v5 = sdiv v0, v1
-    ret v5
 }
 
 fn @mixedDivision() -> i256 [selector=0x3f885fe0, pure, abi_params=[], abi_returns=[word]] {
@@ -76,13 +76,13 @@ fn @mixedDivision() -> i256 [selector=0x3f885fe0, pure, abi_params=[], abi_retur
     v2 = eq 10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
     jumpi v3, bb3, bb4
+  bb4:
+    v4 = sdiv v0, 10
+    ret v4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v4 = sdiv v0, 10
-    ret v4
 }
 
 fn @rightShift(arg0: u256) -> i256 [selector=0xd0ba8aa1, pure, abi_params=[u256], abi_returns=[word]] {

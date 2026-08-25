@@ -8,6 +8,8 @@
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
 +   bb1:
       v0 = add arg0, 1
 -     ret arg0, v0
@@ -19,7 +21,5 @@
 +     returndata 128, v5
 +   bb2:
 +     revert 0, 0
-+   bb3:
-+     jump bb1
   }
   

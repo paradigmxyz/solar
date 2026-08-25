@@ -7,8 +7,8 @@ immutables:
 // CHECK-LABEL: @hoist_non_aliasing_mload
 // CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
 // CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK: -     [[LOAD]] = mload [[ADDR]]
 // CHECK:       ret [[LOAD]]
+// CHECK: -     [[LOAD]] = mload [[ADDR]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -43,8 +43,8 @@ fn @keep_aliasing_mload() -> u256 {
 // CHECK-LABEL: @hoist_non_aliasing_keccak
 // CHECK: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
 // CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
 // CHECK:       ret [[HASH]]
+// CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
@@ -80,9 +80,9 @@ fn @keep_aliasing_keccak() -> bytes32 {
 // CHECK: +     [[LOAD:v[0-9]+]] = loadimmutable value
 // CHECK-NEXT: +     [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
 // CHECK-NEXT:       jump {{bb[0-9]+}}
+// CHECK:       ret [[VALUE]]
 // CHECK: -     [[LOAD]] = loadimmutable value
 // CHECK-NEXT: -     [[VALUE]] = mul [[LOAD]], 2
-// CHECK:       ret [[VALUE]]
 fn @hoist_unassigned_immutable() -> u256 {
   bb0:
     jump bb1

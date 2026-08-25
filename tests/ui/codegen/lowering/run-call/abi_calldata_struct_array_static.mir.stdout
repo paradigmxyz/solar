@@ -7,10 +7,6 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v2 = lt 0, v1
     v3 = iszero v2
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = slice_ptr arg0
     v5 = add v4, 0
@@ -22,10 +18,6 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v11 = lt 0, v10
     v12 = iszero v11
     jumpi v12, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v13 = slice_ptr arg0
     v14 = add v13, 0
@@ -37,10 +29,6 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v20 = lt 1, v19
     v21 = iszero v20
     jumpi v21, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v22 = slice_ptr arg0
     v23 = add v22, 64
@@ -52,10 +40,6 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v29 = lt 1, v28
     v30 = iszero v29
     jumpi v30, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v31 = slice_ptr arg0
     v32 = add v31, 64
@@ -64,5 +48,21 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v35 = add v34, 32
     v36 = calldataload v35
     ret v0, v9, v18, v27, v36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 

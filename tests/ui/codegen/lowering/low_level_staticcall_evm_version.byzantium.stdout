@@ -23,10 +23,6 @@ fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_params=[address],
     v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = not 31
     v9 = and v6, v8
@@ -36,5 +32,9 @@ fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_params=[address],
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = memory_object_len memorybytes, v10
     ret v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

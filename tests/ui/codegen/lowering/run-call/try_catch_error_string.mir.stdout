@@ -59,19 +59,11 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v5 = slice_len v3
     v6 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v6, bb1, bb2
-  bb1:
-    ret 0
   bb2:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb4, bb5
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v10 = not 31
     v11 = and v8, v10
@@ -88,10 +80,10 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v20 = shr 224, v17
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb6, bb7
+  bb7:
+    jump bb8
   bb6:
     v22 = internal_call @try_decode_error_message, 1, v14, v15
-    jump bb8
-  bb7:
     jump bb8
   bb8:
     v23 = phi [bb6: v22], [bb7: 0]
@@ -100,6 +92,12 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v26 = eq v20, 0x4e487b71
     v27 = and v25, v26
     jumpi v23, bb9, bb10
+  bb10:
+    jumpi 1, bb13, bb14
+  bb14:
+    revert v14, v15
+  bb13:
+    ret 0
   bb9:
     v28 = memory_object_data memorybytes, v12
     v29 = memory_object_len memorybytes, v12
@@ -110,12 +108,6 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v34 = add v33, 63
     v35 = lt v34, v33
     jumpi v35, bb11, bb12
-  bb10:
-    jumpi 1, bb13, bb14
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v36 = not 31
     v37 = and v34, v36
@@ -125,10 +117,18 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v39 = abi_decode [bytes], v38
     v40 = memory_object_len memorybytes, v39
     ret v40
-  bb13:
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
     ret 0
-  bb14:
-    revert v14, v15
+  bb3:
+    ret 0
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {

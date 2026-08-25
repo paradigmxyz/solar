@@ -63,10 +63,6 @@ fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
     v2 = sub v1, 1
     v3 = lt v1, 1
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = shl 0, v2
     v5 = add v0, 32
@@ -81,5 +77,9 @@ fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
     v12 = not 255
     v13 = and v11, v12
     ret v13
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 

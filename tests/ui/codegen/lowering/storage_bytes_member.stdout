@@ -78,9 +78,9 @@ bb15:
   push 800
   push 64
   mstore
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb47
   jumpi
   push 4
@@ -322,12 +322,10 @@ bb32:
   jumpi
   push 64
   mstore
+  dup2
   calldatasize
   dup3
-  dup2
-  dup4
   calldatacopy
-  pop
   swap1
   pop
   push 128
@@ -877,12 +875,10 @@ bb58:
   jumpi
   push 64
   mstore
+  dup2
   calldatasize
   dup3
-  dup2
-  dup4
   calldatacopy
-  pop
   swap1
   pop
   push 320
@@ -1344,9 +1340,9 @@ bb89:
   push 448
   push 64
   mstore
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb47
   jumpi
   caller
@@ -1563,9 +1559,9 @@ bb105:
   push 800
   push 64
   mstore
-  calldatasize
   push 68
-  gt
+  calldatasize
+  lt
   push bb47
   jumpi
   push 36

@@ -84,8 +84,8 @@ fn @hoist_mload_dominates_exits() -> u256 {
 // The msize after the loop makes any early memory expansion observable;
 // keep the mload in place even though the trip count is known.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_msize_in_function{{[( ]}}
-// CHECK: {{^[ +].*}}mload 64
 // CHECK: {{^[ +].*}}msize
+// CHECK: {{^[ +].*}}mload 64
 fn @keep_mload_msize_in_function() -> u256 {
   bb0:
     jump bb1

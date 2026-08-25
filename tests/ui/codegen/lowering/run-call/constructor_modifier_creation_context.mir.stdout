@@ -5,29 +5,29 @@ fn @_anonymous() [constructor] {
     internal_call @f2, 0
     internal_call @f1, 0
     jump bb2
-  bb1:
-    stop
   bb2:
     jump bb1
+  bb1:
+    stop
 }
 
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @f3, 0
     jumpi 0, bb2, bb3
-  bb1:
-    stop
+  bb3:
+    jump bb4
   bb2:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb5:
     jump bb4
   bb4:
     jump bb1
-  bb5:
-    jump bb4
+  bb1:
+    stop
 }
 
 fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
@@ -71,19 +71,19 @@ fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     internal_call @f3, 0
     jumpi 0, bb2, bb3
-  bb1:
-    stop
+  bb3:
+    jump bb4
   bb2:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb5:
     jump bb4
   bb4:
     jump bb1
-  bb5:
-    jump bb4
+  bb1:
+    stop
 }
 
 fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
@@ -105,11 +105,11 @@ fn @constructor() [constructor] {
     internal_call @f4, 0
     internal_call @f1, 0
     jump bb3
-  bb1:
-    stop
-  bb2:
-    jump bb1
   bb3:
     jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    stop
 }
 

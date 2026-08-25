@@ -7,10 +7,6 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v1, 2
@@ -21,10 +17,6 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v9 = lt 0, v8
     v10 = iszero v9
     jumpi v10, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v11 = storage_array_data_slot v7
     v12 = mul 0, 2
@@ -34,10 +26,6 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v16 = add v15, 1
     v17 = lt v16, v15
     jumpi v17, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v18 = storage_array_data_slot v14
     v19 = mul v15, 2
@@ -48,10 +36,6 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v23 = lt 0, v22
     v24 = iszero v23
     jumpi v24, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v25 = storage_array_data_slot v21
     v26 = mul 0, 2
@@ -97,6 +81,22 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v54 = sload v53 !metadata(storage=offset(v27, 1))
     mstore 160, v54
     returndata 0, 192
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
@@ -106,10 +106,6 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v1, 2
@@ -120,10 +116,6 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v9 = add v8, 1
     v10 = lt v9, v8
     jumpi v10, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v11 = storage_array_data_slot v7
     v12 = mul v8, 2
@@ -170,6 +162,14 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v40 = sload v39 !metadata(storage=offset(v13, 1))
     mstore 160, v40
     returndata 0, 192
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @clear_recursive_storage_0(arg0: u256) {
@@ -183,6 +183,8 @@ fn @clear_recursive_storage_0(arg0: u256) {
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
+  bb3:
+    stop
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
@@ -190,8 +192,6 @@ fn @clear_recursive_storage_0(arg0: u256) {
     internal_call @clear_recursive_storage_0, 0, v6
     v7 = add v2, 1
     jump bb1
-  bb3:
-    stop
 }
 
 fn @clear_recursive_storage_1(arg0: u256) {
@@ -205,6 +205,8 @@ fn @clear_recursive_storage_1(arg0: u256) {
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
+  bb3:
+    stop
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
@@ -212,8 +214,6 @@ fn @clear_recursive_storage_1(arg0: u256) {
     internal_call @clear_recursive_storage_2, 0, v6
     v7 = add v2, 1
     jump bb1
-  bb3:
-    stop
 }
 
 fn @clear_recursive_storage_2(arg0: u256) {
@@ -227,6 +227,8 @@ fn @clear_recursive_storage_2(arg0: u256) {
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
+  bb3:
+    stop
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
@@ -234,7 +236,5 @@ fn @clear_recursive_storage_2(arg0: u256) {
     internal_call @clear_recursive_storage_1, 0, v6
     v7 = add v2, 1
     jump bb1
-  bb3:
-    stop
 }
 

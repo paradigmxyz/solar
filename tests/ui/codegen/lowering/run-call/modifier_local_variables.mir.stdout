@@ -3,18 +3,18 @@
 fn @f(arg0: bool) -> u256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     jumpi arg0, bb3, bb4
-  bb1:
-    ret v0
-  bb2:
-    v0 = phi [bb3: 0], [bb6: 3]
-    jump bb1
-  bb3:
-    jump bb2
   bb4:
     jump bb5
   bb5:
     jump bb6
   bb6:
     jump bb2
+  bb3:
+    jump bb2
+  bb2:
+    v0 = phi [bb3: 0], [bb6: 3]
+    jump bb1
+  bb1:
+    ret v0
 }
 

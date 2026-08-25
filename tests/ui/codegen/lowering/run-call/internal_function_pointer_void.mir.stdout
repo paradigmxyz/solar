@@ -23,12 +23,12 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @setFlag, 0
-    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    internal_call @setFlag, 0
+    ret
 }
 

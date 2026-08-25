@@ -6,10 +6,6 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v1 = add v0, 0
     v2 = gt v1, 255
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = and 257, 255
     v4 = mul v3, 1
@@ -21,10 +17,6 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v10 = gt v4, 255
     v11 = or v9, v10
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = and 257, 255
     jumpi 1, bb6, bb5
@@ -48,6 +40,14 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v19 = and 257, 255
     v20 = shr 1, v19
     ret v1, v4, v13, v15, v18, v20
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
@@ -76,21 +76,21 @@ fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_params=[], abi_retu
     v1 = add v0, 1
     v2 = gt v1, 255
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = and 256, 255
     v4 = add v3, 1
     v5 = gt v4, 255
     jumpi v5, bb3, bb4
+  bb4:
+    ret v1, v3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v1, v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word]] {
@@ -100,12 +100,12 @@ fn @decrements() -> u8 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[w
     v2 = sub v1, 1
     v3 = lt v1, 1
     jumpi v3, bb1, bb2
+  bb2:
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v2
 }
 
 fn @negation() -> i8 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word]] {
@@ -113,13 +113,13 @@ fn @negation() -> i8 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[wor
     v0 = signextend 0, 128
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     jumpi v1, bb1, bb2
+  bb2:
+    v2 = sub 0, v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    v2 = sub 0, v0
-    ret v2
 }
 
 fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word, word]] {
@@ -146,14 +146,14 @@ fn @invalidEnum() -> u8 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[
     v0 = lt 2, 2
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = and 2, 1
     v3 = eq v2, 0
     ret 2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_params=[], abi_returns=[word]] {

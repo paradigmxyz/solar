@@ -28,8 +28,6 @@ fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word]] {
     v12 = returndatasize
     v13 = lt v12, 32
     jumpi v13, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v14 = add 0, 0
     v15 = mload v14
@@ -38,11 +36,13 @@ fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word]] {
     v18 = eq v15, v17
     v19 = iszero v18
     jumpi v19, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v20 = add 0, 0
     v21 = mload v20
     ret v21
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
 }
 

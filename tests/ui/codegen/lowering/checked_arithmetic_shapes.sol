@@ -58,8 +58,8 @@ contract CheckedArithmeticShapes {
 
     // CHECK-LABEL: fn @neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    // CHECK: mstore 4, 17
     // CHECK: sub 0, arg0
+    // CHECK: mstore 4, 17
     function neg(int256 a) public pure returns (int256) {
         return -a;
     }

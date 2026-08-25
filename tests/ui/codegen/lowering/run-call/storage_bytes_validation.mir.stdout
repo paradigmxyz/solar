@@ -12,20 +12,12 @@ fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_retur
     v6 = lt v5, 32
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v5, 31
     v9 = div v8, 32
     v10 = add v5, 63
     v11 = lt v10, v5
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = not 31
     v13 = and v10, v12
@@ -39,12 +31,14 @@ fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_retur
   bb6:
     v16 = storage_array_data_slot 0
     jump bb8
-  bb7:
-    ret v14
   bb8:
     v17 = phi [bb6: 0], [bb9: v22]
     v18 = lt v17, v9
     jumpi v18, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v14
   bb9:
     v19 = add v16, v17
     v20 = sload v19 !metadata(storage=symbolic(v19))
@@ -52,8 +46,14 @@ fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_retur
     memory_object_store_word memorybytes, v14, v21, v20
     v22 = add v17, 1
     jump bb8
-  bb10:
-    jump bb7
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes]] {
@@ -68,20 +68,12 @@ fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_return
     v6 = lt v5, 32
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v5, 31
     v9 = div v8, 32
     v10 = add v5, 63
     v11 = lt v10, v5
     jumpi v11, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v12 = not 31
     v13 = and v10, v12
@@ -95,12 +87,14 @@ fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_return
   bb6:
     v16 = storage_array_data_slot 0
     jump bb8
-  bb7:
-    ret v14
   bb8:
     v17 = phi [bb6: 0], [bb9: v22]
     v18 = lt v17, v9
     jumpi v18, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v14
   bb9:
     v19 = add v16, v17
     v20 = sload v19 !metadata(storage=symbolic(v19))
@@ -108,8 +102,14 @@ fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_return
     memory_object_store_word memorybytes, v14, v21, v20
     v22 = add v17, 1
     jump bb8
-  bb10:
-    jump bb7
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
@@ -124,10 +124,6 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
     v6 = lt v5, 32
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v5, 31
     v9 = div v8, 32
@@ -135,20 +131,24 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
   bb3:
     v10 = storage_array_data_slot 0
     jump bb5
-  bb4:
-    sstore 0, 0 !metadata(storage=slot(0))
-    stop
   bb5:
     v11 = phi [bb3: 0], [bb6: v14]
     v12 = lt v11, v9
     jumpi v12, bb6, bb7
+  bb7:
+    jump bb4
+  bb4:
+    sstore 0, 0 !metadata(storage=slot(0))
+    stop
   bb6:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
     v14 = add v11, 1
     jump bb5
-  bb7:
-    jump bb4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
@@ -163,10 +163,6 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     v6 = lt v5, 32
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v8 = add v5, 31
     v9 = div v8, 32
@@ -174,19 +170,23 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
   bb3:
     v10 = storage_array_data_slot 0
     jump bb5
-  bb4:
-    sstore 0, 0 !metadata(storage=slot(0))
-    stop
   bb5:
     v11 = phi [bb3: 0], [bb6: v14]
     v12 = lt v11, v9
     jumpi v12, bb6, bb7
+  bb7:
+    jump bb4
+  bb4:
+    sstore 0, 0 !metadata(storage=slot(0))
+    stop
   bb6:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
     v14 = add v11, 1
     jump bb5
-  bb7:
-    jump bb4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }
 
