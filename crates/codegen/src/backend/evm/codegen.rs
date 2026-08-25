@@ -1139,6 +1139,13 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     fn can_plan_branching_loop(&self, loop_info: &Loop) -> bool {
+        if self.loops.iter().any(|other| {
+            other.header != loop_info.header
+                && (loop_info.blocks.contains(other.header)
+                    || other.blocks.contains(loop_info.header))
+        }) {
+            return false;
+        }
         for block_id in loop_info.blocks.iter() {
             for &inst_id in &self.func.blocks[block_id].instructions {
                 let kind = &self.func.inst(inst_id).kind;
