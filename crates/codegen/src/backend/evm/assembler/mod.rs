@@ -407,8 +407,10 @@ impl<'gcx> Assembler<'gcx> {
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
             } else if let AsmInstKind::PushData(data) = inst.kind()
-                && let Some(&target_offset) = data_offsets.get(&data)
+                && let data = program.data_refs[data]
+                && let Some(&base_offset) = data_offsets.get(&data.id)
             {
+                let target_offset = base_offset + data.offset as usize;
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
             }
@@ -481,10 +483,11 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_push_fixed_width(value, width as u8);
                 }
                 AsmInstKind::PushData(data) => {
-                    let target_offset = data_offsets
-                        .get(&data)
-                        .copied()
-                        .unwrap_or_else(|| panic!("program data {data:?} was never emitted"));
+                    let data = program.data_refs[data];
+                    let target_offset =
+                        data_offsets.get(&data.id).copied().unwrap_or_else(|| {
+                            panic!("program data {:?} was never emitted", data.id)
+                        }) + data.offset as usize;
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }

@@ -4,7 +4,7 @@ use super::*;
 use crate::backend::evm::op;
 use solar_ast::{
     Arena,
-    token::{Delimiter, TokenKind, TokenLitKind},
+    token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
@@ -206,7 +206,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             },
             sym::push_data => {
                 let id = self.parse_assembly_id("program data")?;
-                Instruction::push_data(DataId::from_usize(id as usize))
+                let offset = if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
+                    let value = self.parser.parse_uint()?;
+                    u32::try_from(value)
+                        .map_err(|_| self.parser.error("data offset exceeds `u32`"))?
+                } else {
+                    0
+                };
+                Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
             }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;

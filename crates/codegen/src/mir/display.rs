@@ -351,7 +351,11 @@ fn display_inst_kind<'a>(
         InstKind::DataCopy(id, dest, size) => write!(
             f,
             "data_copy {}, {}, {}",
-            id.index(),
+            if id.offset == 0 {
+                id.id.index().to_string()
+            } else {
+                format!("{}+{}", id.id.index(), id.offset)
+            },
             display_val(*dest, func),
             display_val(*size, func)
         ),

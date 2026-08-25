@@ -33,10 +33,11 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, DataId, Disambiguator,
-    EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
-    StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, DataId, DataRef,
+    Disambiguator, EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
+    StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -85,7 +86,7 @@ struct Parser<'sess, 'ast> {
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
     immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
-    data_count: usize,
+    data_sizes: Vec<usize>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
     /// Aggregate storage layouts interned while parsing instructions.
@@ -123,7 +124,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
             immutable_names: FxHashMap::default(),
-            data_count: 0,
+            data_sizes: Vec::new(),
             abi_layouts: Vec::new(),
             storage_layouts: Vec::new(),
             pending_gt: 0,
@@ -244,7 +245,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.bump();
             module.add_data(bytes.into());
         }
-        self.data_count = module.data_count();
+        self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
         Ok(())
     }
 
@@ -1228,16 +1229,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    fn parse_data_ref(&mut self) -> PResult<'sess, DataId> {
+    fn parse_data_ref(&mut self) -> PResult<'sess, DataRef> {
         let span = self.parser.token().span;
         let value = self.parser.parse_uint()?;
         let Ok(index) = usize::try_from(value) else {
             return Err(self.parser.error_at(span, "data ID exceeds the index limit"));
         };
-        if index >= self.data_count {
+        let Some(&size) = self.data_sizes.get(index) else {
             return Err(self.parser.error_at(span, format!("unknown data ID `{index}`")));
-        }
-        Ok(DataId::from_usize(index))
+        };
+        let offset = if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
+            let offset_span = self.parser.token().span;
+            let value = self.parser.parse_uint()?;
+            let Ok(offset) = u32::try_from(value) else {
+                return Err(self.parser.error_at(offset_span, "data offset exceeds `u32`"));
+            };
+            if offset as usize > size {
+                return Err(self.parser.error_at(
+                    offset_span,
+                    format!("data offset {offset} exceeds data size {size}"),
+                ));
+            }
+            offset
+        } else {
+            0
+        };
+        Ok(DataRef::new(DataId::from_usize(index), offset))
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {

@@ -550,7 +550,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a constant-data copy.
-    pub(crate) fn data_copy(&mut self, data: crate::mir::DataId, dest: ValueId, size: ValueId) {
+    pub(crate) fn data_copy(&mut self, data: crate::mir::DataRef, dest: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::DataCopy(data, dest, size))
     }
 

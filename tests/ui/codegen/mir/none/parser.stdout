@@ -35,7 +35,7 @@
   
   fn @copy_data() {
     bb0:
-      data_copy 0, 0, 4
+      data_copy 0+1, 0, 3
       stop
   }
   

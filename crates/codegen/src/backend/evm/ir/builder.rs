@@ -8,7 +8,7 @@ use crate::{
         op, push_len,
     },
     memory::EvmMemoryLayout,
-    mir::{DataId as MirDataId, ImmutableId, Module as MirModule, TypeSize},
+    mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
@@ -72,8 +72,11 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Emits a relocatable constant-data address push.
-    pub(crate) fn emit_push_data(&mut self, data: MirDataId) {
-        self.push_ir_instruction(ir::Instruction::push_data(ir::DataId::from_usize(data.index())));
+    pub(crate) fn emit_push_data(&mut self, data: MirDataRef) {
+        self.push_ir_instruction(ir::Instruction::push_data(ir::DataRef::new(
+            ir::DataId::from_usize(data.id.index()),
+            data.offset,
+        )));
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through

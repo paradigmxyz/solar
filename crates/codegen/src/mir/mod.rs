@@ -74,6 +74,19 @@ newtype_index! {
     pub(crate) struct DataId;
 }
 
+/// A relocatable reference to a byte within a MIR data entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct DataRef {
+    pub(crate) id: DataId,
+    pub(crate) offset: u32,
+}
+
+impl DataRef {
+    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
+        Self { id, offset }
+    }
+}
+
 impl BlockId {
     /// The first block in every function.
     pub(crate) const ENTRY: Self = Self::new(0);

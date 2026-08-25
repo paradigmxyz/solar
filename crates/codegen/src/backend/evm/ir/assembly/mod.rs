@@ -17,7 +17,8 @@ pub(in crate::backend::evm) use indexed_jump::{
     indexed_jump_target_width_bound, packs_indexed_jump,
 };
 pub(in crate::backend::evm) use inst::{
-    AsmIndex, AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PackedLabelsId, PushValueId,
+    AsmIndex, AsmInst, AsmInstKind, DataRefId, DeferredAlloc, ImmutablePushId, PackedLabelsId,
+    PushValueId,
 };
 pub(crate) use inst::{DeferredConst, Label};
 
@@ -35,6 +36,7 @@ pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend::evm) data: IndexVec<DataId, Bytes>,
+    pub(in crate::backend::evm) data_refs: IndexVec<DataRefId, super::DataRef>,
 }
 
 impl Program {
@@ -71,5 +73,10 @@ impl Program {
 
     pub(in crate::backend::evm) fn append_data(&mut self, data: DataId) {
         self.push(AsmInst::data(data));
+    }
+
+    pub(in crate::backend::evm) fn push_data_ref(&mut self, data: super::DataRef) {
+        let data = self.data_refs.push(data);
+        self.push(AsmInst::push_data(data));
     }
 }

@@ -1,7 +1,7 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, DataId, Disambiguator, Function, FunctionId, ImmutableId,
+    AbiLayout, AbiLayoutRef, DataId, DataRef, Disambiguator, Function, FunctionId, ImmutableId,
     MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
 };
 use alloy_primitives::{Bytes, hex};
@@ -110,6 +110,8 @@ pub struct Module {
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
     data: IndexVec<DataId, Bytes>,
+    /// Exact data lookup used before the final subslice-packing pass.
+    data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// The lowering phase this module is in.
@@ -136,6 +138,7 @@ impl Module {
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
             data: IndexVec::new(),
+            data_index: FxHashMap::default(),
             is_interface: false,
             phase: MirPhase::Built,
         }
@@ -254,16 +257,29 @@ impl Module {
     }
 
     /// Interns constant data and returns its stable identifier.
-    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataId {
-        if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
-            return id;
+    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
+        if let Some(&id) = self.data_index.get(&data) {
+            return DataRef::new(id, 0);
         }
-        self.add_data(data)
+        if data.is_empty() {
+            return DataRef::new(self.add_data(data), 0);
+        }
+        for (id, known) in self.data.iter_enumerated() {
+            if let Some(offset) =
+                known.windows(data.len()).position(|window| window == data.as_ref())
+            {
+                let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
+                return DataRef::new(id, offset);
+            }
+        }
+        DataRef::new(self.add_data(data), 0)
     }
 
     /// Adds constant data without interning it.
     pub(crate) fn add_data(&mut self, data: Bytes) -> DataId {
-        self.data.push(data)
+        let id = self.data.push(data.clone());
+        self.data_index.entry(data).or_insert(id);
+        id
     }
 
     /// Returns the number of constant data entries.

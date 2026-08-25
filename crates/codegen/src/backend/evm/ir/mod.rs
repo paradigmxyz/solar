@@ -41,6 +41,19 @@ newtype_index! {
     pub(crate) struct DataId;
 }
 
+/// A relocatable reference to a byte within an EVM IR data entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct DataRef {
+    pub(crate) id: DataId,
+    pub(crate) offset: u32,
+}
+
+impl DataRef {
+    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
+        Self { id, offset }
+    }
+}
+
 impl BlockId {
     /// The first block in every non-empty module.
     pub(crate) const ENTRY: Self = Self::new(0);
@@ -89,11 +102,11 @@ impl Module {
     }
 
     /// Interns a constant byte string and returns its stable identifier.
-    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataId {
+    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
         if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
-            return id;
+            return DataRef::new(id, 0);
         }
-        self.data.push(data)
+        DataRef::new(self.data.push(data), 0)
     }
 }
 
@@ -188,7 +201,7 @@ impl Instruction {
 
     /// Creates an encoded program-data-address push instruction.
     #[must_use]
-    pub(crate) fn push_data(data: DataId) -> Self {
+    pub(crate) fn push_data(data: DataRef) -> Self {
         Self::encoded_push(PushValue::Data(data), Self::ENCODED_PUSH | Self::DATA)
     }
 
@@ -269,7 +282,7 @@ impl Instruction {
 
     /// Returns the program data carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) const fn pushed_data(&self) -> Option<DataId> {
+    pub(in crate::backend::evm) const fn pushed_data(&self) -> Option<DataRef> {
         match self.value {
             Some(PushValue::Data(data)) => Some(data),
             _ => None,
@@ -443,7 +456,7 @@ enum PushValue {
     /// Basic block reference.
     Block(BlockId),
     /// Constant program-data reference.
-    Data(DataId),
+    Data(DataRef),
 }
 
 /// Metadata carried by instructions and terminators.

@@ -1,7 +1,7 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, DataId, Function, FunctionId, ImmutableId, MemoryObjectKind,
+    AbiLayoutRef, BlockId, DataRef, Function, FunctionId, ImmutableId, MemoryObjectKind,
     MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
@@ -696,7 +696,7 @@ pub(crate) enum InstKind {
 
     // Code operations
     /// Copy constant module data to memory.
-    DataCopy(DataId, ValueId, ValueId),
+    DataCopy(DataRef, ValueId, ValueId),
     /// Get code size: `codesize()`
     CodeSize,
     /// Copy code to memory: `codecopy(destOffset, offset, size)`

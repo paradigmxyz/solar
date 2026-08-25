@@ -8763,7 +8763,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_data_copy(
         &mut self,
         func: &Function,
-        data: crate::mir::DataId,
+        data: crate::mir::DataRef,
         dest: ValueId,
         size: ValueId,
         liveness: &Liveness,

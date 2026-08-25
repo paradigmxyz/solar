@@ -12,6 +12,7 @@ pub(in crate::backend::evm) mod compact_pushes;
 mod constant_data;
 mod dce;
 mod outline;
+mod pack_data;
 mod peephole;
 mod share_reverts;
 mod tail_merge;
@@ -59,9 +60,12 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &dce::Dce,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
+    &pack_data::PackData,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
+    // Finalize the referenced data pool after all code transforms.
+    &pack_data::PackData,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
