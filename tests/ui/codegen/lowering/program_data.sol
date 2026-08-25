@@ -6,6 +6,8 @@
 //@[runtime] compile-flags: -Ogas
 //@[runtime] run-call: dataHash() => 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
 //@[runtime] run-call: subsliceHash() => 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+//@[runtime] run-call: zeroHash() => 0xdfded4ed5ac76ba7379cfe7b3b0f53e768dca8d45a34854e649cfc3c18cbd9cd
+//@[runtime] run-call: splatHash() => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
 
 // CHECK-LABEL: data:
 // CHECK: 0: hex"
@@ -31,11 +33,19 @@ contract C {
         return keccak256("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ");
     }
 
-    function zeroData() external pure returns (bytes memory) {
+    function zeroData() public pure returns (bytes memory) {
         return hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     }
 
-    function splatData() external pure returns (bytes memory) {
+    function splatData() public pure returns (bytes memory) {
         return hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00";
+    }
+
+    function zeroHash() external pure returns (bytes32) {
+        return keccak256(zeroData());
+    }
+
+    function splatHash() external pure returns (bytes32) {
+        return keccak256(splatData());
     }
 }
