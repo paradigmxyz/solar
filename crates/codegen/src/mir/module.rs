@@ -301,6 +301,18 @@ impl Module {
         self.data_names[id]
     }
 
+    /// Returns constant data if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
+        self.data.get(id)
+    }
+
+    /// Returns whether every data entry has matching display metadata.
+    #[must_use]
+    pub(crate) fn data_metadata_is_valid(&self) -> bool {
+        self.data.len() == self.data_names.len()
+    }
+
     /// Returns the number of constant data entries.
     #[must_use]
     pub(crate) fn data_count(&self) -> usize {

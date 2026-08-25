@@ -34,6 +34,9 @@ impl<'a> Verifier<'a> {
             self.error("program has no blocks");
             return;
         }
+        if module.data.len() != module.data_names.len() {
+            self.error("program data and display metadata counts differ");
+        }
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {

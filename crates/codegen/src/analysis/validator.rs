@@ -28,6 +28,8 @@
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
 //!     and loads use the declared type.
+//! 13. **Program data consistency**: data references name allocated entries at valid offsets, and
+//!     every entry has matching display metadata.
 //!
 //! # Usage
 //!
@@ -91,6 +93,7 @@ impl<'a> Validator<'a> {
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
+        self.validate_data_references(module, func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
@@ -523,11 +526,42 @@ impl<'a> Validator<'a> {
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
         self.validate_immutable_declarations(module);
+        if !module.data_metadata_is_valid() {
+            self.emit("program data and display metadata counts differ");
+        }
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);
         }
         self.function = None;
+    }
+
+    /// Checks references from live instructions into the module data table.
+    fn validate_data_references(&mut self, module: &Module, func: &Function) {
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let InstKind::DataCopy(data, _, _) = &func.inst(inst_id).kind else { continue };
+                let Some(bytes) = module.get_data(data.id) else {
+                    self.emit_at_inst(
+                        format_args!("data_copy references nonexistent data{}", data.id.index()),
+                        block_id,
+                        inst_id,
+                    );
+                    continue;
+                };
+                if data.offset as usize > bytes.len() {
+                    self.emit_at_inst(
+                        format_args!(
+                            "data_copy offset {} exceeds data size {}",
+                            data.offset,
+                            bytes.len()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+            }
+        }
     }
 
     /// Checks that call targets exist and argument counts match.
@@ -767,7 +801,7 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, FunctionBuilder, MirType, Terminator};
+    use crate::mir::{DataId, DataRef, Function, FunctionBuilder, MirType, Terminator};
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
@@ -798,6 +832,57 @@ mod tests {
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: module is in the `evm-shaped` phase but has multiple `entry` routing functions
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_data_reference_is_caught() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let dest = builder.imm_u64(0);
+                let size = builder.imm_u64(1);
+                builder.data_copy(DataRef::new(DataId::from_usize(7), 0), dest, size);
+                builder.stop();
+            }
+            module.functions.push(func);
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst0] data_copy references nonexistent data7
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_data_offset_is_caught() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let data = module.add_data_with_name(vec![0; 4].into(), None);
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let dest = builder.imm_u64(0);
+                let size = builder.imm_u64(1);
+                builder.data_copy(DataRef::new(data, 5), dest, size);
+                builder.stop();
+            }
+            module.functions.push(func);
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst0] data_copy offset 5 exceeds data size 4
 
 
 "#]]

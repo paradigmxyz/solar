@@ -269,12 +269,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Stores data as words for short values and word-level constant pooling.
-    pub(super) fn store_data_words(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        data: &[u8],
-    ) {
+    fn store_data_words(&self, builder: &mut FunctionBuilder<'_>, dest: ValueId, data: &[u8]) {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
         for (index, chunk) in data.chunks(word_size).enumerate() {
             let mut word = [0; EvmMemoryLayout::WORD_SIZE as usize];

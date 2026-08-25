@@ -966,9 +966,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
-        // Keep child initcode word-addressable so the backend can share common
-        // words across similar contracts before outlining profitable runs.
-        self.store_data_words(builder, mem_offset, &bytecode);
+        self.copy_data_to_memory(builder, mem_offset, bytecode);
 
         // Append constructor arguments after bytecode
         let mut args_offset = bytecode_len as u64;
