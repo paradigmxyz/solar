@@ -152,8 +152,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MStore8(addr, _)
-                    | InstKind::MemoryZero(addr, _) => {
+                    InstKind::MStore8(addr, _) | InstKind::MemoryZero(addr, _) => {
                         if derived.contains(addr) {
                             writes.push(inst_id);
                         }
