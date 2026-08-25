@@ -6,13 +6,13 @@
     push 0
     calldataload
 -   push 10
--   swap1
+-   swap 1
     sub
     stop
   bb1:
 -   calldatasize
     push 3
--   swap1
+-   swap 1
 +   calldatasize
     mod
     stop
@@ -23,26 +23,26 @@
     push 31
     add
 -   push 10
--   swap1
+-   swap 1
     sub
     stop
   bb3:
     gas
     push 10
-    swap1
+    swap 1
     sub
     stop
   bb4:
     pc
     push 10
-    swap1
+    swap 1
     sub
     stop
   bb5:
     push 1
-    dup1
+    dup 1
     push 10
-    swap1
+    swap 1
     sub
     stop
   bb6:
@@ -55,22 +55,22 @@
     push 0
     call
     push 10
-    swap1
+    swap 1
     sub
     stop
   bb7:
 -   returndatasize
     push 3
--   swap1
+-   swap 1
 +   returndatasize
     mod
     stop
   bb8:
 -   calldatasize
     push 1
--   swap1
+-   swap 1
     push 2
--   swap1
+-   swap 1
 +   calldatasize
     sub
     stop
@@ -84,7 +84,7 @@
     calldatasize
     add
     push 1
-    swap1
+    swap 1
     sub
     stop
   
