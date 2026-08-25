@@ -693,13 +693,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
-        for index in receiver_count..function.parameters.len() {
+        for (index, &parameter) in function.parameters.iter().enumerate().skip(receiver_count) {
             let Some(argument) =
                 args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
             else {
                 return report_unsupported(self.context.gcx, expr.span, "named function argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(function.parameters[index].into());
+            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let value = if Self::is_storage_parameter(parameter_ty) {
                 self.storage_access(argument)?.slot
             } else {
