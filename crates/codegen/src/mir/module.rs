@@ -307,7 +307,7 @@ impl Module {
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
                 for (id, data) in self.iter_data() {
-                    writeln!(f, "  {}: hex\"{}\"", id.index(), hex::encode(data))?;
+                    writeln!(f, "  literal_{}: hex\"{}\"", id.index(), hex::encode(data))?;
                 }
                 writeln!(f)?;
             }

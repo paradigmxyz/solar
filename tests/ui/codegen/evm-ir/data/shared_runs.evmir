@@ -5,7 +5,7 @@
 // Neither run pays for its own data, but sharing one blob makes both profitable.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data 0
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 bb0:
@@ -35,9 +35,9 @@ bb1:
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data 0
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 
-// CHECK: @data 0 hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"
+// CHECK: @data literal_0 hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"

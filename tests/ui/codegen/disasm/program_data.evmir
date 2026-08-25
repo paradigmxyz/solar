@@ -19,11 +19,11 @@
 // CHECK-NEXT: PREVRANDAO
 bb0:
   push 4
-  push_data 0
+  push_data literal_0
   push 0
   codecopy
   push 4
   push 0
   return
 
-@data 0 hex"11223344"
+@data literal_0 hex"11223344"

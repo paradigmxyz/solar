@@ -231,7 +231,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             && !(self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
-            let id = self.parser.parse_uint()?;
+            let id = self.parser.parse_data_id()?;
             let expected = U256::from(module.data_count());
             if id != expected {
                 return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
@@ -1231,7 +1231,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_data_ref(&mut self) -> PResult<'sess, DataRef> {
         let span = self.parser.token().span;
-        let value = self.parser.parse_uint()?;
+        let value = self.parser.parse_data_id()?;
         let Ok(index) = usize::try_from(value) else {
             return Err(self.parser.error_at(span, "data ID exceeds the index limit"));
         };

@@ -13,7 +13,7 @@
 -   swap1
 -   mstore
 +   push 64
-+   push_data 0
++   push_data literal_0
 +   dup3
 +   codecopy
     stop
@@ -29,10 +29,10 @@
 -   swap1
 -   mstore
 +   push 64
-+   push_data 0
++   push_data literal_0
 +   dup3
 +   codecopy
     stop
 + 
-+ @data 0 hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"
++ @data literal_0 hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"
   

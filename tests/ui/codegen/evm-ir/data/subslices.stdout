@@ -2,19 +2,19 @@
 + // === ROOT/tests/ui/codegen/evm-ir/data/subslices.evmir (after data) ===
   @module subslices
   bb0:
--   push_data 0
-+   push_data 0+1
+-   push_data literal_0
++   push_data literal_0+1
     pop
--   push_data 1
-+   push_data 0+2
+-   push_data literal_1
++   push_data literal_0+2
     pop
--   push_data 2+1
-+   push_data 0+1
+-   push_data literal_2+1
++   push_data literal_0+1
     pop
     stop
   
-- @data 0 hex"1122334455"
-- @data 1 hex"2233"
-- @data 2 hex"00112233445566"
-+ @data 0 hex"00112233445566"
+- @data literal_0 hex"1122334455"
+- @data literal_1 hex"2233"
+- @data literal_2 hex"00112233445566"
++ @data literal_0 hex"00112233445566"
   

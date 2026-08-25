@@ -20,7 +20,7 @@ impl Module {
                 writeln!(f)?;
             }
             for (id, data) in self.data.iter_enumerated() {
-                write!(f, "@data {} hex\"", id.index())?;
+                write!(f, "@data literal_{} hex\"", id.index())?;
                 for byte in data {
                     write!(f, "{byte:02x}")?;
                 }
@@ -119,7 +119,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => {
-            write!(f, "{}", data.id.index())?;
+            write!(f, "literal_{}", data.id.index())?;
             if data.offset != 0 {
                 write!(f, "+{}", data.offset)?;
             }

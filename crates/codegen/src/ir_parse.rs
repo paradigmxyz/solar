@@ -91,6 +91,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(value)
     }
 
+    pub(crate) fn parse_data_id(&mut self) -> Result<U256, PErr<'sess>> {
+        if matches!(self.token().kind, TokenKind::Literal(TokenLitKind::Integer, _)) {
+            return self.parse_uint();
+        }
+
+        let span = self.token().span;
+        let name = self.parse_ident()?;
+        let Some(index) = name.as_str().strip_prefix("literal_") else {
+            return Err(self.error_at(span, format!("invalid data identifier `{name}`")));
+        };
+        index
+            .parse()
+            .map_err(|err| self.error_at(span, format!("invalid data identifier `{name}`: {err}")))
+    }
+
     pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {
         self.error_at(self.token().span, message)
     }

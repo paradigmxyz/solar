@@ -49,7 +49,7 @@ fn @hash() -> u256 {
 }
 
 // CHECK-LABEL: @copy_data
-// CHECK: {{^ +}}data_copy 0+1, 0, 3
+// CHECK: {{^ +}}data_copy literal_0+1, 0, 3
 fn @copy_data() {
   bb0:
     data_copy 0+1, 0, 3

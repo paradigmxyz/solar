@@ -352,7 +352,7 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            write!(f, "data_copy {}", id.id.index())?;
+            write!(f, "data_copy literal_{}", id.id.index())?;
             if id.offset != 0 {
                 write!(f, "+{}", id.offset)?;
             }
