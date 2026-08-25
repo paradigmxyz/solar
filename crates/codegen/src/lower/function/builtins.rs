@@ -910,12 +910,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }};
             ($method:ident($($arg:ident),* $(,)?); $name:literal) => {{
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
-                if !self.context.gcx.sess.opts.evm_version.has_ext_call() {
-                    return self.unsupported_yul_version(
-                        concat!("codegen requires Prague-compatible EVM for `", $name, "`"),
-                        "compile with `--evm-version prague` or newer",
-                        args.span,
-                    );
+                match self.context.gcx.sess.opts.evm_version.has_ext_call() {
+                    true => {}
+                    false => {
+                        return self.unsupported_yul_version(
+                            concat!("codegen requires Prague-compatible EVM for `", $name, "`"),
+                            "compile with `--evm-version prague` or newer",
+                            args.span,
+                        );
+                    }
                 }
                 Some(self.builder.$method($($arg),*))
             }};
@@ -948,12 +951,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => {
                 let [value] = self.lower_builtin_args(builtin, &args)?;
-                if !self.context.gcx.sess.opts.evm_version.has_clz() {
-                    return self.unsupported_yul_version(
-                        "codegen requires Osaka-compatible EVM for `clz`",
-                        "compile with `--evm-version osaka` or newer",
-                        args.span,
-                    );
+                match self.context.gcx.sess.opts.evm_version.has_clz() {
+                    true => {}
+                    false => {
+                        return self.unsupported_yul_version(
+                            "codegen requires Osaka-compatible EVM for `clz`",
+                            "compile with `--evm-version osaka` or newer",
+                            args.span,
+                        );
+                    }
                 }
                 Some(self.builder.clz(value))
             }
