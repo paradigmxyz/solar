@@ -1164,6 +1164,7 @@ symbols! {
         transient,
         transient_read,
         transient_write,
+        try_decode_error_message,
         tuple,
         tx,
         ty,

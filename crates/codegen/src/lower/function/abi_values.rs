@@ -624,6 +624,80 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_decode(layout, payload))
     }
 
+    /// Checks whether an `Error(string)` payload can be decoded without reverting.
+    pub(super) fn lower_error_catch_match(
+        &mut self,
+        data_ptr: ValueId,
+        data_len: ValueId,
+        selector_matches: ValueId,
+    ) -> ValueId {
+        let validate = self.builder.create_block();
+        let no_match = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.branch(selector_matches, validate, no_match);
+
+        self.builder.switch_to_block(validate);
+        let helper = self.ensure_error_catch_match_helper();
+        let valid = self.builder.internal_call(helper, vec![data_ptr, data_len], MirType::Bool, 1);
+        let valid_block = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(no_match);
+        let no_match_value = self.builder.imm_bool(false);
+        let no_match_block = self.builder.current_block();
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+    }
+
+    /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
+    ///
+    /// <https://github.com/ethereum/solidity/blob/develop/libsolidity/codegen/YulUtilFunctions.cpp#L4676-L4714>
+    fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
+        self.lazy_helper(sym::try_decode_error_message, |_, function| {
+            let mut builder = FunctionBuilder::new(function);
+            let data_ptr = builder.add_param(MirType::MemPtr);
+            let data_len = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::Bool);
+
+            let check_offset = builder.create_block();
+            let check_length = builder.create_block();
+            let no_match = builder.create_block();
+
+            let min_size = builder.imm_u64(68);
+            let short = builder.lt(data_len, min_size);
+            let has_head = builder.iszero(short);
+            builder.branch(has_head, check_offset, no_match);
+
+            builder.switch_to_block(check_offset);
+            let payload_ptr = builder.add_u64_offset(data_ptr, 4);
+            let offset = builder.mload(payload_ptr);
+            let max_u64 = builder.imm_u256(U256::from(u64::MAX));
+            let offset_too_large = builder.gt(offset, max_u64);
+            let message_data_offset = builder.add_u64_offset(offset, 36);
+            let head_out_of_range = builder.gt(message_data_offset, data_len);
+            let invalid_offset = builder.or(offset_too_large, head_out_of_range);
+            builder.branch(invalid_offset, no_match, check_length);
+
+            builder.switch_to_block(check_length);
+            let message_ptr = builder.add(payload_ptr, offset);
+            let length = builder.mload(message_ptr);
+            let length_too_large = builder.gt(length, max_u64);
+            let remaining = builder.sub(data_len, message_data_offset);
+            let data_out_of_range = builder.gt(length, remaining);
+            let invalid_length = builder.or(length_too_large, data_out_of_range);
+            let valid = builder.iszero(invalid_length);
+            builder.ret([valid]);
+
+            builder.switch_to_block(no_match);
+            let no_match = builder.imm_bool(false);
+            builder.ret([no_match]);
+            Some(())
+        })
+        .expect("error catch match helper construction cannot fail")
+    }
+
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let zero = self.builder.imm_u256(U256::ZERO);
