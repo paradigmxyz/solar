@@ -3990,18 +3990,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
-    /// Returns whether a stable nullary 2-gas read should be emitted at each use.
-    ///
-    /// Keeping one of these values live costs at least a stack operation, while re-emitting it
-    /// costs two gas and one byte. Do not add `gas`, `msize`, or `returndatasize`: their values
-    /// can change after the defining instruction.
     fn is_always_rematerializable_value(func: &Function, value: ValueId) -> bool {
-        Self::always_rematerializable_op(func, value).is_some()
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
+        func.inst(*inst_id).kind.is_always_rematerializable()
     }
 
     fn always_rematerializable_op(func: &Function, value: ValueId) -> Option<u8> {
         let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
-        Some(match func.inst(*inst_id).kind {
+        let kind = &func.inst(*inst_id).kind;
+        if !kind.is_always_rematerializable() {
+            return None;
+        }
+        Some(match kind {
             InstKind::CalldataSize => op::CALLDATASIZE,
             InstKind::CodeSize => op::CODESIZE,
             InstKind::Caller => op::CALLER,
@@ -4017,7 +4017,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::ChainId => op::CHAINID,
             InstKind::BaseFee => op::BASEFEE,
             InstKind::BlobBaseFee => op::BLOBBASEFEE,
-            _ => return None,
+            _ => unreachable!("always-rematerializable MIR instruction without EVM opcode"),
         })
     }
 
@@ -8248,36 +8248,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.emit_load_immutable(*id);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::CallValue => {
-                            self.asm.emit_op(op::CALLVALUE);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Caller => {
-                            self.asm.emit_op(op::CALLER);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Origin => {
-                            self.asm.emit_op(op::ORIGIN);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::CalldataSize => {
-                            self.asm.emit_op(op::CALLDATASIZE);
-                            self.scheduler.stack.push(val);
-                        }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
                             self.emit_own_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::ConstructorArgsBase => {
                             self.emit_constructor_args_base();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Timestamp => {
-                            self.asm.emit_op(op::TIMESTAMP);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::BlockNumber => {
-                            self.asm.emit_op(op::NUMBER);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::MLoad(offset) => {
