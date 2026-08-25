@@ -16,12 +16,12 @@
   fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      ret 1
     bb2:
 -     jump bb3
 -   bb3:
       ret 2
+    bb1:
+      ret 1
   }
   
   fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
@@ -34,10 +34,10 @@
   fn @ordered_switch(arg0: u256) -> u256 {
     bb0:
       switch 5, default bb1, [arg0 => bb1, 5 => bb2]
-    bb1:
-      ret 1
     bb2:
       ret 2
+    bb1:
+      ret 1
   }
   
   fn @degenerate_switch_refreshes_successors(arg0: u256) -> u256 {

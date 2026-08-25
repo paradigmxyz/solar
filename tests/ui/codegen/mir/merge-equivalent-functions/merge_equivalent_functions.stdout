@@ -46,22 +46,22 @@
   fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
+    bb2:
+      ret arg1
     bb1:
       v0 = internal_call @recursive_a, 1, 0, arg1
       ret v0
-    bb2:
-      ret arg1
   }
   
   fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
+    bb2:
+      ret arg1
     bb1:
 -     v0 = internal_call @recursive_b, 1, 0, arg1
 +     v0 = internal_call @recursive_a, 1, 0, arg1
       ret v0
-    bb2:
-      ret arg1
   }
   
   fn @recursive_entry() {

@@ -6,8 +6,6 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = lt arg0, 3
     jumpi v3, bb4, bb3
@@ -31,6 +29,8 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) {
     v9 = add v8, 1
     sstore v9, arg2 !metadata(storage=offset(v7, 1))
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @getS(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
@@ -39,8 +39,6 @@ fn @getS(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = lt arg0, 3
     jumpi v3, bb4, bb3
@@ -64,5 +62,7 @@ fn @getS(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
     v10 = add v9, 1
     v11 = sload v10 !metadata(storage=offset(v8, 1))
     ret v6, v11
+  bb1:
+    revert 0, 0
 }
 

@@ -39,9 +39,8 @@ bb5:
   push 352
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -99,9 +98,8 @@ bb11:
   push 352
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt

@@ -9,8 +9,6 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v4 = memory_object_field_addr memorystruct<4>, v3, 0
@@ -23,6 +21,8 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [abi_returns=[word]] {
     mstore v7, arg1
     v8 = internal_call @hashLib, 1, v3
     ret v8
+  bb1:
+    revert 0, 0
 }
 
 fn @hashLib(arg0: memorystruct) -> bytes32 {

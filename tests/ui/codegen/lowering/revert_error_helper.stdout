@@ -251,9 +251,8 @@ bb41:
   push 160
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -311,9 +310,8 @@ bb28:
   push 192
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt

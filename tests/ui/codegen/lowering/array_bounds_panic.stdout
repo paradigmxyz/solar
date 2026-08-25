@@ -6,8 +6,6 @@ fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
@@ -28,6 +26,8 @@ fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
     v9 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
     v10 = mload v9
     ret v10
+  bb1:
+    revert 0, 0
 }
 
 fn @memFixConst() -> u256 [abi_returns=[word]] {
@@ -56,14 +56,14 @@ fn @memFixConstOob() -> u256 [abi_returns=[word]] {
     v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     mstore v3, 0
     jumpi 1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 5
     v5 = mload v4
     ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
@@ -72,8 +72,6 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mul arg0, 32
     v4 = div v3, 32
@@ -87,10 +85,6 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     v6 = add v3, 32
     v7 = lt v6, v3
     jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, arg0
@@ -105,6 +99,12 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     v11 = memory_object_element_addr memoryarray<1>, v8, arg1
     v12 = mload v11
     ret v12
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -113,8 +113,6 @@ fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = lt arg0, v3
@@ -129,6 +127,8 @@ fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
     v6 = add v5, arg0
     v7 = sload v6 !metadata(storage=symbolic(v6))
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @stDynWrite(arg0: u256, arg1: u256) {
@@ -137,8 +137,6 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = lt arg0, v3
@@ -153,6 +151,8 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     v6 = add v5, arg0
     sstore v6, arg1 !metadata(storage=symbolic(v6))
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -161,8 +161,6 @@ fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = lt arg0, 3
     jumpi v3, bb4, bb3
@@ -174,6 +172,8 @@ fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
     v4 = add 1, arg0
     v5 = sload v4 !metadata(storage=offset(arg0, 1))
     ret v5
+  bb1:
+    revert 0, 0
 }
 
 fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
@@ -182,8 +182,6 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_len arg0
     v4 = lt arg1, v3
@@ -198,6 +196,8 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
     v7 = add v5, v6
     v8 = calldataload v7
     ret v8
+  bb1:
+    revert 0, 0
 }
 
 fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[word]] {
@@ -206,8 +206,6 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[
     v1 = sub v0, 4
     v2 = slt v1, 128
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
@@ -226,6 +224,8 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[
     v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg3
     v9 = mload v8
     ret v9
+  bb1:
+    revert 0, 0
 }
 
 fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
@@ -234,8 +234,6 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_len arg0
     v4 = lt arg1, v3
@@ -250,5 +248,7 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
     v7 = calldataload v6
     v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v8
+  bb1:
+    revert 0, 0
 }
 

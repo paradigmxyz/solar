@@ -35,14 +35,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -58,8 +58,6 @@ fn @init(arg0: memorybytes) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -115,6 +113,22 @@ fn @init(arg0: memorybytes) {
     v42 = mload v31
     v43 = lt v42, v30
     jumpi v43, bb6, bb7
+  bb7:
+    mstore v31, v30
+    jump bb8
+  bb8:
+    v50 = mload v31
+    v51 = lt v50, v25
+    jumpi v51, bb9, bb10
+  bb10:
+    stop
+  bb9:
+    v52 = mload v31
+    v53 = add v32, v52
+    sstore v53, 0 !metadata(storage=symbolic(v53))
+    v54 = add v52, 1
+    mstore v31, v54
+    jump bb8
   bb6:
     v44 = mload v31
     v45 = add v32, v44
@@ -125,22 +139,8 @@ fn @init(arg0: memorybytes) {
     v49 = add v44, 1
     mstore v31, v49
     jump bb5
-  bb7:
-    mstore v31, v30
-    jump bb8
-  bb8:
-    v50 = mload v31
-    v51 = lt v50, v25
-    jumpi v51, bb9, bb10
-  bb9:
-    v52 = mload v31
-    v53 = add v32, v52
-    sstore v53, 0 !metadata(storage=symbolic(v53))
-    v54 = add v52, 1
-    mstore v31, v54
-    jump bb8
-  bb10:
-    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @poke() {
@@ -234,14 +234,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -325,16 +325,6 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v49 = mload v38
     v50 = lt v49, v37
     jumpi v50, bb4, bb5
-  bb4:
-    v51 = mload v38
-    v52 = add v39, v51
-    v53 = mul v51, 32
-    v54 = add v20, v53
-    v55 = mload v54
-    sstore v52, v55 !metadata(storage=symbolic(v52))
-    v56 = add v51, 1
-    mstore v38, v56
-    jump bb3
   bb5:
     mstore v38, v37
     jump bb6
@@ -342,13 +332,6 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v57 = mload v38
     v58 = lt v57, v32
     jumpi v58, bb7, bb8
-  bb7:
-    v59 = mload v38
-    v60 = add v39, v59
-    sstore v60, 0 !metadata(storage=symbolic(v60))
-    v61 = add v59, 1
-    mstore v38, v61
-    jump bb6
   bb8:
     v62 = memory_object_len memorybytes, v16
     v63 = memory_object_data memorybytes, v16
@@ -393,6 +376,22 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v92 = mload v81
     v93 = lt v92, v80
     jumpi v93, bb12, bb13
+  bb13:
+    mstore v81, v80
+    jump bb14
+  bb14:
+    v100 = mload v81
+    v101 = lt v100, v75
+    jumpi v101, bb15, bb16
+  bb16:
+    stop
+  bb15:
+    v102 = mload v81
+    v103 = add v82, v102
+    sstore v103, 0 !metadata(storage=symbolic(v103))
+    v104 = add v102, 1
+    mstore v81, v104
+    jump bb14
   bb12:
     v94 = mload v81
     v95 = add v82, v94
@@ -403,22 +402,23 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v99 = add v94, 1
     mstore v81, v99
     jump bb11
-  bb13:
-    mstore v81, v80
-    jump bb14
-  bb14:
-    v100 = mload v81
-    v101 = lt v100, v75
-    jumpi v101, bb15, bb16
-  bb15:
-    v102 = mload v81
-    v103 = add v82, v102
-    sstore v103, 0 !metadata(storage=symbolic(v103))
-    v104 = add v102, 1
-    mstore v81, v104
-    jump bb14
-  bb16:
-    stop
+  bb7:
+    v59 = mload v38
+    v60 = add v39, v59
+    sstore v60, 0 !metadata(storage=symbolic(v60))
+    v61 = add v59, 1
+    mstore v38, v61
+    jump bb6
+  bb4:
+    v51 = mload v38
+    v52 = add v39, v51
+    v53 = mul v51, 32
+    v54 = add v20, v53
+    v55 = mload v54
+    sstore v52, v55 !metadata(storage=symbolic(v52))
+    v56 = add v51, 1
+    mstore v38, v56
+    jump bb3
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
@@ -458,14 +458,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -549,16 +549,6 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v49 = mload v38
     v50 = lt v49, v37
     jumpi v50, bb4, bb5
-  bb4:
-    v51 = mload v38
-    v52 = add v39, v51
-    v53 = mul v51, 32
-    v54 = add v20, v53
-    v55 = mload v54
-    sstore v52, v55 !metadata(storage=symbolic(v52))
-    v56 = add v51, 1
-    mstore v38, v56
-    jump bb3
   bb5:
     mstore v38, v37
     jump bb6
@@ -566,13 +556,6 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v57 = mload v38
     v58 = lt v57, v32
     jumpi v58, bb7, bb8
-  bb7:
-    v59 = mload v38
-    v60 = add v39, v59
-    sstore v60, 0 !metadata(storage=symbolic(v60))
-    v61 = add v59, 1
-    mstore v38, v61
-    jump bb6
   bb8:
     v62 = memory_object_len memorybytes, v16
     v63 = memory_object_data memorybytes, v16
@@ -617,6 +600,22 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v92 = mload v81
     v93 = lt v92, v80
     jumpi v93, bb12, bb13
+  bb13:
+    mstore v81, v80
+    jump bb14
+  bb14:
+    v100 = mload v81
+    v101 = lt v100, v75
+    jumpi v101, bb15, bb16
+  bb16:
+    stop
+  bb15:
+    v102 = mload v81
+    v103 = add v82, v102
+    sstore v103, 0 !metadata(storage=symbolic(v103))
+    v104 = add v102, 1
+    mstore v81, v104
+    jump bb14
   bb12:
     v94 = mload v81
     v95 = add v82, v94
@@ -627,22 +626,23 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
     v99 = add v94, 1
     mstore v81, v99
     jump bb11
-  bb13:
-    mstore v81, v80
-    jump bb14
-  bb14:
-    v100 = mload v81
-    v101 = lt v100, v75
-    jumpi v101, bb15, bb16
-  bb15:
-    v102 = mload v81
-    v103 = add v82, v102
-    sstore v103, 0 !metadata(storage=symbolic(v103))
-    v104 = add v102, 1
-    mstore v81, v104
-    jump bb14
-  bb16:
-    stop
+  bb7:
+    v59 = mload v38
+    v60 = add v39, v59
+    sstore v60, 0 !metadata(storage=symbolic(v60))
+    v61 = add v59, 1
+    mstore v38, v61
+    jump bb6
+  bb4:
+    v51 = mload v38
+    v52 = add v39, v51
+    v53 = mul v51, 32
+    v54 = add v20, v53
+    v55 = mload v54
+    sstore v52, v55 !metadata(storage=symbolic(v52))
+    v56 = add v51, 1
+    mstore v38, v56
+    jump bb3
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
@@ -680,8 +680,6 @@ fn @_anonymous() {
     mstore v23, 0
     v24 = keccak256 v23, 32
     jumpi v21, bb3, bb2
-  bb1:
-    stop
   bb2:
     v25 = mload v5
     v26 = mul v4, 8
@@ -702,16 +700,6 @@ fn @_anonymous() {
     v34 = mload v23
     v35 = lt v34, v22
     jumpi v35, bb5, bb6
-  bb5:
-    v36 = mload v23
-    v37 = add v24, v36
-    v38 = mul v36, 32
-    v39 = add v5, v38
-    v40 = mload v39
-    sstore v37, v40 !metadata(storage=symbolic(v37))
-    v41 = add v36, 1
-    mstore v23, v41
-    jump bb4
   bb6:
     mstore v23, v22
     jump bb7
@@ -719,13 +707,6 @@ fn @_anonymous() {
     v42 = mload v23
     v43 = lt v42, v17
     jumpi v43, bb8, bb9
-  bb8:
-    v44 = mload v23
-    v45 = add v24, v44
-    sstore v45, 0 !metadata(storage=symbolic(v45))
-    v46 = add v44, 1
-    mstore v23, v46
-    jump bb7
   bb9:
     v47 = memory_object_len memorybytes, v2
     v48 = memory_object_data memorybytes, v2
@@ -770,6 +751,24 @@ fn @_anonymous() {
     v77 = mload v66
     v78 = lt v77, v65
     jumpi v78, bb13, bb14
+  bb14:
+    mstore v66, v65
+    jump bb15
+  bb15:
+    v85 = mload v66
+    v86 = lt v85, v60
+    jumpi v86, bb16, bb17
+  bb17:
+    jump bb1
+  bb1:
+    stop
+  bb16:
+    v87 = mload v66
+    v88 = add v67, v87
+    sstore v88, 0 !metadata(storage=symbolic(v88))
+    v89 = add v87, 1
+    mstore v66, v89
+    jump bb15
   bb13:
     v79 = mload v66
     v80 = add v67, v79
@@ -780,22 +779,23 @@ fn @_anonymous() {
     v84 = add v79, 1
     mstore v66, v84
     jump bb12
-  bb14:
-    mstore v66, v65
-    jump bb15
-  bb15:
-    v85 = mload v66
-    v86 = lt v85, v60
-    jumpi v86, bb16, bb17
-  bb16:
-    v87 = mload v66
-    v88 = add v67, v87
-    sstore v88, 0 !metadata(storage=symbolic(v88))
-    v89 = add v87, 1
-    mstore v66, v89
-    jump bb15
-  bb17:
-    jump bb1
+  bb8:
+    v44 = mload v23
+    v45 = add v24, v44
+    sstore v45, 0 !metadata(storage=symbolic(v45))
+    v46 = add v44, 1
+    mstore v23, v46
+    jump bb7
+  bb5:
+    v36 = mload v23
+    v37 = add v24, v36
+    v38 = mul v36, 32
+    v39 = add v5, v38
+    v40 = mload v39
+    sstore v37, v40 !metadata(storage=symbolic(v37))
+    v41 = add v36, 1
+    mstore v23, v41
+    jump bb4
 }
 
 fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
@@ -833,14 +833,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -891,8 +891,6 @@ fn @constructor() {
     mstore v23, 0
     v24 = keccak256 v23, 32
     jumpi v21, bb3, bb2
-  bb1:
-    stop
   bb2:
     v25 = mload v5
     v26 = mul v4, 8
@@ -913,16 +911,6 @@ fn @constructor() {
     v34 = mload v23
     v35 = lt v34, v22
     jumpi v35, bb5, bb6
-  bb5:
-    v36 = mload v23
-    v37 = add v24, v36
-    v38 = mul v36, 32
-    v39 = add v5, v38
-    v40 = mload v39
-    sstore v37, v40 !metadata(storage=symbolic(v37))
-    v41 = add v36, 1
-    mstore v23, v41
-    jump bb4
   bb6:
     mstore v23, v22
     jump bb7
@@ -930,13 +918,6 @@ fn @constructor() {
     v42 = mload v23
     v43 = lt v42, v17
     jumpi v43, bb8, bb9
-  bb8:
-    v44 = mload v23
-    v45 = add v24, v44
-    sstore v45, 0 !metadata(storage=symbolic(v45))
-    v46 = add v44, 1
-    mstore v23, v46
-    jump bb7
   bb9:
     v47 = memory_object_len memorybytes, v2
     v48 = memory_object_data memorybytes, v2
@@ -981,6 +962,24 @@ fn @constructor() {
     v77 = mload v66
     v78 = lt v77, v65
     jumpi v78, bb13, bb14
+  bb14:
+    mstore v66, v65
+    jump bb15
+  bb15:
+    v85 = mload v66
+    v86 = lt v85, v60
+    jumpi v86, bb16, bb17
+  bb17:
+    jump bb1
+  bb1:
+    stop
+  bb16:
+    v87 = mload v66
+    v88 = add v67, v87
+    sstore v88, 0 !metadata(storage=symbolic(v88))
+    v89 = add v87, 1
+    mstore v66, v89
+    jump bb15
   bb13:
     v79 = mload v66
     v80 = add v67, v79
@@ -991,22 +990,23 @@ fn @constructor() {
     v84 = add v79, 1
     mstore v66, v84
     jump bb12
-  bb14:
-    mstore v66, v65
-    jump bb15
-  bb15:
-    v85 = mload v66
-    v86 = lt v85, v60
-    jumpi v86, bb16, bb17
-  bb16:
-    v87 = mload v66
-    v88 = add v67, v87
-    sstore v88, 0 !metadata(storage=symbolic(v88))
-    v89 = add v87, 1
-    mstore v66, v89
-    jump bb15
-  bb17:
-    jump bb1
+  bb8:
+    v44 = mload v23
+    v45 = add v24, v44
+    sstore v45, 0 !metadata(storage=symbolic(v45))
+    v46 = add v44, 1
+    mstore v23, v46
+    jump bb7
+  bb5:
+    v36 = mload v23
+    v37 = add v24, v36
+    v38 = mul v36, 32
+    v39 = add v5, v38
+    v40 = mload v39
+    sstore v37, v40 !metadata(storage=symbolic(v37))
+    v41 = add v36, 1
+    mstore v23, v41
+    jump bb4
 }
 
 fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
@@ -1044,14 +1044,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23

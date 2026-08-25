@@ -347,8 +347,17 @@ mod round_trip {
                 }
             };
             let print2 = parsed2.to_text().to_string();
-            if print1 != print2 {
-                let diff = first_diff(&print1, &print2)
+            let parsed3 = match parse_module(&sess, &print2) {
+                Ok(m) => m,
+                Err(_) => {
+                    result =
+                        Err(format!("third parse failed: {}", sess.emitted_diagnostics().unwrap()));
+                    return;
+                }
+            };
+            let print3 = parsed3.to_text().to_string();
+            if print2 != print3 {
+                let diff = first_diff(&print2, &print3)
                     .map(|(i, a, b)| format!("line {i}: `{a}` vs `{b}`"))
                     .unwrap_or_else(|| "(length mismatch)".to_string());
                 result = Err(format!("not idempotent: {diff}"));

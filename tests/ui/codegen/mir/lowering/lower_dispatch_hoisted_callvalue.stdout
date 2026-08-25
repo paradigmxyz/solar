@@ -21,10 +21,10 @@
 +     v1 = calldataload 0
 +     v2 = shr 224, v1
 +     switch v2, default bb4, [1 => bb2, 2 => bb3]
-+   bb2:
-+     tail_call @a
 +   bb3:
 +     tail_call @b
++   bb2:
++     tail_call @a
 +   bb4:
 +     revert 0, 0
   }

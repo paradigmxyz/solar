@@ -11,8 +11,6 @@ fn @factory.0() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = gt arg0, 0xffffffffffffffff
     jumpi v3, bb1, bb3
@@ -38,8 +36,6 @@ fn @factory.0() {
     v16 = add v15, 31
     v17 = lt v16, v15
     jumpi v17, bb5, bb6
-  bb5:
-    tail_call @__revert_stub0
   bb6:
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = iszero v19
@@ -131,6 +127,10 @@ fn @factory.0() {
     v76 = internal_call @factory.1, 1, v5
     mstore 128, v76
     returndata 128, 32
+  bb5:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @factory.1(arg0: memptr) -> address {
@@ -140,9 +140,6 @@ fn @factory.1(arg0: memptr) -> address {
     v6 = mload v1
     v7 = lt v6, 20
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0 !metadata(memory=scratch)
-    jump bb3
   bb2:
     v9 = add arg0, 256
     v10 = mload v9
@@ -153,11 +150,6 @@ fn @factory.1(arg0: memptr) -> address {
     v14 = calldataload v13
     v19 = gt 20, v14
     jumpi v19, bb4, bb5
-  bb3:
-    v29 = mload 0 !metadata(memory=scratch)
-    ret v29
-  bb4:
-    revert 0, 0
   bb5:
     v25 = calldataload v15
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
@@ -165,6 +157,14 @@ fn @factory.1(arg0: memptr) -> address {
     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v28 !metadata(memory=scratch)
     jump bb3
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v29 = mload 0 !metadata(memory=scratch)
+    ret v29
 }
 
 fn @tailHash.2() {
@@ -173,8 +173,6 @@ fn @tailHash.2() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = gt arg0, 0xffffffffffffffff
     jumpi v3, bb1, bb3
@@ -200,8 +198,6 @@ fn @tailHash.2() {
     v16 = add v15, 31
     v17 = lt v16, v15
     jumpi v17, bb5, bb6
-  bb5:
-    tail_call @__revert_stub0
   bb6:
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = iszero v19
@@ -293,6 +289,10 @@ fn @tailHash.2() {
     v76 = internal_call @tailHash.3, 1, v5
     mstore 128, v76
     returndata 128, 32
+  bb5:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @tailHash.3(arg0: memptr) -> bytes32 {
@@ -302,9 +302,6 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     v6 = mload v1
     v7 = lt v6, 20
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0 !metadata(memory=scratch)
-    jump bb3
   bb2:
     v8 = add arg0, 256
     v9 = mload v8
@@ -315,19 +312,12 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     v14 = add v12, 32
     v18 = lt v13, 20
     jumpi v18, bb4, bb5
-  bb3:
-    v37 = mload 0 !metadata(memory=scratch)
-    ret v37
-  bb4:
-    revert 0, 0
   bb5:
     v19 = sub v13, 20
     v20 = add v14, 20
     v23 = add v19, 31
     v24 = lt v23, v19
     jumpi v24, bb6, bb7
-  bb6:
-    tail_call @__revert_stub0
   bb7:
     v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = iszero v26
@@ -350,6 +340,16 @@ fn @tailHash.3(arg0: memptr) -> bytes32 {
     v36 = keccak256 v39, v38
     mstore 0, v36 !metadata(memory=scratch)
     jump bb3
+  bb6:
+    tail_call @__revert_stub0
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v37 = mload 0 !metadata(memory=scratch)
+    ret v37
 }
 
 fn @midWord.4() {
@@ -358,8 +358,6 @@ fn @midWord.4() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = gt arg0, 0xffffffffffffffff
     jumpi v3, bb1, bb3
@@ -385,8 +383,6 @@ fn @midWord.4() {
     v16 = add v15, 31
     v17 = lt v16, v15
     jumpi v17, bb5, bb6
-  bb5:
-    tail_call @__revert_stub0
   bb6:
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = iszero v19
@@ -478,6 +474,10 @@ fn @midWord.4() {
     v76 = internal_call @midWord.5, 1, v5
     mstore 128, v76
     returndata 128, 32
+  bb5:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @midWord.5(arg0: memptr) -> bytes32 {
@@ -491,11 +491,11 @@ fn @midWord.5(arg0: memptr) -> bytes32 {
     v5 = calldataload v4
     v10 = gt 32, v5
     jumpi v10, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v16 = calldataload v6
     ret v16
+  bb1:
+    revert 0, 0
 }
 
 fn @__revert_stub0() {
@@ -513,12 +513,12 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb5, [0x1af91295 => bb2, 0x9850c81b => bb3, 0xbb6106d2 => bb4]
-  bb2:
-    tail_call @factory.0
-  bb3:
-    tail_call @tailHash.2
   bb4:
     tail_call @midWord.4
+  bb3:
+    tail_call @tailHash.2
+  bb2:
+    tail_call @factory.0
   bb5:
     revert 0, 0
 }

@@ -6,8 +6,6 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_retu
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = iszero v3
@@ -18,17 +16,17 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_retu
     revert 0, 0
   bb4:
     jumpi arg0, bb5, bb6
-  bb5:
-    v7 = slice_ptr arg1
-    v8 = slice_len arg1
-    mstore 0, v7 !metadata(memory=scratch)
-    mstore 32, v8 !metadata(memory=scratch)
-    jump bb7
   bb6:
     v9 = slice_ptr arg2
     v10 = slice_len arg2
     mstore 0, v9 !metadata(memory=scratch)
     mstore 32, v10 !metadata(memory=scratch)
+    jump bb7
+  bb5:
+    v7 = slice_ptr arg1
+    v8 = slice_len arg1
+    mstore 0, v7 !metadata(memory=scratch)
+    mstore 32, v8 !metadata(memory=scratch)
     jump bb7
   bb7:
     v11 = mload 0 !metadata(memory=scratch)
@@ -36,6 +34,8 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_retu
     v13 = make_calldata_slice v11, v12
     v14 = slice_len v13
     ret v14
+  bb1:
+    revert 0, 0
 }
 
 fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -44,8 +44,6 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = iszero v3
@@ -60,21 +58,14 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
     v8 = memory_object_data memorybytes, v7
     mstore v8, 0xaabb000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb5, bb6
+  bb6:
+    mstore 0, v7 !metadata(memory=scratch)
+    jump bb7
   bb5:
     v9 = slice_len arg1
     v10 = add v9, 31
     v11 = lt v10, v9
     jumpi v11, bb8, bb9
-  bb6:
-    mstore 0, v7 !metadata(memory=scratch)
-    jump bb7
-  bb7:
-    v23 = mload 0 !metadata(memory=scratch)
-    ret v23
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v12 = not 31
     v13 = and v10, v12
@@ -83,10 +74,6 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
     v16 = add 32, v15
     v17 = lt v16, v15
     jumpi v17, bb10, bb11
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb11:
     v18 = alloc memorybytes, exact, uninitialized, infallible, v16
     set_memory_object_len memorybytes, v18, v9
@@ -98,5 +85,18 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
     calldatacopy v19, v22, v9
     mstore 0, v18 !metadata(memory=scratch)
     jump bb7
+  bb7:
+    v23 = mload 0 !metadata(memory=scratch)
+    ret v23
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 

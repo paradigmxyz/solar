@@ -6,8 +6,6 @@ fn @notUint8(arg0: u8) -> u8 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 255
@@ -19,6 +17,8 @@ fn @notUint8(arg0: u8) -> u8 [abi_returns=[word]] {
     v6 = not arg0
     v7 = and v6, 255
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
@@ -27,8 +27,6 @@ fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffff
@@ -40,6 +38,8 @@ fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
     v6 = not arg0
     v7 = and v6, 0xffff
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @notUint256(arg0: u256) -> u256 [abi_returns=[word]] {
@@ -48,11 +48,11 @@ fn @notUint256(arg0: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = not arg0
     ret v3
+  bb1:
+    revert 0, 0
 }
 
 fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
@@ -61,8 +61,6 @@ fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = signextend 0, v3
@@ -73,6 +71,8 @@ fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
   bb4:
     v6 = not arg0
     ret v6
+  bb1:
+    revert 0, 0
 }
 
 fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
@@ -81,8 +81,6 @@ fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -94,6 +92,8 @@ fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
     v6 = not arg0
     v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
@@ -102,8 +102,6 @@ fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffff000000000000000000000000000000000000000000000000000000000000
@@ -115,6 +113,8 @@ fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
     v6 = not arg0
     v7 = and v6, 0xffff000000000000000000000000000000000000000000000000000000000000
     ret v7
+  bb1:
+    revert 0, 0
 }
 
 fn @notBytes32(arg0: bytes32) -> bytes32 [abi_returns=[word]] {
@@ -123,9 +123,9 @@ fn @notBytes32(arg0: bytes32) -> bytes32 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = not arg0
     ret v3
+  bb1:
+    revert 0, 0
 }

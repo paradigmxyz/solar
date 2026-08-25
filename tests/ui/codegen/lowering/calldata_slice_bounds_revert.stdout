@@ -7,8 +7,6 @@ fn @endPastLength() {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v47 = add arg0, 36
     v48 = add arg0, 4
@@ -23,8 +21,6 @@ fn @endPastLength() {
     v11 = add v7, 31
     v12 = lt v11, v7
     jumpi v12, bb5, bb6
-  bb5:
-    tail_call @__revert_stub0
   bb6:
     v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = iszero v14
@@ -67,6 +63,10 @@ fn @endPastLength() {
     v51 = add v45, v44
     mstore 64, v51 !metadata(memory=scratch)
     returndata v45, v40
+  bb5:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @startAfterEnd() {
@@ -75,8 +75,6 @@ fn @startAfterEnd() {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v47 = add arg0, 36
     v48 = add arg0, 4
@@ -92,8 +90,6 @@ fn @startAfterEnd() {
     v11 = add v7, 31
     v12 = lt v11, v7
     jumpi v12, bb5, bb6
-  bb5:
-    tail_call @__revert_stub0
   bb6:
     v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = iszero v14
@@ -136,6 +132,10 @@ fn @startAfterEnd() {
     v51 = add v45, v44
     mstore 64, v51 !metadata(memory=scratch)
     returndata v45, v40
+  bb5:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @__revert_stub0() {
@@ -153,10 +153,10 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
-  bb2:
-    tail_call @startAfterEnd
   bb3:
     tail_call @endPastLength
+  bb2:
+    tail_call @startAfterEnd
   bb4:
     revert 0, 0
 }

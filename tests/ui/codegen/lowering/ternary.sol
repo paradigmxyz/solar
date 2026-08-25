@@ -5,8 +5,8 @@ contract Ternary {
     // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
     // CHECK: jumpi [[GT]],
-    // CHECK: mstore 0, arg0
     // CHECK: mstore 0, arg1
+    // CHECK: mstore 0, arg0
     // CHECK: mload 0
     function max(uint256 a, uint256 b) public pure returns (uint256) {
         return a > b ? a : b;
@@ -23,8 +23,8 @@ contract Ternary {
     // CHECK-LABEL: fn @abs_diff{{[( ]}}
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
     // CHECK: {{v[0-9]+}} = iszero [[LT]]
-    // CHECK: sub arg0, arg1
     // CHECK: sub arg1, arg0
+    // CHECK: sub arg0, arg1
     // CHECK: mload 0
     function abs_diff(uint256 a, uint256 b) public pure returns (uint256) {
         return a >= b ? a - b : b - a;

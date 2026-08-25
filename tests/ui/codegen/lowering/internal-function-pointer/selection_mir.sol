@@ -3,18 +3,18 @@
 
 contract FunctionPointerSelection {
     // CHECK-LABEL: fn @choose(
-    // CHECK: mstore 0, [[INCREMENT:[0-9]+]]
     // CHECK: mstore 0, [[DECREMENT:[0-9]+]]
+    // CHECK: mstore 0, [[INCREMENT:[0-9]+]]
     // CHECK: internal_call @__internal_dispatch_0, 1, {{v[0-9]+}}, arg1
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[INCREMENT]]
-    // CHECK: internal_call @increment, 1, arg1
     // CHECK: eq arg0, [[DECREMENT]]
-    // CHECK: internal_call @decrement, 1, arg1
     // CHECK: eq arg0, [[INCREMENT_VIEW:[0-9]+]]
-    // CHECK: internal_call @incrementView, 1, arg1
     // CHECK: mstore 4, 81
     // CHECK: revert 0, 36
+    // CHECK: internal_call @incrementView, 1, arg1
+    // CHECK: internal_call @decrement, 1, arg1
+    // CHECK: internal_call @increment, 1, arg1
     function choose(bool add, uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = add ? increment : decrement;
         return fn(value);

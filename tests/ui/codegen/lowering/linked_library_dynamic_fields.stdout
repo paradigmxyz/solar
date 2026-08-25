@@ -44,9 +44,8 @@ bb4:
   push 480
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -517,9 +516,8 @@ bb17 [cold]:
   push 0
   revert
 bb5:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -558,9 +556,8 @@ bb9:
   push 448
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 128
   sgt

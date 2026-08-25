@@ -7,8 +7,6 @@ fn @lastWord() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v7 = add arg0, 4
     v8 = calldataload v7
@@ -16,6 +14,8 @@ fn @lastWord() {
     v3 = internal_call @_last, 1, v6, v8
     mstore 128, v3
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
@@ -32,8 +32,6 @@ fn @lastWord2() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v16 = add arg0, 36
     v17 = add arg0, 4
@@ -47,6 +45,8 @@ fn @lastWord2() {
     v11 = xor v3, v10
     mstore 128, v11
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {
@@ -57,10 +57,10 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb4, [0x3955f902 => bb2, 0x97f495a8 => bb3]
-  bb2:
-    tail_call @lastWord
   bb3:
     tail_call @lastWord2
+  bb2:
+    tail_call @lastWord
   bb4:
     revert 0, 0
 }

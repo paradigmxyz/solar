@@ -1,14 +1,14 @@
-# Codegen runtime corpus
+# Codegen benchmark corpus
 
-This directory contains the runtime-specific fixtures and workload documentation for the codegen
-runtime benchmark. The shared project archives live in `../../testdata/projects/`; archives group
-cases from the same upstream project. The runner selects only each entrypoint's transitive Solidity
-import closure before compiling it. Keeping the inputs here makes the benchmark reproducible from this
-checkout and removes the CI dependency on a second repository and its recursive submodules.
+This directory contains fixtures and workload documentation for the codegen benchmark. The shared
+project archives live in `../../testdata/projects/`; archives group cases from the same upstream
+project. The default `runtime` mode selects each entrypoint's transitive Solidity import closure and
+omits the heavy full-project cases. The `compile-time` mode measures those cases by passing full
+archived Standard JSON inputs to both compilers without deployment or runtime workloads. CI runs
+both modes with `--mode runtime compile-time`.
 
-The separate `benches/runtime/benchmark.py --suite heavy` suite passes the full archived
-Standard JSON inputs to both compilers and measures compile time without deployment or runtime
-workloads.
+Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
+dependency on a second repository and its recursive submodules.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)

@@ -66,9 +66,6 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiWithTernary
     // CHECK: jumpi
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[RESULT_ADDR:[0-9]+]]
-    // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
-    // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: [[FIRST_NUM:v[0-9]+]] = mul
     // CHECK: [[RESERVE0:v[0-9]+]] = sload {{[0-9]+}}
     // CHECK: [[FIRST:v[0-9]+]] = div [[FIRST_NUM]], [[RESERVE0]]
@@ -76,10 +73,13 @@ contract BackendControlFlow {
     // CHECK: [[RESERVE1:v[0-9]+]] = sload {{[0-9]+}}
     // CHECK: [[SECOND:v[0-9]+]] = div [[SECOND_NUM]], [[RESERVE1]]
     // CHECK: lt [[FIRST]], [[SECOND]]
-    // CHECK: mstore [[MERGE_ADDR:[0-9]+]], [[FIRST]]
-    // CHECK: mstore [[MERGE_ADDR]], [[SECOND]]
+    // CHECK: mstore [[MERGE_ADDR:[0-9]+]], [[SECOND]]
+    // CHECK: mstore [[MERGE_ADDR]], [[FIRST]]
     // CHECK: [[MIN:v[0-9]+]] = mload [[MERGE_ADDR]]
-    // CHECK: mstore [[RESULT_ADDR]], [[MIN]]
+    // CHECK: mstore [[RESULT_ADDR:[0-9]+]], [[MIN]]
+    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[RESULT_ADDR]]
+    // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
+    // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
     function phiWithTernary() external returns (uint256 liquidity) {
         uint256 amount0 = 100;

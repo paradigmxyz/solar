@@ -32,9 +32,8 @@ bb5:
   push 128
   return
 bb6:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt

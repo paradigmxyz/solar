@@ -6,8 +6,6 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
@@ -27,8 +25,6 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v12 = slice_len v10
     v13 = lt v12, arg1
     jumpi v13, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v14 = sub v12, arg1
     v15 = add v11, arg1
@@ -52,5 +48,9 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     revert 0, v27
   bb8:
     stop
+  bb5:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
