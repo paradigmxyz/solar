@@ -41,7 +41,7 @@ contract C {
     // CHECK: mstore
     // CHECK: mstore
     // CHECK: keccak256
-    // CHECK-NEXT: dup1
+    // CHECK-NEXT: dup 1
     // CHECK: sload
     // CHECK: push 1
     // CHECK: add

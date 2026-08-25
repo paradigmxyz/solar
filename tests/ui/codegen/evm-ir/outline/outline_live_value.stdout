@@ -4,17 +4,17 @@
   bb0:
     push 1
 +   push bb4
-+   swap1
++   swap 1
 +   jump bb3
 + bb1:
 +   push 2
 +   push bb5
-+   swap1
++   swap 1
 +   jump bb3
 + bb2:
 +   push 3
 +   push bb6
-+   swap1
++   swap 1
 +   jump bb3
 + bb3:
     not
@@ -37,7 +37,7 @@
     not
     not
     not
-+   swap1
++   swap 1
 +   jump
 + bb4:
     push 100

@@ -11,7 +11,7 @@
 library DataTypes {
     // CHECK-LABEL: @module runtime
     // CHECK: push 0
-    // CHECK-NEXT: dup1
+    // CHECK-NEXT: dup 1
     // CHECK-NEXT: revert
     struct Map {
         uint256 data;

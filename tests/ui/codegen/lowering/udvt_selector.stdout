@@ -18,7 +18,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x8d2f9995
   sub
   push bb3
@@ -33,12 +33,12 @@ bb0:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 4
   calldataload
-  dup2
+  dup 2
   lt
   push bb7
   jumpi
@@ -49,7 +49,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb7 [cold]:
   push 0x4e487b71

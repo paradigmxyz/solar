@@ -16,7 +16,7 @@ bb0:
 // CHECK: {{^[ +].*}}revert
 bb1 [cold]:
   push_deferred 0
-  dup1
+  dup 1
   revert
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
@@ -33,7 +33,7 @@ bb2:
 // CHECK: {{^[ +].*}}revert
 bb3 [cold]:
   push_immutable 0, 32
-  dup1
+  dup 1
   revert
 bb4:
   stop

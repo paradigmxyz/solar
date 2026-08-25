@@ -99,23 +99,23 @@ bb4294967294:
 // conservative PUSH+JUMP would make this three-byte suffix appear profitable to share.
 // CHECK-LABEL: {{^[ +].*}}bb8:
 // CHECK: {{^[ +].*}}push0
-// CHECK-NEXT: {{^[ +].*}}dup1
+// CHECK-NEXT: {{^[ +].*}}dup 1
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}jump bb10
 bb8:
   push0
-  dup1
+  dup 1
   pop
   jump bb10
 
 // CHECK-LABEL: {{^[ +].*}}bb9:
 // CHECK: {{^[ +].*}}push0
-// CHECK-NEXT: {{^[ +].*}}dup1
+// CHECK-NEXT: {{^[ +].*}}dup 1
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}jump bb10
 bb9:
   push0
-  dup1
+  dup 1
   pop
   jump bb10
 

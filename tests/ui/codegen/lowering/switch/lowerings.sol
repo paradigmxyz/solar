@@ -38,19 +38,19 @@ contract SwitchLowerings {
 
     // BUCKETSGAS-LABEL: @module runtime
     // BUCKETSGAS: push 9
-    // BUCKETSGAS-NEXT: swap1
+    // BUCKETSGAS-NEXT: swap 1
     // BUCKETSGAS-NEXT: mod
     // BUCKETSGAS-NEXT: indexed_jump
 
     // BUCKETSSIZE-LABEL: @module runtime
     // BUCKETSSIZE: push 8
-    // BUCKETSSIZE-NEXT: swap1
+    // BUCKETSSIZE-NEXT: swap 1
     // BUCKETSSIZE-NEXT: mod
     // BUCKETSSIZE-NEXT: indexed_jump
 
     // DENSE-LABEL: @module runtime
     // DENSE: push 8
-    // DENSE-NEXT: swap1
+    // DENSE-NEXT: swap 1
     // DENSE-NEXT: sub
     // DENSE: push 57
     // DENSE-NEXT: gt
@@ -69,7 +69,7 @@ contract SwitchLowerings {
 
     // PERFECTSIZE-LABEL: @module runtime
     // PERFECTSIZE: push 8
-    // PERFECTSIZE-NEXT: swap1
+    // PERFECTSIZE-NEXT: swap 1
     // PERFECTSIZE-NEXT: sub
     // PERFECTSIZE: push 3
     // PERFECTSIZE-NEXT: shr

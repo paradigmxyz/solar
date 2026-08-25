@@ -38,7 +38,7 @@ bb0:
   push 94
   codesize
   sub
-  dup1
+  dup 1
   push 94
   push 192
   codecopy
@@ -70,7 +70,7 @@ bb0:
   push 0
   sstore
   push 33
-  dup1
+  dup 1
   push 61
   push 0
   codecopy
@@ -78,7 +78,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 
 // === runtime ===
@@ -91,7 +91,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xc55699c
   sub
   push bb3
@@ -105,7 +105,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 // === ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C (runtime) ===
 @module runtime
@@ -117,7 +117,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xc55699c
   sub
   push bb3
@@ -131,5 +131,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert

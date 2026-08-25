@@ -7,11 +7,11 @@ contract AcyclicStackPhi {
     // CHECK: calldataload
     // CHECK: add
     // CHECK: calldataload
-    // CHECK: dup1
+    // CHECK: dup 1
     // CHECK: push {{[0-9]+}}
     // CHECK: mstore
     // CHECK: push 4
-    // CHECK: dup2
+    // CHECK: dup 2
     // CHECK: gt
     // CHECK: push [[TRIM:bb[0-9]+]]
     // CHECK: jumpi

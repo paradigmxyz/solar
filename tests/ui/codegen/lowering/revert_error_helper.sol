@@ -20,7 +20,7 @@ contract R {
     // CHECK: push 240
     // CHECK: shl
     // CHECK: push 2
-    // CHECK: swap1
+    // CHECK: swap 1
     // CHECK: jump [[ERROR_HELPER:bb[0-9]+]]
     // CHECK: [[ERROR_HELPER]] [cold]:
     // CHECK: push 0x8c379a0
@@ -61,7 +61,7 @@ contract R {
     // CHECK: push 168
     // CHECK: shl
     // CHECK: push 11
-    // CHECK: swap1
+    // CHECK: swap 1
     // CHECK: jump [[ERROR_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {

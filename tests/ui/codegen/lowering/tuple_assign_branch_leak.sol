@@ -29,7 +29,7 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: push 192
     // CHECK-NEXT: mload
     // CHECK: push 7
-    // CHECK-NEXT: dup2
+    // CHECK-NEXT: dup 2
     // CHECK: add
     // CHECK: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
@@ -50,8 +50,8 @@ contract TupleAssignBranchLeak {
     // The two-word return rotates the hidden return label over both results.
     // CHECK: push 2
     // CHECK: add
-    // CHECK: swap1
-    // CHECK-NEXT: swap2
+    // CHECK: swap 1
+    // CHECK-NEXT: swap 2
     // CHECK-NEXT: jump
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;

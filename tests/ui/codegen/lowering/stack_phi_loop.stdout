@@ -8,17 +8,17 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x50d1f082
   eq
   push bb32
   jumpi
-  dup1
+  dup 1
   push 0x71b76bb2
   eq
   push bb6
   jumpi
-  dup1
+  dup 1
   push 0xfb08deb2
   eq
   push bb19
@@ -26,7 +26,7 @@ bb0:
   jump bb5
 bb5 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb6:
   push 68
@@ -55,20 +55,20 @@ bb6:
 bb10:
   push 0
   push 0
-  swap1
+  swap 1
   jump bb11
 bb11:
-  dup1
+  dup 1
   push 256
   mstore
   push 4
   calldataload
-  dup2
+  dup 2
   lt
   push bb14
   jumpi
-  dup2
-  dup1
+  dup 2
+  dup 1
   push 192
   mstore
   push 128
@@ -87,27 +87,27 @@ bb13:
   add
   push 160
   mload
-  swap1
+  swap 1
   jump bb11
 bb14:
-  dup1
+  dup 1
   push 256
   mstore
   push 3
-  dup2
+  dup 2
   mul
-  dup1
+  dup 1
   push 160
   mstore
   push 3
-  dup2
+  dup 2
   div
-  dup3
+  dup 3
   eq
-  dup4
+  dup 4
   push 192
   mstore
-  swap3
+  swap 3
   pop
   pop
   pop
@@ -119,7 +119,7 @@ bb14:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 288
   mstore
   push 160
@@ -132,7 +132,7 @@ bb14:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -180,27 +180,27 @@ bb21:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 288
   mstore
-  dup1
+  dup 1
   push 256
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 256
   mload
-  dup2
+  dup 2
   lt
-  dup2
+  dup 2
   push 256
   mstore
-  dup3
+  dup 3
   push 160
   mstore
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -211,19 +211,19 @@ bb23:
   push 256
   mload
   push 0
-  swap1
+  swap 1
   jump bb25
 bb25:
-  dup2
+  dup 2
   push 288
   mstore
   push 36
   calldataload
-  dup3
+  dup 3
   lt
   push bb28
   jumpi
-  dup1
+  dup 1
   push 160
   mstore
   push 128
@@ -238,23 +238,23 @@ bb27:
   mload
   jump bb25
 bb28:
-  dup2
+  dup 2
   push 288
   mstore
-  dup2
+  dup 2
   push 1
   shl
-  dup1
+  dup 1
   push 192
   mstore
   push 1
   shr
-  dup3
+  dup 3
   eq
-  dup2
+  dup 2
   push 160
   mstore
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -264,7 +264,7 @@ bb28:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 224
   mstore
   push 192
@@ -277,7 +277,7 @@ bb28:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 224
   mstore
   push 160
@@ -336,7 +336,7 @@ bb38:
   push 224
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 224
@@ -351,7 +351,7 @@ bb39:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 320
   mstore
   push 192
@@ -367,7 +367,7 @@ bb40:
   push 224
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 224
@@ -379,7 +379,7 @@ bb40:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 320
   mstore
   push 192
@@ -392,7 +392,7 @@ bb40:
   push 288
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 288

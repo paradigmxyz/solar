@@ -6,7 +6,7 @@ bb0:
   push bb1
   jumpi
   push 38
-  dup1
+  dup 1
   push 17
   push 0
   codecopy
@@ -27,7 +27,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xb3de648b
   sub
   push bb3
@@ -46,5 +46,5 @@ bb5:
   stop
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
