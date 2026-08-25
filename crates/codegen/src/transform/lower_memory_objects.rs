@@ -179,8 +179,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                                 SliceLocation::Memory => source,
                                 location
                                 @ (SliceLocation::Calldata | SliceLocation::Returndata) => {
-                                    let data =
-                                        builder.alloc_raw(len, AllocationSemantics::INTERNAL);
+                                    let data = builder.fmp();
                                     builder.copy_slice_data(location, data, source, len);
                                     data
                                 }

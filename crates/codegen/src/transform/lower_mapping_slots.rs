@@ -3,8 +3,8 @@
 //! Keeping storage-location hashing as one MIR instruction lets dominator-tree
 //! CSE reuse repeated accesses without teaching HIR lowering about scratch
 //! memory. This pass expands the builtins at the memory boundary. Variable-size
-//! hash inputs use the semantic allocation policy; fixed-width mapping and
-//! storage-array hashes use reserved scratch.
+//! hash inputs use the free-memory pointer as transient scratch; fixed-width
+//! mapping and storage-array hashes use reserved scratch.
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation},
@@ -146,7 +146,7 @@ fn lower_slice_mapping_slot(
     };
     let word_size = builder.imm_u64(32);
     let payload_size = builder.add(len, word_size);
-    let scratch = builder.alloc_raw(payload_size, crate::mir::AllocationSemantics::INTERNAL);
+    let scratch = builder.fmp();
     let source = match location {
         SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
