@@ -46,7 +46,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // value = load(receiver[index])
+        // if storage_byte_place { value = load_lvalue_place(...) }
+        // if storage_access { value = load_storage_access(...) }
+        // else { bounds_check(index) }
+        // value = load(fixed_bytes | slice | memory_object, index)
+        // value = normalize(value)
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             return self.load_lvalue_place(&place);
         }
@@ -156,9 +160,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // start = checked_start
-        // end = checked_end
-        // slice(base + start * stride, end - start, location)
+        // start = provided_start | 0
+        // end = provided_end | base_len
+        // if end > base_len || end < start { revert(0, 0) }
+        // pointer = base_ptr + start * stride
+        // slice(pointer, end - start, location)
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {

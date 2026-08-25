@@ -310,7 +310,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn emit_revert_payload(&mut self, payload: PreparedRevertPayload) {
-        // payload = Error(string)
+        // payload = empty | encode(Error(string)) | encode(custom_error)
         // revert(pointer, length)
         match payload {
             PreparedRevertPayload::ShortString { length, data } => {
@@ -376,8 +376,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        // payload = Error(string)
-        // revert(payload.ptr, payload.len)
+        // mstore(0, Error(string).selector)
+        // mstore(4, 32); mstore(36, length); mstore(68, word)
+        // revert(0, 100)
         self.lazy_helper(sym::revert_error, |_, function| {
             let mut builder = FunctionBuilder::new(function);
             let length = builder.add_param(MirType::uint256());
@@ -439,7 +440,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // log0(topics, data) ... log4(topics, data)
+        // topics = (anonymous ? [] : [event_selector]) + indexed_encodings
+        // data = abi_encode(non_indexed_arguments)
+        // log0..log4(data.ptr, data.len, topics...)
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return report_unsupported(self.context.gcx, expr.span, "event emission");
         };

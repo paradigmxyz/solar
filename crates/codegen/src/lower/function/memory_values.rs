@@ -8,6 +8,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         elements: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
+        // object = alloc(array)
+        // if dynamic { object.len = element_count }
         // object[i] = coerce(element_i)
         let ty = self.context.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
@@ -51,8 +53,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> Option<ValueId> {
         // is_zero = value == 0
-        // if is_zero { value = default_object(element) }
-        // object[i] = value
+        // if is_zero { allocated = default_object(element); object[i] = allocated }
+        // value = phi(value, allocated)
         let zero = self.builder.imm_u256(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -76,8 +78,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         struct_id: hir::StructId,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // object = struct()
-        // for field { object[field] = decode(...) }
+        // object = alloc(struct_layout)
+        // for field { value = lower_typed(argument); object[field] = value }
         let struct_fields = self.context.gcx.hir.strukt(struct_id).fields;
         let fields = struct_fields.len() as u64;
         if args.len() != fields as usize {
@@ -110,7 +112,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         values: &[Option<&hir::Expr<'_>>],
     ) -> Option<ValueId> {
-        // object = tuple(values)
+        // object = alloc(tuple_layout, zeroed_if_omitted)
+        // for present field { object[field] = value }
         let ty = self.context.gcx.type_of_expr(expr.id)?;
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
             return report_unsupported(self.context.gcx, expr.span, "tuple object");
@@ -257,7 +260,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
-        // object = default(ty)
+        // if preserve_fmp && dynamic { object = ZERO_SLOT }
+        // else { object = alloc(default_layout) }
+        // if bytes_or_dynamic_array { object.len = 0 }
+        // if struct { object[field] = default(field) }
+        // if fixed_array { zero_uninitialized_elements(); object[i] = default(element) }
         let layout = self.types.memory_layout(ty)?;
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })

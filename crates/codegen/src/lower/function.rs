@@ -385,7 +385,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         name: Symbol,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
-        // helper = lookup(name)
+        // if name in helpers { return helpers[name] }
+        // id = add_function(name)
+        // helpers[name] = id
+        // build(id)
+        // if build fails { invalid(id); remove helpers[name] }
+        // return id
         if let Some(&id) = self.context.state.helpers.get(&name) {
             return Some(id);
         }
@@ -412,9 +417,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<(ValueId, ValueId, ValueId)> {
-        // gas = gas()
-        // value = 0
         // zero = 0
+        // gas = gas()
+        // value = zero
+        // for option { gas/value = lower(option.value) }
         let zero = self.builder.imm_u256(U256::ZERO);
         let mut gas = self.builder.gas();
         let mut value = zero;
@@ -693,7 +699,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
 ) {
-    // if function_id == target { result = internal_call(target) }
+    // for target {
+    //     if function_id == target {
+    //         results = internal_call(target, arguments)
+    //         return results
+    //     }
+    // }
+    // panic(InvalidInternalFunction)
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)

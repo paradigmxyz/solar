@@ -35,7 +35,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
         // branch(condition, then, else)
-        // merge = phi(then, else)
+        // exits = nonterminated([then_exit, else_exit]) -> merge
+        // values = phi(then_values, else_values)
+        // storage_refs = phi(then_storage_refs, else_storage_refs)
         self.materialize_default_bindings();
         let first_block = self.builder.create_block();
         let second_block = self.builder.create_block();
@@ -113,7 +115,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
-        // switch(selector, cases...)
+        // switch(selector, default_or_merge, cases)
+        // state = pre_switch_state
+        // exits = case_exits -> merge
+        // values/storage_refs = merge(exits)
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -165,7 +170,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
-        // ok = CALL/CREATE
+        // if CREATE { address = create(...); ok = address != 0 }
+        // if CALL/STATICCALL { ok = call(...) }
+        // branch(ok, success, catch)
+        // if CREATE { lower(success(address)) }
+        // if CALL/STATICCALL { returns = decode(); lower(success) }
+        // else { data = returndata(); catch = match(Error, Panic, raw, data) }
+        // if no_catch { revert(data) }
+        // exits -> merge
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
             return report_unsupported(self.context.gcx, try_stmt.expr.span, "try expression");
         };
@@ -541,7 +553,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // value = phi(lower(then), lower(else))
+        // branch(condition, then, else)
+        // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -566,8 +579,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        // result = lhs && rhs
-        // result = lhs || rhs
+        // if && { branch(lhs, rhs, false) }
+        // if || { branch(lhs, true, rhs) }
+        // result = phi(rhs_value, short_circuit_constant)
         let lhs = self.lower_expr(lhs_expr)?;
         let is_and = op == BinOpKind::And;
         let (then_branch, else_branch) = self.lower_branches(
@@ -595,7 +609,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<Vec<ValueId>> {
-        // values = phi(then_values, else_values)
+        // branch(condition, then, else)
+        // values = then_values | else_values | phi(then_i, else_i)
         let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -638,7 +653,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         source: LoopSource<'_>,
     ) -> Option<()> {
         // preheader -> header
-        // header -> body/update -> header
+        // header -> body -> update? -> header
+        // header -> exit
+        // if for { update = step? }
+        // if while { body = condition ? body : break }
+        // if do_while { update = condition ? continue : break }
         // break -> exit
         self.materialize_default_bindings();
         let update_stmt = match source {
@@ -808,8 +827,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         incoming: Vec<(BlockId, StorageAccess)>,
     ) -> Option<StorageAccess> {
-        // slot = phi(slots)
-        // offset = phi(offsets)
+        // slot = first_slot | phi(incoming_slots)
+        // offset = none | first_offset | phi(explicit/default_offsets)
+        // location, encoding = first.location, first.encoding
         let first = incoming.first().map(|&(_, access)| access)?;
         if incoming.iter().all(|&(_, access)| access == first) {
             return Some(first);

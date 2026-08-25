@@ -11,7 +11,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bits: u16,
         is_add: bool,
     ) -> ValueId {
-        // overflow = check_width(lhs, rhs, result)
+        // overflow = signed_add_sub_signs(lhs, rhs, result)
+        // if bits < 256 { overflow |= result < min || result > max }
         let zero = self.builder.imm_u256(U256::ZERO);
         let lhs_negative = self.builder.slt(lhs, zero);
         let rhs_negative = self.builder.slt(rhs, zero);
@@ -34,8 +35,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // overflow = !(rhs == 0 || result / rhs == lhs)
-        // overflow = min * -1
+        // valid = rhs == 0 || (signed ? sdiv : div)(result, rhs) == lhs
+        // overflow = !valid
+        // if signed { overflow |= result < min || result > max }
+        // if signed { overflow |= lhs == min && rhs == -1 }
+        // if unsigned_narrow { overflow |= result > max }
         let rhs_zero = self.builder.iszero(rhs);
         let quotient = match kind {
             ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),
@@ -112,7 +116,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exponent: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // result = pow(base, exponent)
+        // power = 1; current_base = base; current_exponent = exponent
+        // while current_exponent > 0 {
+        //     if odd { power = checked_mul(power, current_base) }
+        //     if current_exponent >> 1 > 0 {
+        //         current_base = checked_mul(current_base, current_base)
+        //     }
+        //     current_exponent >>= 1
+        // }
+        // result = power
         let one = self.builder.imm_u256(U256::ONE);
         let zero = self.builder.imm_u256(U256::ZERO);
         let preheader = self.builder.current_block();
@@ -160,6 +172,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Option<Ty<'gcx>>,
     ) -> ValueId {
         // result = opcode(lhs, rhs)
+        // if checked_arithmetic && overflow { panic(ArithmeticOverflowUnderflow) }
+        // if unchecked_narrow { result = truncate(result) }
         let arithmetic = ty.and_then(arithmetic_kind);
         match op {
             BinOpKind::Add => {

@@ -58,9 +58,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         needs_validation: bool,
     ) -> bool {
-        // valid = len >= abi_head
+        // base = slice_ptr(value)
+        // len = slice_len(value)
+        // head = abi_head(ty)
+        // if head > len { revert(0, 0) }
         // check_range(base, head)
-        // validate_words(base)
+        // validate_static(ty, base)
         if self.is_external_abi_argument(value) || !needs_validation {
             return false;
         }
@@ -80,7 +83,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_static_value(&mut self, ty: Ty<'gcx>, base: ValueId) {
-        // value = decode_static(ty, data)
+        // validate_static(ty, base)
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
             self.validate_calldata_static_value(inner, base);
@@ -379,7 +382,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        // object = decode_dynamic(ty, data)
+        // object = materialize_calldata(ty, data)
         match ty.peel_refs().kind {
             _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
                 self.validate_calldata_bytes_slice(value);
@@ -419,7 +422,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn copy_calldata_word_array(&mut self, data: ValueId, length: ValueId) -> ValueId {
-        // object = bytes_array(length)
+        // object = word_array(length)
         // copy(data, object.data, length * 32)
         let word = self.builder.imm_u64(32);
         let byte_length = self.builder.checked_mul(length, word);
@@ -530,7 +533,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // value = decode_at(ty, base, head)
+        // position = calldata_value_position(ty, head, tuple_base)
+        // value = decode_or_slice(ty, position, tuple_base)
         let is_calldata = ty.is_ref_at(DataLocation::Calldata);
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
@@ -647,7 +651,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         tuple_base: ValueId,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // position = dynamic ? tuple_base + calldataload(head) : head
+        // if !dynamic { position = head }
+        // if dynamic {
+        //     if validate_bounds { check_range(head, 32) }
+        //     offset = calldataload(head)
+        //     if validate_bounds && !(offset <s calldatasize() - tuple_base - 31) {
+        //         revert(0, 0)
+        //     }
+        //     position = tuple_base + offset
+        // }
         let word = self.builder.imm_u64(32);
         if !self.types.abi_type(ty)?.is_dynamic() {
             return Some(head);
@@ -726,9 +738,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         position: ValueId,
         validate_bounds: bool,
     ) -> ValueId {
+        // if validate_bounds { check_range(position, 32) }
         // word = calldataload(position)
-        // validate(word)
-        // return clean(word)
+        // if validator && !valid(word) { revert(0, 0) }
+        // value = is_external_function ? word >> 64 : word
         let is_external_function =
             matches!(ty.kind, TyKind::Fn(function) if function.is_external());
         let word = self.builder.imm_u64(32);
@@ -768,7 +781,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         validate_bounds: bool,
     ) -> ValueId {
         // len = calldataload(position)
+        // if validate_bounds { validate_tail(position, len, 1) }
         // slice = calldata(position + 32, len)
+        // return materialize_memory_slice(slice)
         let word = self.builder.imm_u64(32);
         let length = self.builder.calldataload(position);
         if validate_bounds {
@@ -781,8 +796,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
-        // check(length <= u64::MAX)
-        // check(pointer + length <= calldatasize())
+        // if length > u64::MAX { revert(0, 0) }
+        // limit = calldatasize() - length
+        // if pointer >s limit { revert(0, 0) }
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
         self.validate_calldata_length(length);
@@ -806,7 +822,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // for i in 0..length { object[i] = decode(base + i * head_size) }
+        // if validate_bounds { check_tail(base, length * element_head_size) }
+        // object = fixed_array(length)
+        // for i in 0..length {
+        //     head = base + i * element_head_size
+        //     object[i] = decode_at(element, head, base, validate_bounds && dynamic(element))
+        // }
         let element_abi = self.types.abi_type(element)?;
         let element_head_size = element_abi.head_size();
         if validate_bounds {
@@ -838,7 +859,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // for (i, field) { object.field[i] = decode(base + field_offset) }
+        // fields = collect_fields()
+        // if validate_bounds && all_static { check_tail(base, head_size) }
+        // object = struct(fields.len)
+        // for i, field {
+        //     object[i] = decode_at(field, base + field_offset, base, nested_validate)
+        // }
         let fields = fields.into_iter().collect::<Vec<_>>();
         let mut head_size = 0_u64;
         let all_static = fields.iter().all(|&field| {

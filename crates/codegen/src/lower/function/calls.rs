@@ -34,7 +34,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // result = lower_call(callee, args)
+        // result = lower_struct_ctor(callee, args)
+        // result = convert(callee, args)
+        // result = new(callee, args, opts)
+        // result = builtin(callee, args, opts)
+        // result = function_pointer_call(callee, args, opts)
+        // result = function_call(callee, args, opts)
         if let Some(struct_id) = self.context.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
@@ -277,7 +282,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<Vec<ValueId>> {
-        // (address, selector) = function_pointer
+        // address, selector = function_pointer
+        // input = abi_encode(selector, args)
+        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
+        // ok = CALL/STATICCALL(gas, address, value, input, ret_offset, ret_size)
+        // if !ok { revert_returndata() }
+        // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, args.span, "external function arguments");
@@ -366,7 +376,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // returns = dispatcher(function_ptr, typed_args)
+        // ptr = lower(function_ptr)
+        // args = materialize_args(...)
+        // if returns == 0 {
+        //     internal_call_void(dispatcher, [ptr, args])
+        //     result = 0
+        // } else {
+        //     result = internal_call(dispatcher, [ptr, args])
+        // }
         if args.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "internal function arguments");
         }
@@ -445,7 +462,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
-        // value = convert(source, target)
+        // value = from != to ? normalize_dirty(value, from) : value
+        // if dynamic_bytes_to_fixed { value = mask(load_word(value), source_length) }
+        // if fixed_bytes_target && dynamic_bytes_calldata_source {
+        //     validate_calldata_bytes(value)
+        // }
+        // if narrowing_integer { value = normalize_integer(value, to) }
+        // if enum_target && from != to { validate_enum(to, value) }
+        // if fixed_bytes_target { value = clean_or_extend(value, to) }
         let value = if from.peel_refs() != to.peel_refs() {
             self.normalize_dirty_scalar(value, from)
         } else {
@@ -608,7 +632,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // result = internal_call(function, args...)
+        // args = resolve_receiver_and_storage_args(...)
+        // result = internal_call[_void](function, args)
+        // result = external_abi_call(function, args, opts)
+        // result = delegatecall(library, args)
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.context.gcx.hir.function(function_id);
         let attached =
@@ -743,7 +770,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         // input = abi_encode(selector, args)
-        // ok = CALL/STATICCALL(input)
+        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
+        // ok = CALL/STATICCALL(gas, address, value, input, ret_offset, ret_size)
+        // if !ok { revert_returndata() }
+        // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let ExprKind::Member(receiver, _) = callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "external function target");
         };
@@ -877,7 +907,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
-        // ok = DELEGATECALL(library, input)
+        // input = abi_encode(selector, args)
+        // ok = DELEGATECALL(gas, library, input, 0, 0)
+        // if !ok { revert_returndata() }
+        // result = abi_decode(returndata) | 0
         let function = self.context.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "linked library arguments");
@@ -950,7 +983,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
     ) -> (Option<(ValueId, ValueId, ValueId)>, ValueId, ValueId, bool) {
-        // (buffer, offset, size, decode) = return_buffer(returns)
+        // static = static_aggregate_layout(returns)
+        // buffer = static ? alloc_static_buffer(static) : none
+        // decode = any_return_is_nonword
+        // offset = static.data ? static.data : (!decode && returns > 1 ? input : zero)
+        // size = static.size ? static.size : (decode ? 0 : returns * 32)
         let returns = return_tys.len();
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let static_return_buffer =
@@ -979,7 +1016,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         zero: ValueId,
     ) -> Option<ValueId> {
-        // values = abi_decode(return_data)
+        // values = lower_abi_decode_values(return_data, return_types)
+        // multi_return_frame[1..] = values[1..]
+        // return values[0] or zero
         let values = self.lower_abi_decode_values(data, return_types, span)?;
         if values.len() > 1 {
             let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
@@ -995,7 +1034,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId, ValueId)> {
-        // buffer = bytes(head_size)
+        // size = head_size(layout)
+        // buffer = bytes(size) if multiple_returns else raw(size)
+        // return (buffer, data, size)
         let size = layout.checked_head_size()?;
         if layout.types.len() != 1 {
             let object_size = self.builder.imm_u64(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
@@ -1028,8 +1069,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
         // required = returns * 32
-        // require(returndatasize >= required)
-        // validate(return_words)
+        // if returndatasize < required { revert(0, 0) }
+        // for i {
+        //     word = load_multi_return_value(offset, i, returns.len)
+        //     if !valid(returns[i], word) { revert(0, 0) }
+        // }
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm_u64(words.saturating_mul(32));
         self.revert_if_short_returndata(size);

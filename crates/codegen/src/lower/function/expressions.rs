@@ -54,7 +54,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         name: Ident,
     ) -> Option<ValueId> {
-        // value = member(receiver)
+        // if builtin_member { value = lower_builtin(...) }
+        // if function_member { value = function_pointer(...) }
+        // if storage_member { value = load_storage(...) }
+        // if struct_or_calldata_member { load/decode/normalize_field(...) }
         if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
             return self.lower_builtin_value(expr, builtin);
         }
@@ -164,8 +167,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         what: &'static str,
     ) -> Option<ValueId> {
-        // length = sload(slot)
-        // length = slice.len
+        // if fixed_array { length = static_len }
+        // if storage_dynamic_array { length = sload(slot) }
+        // if storage_bytes_or_string { length = len(load_storage_bytes(slot)) }
+        // if slice_or_object { length = slice_len/object_len }
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;

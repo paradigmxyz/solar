@@ -83,7 +83,11 @@ impl StorageLocation {
         word: ValueId,
         shift: Option<ValueId>,
     ) -> ValueId {
-        // value = sign_extend((word >> shift) & mask)
+        // if !packed { value = word }
+        // else {
+        //     field = (shift ? word >> shift : word) & field_mask
+        //     value = unsigned ? field : signed ? sign_extend(field) : field << align_shift
+        // }
         if !self.packed() {
             return word;
         }
@@ -207,7 +211,7 @@ impl<'gcx> StorageLayout<'gcx> {
         offset: ValueId,
     ) -> ValueId {
         // word = load(slot)
-        // field = load_word(word, offset * 8)
+        // field = packed ? load_word(word, offset * 8) : word
         let word = location.load(builder, slot);
         if !location.packed() {
             return word;
@@ -269,8 +273,10 @@ impl<'gcx> StorageLayout<'gcx> {
         value: ValueId,
     ) {
         // old = load(slot)
-        // cleared = old & !field_mask
-        // updated = cleared | ((value & field_mask) << shift)
+        // shifted_mask = shift ? field_mask << shift : field_mask
+        // cleared = old & !shifted_mask
+        // encoded = fixed_bytes ? value >> align_shift : value
+        // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
         // store(slot, updated)
         let field_mask = location.mask();
         let field_mask_value = builder.imm_u256(field_mask);
