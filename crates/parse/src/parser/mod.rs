@@ -8,7 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
-    error_code, kw,
+    error_code,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -1005,8 +1005,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if ident.is_reserved(self.in_yul) && !(self.in_yul && self.is_versioned_yul_builtin(ident))
-        {
+        if ident.is_reserved(self.in_yul) {
             let err = self.expected_ident_found_err();
             if recover {
                 err.emit();
@@ -1016,25 +1015,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         self.bump();
         Ok(ident)
-    }
-
-    fn is_reserved_yul_builtin(&self, ident: Ident) -> bool {
-        ident.is_reserved_yul_builtin() && !self.is_versioned_yul_builtin(ident)
-    }
-
-    fn is_versioned_yul_builtin(&self, ident: Ident) -> bool {
-        matches!(
-            ident.name,
-            kw::Basefee
-                | kw::Blobbasefee
-                | kw::Blobhash
-                | kw::Clz
-                | kw::Difficulty
-                | kw::Mcopy
-                | kw::Prevrandao
-                | kw::Tload
-                | kw::Tstore
-        )
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.

@@ -1,32 +1,8 @@
-warning[5470]: `mcopy` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
+error: expected identifier, found Yul EVM builtin keyword `mcopy`
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             let mcopy
    ╰╴                ━━━━━
-
-warning[5470]: `blobhash` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
-   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
-   │
-LL │             let blobhash
-   ╰╴                ━━━━━━━━
-
-warning[5470]: `blobbasefee` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
-   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
-   │
-LL │             let blobbasefee
-   ╰╴                ━━━━━━━━━━━
-
-warning[5470]: `tload` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
-   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
-   │
-LL │             let tload
-   ╰╴                ━━━━━
-
-warning[5470]: `tstore` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
-   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
-   │
-LL │             let tstore
-   ╰╴                ━━━━━━
 
 error[7755]: Yul builtin `mcopy` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
@@ -68,5 +44,5 @@ LL │             tstore(0, 0)
    │
    ╰ help: compile with `--evm-version cancun` or newer
 
-error: aborting due to 5 previous errors; 5 warnings emitted
+error: aborting due to 6 previous errors
 

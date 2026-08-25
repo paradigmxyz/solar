@@ -9,9 +9,8 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    error_code, kw, sym,
+    error_code, sym,
 };
 use std::fmt;
 
@@ -1104,10 +1103,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        let res = match self.check_yul_identifier(function.name) {
-            Ok(()) => Res::Item(hir::ItemId::Function(id)),
-            Err(guar) => Res::Err(guar),
-        };
+        let res = Res::Item(hir::ItemId::Function(id));
         let _ = self.scopes.current_scope().declare_res(
             self.lcx.sess,
             &self.lcx.hir,
@@ -1164,10 +1160,7 @@ impl<'gcx> ResolveContext<'gcx> {
             kind,
         );
         let id = self.hir.variables.push(var);
-        let res = match self.check_yul_identifier(name) {
-            Ok(()) => Res::Item(hir::ItemId::Variable(id)),
-            Err(guar) => Res::Err(guar),
-        };
+        let res = Res::Item(hir::ItemId::Variable(id));
         let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         id
     }
@@ -1268,61 +1261,9 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result = self.check_yul_identifier(name).and_then(|()| {
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
-        });
+        let result =
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         (id, result)
-    }
-
-    fn check_yul_identifier(&self, name: Ident) -> Result<(), ErrorGuaranteed> {
-        let target = self.lcx.sess.opts.evm_version;
-        let reserved_builtin = match name.name {
-            kw::Basefee => target >= EvmVersion::London,
-            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
-                target >= EvmVersion::Cancun
-            }
-            kw::Prevrandao => target.has_prev_randao(),
-            kw::Difficulty => !target.has_prev_randao(),
-            kw::Clz => target.has_clz(),
-            _ => false,
-        };
-        if reserved_builtin {
-            return Err(self
-                .dcx()
-                .err(format!("cannot use builtin function name `{name}` as identifier name"))
-                .code(error_code!(5568))
-                .span(name.span)
-                .emit());
-        }
-        if name.name == kw::Difficulty && target.has_prev_randao() {
-            return Err(self
-                .dcx()
-                .err(format!("identifier `{name}` is reserved and cannot be used"))
-                .code(error_code!(5017))
-                .span(name.span)
-                .emit());
-        }
-
-        let future_reserved = match name.name {
-            kw::Basefee => target < EvmVersion::London,
-            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
-                target < EvmVersion::Cancun
-            }
-            kw::Prevrandao => !target.has_prev_randao(),
-            kw::Clz => !target.has_clz(),
-            kw::Memoryguard => true,
-            _ => false,
-        };
-        if future_reserved {
-            self.dcx()
-                .warn(format!(
-                    "`{name}` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier"
-                ))
-                .code(error_code!(5470))
-                .span(name.span)
-                .emit();
-        }
-        Ok(())
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -1476,14 +1417,18 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
             let target = self.lcx.sess.opts.evm_version;
-            if let Some((required, code)) = builtin.yul_required_evm_version(target) {
+            if let Some(required) = builtin.required_evm_version(target) {
                 return Err(self
                     .dcx()
                     .err(format!(
                         "Yul builtin `{}` requires {required:?}-compatible EVM",
                         name.name
                     ))
-                    .code(code)
+                    .code(
+                        builtin
+                            .evm_version_error_code()
+                            .expect("version-gated Yul builtin without a diagnostic code"),
+                    )
                     .span(name.span)
                     .help(format!("compile with `--evm-version {required}` or newer"))
                     .emit());
