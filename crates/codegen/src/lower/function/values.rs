@@ -302,8 +302,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 (self.load_storage_value(source_ty, access, span)?, Some(source_ty), span)
             }
             TupleAssignmentRhs::Materialized { value, source_ty, span } => (value, source_ty, span),
-            TupleAssignmentRhs::StorageReference { .. } => {
-                unreachable!("storage references are not copied as values")
+            TupleAssignmentRhs::StorageReference { access } => {
+                return Some(TupleAssignmentRhs::StorageReference { access });
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
@@ -438,17 +438,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "nested tuple assignment target",
                             );
                         }
-                        let value = if rhs_ty.is_ref_at(DataLocation::Storage)
-                            && self.types.memory_layout(rhs_ty).is_some()
-                        {
-                            TupleAssignmentRhs::StorageCopy {
-                                access: StorageAccess {
-                                    slot: value,
-                                    location: StorageLocation::word(U256::ZERO),
-                                    offset: None,
-                                },
-                                source_ty: rhs_ty,
-                                span: rhs.span,
+                        let value = if rhs_ty.is_ref_at(DataLocation::Storage) {
+                            let access = StorageAccess {
+                                slot: value,
+                                location: StorageLocation::word(U256::ZERO),
+                                offset: None,
+                            };
+                            if self.is_storage_reference_binding(lhs) {
+                                TupleAssignmentRhs::StorageReference { access }
+                            } else if self.types.memory_layout(rhs_ty).is_some() {
+                                TupleAssignmentRhs::StorageCopy {
+                                    access,
+                                    source_ty: rhs_ty,
+                                    span: rhs.span,
+                                }
+                            } else {
+                                TupleAssignmentRhs::Materialized {
+                                    value,
+                                    source_ty: Some(rhs_ty),
+                                    span: rhs.span,
+                                }
                             }
                         } else {
                             TupleAssignmentRhs::Materialized {
@@ -462,7 +471,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     if let Some(lhs) = lhs {
                         let source_ty = self.context.gcx.type_of_expr(rhs.id);
-                        let value = if source_ty.is_some_and(|ty| {
+                        let value = if self.is_storage_reference_binding(lhs)
+                            && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+                        {
+                            TupleAssignmentRhs::StorageReference {
+                                access: self.storage_access(rhs)?,
+                            }
+                        } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
                                 && self.types.memory_layout(ty).is_some()
                         }) {
