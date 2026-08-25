@@ -1363,7 +1363,20 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulSgt => lower!(sgt(lhs, rhs)),
             Builtin::YulEq => lower!(eq(lhs, rhs)),
             Builtin::YulIszero => lower!(iszero(value)),
-            Builtin::YulClz => lower!(clz(value)),
+            Builtin::YulClz => {
+                let [value] = self.lower_builtin_args(builder, builtin, call_args)?;
+                if self.gcx.sess.opts.evm_version.has_clz() {
+                    builder.clz(value)
+                } else {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Osaka-compatible EVM for `clz`")
+                        .span(call_args.span)
+                        .help("compile with `--evm-version osaka` or newer")
+                        .emit());
+                }
+            }
             Builtin::YulMload => lower!(mload(offset)),
             Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),

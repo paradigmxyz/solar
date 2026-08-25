@@ -1,8 +1,8 @@
-error[4948]: Yul builtin `clz` requires Osaka-compatible EVM
+error: codegen requires Osaka-compatible EVM for `clz`
    ╭▸ ROOT/tests/ui/codegen/lowering/yul_clz_callcode.sol:LL:CC
    │
 LL │             result := clz(value)
-   │                       ━━━
+   │                       ━━━━━━━━━━
    │
    ╰ help: compile with `--evm-version osaka` or newer
 
