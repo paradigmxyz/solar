@@ -672,7 +672,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if preserve_calldata_slice {
                     rhs_value
                 } else {
-                    self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
+                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
+                        memory_rhs_ty
+                    } else {
+                        lhs_ty
+                    };
+                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
                 self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
