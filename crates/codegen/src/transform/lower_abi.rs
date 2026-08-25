@@ -1339,6 +1339,8 @@ impl LowerAbiCx {
                         arg_type
                     };
                     let validate_array_elements = constructor
+                        || (location == AbiParamLocation::Memory
+                            && Self::requires_calldata_element_validation(ty))
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
                         || Self::needs_full_calldata_array_validation(builder.func(), uses, ty);
                     let decode_options = DecodeOptions {
