@@ -24,7 +24,7 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
     // CHECK: [[JOIN:bb[0-9]+]]:
-    // CHECK-NEXT: dup2
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     function run(uint256 value, bool first) external pure returns (uint256) {
         return choose(value, first) * 3;

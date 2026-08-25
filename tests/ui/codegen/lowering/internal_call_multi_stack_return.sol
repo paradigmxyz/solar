@@ -11,8 +11,8 @@
 
 contract InternalCallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
-    // CHECK: swap1
-    // CHECK-NEXT: swap2
+    // CHECK: swap 1
+    // CHECK-NEXT: swap 2
     // CHECK-NEXT: jump
     function pair(uint256 x) external pure returns (uint256, uint256) {
         return pairHelper(x);
@@ -40,9 +40,9 @@ contract InternalCallMultiStackReturn {
     }
 
     // Three results exercise the complete SWAP1..SWAP3 return-label rotation.
-    // CHECK: swap1
-    // CHECK-NEXT: swap2
-    // CHECK-NEXT: swap3
+    // CHECK: swap 1
+    // CHECK-NEXT: swap 2
+    // CHECK-NEXT: swap 3
     // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
         return tripleHelper(x);
@@ -82,9 +82,9 @@ contract InternalCallMultiStackReturn {
     // Six results exercise a return whose values are already live on the physical stack. The
     // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
     // requested layout.
-    // CHECK: swap4
-    // CHECK-NEXT: swap5
-    // CHECK-NEXT: swap6
+    // CHECK: swap 4
+    // CHECK-NEXT: swap 5
+    // CHECK-NEXT: swap 6
     // CHECK-NEXT: jump
     function six(uint256 x)
         external

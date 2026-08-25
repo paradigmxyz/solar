@@ -5,7 +5,7 @@ bb0:
   push 350
   codesize
   sub
-  dup1
+  dup 1
   push 350
   push 224
   codecopy
@@ -26,16 +26,16 @@ bb0:
   mload
   push 160
   mload
-  dup2
+  dup 2
   push 32
   add
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   push 64
   add
   mstore
-  dup1
+  dup 1
   push 160
   mstore
   push 224
@@ -82,20 +82,20 @@ bb3:
   add
   mload
   mul
-  dup1
+  dup 1
   push 160
   mload
   push 128
   add
   mstore
-  dup1
+  dup 1
   push 160
   mload
   push 128
   add
   mstore
   push 11
-  dup2
+  dup 2
   div
   push 160
   mload
@@ -103,7 +103,7 @@ bb3:
   add
   mload
   eq
-  swap1
+  swap 1
   pop
   iszero
   push bb7
@@ -119,16 +119,16 @@ bb3:
   mload
   push 160
   mload
-  dup2
+  dup 2
   push 32
   add
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   push 64
   add
   mstore
-  dup1
+  dup 1
   push 160
   mstore
   push 224
@@ -144,7 +144,7 @@ bb5:
   push 96
   add
   mload
-  dup1
+  dup 1
   push 160
   mload
   push 192
@@ -161,7 +161,7 @@ bb5:
   mload
   push 160
   mstore
-  dup1
+  dup 1
   push 160
   mload
   push 192
@@ -173,13 +173,13 @@ bb5:
   add
   mload
   add
-  dup1
+  dup 1
   push 160
   mload
   push 160
   add
   mstore
-  dup1
+  dup 1
   push 160
   mload
   push 160
@@ -205,7 +205,7 @@ bb9:
   push 96
   add
   mload
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -222,7 +222,7 @@ bb9:
   push 0
   sstore
   push 33
-  dup1
+  dup 1
   push 317
   push 0
   codecopy
@@ -239,7 +239,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x3fa4f245
   sub
   push bb3
@@ -253,5 +253,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert

@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x341fda35
   sub
   push bb3
@@ -21,15 +21,15 @@ bb0:
   push bb3
   jumpi
   push 4
-  dup1
+  dup 1
   calldataload
   add
   calldataload
-  dup1
+  dup 1
   push 192
   mstore
   push 4
-  dup2
+  dup 2
   gt
   push bb8
   jumpi
@@ -41,7 +41,7 @@ bb0:
   mstore
   jump bb7
 bb7:
-  dup1
+  dup 1
   push 224
   mstore
   push 128
@@ -51,11 +51,11 @@ bb7:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8:
   push 4
-  dup2
+  dup 2
   sub
   push 36
   push 4
@@ -65,6 +65,6 @@ bb8:
   add
   push 128
   mstore
-  swap1
+  swap 1
   pop
   jump bb7

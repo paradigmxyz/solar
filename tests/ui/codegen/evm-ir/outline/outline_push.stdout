@@ -6,7 +6,7 @@
 +   jump bb1
 + bb1:
     push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+   swap1
++   swap 1
 +   jump
 + bb2:
     pop

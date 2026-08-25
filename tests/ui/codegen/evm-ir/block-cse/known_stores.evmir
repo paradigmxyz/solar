@@ -7,19 +7,19 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: push 160
 // CHECK-NEXT: mstore
-// CHECK-NEXT: - dup1
+// CHECK-NEXT: - dup 1
 // CHECK-NEXT: - push 128
 // CHECK-NEXT: - mstore
 // CHECK-NEXT: pop
 bb0:
   push 7
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   push 160
   mstore
-  dup1
+  dup 1
   push 128
   mstore
   pop
@@ -31,11 +31,11 @@ bb0:
 // CHECK-NEXT: mstore
 // CHECK-NEXT: - push 192
 // CHECK-NEXT: - mload
-// CHECK-NEXT: + dup1
+// CHECK-NEXT: + dup 1
 // CHECK-NEXT: add
 bb1:
   push 9
-  dup1
+  dup 1
   push 192
   mstore
   push 192
@@ -52,7 +52,7 @@ bb1:
 // CHECK-NEXT: mstore
 bb2:
   push 5
-  dup1
+  dup 1
   push 224
   mstore
   push 32
@@ -67,18 +67,18 @@ bb2:
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: push 144
 // CHECK-NEXT: mstore
-// CHECK-NEXT: dup1
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: push 128
 // CHECK-NEXT: mstore
 bb3:
   push 3
-  dup1
+  dup 1
   push 128
   mstore
   push 4
   push 144
   mstore
-  dup1
+  dup 1
   push 128
   mstore
   pop

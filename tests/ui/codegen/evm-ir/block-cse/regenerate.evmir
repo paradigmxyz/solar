@@ -6,7 +6,7 @@
 // CHECK: push 2
 // CHECK: push 3
 // CHECK: add
-// CHECK: +   dup1
+// CHECK: +   dup 1
 // CHECK: add
 bb0:
   push 2
@@ -35,7 +35,7 @@ bb1:
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: push 32
 // CHECK: mload
-// CHECK: +   dup1
+// CHECK: +   dup 1
 // CHECK: add
 bb2:
   push 32
@@ -61,7 +61,7 @@ bb3:
 // Fold a repeated nonzero push, but keep PUSH0 gas-neutral.
 // CHECK-LABEL: {{^[ +].*}}bb4:
 // CHECK: push 5
-// CHECK: +   dup1
+// CHECK: +   dup 1
 // CHECK: add
 // CHECK-COUNT-2: push 0
 bb4:

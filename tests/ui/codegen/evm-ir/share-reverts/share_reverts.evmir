@@ -17,7 +17,7 @@ bb0:
   jump bb1
 bb1 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb2:
   stop

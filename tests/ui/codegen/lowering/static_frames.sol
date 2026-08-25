@@ -29,7 +29,7 @@ contract SF {
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
     // CHECK: eq
-    // CHECK-NEXT: swap1
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: pop
     // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]

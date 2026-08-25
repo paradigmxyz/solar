@@ -5,7 +5,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x5895c907
   eq
   push bb1
@@ -15,7 +15,7 @@ bb1:
   jump bb3
 bb2 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb3:
   push 128

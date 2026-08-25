@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x839a19d9
   sub
   push bb3
@@ -23,9 +23,9 @@ bb0:
   push 4
   calldataload
   push 10
-  swap1
+  swap 1
   sub
-  dup1
+  dup 1
   push 24
   gt
   push bb6
@@ -39,7 +39,7 @@ bb8:
   stop
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb6:
   indexed_jump bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32

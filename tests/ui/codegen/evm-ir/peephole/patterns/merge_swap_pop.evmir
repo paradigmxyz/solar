@@ -3,44 +3,44 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: - swap1
-// CHECK: + swap2
+// CHECK: - swap 1
+// CHECK: + swap 2
 // CHECK: {{^[ +].*}}pop
-// CHECK: - swap1
+// CHECK: - swap 1
 bb0:
   push 1
   push 2
   push 3
-  swap1
+  swap 1
   pop
-  swap1
+  swap 1
   pop
   push 0
   mstore
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: - swap2
-// CHECK: + swap3
-// CHECK: - swap1
+// CHECK: - swap 2
+// CHECK: + swap 3
+// CHECK: - swap 1
 bb1:
   push 1
   push 2
   push 3
   push 4
-  swap2
+  swap 2
   pop
   pop
-  swap1
+  swap 1
   pop
   push 0
   mstore
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: - swap15
-// CHECK: + swap16
-// CHECK: - swap1
+// CHECK: - swap 15
+// CHECK: + swap 16
+// CHECK: - swap 1
 bb2:
   push 1
   push 2
@@ -59,7 +59,7 @@ bb2:
   push 15
   push 16
   push 17
-  swap15
+  swap 15
   pop
   pop
   pop
@@ -75,7 +75,7 @@ bb2:
   pop
   pop
   pop
-  swap1
+  swap 1
   pop
   push 0
   mstore

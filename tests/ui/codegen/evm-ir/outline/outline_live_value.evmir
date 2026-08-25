@@ -7,21 +7,21 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: push 1
 // CHECK-NEXT: + push [[RET0:bb[0-9]+]]
-// CHECK-NEXT: + swap1
+// CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump [[STUB:bb[0-9]+]]
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: push 2
 // CHECK-NEXT: + push [[RET1:bb[0-9]+]]
-// CHECK-NEXT: + swap1
+// CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump [[STUB]]
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: push 3
 // CHECK-NEXT: + push [[RET2:bb[0-9]+]]
-// CHECK-NEXT: + swap1
+// CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump [[STUB]]
 // CHECK: + [[STUB]]:
 // CHECK-COUNT-20: {{^[ +].*}}not
-// CHECK-NEXT: + swap1
+// CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump
 // CHECK: + [[RET0]]:
 // CHECK: + [[RET1]]:
