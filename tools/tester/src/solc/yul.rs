@@ -58,9 +58,14 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // TODO: EVM version-aware parsing.
         | "basefee_identifier_pre_london"
         | "blobbasefee_identifier_pre_cancun"
+        | "blobbasefee_reserved_identifier_post_cancun"
+        | "blobhash"
         | "blobhash_pre_cancun"
+        | "mcopy_as_identifier"
         | "mcopy_as_identifier_pre_cancun"
         | "mcopy_pre_cancun"
+        | "tload_as_identifier_post_cancun"
+        | "tstore_as_identifier_post_cancun"
         | "tstore_tload_as_identifiers_pre_cancun"
         | "eof_names_reserved_in_eof"
         | "extcall_function_in_eof"
@@ -70,7 +75,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "clash_with_reserved_pure_yul_builtin_eof"
         | "clash_with_reserved_pure_yul_builtin"
         | "clz"
-        | "clz_pre_osaka"
     ) {
         return Err("manually skipped");
     };

@@ -290,10 +290,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             } else if path.segments().len() == 1 && self.is_reserved_yul_builtin(*path.first()) {
                 let name = path.first();
                 self.dcx()
-                    .err(format!("builtin function `{name}` must be called"))
-                    .code(error_code!(7104))
-                    .span(path.span())
-                    .emit();
+                    .emit_err(path.span(), format!("builtin function `{name}` must be called"));
                 Ok(ExprKind::Path(path))
             } else {
                 self.check_valid_path(&path);

@@ -7,7 +7,6 @@ use solar_ast::{
 use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
-    config::EvmVersion,
     diagnostics::DiagCtxt,
     error_code, kw,
     source_map::{FileName, SourceFile},
@@ -1006,30 +1005,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        let custom_yul_error = self.in_yul
-            && ((self.is_versioned_yul_builtin(ident) && self.is_reserved_yul_builtin(ident))
-                || (ident.name == kw::Difficulty && self.sess.opts.evm_version.has_prev_randao()));
-        if custom_yul_error {
-            let err = if self.is_reserved_yul_builtin(ident) {
-                self.dcx()
-                    .err(format!("cannot use builtin function name `{ident}` as identifier name"))
-                    .code(error_code!(5568))
-                    .span(ident.span)
-            } else {
-                self.dcx()
-                    .err(format!("identifier `{ident}` is reserved and cannot be used"))
-                    .code(error_code!(5017))
-                    .span(ident.span)
-            };
-            if recover {
-                err.emit();
-            } else {
-                return Err(err);
-            }
-        } else if (!self.in_yul && ident.is_reserved(false))
-            || (self.in_yul
-                && (ident.is_yul_keyword()
-                    || (ident.is_reserved_yul_builtin() && !self.is_versioned_yul_builtin(ident))))
+        if ident.is_reserved(self.in_yul) && !(self.in_yul && self.is_versioned_yul_builtin(ident))
         {
             let err = self.expected_ident_found_err();
             if recover {
@@ -1037,31 +1013,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             } else {
                 return Err(err);
             }
-        } else if self.in_yul && self.is_future_yul_reserved_identifier(ident) {
-            self.dcx()
-                .warn(format!(
-                    "`{ident}` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier"
-                ))
-                .code(error_code!(5470))
-                .span(ident.span)
-                .emit();
         }
         self.bump();
         Ok(ident)
     }
 
     fn is_reserved_yul_builtin(&self, ident: Ident) -> bool {
-        let target = self.sess.opts.evm_version;
-        match ident.name {
-            kw::Basefee => target >= EvmVersion::London,
-            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
-                target >= EvmVersion::Cancun
-            }
-            kw::Prevrandao => target.has_prev_randao(),
-            kw::Difficulty => !target.has_prev_randao(),
-            kw::Clz => target.has_clz(),
-            _ => ident.is_reserved_yul_builtin(),
-        }
+        ident.is_reserved_yul_builtin() && !self.is_versioned_yul_builtin(ident)
     }
 
     fn is_versioned_yul_builtin(&self, ident: Ident) -> bool {
@@ -1077,20 +1035,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 | kw::Tload
                 | kw::Tstore
         )
-    }
-
-    fn is_future_yul_reserved_identifier(&self, ident: Ident) -> bool {
-        let target = self.sess.opts.evm_version;
-        match ident.name {
-            kw::Basefee => target < EvmVersion::London,
-            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
-                target < EvmVersion::Cancun
-            }
-            kw::Prevrandao => !target.has_prev_randao(),
-            kw::Clz => !target.has_clz(),
-            kw::Memoryguard => true,
-            _ => false,
-        }
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.
