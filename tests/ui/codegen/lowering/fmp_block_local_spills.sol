@@ -21,13 +21,13 @@
 // NONE: bb11:
 // NONE-NEXT: push 64
 // NONE-NEXT: mload
-// NONE-NEXT: dup1
+// NONE-NEXT: dup 1
 // NONE-NEXT: push [[NONE_FMP_SLOT:[0-9]+]]
 // NONE-NEXT: mstore
 // NONE: bb12:
 // NONE-NEXT: push 64
 // NONE-NEXT: mload
-// NONE-NEXT: dup1
+// NONE-NEXT: dup 1
 // NONE-NEXT: push [[NONE_FMP_SLOT]]
 // NONE-NEXT: mstore
 //
@@ -39,13 +39,13 @@
 // GAS: pop
 // GAS-NEXT: push 64
 // GAS-NEXT: mload
-// GAS-NEXT: dup1
+// GAS-NEXT: dup 1
 // GAS-NEXT: push [[GAS_FMP_SLOT:[0-9]+]]
 // GAS-NEXT: mstore
 // GAS: bb10:
 // GAS-NEXT: push 64
 // GAS-NEXT: mload
-// GAS-NEXT: dup1
+// GAS-NEXT: dup 1
 // GAS-NEXT: push [[GAS_FMP_SLOT]]
 // GAS-NEXT: mstore
 //
@@ -57,13 +57,13 @@
 // SIZE: pop
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mload
-// SIZE-NEXT: dup1
+// SIZE-NEXT: dup 1
 // SIZE-NEXT: push 192
 // SIZE-NEXT: mstore
 // SIZE: bb10:
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mload
-// SIZE-NEXT: dup1
+// SIZE-NEXT: dup 1
 // SIZE-NEXT: push 160
 // SIZE-NEXT: mstore
 contract FmpBlockLocalSpills {

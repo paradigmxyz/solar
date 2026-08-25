@@ -4,40 +4,40 @@
   bb0:
     push 1
     push 2
--   dup2
-+   swap1
+-   dup 2
++   swap 1
     mstore
 -   pop
     stop
   bb1:
     push 1
     push 2
--   dup2
-+   swap1
+-   dup 2
++   swap 1
     mstore8
 -   pop
     stop
   bb2:
     push 1
     push 2
--   dup2
-+   swap1
+-   dup 2
++   swap 1
     sstore
 -   pop
     stop
   bb3:
     push 1
     push 2
--   dup2
-+   swap1
+-   dup 2
++   swap 1
     tstore
 -   pop
     stop
   bb4:
     push 1
     push 2
--   dup2
-+   swap1
+-   dup 2
++   swap 1
     log0
 -   pop
     stop

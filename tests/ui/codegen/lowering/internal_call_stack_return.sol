@@ -39,7 +39,7 @@ contract InternalCallStackReturn {
     // GAS: [[COMMON_ARGS]]:
     // GAS: mul
     // GAS: mstore
-    // GAS-NEXT: swap1
+    // GAS-NEXT: swap 1
     // GAS-NEXT: jump
     //
     // The memory-return and nested-call entries use the same preserved caller layout.
@@ -60,7 +60,7 @@ contract InternalCallStackReturn {
     // GAS: or
     // GAS-NEXT: push [[MULTI_SETUP:bb[0-9]+]]
     // GAS-NEXT: jump [[COMMON_ARGS]]
-    // GAS: swap1
+    // GAS: swap 1
     // GAS-NEXT: addmod
 
     // Gas mode keeps a one-word helper result on the physical stack and removes its frame slot.

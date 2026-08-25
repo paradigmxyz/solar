@@ -6,12 +6,12 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   push 8
-  swap1
+  swap 1
   mod
   indexed_jump bb5, bb4, bb4, bb4, bb4, bb4, bb4, bb4
 bb4:
@@ -19,10 +19,10 @@ bb4:
   jump bb22
 bb22 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb5:
-  dup1
+  dup 1
   push 8
   sub
   push bb6
@@ -37,7 +37,7 @@ bb23:
   push 0
   return
 bb6:
-  dup1
+  dup 1
   push 16
   sub
   push bb7
@@ -46,7 +46,7 @@ bb6:
   push 101
   jump bb23
 bb7:
-  dup1
+  dup 1
   push 24
   sub
   push bb8
@@ -55,7 +55,7 @@ bb7:
   push 102
   jump bb23
 bb8:
-  dup1
+  dup 1
   push 32
   sub
   push bb9
@@ -64,7 +64,7 @@ bb8:
   push 103
   jump bb23
 bb9:
-  dup1
+  dup 1
   push 40
   sub
   push bb10
@@ -73,7 +73,7 @@ bb9:
   push 104
   jump bb23
 bb10:
-  dup1
+  dup 1
   push 48
   sub
   push bb11
@@ -82,7 +82,7 @@ bb10:
   push 105
   jump bb23
 bb11:
-  dup1
+  dup 1
   push 56
   sub
   push bb12
@@ -91,7 +91,7 @@ bb11:
   push 106
   jump bb23
 bb12:
-  dup1
+  dup 1
   push 64
   sub
   push bb13

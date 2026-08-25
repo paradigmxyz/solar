@@ -6,10 +6,10 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   push 3
   shr
   push 7
@@ -21,7 +21,7 @@ bb12:
   push 0
   revert
 bb4:
-  dup1
+  dup 1
   push 64
   sub
   push bb12
@@ -36,7 +36,7 @@ bb13:
   push 0
   return
 bb5:
-  dup1
+  dup 1
   push 8
   sub
   push bb12
@@ -45,7 +45,7 @@ bb5:
   push 100
   jump bb13
 bb6:
-  dup1
+  dup 1
   push 16
   sub
   push bb12
@@ -54,7 +54,7 @@ bb6:
   push 101
   jump bb13
 bb7:
-  dup1
+  dup 1
   push 24
   sub
   push bb12
@@ -63,7 +63,7 @@ bb7:
   push 102
   jump bb13
 bb8:
-  dup1
+  dup 1
   push 32
   sub
   push bb12
@@ -72,7 +72,7 @@ bb8:
   push 103
   jump bb13
 bb9:
-  dup1
+  dup 1
   push 40
   sub
   push bb12
@@ -81,7 +81,7 @@ bb9:
   push 104
   jump bb13
 bb10:
-  dup1
+  dup 1
   push 48
   sub
   push bb12
@@ -90,7 +90,7 @@ bb10:
   push 105
   jump bb13
 bb11:
-  dup1
+  dup 1
   push 56
   sub
   push bb12
@@ -100,7 +100,7 @@ bb11:
   jump bb13
 bb2 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE

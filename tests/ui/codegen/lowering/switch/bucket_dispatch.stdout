@@ -8,15 +8,15 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 40
-  swap1
+  swap 1
   mod
   indexed_jump bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99
 bb59:
   stop
 bb2:
-  dup1
+  dup 1
   push 0xcbf99d38
   eq
   push bb59
@@ -24,204 +24,204 @@ bb2:
   jump bb58
 bb58 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb3:
-  dup1
+  dup 1
   push 0x87d912cb
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x920f5c73
   eq
   push bb59
   jumpi
   jump bb58
 bb4:
-  dup1
+  dup 1
   push 0x41052a0d
   eq
   push bb59
   jumpi
   jump bb58
 bb5:
-  dup1
+  dup 1
   push 0x7238232f
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x905f7d67
   eq
   push bb59
   jumpi
   jump bb58
 bb6:
-  dup1
+  dup 1
   push 0x3b88f6c2
   eq
   push bb59
   jumpi
   jump bb58
 bb7:
-  dup1
+  dup 1
   push 0xaa66aa63
   eq
   push bb59
   jumpi
   jump bb58
 bb8:
-  dup1
+  dup 1
   push 0x24a75cfd
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x98e9a73d
   eq
   push bb59
   jumpi
   jump bb58
 bb9:
-  dup1
+  dup 1
   push 0xebd25c8f
   eq
   push bb59
   jumpi
   jump bb58
 bb10:
-  dup1
+  dup 1
   push 0x8a67ee70
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0xc43b1a78
   eq
   push bb59
   jumpi
   jump bb58
 bb11:
-  dup1
+  dup 1
   push 0xebbd40a9
   eq
   push bb59
   jumpi
   jump bb58
 bb12:
-  dup1
+  dup 1
   push 0x1eb6457a
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0xdca2fb5a
   eq
   push bb59
   jumpi
   jump bb58
 bb13:
-  dup1
+  dup 1
   push 0x67e648b5
   eq
   push bb59
   jumpi
   jump bb58
 bb14:
-  dup1
+  dup 1
   push 0xe6e0ae36
   eq
   push bb59
   jumpi
   jump bb58
 bb15:
-  dup1
+  dup 1
   push 0xcba58af7
   eq
   push bb59
   jumpi
   jump bb58
 bb16:
-  dup1
+  dup 1
   push 0x6d4975a2
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x8dc714ba
   eq
   push bb59
   jumpi
   jump bb58
 bb17:
-  dup1
+  dup 1
   push 0x54eaadab
   eq
   push bb59
   jumpi
   jump bb58
 bb18:
-  dup1
+  dup 1
   push 0x10c772cc
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x4e580bc4
   eq
   push bb59
   jumpi
   jump bb58
 bb19:
-  dup1
+  dup 1
   push 0x965a68f5
   eq
   push bb59
   jumpi
   jump bb58
 bb20:
-  dup1
+  dup 1
   push 0xd758c88e
   eq
   push bb59
   jumpi
   jump bb58
 bb21:
-  dup1
+  dup 1
   push 0x6d738a50
   eq
   push bb59
   jumpi
   jump bb58
 bb22:
-  dup1
+  dup 1
   push 0xf02a00c9
   eq
   push bb59
   jumpi
   jump bb58
 bb23:
-  dup1
+  dup 1
   push 0x40bcff2a
   eq
   push bb59
   jumpi
-  dup1
+  dup 1
   push 0x5fb43592
   eq
   push bb59
   jumpi
   jump bb58
 bb24:
-  dup1
+  dup 1
   push 0x3d492ec4
   eq
   push bb59
   jumpi
   jump bb58
 bb25:
-  dup1
+  dup 1
   push 0x1f49dbe7
   eq
   push bb59

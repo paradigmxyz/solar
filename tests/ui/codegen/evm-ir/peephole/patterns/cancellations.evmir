@@ -11,42 +11,42 @@ bb0:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: - dup1
+// CHECK: - dup 1
 // CHECK: - pop
 bb1:
   push 1
-  dup1
+  dup 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: - dup3
+// CHECK: - dup 3
 // CHECK: - pop
 bb2:
   push 1
   push 2
   push 3
-  dup3
+  dup 3
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK-COUNT-2: - swap1
+// CHECK-COUNT-2: - swap 1
 bb3:
   push 1
   push 2
-  swap1
-  swap1
+  swap 1
+  swap 1
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb4:
-// CHECK-COUNT-2: - swap2
+// CHECK-COUNT-2: - swap 2
 bb4:
   push 1
   push 2
   push 3
-  swap2
-  swap2
+  swap 2
+  swap 2
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb5:
@@ -60,7 +60,7 @@ bb5:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: - dup16
+// CHECK: - dup 16
 // CHECK: - pop
 bb6:
   push 1
@@ -79,12 +79,12 @@ bb6:
   push 14
   push 15
   push 16
-  dup16
+  dup 16
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb7:
-// CHECK-COUNT-2: - swap16
+// CHECK-COUNT-2: - swap 16
 bb7:
   push 1
   push 2
@@ -103,8 +103,8 @@ bb7:
   push 15
   push 16
   push 17
-  swap16
-  swap16
+  swap 16
+  swap 16
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb8:
