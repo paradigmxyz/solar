@@ -441,7 +441,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
                 if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
-                    return self.lower_environment_builtin(expr, builtin);
+                    return self.lower_builtin_value(expr, builtin);
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
                     return Some(value);

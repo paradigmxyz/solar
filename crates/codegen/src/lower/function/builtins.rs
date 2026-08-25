@@ -1,4 +1,4 @@
-//! Solidity, Yul, and address builtin lowering.
+//! Builtin call and value lowering.
 
 use super::*;
 
@@ -9,61 +9,82 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         builtin: Builtin,
         args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        if builtin.is_yul() {
-            let Some(returns) = builtin.ty(self.context.gcx).returns() else {
-                return report_error(
-                    self.context.gcx,
-                    callee.span,
-                    "codegen expected Yul builtin to have a function type",
-                );
-            };
-            return if returns.is_empty() {
-                let _ = self.lower_yul_unit_builtin_call(builtin, args);
-                Some(self.builder.imm_u256(U256::ZERO))
-            } else {
-                Some(
-                    self.lower_yul_value_builtin_call(builtin, args)
-                        .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)),
-                )
-            };
-        }
-
-        if matches!(builtin, Builtin::ArrayPush | Builtin::ArrayPush0 | Builtin::ArrayPop) {
-            let result = match builtin {
-                Builtin::ArrayPush => {
-                    let Some(arguments) = self.builtin_args::<1>(builtin, &args) else {
-                        return Some(self.builder.imm_u256(U256::ZERO));
-                    };
-                    self.lower_storage_array_push(expr, callee, arguments.first())
-                }
-                Builtin::ArrayPush0 => {
-                    let Some(_) = self.builtin_args::<0>(builtin, &args) else {
-                        return Some(self.builder.imm_u256(U256::ZERO));
-                    };
-                    self.lower_storage_array_push(expr, callee, None)
-                }
-                Builtin::ArrayPop => {
-                    if self.builtin_args::<0>(builtin, &args).is_none() {
-                        return Some(self.builder.imm_u256(U256::ZERO));
-                    }
-                    self.lower_storage_array_pop(expr, callee)
-                }
-                _ => unreachable!(),
-            };
-            return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
-        }
-
         match builtin {
+            Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
+                let ExprKind::Member(receiver, _) = callee.kind else {
+                    return report_unsupported(self.context.gcx, callee.span, "address call");
+                };
+                return self.lower_address_call(
+                    callee.span,
+                    receiver,
+                    builtin,
+                    args,
+                    call_opts,
+                    false,
+                );
+            }
+            Builtin::AddressPayableSend | Builtin::AddressPayableTransfer => {
+                let ExprKind::Member(receiver, _) = callee.kind else {
+                    return report_unsupported(self.context.gcx, callee.span, "address call");
+                };
+                return self.lower_payable_address_call(receiver, builtin, args);
+            }
+            Builtin::ArrayPush => {
+                let result = self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
+                    self.lower_storage_array_push(expr, callee, arguments.first())
+                });
+                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+            }
+            Builtin::ArrayPush0 => {
+                let result = self
+                    .builtin_args::<0>(builtin, &args)
+                    .and_then(|_| self.lower_storage_array_push(expr, callee, None));
+                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+            }
+            Builtin::ArrayPop => {
+                let result = self
+                    .builtin_args::<0>(builtin, &args)
+                    .and_then(|_| self.lower_storage_array_pop(expr, callee));
+                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+            }
+            _ => {}
+        }
+
+        let (is_yul, is_void) = match builtin {
+            builtin if builtin.is_yul() => {
+                let Some(returns) = builtin.ty(self.context.gcx).returns() else {
+                    return report_error(
+                        self.context.gcx,
+                        callee.span,
+                        "codegen expected Yul builtin to have a function type",
+                    );
+                };
+                (true, returns.is_empty())
+            }
             Builtin::Selfdestruct
             | Builtin::Require
             | Builtin::Assert
             | Builtin::Revert
-            | Builtin::RevertMsg => {
-                let _ = self.lower_unit_builtin_call(builtin, args);
+            | Builtin::RevertMsg => (false, true),
+            _ => (false, false),
+        };
+
+        match (is_yul, is_void) {
+            (true, true) => {
+                let _ = self.lower_yul_unit_builtin_call(builtin, args);
                 Some(self.builder.imm_u256(U256::ZERO))
             }
-            _ => Some(
+            (true, false) => Some(
+                self.lower_yul_value_builtin_call(builtin, args)
+                    .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)),
+            ),
+            (false, true) => {
+                let _ = self.lower_solidity_unit_builtin_call(builtin, args);
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            (false, false) => Some(
                 self.lower_solidity_value_builtin_call(expr, builtin, args)
                     .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)),
             ),
@@ -140,7 +161,388 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((success, returndata))
     }
 
-    fn lower_unit_builtin_call(&mut self, builtin: Builtin, args: hir::CallArgs<'_>) -> Option<()> {
+    fn lower_payable_address_call(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let amount = &self.builtin_args::<1>(builtin, &args)?[0];
+        let address = self.lower_expr(receiver)?;
+        let amount = self.lower_expr(amount)?;
+        let zero = self.builder.imm_u256(U256::ZERO);
+        let stipend = self.builder.imm_u64(2300);
+        let amount_is_zero = self.builder.iszero(amount);
+        let gas = self.builder.select(amount_is_zero, stipend, zero);
+        let success = self.builder.call(gas, address, amount, zero, zero, zero, zero);
+        match builtin {
+            Builtin::AddressPayableTransfer => {
+                self.revert_external_call(success);
+                Some(zero)
+            }
+            Builtin::AddressPayableSend => Some(success),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(super) fn low_level_call_builtin(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
+        match &expr.kind {
+            ExprKind::Call(callee, ..) if matches!(callee.kind, ExprKind::Member(..)) => {
+                match self.context.gcx.resolved_builtin(callee) {
+                    Some(
+                        builtin @ (Builtin::AddressCall
+                        | Builtin::AddressStaticcall
+                        | Builtin::AddressDelegatecall),
+                    ) => Some(builtin),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) fn lower_low_level_call_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        builtin: Builtin,
+        count: usize,
+        first_is_omitted: bool,
+    ) -> Option<Vec<ValueId>> {
+        let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
+        let ExprKind::Member(receiver, _) = callee.kind else { return None };
+        let capture_returndata = count > 1 || first_is_omitted;
+        let (success, returndata) = self.lower_address_call_result(
+            callee.span,
+            receiver,
+            builtin,
+            *args,
+            *call_opts,
+            capture_returndata,
+        )?;
+        match (count <= 1 && !first_is_omitted, count, returndata) {
+            (true, _, _) => Some(vec![success]),
+            (false, 2, Some(returndata)) => Some(vec![success, returndata]),
+            (false, _, Some(returndata)) => Some(vec![returndata]),
+            (false, _, None) => {
+                report_unsupported(self.context.gcx, expr.span, "low-level call return values")
+            }
+        }
+    }
+
+    pub(super) fn lower_builtin_value(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        builtin: Builtin,
+    ) -> Option<ValueId> {
+        match builtin {
+            Builtin::AddressBalance => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "address balance");
+                };
+                let receiver = self.lower_expr(receiver)?;
+                Some(self.builder.balance(receiver))
+            }
+            Builtin::ArrayPop => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "array pop");
+                };
+                self.storage_access(receiver)?;
+                Some(self.builder.imm_u256(U256::ZERO))
+            }
+            Builtin::ContractCreationCode
+            | Builtin::ContractRuntimeCode
+            | Builtin::ContractName => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "environment builtin");
+                };
+                let TyKind::Meta(ty) = self.context.gcx.type_of_expr(receiver.id)?.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "creation code target");
+                };
+                let TyKind::Contract(contract_id) = ty.peel_refs().kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "creation code target");
+                };
+                match builtin {
+                    Builtin::ContractName => {
+                        let name = self.context.gcx.item_name(contract_id);
+                        self.lower_bytes_literal(name.as_str().as_bytes())
+                    }
+                    Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
+                        let bytecodes = match builtin {
+                            Builtin::ContractCreationCode => self.context.child_bytecodes,
+                            Builtin::ContractRuntimeCode => self.context.child_runtime_bytecodes,
+                            _ => unreachable!(),
+                        };
+                        match bytecodes.get(&contract_id) {
+                            Some(bytecode) => self.lower_bytes_literal(bytecode),
+                            None => {
+                                let (kind, name) = match builtin {
+                                    Builtin::ContractCreationCode => ("creation", "creationCode"),
+                                    Builtin::ContractRuntimeCode => ("runtime", "runtimeCode"),
+                                    _ => unreachable!(),
+                                };
+                                self.context
+                                    .gcx
+                                    .dcx()
+                                    .err(format!("codegen is missing {kind} bytecode for `{name}`"))
+                                    .span(expr.span)
+                                    .note("the referenced contract did not compile or was not lowered first")
+                                    .emit();
+                                None
+                            }
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Builtin::AddressCode | Builtin::AddressCodehash => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "environment builtin");
+                };
+                let address = self.lower_expr(receiver)?;
+                match builtin {
+                    Builtin::AddressCodehash => Some(self.builder.extcodehash(address)),
+                    Builtin::AddressCode => {
+                        let length = self.builder.extcodesize(address);
+                        let object = self
+                            .builder
+                            .alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
+                        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+                        let zero = self.builder.imm_u256(U256::ZERO);
+                        self.builder.extcodecopy(address, data, zero, length);
+                        Some(object)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Builtin::FunctionAddress => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "function address");
+                };
+                match self.is_external_function_value(receiver) {
+                    true => {
+                        let value = self.lower_expr(receiver)?;
+                        Some(self.external_function_address(value))
+                    }
+                    false => report_unsupported(self.context.gcx, expr.span, "function address"),
+                }
+            }
+            Builtin::FunctionSelector => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "function selector");
+                };
+                let item = [expr, receiver].into_iter().find_map(|expr| {
+                    self.context.gcx.resolved_expr(expr).and_then(|res| match res {
+                        hir::Res::Item(
+                            item @ (hir::ItemId::Function(_) | hir::ItemId::Error(_)),
+                        ) => Some(item),
+                        _ => None,
+                    })
+                });
+                match item {
+                    Some(item) => {
+                        self.lower_selector_receiver_effects(receiver)?;
+                        let selector = self.context.gcx.function_selector(item).0;
+                        Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224))
+                    }
+                    None => match self.is_external_function_value(receiver) {
+                        true => {
+                            let value = self.lower_expr(receiver)?;
+                            let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                            let selector = self.builder.and(value, mask);
+                            let shift = self.builder.imm_u64(224);
+                            Some(self.builder.shl(shift, selector))
+                        }
+                        false => {
+                            report_unsupported(self.context.gcx, expr.span, "function selector")
+                        }
+                    },
+                }
+            }
+            Builtin::EventSelector => {
+                let event_id = match self.context.gcx.resolved_expr(expr) {
+                    Some(hir::Res::Item(hir::ItemId::Event(id))) => Some(id),
+                    _ => match &expr.kind {
+                        ExprKind::Member(receiver, _) => {
+                            self.context.gcx.resolved_expr(receiver).and_then(|res| match res {
+                                hir::Res::Item(hir::ItemId::Event(id)) => Some(id),
+                                _ => None,
+                            })
+                        }
+                        _ => None,
+                    },
+                };
+                match event_id {
+                    Some(event_id) => Some(self.builder.imm_u256(U256::from_be_slice(
+                        self.context.gcx.event_selector(event_id).as_slice(),
+                    ))),
+                    None => report_unsupported(self.context.gcx, expr.span, "event selector"),
+                }
+            }
+            Builtin::FixedBytesLength => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "fixed-bytes length");
+                };
+                let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
+                    self.context.gcx.type_of_expr(receiver.id)?.peel_refs().kind
+                else {
+                    return report_unsupported(self.context.gcx, expr.span, "fixed-bytes length");
+                };
+                match receiver.peel_parens().kind {
+                    ExprKind::Ident(_) => {}
+                    _ => {
+                        self.lower_expr(receiver)?;
+                    }
+                }
+                Some(self.builder.imm_u64(u64::from(size.bytes())))
+            }
+            Builtin::ArrayLength => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "array length");
+                };
+                match (&receiver.kind, self.context.gcx.resolved_builtin(receiver)) {
+                    (ExprKind::Member(address, _), Some(Builtin::AddressCode)) => {
+                        let address = self.lower_expr(address)?;
+                        Some(self.builder.extcodesize(address))
+                    }
+                    _ => {
+                        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
+                        self.lower_array_length(receiver, receiver_ty, expr.span, "array length")
+                    }
+                }
+            }
+            Builtin::TypeMin | Builtin::TypeMax | Builtin::InterfaceId => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return report_unsupported(self.context.gcx, expr.span, "type member");
+                };
+                match builtin {
+                    Builtin::InterfaceId => {
+                        let TyKind::Meta(ty) = self.context.gcx.type_of_expr(receiver.id)?.kind
+                        else {
+                            return report_unsupported(self.context.gcx, expr.span, "interface id");
+                        };
+                        let TyKind::Contract(id) = ty.peel_refs().kind else {
+                            return report_unsupported(self.context.gcx, expr.span, "interface id");
+                        };
+                        let value = self.context.gcx.interface_functions(id).own().iter().fold(
+                            U256::ZERO,
+                            |value, function| {
+                                value ^ U256::from_be_slice(function.selector.as_slice())
+                            },
+                        ) << 224;
+                        Some(self.builder.imm_u256(value))
+                    }
+                    Builtin::TypeMin | Builtin::TypeMax => {
+                        let value = self.type_limit(
+                            receiver,
+                            expr.span,
+                            matches!(builtin, Builtin::TypeMax),
+                        )?;
+                        Some(self.builder.imm_u256(value))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Builtin::This => Some(self.builder.address()),
+            Builtin::BlockCoinbase => Some(self.builder.coinbase()),
+            Builtin::BlockTimestamp => Some(self.builder.timestamp()),
+            Builtin::BlockDifficulty | Builtin::BlockPrevrandao => Some(self.builder.prevrandao()),
+            Builtin::BlockNumber => Some(self.builder.number()),
+            Builtin::BlockGaslimit => Some(self.builder.gaslimit()),
+            Builtin::BlockChainid => Some(self.builder.chainid()),
+            Builtin::BlockBasefee => Some(self.builder.basefee()),
+            Builtin::BlockBlobbasefee => Some(self.builder.blobbasefee()),
+            Builtin::MsgSender => Some(self.builder.caller()),
+            Builtin::MsgGas => Some(self.builder.gas()),
+            Builtin::MsgValue => Some(self.builder.callvalue()),
+            Builtin::MsgSig => {
+                let offset = self.builder.imm_u64(0);
+                let value = self.builder.calldataload(offset);
+                let mask = self.builder.imm_u256(U256::MAX << 224);
+                Some(self.builder.and(value, mask))
+            }
+            Builtin::MsgData => {
+                let offset = self.builder.imm_u64(0);
+                let length = self.builder.calldatasize();
+                Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
+            }
+            Builtin::TxOrigin => Some(self.builder.origin()),
+            Builtin::TxGasPrice => Some(self.builder.gasprice()),
+            _ => report_unsupported(self.context.gcx, expr.span, "environment builtin"),
+        }
+    }
+
+    pub(super) fn lower_selector_receiver_effects(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let receiver = receiver.peel_parens();
+        match receiver.kind {
+            ExprKind::Ident(_) | ExprKind::Type(_) => Some(()),
+            ExprKind::Member(base, _)
+                if matches!(base.peel_parens().kind, ExprKind::Ident(_) | ExprKind::Type(_)) =>
+            {
+                Some(())
+            }
+            ExprKind::Member(base, _) => self.lower_expr(base).map(|_| ()),
+            _ => self.lower_expr(receiver).map(|_| ()),
+        }
+    }
+
+    pub(super) fn type_limit(
+        &self,
+        receiver: &hir::Expr<'_>,
+        span: Span,
+        maximum: bool,
+    ) -> Option<U256> {
+        let ty = match self.context.gcx.type_of_expr(receiver.id)?.kind {
+            TyKind::Meta(ty) => ty,
+            _ => return report_unsupported(self.context.gcx, span, "type limit"),
+        };
+        match ty.peel_refs().kind {
+            TyKind::Enum(id) => {
+                let max = self.context.gcx.hir.enumm(id).variants.len().saturating_sub(1);
+                Some(U256::from(match maximum {
+                    true => max,
+                    false => 0,
+                }))
+            }
+            TyKind::Elementary(ElementaryType::UInt(size)) => {
+                let max = (U256::from(1) << size.bits()) - U256::from(1);
+                Some(match maximum {
+                    true => max,
+                    false => U256::ZERO,
+                })
+            }
+            TyKind::Elementary(ElementaryType::Int(size)) => {
+                let magnitude = U256::from(1) << (size.bits() - 1);
+                Some(match maximum {
+                    true => magnitude - U256::from(1),
+                    false => U256::MAX - magnitude + U256::from(1),
+                })
+            }
+            _ => report_unsupported(self.context.gcx, span, "type limit"),
+        }
+    }
+
+    pub(super) fn external_function_address(&mut self, value: ValueId) -> ValueId {
+        let shift = self.builder.imm_u64(32);
+        let address = self.builder.shr(shift, value);
+        let mask = self.builder.imm_u256(U256::MAX >> 96);
+        self.builder.and(address, mask)
+    }
+
+    pub(super) fn is_external_function_value(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(
+            self.type_of_expr_or_variable(expr).map(|ty| ty.kind),
+            Some(TyKind::Fn(function)) if function.is_external()
+        )
+    }
+
+    fn lower_solidity_unit_builtin_call(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<()> {
         match builtin {
             Builtin::Assert => {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
@@ -161,11 +563,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let continue_block = self.builder.create_block();
                 self.builder.branch(is_false, revert_block, continue_block);
                 self.builder.switch_to_block(revert_block);
-                if let Some(message) = message {
-                    self.emit_revert_payload(message);
-                } else {
-                    let zero = self.builder.imm_u256(U256::ZERO);
-                    self.builder.revert(zero, zero);
+                match message {
+                    Some(message) => self.emit_revert_payload(message),
+                    None => {
+                        let zero = self.builder.imm_u256(U256::ZERO);
+                        self.builder.revert(zero, zero);
+                    }
                 }
                 self.builder.switch_to_block(continue_block);
             }
@@ -187,7 +590,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return report_error(
                     self.context.gcx,
                     args.span,
-                    "codegen routed a value builtin through unit lowering",
+                    "codegen routed a value Solidity builtin through unit lowering",
                 );
             }
         }
@@ -248,19 +651,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
                 let value = self.lower_expr(value)?;
-                Some(if builtin == Builtin::Blockhash {
-                    self.builder.blockhash(value)
-                } else {
-                    self.builder.blobhash(value)
+                Some(match builtin {
+                    Builtin::Blockhash => self.builder.blockhash(value),
+                    Builtin::Blobhash => self.builder.blobhash(value),
+                    _ => unreachable!(),
                 })
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
                 self.builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
-                Some(if builtin == Builtin::AddMod {
-                    self.builder.addmod(a, b, modulus)
-                } else {
-                    self.builder.mulmod(a, b, modulus)
+                Some(match builtin {
+                    Builtin::AddMod => self.builder.addmod(a, b, modulus),
+                    Builtin::MulMod => self.builder.mulmod(a, b, modulus),
+                    _ => unreachable!(),
                 })
             }
             Builtin::Erc7201 => self.lower_erc7201(args),
@@ -306,17 +709,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
-        let inner = if let ExprKind::Lit(lit) = &argument.kind
-            && let LitKind::Str(_, bytes, _) = &lit.kind
-        {
-            self.builder.imm_u256(U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice()))
-        } else {
-            let argument_ty = self.context.gcx.type_of_expr(argument.id)?;
-            let memory_ty = argument_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
-            let span = argument.span;
-            let value = self.lower_typed_expr(argument, memory_ty)?;
-            let value = self.materialize_memory_argument(memory_ty, value, span)?;
-            self.builder.keccak256_bytes(value)
+        let literal = match &argument.kind {
+            ExprKind::Lit(lit) => match &lit.kind {
+                LitKind::Str(_, bytes, _) => Some(bytes.as_byte_str()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let inner = match literal {
+            Some(bytes) => self.builder.imm_u256(U256::from_be_slice(keccak256(bytes).as_slice())),
+            None => {
+                let argument_ty = self.context.gcx.type_of_expr(argument.id)?;
+                let memory_ty = argument_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+                let value = self.lower_typed_expr(argument, memory_ty)?;
+                let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
+                self.builder.keccak256_bytes(value)
+            }
         };
         let one = self.builder.imm_u256(U256::from(1));
         let inner = self.builder.sub(inner, one);

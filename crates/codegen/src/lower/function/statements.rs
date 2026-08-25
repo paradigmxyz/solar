@@ -110,9 +110,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     return Some(());
                 }
-                if self.is_low_level_call_expr(expr) {
+                if let Some(builtin) = self.low_level_call_builtin(expr) {
                     let values = self.lower_low_level_call_values(
                         expr,
+                        builtin,
                         ids.iter().flatten().count(),
                         ids.first().is_some_and(Option::is_none),
                     )?;

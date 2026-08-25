@@ -110,26 +110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(object);
         }
         if let Some(builtin) = self.context.gcx.resolved_builtin(callee) {
-            if matches!(
-                builtin,
-                Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
-            ) && let ExprKind::Member(receiver, _) = callee.kind
-            {
-                return self.lower_address_call(
-                    callee.span,
-                    receiver,
-                    builtin,
-                    args,
-                    call_opts,
-                    false,
-                );
-            }
-            if matches!(builtin, Builtin::AddressPayableSend | Builtin::AddressPayableTransfer)
-                && let ExprKind::Member(receiver, _) = callee.kind
-            {
-                return self.lower_payable_address_call(receiver, builtin, args);
-            }
-            return self.lower_builtin_call(expr, callee, builtin, args);
+            return self.lower_builtin_call(expr, callee, builtin, args, call_opts);
         }
         if let Some(TyKind::Fn(function)) =
             self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -150,28 +131,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         report_unsupported(self.context.gcx, expr.span, "function call")
-    }
-
-    pub(super) fn lower_payable_address_call(
-        &mut self,
-        receiver: &hir::Expr<'_>,
-        builtin: Builtin,
-        args: hir::CallArgs<'_>,
-    ) -> Option<ValueId> {
-        let amount = &self.builtin_args::<1>(builtin, &args)?[0];
-        let address = self.lower_expr(receiver)?;
-        let amount = self.lower_expr(amount)?;
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let stipend = self.builder.imm_u64(2300);
-        let amount_is_zero = self.builder.iszero(amount);
-        let gas = self.builder.select(amount_is_zero, stipend, zero);
-        let success = self.builder.call(gas, address, amount, zero, zero, zero, zero);
-        if builtin == Builtin::AddressPayableTransfer {
-            self.revert_external_call(success);
-            Some(zero)
-        } else {
-            Some(success)
-        }
     }
 
     pub(super) fn lower_new_contract(
@@ -1097,56 +1056,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         self.context.gcx.resolve_virtual_function(self.context.contract_id, function)
-    }
-    pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
-        let ExprKind::Call(callee, ..) = &expr.kind else { return false };
-        matches!(
-            self.context.gcx.resolved_builtin(callee),
-            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
-        ) && matches!(callee.kind, ExprKind::Member(..))
-    }
-
-    pub(super) fn lower_low_level_call_values(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        count: usize,
-        first_is_omitted: bool,
-    ) -> Option<Vec<ValueId>> {
-        let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
-        let builtin = self.context.gcx.resolved_builtin(callee)?;
-        if !matches!(
-            builtin,
-            Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall
-        ) {
-            return None;
-        }
-        let ExprKind::Member(receiver, _) = callee.kind else { return None };
-        let capture_returndata = count > 1 || first_is_omitted;
-        let (success, returndata) = self.lower_address_call_result(
-            callee.span,
-            receiver,
-            builtin,
-            *args,
-            *call_opts,
-            capture_returndata,
-        )?;
-        if count <= 1 && !first_is_omitted {
-            return Some(vec![success]);
-        }
-        if count != 2 {
-            let Some(returndata) = returndata else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "low-level call return values",
-                );
-            };
-            return Some(vec![returndata]);
-        }
-        let Some(returndata) = returndata else {
-            return report_unsupported(self.context.gcx, expr.span, "low-level call return values");
-        };
-        Some(vec![success, returndata])
     }
 }
 

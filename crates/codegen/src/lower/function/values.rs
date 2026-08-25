@@ -14,22 +14,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
         if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
-            let resolved_builtin = self.context.gcx.resolved_builtin(callee);
-            if let Some(builtin) = resolved_builtin
-                && matches!(
-                    builtin,
-                    Builtin::AddressCall
-                        | Builtin::AddressStaticcall
-                        | Builtin::AddressDelegatecall
-                )
-                && let ExprKind::Member(receiver, _) = callee.kind
-            {
-                let (success, returndata) = self.lower_address_call_result(
-                    expr.span, receiver, builtin, *args, *call_opts, true,
-                )?;
-                let returndata = returndata?;
-                return Some(vec![success, returndata]);
+            if let Some(builtin) = self.low_level_call_builtin(expr) {
+                return self.lower_low_level_call_values(expr, builtin, 2, false);
             }
+            let resolved_builtin = self.context.gcx.resolved_builtin(callee);
             if resolved_builtin == Some(Builtin::AbiDecode)
                 && let Some(types) = args.exprs().nth(1)
                 && let ExprKind::Tuple(elements) = types.kind
@@ -244,9 +232,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             return self.apply_tuple_assignments(assignments);
         }
-        if self.is_low_level_call_expr(rhs) {
+        if let Some(builtin) = self.low_level_call_builtin(rhs) {
             let values = self.lower_low_level_call_values(
                 rhs,
+                builtin,
                 elements.iter().flatten().count(),
                 elements.first().is_some_and(Option::is_none),
             )?;
