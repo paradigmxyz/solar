@@ -1,5 +1,28 @@
 use crate::utils::path_contains_curry;
+use solar_config::EvmVersion;
 use std::path::Path;
+use strum::IntoEnumIterator;
+
+pub(crate) fn evm_version(src: &str) -> Option<EvmVersion> {
+    let version = src.lines().find_map(|line| line.trim().strip_prefix("// EVMVersion:"))?.trim();
+    let (op, version) = match version.as_bytes() {
+        [b'>', b'=', ..] => (">=", &version[2..]),
+        [b'<', b'=', ..] => ("<=", &version[2..]),
+        [b'>', ..] => (">", &version[1..]),
+        [b'<', ..] => ("<", &version[1..]),
+        [b'=', ..] => ("=", &version[1..]),
+        _ => return None,
+    };
+    let version =
+        if version == "current" { EvmVersion::default() } else { version.parse().ok()? };
+    Some(match op {
+        ">=" | "=" => version,
+        ">" => EvmVersion::iter().find(|&candidate| candidate > version)?,
+        "<=" => EvmVersion::iter().rev().find(|&candidate| candidate <= version)?,
+        "<" => EvmVersion::iter().rev().find(|&candidate| candidate < version)?,
+        _ => unreachable!(),
+    })
+}
 
 pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     let path_contains = path_contains_curry(path);
@@ -55,21 +78,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "linkersymbol_shadowing"
         | "loadimmutable_shadowing"
         | "setimmutable_shadowing"
-        // TODO: EVM version-aware parsing.
-        | "basefee_identifier_pre_london"
-        | "blobbasefee_identifier_pre_cancun"
-        | "blobhash_pre_cancun"
-        | "mcopy_as_identifier_pre_cancun"
-        | "mcopy_pre_cancun"
-        | "tstore_tload_as_identifiers_pre_cancun"
         | "eof_names_reserved_in_eof"
         | "extcall_function_in_eof"
         | "extdelegatecall_function_in_eof"
         | "extstaticcall_function_in_eof"
-        | "clash_with_non_reserved_pure_yul_builtin"
-        | "clash_with_reserved_pure_yul_builtin_eof"
-        | "clash_with_reserved_pure_yul_builtin"
-        | "clz"
     ) {
         return Err("manually skipped");
     };
