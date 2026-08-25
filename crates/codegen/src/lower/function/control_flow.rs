@@ -380,7 +380,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             self.values.insert(binding, value);
-        } else if !target.return_types.is_empty() && !returns_clause.args.is_empty() {
+        } else if !target.return_types.is_empty() {
             let data = self.materialize_returndata_bytes();
             let values =
                 self.lower_abi_decode_values(data, &target.return_types, returns_clause.span)?;
