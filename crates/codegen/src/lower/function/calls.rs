@@ -1084,7 +1084,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_if_invalid(short);
     }
 
-    fn revert_if_no_code(&mut self, address: ValueId) {
+    pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
         self.revert_if_invalid(missing);

@@ -175,7 +175,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;
             }
-            return Some(self.builder.imm_u64(u64::try_from(len).ok()?));
+            return Some(self.builder.imm_u256(len));
         }
         if receiver_ty.is_ref_at(DataLocation::Storage) {
             if let Some(access) = self.storage_access(receiver) {
