@@ -11,7 +11,7 @@ contract YulClzCallCode {
     function leadingZeros(uint256 value) external pure returns (uint256 result) {
         assembly {
             result := clz(value)
-            //~[prague]^ ERROR: codegen requires Osaka-compatible EVM for `clz`
+            //~[prague]^ ERROR: Yul builtin `clz` requires Osaka-compatible EVM
             //~[prague]| HELP: compile with `--evm-version osaka` or newer
         }
     }

@@ -1,0 +1,8 @@
+error: unresolved symbol `difficulty`
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris_calls.sol:LL:CC
+   │
+LL │             result := difficulty()
+   ╰╴                      ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
