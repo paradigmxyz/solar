@@ -5265,9 +5265,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Computes which arguments of each static-frame callee pass on the
     /// stack. A site can deliver a stack argument through raw re-emission after
-    /// the drain for immediates and position-independently reloadable caller
-    /// arguments, or through a freshness-validated spill reload for computed
-    /// values. The per-argument choice is scored across all sites — raw and
+    /// the drain for immediates, position-independently reloadable caller
+    /// arguments, and always-rematerializable reads, or through a
+    /// freshness-validated spill reload for other computed values. The
+    /// per-argument choice is scored across all sites — raw and
     /// already-stored (cross-block) values save the four-byte frame store,
     /// while a fresh block-local value must first pay its own spill — and an
     /// argument passes on the stack when the sites' savings outweigh the
@@ -6284,12 +6285,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns true when the caller can re-emit `val` raw (untracked) after
-    /// its stack drain: an immediate, or a caller argument whose reload is
-    /// position independent.
+    /// its stack drain.
     fn raw_arg_emittable(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
             crate::mir::Value::Arg(_) => raw_leaves_ok,
+            crate::mir::Value::Inst(inst_id) => {
+                func.inst(*inst_id).kind.is_always_rematerializable()
+            }
             _ => false,
         }
     }
@@ -6316,6 +6319,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         caller_stack: Option<&StackModel>,
         words_above: usize,
     ) {
+        if let Some(op) = Self::always_rematerializable_op(func, val) {
+            self.asm.emit_op(op);
+            return;
+        }
+
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
             let dup = depth + words_above + 1;
             assert!(
@@ -7675,6 +7683,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if mask.contains(i)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                    && !Self::is_always_rematerializable_value(func, arg)
                 {
                     let slot = if let Some(slot) = self.scheduler.reloadable_spill(arg) {
                         slot
@@ -9293,7 +9302,7 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_frame_stack_args_require_reloadable_values() {
+    fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
         let argument = function.alloc_param(MirType::uint256());
         let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
@@ -9301,12 +9310,20 @@ mod tests {
             InstKind::Add(argument, immediate),
             Some(MirType::uint256()),
         ));
+        let (_, calldata_size) = function
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
 
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
         assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, computed));
+        assert!(EvmCodegen::raw_arg_emittable(&function, false, calldata_size));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, argument));
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
+
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
+        });
     }
 
     #[test]
