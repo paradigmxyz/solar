@@ -1,0 +1,6 @@
+warning[5470]: `clz` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/osaka_identifiers.sol:LL:CC
+   │
+LL │             function clz() -> value {
+   ╰╴                     ━━━
+

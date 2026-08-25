@@ -1,8 +1,32 @@
-error: expected identifier, found Yul EVM builtin keyword `mcopy`
+error[5568]: cannot use builtin function name `mcopy` as identifier name
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             let mcopy
    ╰╴                ━━━━━
 
-error: aborting due to 1 previous error
+error[5568]: cannot use builtin function name `blobhash` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let blobhash
+   ╰╴                ━━━━━━━━
+
+error[5568]: cannot use builtin function name `blobbasefee` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let blobbasefee
+   ╰╴                ━━━━━━━━━━━
+
+error[5568]: cannot use builtin function name `tload` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let tload
+   ╰╴                ━━━━━
+
+error[5568]: cannot use builtin function name `tstore` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
+   │
+LL │             let tstore
+   ╰╴                ━━━━━━
+
+error: aborting due to 5 previous errors
 

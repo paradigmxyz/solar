@@ -1,0 +1,14 @@
+error[5568]: cannot use builtin function name `prevrandao` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris.sol:LL:CC
+   │
+LL │             let prevrandao
+   ╰╴                ━━━━━━━━━━
+
+error[5017]: identifier `difficulty` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris.sol:LL:CC
+   │
+LL │             let difficulty
+   ╰╴                ━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

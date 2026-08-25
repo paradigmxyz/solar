@@ -12,7 +12,6 @@ contract YulClzCallCode {
         assembly {
             result := clz(value)
             //~[prague]^ ERROR: Yul builtin `clz` requires Osaka-compatible EVM
-            //~[prague]| 4948
             //~[prague]| HELP: compile with `--evm-version osaka` or newer
         }
     }

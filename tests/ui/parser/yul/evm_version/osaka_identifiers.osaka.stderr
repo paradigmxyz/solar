@@ -1,0 +1,8 @@
+error[5568]: cannot use builtin function name `clz` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/osaka_identifiers.sol:LL:CC
+   │
+LL │             function clz() -> value {
+   ╰╴                     ━━━
+
+error: aborting due to 1 previous error
+

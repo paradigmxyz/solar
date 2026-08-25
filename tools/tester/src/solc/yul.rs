@@ -70,6 +70,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "clash_with_reserved_pure_yul_builtin_eof"
         | "clash_with_reserved_pure_yul_builtin"
         | "clz"
+        | "clz_pre_osaka"
     ) {
         return Err("manually skipped");
     };

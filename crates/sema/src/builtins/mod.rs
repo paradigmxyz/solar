@@ -5,7 +5,7 @@ use crate::{
 };
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Span, Symbol, config::EvmVersion, kw, sym};
+use solar_interface::{Span, Symbol, config::EvmVersion, diagnostics::DiagId, error_code, kw, sym};
 use std::sync::OnceLock;
 
 pub(crate) mod members;
@@ -71,6 +71,65 @@ macro_rules! declare_builtins {
                     Self::BlockBasefee if !target.has_base_fee() => Some(EvmVersion::London),
                     Self::Blobhash | Self::BlockBlobbasefee if !target.has_blob_base_fee() => {
                         Some(EvmVersion::Cancun)
+                    }
+                    _ => None,
+                }
+            }
+
+            /// Returns the EVM version and solc diagnostic code for a Yul builtin unavailable for
+            /// `target`.
+            pub(crate) fn yul_required_evm_version(
+                self,
+                target: EvmVersion,
+            ) -> Option<(EvmVersion, DiagId)> {
+                match self {
+                    Self::YulReturndatacopy if !target.supports_returndata() => {
+                        Some((EvmVersion::Byzantium, error_code!(7756)))
+                    }
+                    Self::YulReturndatasize if !target.supports_returndata() => {
+                        Some((EvmVersion::Byzantium, error_code!(4778)))
+                    }
+                    Self::YulStaticcall if !target.has_static_call() => {
+                        Some((EvmVersion::Byzantium, error_code!(1503)))
+                    }
+                    Self::YulShl if !target.has_bitwise_shifting() => {
+                        Some((EvmVersion::Constantinople, error_code!(6612)))
+                    }
+                    Self::YulShr if !target.has_bitwise_shifting() => {
+                        Some((EvmVersion::Constantinople, error_code!(7458)))
+                    }
+                    Self::YulSar if !target.has_bitwise_shifting() => {
+                        Some((EvmVersion::Constantinople, error_code!(2054)))
+                    }
+                    Self::YulCreate2 if !target.has_create2() => {
+                        Some((EvmVersion::Constantinople, error_code!(6166)))
+                    }
+                    Self::YulExtcodehash if !target.has_ext_code_hash() => {
+                        Some((EvmVersion::Constantinople, error_code!(7110)))
+                    }
+                    Self::YulChainid if !target.has_chain_id() => {
+                        Some((EvmVersion::Istanbul, error_code!(1561)))
+                    }
+                    Self::YulSelfbalance if !target.has_self_balance() => {
+                        Some((EvmVersion::Istanbul, error_code!(7721)))
+                    }
+                    Self::YulBasefee if !target.has_base_fee() => {
+                        Some((EvmVersion::London, error_code!(5430)))
+                    }
+                    Self::YulBlobbasefee if !target.has_blob_base_fee() => {
+                        Some((EvmVersion::Cancun, error_code!(6679)))
+                    }
+                    Self::YulBlobhash if !target.has_blob_base_fee() => {
+                        Some((EvmVersion::Cancun, error_code!(8314)))
+                    }
+                    Self::YulMcopy if !target.has_mcopy() => {
+                        Some((EvmVersion::Cancun, error_code!(7755)))
+                    }
+                    Self::YulTload | Self::YulTstore if target < EvmVersion::Cancun => {
+                        Some((EvmVersion::Cancun, error_code!(6243)))
+                    }
+                    Self::YulClz if !target.has_clz() => {
+                        Some((EvmVersion::Osaka, error_code!(4948)))
                     }
                     _ => None,
                 }

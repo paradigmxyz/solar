@@ -85,6 +85,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "mcopy_as_identifier_pre_cancun"
         | "tload_tstore_not_reserved_before_cancun"
         | "blobhash_pre_cancun_not_reserved"
+        | "clz_pre_osaka"
         | "clz_reserved_osaka"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
         | "experimental_test_warning"

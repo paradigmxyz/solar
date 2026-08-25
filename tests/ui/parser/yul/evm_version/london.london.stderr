@@ -1,0 +1,8 @@
+error[5568]: cannot use builtin function name `basefee` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/london.sol:LL:CC
+   │
+LL │             let basefee
+   ╰╴                ━━━━━━━
+
+error: aborting due to 1 previous error
+

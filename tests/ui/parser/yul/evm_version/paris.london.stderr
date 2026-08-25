@@ -1,0 +1,14 @@
+warning[5470]: `prevrandao` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris.sol:LL:CC
+   │
+LL │             let prevrandao
+   ╰╴                ━━━━━━━━━━
+
+error[5568]: cannot use builtin function name `difficulty` as identifier name
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris.sol:LL:CC
+   │
+LL │             let difficulty
+   ╰╴                ━━━━━━━━━━
+
+error: aborting due to 1 previous error; 1 warning emitted
+

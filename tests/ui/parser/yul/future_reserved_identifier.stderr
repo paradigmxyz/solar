@@ -1,0 +1,6 @@
+warning[5470]: `memoryguard` will be promoted to a Yul reserved identifier in the future and will no longer be allowed as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/future_reserved_identifier.sol:LL:CC
+   │
+LL │             let memoryguard
+   ╰╴                ━━━━━━━━━━━
+
