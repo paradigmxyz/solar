@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use alloy_primitives::{U256, keccak256};
-use solar_ast::{DataLocation, LitKind, Span};
+use solar_ast::{DataLocation, LitKind, Span, TypeSize};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
     Ident,
@@ -589,12 +589,14 @@ impl<'gcx> Lowerer<'gcx> {
         let candidates = self
             .internal_function_pointer_targets
             .iter()
-            .filter(|&function_id| {
+            .filter_map(|function_id| {
                 let TyKind::Fn(candidate_ty) = self.gcx.type_of_item(function_id.into()).kind
                 else {
-                    return false;
+                    return None;
                 };
-                self.internal_function_pointer_shape(candidate_ty) == shape
+                let candidate_shape = self.internal_function_pointer_shape(candidate_ty);
+                Self::internal_function_pointer_shapes_are_compatible(&shape, &candidate_shape)
+                    .then_some((function_id, candidate_shape))
             })
             .collect::<Vec<_>>();
 
@@ -610,7 +612,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.add_return(ty);
             }
 
-            for function_id in candidates {
+            for (function_id, target_shape) in candidates {
                 let case_block = builder.create_block();
                 let next_block = builder.create_block();
                 let id = builder.imm_u64(Self::internal_function_pointer_id(function_id));
@@ -618,12 +620,25 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
+                let call_args = arg_values
+                    .iter()
+                    .copied()
+                    .zip(&shape.0)
+                    .zip(&target_shape.0)
+                    .map(|((value, &source), &target)| {
+                        self.coerce_internal_function_pointer_value(
+                            &mut builder,
+                            value,
+                            source,
+                            target,
+                        )
+                    })
+                    .collect();
                 if shape.1.is_empty() {
-                    self.emit_internal_void_call(&mut builder, function_id, arg_values.clone());
+                    self.emit_internal_void_call(&mut builder, function_id, call_args);
                     builder.ret([]);
                 } else {
-                    let result =
-                        self.emit_internal_call(&mut builder, function_id, arg_values.clone());
+                    let result = self.emit_internal_call(&mut builder, function_id, call_args);
                     let mut return_values = Vec::with_capacity(shape.1.len());
                     return_values.push(result);
                     if shape.1.len() > 1 {
@@ -635,6 +650,16 @@ impl<'gcx> Lowerer<'gcx> {
                                 index,
                             ));
                         }
+                    }
+                    for ((value, &source), &target) in
+                        return_values.iter_mut().zip(&target_shape.1).zip(&shape.1)
+                    {
+                        *value = self.coerce_internal_function_pointer_value(
+                            &mut builder,
+                            *value,
+                            source,
+                            target,
+                        );
                     }
                     builder.ret(return_values);
                 }
@@ -654,6 +679,39 @@ impl<'gcx> Lowerer<'gcx> {
             function.parameters.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
             function.returns.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
         )
+    }
+
+    fn internal_function_pointer_shapes_are_compatible(
+        caller: &InternalFunctionPointerShape,
+        target: &InternalFunctionPointerShape,
+    ) -> bool {
+        // Assembly can cast between these full-word calling representations. Keep the dispatcher
+        // signatures distinct so exact calls do not pay for conversions needed only by casts.
+        let canonicalize = |ty| match ty {
+            MirType::Address => MirType::uint256(),
+            MirType::FixedBytes(size) if size.bytes() == 32 => MirType::uint256(),
+            ty => ty,
+        };
+        caller.0.iter().copied().map(&canonicalize).eq(target.0.iter().copied().map(&canonicalize))
+            && caller.1.iter().copied().map(&canonicalize).eq(target
+                .1
+                .iter()
+                .copied()
+                .map(&canonicalize))
+    }
+
+    fn coerce_internal_function_pointer_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        source: MirType,
+        target: MirType,
+    ) -> ValueId {
+        if source != target && target == MirType::Address {
+            self.mask_to_bits(builder, value, TypeSize::new_int_bits(160))
+        } else {
+            value
+        }
     }
 
     fn lower_external_function_pointer_call(
