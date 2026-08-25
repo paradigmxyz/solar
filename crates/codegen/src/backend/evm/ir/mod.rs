@@ -300,7 +300,15 @@ impl Instruction {
                 f.write_str("push_immutable")
             }
             encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
-            _ => op::fmt(self.opcode, f),
+            _ => match self.opcode {
+                opcode @ op::DUP1..=op::DUP16 => {
+                    write!(f, "dup {}", opcode - op::DUP1 + 1)
+                }
+                opcode @ op::SWAP1..=op::SWAP16 => {
+                    write!(f, "swap {}", opcode - op::SWAP1 + 1)
+                }
+                _ => op::fmt(self.opcode, f),
+            },
         })
     }
 

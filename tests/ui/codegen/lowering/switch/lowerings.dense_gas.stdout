@@ -6,13 +6,13 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
   push 8
-  swap1
+  swap 1
   sub
-  dup1
+  dup 1
   push 57
   gt
   push bb4
@@ -57,7 +57,7 @@ bb12:
   jump bb14
 bb2 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb15:
   jump bb5

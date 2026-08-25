@@ -7,7 +7,7 @@
 // CHECK: {{^[ +].*}}push_data literal_0
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
-// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 bb0:
@@ -15,13 +15,13 @@ bb0:
   pop
   push 128
   push 0
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
   push 0
-  swap1
+  swap 1
   mstore
   stop
 

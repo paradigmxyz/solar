@@ -6,12 +6,12 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   push 9
-  swap1
+  swap 1
   mod
   indexed_jump bb4, bb5, bb7, bb9, bb11, bb13, bb15, bb17, bb19
 bb4:
@@ -22,7 +22,7 @@ bb29 [cold]:
   push 0
   revert
 bb5:
-  dup1
+  dup 1
   push 64
   sub
   push bb6
@@ -40,7 +40,7 @@ bb6:
   pop
   jump bb29
 bb7:
-  dup1
+  dup 1
   push 56
   sub
   push bb8
@@ -52,7 +52,7 @@ bb8:
   pop
   jump bb29
 bb9:
-  dup1
+  dup 1
   push 48
   sub
   push bb10
@@ -64,7 +64,7 @@ bb10:
   pop
   jump bb29
 bb11:
-  dup1
+  dup 1
   push 40
   sub
   push bb12
@@ -76,7 +76,7 @@ bb12:
   pop
   jump bb29
 bb13:
-  dup1
+  dup 1
   push 32
   sub
   push bb14
@@ -88,7 +88,7 @@ bb14:
   pop
   jump bb29
 bb15:
-  dup1
+  dup 1
   push 24
   sub
   push bb16
@@ -100,7 +100,7 @@ bb16:
   pop
   jump bb29
 bb17:
-  dup1
+  dup 1
   push 16
   sub
   push bb18
@@ -112,7 +112,7 @@ bb18:
   pop
   jump bb29
 bb19:
-  dup1
+  dup 1
   push 8
   sub
   push bb20
@@ -125,7 +125,7 @@ bb20:
   jump bb29
 bb2 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE

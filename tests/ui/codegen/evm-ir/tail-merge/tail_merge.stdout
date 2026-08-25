@@ -60,12 +60,12 @@
     stop
   bb8:
     push0
-    dup1
+    dup 1
     pop
     jump bb10
   bb9:
     push0
-    dup1
+    dup 1
     pop
     jump bb10
   bb10:

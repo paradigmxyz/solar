@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x6279e43c
   sub
   push bb3
@@ -29,5 +29,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert

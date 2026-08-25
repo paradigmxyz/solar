@@ -48,11 +48,11 @@ contract C {
     // The entry's free-memory initialization and the following static allocation share their
     // identical base push.
     // CHECK: push 224
-    // CHECK-NEXT: dup1
+    // CHECK-NEXT: dup 1
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push 9
-    // CHECK-NEXT: swap1
+    // CHECK-NEXT: swap 1
     // CHECK: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 128

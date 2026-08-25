@@ -20,7 +20,7 @@ contract CrossBlockStackJoin {
     // own spill slot.
     // CHECK-NEXT: push {{[0-9]+}}
     // CHECK-NEXT: mload
-    // CHECK-NEXT: dup2
+    // CHECK-NEXT: dup 2
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;
         assembly {

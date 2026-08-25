@@ -354,7 +354,7 @@ impl<'a> Verifier<'a> {
                 if *stack < usize::from(n) {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", *stack),
+                        format_args!("`dup {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
                 *stack += 1;
@@ -365,7 +365,7 @@ impl<'a> Verifier<'a> {
                 if *stack < usize::from(n) + 1 {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", *stack),
+                        format_args!("`swap {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
                 "swap"

@@ -6,37 +6,37 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
-// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 bb0:
   push 128
   push 0x11112222333344445555666677778888
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
   push 0x9999aaaabbbbccccddddeeeeffff0000
-  swap1
+  swap 1
   mstore
   stop
 bb1:
   push 256
   push 0x11112222333344445555666677778888
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
   push 0x9999aaaabbbbccccddddeeeeffff0000
-  swap1
+  swap 1
   mstore
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
-// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 
