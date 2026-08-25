@@ -330,6 +330,20 @@ impl InternalFunctionPointerShape {
         }
     }
 
+    fn is_assembly_cast_compatible_with(&self, target: &Self) -> bool {
+        // Assembly casts preserve these full-word argument representations. Keep return shapes
+        // exact because internal calls can expose dirty return words.
+        let canonicalize = |ty: MirType| {
+            if ty == MirType::Address || ty.is_full_abi_word() { MirType::uint256() } else { ty }
+        };
+        self.params.iter().copied().map(canonicalize).eq(target
+            .params
+            .iter()
+            .copied()
+            .map(canonicalize))
+            && self.returns == target.returns
+    }
+
     fn helper_name(&self) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
@@ -704,13 +718,18 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     return None;
                 };
                 let candidate_shape = InternalFunctionPointerShape::from_ty(function);
-                (candidate_shape == shape).then_some(function_id)
+                shape
+                    .is_assembly_cast_compatible_with(&candidate_shape)
+                    .then_some((function_id, candidate_shape))
             })
-            .filter_map(|function_id| {
-                function_ids.get(&function_id).copied().map(|mir_id| (function_id, mir_id))
+            .filter_map(|(function_id, candidate_shape)| {
+                function_ids
+                    .get(&function_id)
+                    .copied()
+                    .map(|mir_id| (function_id, mir_id, candidate_shape))
             })
             .collect::<Vec<_>>();
-        candidates.sort_by_key(|(function_id, _)| function_id.index());
+        candidates.sort_by_key(|(function_id, _, _)| function_id.index());
 
         let reserved = module.function(dispatcher);
         let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
@@ -725,7 +744,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.add_return(ty);
             }
 
-            for (function_id, mir_id) in candidates {
+            for (function_id, mir_id, candidate_shape) in candidates {
                 let case_block = builder.create_block();
                 let next_block = builder.create_block();
                 let id = builder.imm_u64(internal_function_pointer_id(function_id));
@@ -733,13 +752,28 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
+                let call_arguments = arguments
+                    .iter()
+                    .copied()
+                    .zip(&shape.params)
+                    .zip(&candidate_shape.params)
+                    .map(|((argument, &source), &target)| {
+                        if source == target {
+                            argument
+                        } else {
+                            AbiWordValidator::from_mir_type(target).map_or(argument, |validator| {
+                                validator.cleanup(&mut builder, argument)
+                            })
+                        }
+                    })
+                    .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.internal_call_void(mir_id, arguments.clone(), 0);
+                    builder.internal_call_void(mir_id, call_arguments, 0);
                     builder.ret([]);
                 } else {
                     let result = builder.internal_call(
                         mir_id,
-                        arguments.clone(),
+                        call_arguments,
                         shape.returns[0],
                         shape.returns.len(),
                     );
