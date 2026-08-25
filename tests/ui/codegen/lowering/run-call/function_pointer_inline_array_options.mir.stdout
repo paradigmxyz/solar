@@ -34,38 +34,40 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v1 = address
     v2 = shl 32, v1
     v3 = or v2, 0x26121ff0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v3
-    v4 = address
-    v5 = shl 32, v4
-    v6 = or v5, 0xe2179b8e
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v6
-    v7 = lt 0, 2
-    v8 = iszero v7
-    jumpi v8, bb1, bb2
+    v4 = shl 64, v3
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v4
+    v5 = address
+    v6 = shl 32, v5
+    v7 = or v6, 0xe2179b8e
+    v8 = shl 64, v7
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v8
+    v9 = lt 0, 2
+    v10 = iszero v9
+    jumpi v10, bb1, bb2
   bb2:
-    v9 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = and v10, 0xffffffff
-    v12 = shl 224, v11
-    v13 = shr 32, v10
-    v14 = gas
-    v15 = abi_encode [], selector v12
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = call v14, v13, 1, v16, v17, 0, 32
-    jumpi v18, bb4, bb3
+    v11 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v12 = shr 64, v11
+    v13 = and v12, 0xffffffff
+    v14 = shl 224, v13
+    v15 = shr 32, v12
+    v16 = gas
+    v17 = abi_encode [], selector v14
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = call v16, v15, 1, v18, v19, 0, 32
+    jumpi v20, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    jumpi v20, bb5, bb6
+    v21 = returndatasize
+    v22 = lt v21, 32
+    jumpi v22, bb5, bb6
   bb6:
-    v21 = add 0, 0
-    v22 = mload v21
     v23 = add 0, 0
     v24 = mload v23
-    ret v24
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
   bb5:
     revert 0, 0
   bb1:
