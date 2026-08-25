@@ -1629,6 +1629,17 @@ impl<'gcx> Lowerer<'gcx> {
                 None,
             )
         };
+        let dynamic_return_tys = resolved_func.and_then(|func_id| {
+            let tys = self
+                .gcx
+                .hir
+                .function(func_id)
+                .returns
+                .iter()
+                .map(|&id| self.gcx.type_of_item(id.into()))
+                .collect::<Vec<_>>();
+            tys.iter().any(|&ty| self.abi_is_dynamic(ty)).then_some(tys)
+        });
         // Use the recursive ABI encoder for every high-level call. The former
         // shallow struct loop copied nested memory pointers as calldata words
         // and treated dynamic bytes pointers as their encoded value.
@@ -1647,26 +1658,27 @@ impl<'gcx> Lowerer<'gcx> {
         let addr = self.lower_value_expr(builder, base);
 
         // Determine where to store return data and whether it's a struct
-        let (ret_offset, ret_size, struct_ptr_opt) =
-            if let Some((_struct_id, field_count)) = struct_return_info {
-                // For struct returns, reserve a separate output allocation.
-                let struct_size = (field_count as u64) * 32;
-                let struct_size_val = builder.imm_u64(struct_size);
-                let struct_ptr = builder.alloc_object(
-                    struct_size_val,
-                    crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
-                    crate::mir::AllocationSemantics::INTERNAL,
-                );
+        let (ret_offset, ret_size, struct_ptr_opt) = if dynamic_return_tys.is_some() {
+            (builder.imm_u64(0), builder.imm_u64(0), None)
+        } else if let Some((_struct_id, field_count)) = struct_return_info {
+            // For struct returns, reserve a separate output allocation.
+            let struct_size = (field_count as u64) * 32;
+            let struct_size_val = builder.imm_u64(struct_size);
+            let struct_ptr = builder.alloc_object(
+                struct_size_val,
+                crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
 
-                let ret_size = builder.imm_u64(struct_size);
-                (struct_ptr, ret_size, Some(struct_ptr))
-            } else {
-                // Reuse the unbumped calldata allocation for return data. CALL
-                // has consumed the input before writing output.
-                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
-                let ret_size = builder.imm_u64((num_returns * 32) as u64);
-                (ret_offset, ret_size, None)
-            };
+            let ret_size = builder.imm_u64(struct_size);
+            (struct_ptr, ret_size, Some(struct_ptr))
+        } else {
+            // Reuse the unbumped calldata allocation for return data. CALL
+            // has consumed the input before writing output.
+            let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
+            let ret_size = builder.imm_u64((num_returns * 32) as u64);
+            (ret_offset, ret_size, None)
+        };
 
         let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
@@ -1684,6 +1696,16 @@ impl<'gcx> Lowerer<'gcx> {
         );
 
         self.emit_forwarding_revert_unless(builder, success);
+
+        if let Some(tys) = dynamic_return_tys {
+            let slice = self.returndata_slice(builder);
+            let ptr = self.materialize_returndata_slice(builder, slice);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let decoded = self.decode_abi_region(builder, data_start, len, &tys);
+            self.stage_multi_return_tail(builder, &decoded);
+            return decoded.first().copied();
+        }
 
         if num_returns > 1 {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
