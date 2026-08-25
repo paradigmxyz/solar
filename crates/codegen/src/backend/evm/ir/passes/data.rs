@@ -10,7 +10,6 @@ use crate::backend::evm::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
-use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -72,16 +71,14 @@ enum Placement {
     New { additional_bytes: isize, contained: Vec<DataId> },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Improvement {
-    primary: i128,
     runtime_gas: i128,
     bytes: i128,
 }
 
 impl Improvement {
     fn add(&mut self, other: Self) {
-        self.primary += other.primary;
         self.runtime_gas += other.runtime_gas;
         self.bytes += other.bytes;
     }
@@ -158,12 +155,12 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
             let contained_improvement =
                 rewrite_improvement(gcx, contained.len(), contained_rewrites, 0);
-            if contained_improvement.primary > 0 {
+            if is_profitable(gcx, contained_improvement) {
                 improvement.add(contained_improvement);
                 absorbed.push(index);
             }
         }
-        if improvement.primary <= 0 {
+        if !is_profitable(gcx, improvement) {
             rejected.push((data, rewrites));
             continue;
         }
@@ -271,15 +268,17 @@ fn rewrite_improvement(
     let new_gas = (data_copy_gas(size) * rewrites.len()) as i128;
     let bytes = old_bytes - new_bytes;
     let runtime_gas = old_gas - new_gas;
-    let primary = match gcx.sess.opts.optimization {
-        OptimizationMode::Gas => {
-            const CODE_DEPOSIT_GAS_PER_BYTE: i128 = 200;
-            let runs = i128::from(gcx.sess.opts.optimizer_runs.unwrap_or(200));
-            runtime_gas * runs + bytes * CODE_DEPOSIT_GAS_PER_BYTE
-        }
-        _ => bytes,
-    };
-    Improvement { primary, runtime_gas, bytes }
+    Improvement { runtime_gas, bytes }
+}
+
+fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
+    if gcx.sess.opts.optimization.is_gas() {
+        // Static sites have no execution-frequency estimate, so never buy gas
+        // by growing code for a copy that may stay cold.
+        improvement.runtime_gas > 0 && improvement.bytes >= 0
+    } else {
+        improvement.bytes > 0
+    }
 }
 
 fn placement_additional_bytes(placement: &Placement) -> isize {
