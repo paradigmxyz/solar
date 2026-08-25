@@ -38,6 +38,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.lower_expr(element)?;
             let value =
                 self.coerce_value(value, self.context.gcx.type_of_expr(element.id)?, element_ty);
+            let value = self.encode_memory_scalar(element_ty, value);
             let index = self.builder.imm_u64(index as u64);
             self.builder.memory_object_store_element(object, layout, index, value);
         }
@@ -102,6 +103,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let field_ty = self.context.gcx.type_of_item(field.into());
             let value = self.lower_typed_expr(argument, field_ty)?;
             let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
+            let value = self.encode_memory_scalar(field_ty, value);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)
@@ -118,6 +120,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let MemoryObjectLayout::Struct { fields } = self.types.memory_layout(ty)? else {
             return report_unsupported(self.context.gcx, expr.span, "tuple object");
         };
+        let TyKind::Tuple(field_types) = ty.peel_refs().kind else {
+            return report_unsupported(self.context.gcx, expr.span, "tuple object");
+        };
         let initialization = if values.iter().all(Option::is_some) {
             AllocationSemantics::INTERNAL
         } else {
@@ -127,6 +132,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
             let value = self.lower_expr(value)?;
+            let value = self.encode_memory_scalar(field_types[index], value);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)

@@ -1275,8 +1275,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Tuple(_) | TyKind::Slice(_) => return None,
             TyKind::Fn(function) if function.is_external() => {
-                let shift = self.builder.imm_u64(64);
-                self.builder.shl(shift, value)
+                AbiWordValidator::from_mir_type(MirType::Function)
+                    .expect("function words always require cleanup")
+                    .cleanup(&mut self.builder, value)
             }
             _ => value,
         };
@@ -1451,8 +1452,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })
                 {
-                    let shift = self.builder.imm_u64(64);
-                    self.builder.shl(shift, element_value)
+                    AbiWordValidator::from_mir_type(MirType::Function)
+                        .expect("function words always require cleanup")
+                        .cleanup(&mut self.builder, element_value)
                 } else {
                     element_value
                 };

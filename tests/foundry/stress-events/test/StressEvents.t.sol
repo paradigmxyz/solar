@@ -4,7 +4,15 @@ pragma solidity ^0.8.0;
 import "../src/StressEvents.sol";
 
 interface Vm {
+    struct Log {
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }
+
     function expectEmit(bool, bool, bool, bool) external;
+    function getRecordedLogs() external returns (Log[] memory);
+    function recordLogs() external;
 }
 
 contract StressEventsTest {
@@ -122,6 +130,19 @@ contract StressEventsTest {
         vm.expectEmit(true, false, false, false);
         emit IndexedExternalFunction(se.functionPointerTarget);
         se.emitIndexedExternalFunction();
+    }
+
+    function test_EmitIndexedFunctionPayload() public {
+        vm.recordLogs();
+        se.emitIndexedFunctionPayload();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        uint256 callback =
+            (uint256(uint160(address(se))) << 96)
+                | (uint256(uint32(StressEvents.functionPointerTarget.selector)) << 64);
+        bytes32 expected = keccak256(abi.encodePacked(bytes32(callback), bytes32("x")));
+        require(logs.length == 1 && logs[0].topics.length == 2, "unexpected log shape");
+        require(logs[0].topics[1] == expected, "unexpected indexed payload");
     }
 
     function test_EmitIndexedStructArray() public {
