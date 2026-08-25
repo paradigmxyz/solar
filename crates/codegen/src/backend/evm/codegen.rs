@@ -9580,22 +9580,40 @@ mod tests {
     }
 
     #[test]
-    fn stable_nullary_reads_are_always_rematerializable() {
+    fn nullary_reads_have_expected_rematerialization_opcodes() {
         let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-        let (_, calldata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
-        let (_, block_number) = function
-            .alloc_value_inst(Instruction::new(InstKind::BlockNumber, Some(MirType::uint256())));
-        let (_, returndata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::ReturnDataSize, Some(MirType::uint256())));
-        let (_, gas) =
-            function.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::uint256())));
 
-        assert!(EvmCodegen::is_always_rematerializable_value(&function, calldata_size));
-        assert!(EvmCodegen::is_always_rematerializable_value(&function, block_number));
-        assert!(!EvmCodegen::can_own_spill_slot(&function, calldata_size));
-        assert!(!EvmCodegen::is_always_rematerializable_value(&function, returndata_size));
-        assert!(!EvmCodegen::is_always_rematerializable_value(&function, gas));
+        for (kind, expected_op) in [
+            (InstKind::CalldataSize, op::CALLDATASIZE),
+            (InstKind::CodeSize, op::CODESIZE),
+            (InstKind::Caller, op::CALLER),
+            (InstKind::CallValue, op::CALLVALUE),
+            (InstKind::Address, op::ADDRESS),
+            (InstKind::Origin, op::ORIGIN),
+            (InstKind::GasPrice, op::GASPRICE),
+            (InstKind::Coinbase, op::COINBASE),
+            (InstKind::Timestamp, op::TIMESTAMP),
+            (InstKind::BlockNumber, op::NUMBER),
+            (InstKind::PrevRandao, op::PREVRANDAO),
+            (InstKind::GasLimit, op::GASLIMIT),
+            (InstKind::ChainId, op::CHAINID),
+            (InstKind::BaseFee, op::BASEFEE),
+            (InstKind::BlobBaseFee, op::BLOBBASEFEE),
+        ] {
+            let (_, value) =
+                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), Some(expected_op));
+            assert!(!EvmCodegen::can_own_spill_slot(&function, value));
+        }
+
+        for kind in
+            [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
+        {
+            let (_, value) =
+                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
+            assert!(EvmCodegen::can_own_spill_slot(&function, value));
+        }
     }
 
     #[test]
