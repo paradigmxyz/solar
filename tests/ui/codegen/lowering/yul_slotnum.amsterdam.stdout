@@ -2,24 +2,31 @@
 @module runtime
 bb0:
   callvalue
-  push bb3
+  push bb4
   jumpi
   push 0
   calldataload
   push 224
   shr
   dup 1
+  push 0xa02bebd
+  eq
+  push bb5
+  jumpi
+  dup 1
   push 0x3359632e
   sub
-  push bb3
+  push bb4
   jumpi
+  jump bb5
+bb5:
   slotnum
   push 128
   mstore
   push 32
   push 128
   return
-bb3 [cold]:
+bb4 [cold]:
   push 0
   dup 1
   revert

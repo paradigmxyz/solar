@@ -105,7 +105,9 @@ macro_rules! declare_builtins {
                         Some(EvmVersion::Cancun)
                     }
                     Self::YulClz if !target.has_clz() => Some(EvmVersion::Osaka),
-                    Self::YulSlotnum if !target.has_slot_num() => Some(EvmVersion::Amsterdam),
+                    Self::BlockSlotnum | Self::YulSlotnum if !target.has_slot_num() => {
+                        Some(EvmVersion::Amsterdam)
+                    }
                     _ => None,
                 }
             }
@@ -225,6 +227,8 @@ declare_builtins! {
                            => gcx.types.uint(256);
     BlockBlobbasefee       => kw::Blobbasefee
                            => gcx.types.uint(256);
+    BlockSlotnum           => kw::Slotnum
+                           => gcx.types.uint(64);
 
     // `msg`
     MsgSender              => sym::sender
@@ -412,7 +416,7 @@ impl Builtin {
     const LAST_GLOBAL: usize = Self::Abi as usize + 1;
 
     const FIRST_BLOCK: usize = Self::BlockCoinbase as usize;
-    const LAST_BLOCK: usize = Self::BlockBlobbasefee as usize + 1;
+    const LAST_BLOCK: usize = Self::BlockSlotnum as usize + 1;
 
     const FIRST_MSG: usize = Self::MsgSender as usize;
     const LAST_MSG: usize = Self::MsgSig as usize + 1;

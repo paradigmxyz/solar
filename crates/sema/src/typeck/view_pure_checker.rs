@@ -256,6 +256,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
                 | Builtin::BlockChainid
                 | Builtin::BlockBasefee
                 | Builtin::BlockBlobbasefee
+                | Builtin::BlockSlotnum
                 | Builtin::MsgSender
                 | Builtin::MsgGas
                 | Builtin::TxOrigin
