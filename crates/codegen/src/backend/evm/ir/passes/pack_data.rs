@@ -42,13 +42,9 @@ fn pack_data(module: &mut Module) -> bool {
     for old_id in referenced {
         let data = &module.data[old_id];
         let contained = packed.iter_enumerated().find_map(|(new_id, known)| {
-            if data.is_empty() {
-                Some(DataRef::new(new_id, 0))
-            } else {
-                memmem::find(known, data).map(|offset| {
-                    DataRef::new(new_id, u32::try_from(offset).expect("data offset exceeds `u32`"))
-                })
-            }
+            memmem::find(known, data).map(|offset| {
+                DataRef::new(new_id, u32::try_from(offset).expect("data offset exceeds `u32`"))
+            })
         });
         let data_ref = contained.unwrap_or_else(|| DataRef::new(packed.push(data.clone()), 0));
         remap.insert(old_id, data_ref);

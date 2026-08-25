@@ -2,10 +2,11 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue},
+    ir::{BlockId, DataRef, Instruction, Module, PushValue},
     op,
 };
 use alloy_primitives::{Bytes, U256};
+use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_sema::Gcx;
 
 pub(super) struct ConstantData;
@@ -44,10 +45,22 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
 
+    let mut data_index = module
+        .data
+        .iter_enumerated()
+        .map(|(id, data)| (data.clone(), id))
+        .collect::<FxHashMap<_, _>>();
     let mut prepared = Vec::with_capacity(rewrites.len());
     for rewrite in rewrites {
         let size = rewrite.data.len();
-        let data = module.intern_data(rewrite.data);
+        let data = match data_index.entry(rewrite.data) {
+            StdEntry::Occupied(entry) => DataRef::new(*entry.get(), 0),
+            StdEntry::Vacant(entry) => {
+                let id = module.data.push(entry.key().clone());
+                entry.insert(id);
+                DataRef::new(id, 0)
+            }
+        };
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
     }
     for (block, start, end, size, data) in prepared.into_iter().rev() {

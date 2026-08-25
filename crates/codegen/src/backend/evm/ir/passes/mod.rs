@@ -64,8 +64,6 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
-    // Finalize the referenced data pool after all code transforms.
-    &pack_data::PackData,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -101,6 +99,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
+    // Finalize the referenced data pool after all code transforms.
+    &pack_data::PackData,
 ];
 
 /// Finds an EVM IR pass by command-line name.

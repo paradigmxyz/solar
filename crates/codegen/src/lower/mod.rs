@@ -268,6 +268,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.data_copy(data, dest, size);
     }
 
+    /// Stores data as words for short values and word-level constant pooling.
     pub(super) fn store_data_words(
         &self,
         builder: &mut FunctionBuilder<'_>,

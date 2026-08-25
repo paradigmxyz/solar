@@ -100,14 +100,6 @@ impl Module {
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
     }
-
-    /// Interns a constant byte string and returns its stable identifier.
-    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
-        if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
-            return DataRef::new(id, 0);
-        }
-        DataRef::new(self.data.push(data), 0)
-    }
 }
 
 /// A basic block in EVM IR.
