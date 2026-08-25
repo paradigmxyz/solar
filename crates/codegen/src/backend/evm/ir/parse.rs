@@ -85,7 +85,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::data)?;
-        let id = self.parse_data_id()? as usize;
+        let (id, name) = self.parse_data_id()?;
+        let id = id as usize;
         if id != module.data.len() {
             return Err(self
                 .parser
@@ -98,6 +99,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|err| self.parser.error(format!("invalid program data: {err}")))?;
         self.parser.bump();
         module.data.push(bytes.into());
+        module.data_names.push(name);
         Ok(())
     }
 
@@ -205,7 +207,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
             },
             sym::push_data => {
-                let id = self.parse_data_id()?;
+                let (id, _) = self.parse_data_id()?;
                 let offset = if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
                     let value = self.parser.parse_uint()?;
                     u32::try_from(value)
@@ -311,10 +313,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.check_assembly_id(name, span, value)
     }
 
-    fn parse_data_id(&mut self) -> PResult<'sess, u32> {
+    fn parse_data_id(&mut self) -> PResult<'sess, (u32, Option<Symbol>)> {
         let span = self.parser.token().span;
-        let value = self.parser.parse_data_id()?;
-        self.check_assembly_id("program data", span, value)
+        let (value, name) = self.parser.parse_data_id()?;
+        self.check_assembly_id("program data", span, value).map(|id| (id, name))
     }
 
     fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {

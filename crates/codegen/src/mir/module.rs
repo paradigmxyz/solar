@@ -111,6 +111,8 @@ pub struct Module {
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
     data: IndexVec<DataId, Bytes>,
+    /// Optional display names for constant data entries.
+    data_names: IndexVec<DataId, Option<Symbol>>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
@@ -139,6 +141,7 @@ impl Module {
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
             data: IndexVec::new(),
+            data_names: IndexVec::new(),
             data_index: FxHashMap::default(),
             is_interface: false,
             phase: MirPhase::Built,
@@ -260,25 +263,42 @@ impl Module {
     /// Interns constant data and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
         if let Some(&id) = self.data_index.get(&data) {
+            self.ensure_data_name(id);
             return DataRef::new(id, 0);
         }
         if data.is_empty() {
-            return DataRef::new(self.add_data(data), 0);
+            return DataRef::new(self.add_lowered_data(data), 0);
         }
         for (id, known) in self.data.iter_enumerated() {
             if let Some(offset) = memmem::find(known, &data) {
                 let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
+                self.ensure_data_name(id);
                 return DataRef::new(id, offset);
             }
         }
-        DataRef::new(self.add_data(data), 0)
+        DataRef::new(self.add_lowered_data(data), 0)
     }
 
-    /// Adds constant data without interning it.
-    pub(crate) fn add_data(&mut self, data: Bytes) -> DataId {
+    pub(crate) fn add_data_with_name(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
         let id = self.data.push(data.clone());
+        self.data_names.push(name);
         self.data_index.entry(data).or_insert(id);
         id
+    }
+
+    fn add_lowered_data(&mut self, data: Bytes) -> DataId {
+        let name = Some(crate::data_literal_name(self.data.len()));
+        self.add_data_with_name(data, name)
+    }
+
+    fn ensure_data_name(&mut self, id: DataId) {
+        if self.data_names[id].is_none() {
+            self.data_names[id] = Some(crate::data_literal_name(id.index()));
+        }
+    }
+
+    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
+        self.data_names[id]
     }
 
     /// Returns the number of constant data entries.
@@ -307,7 +327,10 @@ impl Module {
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
                 for (id, data) in self.iter_data() {
-                    writeln!(f, "  literal_{}: hex\"{}\"", id.index(), hex::encode(data))?;
+                    let name = self
+                        .data_name(id)
+                        .map_or_else(|| id.index().to_string(), |n| n.to_string());
+                    writeln!(f, "  {name}: hex\"{}\"", hex::encode(data))?;
                 }
                 writeln!(f)?;
             }

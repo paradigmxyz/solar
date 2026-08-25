@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) ===
   @module Parser
   data:
-    literal_0: hex"11223344"
+    0: hex"11223344"
   
   immutables:
     fn: u8
@@ -35,7 +35,7 @@
   
   fn @copy_data() {
     bb0:
-      data_copy literal_0+1, 0, 3
+      data_copy 0+1, 0, 3
       stop
   }
   

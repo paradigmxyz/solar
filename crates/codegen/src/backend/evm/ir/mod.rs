@@ -68,6 +68,8 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Bytes>,
+    /// Optional display names for constant data entries.
+    pub(crate) data_names: IndexVec<DataId, Option<Symbol>>,
 }
 
 impl Module {
@@ -82,7 +84,7 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new(), data: IndexVec::new() }
+        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), data_names: IndexVec::new() }
     }
 
     /// Changes the program name.

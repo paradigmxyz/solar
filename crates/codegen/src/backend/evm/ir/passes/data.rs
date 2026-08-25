@@ -8,6 +8,7 @@ use crate::backend::evm::{
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_interface::Symbol;
 use solar_sema::Gcx;
 
 pub(super) struct Data;
@@ -87,18 +88,14 @@ impl DataPool {
         Placement::New { additional_bytes: data.len() as isize - removed as isize, contained }
     }
 
-    fn intern(
-        &mut self,
-        data: &mut IndexVec<DataId, Bytes>,
-        bytes: Bytes,
-        placement: Placement,
-    ) -> DataRef {
+    fn intern(&mut self, module: &mut Module, bytes: Bytes, placement: Placement) -> DataRef {
         let contained = match placement {
             Placement::Existing(data) => return data,
             Placement::New { contained, .. } => contained,
         };
         self.entries.retain(|(id, _)| !contained.contains(id));
-        let id = data.push(bytes.clone());
+        let id = module.data.push(bytes.clone());
+        module.data_names.push(Some(crate::data_literal_name(id.index())));
         self.entries.push((id, bytes));
         DataRef::new(id, 0)
     }
@@ -141,7 +138,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
             continue;
         }
         let size = data.len();
-        let data = pool.intern(&mut module.data, data, placement);
+        let data = pool.intern(module, data, placement);
         prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite {
             block: rewrite.block,
             start: rewrite.start,
@@ -223,16 +220,27 @@ fn pack_data(module: &mut Module) -> bool {
     });
 
     let mut packed = IndexVec::<DataId, Bytes>::new();
+    let mut packed_names = IndexVec::<DataId, Option<Symbol>>::new();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let data_ref =
-            find_data(&packed, data).unwrap_or_else(|| DataRef::new(packed.push(data.clone()), 0));
+        let data_ref = if let Some(data_ref) = find_data(&packed, data) {
+            if module.data_names[old_id].is_some() && packed_names[data_ref.id].is_none() {
+                packed_names[data_ref.id] = Some(crate::data_literal_name(data_ref.id.index()));
+            }
+            data_ref
+        } else {
+            let id = packed.push(data.clone());
+            let name = module.data_names[old_id].map(|_| crate::data_literal_name(id.index()));
+            packed_names.push(name);
+            DataRef::new(id, 0)
+        };
         remap.insert(old_id, data_ref);
     }
 
-    let changed = packed != module.data;
+    let changed = packed != module.data || packed_names != module.data_names;
     module.data = packed;
+    module.data_names = packed_names;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Data(data)) = &mut inst.value {

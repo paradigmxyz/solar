@@ -27,6 +27,10 @@ pub use contract::{
 
 mod ir_parse;
 
+pub(crate) fn data_literal_name(index: usize) -> solar_interface::Symbol {
+    solar_interface::Symbol::intern(&format!("literal_{index}"))
+}
+
 pub mod lower;
 
 pub mod pass;

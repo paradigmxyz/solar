@@ -91,9 +91,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(value)
     }
 
-    pub(crate) fn parse_data_id(&mut self) -> Result<U256, PErr<'sess>> {
+    pub(crate) fn parse_data_id(&mut self) -> Result<(U256, Option<Symbol>), PErr<'sess>> {
         if matches!(self.token().kind, TokenKind::Literal(TokenLitKind::Integer, _)) {
-            return self.parse_uint();
+            return self.parse_uint().map(|id| (id, None));
         }
 
         let span = self.token().span;
@@ -101,9 +101,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Some(index) = name.as_str().strip_prefix("literal_") else {
             return Err(self.error_at(span, format!("invalid data identifier `{name}`")));
         };
-        index
-            .parse()
-            .map_err(|err| self.error_at(span, format!("invalid data identifier `{name}`: {err}")))
+        let id = index.parse().map_err(|err| {
+            self.error_at(span, format!("invalid data identifier `{name}`: {err}"))
+        })?;
+        Ok((id, Some(name)))
     }
 
     pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {
