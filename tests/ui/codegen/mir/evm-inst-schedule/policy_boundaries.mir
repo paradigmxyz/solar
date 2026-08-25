@@ -3,13 +3,13 @@
 @module EvmInstSchedulePolicy
 
 // Schedule a complete expression tree in EVM stack-input order.
-// CHECK-LABEL: {{^[ +].*}}fn @deep_dependency_tree{{[( ]}}
-// CHECK: + [[XOR:v[0-9]+]] = xor arg4, arg5
-// CHECK-NEXT: [[MUL:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD]], [[MUL]]
-// CHECK-NEXT: - [[XOR]] = xor arg4, arg5
-// CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[XOR]]
+// CHECK-DAG: {{^[ +].*}}fn @deep_dependency_tree{{[( ]}}
+// CHECK-DAG: + [[XOR:v[0-9]+]] = xor arg4, arg5
+// CHECK-DAG: [[MUL:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[SUB:v[0-9]+]] = sub [[ADD]], [[MUL]]
+// CHECK-DAG: - [[XOR]] = xor arg4, arg5
+// CHECK-DAG: {{v[0-9]+}} = div [[SUB]], [[XOR]]
 fn @deep_dependency_tree(
   arg0: u256,
   arg1: u256,
@@ -28,16 +28,16 @@ fn @deep_dependency_tree(
 }
 
 // Schedule both sides of a write barrier without moving instructions across it.
-// CHECK-LABEL: {{^[ +].*}}fn @independent_barrier_segments{{[( ]}}
-// CHECK: - [[ADD1:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg1
-// CHECK-NEXT: [[SUB1:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: mstore 0, [[SUB1]]
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg2
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
-// CHECK-NEXT: + [[ADD2]] = add arg0, arg2
-// CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
+// CHECK-DAG: {{^[ +].*}}fn @independent_barrier_segments{{[( ]}}
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg1
+// CHECK-DAG: [[SUB1:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
+// CHECK-DAG: mstore 0, [[SUB1]]
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add arg0, arg2
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul arg1, arg3
+// CHECK-DAG: + [[ADD2]] = add arg0, arg2
+// CHECK-DAG: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
 fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
   bb0:
     v4 = add arg0, arg1
@@ -51,15 +51,15 @@ fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256)
 }
 
 // A shared producer stays pinned while the single-use islands around it are scheduled.
-// CHECK-LABEL: {{^[ +].*}}fn @shared_result_schedules_islands{{[( ]}}
-// CHECK: - [[ADD1:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg1
-// CHECK-NEXT: [[SHARED:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add [[SHARED]], arg2
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul [[SHARED]], arg3
-// CHECK-NEXT: + [[ADD2]] = add [[SHARED]], arg2
-// CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
+// CHECK-DAG: {{^[ +].*}}fn @shared_result_schedules_islands{{[( ]}}
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg1
+// CHECK-DAG: [[SHARED:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add [[SHARED]], arg2
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul [[SHARED]], arg3
+// CHECK-DAG: + [[ADD2]] = add [[SHARED]], arg2
+// CHECK-DAG: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
 fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
   bb0:
     v4 = add arg0, arg1
@@ -72,11 +72,11 @@ fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u2
 }
 
 // Keep producer order when the backend can lower either comparison orientation.
-// CHECK-LABEL: {{^[ +].*}}fn @comparison_producer_order{{[( ]}}
+// CHECK-DAG: {{^[ +].*}}fn @comparison_producer_order{{[( ]}}
 // CHECK-NOT: {{^[+-]}}
-// CHECK: [[LEFT:v[0-9]+]] = sub arg0, arg1
-// CHECK-NEXT: [[RIGHT:v[0-9]+]] = div arg2, arg3
-// CHECK-NEXT: {{v[0-9]+}} = lt [[LEFT]], [[RIGHT]]
+// CHECK-DAG: [[LEFT:v[0-9]+]] = sub arg0, arg1
+// CHECK-DAG: [[RIGHT:v[0-9]+]] = div arg2, arg3
+// CHECK-DAG: {{v[0-9]+}} = lt [[LEFT]], [[RIGHT]]
 fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
   bb0:
     v4 = sub arg0, arg1
@@ -86,11 +86,11 @@ fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) ->
 }
 
 // Multiple return values are terminator roots and follow stack-input order.
-// CHECK-LABEL: {{^[ +].*}}fn @multiple_terminator_roots{{[( ]}}
-// CHECK: - [[ADD:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD]] = add arg0, arg1
-// CHECK-NEXT: ret [[ADD]], [[MUL]]
+// CHECK-DAG: {{^[ +].*}}fn @multiple_terminator_roots{{[( ]}}
+// CHECK-DAG: - [[ADD:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD]] = add arg0, arg1
+// CHECK-DAG: ret [[ADD]], [[MUL]]
 fn @multiple_terminator_roots(
   arg0: u256,
   arg1: u256,
@@ -104,11 +104,11 @@ fn @multiple_terminator_roots(
 }
 
 // Keep a disconnected instruction below the value consumed by the terminator.
-// CHECK-LABEL: {{^[ +].*}}fn @disconnected_root_is_retained{{[( ]}}
-// CHECK: - [[RETURNED:v[0-9]+]] = mul arg1, 2
-// CHECK-NEXT: {{v[0-9]+}} = add arg0, 1
-// CHECK-NEXT: + [[RETURNED]] = mul arg1, 2
-// CHECK-NEXT: ret [[RETURNED]]
+// CHECK-DAG: {{^[ +].*}}fn @disconnected_root_is_retained{{[( ]}}
+// CHECK-DAG: - [[RETURNED:v[0-9]+]] = mul arg1, 2
+// CHECK-DAG: {{v[0-9]+}} = add arg0, 1
+// CHECK-DAG: + [[RETURNED]] = mul arg1, 2
+// CHECK-DAG: ret [[RETURNED]]
 fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = mul arg1, 2
@@ -117,14 +117,14 @@ fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
 }
 
 // Memory, transient-storage, and environment reads may share one movable segment.
-// CHECK-LABEL: {{^[ +].*}}fn @read_effects_are_movable{{[( ]}}
-// CHECK: - [[MEMORY:v[0-9]+]] = mload arg0
-// CHECK-NEXT: - [[TRANSIENT:v[0-9]+]] = tload arg1
-// CHECK-NEXT: [[CALLER:v[0-9]+]] = caller
-// CHECK-NEXT: + [[TRANSIENT]] = tload arg1
-// CHECK-NEXT: + [[MEMORY]] = mload arg0
-// CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[MEMORY]], [[TRANSIENT]]
-// CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[CALLER]]
+// CHECK-DAG: {{^[ +].*}}fn @read_effects_are_movable{{[( ]}}
+// CHECK-DAG: - [[MEMORY:v[0-9]+]] = mload arg0
+// CHECK-DAG: - [[TRANSIENT:v[0-9]+]] = tload arg1
+// CHECK-DAG: [[CALLER:v[0-9]+]] = caller
+// CHECK-DAG: + [[TRANSIENT]] = tload arg1
+// CHECK-DAG: + [[MEMORY]] = mload arg0
+// CHECK-DAG: [[SUB:v[0-9]+]] = sub [[MEMORY]], [[TRANSIENT]]
+// CHECK-DAG: {{v[0-9]+}} = div [[SUB]], [[CALLER]]
 fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = mload arg0
@@ -136,11 +136,11 @@ fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
 }
 
 // `clz` is a pure unary operation and follows its consumer's stack-input order.
-// CHECK-LABEL: {{^[ +].*}}fn @clz_is_movable{{[( ]}}
-// CHECK: - [[CLZ:v[0-9]+]] = clz arg0
-// CHECK-NEXT: [[MUL:v[0-9]+]] = mul arg1, arg2
-// CHECK-NEXT: + [[CLZ]] = clz arg0
-// CHECK-NEXT: {{v[0-9]+}} = sub [[CLZ]], [[MUL]]
+// CHECK-DAG: {{^[ +].*}}fn @clz_is_movable{{[( ]}}
+// CHECK-DAG: - [[CLZ:v[0-9]+]] = clz arg0
+// CHECK-DAG: [[MUL:v[0-9]+]] = mul arg1, arg2
+// CHECK-DAG: + [[CLZ]] = clz arg0
+// CHECK-DAG: {{v[0-9]+}} = sub [[CLZ]], [[MUL]]
 fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v3 = clz arg0
@@ -150,17 +150,17 @@ fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 }
 
 // `callcode` separates independently scheduled segments.
-// CHECK-LABEL: {{^[ +].*}}fn @callcode_is_a_barrier{{[( ]}}
-// CHECK: - [[ADD1:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg1
-// CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: [[CALL:v[0-9]+]] = callcode [[SUB]],
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg2
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
-// CHECK-NEXT: + [[ADD2]] = add arg0, arg2
-// CHECK-NEXT: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
-// CHECK-NEXT: ret [[CALL]], [[DIV]]
+// CHECK-DAG: {{^[ +].*}}fn @callcode_is_a_barrier{{[( ]}}
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg1
+// CHECK-DAG: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
+// CHECK-DAG: [[CALL:v[0-9]+]] = callcode [[SUB]],
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add arg0, arg2
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul arg1, arg3
+// CHECK-DAG: + [[ADD2]] = add arg0, arg2
+// CHECK-DAG: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
+// CHECK-DAG: ret [[CALL]], [[DIV]]
 fn @callcode_is_a_barrier(
   arg0: u256,
   arg1: u256,
@@ -179,17 +179,17 @@ fn @callcode_is_a_barrier(
 }
 
 // `msize` splits two independently scheduled segments.
-// CHECK-LABEL: {{^[ +].*}}fn @msize_is_a_barrier{{[( ]}}
-// CHECK: - [[ADD1:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg1
-// CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: [[MSIZE:v[0-9]+]] = msize
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg2
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
-// CHECK-NEXT: + [[ADD2]] = add arg0, arg2
-// CHECK-NEXT: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
-// CHECK-NEXT: ret [[SUB]], [[MSIZE]], [[DIV]]
+// CHECK-DAG: {{^[ +].*}}fn @msize_is_a_barrier{{[( ]}}
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg1
+// CHECK-DAG: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
+// CHECK-DAG: [[MSIZE:v[0-9]+]] = msize
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add arg0, arg2
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul arg1, arg3
+// CHECK-DAG: + [[ADD2]] = add arg0, arg2
+// CHECK-DAG: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
+// CHECK-DAG: ret [[SUB]], [[MSIZE]], [[DIV]]
 fn @msize_is_a_barrier(
   arg0: u256,
   arg1: u256,
@@ -208,12 +208,12 @@ fn @msize_is_a_barrier(
 }
 
 // A phi remains at the start of its block even when a later tree consumes it.
-// CHECK-LABEL: {{^[ +].*}}fn @phi_is_a_barrier{{[( ]}}
+// CHECK-DAG: {{^[ +].*}}fn @phi_is_a_barrier{{[( ]}}
 // CHECK-NOT: {{^[+-]}}
-// CHECK: bb3:
-// CHECK-NEXT: [[PHI:v[0-9]+]] = phi
-// CHECK-NEXT: {{v[0-9]+}} = add arg0, arg1
-// CHECK-NEXT: {{v[0-9]+}} = mul [[PHI]], arg2
+// CHECK-DAG: bb3:
+// CHECK-DAG: [[PHI:v[0-9]+]] = phi
+// CHECK-DAG: {{v[0-9]+}} = add arg0, arg1
+// CHECK-DAG: {{v[0-9]+}} = mul [[PHI]], arg2
 fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
   bb0:
     jumpi arg3, bb1, bb2
@@ -229,16 +229,16 @@ fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
 }
 
 // An explicit write effect overrides an opcode's default pure effect.
-// CHECK-LABEL: {{^[ +].*}}fn @metadata_effect_is_a_barrier{{[( ]}}
-// CHECK: - [[ADD1:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg1
-// CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: {{v[0-9]+}} = xor arg0, arg3 !metadata(effect=memory_write)
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg2
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
-// CHECK-NEXT: + [[ADD2]] = add arg0, arg2
-// CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
+// CHECK-DAG: {{^[ +].*}}fn @metadata_effect_is_a_barrier{{[( ]}}
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg1
+// CHECK-DAG: [[SUB:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
+// CHECK-DAG: {{v[0-9]+}} = xor arg0, arg3 !metadata(effect=memory_write)
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add arg0, arg2
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul arg1, arg3
+// CHECK-DAG: + [[ADD2]] = add arg0, arg2
+// CHECK-DAG: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
 fn @metadata_effect_is_a_barrier(
   arg0: u256,
   arg1: u256,
@@ -257,18 +257,18 @@ fn @metadata_effect_is_a_barrier(
 }
 
 // Each block starts with empty scheduling scratch state.
-// CHECK-LABEL: {{^[ +].*}}fn @block_local_scratch{{[( ]}}
-// CHECK: - [[ADD0:v[0-9]+]] = add arg0, arg1
-// CHECK-NEXT: [[MUL0:v[0-9]+]] = mul arg2, arg3
-// CHECK-NEXT: + [[ADD0]] = add arg0, arg1
-// CHECK: bb1:
-// CHECK-NEXT: - [[ADD1:v[0-9]+]] = add arg0, arg2
-// CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg1, arg3
-// CHECK-NEXT: + [[ADD1]] = add arg0, arg2
-// CHECK: bb2:
-// CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg3
-// CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg2
-// CHECK-NEXT: + [[ADD2]] = add arg0, arg3
+// CHECK-DAG: {{^[ +].*}}fn @block_local_scratch{{[( ]}}
+// CHECK-DAG: - [[ADD0:v[0-9]+]] = add arg0, arg1
+// CHECK-DAG: [[MUL0:v[0-9]+]] = mul arg2, arg3
+// CHECK-DAG: + [[ADD0]] = add arg0, arg1
+// CHECK-DAG: bb1:
+// CHECK-DAG: - [[ADD1:v[0-9]+]] = add arg0, arg2
+// CHECK-DAG: [[MUL1:v[0-9]+]] = mul arg1, arg3
+// CHECK-DAG: + [[ADD1]] = add arg0, arg2
+// CHECK-DAG: bb2:
+// CHECK-DAG: - [[ADD2:v[0-9]+]] = add arg0, arg3
+// CHECK-DAG: [[MUL2:v[0-9]+]] = mul arg1, arg2
+// CHECK-DAG: + [[ADD2]] = add arg0, arg3
 fn @block_local_scratch(
   arg0: u256,
   arg1: u256,

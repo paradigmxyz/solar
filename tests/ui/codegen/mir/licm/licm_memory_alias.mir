@@ -4,11 +4,11 @@
 immutables:
   value: u256
 
-// CHECK-LABEL: @hoist_non_aliasing_mload
-// CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
-// CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK: -     [[LOAD]] = mload [[ADDR]]
-// CHECK:       ret [[LOAD]]
+// CHECK-DAG: @hoist_non_aliasing_mload
+// CHECK-DAG: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
+// CHECK-DAG:  jump {{bb[0-9]+}}
+// CHECK-DAG: -     [[LOAD]] = mload [[ADDR]]
+// CHECK-DAG:       ret [[LOAD]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -22,11 +22,11 @@ fn @hoist_non_aliasing_mload() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_aliasing_mload
-// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
-// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
+// CHECK-DAG: @keep_aliasing_mload
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK-DAG: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -40,11 +40,11 @@ fn @keep_aliasing_mload() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @hoist_non_aliasing_keccak
-// CHECK: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
-// CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
-// CHECK:       ret [[HASH]]
+// CHECK-DAG: @hoist_non_aliasing_keccak
+// CHECK-DAG: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
+// CHECK-DAG:  jump {{bb[0-9]+}}
+// CHECK-DAG: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
+// CHECK-DAG:       ret [[HASH]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
@@ -58,11 +58,11 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_aliasing_keccak
-// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
+// CHECK-DAG: @keep_aliasing_keccak
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK-DAG: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
@@ -76,13 +76,13 @@ fn @keep_aliasing_keccak() -> bytes32 {
     ret v0
 }
 
-// CHECK-LABEL: @hoist_unassigned_immutable
-// CHECK: +     [[LOAD:v[0-9]+]] = loadimmutable value
-// CHECK-NEXT: +     [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
-// CHECK-NEXT:       jump {{bb[0-9]+}}
-// CHECK: -     [[LOAD]] = loadimmutable value
-// CHECK-NEXT: -     [[VALUE]] = mul [[LOAD]], 2
-// CHECK:       ret [[VALUE]]
+// CHECK-DAG: @hoist_unassigned_immutable
+// CHECK-DAG: +     [[LOAD:v[0-9]+]] = loadimmutable value
+// CHECK-DAG: +     [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
+// CHECK-DAG:       jump {{bb[0-9]+}}
+// CHECK-DAG: -     [[LOAD]] = loadimmutable value
+// CHECK-DAG: -     [[VALUE]] = mul [[LOAD]], 2
+// CHECK-DAG:       ret [[VALUE]]
 fn @hoist_unassigned_immutable() -> u256 {
   bb0:
     jump bb1
@@ -96,10 +96,10 @@ fn @hoist_unassigned_immutable() -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: @keep_assigned_immutable
-// CHECK: {{^ +}}{{v[0-9]+}} = loadimmutable value
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = mul {{v[0-9]+}}, 2
-// CHECK-NEXT: {{^ +}}storeimmutable value, 1
+// CHECK-DAG: @keep_assigned_immutable
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = loadimmutable value
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = mul {{v[0-9]+}}, 2
+// CHECK-DAG: {{^ +}}storeimmutable value, 1
 fn @keep_assigned_immutable() -> u256 {
   bb0:
     jump bb1

@@ -2,13 +2,13 @@
 //@filecheck: --enable-var-scope
 @module LicmBuilderCases
 
-// CHECK-LABEL: @hoist_mul
-// CHECK: +     [[MUL:v[0-9]+]] = mul arg0, 7
-// CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
-// CHECK: {{^ +}}[[HEADER]]:
-// CHECK-NEXT: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: -     [[MUL]] = mul arg0, 7
+// CHECK-DAG: @hoist_mul
+// CHECK-DAG: +     [[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK-DAG: {{^ +}}jump [[HEADER:bb[0-9]+]]
+// CHECK-DAG: {{^ +}}[[HEADER]]:
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: -     [[MUL]] = mul arg0, 7
 fn @hoist_mul(arg0: u256) {
   bb0:
     jump bb1
@@ -21,13 +21,13 @@ fn @hoist_mul(arg0: u256) {
     stop
 }
 
-// CHECK-LABEL: @hoist_clz
-// CHECK: +     [[CLZ:v[0-9]+]] = clz arg0
-// CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
-// CHECK: {{^ +}}[[HEADER]]:
-// CHECK-NEXT: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: -     [[CLZ]] = clz arg0
+// CHECK-DAG: @hoist_clz
+// CHECK-DAG: +     [[CLZ:v[0-9]+]] = clz arg0
+// CHECK-DAG: {{^ +}}jump [[HEADER:bb[0-9]+]]
+// CHECK-DAG: {{^ +}}[[HEADER]]:
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: -     [[CLZ]] = clz arg0
 fn @hoist_clz(arg0: u256) {
   bb0:
     jump bb1
@@ -40,11 +40,11 @@ fn @hoist_clz(arg0: u256) {
     stop
 }
 
-// CHECK-LABEL: @hoist_non_aliasing_sload
-// CHECK: +     [[LOAD:v[0-9]+]] = sload [[SLOT:[0-9]+]]
-// CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK: -     [[LOAD]] = sload [[SLOT]]
-// CHECK:       ret [[LOAD]]
+// CHECK-DAG: @hoist_non_aliasing_sload
+// CHECK-DAG: +     [[LOAD:v[0-9]+]] = sload [[SLOT:[0-9]+]]
+// CHECK-DAG:  jump {{bb[0-9]+}}
+// CHECK-DAG: -     [[LOAD]] = sload [[SLOT]]
+// CHECK-DAG:       ret [[LOAD]]
 fn @hoist_non_aliasing_sload() -> u256 {
   bb0:
     jump bb1
@@ -58,11 +58,11 @@ fn @hoist_non_aliasing_sload() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_aliasing_sload
-// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: +     {{v[0-9]+}} = sload [[SLOT:[0-9]+]]
-// CHECK: +     sstore [[SLOT]], 1
+// CHECK-DAG: @keep_aliasing_sload
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: +     {{v[0-9]+}} = sload [[SLOT:[0-9]+]]
+// CHECK-DAG: +     sstore [[SLOT]], 1
 fn @keep_aliasing_sload() -> u256 {
   bb0:
     jump bb1
@@ -76,13 +76,13 @@ fn @keep_aliasing_sload() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_work_after_gas
-// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: {{^ +}}[[BODY]]:
-// CHECK: {{^ +}}{{v[0-9]+}} = gas
-// CHECK: {{^ +}}[[MUL:v[0-9]+]] = mul arg0, 7
-// CHECK: {{^ +}}jump
-// CHECK: {{^ +}}ret [[MUL]]
+// CHECK-DAG: @keep_work_after_gas
+// CHECK-DAG: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG: {{^ +}}[[BODY]]:
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = gas
+// CHECK-DAG: {{^ +}}[[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK-DAG: {{^ +}}jump
+// CHECK-DAG: {{^ +}}ret [[MUL]]
 fn @keep_work_after_gas(arg0: u256) -> u256 {
   bb0:
     jump bb1

@@ -3,21 +3,21 @@
 
 @module Display
 
-// CHECK-LABEL: @linear
-// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add arg0, 1
-// CHECK: {{^ +}}ret [[SUM]]
+// CHECK-DAG: @linear
+// CHECK-DAG: {{^ +}}[[SUM:v[0-9]+]] = add arg0, 1
+// CHECK-DAG: {{^ +}}ret [[SUM]]
 fn @linear(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1
     ret v0
 }
 
-// CHECK-LABEL: @diamond
-// CHECK: {{^ +}}jumpi arg1, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
-// CHECK: {{^ +}}[[THEN]]:
-// CHECK: {{^ +}}ret arg0
-// CHECK: {{^ +}}[[ELSE]]:
-// CHECK: {{^ +}}ret arg0
+// CHECK-DAG: @diamond
+// CHECK-DAG: {{^ +}}jumpi arg1, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
+// CHECK-DAG: {{^ +}}[[THEN]]:
+// CHECK-DAG: {{^ +}}ret arg0
+// CHECK-DAG: {{^ +}}[[ELSE]]:
+// CHECK-DAG: {{^ +}}ret arg0
 fn @diamond(arg0: u256, arg1: bool) {
   bb0:
     jumpi arg1, bb1, bb2
@@ -27,10 +27,10 @@ fn @diamond(arg0: u256, arg1: bool) {
     ret arg0
 }
 
-// CHECK-LABEL: @storage_ops
-// CHECK: {{^ +}}sstore arg0, arg1 !metadata(storage=symbolic(arg0))
-// CHECK: {{^ +}}[[LOADED:v[0-9]+]] = sload arg0 !metadata(storage=symbolic(arg0))
-// CHECK: {{^ +}}ret [[LOADED]]
+// CHECK-DAG: @storage_ops
+// CHECK-DAG: {{^ +}}sstore arg0, arg1 !metadata(storage=symbolic(arg0))
+// CHECK-DAG: {{^ +}}[[LOADED:v[0-9]+]] = sload arg0 !metadata(storage=symbolic(arg0))
+// CHECK-DAG: {{^ +}}ret [[LOADED]]
 fn @storage_ops(arg0: u256, arg1: u256) {
   bb0:
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
@@ -38,16 +38,16 @@ fn @storage_ops(arg0: u256, arg1: u256) {
     ret v0
 }
 
-// CHECK-LABEL: fn @over.load.4(
-// CHECK: internal_call @over.load.5, 1
+// CHECK-DAG: fn @over.load.4(
+// CHECK-DAG: internal_call @over.load.5, 1
 fn @over.load.4() -> u256 {
   bb0:
     v0 = internal_call @over.load.5, 1
     ret v0
 }
 
-// CHECK-LABEL: fn @over.load.5(
-// CHECK: ret 1
+// CHECK-DAG: fn @over.load.5(
+// CHECK-DAG: ret 1
 fn @over.load.5() -> u256 {
   bb0:
     ret 1

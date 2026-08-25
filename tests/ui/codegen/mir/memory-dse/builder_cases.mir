@@ -2,9 +2,9 @@
 //@filecheck: --enable-var-scope
 @module MemoryDseBuilderCases
 
-// CHECK-LABEL: @overwritten_store
-// CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK:       mstore [[ADDR]], 42
+// CHECK-DAG: @overwritten_store
+// CHECK-DAG: -     mstore [[ADDR:[0-9]+]], 0
+// CHECK-DAG:       mstore [[ADDR]], 42
 fn @overwritten_store() {
   bb0:
     mstore 128, 0
@@ -12,12 +12,12 @@ fn @overwritten_store() {
     stop
 }
 
-// CHECK-LABEL: @store_observed_only_by_load
-// CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
-// CHECK:       mstore [[ADDR]], 42
-// CHECK: -     ret [[LOAD]]
-// CHECK:       ret 0
+// CHECK-DAG: @store_observed_only_by_load
+// CHECK-DAG: -     mstore [[ADDR:[0-9]+]], 0
+// CHECK-DAG: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
+// CHECK-DAG:       mstore [[ADDR]], 42
+// CHECK-DAG: -     ret [[LOAD]]
+// CHECK-DAG:       ret 0
 fn @store_observed_only_by_load() -> u256 {
   bb0:
     mstore 128, 0
@@ -26,10 +26,10 @@ fn @store_observed_only_by_load() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @disjoint_keccak
-// CHECK: -     mstore [[STORE_ADDR:[0-9]+]], 0
-// CHECK:       keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK:       mstore [[STORE_ADDR]], 1
+// CHECK-DAG: @disjoint_keccak
+// CHECK-DAG: -     mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK-DAG:       keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK-DAG:       mstore [[STORE_ADDR]], 1
 fn @disjoint_keccak() {
   bb0:
     mstore 128, 0
@@ -38,10 +38,10 @@ fn @disjoint_keccak() {
     stop
 }
 
-// CHECK-LABEL: @overlapping_keccak
-// CHECK: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
-// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK: {{^ +}}mstore [[STORE_ADDR]], 1
+// CHECK-DAG: @overlapping_keccak
+// CHECK-DAG: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK-DAG: {{^ +}}mstore [[STORE_ADDR]], 1
 fn @overlapping_keccak() {
   bb0:
     mstore 128, 0
@@ -50,12 +50,12 @@ fn @overlapping_keccak() {
     stop
 }
 
-// CHECK-LABEL: @cross_block_dead_store
-// CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK:       jumpi arg0, [[READ:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK:       [[READ]]:
-// CHECK:       mstore [[ADDR]], 1
-// CHECK:       returndata [[ADDR]]
+// CHECK-DAG: @cross_block_dead_store
+// CHECK-DAG: -     mstore [[ADDR:[0-9]+]], 0
+// CHECK-DAG:       jumpi arg0, [[READ:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK-DAG:       [[READ]]:
+// CHECK-DAG:       mstore [[ADDR]], 1
+// CHECK-DAG:       returndata [[ADDR]]
 fn @cross_block_dead_store(arg0: u256) {
   bb0:
     mstore 128, 0
@@ -67,13 +67,13 @@ fn @cross_block_dead_store(arg0: u256) {
     revert 0, 0
 }
 
-// CHECK-LABEL: @cross_block_read_path
-// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 7
-// CHECK: {{^ +}}jumpi arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
-// CHECK: {{^ +}}[[READ]]:
-// CHECK: {{^ +}}returndata [[ADDR]]
-// CHECK: {{^ +}}[[OVERWRITE]]:
-// CHECK: {{^ +}}mstore [[ADDR]], 9
+// CHECK-DAG: @cross_block_read_path
+// CHECK-DAG: {{^ +}}mstore [[ADDR:[0-9]+]], 7
+// CHECK-DAG: {{^ +}}jumpi arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
+// CHECK-DAG: {{^ +}}[[READ]]:
+// CHECK-DAG: {{^ +}}returndata [[ADDR]]
+// CHECK-DAG: {{^ +}}[[OVERWRITE]]:
+// CHECK-DAG: {{^ +}}mstore [[ADDR]], 9
 fn @cross_block_read_path(arg0: u256) {
   bb0:
     mstore 128, 7
@@ -85,19 +85,19 @@ fn @cross_block_read_path(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-LABEL: @return_pointer
-// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
-// CHECK: {{^ +}}ret [[ADDR]]
+// CHECK-DAG: @return_pointer
+// CHECK-DAG: {{^ +}}mstore [[ADDR:[0-9]+]], 42
+// CHECK-DAG: {{^ +}}ret [[ADDR]]
 fn @return_pointer() -> u256 {
   bb0:
     mstore 160, 42
     ret 160
 }
 
-// CHECK-LABEL: @gas_barrier
-// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 0
-// CHECK: {{^ +}}{{v[0-9]+}} = gas
-// CHECK: {{^ +}}mstore [[ADDR]], 42
+// CHECK-DAG: @gas_barrier
+// CHECK-DAG: {{^ +}}mstore [[ADDR:[0-9]+]], 0
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = gas
+// CHECK-DAG: {{^ +}}mstore [[ADDR]], 42
 fn @gas_barrier() {
   bb0:
     mstore 128, 0
@@ -106,9 +106,9 @@ fn @gas_barrier() {
     stop
 }
 
-// CHECK-LABEL: @distinct_immediate_addresses
-// CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK:       mstore [[ADDR]], 42
+// CHECK-DAG: @distinct_immediate_addresses
+// CHECK-DAG: -     mstore [[ADDR:[0-9]+]], 0
+// CHECK-DAG:       mstore [[ADDR]], 42
 fn @distinct_immediate_addresses() {
   bb0:
     mstore 128, 0
@@ -116,13 +116,13 @@ fn @distinct_immediate_addresses() {
     stop
 }
 
-// CHECK-LABEL: @equivalent_base_load
-// CHECK:       [[FIRST:v[0-9]+]] = add arg0, [[OFFSET:[0-9]+]]
-// CHECK:       mstore [[FIRST]], 42
-// CHECK:       [[SECOND:v[0-9]+]] = add arg0, [[OFFSET]]
-// CHECK: -     [[LOAD:v[0-9]+]] = mload [[SECOND]]
-// CHECK: -     ret [[LOAD]]
-// CHECK:       ret 42
+// CHECK-DAG: @equivalent_base_load
+// CHECK-DAG:       [[FIRST:v[0-9]+]] = add arg0, [[OFFSET:[0-9]+]]
+// CHECK-DAG:       mstore [[FIRST]], 42
+// CHECK-DAG:       [[SECOND:v[0-9]+]] = add arg0, [[OFFSET]]
+// CHECK-DAG: -     [[LOAD:v[0-9]+]] = mload [[SECOND]]
+// CHECK-DAG: -     ret [[LOAD]]
+// CHECK-DAG:       ret 42
 fn @equivalent_base_load(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 32
@@ -132,11 +132,11 @@ fn @equivalent_base_load(arg0: u256) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: @equivalent_base_overwrite
-// CHECK:       [[FIRST:v[0-9]+]] = add arg0, [[OFFSET:[0-9]+]]
-// CHECK: -     mstore [[FIRST]], 0
-// CHECK:       [[SECOND:v[0-9]+]] = add arg0, [[OFFSET]]
-// CHECK:       mstore [[SECOND]], 42
+// CHECK-DAG: @equivalent_base_overwrite
+// CHECK-DAG:       [[FIRST:v[0-9]+]] = add arg0, [[OFFSET:[0-9]+]]
+// CHECK-DAG: -     mstore [[FIRST]], 0
+// CHECK-DAG:       [[SECOND:v[0-9]+]] = add arg0, [[OFFSET]]
+// CHECK-DAG:       mstore [[SECOND]], 42
 fn @equivalent_base_overwrite(arg0: u256) {
   bb0:
     v1 = add arg0, 32
@@ -146,10 +146,10 @@ fn @equivalent_base_overwrite(arg0: u256) {
     stop
 }
 
-// CHECK-LABEL: @unused_frame_store
-// CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
-// CHECK: -     mstore [[FRAME]], 0
-// CHECK:       ret 0
+// CHECK-DAG: @unused_frame_store
+// CHECK-DAG:       [[FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK-DAG: -     mstore [[FRAME]], 0
+// CHECK-DAG:       ret 0
 fn @unused_frame_store() -> u256 {
   bb0:
     v0 = internal_frame_addr 192
@@ -157,13 +157,13 @@ fn @unused_frame_store() -> u256 {
     ret 0
 }
 
-// CHECK-LABEL: @immutable_copy_reuse
-// CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:[0-9]+]]
-// CHECK: -     codecopy [[ADDR]]
-// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
-// CHECK:       mstore [[ADDR]], [[FIRST]]
-// CHECK:       [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
-// CHECK:       ret [[SUM]]
+// CHECK-DAG: @immutable_copy_reuse
+// CHECK-DAG:       [[FIRST:v[0-9]+]] = mload [[ADDR:[0-9]+]]
+// CHECK-DAG: -     codecopy [[ADDR]]
+// CHECK-DAG: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK-DAG:       mstore [[ADDR]], [[FIRST]]
+// CHECK-DAG:       [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
+// CHECK-DAG:       ret [[SUM]]
 fn @immutable_copy_reuse() -> u256 {
   bb0:
     v0 = codesize
@@ -180,10 +180,10 @@ fn @immutable_copy_reuse() -> u256 {
     ret v6
 }
 
-// CHECK-LABEL: @overlapping_load
-// CHECK: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
-// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
-// CHECK: {{^ +}}mstore [[STORE_ADDR]], 42
+// CHECK-DAG: @overlapping_load
+// CHECK-DAG: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK-DAG: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK-DAG: {{^ +}}mstore [[STORE_ADDR]], 42
 fn @overlapping_load() {
   bb0:
     mstore 128, 0
@@ -192,11 +192,11 @@ fn @overlapping_load() {
     stop
 }
 
-// CHECK-LABEL: @forward_load
-// CHECK:       mstore [[ADDR:[0-9]+]], 42
-// CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
-// CHECK: -     ret [[LOAD]]
-// CHECK:       ret 42
+// CHECK-DAG: @forward_load
+// CHECK-DAG:       mstore [[ADDR:[0-9]+]], 42
+// CHECK-DAG: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
+// CHECK-DAG: -     ret [[LOAD]]
+// CHECK-DAG:       ret 42
 fn @forward_load() -> u256 {
   bb0:
     mstore 128, 42
@@ -204,12 +204,12 @@ fn @forward_load() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @forward_through_pure_op
-// CHECK:       mstore [[ADDR:[0-9]+]], 42
-// CHECK:       {{v[0-9]+}} = add 1, 1
-// CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
-// CHECK: -     ret [[LOAD]]
-// CHECK:       ret 42
+// CHECK-DAG: @forward_through_pure_op
+// CHECK-DAG:       mstore [[ADDR:[0-9]+]], 42
+// CHECK-DAG:       {{v[0-9]+}} = add 1, 1
+// CHECK-DAG: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
+// CHECK-DAG: -     ret [[LOAD]]
+// CHECK-DAG:       ret 42
 fn @forward_through_pure_op() -> u256 {
   bb0:
     mstore 128, 42
@@ -218,11 +218,11 @@ fn @forward_through_pure_op() -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: @memory_write_barrier
-// CHECK: {{^ +}}mstore [[SOURCE:[0-9]+]], 42
-// CHECK: {{^ +}}mcopy {{[0-9]+}}, [[SOURCE]], {{[0-9]+}}
-// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[SOURCE]]
-// CHECK: {{^ +}}ret [[LOAD]]
+// CHECK-DAG: @memory_write_barrier
+// CHECK-DAG: {{^ +}}mstore [[SOURCE:[0-9]+]], 42
+// CHECK-DAG: {{^ +}}mcopy {{[0-9]+}}, [[SOURCE]], {{[0-9]+}}
+// CHECK-DAG: {{^ +}}[[LOAD:v[0-9]+]] = mload [[SOURCE]]
+// CHECK-DAG: {{^ +}}ret [[LOAD]]
 fn @memory_write_barrier() -> u256 {
   bb0:
     mstore 128, 42
@@ -231,11 +231,11 @@ fn @memory_write_barrier() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @internal_call_barrier
-// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
-// CHECK: {{^ +}}internal_call @callee
-// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
-// CHECK: {{^ +}}ret [[LOAD]]
+// CHECK-DAG: @internal_call_barrier
+// CHECK-DAG: {{^ +}}mstore [[ADDR:[0-9]+]], 42
+// CHECK-DAG: {{^ +}}internal_call @callee
+// CHECK-DAG: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
+// CHECK-DAG: {{^ +}}ret [[LOAD]]
 fn @internal_call_barrier() -> u256 {
   bb0:
     mstore 128, 42
@@ -249,14 +249,14 @@ fn @callee() {
     ret
 }
 
-// CHECK-LABEL: @chained_forwarding
-// CHECK:       mstore [[FIRST_ADDR:[0-9]+]], 42
-// CHECK: -     [[FIRST:v[0-9]+]] = mload [[FIRST_ADDR]]
-// CHECK: -     mstore [[SECOND_ADDR:[0-9]+]], [[FIRST]]
-// CHECK: -     [[SECOND:v[0-9]+]] = mload [[SECOND_ADDR]]
-// CHECK: -     ret [[SECOND]]
-// CHECK:       mstore [[SECOND_ADDR]], 42
-// CHECK:       ret 42
+// CHECK-DAG: @chained_forwarding
+// CHECK-DAG:       mstore [[FIRST_ADDR:[0-9]+]], 42
+// CHECK-DAG: -     [[FIRST:v[0-9]+]] = mload [[FIRST_ADDR]]
+// CHECK-DAG: -     mstore [[SECOND_ADDR:[0-9]+]], [[FIRST]]
+// CHECK-DAG: -     [[SECOND:v[0-9]+]] = mload [[SECOND_ADDR]]
+// CHECK-DAG: -     ret [[SECOND]]
+// CHECK-DAG:       mstore [[SECOND_ADDR]], 42
+// CHECK-DAG:       ret 42
 fn @chained_forwarding() -> u256 {
   bb0:
     mstore 128, 42

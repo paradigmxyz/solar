@@ -4,11 +4,11 @@
   fn @keccak_same_dynamic_size(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      v0 = keccak256 0, arg1
-      jump bb3
     bb2:
       v1 = keccak256 0, arg1
+      jump bb3
+    bb1:
+      v0 = keccak256 0, arg1
       jump bb3
     bb3:
 -     v2 = keccak256 0, arg1
@@ -20,11 +20,11 @@
   fn @keccak_different_dynamic_size(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      v0 = keccak256 0, arg1
-      jump bb3
     bb2:
       v1 = keccak256 0, arg1
+      jump bb3
+    bb1:
+      v0 = keccak256 0, arg1
       jump bb3
     bb3:
       v2 = keccak256 0, arg2

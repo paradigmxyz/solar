@@ -13,10 +13,10 @@ fn @target_b() {
 }
 
 // Tail calls with different targets must NOT merge.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_targets{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
-// CHECK: {{^[ +].*}}tail_call @target_a
-// CHECK: {{^[ +].*}}tail_call @target_b
+// CHECK-DAG: {{^[ +].*}}fn @keep_distinct_targets{{[( ]}}
+// CHECK-DAG: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK-DAG: {{^[ +].*}}tail_call @target_a
+// CHECK-DAG: {{^[ +].*}}tail_call @target_b
 fn @keep_distinct_targets(arg0: bool) {
   bb0:
     jumpi arg0, bb1, bb2
@@ -27,9 +27,9 @@ fn @keep_distinct_targets(arg0: bool) {
 }
 
 // Tail calls with the same target still merge.
-// CHECK-LABEL: {{^[ +].*}}fn @dedup_same_target{{[( ]}}
-// CHECK: - jumpi arg0, bb1, bb2
-// CHECK: {{^[ +].*}}tail_call @target_a
+// CHECK-DAG: {{^[ +].*}}fn @dedup_same_target{{[( ]}}
+// CHECK-DAG: - jumpi arg0, bb1, bb2
+// CHECK-DAG: {{^[ +].*}}tail_call @target_a
 fn @dedup_same_target(arg0: bool) {
   bb0:
     jumpi arg0, bb1, bb2

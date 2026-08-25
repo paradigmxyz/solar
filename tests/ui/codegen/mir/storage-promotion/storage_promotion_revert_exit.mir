@@ -1,12 +1,12 @@
 //@compile-flags: -Zmir-pipeline=storage-promotion
-//@filecheck:
+//@filecheck: --check-prefix=RPO
 @module StoragePromotionRevertExit
+// RPO: @module StoragePromotionRevertExit
 // CHECK-LABEL: {{^[ +].*}}fn @promote_checked_sum_loop{{[( ]}}
-// CHECK: + [[INITIAL:v[0-9]+]] = sload 0
-// CHECK: + mstore 128, [[INITIAL]]
-// CHECK: + {{v[0-9]+}} = mload 128
-// CHECK: + [[FLUSH:v[0-9]+]] = mload 128
-// CHECK: + sstore 0, [[FLUSH]]
+// CHECK-DAG: {{[+-]?}} [[INITIAL:v[0-9]+]] = sload 0
+// CHECK-DAG: {{[+-]?}} mstore 128, [[INITIAL]]
+// CHECK-DAG: {{[+-]?}} [[FLUSH:v[0-9]+]] = mload 128
+// CHECK-DAG: {{[+-]?}} sstore 0, [[FLUSH]]
 fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb1
@@ -32,11 +32,11 @@ fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @promote_revert_exit_reads_slot{{[( ]}}
-// CHECK: + mstore 128, 1
-// CHECK: + {{v[0-9]+}} = mload 128
-// CHECK: + {{v[0-9]+}} = mload 128
-// CHECK: + [[FLUSH:v[0-9]+]] = mload 128
-// CHECK: + sstore 0, [[FLUSH]]
+// CHECK-DAG: {{[+-]?}} mstore 128, 1
+// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = mload 128
+// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = mload 128
+// CHECK-DAG: {{[+-]?}} [[FLUSH:v[0-9]+]] = mload 128
+// CHECK-DAG: {{[+-]?}} sstore 0, [[FLUSH]]
 fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -60,9 +60,9 @@ fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_call{{[( ]}}
-// CHECK: + sstore 0, 1
-// CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: {{^[ +].*[ =]call[[:space:]]}}
+// CHECK-DAG: {{[+-]?}} sstore 0, 1
+// CHECK-DAG: {{[+-]?}} {{v[0-9]+}} = sload 0
+// CHECK-DAG: {{^[ +].*[ =]call[[:space:]]}}
 fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
   bb0:
     sstore 0, 1

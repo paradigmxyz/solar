@@ -6,10 +6,6 @@
 -     v0 = internal_call @callee, 1, 4
 -     v1 = add v0, 1
 +     jump bb2
-+   bb1:
-+     v12 = phi [bb5: v11]
-+     v1 = add v12, 1
-      ret v1
 +   bb2:
 +     v2 = internal_frame_addr 0
 +     mstore v2, 0
@@ -19,6 +15,14 @@
 +     v4 = mload v3
 +     v5 = lt v4, 4
 +     jumpi v5, bb4, bb5
++   bb5:
++     v10 = internal_frame_addr 0
++     v11 = mload v10
++     jump bb1
++   bb1:
++     v12 = phi [bb5: v11]
++     v1 = add v12, 1
+      ret v1
 +   bb4:
 +     v6 = internal_frame_addr 0
 +     v7 = mload v6
@@ -26,10 +30,6 @@
 +     v9 = internal_frame_addr 0
 +     mstore v9, v8
 +     jump bb3
-+   bb5:
-+     v10 = internal_frame_addr 0
-+     v11 = mload v10
-+     jump bb1
   }
   
   fn @callee(arg0: u256) -> u256 {
@@ -42,6 +42,10 @@
       v2 = mload v1
       v3 = lt v2, arg0
       jumpi v3, bb2, bb3
+    bb3:
+      v8 = internal_frame_addr 128
+      v9 = mload v8
+      ret v9
     bb2:
       v4 = internal_frame_addr 128
       v5 = mload v4
@@ -49,9 +53,5 @@
       v7 = internal_frame_addr 128
       mstore v7, v6
       jump bb1
-    bb3:
-      v8 = internal_frame_addr 128
-      v9 = mload v8
-      ret v9
   }
   
