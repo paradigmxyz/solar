@@ -435,11 +435,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
             let ret_size = self.builder.imm_u64(0);
+            let check_code = target.return_types.is_empty()
+                && match target.callee {
+                    TryCallee::Member { receiver, .. } => {
+                        self.builder.func().attributes.is_constructor
+                            || self.context.gcx.resolved_builtin(receiver) != Some(Builtin::This)
+                    }
+                    TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => true,
+                    TryCallee::Creation { .. } => unreachable!(),
+                };
+            if check_code {
+                self.revert_if_no_code(address);
+            }
             let success = match target.callee {
                 TryCallee::LinkedLibrary { .. } => {
-                    if target.return_types.is_empty() {
-                        self.revert_if_no_code(address);
-                    }
                     self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
                 }
                 _ if target.static_call => {

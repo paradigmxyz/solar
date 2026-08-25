@@ -79,6 +79,222 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
     stop
 }
 
+fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v6 = call v0, 0, 0, v2, v3, 0, 0
+    jumpi v6, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    v7 = returndatasize
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb6, bb7
+  bb5:
+    stop
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = make_returndata_slice 0, v7
+    memory_object_copy_from_slice memorybytes, v12, v13
+    v14 = memory_object_data memorybytes, v12
+    v15 = memory_object_len memorybytes, v12
+    v16 = make_memory_slice v14, v15
+    v17 = memory_slice_load_word memory, v16, 0
+    v18 = lt v15, 4
+    v19 = iszero v18
+    v20 = shr 224, v17
+    v21 = eq v20, 0x8c379a0
+    v22 = and v19, v21
+    v23 = lt v15, 36
+    v24 = iszero v23
+    v25 = eq v20, 0x4e487b71
+    v26 = and v24, v25
+    jumpi 1, bb8, bb9
+  bb8:
+    jump bb5
+  bb9:
+    revert v14, v15
+}
+
+fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = shl 32, 0
+    v1 = or v0, 0x5dfc2e4a
+    v2 = and v1, 0xffffffff
+    v3 = shl 224, v2
+    v4 = shr 32, v1
+    v5 = gas
+    v6 = abi_encode [], selector v3
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = extcodesize v4
+    v10 = iszero v9
+    jumpi v10, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v11 = call v5, v4, 0, v7, v8, 0, 0
+    jumpi v11, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb6, bb7
+  bb5:
+    stop
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = memory_object_data memorybytes, v17
+    v20 = memory_object_len memorybytes, v17
+    v21 = make_memory_slice v19, v20
+    v22 = memory_slice_load_word memory, v21, 0
+    v23 = lt v20, 4
+    v24 = iszero v23
+    v25 = shr 224, v22
+    v26 = eq v25, 0x8c379a0
+    v27 = and v24, v26
+    v28 = lt v20, 36
+    v29 = iszero v28
+    v30 = eq v25, 0x4e487b71
+    v31 = and v29, v30
+    jumpi 1, bb8, bb9
+  bb8:
+    jump bb5
+  bb9:
+    revert v19, v20
+}
+
+fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v6 = staticcall v0, 0, v2, v3, 0, 0
+    jumpi v6, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    v7 = returndatasize
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb6, bb7
+  bb5:
+    stop
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = make_returndata_slice 0, v7
+    memory_object_copy_from_slice memorybytes, v12, v13
+    v14 = memory_object_data memorybytes, v12
+    v15 = memory_object_len memorybytes, v12
+    v16 = make_memory_slice v14, v15
+    v17 = memory_slice_load_word memory, v16, 0
+    v18 = lt v15, 4
+    v19 = iszero v18
+    v20 = shr 224, v17
+    v21 = eq v20, 0x8c379a0
+    v22 = and v19, v21
+    v23 = lt v15, 36
+    v24 = iszero v23
+    v25 = eq v20, 0x4e487b71
+    v26 = and v24, v25
+    jumpi 1, bb8, bb9
+  bb8:
+    jump bb5
+  bb9:
+    revert v14, v15
+}
+
+fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v5, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v6 = returndatasize
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    jumpi v8, bb4, bb5
+  bb3:
+    ret 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    v12 = make_returndata_slice 0, v6
+    memory_object_copy_from_slice memorybytes, v11, v12
+    v13 = memory_object_data memorybytes, v11
+    v14 = memory_object_len memorybytes, v11
+    v15 = make_memory_slice v13, v14
+    v16 = memory_slice_load_word memory, v15, 0
+    v17 = lt v14, 4
+    v18 = iszero v17
+    v19 = shr 224, v16
+    v20 = eq v19, 0x8c379a0
+    v21 = and v18, v20
+    v22 = lt v14, 36
+    v23 = iszero v22
+    v24 = eq v19, 0x4e487b71
+    v25 = and v23, v24
+    jumpi 1, bb6, bb7
+  bb6:
+    ret 0
+  bb7:
+    revert v13, v14
+}
+
 fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = gas
@@ -103,6 +319,112 @@ fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word]] 
     revert_returndata
   bb2:
     ret 1
+}
+
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
+@module EmptyCodeTryFactory
+fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 441, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x6101c06040523461016c57308060c0528060c0525a8060e0528060e052604051
+    v4 = add v3, 32
+    mstore v4, 0x80610180528061018052602081016040527f5dfc2e4a00000000000000000000
+    v5 = add v3, 64
+    mstore v5, 0x81526004810150828060c0523b15
+    v6 = add v3, 96
+    mstore v6, 0x156067575f80fd5b5f5f6004835f8787f19250505015607c5760a5565b3d8061
+    v7 = add v3, 128
+    mstore v7, 0x100528061010052603f81018061012052806101205281806101005281101560
+    v8 = add v3, 160
+    mstore v8, 0xd75760aa565b610170565b7f4e487b7100000000000000000000000000000000
+    v9 = add v3, 192
+    mstore v9, 0x5f52604160045260245ffd5b601f198116905060
+    v10 = add v3, 224
+    mstore v10, 0x4051806101a05281810191508160405290508180610100528152602081018280
+    v11 = add v3, 256
+    mstore v11, 0x610100525f823e509050602081018061014052806101405281806101a0525180
+    v12 = add v3, 288
+    mstore v12, 0x610160529150816101605280610140525160048210158160e01c91506308c379
+    v13 = add v3, 320
+    mstore v13, 0xa08214811650506024821015634e487b71821491501650506001156101625760
+    v14 = add v3, 352
+    mstore v14, 0xa5565b6101605161014051fd5b5f80fd5b601f8061017b5f395ff334601a575f
+    v15 = add v3, 384
+    mstore v15, 0x3560e01c80635dfc2e4a14601657601a565b601e565b5f80fd5b000000000000
+    v16 = slice_ptr v0
+    v17 = add v3, 410
+    mcopy v17, v16, 0
+    v18 = create 0, v3, 410
+    jumpi v18, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor ===
+@module EmptyCodeTryConstructor
+fn @_anonymous() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    v8 = returndatasize
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb6, bb7
+  bb5:
+    stop
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = memory_object_data memorybytes, v13
+    v16 = memory_object_len memorybytes, v13
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
+    jumpi 1, bb8, bb9
+  bb8:
+    jump bb5
+  bb9:
+    revert v15, v16
 }
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
