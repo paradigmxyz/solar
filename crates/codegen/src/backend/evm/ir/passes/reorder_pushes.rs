@@ -19,8 +19,8 @@ impl EvmPass for ReorderPushes {
         if !module.blocks.iter().any(|block| has_candidate(&block.instructions)) {
             return false;
         }
-        let depths = StackDepths::new(module);
         let guaranteed_headroom = module.has_stack_headroom();
+        let depths = (!guaranteed_headroom).then(|| StackDepths::new(module)).flatten();
         let mut changed = false;
         let mut scratch = Vec::new();
         for block_index in 0..module.blocks.len() {
