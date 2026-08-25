@@ -791,50 +791,37 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
-        while let Some((is_doc, kind, symbol)) = self.token.comment() {
-            if is_doc {
+        while let Some(comment) = self.token.comment() {
+            if comment.is_doc {
                 // Only the last documentation unit binds to the item, like
                 // solc: a `/** */` block, or a contiguous run of `///` lines.
                 // A new unit silently supersedes everything collected so far,
                 // no matter how many blank lines follow it.
-                if let Some(prev) = self.docs.last()
-                    && !self.continues_doc_unit(prev, kind, self.token.span)
-                {
+                if !comment.continues_previous {
                     self.docs.clear();
                 }
-                let natspec = if let Some(items) =
-                    parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
-                {
-                    self.alloc_smallvec(items)
-                } else {
-                    BoxSlice::default()
-                };
-                self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
+                self.docs.push(DocComment {
+                    kind: comment.kind,
+                    span: self.token.span,
+                    symbol: comment.symbol,
+                    natspec: BoxSlice::default(),
+                });
             }
             // Don't set `prev_token` on purpose.
             self.token = self.next_token();
         }
 
-        self.expected_tokens.clear();
-    }
-
-    /// Whether a doc comment at `span` continues the documentation unit ended
-    /// by `prev`: both are `///` line comments on adjacent lines. Block
-    /// comments always form their own unit.
-    fn continues_doc_unit(
-        &self,
-        prev: &DocComment<'_>,
-        kind: ast::CommentKind,
-        span: Span,
-    ) -> bool {
-        if prev.kind != ast::CommentKind::Line || kind != ast::CommentKind::Line {
-            return false;
+        // Parse only the retained unit so superseded comments cannot emit
+        // diagnostics for documentation that does not bind to an item.
+        let arena = self.arena;
+        let dcx = self.dcx();
+        for doc in &mut self.docs {
+            if let Some(items) = parse_natspec(doc.span, doc.symbol, doc.kind, self.in_yul, dcx) {
+                doc.natspec = arena.alloc_smallvec_thin((), items);
+            }
         }
 
-        let source_map = self.sess.source_map();
-        let prev = source_map.lookup_char_pos(prev.span.hi());
-        let current = source_map.lookup_char_pos(span.lo());
-        prev.file == current.file && prev.line.checked_add(1) == Some(current.line)
+        self.expected_tokens.clear();
     }
 
     /// Advances the internal `tokens` iterator, without updating the parser state.
@@ -1337,6 +1324,40 @@ import * as B from "b.sol";
                 sess.source_map().span_to_snippet(imports[0].1).unwrap(),
                 r#"import "a.sol";"#
             );
+        });
+    }
+
+    #[test]
+    fn raw_parser_groups_line_doc_comments() {
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            for (source, expected) in [
+                ("/// first\n/// second\ncontract C {}", &["first", "second"][..]),
+                ("/// first\r\n/// second\r\ncontract C {}", &["first", "second"]),
+                ("/// first\r/// second\rcontract C {}", &["first", "second"]),
+                ("/// discarded\n\n/// retained\ncontract C {}", &["retained"]),
+                ("/// discarded\n// ordinary\n/// retained\ncontract C {}", &["retained"]),
+                ("/// discarded\n/* ordinary */ /// retained\ncontract C {}", &["retained"]),
+                (
+                    "/** discarded */\n/// retained\n/// continued\ncontract C {}",
+                    &["retained", "continued"],
+                ),
+            ] {
+                let arena = ast::Arena::new();
+                let lexer = Lexer::new(&sess, source);
+                let mut parser = Parser::from_lexer(&arena, lexer);
+                let file = parser.parse_file().expect("failed to parse source");
+                let actual = file
+                    .items
+                    .first()
+                    .expect("missing contract")
+                    .docs
+                    .iter()
+                    .map(|doc| doc.symbol.as_str().trim())
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected, "{source:?}");
+            }
         });
     }
 

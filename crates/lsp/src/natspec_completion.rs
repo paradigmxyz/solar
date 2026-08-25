@@ -6,7 +6,10 @@ use lsp_types::{
 };
 use solar_config::CompileOpts;
 use solar_interface::{Session, source_map::FileName};
-use solar_parse::{Cursor, Parser, ast, lexer::token::RawTokenKind};
+use solar_parse::{
+    Cursor, Parser, ast,
+    lexer::{is_line_doc_comment_continuation, token::RawTokenKind},
+};
 use std::ops::Range as ByteRange;
 
 mod index;
@@ -660,9 +663,7 @@ fn is_adjacent_doc_comment(gap: &str, style: CommentStyle) -> bool {
     {
         return true;
     }
-    gap.strip_prefix("\r\n")
-        .or_else(|| gap.strip_prefix('\n'))
-        .is_some_and(|rest| rest.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
+    is_line_doc_comment_continuation(gap)
 }
 
 fn rope_to_string(contents: &Rope) -> String {

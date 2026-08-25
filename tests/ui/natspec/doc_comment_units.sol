@@ -24,10 +24,17 @@ function splitByComment() pure returns (uint256) {
     return 1;
 }
 
+/// @not-a-valid-tag This warning belongs to a discarded unit.
+// An ordinary comment splits the run.
+/// @dev Only this unit is parsed as NatSpec.
+function discardedWarning() pure returns (uint256) {
+    return 1;
+}
+
 contract Contiguous {
     /// @author Someone
-    /// @dev One contiguous unit, so the invalid tag binds and errors.
-    //~^^ ERROR: tag `@author` not valid for functions
+    /// @dev One contiguous unit, so the invalid tag binds and warns.
+    //~^^ WARN: tag `@author` not valid for functions
     function contiguous() public pure returns (uint256) {
         return 1;
     }

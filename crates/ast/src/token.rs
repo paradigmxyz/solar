@@ -16,6 +16,31 @@ pub enum CommentKind {
     Block,
 }
 
+/// A comment token.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CommentToken {
+    /// Whether this is a documentation comment.
+    pub is_doc: bool,
+    /// The comment kind.
+    pub kind: CommentKind,
+    /// The comment contents without its opening and closing delimiters.
+    pub symbol: Symbol,
+    /// Whether this line documentation comment continues the preceding one.
+    pub continues_previous: bool,
+}
+
+impl CommentToken {
+    /// Creates a comment token.
+    pub const fn new(
+        is_doc: bool,
+        kind: CommentKind,
+        symbol: Symbol,
+        continues_previous: bool,
+    ) -> Self {
+        Self { is_doc, kind, symbol, continues_previous }
+    }
+}
+
 /// A binary operation token.
 ///
 /// Note that this enum contains only binary operators that can also be used in assignments.
@@ -292,7 +317,7 @@ pub enum TokenKind {
     ///
     /// `Symbol` is the comment's data excluding its "quotes" (`//`, `/**`)
     /// similarly to symbols in string literal tokens.
-    Comment(bool /* is_doc */, CommentKind, Symbol),
+    Comment(bool /* is_doc */, bool /* continues_previous */, CommentKind, Symbol),
 
     /// End of file marker.
     Eof,
@@ -305,6 +330,11 @@ impl fmt::Display for TokenKind {
 }
 
 impl TokenKind {
+    /// Creates a comment token kind.
+    pub const fn comment(comment: CommentToken) -> Self {
+        Self::Comment(comment.is_doc, comment.continues_previous, comment.kind, comment.symbol)
+    }
+
     /// Creates a new literal token kind.
     pub fn lit(kind: TokenLitKind, symbol: Symbol) -> Self {
         Self::Literal(kind, symbol)
@@ -342,9 +372,8 @@ impl TokenKind {
             Self::OpenDelim(d) => d.to_open_str(),
             Self::CloseDelim(d) => d.to_close_str(),
 
-            Self::Literal(.., symbol) | Self::Ident(.., symbol) | Self::Comment(.., symbol) => {
-                symbol.as_str()
-            }
+            Self::Literal(.., symbol) | Self::Ident(.., symbol) => symbol.as_str(),
+            Self::Comment(_, _, _, symbol) => symbol.as_str(),
 
             Self::Eof => "<eof>",
         }
@@ -355,10 +384,10 @@ impl TokenKind {
         match self {
             Self::Literal(kind, _) => return format!("<{}>", kind.description()).into(),
             Self::Ident(symbol) => return symbol.to_string().into(),
-            Self::Comment(false, CommentKind::Block, _) => "<block comment>",
-            Self::Comment(true, CommentKind::Block, _) => "<block doc-comment>",
-            Self::Comment(false, CommentKind::Line, _) => "<line comment>",
-            Self::Comment(true, CommentKind::Line, _) => "<line doc-comment>",
+            Self::Comment(false, _, CommentKind::Block, _) => "<block comment>",
+            Self::Comment(true, _, CommentKind::Block, _) => "<block doc-comment>",
+            Self::Comment(false, _, CommentKind::Line, _) => "<line comment>",
+            Self::Comment(true, _, CommentKind::Line, _) => "<line doc-comment>",
             _ => self.as_str(),
         }
         .into()
@@ -567,9 +596,11 @@ impl Token {
 
     /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
     #[inline]
-    pub fn comment(&self) -> Option<(bool, CommentKind, Symbol)> {
+    pub fn comment(&self) -> Option<CommentToken> {
         match self.kind {
-            TokenKind::Comment(is_doc, kind, symbol) => Some((is_doc, kind, symbol)),
+            TokenKind::Comment(is_doc, continues_previous, kind, symbol) => {
+                Some(CommentToken::new(is_doc, kind, symbol, continues_previous))
+            }
             _ => None,
         }
     }

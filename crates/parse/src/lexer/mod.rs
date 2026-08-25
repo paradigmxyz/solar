@@ -2,7 +2,7 @@
 
 use solar_ast::{
     Base, StrKind,
-    token::{CommentKind, Token, TokenKind, TokenLitKind},
+    token::{CommentKind, CommentToken, Token, TokenKind, TokenLitKind},
 };
 use solar_data_structures::hint::cold_path;
 use solar_interface::{
@@ -36,10 +36,22 @@ pub struct Lexer<'sess, 'src> {
     /// Source text to tokenize.
     src: &'src str,
 
+    /// The end position of the preceding line documentation comment.
+    previous_line_doc_end: Option<BytePos>,
+
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
     /// space character as whitespace.
     nbsp_is_whitespace: bool,
+}
+
+/// Returns whether the raw gap between two line documentation comments keeps
+/// them in the same documentation unit.
+pub fn is_line_doc_comment_continuation(gap: &str) -> bool {
+    gap.strip_prefix("\r\n")
+        .or_else(|| gap.strip_prefix('\n'))
+        .or_else(|| gap.strip_prefix('\r'))
+        .is_some_and(|rest| rest.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
 }
 
 impl<'sess, 'src> Lexer<'sess, 'src> {
@@ -64,6 +76,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             pos: start_pos,
             src,
             cursor: Cursor::new(src),
+            previous_line_doc_end: None,
             nbsp_is_whitespace: false,
         }
     }
@@ -121,7 +134,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     // Opening delimiter is not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
-                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
+                    let kind = CommentKind::Line;
+                    let continues_previous = is_doc && self.line_doc_continues(start);
+                    if is_doc {
+                        self.previous_line_doc_end = Some(self.pos);
+                    }
+                    self.cook_doc_comment(content, is_doc, kind, continues_previous)
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
                     if !terminated {
@@ -138,7 +156,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content_end = self.pos - (terminated as u32) * 2;
                     let content = self.str_from_to(content_start, content_end);
-                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
+                    let kind = CommentKind::Block;
+                    self.cook_doc_comment(content, is_doc, kind, false)
                 }
                 RawTokenKind::Whitespace => {
                     continue;
@@ -276,12 +295,22 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     fn cook_doc_comment(
         &self,
-        _content_start: BytePos,
         content: &str,
         is_doc: bool,
         comment_kind: CommentKind,
+        continues_previous: bool,
     ) -> TokenKind {
-        TokenKind::Comment(is_doc, comment_kind, self.intern(content))
+        TokenKind::comment(CommentToken::new(
+            is_doc,
+            comment_kind,
+            self.intern(content),
+            continues_previous,
+        ))
+    }
+
+    fn line_doc_continues(&self, start: BytePos) -> bool {
+        self.previous_line_doc_end
+            .is_some_and(|end| is_line_doc_comment_continuation(self.str_from_to(end, start)))
     }
 
     fn cook_literal(
@@ -570,7 +599,7 @@ mod tests {
         use CommentKind::*;
 
         fn doc(kind: CommentKind, symbol: &str) -> TokenKind {
-            Comment(true, kind, sym(symbol))
+            TokenKind::comment(CommentToken::new(true, kind, sym(symbol), false))
         }
 
         checks![
@@ -595,6 +624,37 @@ mod tests {
             ("/** /* block doc-comment */", &[(0..27, doc(Block, " /* block doc-comment "))]),
             ("/** block doc-comment /*/", &[(0..25, doc(Block, " block doc-comment /"))]),
         ];
+    }
+
+    #[test]
+    fn line_doc_comment_continuation() {
+        fn doc(symbol: &str, continues_previous: bool) -> TokenKind {
+            TokenKind::comment(CommentToken::new(
+                true,
+                CommentKind::Line,
+                sym(symbol),
+                continues_previous,
+            ))
+        }
+
+        checks![
+            ("/// a\n/// b", &[(0..5, doc(" a", false)), (6..11, doc(" b", true))]),
+            ("/// a\r\n/// b", &[(0..5, doc(" a", false)), (7..12, doc(" b", true))]),
+            ("/// a\r/// b", &[(0..5, doc(" a", false)), (6..11, doc(" b", true))]),
+            ("/// a\n\n/// b", &[(0..5, doc(" a", false)), (7..12, doc(" b", false))]),
+            ("/// a\n// gap\n/// b", &[(0..5, doc(" a", false)), (13..18, doc(" b", false))]),
+            ("/// a\n/* gap */ /// b", &[(0..5, doc(" a", false)), (16..21, doc(" b", false))]),
+        ];
+    }
+
+    #[test]
+    fn line_doc_comment_continuation_gaps() {
+        for gap in ["\n", "\n ", "\n\t", "\r\n", "\r\n \t", "\r", "\r\t"] {
+            assert!(is_line_doc_comment_continuation(gap), "{gap:?}");
+        }
+        for gap in ["", " ", "\n\n", "\r\r", "\r\n\n", "\n/* */ ", "\n\u{a0}"] {
+            assert!(!is_line_doc_comment_continuation(gap), "{gap:?}");
+        }
     }
 
     #[test]
