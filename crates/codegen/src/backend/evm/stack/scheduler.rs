@@ -2108,6 +2108,9 @@ impl StackScheduler {
         if self.is_stack_only_value(value) {
             return false;
         }
+        if self.should_recompute_unstored_spill(value) {
+            return true;
+        }
         // Check whether the value is spilled.
         if self.reloadable_spill(value).is_some() {
             return true;
@@ -2498,6 +2501,9 @@ mod tests {
         scheduler.spills.mark_reloadable(deep);
         scheduler.spills.mark_recomputable(deep);
         assert!(!scheduler.can_emit_value(deep, &func));
+
+        scheduler.stack.clear();
+        assert!(scheduler.can_emit_value(deep, &func));
 
         scheduler.spills.mark_stored(deep);
         assert!(scheduler.can_emit_value(deep, &func));
