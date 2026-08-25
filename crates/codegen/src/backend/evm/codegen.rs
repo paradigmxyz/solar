@@ -1083,7 +1083,7 @@ impl<'a> StackPhiPlanner<'a> {
             block_id != loop_info.header
                 && matches!(self.func.blocks[block_id].terminator, Some(Terminator::Branch { .. }))
         });
-        if has_branching_body && !self.can_plan_branching_memory_loop(loop_info) {
+        if has_branching_body && !self.can_plan_branching_loop(loop_info) {
             return;
         }
         let block = &self.func.blocks[loop_info.header];
@@ -1138,8 +1138,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    fn can_plan_branching_memory_loop(&self, loop_info: &Loop) -> bool {
-        let mut has_load = false;
+    fn can_plan_branching_loop(&self, loop_info: &Loop) -> bool {
         for block_id in loop_info.blocks.iter() {
             for &inst_id in &self.func.blocks[block_id].instructions {
                 let kind = &self.func.inst(inst_id).kind;
@@ -1182,7 +1181,6 @@ impl<'a> StackPhiPlanner<'a> {
                 ) {
                     return false;
                 }
-                has_load |= matches!(kind, InstKind::MLoad(_));
             }
         }
         let function_safe = self.func.blocks.iter().all(|block| {
@@ -1193,19 +1191,34 @@ impl<'a> StackPhiPlanner<'a> {
                 )
             })
         });
-        let branch_shapes_safe = loop_info.blocks.iter().all(|block_id| {
-            let Some(Terminator::Branch { then_block, else_block, .. }) =
-                self.func.blocks[block_id].terminator.as_ref()
-            else {
-                return true;
-            };
-            (loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block))
-                || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
-        });
-        has_load
-            && function_safe
+        let branch_shapes_safe = loop_info
+            .blocks
+            .iter()
+            .filter(|&block_id| block_id != loop_info.header)
+            .all(|block_id| {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    self.func.blocks[block_id].terminator.as_ref()
+                else {
+                    return true;
+                };
+                (loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block))
+                    || (!loop_info.blocks.contains(*then_block)
+                        && self.is_noreturn_block(*then_block))
+                    || (!loop_info.blocks.contains(*else_block)
+                        && self.is_noreturn_block(*else_block))
+                    || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
+            });
+        function_safe
             && branch_shapes_safe
             && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+    }
+
+    fn is_noreturn_block(&self, block_id: BlockId) -> bool {
+        self.func.blocks[block_id].instructions.is_empty()
+            && matches!(
+                self.func.blocks[block_id].terminator.as_ref(),
+                Some(Terminator::TailCall { args, .. }) if args.is_empty()
+            )
     }
 
     fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
