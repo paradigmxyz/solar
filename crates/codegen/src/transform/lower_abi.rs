@@ -2545,11 +2545,9 @@ impl LowerAbiCx {
             let action = match &inst.kind {
                 InstKind::AbiEncode { args, .. }
                     if args.iter().any(|&arg| tainted.contains(arg))
-                        && Self::can_encode_calldata_slice(ty) =>
+                        && Self::can_encode_calldata_slice(ty)
+                        && !Self::requires_calldata_element_validation(ty) =>
                 {
-                    if Self::requires_calldata_element_validation(ty) {
-                        return true;
-                    }
                     false
                 }
                 InstKind::AbiEncode { .. }
