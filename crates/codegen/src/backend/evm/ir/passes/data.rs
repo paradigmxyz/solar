@@ -1,12 +1,15 @@
 //! Materialize and pack program data.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{
-        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-        immediate_materialization_cost,
+use crate::{
+    MAX_DATA_SUBSTRING_ENTRIES,
+    backend::evm::{
+        ir::{
+            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+            immediate_materialization_cost,
+        },
+        op, push_len,
     },
-    op, push_len,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -67,7 +70,8 @@ struct PreparedRewrite {
 }
 
 struct DataPool {
-    entries: Vec<(DataId, Bytes)>,
+    entries: Vec<(DataId, Bytes, usize)>,
+    exact: FxHashMap<Bytes, DataRef>,
 }
 
 enum Placement {
@@ -89,20 +93,36 @@ impl Improvement {
 }
 
 impl DataPool {
-    fn new(data: &IndexVec<DataId, Data>) -> Self {
+    fn new(data: &IndexVec<DataId, Data>, reference_counts: &IndexVec<DataId, usize>) -> Self {
         Self {
-            entries: data.iter_enumerated().map(|(id, data)| (id, data.bytes.clone())).collect(),
+            entries: data
+                .iter_enumerated()
+                .map(|(id, data)| (id, data.bytes.clone(), reference_counts[id]))
+                .collect(),
+            exact: data
+                .iter_enumerated()
+                .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
+                .collect(),
         }
     }
 
     fn placement(&self, data: &[u8]) -> Placement {
+        if let Some(&data) = self.exact.get(data) {
+            return Placement::Existing(data);
+        }
+        if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
+            return Placement::New {
+                additional_bytes: data.len() as isize,
+                contained: FxHashSet::default(),
+            };
+        }
         let mut contained = FxHashSet::default();
         let mut removed = 0;
-        for (id, known) in &self.entries {
+        for (id, known, reference_count) in &self.entries {
             if let Some(offset) = memmem::find(known, data) {
                 return Placement::Existing(DataRef::new(*id, data_offset(offset)));
             }
-            if memmem::find(data, known).is_some() {
+            if memmem::find(data, known).is_some() && known.len() > *reference_count {
                 contained.insert(*id);
                 removed += known.len();
             }
@@ -110,14 +130,27 @@ impl DataPool {
         Placement::New { additional_bytes: data.len() as isize - removed as isize, contained }
     }
 
-    fn intern(&mut self, module: &mut Module, bytes: Bytes, placement: Placement) -> DataRef {
+    fn intern(
+        &mut self,
+        module: &mut Module,
+        bytes: Bytes,
+        reference_count: usize,
+        placement: Placement,
+    ) -> DataRef {
         let contained = match placement {
             Placement::Existing(data) => return data,
             Placement::New { contained, .. } => contained,
         };
-        self.entries.retain(|(id, _)| !contained.contains(id));
+        self.entries.retain(|(id, bytes, _)| {
+            let retain = !contained.contains(id);
+            if !retain {
+                self.exact.remove(bytes);
+            }
+            retain
+        });
         let id = module.data.push(Data { bytes: bytes.clone(), named: true });
-        self.entries.push((id, bytes));
+        self.entries.push((id, bytes.clone(), reference_count));
+        self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
     }
 }
@@ -144,7 +177,8 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let mut pool = DataPool::new(&module.data);
+    let reference_counts = data_reference_counts(module);
+    let mut pool = DataPool::new(&module.data, &reference_counts);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
@@ -152,7 +186,9 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let additional_bytes = placement_additional_bytes(&placement);
         let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
         let mut absorbed = Vec::new();
-        for (index, (contained, contained_rewrites)) in rejected.iter().enumerate() {
+        for (index, (contained, contained_rewrites)) in
+            rejected.iter().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
+        {
             let Some(offset) = memmem::find(&data, contained) else {
                 continue;
             };
@@ -169,7 +205,9 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
 
         let size = data.len();
-        let data_ref = pool.intern(module, data.clone(), placement);
+        let reference_count = rewrites.len()
+            + absorbed.iter().map(|(index, _)| rejected[*index].1.len()).sum::<usize>();
+        let data_ref = pool.intern(module, data.clone(), reference_count, placement);
         prepare_rewrites(&mut prepared, rewrites, data_ref, size);
         for (index, offset) in absorbed.into_iter().rev() {
             let (contained, rewrites) = rejected.swap_remove(index);
@@ -243,10 +281,6 @@ fn find_run(
         words += 1;
         end += 6;
     }
-    if words < 2 {
-        return None;
-    }
-
     let mut data = Vec::with_capacity(words * 32);
     data.extend_from_slice(&first.to_be_bytes::<32>());
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
@@ -291,6 +325,7 @@ fn placement_additional_bytes(placement: &Placement) -> isize {
 }
 
 fn pack_data(module: &mut Module) -> bool {
+    let reference_counts = data_reference_counts(module);
     let mut referenced = DenseBitSet::new_empty(module.data.len());
     for block in &module.blocks {
         for inst in &block.instructions {
@@ -305,23 +340,47 @@ fn pack_data(module: &mut Module) -> bool {
     });
 
     let mut packed = IndexVec::<DataId, Data>::new();
+    let mut sources = IndexVec::<DataId, DataId>::new();
+    let mut exact = FxHashMap::<Bytes, DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let data_ref = if let Some(data_ref) = find_data(&packed, &data.bytes) {
+        let data_ref = if let Some(&id) = exact.get(&data.bytes) {
+            DataRef::new(id, 0)
+        } else if let Some(data_ref) = (module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
+            .then(|| find_data(&packed, &sources, &data.bytes, old_id, reference_counts[old_id]))
+            .flatten()
+        {
             if data.named {
                 packed[data_ref.id].named = true;
             }
             data_ref
         } else {
             let id = packed.push(Data { bytes: data.bytes.clone(), named: data.named });
+            sources.push(old_id);
+            exact.insert(data.bytes.clone(), id);
             DataRef::new(id, 0)
         };
+        if data.named {
+            packed[data_ref.id].named = true;
+        }
         remap.insert(old_id, data_ref);
     }
 
-    let changed = packed != module.data;
-    module.data = packed;
+    let mut order = packed.indices().collect::<Vec<_>>();
+    order.sort_unstable_by_key(|&id| sources[id]);
+    let mut ordered = IndexVec::<DataId, Data>::new();
+    let mut packed_remap = IndexVec::<DataId, DataId>::from_vec(vec![DataId::new(0); packed.len()]);
+    for old_id in order {
+        let new_id = ordered.push(packed[old_id].clone());
+        packed_remap[old_id] = new_id;
+    }
+    for data in remap.values_mut() {
+        data.id = packed_remap[data.id];
+    }
+
+    let changed = ordered != module.data;
+    module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Data(data)) = &mut inst.value {
@@ -334,10 +393,32 @@ fn pack_data(module: &mut Module) -> bool {
     changed
 }
 
-fn find_data(data: &IndexVec<DataId, Data>, needle: &[u8]) -> Option<DataRef> {
+fn find_data(
+    data: &IndexVec<DataId, Data>,
+    sources: &IndexVec<DataId, DataId>,
+    needle: &[u8],
+    needle_id: DataId,
+    reference_count: usize,
+) -> Option<DataRef> {
     data.iter_enumerated().find_map(|(id, known)| {
-        memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
+        memmem::find(&known.bytes, needle).and_then(|offset| {
+            let cannot_widen = sources[id] < needle_id || offset == 0;
+            (cannot_widen || needle.len() > reference_count)
+                .then(|| DataRef::new(id, data_offset(offset)))
+        })
     })
+}
+
+fn data_reference_counts(module: &Module) -> IndexVec<DataId, usize> {
+    let mut counts = IndexVec::from_vec(vec![0; module.data.len()]);
+    for block in &module.blocks {
+        for inst in &block.instructions {
+            if let Some(PushValue::Data(data)) = inst.value {
+                counts[data.id] += 1;
+            }
+        }
+    }
+    counts
 }
 
 fn data_offset(offset: usize) -> u32 {

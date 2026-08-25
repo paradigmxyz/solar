@@ -31,6 +31,9 @@ pub(crate) fn data_literal_name(index: usize) -> solar_interface::Symbol {
     solar_interface::Symbol::intern(&format!("literal_{index}"))
 }
 
+/// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
+pub(crate) const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
+
 pub mod lower;
 
 pub mod pass;

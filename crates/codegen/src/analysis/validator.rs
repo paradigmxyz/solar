@@ -40,6 +40,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -536,7 +537,7 @@ impl<'a> Validator<'a> {
     fn validate_data_references(&mut self, module: &Module, func: &Function) {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let InstKind::DataCopy(data, _, _) = &func.inst(inst_id).kind else { continue };
+                let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { continue };
                 let Some(bytes) = module.get_data(data.id) else {
                     self.emit_at_inst(
                         format_args!("data_copy references nonexistent data{}", data.id.index()),
@@ -545,11 +546,17 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 };
-                if data.offset as usize > bytes.len() {
+                let Some(size) = func.value_u256(*size) else {
+                    self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
+                    continue;
+                };
+                let end = U256::from(data.offset).checked_add(size);
+                if end.is_none_or(|end| end > U256::from(bytes.len())) {
                     self.emit_at_inst(
                         format_args!(
-                            "data_copy offset {} exceeds data size {}",
+                            "data_copy range {}..{} exceeds data size {}",
                             data.offset,
+                            end.map_or_else(|| "overflow".into(), |end| end.to_string()),
                             bytes.len()
                         ),
                         block_id,

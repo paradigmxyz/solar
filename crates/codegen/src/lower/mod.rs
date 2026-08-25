@@ -276,8 +276,16 @@ impl<'gcx> Lowerer<'gcx> {
         if data.is_empty() {
             return;
         }
+        if data.iter().all(|&byte| byte == 0) {
+            let size = builder.imm_u64(data.len() as u64);
+            builder.memory_zero(dest, size);
+            return;
+        }
         if data_is_inline(data.len()) {
             self.store_data_words(builder, dest, &data);
+            return;
+        }
+        if self.copy_splat_to_memory(builder, dest, &data) {
             return;
         }
         let size = builder.imm_u64(data.len() as u64);
@@ -289,9 +297,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn store_data_words(&self, builder: &mut FunctionBuilder<'_>, dest: ValueId, data: &[u8]) {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
         for (index, chunk) in data.chunks(word_size).enumerate() {
-            let mut word = [0; EvmMemoryLayout::WORD_SIZE as usize];
-            word[..chunk.len()].copy_from_slice(chunk);
-            let value = builder.imm_u256(U256::from_be_bytes(word));
+            let value = builder.imm_u256(U256::from_be_bytes(padded_data_word(chunk)));
             let address = if index == 0 {
                 dest
             } else {
@@ -300,6 +306,34 @@ impl<'gcx> Lowerer<'gcx> {
             };
             builder.mstore(address, value);
         }
+    }
+
+    /// Expands a repeated word with logarithmically many `MCOPY` operations.
+    fn copy_splat_to_memory(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: &[u8],
+    ) -> bool {
+        let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+        if !self.gcx.sess.opts.evm_version.has_mcopy()
+            || !data.iter().enumerate().all(|(index, byte)| *byte == data[index % word_size])
+        {
+            return false;
+        }
+
+        let value = builder.imm_u256(U256::from_be_bytes(padded_data_word(&data[..word_size])));
+        builder.mstore(dest, value);
+        let mut filled = word_size;
+        while filled < data.len() {
+            let chunk = filled.min(data.len() - filled);
+            let offset = builder.imm_u64(filled as u64);
+            let target = builder.add(dest, offset);
+            let size = builder.imm_u64(chunk as u64);
+            builder.mcopy(target, dest, size);
+            filled += chunk;
+        }
+        true
     }
 
     /// Returns an existing error guarantee or emits a codegen diagnostic when
@@ -2233,6 +2267,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
         false
     }
+}
+
+fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {
+    let mut word = [0; EvmMemoryLayout::WORD_SIZE as usize];
+    word[..data.len()].copy_from_slice(data);
+    word
 }
 
 /// Lowers a contract from HIR to MIR.

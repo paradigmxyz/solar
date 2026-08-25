@@ -273,11 +273,13 @@ impl Module {
         if data.is_empty() {
             return DataRef::new(self.add_lowered_data(data), 0);
         }
-        for (id, known) in self.data.iter_enumerated() {
-            if let Some(offset) = memmem::find(&known.bytes, &data) {
-                let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
-                self.ensure_data_name(id);
-                return DataRef::new(id, offset);
+        if self.data.len() < crate::MAX_DATA_SUBSTRING_ENTRIES {
+            for (id, known) in self.data.iter_enumerated() {
+                if let Some(offset) = memmem::find(&known.bytes, &data) {
+                    let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
+                    self.ensure_data_name(id);
+                    return DataRef::new(id, offset);
+                }
             }
         }
         DataRef::new(self.add_lowered_data(data), 0)

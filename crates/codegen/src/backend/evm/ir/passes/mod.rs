@@ -70,10 +70,10 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
+    &cfg_simplify::CfgSimplify,
     &data::PackData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
-    &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
