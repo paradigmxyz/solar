@@ -316,7 +316,8 @@ impl<'gcx> Lowerer<'gcx> {
         data: &[u8],
     ) -> bool {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-        if !self.gcx.sess.opts.evm_version.has_mcopy()
+        if !self.gcx.sess.opts.optimization.is_size()
+            || !self.gcx.sess.opts.evm_version.has_mcopy()
             || !data.iter().enumerate().all(|(index, byte)| *byte == data[index % word_size])
         {
             return false;

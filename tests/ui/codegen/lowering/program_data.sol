@@ -1,6 +1,8 @@
-//@ revisions: mir runtime
+//@ revisions: mir size runtime
 //@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck:
+//@[size] compile-flags: -Osize -Zdump=mir
+//@[size] filecheck: --check-prefix=SPLAT
 //@[runtime] compile-flags: -Ogas
 //@[runtime] run-call: dataHash() => 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
 //@[runtime] run-call: subsliceHash() => 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
@@ -11,7 +13,7 @@
 // CHECK: data_copy literal_0,
 // CHECK: data_copy literal_0+64,
 // CHECK: memory_zero
-// CHECK: mcopy
+// SPLAT: mcopy
 contract C {
     function data() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";

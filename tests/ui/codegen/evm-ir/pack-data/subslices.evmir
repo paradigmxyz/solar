@@ -3,9 +3,9 @@
 @module subslices
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}push_data literal_0+1
-// CHECK: {{^[ +].*}}push_data literal_0+2
-// CHECK: {{^[ +].*}}push_data literal_0+1
+// CHECK: {{^[ +].*}}push_data literal_1+1
+// CHECK: {{^[ +].*}}push_data literal_0
+// CHECK: {{^[ +].*}}push_data literal_1+1
 bb0:
   push_data literal_0
   pop
@@ -15,8 +15,9 @@ bb0:
   pop
   stop
 
-// CHECK: @data literal_0 hex"00112233445566"
-// CHECK-NOT: @data literal_1
+// CHECK: @data literal_0 hex"2233"
+// CHECK: @data literal_1 hex"00112233445566"
+// CHECK-NOT: @data literal_2
 @data literal_0 hex"1122334455"
 @data literal_1 hex"2233"
 @data literal_2 hex"00112233445566"

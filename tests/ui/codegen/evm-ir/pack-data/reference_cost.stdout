@@ -10,8 +10,11 @@
     pop
     push_data literal_1
     pop
+    push_data literal_2
+    pop
     stop
   
-  @data literal_0 hex"2233"
-  @data literal_1 hex"11223344"
+  @data literal_0 hex"1122"
+  @data literal_1 hex"ff"
+  @data literal_2 hex"11223344"
   
