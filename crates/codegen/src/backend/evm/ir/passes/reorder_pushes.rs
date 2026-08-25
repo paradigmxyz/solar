@@ -40,11 +40,17 @@ fn has_candidate(instructions: &[Instruction]) -> bool {
 
 fn needs_depths(module: &Module) -> bool {
     module.blocks.iter().any(|block| {
+        let mut candidates = 0usize;
         block.instructions.iter().enumerate().any(|(index, inst)| {
-            index >= 2
-                && raw_opcode(inst) == Some(op::SWAP1)
-                && block.instructions[index - 1].is_encoded_push()
-                && self_contained_producer(&block.instructions[..index - 1])
+            if index < 2
+                || raw_opcode(inst) != Some(op::SWAP1)
+                || !block.instructions[index - 1].is_encoded_push()
+            {
+                return false;
+            }
+            candidates += 1;
+            candidates > 1
+                || self_contained_producer(&block.instructions[..index - 1])
                     .is_some_and(|(_, peak)| peak > 1)
         })
     })

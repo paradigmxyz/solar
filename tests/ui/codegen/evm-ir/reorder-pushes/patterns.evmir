@@ -114,3 +114,14 @@ bb10:
   swap 1
   sub
   stop
+
+// A cheap rewrite can expose a nested producer for the next candidate.
+bb11:
+  calldatasize
+  push 10
+  swap 1
+  sub
+  push 20
+  swap 1
+  sub
+  stop

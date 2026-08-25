@@ -1,0 +1,9 @@
+//@ compile-flags: -Zevm-ir-pipeline=reorder-pushes,compact-pushes
+@module CompactedPush
+
+bb0:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  swap 1
+  sub
+  stop

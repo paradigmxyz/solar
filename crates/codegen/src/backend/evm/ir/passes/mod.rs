@@ -90,11 +90,11 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Outline only after straight-line paths and terminal tails are canonical.
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
-    &compact_pushes::CompactPushes,
     // Stack allocation can leave `producer; push; swap1` when the producer was emitted first.
     // Reorder it only after structural sharing is fixed so local stack cleanup cannot perturb
     // outlining choices.
     &reorder_pushes::ReorderPushes,
+    &compact_pushes::CompactPushes,
     &peephole::Peephole,
     // Regenerate only after structural sharing is fixed. Doing this before
     // tail merging can make otherwise-identical blocks context-dependent and

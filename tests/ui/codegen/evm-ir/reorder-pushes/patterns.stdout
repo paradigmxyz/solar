@@ -103,4 +103,15 @@
     swap 1
     sub
     stop
+  bb11:
+-   calldatasize
++   push 20
+    push 10
+-   swap 1
++   calldatasize
+    sub
+-   push 20
+-   swap 1
+    sub
+    stop
   
