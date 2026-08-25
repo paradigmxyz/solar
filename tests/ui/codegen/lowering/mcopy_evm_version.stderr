@@ -1,4 +1,4 @@
-error[7755]: Yul builtin `mcopy` requires Cancun-compatible EVM
+error: Yul builtin `mcopy` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/codegen/lowering/mcopy_evm_version.sol:LL:CC
    │
 LL │             mcopy(0x80, 0xa0, 0x20)

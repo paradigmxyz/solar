@@ -4,7 +4,7 @@ error: expected identifier, found Yul EVM builtin keyword `mcopy`
 LL │             let mcopy
    ╰╴                ━━━━━
 
-error[7755]: Yul builtin `mcopy` requires Cancun-compatible EVM
+error: Yul builtin `mcopy` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             mcopy(0, 0, 0)
@@ -12,7 +12,7 @@ LL │             mcopy(0, 0, 0)
    │
    ╰ help: compile with `--evm-version cancun` or newer
 
-error[8314]: Yul builtin `blobhash` requires Cancun-compatible EVM
+error: Yul builtin `blobhash` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             pop(blobhash(0))
@@ -20,7 +20,7 @@ LL │             pop(blobhash(0))
    │
    ╰ help: compile with `--evm-version cancun` or newer
 
-error[6679]: Yul builtin `blobbasefee` requires Cancun-compatible EVM
+error: Yul builtin `blobbasefee` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             pop(blobbasefee())
@@ -28,7 +28,7 @@ LL │             pop(blobbasefee())
    │
    ╰ help: compile with `--evm-version cancun` or newer
 
-error[6243]: Yul builtin `tload` requires Cancun-compatible EVM
+error: Yul builtin `tload` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             pop(tload(0))
@@ -36,7 +36,7 @@ LL │             pop(tload(0))
    │
    ╰ help: compile with `--evm-version cancun` or newer
 
-error[6243]: Yul builtin `tstore` requires Cancun-compatible EVM
+error: Yul builtin `tstore` requires Cancun-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/cancun_builtin_identifiers.sol:LL:CC
    │
 LL │             tstore(0, 0)
