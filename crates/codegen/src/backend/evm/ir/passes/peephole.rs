@@ -63,6 +63,28 @@ fn optimize(
 }
 
 fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
+    // `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
+    if let [.., exchange, swap] = instructions.as_slice()
+        && let Some(op::StackOp::Exchange(n, m)) = exchange.as_stack_op()
+        && swap_depth(swap) == Some(n)
+    {
+        let start = instructions.len() - 2;
+        instructions[start] = Instruction::stack_op(op::StackOp::Swap(n));
+        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(m));
+        return true;
+    }
+
+    // `SWAPn EXCHANGE n, m -> SWAPm SWAPn`.
+    if let [.., swap, exchange] = instructions.as_slice()
+        && let Some(op::StackOp::Exchange(n, m)) = exchange.as_stack_op()
+        && swap_depth(swap) == Some(n)
+    {
+        let start = instructions.len() - 2;
+        instructions[start] = Instruction::stack_op(op::StackOp::Swap(m));
+        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(n));
+        return true;
+    }
+
     // `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
     if let [.., first, second, third] = instructions.as_slice()
         && let (Some(first), Some(second), Some(third)) =
@@ -135,13 +157,16 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 2, Edit::Keep(0), block);
     }
 
-    // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
+    // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
     if let [.., first, second] = instructions.as_slice()
         && ((raw_opcode(first), raw_opcode(second)) == (Some(op::NOT), Some(op::NOT))
             || (second.as_stack_op() == Some(op::StackOp::Pop)
                 && matches!(first.as_stack_op(), Some(op::StackOp::Dup(_))))
             || (first.as_stack_op() == second.as_stack_op()
-                && matches!(first.as_stack_op(), Some(op::StackOp::Swap(_)))))
+                && matches!(
+                    first.as_stack_op(),
+                    Some(op::StackOp::Swap(_) | op::StackOp::Exchange(_, _))
+                )))
     {
         return rewrite(instructions, 2, Edit::Keep(0), block);
     }

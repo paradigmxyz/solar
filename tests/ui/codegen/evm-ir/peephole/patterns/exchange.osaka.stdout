@@ -11,6 +11,32 @@
 -   swap 2
 +   exchange 2, 3
     stop
+  bb1:
+    push 0
+    push 1
+    push 2
+    push 3
+-   exchange 2, 3
+    swap 2
++   swap 3
+    stop
+  bb2:
+    push 0
+    push 1
+    push 2
+    push 3
++   swap 3
+    swap 2
+-   exchange 2, 3
+    stop
+  bb3:
+    push 0
+    push 1
+    push 2
+    push 3
+-   exchange 2, 3
+-   exchange 2, 3
+    stop
   
 // === exchange (deployment) ===
 PUSH0
@@ -20,3 +46,22 @@ PUSH1 0x03
 SWAP2
 SWAP3
 SWAP2
+STOP
+PUSH0
+PUSH1 0x01
+PUSH1 0x02
+PUSH1 0x03
+SWAP2
+SWAP3
+STOP
+PUSH0
+PUSH1 0x01
+PUSH1 0x02
+PUSH1 0x03
+SWAP3
+SWAP2
+STOP
+PUSH0
+PUSH1 0x01
+PUSH1 0x02
+PUSH1 0x03

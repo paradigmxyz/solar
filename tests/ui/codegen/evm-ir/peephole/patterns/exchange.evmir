@@ -22,3 +22,30 @@ bb0:
   swap 3
   swap 2
   stop
+
+bb1:
+  push 0
+  push 1
+  push 2
+  push 3
+  exchange 2, 3
+  swap 2
+  stop
+
+bb2:
+  push 0
+  push 1
+  push 2
+  push 3
+  swap 2
+  exchange 2, 3
+  stop
+
+bb3:
+  push 0
+  push 1
+  push 2
+  push 3
+  exchange 2, 3
+  exchange 2, 3
+  stop
