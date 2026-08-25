@@ -2346,7 +2346,21 @@ impl LowerAbiCx {
         }
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
-            if !inst.operands().iter().any(|value| tainted.contains(*value)) {
+            let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
+            if matches!(
+                &inst.kind,
+                InstKind::MLoad(address)
+                    if func.value_u64(*address).is_some() && !tainted_operand
+            ) || matches!(&inst.kind, InstKind::Keccak256(offset, size)
+                    if func.value_u64(*offset).is_some()
+                        && func.value_u64(*size).is_some()
+                        && !tainted_operand)
+            {
+                // A calldata alias skips the ABI copy into memory. Raw memory
+                // reads would otherwise observe different contents there.
+                return false;
+            }
+            if !tainted_operand {
                 continue;
             }
             let (invalid, propagates) = match &inst.kind {
@@ -2435,7 +2449,11 @@ impl LowerAbiCx {
                 // A bytes memory value is commonly used as a raw pointer in inline assembly
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.
-                InstKind::Add(..) | InstKind::Sub(..) | InstKind::MLoad(_) => (true, false),
+                InstKind::Add(..)
+                | InstKind::Sub(..)
+                | InstKind::MLoad(_)
+                | InstKind::Keccak256(..)
+                | InstKind::MemorySliceLoadWord { .. } => (true, false),
                 InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         return false;
