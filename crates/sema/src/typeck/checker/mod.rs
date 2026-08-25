@@ -1856,35 +1856,15 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn select_most_derived_function(&self, candidates: &[hir::Res]) -> Option<hir::Res> {
-        let contract = self.contract?;
-        let bases = self.gcx.hir.contract(contract).linearized_bases;
-
-        let mut selected = None;
-        let mut selected_depth = usize::MAX;
-        let mut parameter_types = None;
-        for &candidate in candidates {
-            let hir::Res::Item(hir::ItemId::Function(id)) = candidate else { return None };
-            let function = self.gcx.hir.function(id);
-            let depth = bases.iter().position(|&base| Some(base) == function.contract)?;
-            let params = self.gcx.item_parameter_types(id);
-            if let Some(parameter_types) = parameter_types {
-                if parameter_types != params {
-                    return None;
-                }
-            } else {
-                parameter_types = Some(params);
-            }
-
-            match depth.cmp(&selected_depth) {
-                std::cmp::Ordering::Less => {
-                    selected = Some(candidate);
-                    selected_depth = depth;
-                }
-                std::cmp::Ordering::Equal => return None,
-                std::cmp::Ordering::Greater => {}
-            }
-        }
-        selected
+        candidates.iter().copied().find(|&candidate| {
+            let hir::Res::Item(hir::ItemId::Function(candidate_id)) = candidate else {
+                return false;
+            };
+            candidates.iter().copied().all(|base| {
+                let hir::Res::Item(hir::ItemId::Function(base_id)) = base else { return false };
+                candidate_id == base_id || self.gcx.function_overrides(candidate_id, base_id)
+            })
+        })
     }
 
     fn select_member_call_overload<'a>(
