@@ -63,7 +63,6 @@ contract C {
             pop(blobbasefee())
             pop(blobhash(0))
             pop(coinbase())
-            pop(difficulty())
             pop(prevrandao())
             pop(gaslimit())
             pop(number())

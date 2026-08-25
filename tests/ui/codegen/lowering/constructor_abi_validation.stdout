@@ -36,6 +36,26 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     v19 = add v17, 96
     v20 = gt v19, v18
     jumpi v20, bb6, bb5
+  bb5:
+    v21 = lt arg0, 2
+    jumpi v21, bb7, bb8
+  bb8:
+    revert 0, 0
+  bb7:
+    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v23 = lt arg1, 2
+    jumpi v23, bb9, bb10
+  bb10:
+    revert 0, 0
+  bb9:
+    memory_object_store_element memoryfixedarray<2, 1>, v22, 0, arg1
+    v24 = lt arg2, 2
+    jumpi v24, bb11, bb12
+  bb12:
+    revert 0, 0
+  bb11:
+    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, arg2
+    jump bb2
   bb2:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
@@ -46,10 +66,6 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     v5 = lt 1, 2
     v6 = iszero v5
     jumpi v6, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v7 = memory_object_load_element memoryfixedarray<2, 1>, v22, 1
     v8 = eq v7, 0
@@ -63,27 +79,11 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     v16 = or v13, v15
     sstore 0, v16 !metadata(storage=slot(0))
     stop
-  bb5:
-    v21 = lt arg0, 2
-    jumpi v21, bb7, bb8
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb6:
-    revert 0, 0
-  bb7:
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v23 = lt arg1, 2
-    jumpi v23, bb9, bb10
-  bb8:
-    revert 0, 0
-  bb9:
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 0, arg1
-    v24 = lt arg2, 2
-    jumpi v24, bb11, bb12
-  bb10:
-    revert 0, 0
-  bb11:
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, arg2
-    jump bb2
-  bb12:
     revert 0, 0
   bb13:
     revert 0, 0

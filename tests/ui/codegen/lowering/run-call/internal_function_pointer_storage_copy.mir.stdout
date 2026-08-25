@@ -292,8 +292,6 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     v0 = sload 5 !metadata(storage=slot(5))
     v1 = sgt v0, 0
     jumpi v1, bb1, bb2
-  bb1:
-    ret 7
   bb2:
     jump bb3
   bb3:
@@ -301,10 +299,6 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     v2 = lt 0, 20
     v3 = iszero v2
     jumpi v3, bb4, bb5
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v4 = div 0, 4
     v5 = add 0, v4
@@ -316,6 +310,12 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     v11 = and v10, 0xffffffffffffffff
     v12 = internal_call @internal_dispatcher_p_none_r_u256, 1, v11
     ret 2
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret 7
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: function) [function_pointer_dispatcher] {

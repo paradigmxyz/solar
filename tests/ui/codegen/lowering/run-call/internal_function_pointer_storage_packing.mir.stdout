@@ -19,10 +19,6 @@ fn @_anonymous() [constructor] {
     v12 = lt 0, 4
     v13 = iszero v12
     jumpi v13, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v14 = div 0, 4
     v15 = add 1, v14
@@ -40,10 +36,6 @@ fn @_anonymous() [constructor] {
     v26 = lt 1, 4
     v27 = iszero v26
     jumpi v27, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v28 = div 1, 4
     v29 = add 1, v28
@@ -61,10 +53,6 @@ fn @_anonymous() [constructor] {
     v40 = lt 2, 4
     v41 = iszero v40
     jumpi v41, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v42 = div 2, 4
     v43 = add 1, v42
@@ -82,10 +70,6 @@ fn @_anonymous() [constructor] {
     v54 = lt 3, 4
     v55 = iszero v54
     jumpi v55, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v56 = div 3, 4
     v57 = add 1, v56
@@ -101,6 +85,22 @@ fn @_anonymous() [constructor] {
     v67 = or v64, v66
     sstore v57, v67 !metadata(storage=offset(v56, 1))
     stop
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @a() {

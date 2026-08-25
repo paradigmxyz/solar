@@ -14,11 +14,11 @@ fn @_anonymous(arg0: u256) [constructor] {
     v2 = add v0, 32
     v3 = gt v2, v1
     jumpi v3, bb2, bb3
-  bb2:
-    revert 0, 0
   bb3:
     mstore 192, arg0
     stop
+  bb2:
+    revert 0, 0
 }
 
 fn @start() [selector=0xbe9a6555, view] {
@@ -43,10 +43,10 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
-  bb2:
-    tail_call @start
   bb3:
     tail_call @vested
+  bb2:
+    tail_call @start
   bb4:
     revert 0, 0
 }

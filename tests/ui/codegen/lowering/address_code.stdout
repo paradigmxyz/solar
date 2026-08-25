@@ -18,10 +18,6 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[a
     v1 = add v0, 63
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -30,6 +26,10 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[a
     v6 = memory_object_data memorybytes, v5
     extcodecopy arg0, v6, 0, v0
     ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word]] {

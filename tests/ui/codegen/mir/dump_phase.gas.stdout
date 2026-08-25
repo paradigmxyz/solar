@@ -6,11 +6,11 @@ fn @f() [selector=0xb3de648b, pure] {
     v2 = calldatasize
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     mstore 128, arg0
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {

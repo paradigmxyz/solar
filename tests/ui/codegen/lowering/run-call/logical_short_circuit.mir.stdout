@@ -6,18 +6,20 @@ fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word]] {
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret 1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    ret 1
 }
 
 fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jumpi 0, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     v0 = address
     v1 = gas
@@ -26,20 +28,12 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
     v4 = slice_len v2
     v5 = call v1, v0, 0, v3, v4, 0, 32
     jumpi v5, bb5, bb4
-  bb2:
-    jump bb3
-  bb3:
-    v16 = phi [bb9: v15], [bb2: 0]
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
   bb4:
     revert_returndata
   bb5:
     v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
-  bb6:
-    revert 0, 0
   bb7:
     v8 = add 0, 0
     v9 = mload v8
@@ -48,12 +42,18 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
     v12 = eq v9, v11
     v13 = iszero v12
     jumpi v13, bb8, bb9
-  bb8:
-    revert 0, 0
   bb9:
     v14 = add 0, 0
     v15 = mload v14
     jump bb3
+  bb3:
+    v16 = phi [bb9: v15], [bb2: 0]
+    v17 = sload 0 !metadata(storage=slot(0))
+    ret v17, v16
+  bb8:
+    revert 0, 0
+  bb6:
+    revert 0, 0
 }
 
 fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word]] {
@@ -67,20 +67,12 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_return
     v4 = slice_len v2
     v5 = call v1, v0, 0, v3, v4, 0, 32
     jumpi v5, bb5, bb4
-  bb2:
-    jump bb3
-  bb3:
-    v16 = phi [bb9: v15], [bb2: 1]
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
   bb4:
     revert_returndata
   bb5:
     v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
-  bb6:
-    revert 0, 0
   bb7:
     v8 = add 0, 0
     v9 = mload v8
@@ -89,17 +81,27 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_return
     v12 = eq v9, v11
     v13 = iszero v12
     jumpi v13, bb8, bb9
-  bb8:
-    revert 0, 0
   bb9:
     v14 = add 0, 0
     v15 = mload v14
     jump bb3
+  bb8:
+    revert 0, 0
+  bb6:
+    revert 0, 0
+  bb2:
+    jump bb3
+  bb3:
+    v16 = phi [bb9: v15], [bb2: 1]
+    v17 = sload 0 !metadata(storage=slot(0))
+    ret v17, v16
 }
 
 fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_returns=[word, word]] {
   bb0:
     jumpi 1, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
     v0 = address
     v1 = gas
@@ -108,20 +110,12 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
     v4 = slice_len v2
     v5 = call v1, v0, 0, v3, v4, 0, 32
     jumpi v5, bb5, bb4
-  bb2:
-    jump bb3
-  bb3:
-    v16 = phi [bb9: v15], [bb2: 0]
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
   bb4:
     revert_returndata
   bb5:
     v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
-  bb6:
-    revert 0, 0
   bb7:
     v8 = add 0, 0
     v9 = mload v8
@@ -130,12 +124,18 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
     v12 = eq v9, v11
     v13 = iszero v12
     jumpi v13, bb8, bb9
-  bb8:
-    revert 0, 0
   bb9:
     v14 = add 0, 0
     v15 = mload v14
     jump bb3
+  bb3:
+    v16 = phi [bb9: v15], [bb2: 0]
+    v17 = sload 0 !metadata(storage=slot(0))
+    ret v17, v16
+  bb8:
+    revert 0, 0
+  bb6:
+    revert 0, 0
 }
 
 fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word]] {
@@ -149,20 +149,12 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns
     v4 = slice_len v2
     v5 = call v1, v0, 0, v3, v4, 0, 32
     jumpi v5, bb5, bb4
-  bb2:
-    jump bb3
-  bb3:
-    v16 = phi [bb9: v15], [bb2: 1]
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
   bb4:
     revert_returndata
   bb5:
     v6 = returndatasize
     v7 = lt v6, 32
     jumpi v7, bb6, bb7
-  bb6:
-    revert 0, 0
   bb7:
     v8 = add 0, 0
     v9 = mload v8
@@ -171,11 +163,19 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns
     v12 = eq v9, v11
     v13 = iszero v12
     jumpi v13, bb8, bb9
-  bb8:
-    revert 0, 0
   bb9:
     v14 = add 0, 0
     v15 = mload v14
     jump bb3
+  bb8:
+    revert 0, 0
+  bb6:
+    revert 0, 0
+  bb2:
+    jump bb3
+  bb3:
+    v16 = phi [bb9: v15], [bb2: 1]
+    v17 = sload 0 !metadata(storage=slot(0))
+    ret v17, v16
 }
 

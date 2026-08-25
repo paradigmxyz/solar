@@ -5,61 +5,61 @@
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
     bb1:
       sstore arg1, 7
       jumpi arg0, bb3, bb4
-    bb2:
-      jump bb3
+    bb4:
+      ret v0
     bb3:
       v1 = sload 5
       ret v1
-    bb4:
-      ret v0
   }
   
   fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
     bb1:
       v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
       jumpi arg0, bb3, bb4
-    bb2:
-      jump bb3
+    bb4:
+      ret v0
     bb3:
       v2 = sload 5
       ret v2
-    bb4:
-      ret v0
   }
   
   fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
     bb1:
       v1 = staticcall 0x186a0, arg1, 0, 0, 0, 0
       jumpi arg0, bb3, bb4
-    bb2:
-      jump bb3
+    bb4:
+      ret v0
     bb3:
 -     v2 = sload 5
 -     ret v2
 +     ret v0
-    bb4:
-      ret v0
   }
   
   fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
+    bb2:
+      v1 = sload 5
+      jump bb3
     bb1:
       v0 = sload 5
       sstore arg1, 7
 +     v3 = sload 5
-      jump bb3
-    bb2:
-      v1 = sload 5
       jump bb3
     bb3:
 -     v2 = sload 5
@@ -71,11 +71,11 @@
   fn @gas_blocks_rewrite(arg0: bool) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      v0 = sload 5
-      jump bb3
     bb2:
       v1 = sload 5
+      jump bb3
+    bb1:
+      v0 = sload 5
       jump bb3
     bb3:
       v2 = gas

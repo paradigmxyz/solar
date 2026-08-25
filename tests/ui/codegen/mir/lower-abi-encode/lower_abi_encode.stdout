@@ -70,6 +70,15 @@
 +     v12 = phi [bb0: v8], [bb2: v22]
 +     v13 = gt v9, 0
 +     jumpi v13, bb2, bb3
++   bb3:
++     v24 = sub v10, v1
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28
++     v30 = make_memory_slice v29, v25
++     ret v30
 +   bb2:
 +     v14 = mload v12
 +     v15 = sub v10, v5
@@ -85,15 +94,6 @@
 +     v22 = add v12, 32
 +     v23 = add v11, 32
 +     jump bb1
-+   bb3:
-+     v24 = sub v10, v1
-+     v25 = add v24, 0
-+     v26 = add v25, 31
-+     v27 = not 31
-+     v28 = and v26, v27
-+     v29 = alloc raw, exact, uninitialized, infallible, v28
-+     v30 = make_memory_slice v29, v25
-+     ret v30
   }
   
   fn @returndata_bytes() -> memoryslice {

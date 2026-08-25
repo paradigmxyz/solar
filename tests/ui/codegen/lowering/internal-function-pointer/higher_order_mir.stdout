@@ -33,37 +33,37 @@ fn @internal_dispatcher_p_none_r_function(arg0: function) -> function [function_
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @higher1, 1
-    ret v1
   bb2:
     v2 = eq arg0, 3
     jumpi v2, bb3, bb4
-  bb3:
-    v3 = internal_call @higher2, 1
-    ret v3
   bb4:
     v4 = eq arg0, 4
     jumpi v4, bb5, bb6
-  bb5:
-    v5 = internal_call @higher3, 1
-    ret v5
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb5:
+    v5 = internal_call @higher3, 1
+    ret v5
+  bb3:
+    v3 = internal_call @higher2, 1
+    ret v3
+  bb1:
+    v1 = internal_call @higher1, 1
+    ret v1
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @higher0, 1
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @higher0, 1
+    ret v1
 }
 

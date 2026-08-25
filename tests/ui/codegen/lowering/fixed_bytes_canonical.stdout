@@ -17,16 +17,16 @@ fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_pa
     v1 = lt 0, v0
     v2 = iszero v1
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = memory_object_load_byte memorybytes, arg0, 0
     v4 = shl 248, v3
     v5 = shl 248, 1
     v6 = eq v4, v5
     ret v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word]] {

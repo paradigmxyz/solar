@@ -22,10 +22,6 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_return
     v6 = add v5, 63
     v7 = lt v6, v5
     jumpi v7, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v8 = not 31
     v9 = and v6, v8
@@ -45,5 +41,9 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_return
     v19 = add v18, 32
     v20 = mload v19
     ret v12, v20
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

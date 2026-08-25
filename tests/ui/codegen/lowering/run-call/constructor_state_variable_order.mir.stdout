@@ -36,13 +36,13 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v4 = or v1, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
+  bb2:
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 2, v0 !metadata(storage=slot(2))
-    ret 23
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
@@ -128,12 +128,12 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v4 = or v1, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
+  bb2:
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    sstore 2, v0 !metadata(storage=slot(2))
-    ret 23
 }
 

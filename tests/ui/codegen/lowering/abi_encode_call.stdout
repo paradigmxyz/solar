@@ -6,8 +6,6 @@ fn @asValue() [selector=0x440a9300, pure] {
     v2 = calldatasize
     v3 = lt v2, 68
     jumpi v3, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v4 = calldataload 4
     v5 = shr 160, v4
@@ -49,6 +47,8 @@ fn @asValue() [selector=0x440a9300, pure] {
     v35 = add v32, v31
     mstore 64, v35 !metadata(memory=scratch)
     returndata v32, v27
+  bb1:
+    revert 0, 0
 }
 
 fn @viaCall() [selector=0x23d014a1] {
@@ -56,8 +56,6 @@ fn @viaCall() [selector=0x23d014a1] {
     v6 = calldatasize
     v7 = lt v6, 100
     jumpi v7, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v8 = calldataload 4
     v9 = shr 160, v8
@@ -84,6 +82,8 @@ fn @viaCall() [selector=0x23d014a1] {
     v15 = iszero v14
     mstore 128, v15
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {
@@ -98,10 +98,10 @@ fn @entry() [entry] {
     v3 = calldataload 0
     v4 = shr 224, v3
     switch v4, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
-  bb3:
-    tail_call @viaCall
   bb4:
     tail_call @asValue
+  bb3:
+    tail_call @viaCall
   bb5:
     revert 0, 0
 }

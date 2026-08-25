@@ -5,11 +5,11 @@ fn @_anonymous(arg0: bool) [constructor, abi_params=[bool]] {
     v0 = iszero arg0
     v1 = iszero v0
     jumpi v1, bb1, bb2
+  bb2:
+    stop
   bb1:
     internal_call @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb2:
-    stop
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
@@ -57,21 +57,11 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v18 = eq v17, 0
     v19 = iszero v18
     jumpi v19, bb1, bb2
-  bb1:
-    v20 = eq v17, 0
-    v21 = iszero v20
-    ret v21
   bb2:
     v22 = returndatasize
     v23 = add v22, 63
     v24 = lt v23, v22
     jumpi v24, bb4, bb5
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v25 = not 31
     v26 = and v23, v25
@@ -93,9 +83,19 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v40 = eq v35, 0x4e487b71
     v41 = and v39, v40
     jumpi 1, bb6, bb7
-  bb6:
-    ret 0
   bb7:
     revert v29, v30
+  bb6:
+    ret 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v20 = eq v17, 0
+    v21 = iszero v20
+    ret v21
+  bb3:
+    ret 0
 }
 

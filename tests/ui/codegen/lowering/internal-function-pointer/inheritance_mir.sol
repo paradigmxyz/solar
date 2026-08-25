@@ -26,8 +26,8 @@ contract PointerBase {
 // CHECK: internal_call @internal_dispatcher{{.*}}, 1, [[DERIVED_TARGET:[0-9]+]]
 // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
 // CHECK: eq arg0, [[BASE_TARGET]]
-// CHECK: internal_call @target.{{[0-9]+}}, 1
 // CHECK: eq arg0, [[DERIVED_TARGET]]
+// CHECK: internal_call @target.{{[0-9]+}}, 1
 // CHECK: internal_call @target.{{[0-9]+}}, 1
 contract PointerDerived is PointerBase {
     function target() internal pure override returns (uint256) {

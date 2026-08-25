@@ -8,13 +8,13 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
++   bb3:
++     jump bb1
 +   bb1:
       mstore 128, arg0
       returndata 128, 32
 +   bb2:
 +     revert 0, 0
-+   bb3:
-+     jump bb1
   }
   
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
@@ -27,13 +27,13 @@
       v0 = calldatasize
       v1 = lt v0, 36
       jumpi v1, bb2, bb3
+    bb3:
+      jump bb1
     bb1:
       mstore 128, arg0
       returndata 128, 32
     bb2:
-      revert 0, 0
-    bb3:
-      jump bb1
++     revert 0, 0
 + }
 + 
 + fn @entry() [entry] {
@@ -47,6 +47,6 @@
 +   bb2:
 +     tail_call @get
 +   bb3:
-+     revert 0, 0
+      revert 0, 0
   }
   

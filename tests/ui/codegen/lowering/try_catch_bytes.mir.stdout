@@ -66,19 +66,11 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v6, bb1, bb2
-  bb1:
-    jump bb3
   bb2:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb4, bb5
-  bb3:
-    ret 7
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v10 = not 31
     v11 = and v8, v10
@@ -100,11 +92,19 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
     jumpi 1, bb6, bb7
+  bb7:
+    revert v14, v15
   bb6:
     v27 = memory_object_len memorybytes, v12
     ret v27
-  bb7:
-    revert v14, v15
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    jump bb3
+  bb3:
+    ret 7
 }
 
 fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
@@ -117,19 +117,11 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v6, bb1, bb2
-  bb1:
-    jump bb3
   bb2:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
     jumpi v9, bb4, bb5
-  bb3:
-    ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v10 = not 31
     v11 = and v8, v10
@@ -151,10 +143,18 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
     jumpi 1, bb6, bb7
+  bb7:
+    revert v14, v15
   bb6:
     v27 = memory_object_len memorybytes, v12
     ret v27
-  bb7:
-    revert v14, v15
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    jump bb3
+  bb3:
+    ret 0
 }
 

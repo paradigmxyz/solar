@@ -13,17 +13,11 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     v7 = or v4, v6
     v8 = iszero v7
     jumpi v8, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v9 = add v2, v3
     v10 = calldatasize
     v11 = gt v9, v10
     jumpi v11, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v12 = mul v1, 32
     v13 = iszero 32
@@ -32,18 +26,10 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     v16 = or v13, v15
     v17 = iszero v16
     jumpi v17, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v18 = add 32, v12
     v19 = lt v18, 32
     jumpi v19, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
     set_memory_object_len memoryarray, v20, v1
@@ -52,6 +38,11 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     v21 = phi [bb8: 0], [bb15: v35]
     v22 = lt v21, v1
     jumpi v22, bb10, bb11
+  bb11:
+    memory_object_store_field memorystruct<1>, v0, 0, v20
+    v36 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v36, 0, 96
+    ret v0
   bb10:
     v23 = mul v21, 32
     v24 = iszero 32
@@ -60,15 +51,6 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     v27 = or v24, v26
     v28 = iszero v27
     jumpi v28, bb12, bb13
-  bb11:
-    memory_object_store_field memorystruct<1>, v0, 0, v20
-    v36 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v36, 0, 96
-    ret v0
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     v29 = add v2, v23
     v30 = calldataload v29
@@ -76,13 +58,31 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     v32 = eq v30, v31
     v33 = iszero v32
     jumpi v33, bb14, bb15
-  bb14:
-    revert 0, 0
   bb15:
     v34 = shr 64, v30
     memory_object_store_element memoryarray<1>, v20, v21, v34
     v35 = add v21, 1
     jump bb9
+  bb14:
+    revert 0, 0
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
@@ -91,109 +91,107 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x58b, v1
+    v2 = and 0x573, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761055a8060125f395ff35b5f5ffd34601a575f3560e01c80630bf8d4
+    mstore v3, 0x34600e576105428060125f395ff35b5f5ffd34601a575f3560e01c80630bf8d4
     v4 = add v3, 32
-    mstore v4, 0x5f14601657601a565b601e565b5f80fd5b61044060405236806102e052806102
+    mstore v4, 0x5f14601657601a565b601e565b5f80fd5b61044060405260243610156102f357
     v5 = add v3, 64
-    mstore v5, 0xe05260248110156102fe576102fa565b60405180610120528061012052602081
+    mstore v5, 0x6102ef565b604051806101205280610120526020810160405260608152602060
     v6 = add v3, 96
-    mstore v6, 0x160405260608152602060046004350135806080520280610240528061024052
+    mstore v6, 0x460043501358060805202806102405280610240526020156020820460805180
     v7 = add v3, 128
-    mstore v7, 0x6020156020820460805180608052901481179050151560b3577f4e487b710000
+    mstore v7, 0x608052901481179050151560a8577f4e487b7100000000000000000000000000
     v8 = add v3, 160
-    mstore v8, 0x5f5260416004
+    mstore v8, 0x5f52604160045260245ffd5b8061024052
     v9 = add v3, 192
-    mstore v9, 0x5260245ffd5b8061024052600460043501602001806101e05201368111905015
+    mstore v9, 0x600460043501602001806101e0520136811190501560c9575f80fd5b60206080
     v10 = add v3, 224
-    mstore v10, 0x60d4575f80fd5b60206080510280610260528061026052602015602082046080
+    mstore v10, 0x5102806102605280610260526020156020820460805180608052901481179050
     v11 = add v3, 256
-    mstore v11, 0x5180608052901481179050151561012b577f4e487b7100000000000000000000
+    mstore v11, 0x1515610120577f4e487b71000000000000000000000000000000000000000000
     v12 = add v3, 288
-    mstore v12, 0x5f52604160045260245ffd5b8061
+    mstore v12, 0x5f52604160045260245ffd5b80610260526020018061028052
     v13 = add v3, 320
-    mstore v13, 0x26052602001806102805280610280526020811015610173577f4e487b710000
+    mstore v13, 0x80610280526020811015610168577f4e487b7100000000000000000000000000
     v14 = add v3, 352
-    mstore v14, 0x5f5260416004
+    mstore v14, 0x5f52604160045260245ffd5b6040518061
     v15 = add v3, 384
-    mstore v15, 0x5260245ffd5b6040518061014052806101405281806102805281019150816040
+    mstore v15, 0x140528061014052818061028052810191508160405290506080518060805281
     v16 = add v3, 416
-    mstore v16, 0x5290506080518060805281525f60a05250505b6080518060805260a051101561
+    mstore v16, 0x525f60a05250505b6080518060805260a05110156101d457602060a051028061
     v17 = add v3, 448
-    mstore v17, 0x1df57602060a05102806102a052806102a0526020156020820460a0518060a0
+    mstore v17, 0x2a052806102a0526020156020820460a0518060a05290148117905015156102
     v18 = add v3, 480
-    mstore v18, 0x52901481179050151561028257610255565b6101405180610140526101205152
+    mstore v18, 0x775761024a565b61014051806101405261012051526040518060e05260208101
     v19 = add v3, 512
-    mstore v19, 0x6040518060e05260208101604052606081525060405180610160528061016052
+    mstore v19, 0x6040526060815250604051806101605280610160526020810160405261012051
     v20 = add v3, 544
-    mstore v20, 0x6020810160405261012051806101205251806102005280610200528061020052
+    mstore v20, 0x806101205251806102005280610200528061020052518060c0528060c0526001
     v21 = add v3, 576
-    mstore v21, 0x518060c0528060c0526001810180610300528061030052818060c05281101561
+    mstore v21, 0x8101806102e052806102e052818060c05281101561035b57610392565b7f4e48
     v22 = add v3, 608
-    mstore v22, 0x373576103aa565b7f4e487b7100000000000000000000000000000000000000
+    mstore v22, 0x7b71000000000000000000000000000000000000000000000000000000005f52
     v23 = add v3, 640
-    mstore v23, 0x5f52604160045260245ffd5b806102a0526101e0510135
+    mstore v23, 0x604160045260245ffd5b806102a0526101e0510135806102c052806102c0527f
     v24 = add v3, 672
-    mstore v24, 0x806102c052806102c0527fffffffffffffffffffffffffffffffffffffffffff
+    mstore v24, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v25 = add v3, 704
-    mstore v25, 0xffffff00000000000000008116811415156102c6575f80fd5b806102c0526040
+    mstore v25, 0x8116811415156102bb575f80fd5b806102c05260401c60206101405101602060
     v26 = add v3, 736
-    mstore v26, 0x1c60206101405101602060a051028101905052600160a0510180610360528061
+    mstore v26, 0xa051028101905052600160a05101806103405280610340528060a05250610195
     v27 = add v3, 768
-    mstore v27, 0x360528060a052506101a0565b5f80fd5b6004358060e052600401806101c052
+    mstore v27, 0x565b5f80fd5b6004358060e052600401806101c052806101c0526020810167ff
     v28 = add v3, 800
-    mstore v28, 0x806101c0526020810167ffffffffffffffff60e0511183806102e05282119150
+    mstore v28, 0xffffffffffffff60e0511136821191501761034e57806101c052358060805260
     v29 = add v3, 832
-    mstore v29, 0x1761036757806101c052358060805260206101c05101806101e052806101e052
+    mstore v29, 0x206101c05101806101e052806101e052360360051c8111156103525761035756
     v30 = add v3, 864
-    mstore v30, 0x820391508160051c91508181119150501561036b5761036f565b5f80fd5b603d
+    mstore v30, 0x5b5f80fd5b506032565b5f80fd5b602081028061022052806102205260201560
     v31 = add v3, 896
-    mstore v31, 0x565b5f80fd5b6020810280610220528061022052602015602082048380610300
+    mstore v31, 0x20820483806102e0529014925082901791508115915050905090501561039657
     v32 = add v3, 928
-    mstore v32, 0x52901492508290179150811591505090509050156103ae576103e1565b5f80fd
+    mstore v32, 0x6103c9565b5f80fd5b6040518061030052806103005261022051806102205281
     v33 = add v3, 960
-    mstore v33, 0x5b60405180610320528061032052610220518061022052810160405260c05180
+    mstore v33, 0x160405260c0518060c052815260c051610200515f92916103cd565b5f80fd5b
     v34 = add v3, 992
-    mstore v34, 0x60c052815260c051610200515f92916103e5565b5f80fd5b83610380528060c0
+    mstore v34, 0x83610360528060c0528310156104255760208101602084806103605202810190
     v35 = add v3, 0x400
-    mstore v35, 0x5283101561043d5760208101602084806103805202810190505177ffffffffff
+    mstore v35, 0x505177ffffffffffffffffffffffffffffffffffffffffffffffff9016602083
     v36 = add v3, 0x420
-    mstore v36, 0xffffffffffffffffffffffffffffffffffffff90166020830160208502810190
+    mstore v36, 0x160208502810190505260018301925060c0516103cd565b8180610300526101
     v37 = add v3, 0x440
-    mstore v37, 0x505260018301925060c0516103e5565b81806103205261016051525050506040
+    mstore v37, 0x6051525050506040518061018052806101805260208101806101005280610100
     v38 = add v3, 0x460
-    mstore v38, 0x5180610180528061018052602081018061010052806101005281806101805281
+    mstore v38, 0x5281806101805281038252610160518061016052516020820182806101005281
     v39 = add v3, 0x480
-    mstore v39, 0x382526101605180610160525160208201828061010052810383528151806101
+    mstore v39, 0x383528151806101a052815260206101a0510260208201806103805291508161
     v40 = add v3, 0x4a0
-    mstore v40, 0xa052815260206101a0510260208201806103a0529150816103a0526020830180
+    mstore v40, 0x3805260208301806103a0529250826103a05281018061032052806103205250
     v41 = add v3, 0x4c0
-    mstore v41, 0x6103c0529250826103c05281018061034052806103405250915091506101a051
+    mstore v41, 0x915091506101a0515f92905b836103c052806101a0528310156104fc57602083
     v42 = add v3, 0x4e0
-    mstore v42, 0x5f92905b836103e052806101a05283101561051457602083806103e052028060
+    mstore v42, 0x806103c052028060e052810160e0518060e0528301815191508160401b915052
     v43 = add v3, 0x500
-    mstore v43, 0xe052810160e0518060e0528301815191508160401b9150526001830192506101
+    mstore v43, 0x6001830192506101a0516104b9565b6101005180610100526103205103925050
     v44 = add v3, 0x520
-    mstore v44, 0xa0516104d1565b61010051806101005261034051039250505061010051016101
+    mstore v44, 0x50610100510161018051806101805290035f9001601f8101601f198116905060
     v45 = add v3, 0x540
-    mstore v45, 0x8051806101805290035f9001601f8101601f19811690506040518060e0528181
-    v46 = add v3, 0x560
-    mstore v46, 0x191508160405290508181f30000000000000000000000000000000000000000
-    v47 = slice_ptr v0
-    v48 = add v3, 0x56c
-    mcopy v48, v47, 0
-    v49 = create 0, v3, 0x56c
-    jumpi v49, bb2, bb1
+    mstore v45, 0x40518060e05281810191508160405290508181f3000000000000000000000000
+    v46 = slice_ptr v0
+    v47 = add v3, 0x554
+    mcopy v47, v46, 0
+    v48 = create 0, v3, 0x554
+    jumpi v48, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v50 = sload 0 !metadata(storage=slot(0))
-    v51 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v52 = and v50, v51
-    v53 = and v49, 0xffffffffffffffffffffffffffffffffffffffff
-    v54 = or v52, v53
-    sstore 0, v54 !metadata(storage=slot(0))
+    v49 = sload 0 !metadata(storage=slot(0))
+    v50 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v51 = and v49, v50
+    v52 = and v48, 0xffffffffffffffffffffffffffffffffffffffff
+    v53 = or v51, v52
+    sstore 0, v53 !metadata(storage=slot(0))
     stop
 }
 
@@ -208,10 +206,6 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v5 = lt 0, v4
     v6 = iszero v5
     jumpi v6, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, 0, v3
     v7 = address
@@ -221,10 +215,6 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v11 = lt 1, v10
     v12 = iszero v11
     jumpi v12, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     memory_object_store_element memoryarray<1>, v0, 1, v9
     v13 = address
@@ -234,10 +224,6 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v17 = lt 2, v16
     v18 = iszero v17
     jumpi v18, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     memory_object_store_element memoryarray<1>, v0, 2, v15
     v19 = sload 0 !metadata(storage=slot(0))
@@ -255,10 +241,6 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v27 = add v26, 63
     v28 = lt v27, v26
     jumpi v28, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v29 = not 31
     v30 = and v27, v29
@@ -279,14 +261,10 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v41 = sub v35, v34
     v42 = gt v39, v41
     jumpi v42, bb14, bb13
-  bb12:
-    revert 0, 0
   bb13:
     v43 = sub v35, v40
     v44 = gt 32, v43
     jumpi v44, bb16, bb15
-  bb14:
-    revert 0, 0
   bb15:
     v45 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v46 = mload v40
@@ -296,8 +274,6 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v50 = gt v48, v35
     v51 = or v49, v50
     jumpi v51, bb18, bb17
-  bb16:
-    revert 0, 0
   bb17:
     v52 = mload v47
     v53 = add v47, 32
@@ -305,27 +281,18 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v55 = shr 5, v54
     v56 = gt v52, v55
     jumpi v56, bb20, bb19
-  bb18:
-    revert 0, 0
   bb19:
     v57 = mul v52, 32
     v58 = add v57, 32
     v59 = alloc memoryarray<1>, exact, uninitialized, infallible, v58
     set_memory_object_len memoryarray, v59, v52
     jump bb21
-  bb20:
-    revert 0, 0
   bb21:
     v60 = phi [bb19: v52], [bb24: v68]
     v61 = phi [bb19: v53], [bb24: v69]
     v62 = phi [bb19: 0], [bb24: v70]
     v63 = gt v60, 0
     jumpi v63, bb22, bb23
-  bb22:
-    v64 = mload v61
-    v65 = shl 192, v64
-    v66 = iszero v65
-    jumpi v66, bb24, bb25
   bb23:
     memory_object_store_field memorystruct<1>, v45, 0, v59
     v71 = memory_object_load_field memorystruct<1>, v45, 0
@@ -333,27 +300,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v73 = eq v72, 3
     v74 = iszero v73
     jumpi v74, bb26, bb27
-  bb24:
-    v67 = shr 64, v64
-    memory_object_store_element memoryarray<1>, v59, v62, v67
-    v68 = sub v60, 1
-    v69 = add v61, 32
-    v70 = add v62, 1
-    jump bb21
-  bb25:
-    revert 0, 0
-  bb26:
-    revert 0, 0
   bb27:
     v75 = memory_object_load_field memorystruct<1>, v45, 0
     v76 = memory_object_len memoryarray, v75
     v77 = lt 0, v76
     v78 = iszero v77
     jumpi v78, bb28, bb29
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb29:
     v79 = memory_object_load_element memoryarray<1>, v75, 0
     v80 = and v79, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -363,18 +315,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v84 = eq v80, v83
     v85 = iszero v84
     jumpi v85, bb30, bb31
-  bb30:
-    revert 0, 0
   bb31:
     v86 = memory_object_load_field memorystruct<1>, v45, 0
     v87 = memory_object_len memoryarray, v86
     v88 = lt 1, v87
     v89 = iszero v88
     jumpi v89, bb32, bb33
-  bb32:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb33:
     v90 = memory_object_load_element memoryarray<1>, v86, 1
     v91 = and v90, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -384,18 +330,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v95 = eq v91, v94
     v96 = iszero v95
     jumpi v96, bb34, bb35
-  bb34:
-    revert 0, 0
   bb35:
     v97 = memory_object_load_field memorystruct<1>, v45, 0
     v98 = memory_object_len memoryarray, v97
     v99 = lt 2, v98
     v100 = iszero v99
     jumpi v100, bb36, bb37
-  bb36:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb37:
     v101 = memory_object_load_element memoryarray<1>, v97, 2
     v102 = and v101, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -405,10 +345,68 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v106 = eq v102, v105
     v107 = iszero v106
     jumpi v107, bb38, bb39
-  bb38:
-    revert 0, 0
   bb39:
     ret 1
+  bb38:
+    revert 0, 0
+  bb36:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb34:
+    revert 0, 0
+  bb32:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb30:
+    revert 0, 0
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb26:
+    revert 0, 0
+  bb22:
+    v64 = mload v61
+    v65 = shl 192, v64
+    v66 = iszero v65
+    jumpi v66, bb24, bb25
+  bb25:
+    revert 0, 0
+  bb24:
+    v67 = shr 64, v64
+    memory_object_store_element memoryarray<1>, v59, v62, v67
+    v68 = sub v60, 1
+    v69 = add v61, 32
+    v70 = add v62, 1
+    jump bb21
+  bb20:
+    revert 0, 0
+  bb18:
+    revert 0, 0
+  bb16:
+    revert 0, 0
+  bb14:
+    revert 0, 0
+  bb12:
+    revert 0, 0
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[]] {

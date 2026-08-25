@@ -8,13 +8,13 @@
       v0 = phi [bb0: 64], [bb2: v4]
       v1 = lt v0, 100
       jumpi v1, bb2, bb3
+    bb3:
+      ret v3
     bb2:
       v2 = mul v0, 32
       mstore v2, 1
       v3 = mload 0
       v4 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       jump bb1
-    bb3:
-      ret v3
   }
   

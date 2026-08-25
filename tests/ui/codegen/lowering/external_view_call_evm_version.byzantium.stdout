@@ -14,14 +14,14 @@ fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_params=[address]
     v5 = returndatasize
     v6 = lt v5, 32
     jumpi v6, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v7 = add 0, 0
     v8 = mload v7
     v9 = add 0, 0
     v10 = mload v9
     ret v10
+  bb3:
+    revert 0, 0
 }
 
 fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word]] {
@@ -41,13 +41,13 @@ fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[
     v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
     v13 = mload v12
     ret v13
+  bb3:
+    revert 0, 0
 }
 

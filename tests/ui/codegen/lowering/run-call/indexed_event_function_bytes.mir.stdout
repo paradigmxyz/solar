@@ -24,10 +24,6 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v8 = add v7, 31
     v9 = lt v8, v7
     jumpi v9, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v10 = not 31
     v11 = and v8, v10
@@ -35,10 +31,6 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v13 = add 1, v12
     v14 = lt v13, 1
     jumpi v14, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v15 = mul v13, 32
     v16 = iszero 32
@@ -47,18 +39,10 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v19 = or v16, v18
     v20 = iszero v19
     jumpi v20, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v21 = add 32, v15
     v22 = lt v21, 32
     jumpi v22, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v23 = alloc memorybytes, exact, uninitialized, infallible, v21
     set_memory_object_len memorybytes, v23, v15
@@ -70,10 +54,6 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v28 = add v27, 31
     v29 = lt v28, v27
     jumpi v29, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v30 = not 31
     v31 = and v28, v30
@@ -92,5 +72,25 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v38 = keccak256_bytes v23
     log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v38
     stop
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 

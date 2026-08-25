@@ -57,10 +57,10 @@ fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
     jump bb2
   bb2:
     jump bb4
-  bb3:
-    jump bb5
   bb4:
     jump bb3
+  bb3:
+    jump bb5
   bb5:
     stop
 }

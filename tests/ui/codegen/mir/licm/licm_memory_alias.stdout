@@ -10,12 +10,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v0
     bb2:
 -     v0 = mload 0
       mstore 64, 1
       jump bb1
-    bb3:
-      ret v0
   }
   
   fn @keep_aliasing_mload() -> u256 {
@@ -23,12 +23,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v0
     bb2:
       v0 = mload 0
       mstore 16, 1
       jump bb1
-    bb3:
-      ret v0
   }
   
   fn @hoist_non_aliasing_keccak() -> bytes32 {
@@ -37,12 +37,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v0
     bb2:
 -     v0 = keccak256 0, 32
       mstore 64, 1
       jump bb1
-    bb3:
-      ret v0
   }
   
   fn @keep_aliasing_keccak() -> bytes32 {
@@ -50,12 +50,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v0
     bb2:
       v0 = keccak256 0, 32
       mstore 16, 1
       jump bb1
-    bb3:
-      ret v0
   }
   
   fn @hoist_unassigned_immutable() -> u256 {
@@ -65,12 +65,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v1
     bb2:
 -     v0 = loadimmutable value
 -     v1 = mul v0, 2
       jump bb1
-    bb3:
-      ret v1
   }
   
   fn @keep_assigned_immutable() -> u256 {
@@ -78,12 +78,12 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb3
+    bb3:
+      ret v1
     bb2:
       v0 = loadimmutable value
       v1 = mul v0, 2
       storeimmutable value, 1
       jump bb1
-    bb3:
-      ret v1
   }
   

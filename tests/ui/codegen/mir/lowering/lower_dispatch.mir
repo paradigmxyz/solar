@@ -13,8 +13,8 @@
 // CHECK: + jumpi [[SHORT]]
 // CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
 // CHECK: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
-// CHECK: + tail_call @ping
 // CHECK: + tail_call @pong
+// CHECK: + tail_call @ping
 fn @ping() [selector=0x12000000] {
   bb0:
     stop

@@ -36,12 +36,12 @@ contract ValidItems {
     /// @param amount The amount to transfer
     /// @return success Whether the transfer succeeded
     /// @custom:throws InsufficientBalance
-    function transfer(address to, uint amount) public returns (bool success) {
+    function transfer(address to, uint amount) public pure returns (bool success) {
         return true;
     }
 }
 
-// -- ERROR TESTS - DUPLICATE TAGS ---------------------------------------------
+// -- WARNING TESTS - DUPLICATE TAGS -------------------------------------------
 
 /// @author First author
 /// @author Second author
@@ -49,7 +49,6 @@ contract DuplicateAuthor {}
 
 /// @title First title
 /// @title Second title
-//~^ ERROR: tag @title can only be given once
 contract DuplicateTitle {}
 
 contract DuplicateParamBase {
@@ -66,23 +65,23 @@ contract DuplicateInheritdocBase {
 contract DuplicateInheritdoc is DuplicateInheritdocBase {
     /// @inheritdoc DuplicateInheritdocBase
     /// @inheritdoc DuplicateInheritdocBase
-    //~^ ERROR: tag @inheritdoc can only be given once
+    //~^ WARN: tag @inheritdoc can only be given once
     function foo() public override {}
 }
 
-// -- ERROR TESTS - INVALID CONTEXT --------------------------------------------
+// -- WARNING TESTS - INVALID CONTEXT ------------------------------------------
 
 contract InvalidTagContext {
     /// @author Invalid author on function
-    //~^ ERROR: tag `@author` not valid for functions
+    //~^ WARN: tag `@author` not valid for functions
     function invalidAuthor() public {}
 
     /// @title Invalid title on function
-    //~^ ERROR: tag `@title` not valid for functions
+    //~^ WARN: tag `@title` not valid for functions
     function invalidTitle() public {}
 
     /// @return Invalid return on event
-    //~^ ERROR: tag `@return` not valid for events
+    //~^ WARN: tag `@return` not valid for events
     event InvalidReturn(address from, address to);
 }
 
@@ -92,21 +91,27 @@ contract InvalidInheritdocBase {
 
 contract InvalidInheritdoc is InvalidInheritdocBase {
     /// @inheritdoc InvalidInheritdocBase
-    //~^ ERROR: tag `@inheritdoc` not valid for events
+    //~^ WARN: tag `@inheritdoc` not valid for events
     event InvalidInheritdocEvent(address from, address to);
 }
 
 contract InvalidParamName {
     /// @param x Valid parameter
     /// @param y Invalid parameter name
-    //~^ ERROR: tag `@param` references non-existent parameter 'y'
+    //~^ WARN: tag `@param` references non-existent parameter 'y'
     function foo(uint x) public {}
 }
 
 contract SelfInheritdoc {
     /// @inheritdoc SelfInheritdoc
-    //~^ ERROR: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
+    //~^ WARN: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
     function foo() public {}
+}
+
+contract MissingInheritdocContract {
+    /// @inheritdoc DoesNotExist
+    //~^ WARN: tag `@inheritdoc` references inexistent contract "DoesNotExist"
+    function foo() public pure {}
 }
 
 contract InheritdocGrandparent {
@@ -117,7 +122,7 @@ contract InheritdocIntermediate is InheritdocGrandparent {}
 
 contract InvalidIntermediateInheritdoc is InheritdocIntermediate {
     /// @inheritdoc InheritdocIntermediate
-    //~^ ERROR: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
+    //~^ WARN: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
     function inherited() public override {}
 }
 

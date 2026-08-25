@@ -11,10 +11,10 @@ fn @_anonymous() [constructor] {
     v0 = internal_call @value, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb2
-  bb1:
-    stop
   bb2:
     jump bb1
+  bb1:
+    stop
 }
 
 fn @value() -> u256 {
@@ -47,12 +47,12 @@ fn @constructor() [constructor] {
     v0 = internal_call @value, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
   bb1:
     sstore 1, 42 !metadata(storage=slot(1))
     stop
-  bb2:
-    jump bb1
-  bb3:
-    jump bb2
 }
 

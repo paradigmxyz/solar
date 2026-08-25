@@ -15,8 +15,8 @@ fn @target_b() {
 // Tail calls with different targets must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_targets{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
-// CHECK: {{^[ +].*}}tail_call @target_a
 // CHECK: {{^[ +].*}}tail_call @target_b
+// CHECK: {{^[ +].*}}tail_call @target_a
 fn @keep_distinct_targets(arg0: bool) {
   bb0:
     jumpi arg0, bb1, bb2

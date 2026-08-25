@@ -11,14 +11,14 @@ fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     v0 = lt arg0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = add 1, arg0
     v3 = sload v2 !metadata(storage=offset(arg0, 1))
     ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @_anonymous(arg0: u256, arg1: memoryfixedarray) [constructor, abi_params=[u256, array<3, u256>]] {

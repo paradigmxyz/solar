@@ -5,19 +5,19 @@ fn @f(arg0: u256, arg1: calldataslice, arg2: u256) -> u256 [selector=0x975af906,
     v0 = add arg0, arg2
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v2 = sub v0, 8
     v3 = lt v0, 8
     jumpi v3, bb3, bb4
+  bb4:
+    ret v2
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 

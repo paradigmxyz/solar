@@ -3,12 +3,12 @@
 fn @pick(arg0: bool) -> storageptr [view] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb1:
-    ret 1
   bb2:
     jump bb3
   bb3:
     ret 0
+  bb1:
+    ret 1
 }
 
 fn @test(arg0: bool, arg1: u256) -> (u256, u256) [selector=0xc6a64c1f, abi_params=[bool, u256], abi_returns=[word, word]] {
