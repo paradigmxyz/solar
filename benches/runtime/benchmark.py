@@ -1185,14 +1185,15 @@ def run_test_case(
     return entry
 
 
-def select_suite_tests(suite: str, include_heavy: bool = False) -> Sequence[TestCase]:
-    if suite == "all":
-        return [
-            test
-            for test in TEST_CASES
-            if include_heavy or test.suite != "heavy"
-        ]
-    return [test for test in TEST_CASES if test.suite == suite]
+def select_tests(modes: Sequence[str], suite: str) -> Sequence[TestCase]:
+    runtime = "runtime" in modes
+    compile_time = "compile-time" in modes
+    return [
+        test
+        for test in TEST_CASES
+        if (suite == "all" or test.suite == suite)
+        and ((test.whole_project and compile_time) or (not test.whole_project and runtime))
+    ]
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -1205,15 +1206,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
     )
     parser.add_argument(
-        "--suite",
-        choices=("micro", "repository", "large", "heavy", "all"),
-        default="micro",
-        help="Benchmark suite to run (all excludes heavy by default)",
+        "--mode",
+        choices=("runtime", "compile-time"),
+        nargs="+",
+        default=("runtime",),
+        help="Benchmark modes to run (default: runtime)",
     )
     parser.add_argument(
-        "--include-heavy",
-        action="store_true",
-        help="Include full-project compile-time cases with --suite all",
+        "--suite",
+        choices=("micro", "repository", "large", "heavy", "all"),
+        default="all",
+        help="Subset of the selected modes to run (default: all)",
     )
     parser.add_argument(
         "--compile-repeats",
@@ -1248,7 +1251,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    suite_tests = select_suite_tests(args.suite, args.include_heavy)
+    suite_tests = select_tests(args.mode, args.suite)
 
     if args.projects:
         project_set = set(args.projects)
