@@ -626,7 +626,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .zip(&shape.0)
                     .zip(&target_shape.0)
                     .map(|((value, &source), &target)| {
-                        self.coerce_internal_function_pointer_value(
+                        self.clean_internal_function_pointer_argument(
                             &mut builder,
                             value,
                             source,
@@ -650,16 +650,6 @@ impl<'gcx> Lowerer<'gcx> {
                                 index,
                             ));
                         }
-                    }
-                    for ((value, &source), &target) in
-                        return_values.iter_mut().zip(&target_shape.1).zip(&shape.1)
-                    {
-                        *value = self.coerce_internal_function_pointer_value(
-                            &mut builder,
-                            *value,
-                            source,
-                            target,
-                        );
                     }
                     builder.ret(return_values);
                 }
@@ -685,22 +675,20 @@ impl<'gcx> Lowerer<'gcx> {
         caller: &InternalFunctionPointerShape,
         target: &InternalFunctionPointerShape,
     ) -> bool {
-        // Assembly can cast between these full-word calling representations. Keep the dispatcher
-        // signatures distinct so exact calls do not pay for conversions needed only by casts.
+        // Assembly can cast between these full-word argument representations. Keep return types
+        // exact and dispatcher signatures distinct so ordinary calls do not pay for cast-only
+        // argument cleaning.
         let canonicalize = |ty| match ty {
             MirType::Address => MirType::uint256(),
+            MirType::Int(size) if size.bits() == 256 => MirType::uint256(),
             MirType::FixedBytes(size) if size.bytes() == 32 => MirType::uint256(),
             ty => ty,
         };
         caller.0.iter().copied().map(&canonicalize).eq(target.0.iter().copied().map(&canonicalize))
-            && caller.1.iter().copied().map(&canonicalize).eq(target
-                .1
-                .iter()
-                .copied()
-                .map(&canonicalize))
+            && caller.1 == target.1
     }
 
-    fn coerce_internal_function_pointer_value(
+    fn clean_internal_function_pointer_argument(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,

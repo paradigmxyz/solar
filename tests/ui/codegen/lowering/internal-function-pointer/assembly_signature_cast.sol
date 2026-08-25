@@ -6,8 +6,8 @@
 //@[runtime] run-call: compareAddress 2, 1 => true
 //@[runtime] run-call: compareAddress 1, 2 => false
 //@[runtime] run-call: compareAddress 0x0000000000000000000000010000000000000000000000000000000000000000, 0 => false
-//@[runtime] run-call: returnBytes32 2 => 2
-//@[runtime] run-call: returnAddress 0x0000000000000000000000010000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000
+//@[runtime] run-call: compareInt256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => true
+//@[runtime] run-call: compareInt256 1, 0 => false
 
 contract InternalFunctionPointerAssemblyCast {
     // CHECK-LABEL: fn @compareBytes32{{[( ]}}
@@ -43,29 +43,16 @@ contract InternalFunctionPointerAssemblyCast {
         return a > b;
     }
 
-    function returnBytes32(uint256 value) external pure returns (uint256) {
-        function(uint256) pure returns (bytes32) source = _asBytes32;
-        function(uint256) pure returns (uint256) target;
+    function compareInt256(uint256 a, uint256 b) external pure returns (bool) {
+        function(int256, int256) pure returns (bool) source = _int256Less;
+        function(uint256, uint256) pure returns (bool) target;
         assembly {
             target := source
         }
-        return target(value);
+        return target(a, b);
     }
 
-    function _asBytes32(uint256 value) private pure returns (bytes32) {
-        return bytes32(value);
-    }
-
-    function returnAddress(uint256 value) external pure returns (address) {
-        function(uint256) pure returns (uint256) source = _identity;
-        function(uint256) pure returns (address) target;
-        assembly {
-            target := source
-        }
-        return target(value);
-    }
-
-    function _identity(uint256 value) private pure returns (uint256) {
-        return value;
+    function _int256Less(int256 a, int256 b) private pure returns (bool) {
+        return a < b;
     }
 }
