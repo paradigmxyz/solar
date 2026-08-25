@@ -26,6 +26,13 @@ pub(crate) struct Immutable {
     pub(crate) variable_id: Option<VariableId>,
 }
 
+/// One constant byte string and its optional display name.
+#[derive(Clone, Debug)]
+struct Data {
+    bytes: Bytes,
+    name: Option<Symbol>,
+}
+
 /// The lowering phase a [`Module`] is in.
 ///
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
@@ -110,9 +117,7 @@ pub struct Module {
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
-    data: IndexVec<DataId, Bytes>,
-    /// Optional display names for constant data entries.
-    data_names: IndexVec<DataId, Option<Symbol>>,
+    data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
@@ -141,7 +146,6 @@ impl Module {
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
             data: IndexVec::new(),
-            data_names: IndexVec::new(),
             data_index: FxHashMap::default(),
             is_interface: false,
             phase: MirPhase::Built,
@@ -270,7 +274,7 @@ impl Module {
             return DataRef::new(self.add_lowered_data(data), 0);
         }
         for (id, known) in self.data.iter_enumerated() {
-            if let Some(offset) = memmem::find(known, &data) {
+            if let Some(offset) = memmem::find(&known.bytes, &data) {
                 let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
                 self.ensure_data_name(id);
                 return DataRef::new(id, offset);
@@ -280,8 +284,7 @@ impl Module {
     }
 
     pub(crate) fn add_data_with_name(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        let id = self.data.push(data.clone());
-        self.data_names.push(name);
+        let id = self.data.push(Data { bytes: data.clone(), name });
         self.data_index.entry(data).or_insert(id);
         id
     }
@@ -292,25 +295,19 @@ impl Module {
     }
 
     fn ensure_data_name(&mut self, id: DataId) {
-        if self.data_names[id].is_none() {
-            self.data_names[id] = Some(crate::data_literal_name(id.index()));
+        if self.data[id].name.is_none() {
+            self.data[id].name = Some(crate::data_literal_name(id.index()));
         }
     }
 
     pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data_names[id]
+        self.data[id].name
     }
 
     /// Returns constant data if the identifier is allocated.
     #[must_use]
     pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
-        self.data.get(id)
-    }
-
-    /// Returns whether every data entry has matching display metadata.
-    #[must_use]
-    pub(crate) fn data_metadata_is_valid(&self) -> bool {
-        self.data.len() == self.data_names.len()
+        self.data.get(id).map(|data| &data.bytes)
     }
 
     /// Returns the number of constant data entries.
@@ -321,7 +318,7 @@ impl Module {
 
     /// Returns all constant data entries.
     pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
-        self.data.iter_enumerated()
+        self.data.iter_enumerated().map(|(id, data)| (id, &data.bytes))
     }
 
     /// Returns an iterator over all functions.

@@ -20,10 +20,10 @@ impl Module {
                 writeln!(f)?;
             }
             for (id, data) in self.data.iter_enumerated() {
-                let name = self.data_names[id]
-                    .map_or_else(|| id.index().to_string(), |name| name.to_string());
+                let name =
+                    data.name.map_or_else(|| id.index().to_string(), |name| name.to_string());
                 write!(f, "@data {name} hex\"")?;
-                for byte in data {
+                for byte in &data.bytes {
                     write!(f, "{byte:02x}")?;
                 }
                 writeln!(f, "\"")?;
@@ -121,7 +121,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => {
-            if let Some(name) = module.data_names[data.id] {
+            if let Some(name) = module.data[data.id].name {
                 write!(f, "{name}")?;
             } else {
                 write!(f, "{}", data.id.index())?;

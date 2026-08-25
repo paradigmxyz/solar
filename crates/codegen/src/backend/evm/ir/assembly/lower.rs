@@ -126,7 +126,7 @@ fn lower_evm_ir_once(
     {
         program.push_op(op::STOP);
     }
-    program.data.clone_from(&module.data);
+    program.data = module.data.iter().map(|data| data.bytes.clone()).collect();
     for data in referenced_data.iter() {
         program.append_data(data);
     }

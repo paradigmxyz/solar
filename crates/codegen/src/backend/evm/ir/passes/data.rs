@@ -2,13 +2,16 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{BlockId, DataId, DataRef, Instruction, Module, PushValue},
+    ir::{
+        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+        immediate_materialization_cost,
+    },
     op, push_len,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_interface::Symbol;
 use solar_sema::Gcx;
 
 pub(super) struct PackData;
@@ -49,6 +52,7 @@ struct Rewrite {
     start: usize,
     end: usize,
     old_size: usize,
+    old_gas: usize,
 }
 
 struct PreparedRewrite {
@@ -68,9 +72,26 @@ enum Placement {
     New { additional_bytes: isize, contained: Vec<DataId> },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Improvement {
+    primary: i128,
+    runtime_gas: i128,
+    bytes: i128,
+}
+
+impl Improvement {
+    fn add(&mut self, other: Self) {
+        self.primary += other.primary;
+        self.runtime_gas += other.runtime_gas;
+        self.bytes += other.bytes;
+    }
+}
+
 impl DataPool {
-    fn new(data: &IndexVec<DataId, Bytes>) -> Self {
-        Self { entries: data.iter_enumerated().map(|(id, data)| (id, data.clone())).collect() }
+    fn new(data: &IndexVec<DataId, Data>) -> Self {
+        Self {
+            entries: data.iter_enumerated().map(|(id, data)| (id, data.bytes.clone())).collect(),
+        }
     }
 
     fn placement(&self, data: &[u8]) -> Placement {
@@ -94,8 +115,8 @@ impl DataPool {
             Placement::New { contained, .. } => contained,
         };
         self.entries.retain(|(id, _)| !contained.contains(id));
-        let id = module.data.push(bytes.clone());
-        module.data_names.push(Some(crate::data_literal_name(id.index())));
+        let name = Some(crate::data_literal_name(module.data.len()));
+        let id = module.data.push(Data { bytes: bytes.clone(), name });
         self.entries.push((id, bytes));
         DataRef::new(id, 0)
     }
@@ -120,32 +141,48 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     let mut groups = groups.into_iter().collect::<Vec<_>>();
     groups.sort_unstable_by(|(a, _), (b, _)| {
-        b.len().cmp(&a.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
+        a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
+    let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
         let placement = pool.placement(&data);
-        let additional_bytes = match &placement {
-            Placement::Existing(_) => 0,
-            Placement::New { additional_bytes, .. } => *additional_bytes,
-        };
-        let new_code_size = data_copy_size(gcx, data.len()) * rewrites.len();
-        let new_size = new_code_size as isize + additional_bytes;
-        let old_size = rewrites.iter().map(|rewrite| rewrite.old_size).sum::<usize>();
-        if new_size >= old_size as isize {
+        let additional_bytes = placement_additional_bytes(&placement);
+        let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
+        let mut absorbed = Vec::new();
+        for (index, (contained, contained_rewrites)) in rejected.iter().enumerate() {
+            if memmem::find(&data, contained).is_none() {
+                continue;
+            }
+            let contained_improvement =
+                rewrite_improvement(gcx, contained.len(), contained_rewrites, 0);
+            if contained_improvement.primary > 0 {
+                improvement.add(contained_improvement);
+                absorbed.push(index);
+            }
+        }
+        if improvement.primary <= 0 {
+            rejected.push((data, rewrites));
             continue;
         }
+
         let size = data.len();
-        let data = pool.intern(module, data, placement);
-        prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite {
-            block: rewrite.block,
-            start: rewrite.start,
-            end: rewrite.end,
-            data,
-            size,
-        }));
+        let data_ref = pool.intern(module, data.clone(), placement);
+        prepare_rewrites(&mut prepared, rewrites, data_ref, size);
+        for index in absorbed.into_iter().rev() {
+            let (contained, rewrites) = rejected.swap_remove(index);
+            let offset = memmem::find(&data, &contained).unwrap();
+            let offset =
+                data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
+            prepare_rewrites(
+                &mut prepared,
+                rewrites,
+                DataRef::new(data_ref.id, offset),
+                contained.len(),
+            );
+        }
     }
     prepared.sort_unstable_by_key(|rewrite| (rewrite.block, rewrite.start));
     for rewrite in prepared.iter().rev() {
@@ -160,6 +197,21 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         );
     }
     !prepared.is_empty()
+}
+
+fn prepare_rewrites(
+    prepared: &mut Vec<PreparedRewrite>,
+    rewrites: Vec<Rewrite>,
+    data: DataRef,
+    size: usize,
+) {
+    prepared.extend(rewrites.into_iter().map(|rewrite| PreparedRewrite {
+        block: rewrite.block,
+        start: rewrite.start,
+        end: rewrite.end,
+        data,
+        size,
+    }));
 }
 
 fn find_run(
@@ -201,8 +253,40 @@ fn find_run(
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
         data.extend_from_slice(&window[3].concrete_immediate().unwrap().to_be_bytes::<32>());
     }
-    let old_size = instructions[start..end].iter().map(|inst| encoded_len(gcx, inst)).sum();
-    Some((data.into(), Rewrite { block, start, end, old_size }))
+    let instructions = &instructions[start..end];
+    let old_size = instructions.iter().map(|inst| encoded_len(gcx, inst)).sum();
+    let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
+    Some((data.into(), Rewrite { block, start, end, old_size, old_gas }))
+}
+
+fn rewrite_improvement(
+    gcx: Gcx<'_>,
+    size: usize,
+    rewrites: &[Rewrite],
+    additional_bytes: isize,
+) -> Improvement {
+    let old_bytes = rewrites.iter().map(|rewrite| rewrite.old_size).sum::<usize>() as i128;
+    let new_bytes = (data_copy_size(gcx, size) * rewrites.len()) as i128 + additional_bytes as i128;
+    let old_gas = rewrites.iter().map(|rewrite| rewrite.old_gas).sum::<usize>() as i128;
+    let new_gas = (data_copy_gas(size) * rewrites.len()) as i128;
+    let bytes = old_bytes - new_bytes;
+    let runtime_gas = old_gas - new_gas;
+    let primary = match gcx.sess.opts.optimization {
+        OptimizationMode::Gas => {
+            const CODE_DEPOSIT_GAS_PER_BYTE: i128 = 200;
+            let runs = i128::from(gcx.sess.opts.optimizer_runs.unwrap_or(200));
+            runtime_gas * runs + bytes * CODE_DEPOSIT_GAS_PER_BYTE
+        }
+        _ => bytes,
+    };
+    Improvement { primary, runtime_gas, bytes }
+}
+
+fn placement_additional_bytes(placement: &Placement) -> isize {
+    match placement {
+        Placement::Existing(_) => 0,
+        Placement::New { additional_bytes, .. } => *additional_bytes,
+    }
 }
 
 fn pack_data(module: &mut Module) -> bool {
@@ -216,31 +300,29 @@ fn pack_data(module: &mut Module) -> bool {
     }
     let mut referenced = referenced.iter().collect::<Vec<_>>();
     referenced.sort_unstable_by(|&a, &b| {
-        module.data[b].len().cmp(&module.data[a].len()).then_with(|| a.cmp(&b))
+        module.data[b].bytes.len().cmp(&module.data[a].bytes.len()).then_with(|| a.cmp(&b))
     });
 
-    let mut packed = IndexVec::<DataId, Bytes>::new();
-    let mut packed_names = IndexVec::<DataId, Option<Symbol>>::new();
+    let mut packed = IndexVec::<DataId, Data>::new();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let data_ref = if let Some(data_ref) = find_data(&packed, data) {
-            if module.data_names[old_id].is_some() && packed_names[data_ref.id].is_none() {
-                packed_names[data_ref.id] = Some(crate::data_literal_name(data_ref.id.index()));
+        let data_ref = if let Some(data_ref) = find_data(&packed, &data.bytes) {
+            if data.name.is_some() && packed[data_ref.id].name.is_none() {
+                packed[data_ref.id].name = Some(crate::data_literal_name(data_ref.id.index()));
             }
             data_ref
         } else {
-            let id = packed.push(data.clone());
-            let name = module.data_names[old_id].map(|_| crate::data_literal_name(id.index()));
-            packed_names.push(name);
+            let id = DataId::from_usize(packed.len());
+            let name = data.name.map(|_| crate::data_literal_name(id.index()));
+            let id = packed.push(Data { bytes: data.bytes.clone(), name });
             DataRef::new(id, 0)
         };
         remap.insert(old_id, data_ref);
     }
 
-    let changed = packed != module.data || packed_names != module.data_names;
+    let changed = packed != module.data;
     module.data = packed;
-    module.data_names = packed_names;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Data(data)) = &mut inst.value {
@@ -253,9 +335,9 @@ fn pack_data(module: &mut Module) -> bool {
     changed
 }
 
-fn find_data(data: &IndexVec<DataId, Bytes>, needle: &[u8]) -> Option<DataRef> {
+fn find_data(data: &IndexVec<DataId, Data>, needle: &[u8]) -> Option<DataRef> {
     data.iter_enumerated().find_map(|(id, known)| {
-        memmem::find(known, needle).map(|offset| DataRef::new(id, data_offset(offset)))
+        memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
     })
 }
 
@@ -271,6 +353,15 @@ fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
     // Use PUSH3 for the unresolved data address so this estimate cannot grow
     // an EIP-170-sized program if the final address crosses the PUSH2 boundary.
     push_len(gcx.sess.opts.evm_version, U256::from(size)) + 4 + 2
+}
+
+fn data_copy_gas(size: usize) -> usize {
+    12 + 3 * size.div_ceil(32)
+}
+
+fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+    inst.concrete_immediate()
+        .map_or(3, |value| immediate_materialization_cost(gcx.sess.opts.evm_version, value).1)
 }
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {

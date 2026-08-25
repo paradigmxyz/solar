@@ -48,6 +48,13 @@ pub(crate) struct DataRef {
     pub(crate) offset: u32,
 }
 
+/// One constant byte string and its optional display name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Data {
+    pub(crate) bytes: Bytes,
+    pub(crate) name: Option<Symbol>,
+}
+
 impl DataRef {
     pub(crate) const fn new(id: DataId, offset: u32) -> Self {
         Self { id, offset }
@@ -67,9 +74,7 @@ pub struct Module {
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
-    pub(crate) data: IndexVec<DataId, Bytes>,
-    /// Optional display names for constant data entries.
-    pub(crate) data_names: IndexVec<DataId, Option<Symbol>>,
+    pub(crate) data: IndexVec<DataId, Data>,
 }
 
 impl Module {
@@ -84,7 +89,7 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), data_names: IndexVec::new() }
+        Self { name, blocks: IndexVec::new(), data: IndexVec::new() }
     }
 
     /// Changes the program name.

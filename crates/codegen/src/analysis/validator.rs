@@ -28,8 +28,7 @@
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
 //!     and loads use the declared type.
-//! 13. **Program data consistency**: data references name allocated entries at valid offsets, and
-//!     every entry has matching display metadata.
+//! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //!
 //! # Usage
 //!
@@ -526,9 +525,6 @@ impl<'a> Validator<'a> {
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
         self.validate_immutable_declarations(module);
-        if !module.data_metadata_is_valid() {
-            self.emit("program data and display metadata counts differ");
-        }
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);

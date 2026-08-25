@@ -1,0 +1,49 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module joint_reuse
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0+32
+// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+bb0:
+  push 128
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  swap1
+  mstore
+  stop
+
+// The larger run is only profitable after the smaller run pays for its tail.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 96
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
+bb1:
+  push 256
+  push 0
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  swap1
+  mstore
+  push 64
+  dup2
+  add
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  swap1
+  mstore
+  stop
+
+// CHECK: @data literal_0 hex"000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222"

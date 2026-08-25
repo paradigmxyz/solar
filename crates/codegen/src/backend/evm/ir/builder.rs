@@ -66,8 +66,10 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         debug_assert!(self.program.data.is_empty());
         for (id, data) in module.iter_data() {
-            let allocated = self.program.data.push(data.clone());
-            self.program.data_names.push(module.data_name(id));
+            let allocated = self
+                .program
+                .data
+                .push(ir::Data { bytes: data.clone(), name: module.data_name(id) });
             debug_assert_eq!(allocated.index(), id.index());
         }
     }

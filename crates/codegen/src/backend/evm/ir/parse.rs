@@ -98,8 +98,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let bytes = alloy_primitives::hex::decode(bytes.as_str())
             .map_err(|err| self.parser.error(format!("invalid program data: {err}")))?;
         self.parser.bump();
-        module.data.push(bytes.into());
-        module.data_names.push(name);
+        module.data.push(Data { bytes: bytes.into(), name });
         Ok(())
     }
 

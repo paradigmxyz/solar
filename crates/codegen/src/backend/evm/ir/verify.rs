@@ -34,10 +34,6 @@ impl<'a> Verifier<'a> {
             self.error("program has no blocks");
             return;
         }
-        if module.data.len() != module.data_names.len() {
-            self.error("program data and display metadata counts differ");
-        }
-
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !labels.insert(block.label) {
@@ -106,13 +102,13 @@ impl<'a> Verifier<'a> {
                             block_id,
                             format_args!("program data `{}` is out of range", data.id.index()),
                         );
-                    } else if data.offset as usize > module.data[data.id].len() {
+                    } else if data.offset as usize > module.data[data.id].bytes.len() {
                         self.error_in_block(
                             block_id,
                             format_args!(
                                 "program data offset `{}` exceeds data size `{}`",
                                 data.offset,
-                                module.data[data.id].len()
+                                module.data[data.id].bytes.len()
                             ),
                         );
                     }
