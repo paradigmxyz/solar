@@ -91,6 +91,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // lose more shared bytes than the local CSE removes.
     &block_cse::BlockCseCleanup,
     &dce::Dce,
+    // DCE retargets physical stack operations and exposes local rewrites.
+    &peephole::Peephole,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,

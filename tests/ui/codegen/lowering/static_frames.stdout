@@ -176,8 +176,7 @@ bb46:
   shr
   push 384
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 1
@@ -417,8 +416,7 @@ bb20:
   shr
   push 416
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 448
@@ -472,8 +470,7 @@ bb25:
   shr
   push 608
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 672

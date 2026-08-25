@@ -238,11 +238,7 @@ bb30:
   mstore
   push 1
   shr
-  dup 2
-  eq
-  swap 1
-  pop
-  iszero
+  sub
   push bb46
   jumpi
   push 3
