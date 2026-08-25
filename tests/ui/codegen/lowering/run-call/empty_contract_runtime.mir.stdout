@@ -78,34 +78,34 @@ fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_r
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 83, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 20
-    memory_object_store_word memorybytes, v3, 0, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 20, v0
-    v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 20
-    jumpi v5, bb2, bb1
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    v4 = slice_ptr v0
+    v5 = add v3, 20
+    mcopy v5, v4, 0
+    v6 = create 0, v3, 20
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = gas
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v7, 4
-    memory_object_store_word memorybytes, v7, 0, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
-    v8 = memory_object_data memorybytes, v7
-    v9 = memory_object_len memorybytes, v7
-    v10 = call v6, v5, 0, v8, v9, 0, 0
-    v11 = extcodesize v5
-    v12 = gt v11, 0
-    jumpi v12, bb3, bb4
+    v7 = gas
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v8, 4
+    memory_object_store_word memorybytes, v8, 0, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    v12 = extcodesize v6
+    v13 = gt v12, 0
+    jumpi v13, bb3, bb4
   bb3:
-    v13 = iszero v10
+    v14 = iszero v11
     jump bb5
   bb4:
     jump bb5
   bb5:
-    v14 = phi [bb3: v13], [bb4: 0]
-    ret v14
+    v15 = phi [bb3: v14], [bb4: 0]
+    ret v15
 }
 

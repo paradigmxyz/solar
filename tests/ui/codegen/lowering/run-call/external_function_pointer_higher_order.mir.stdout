@@ -67,38 +67,42 @@ fn @t() -> u256 [selector=0x92d0d153, abi_params=[], abi_returns=[word]] {
     v6 = gas
     v7 = abi_encode []
     v8 = not 31
-    v9 = and 219, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, 156
-    memory_object_store_word memorybytes, v10, 0, 0x34600d57608b8060115f395ff35b5f5ffd34601a575f3560e01c8063cae57913
-    memory_object_store_word memorybytes, v10, 32, 0x14601657601a565b601e565b5f80fd5b3660249010156087576083565b600260
-    memory_object_store_word memorybytes, v10, 64, 0x435018060a0528060a052600435811015606f577f4e487b7100000000000000
-    memory_object_store_word memorybytes, v10, 96, 0x5f52601160045260245ffd
-    memory_object_store_word memorybytes, v10, 128, 0x5b8060a0526080526020608001608090036080f35b5f80fd5b602b5600000000
-    memory_object_copy_from_slice_at memorybytes, v10, 156, v7
-    v11 = memory_object_data memorybytes, v10
-    v12 = create 0, v11, 156
-    jumpi v12, bb2, bb1
+    v9 = and 187, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x34600d57608b8060115f395ff35b5f5ffd34601a575f3560e01c8063cae57913
+    v11 = add v10, 32
+    mstore v11, 0x14601657601a565b601e565b5f80fd5b3660249010156087576083565b600260
+    v12 = add v10, 64
+    mstore v12, 0x435018060a0528060a052600435811015606f577f4e487b7100000000000000
+    v13 = add v10, 96
+    mstore v13, 0x5f52601160045260245ffd
+    v14 = add v10, 128
+    mstore v14, 0x5b8060a0526080526020608001608090036080f35b5f80fd5b602b5600000000
+    v15 = slice_ptr v7
+    v16 = add v10, 156
+    mcopy v16, v15, 0
+    v17 = create 0, v10, 156
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = shl 32, v12
-    v14 = or v13, 0xcae57913
-    v15 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = call v6, v5, 0, v16, v17, 0, 0
-    jumpi v18, bb4, bb3
+    v18 = shl 32, v17
+    v19 = or v18, 0xcae57913
+    v20 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v19
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = call v6, v5, 0, v21, v22, 0, 0
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = and v19, 0xffffffffffffffff
-    v21 = sload 0 !metadata(storage=slot(0))
-    v22 = shr 64, v21
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v24 = internal_call @internal_dispatcher_p_function_r_u256, 1, v20, v23
-    ret v24
+    v24 = sload 0 !metadata(storage=slot(0))
+    v25 = and v24, 0xffffffffffffffff
+    v26 = sload 0 !metadata(storage=slot(0))
+    v27 = shr 64, v26
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v29 = internal_call @internal_dispatcher_p_function_r_u256, 1, v25, v28
+    ret v29
 }
 
 fn @internal_dispatcher_p_function_r_u256(arg0: function, arg1: function) -> u256 [function_pointer_dispatcher] {

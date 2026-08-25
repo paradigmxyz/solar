@@ -11,25 +11,27 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 145, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 82
-    memory_object_store_word memorybytes, v3, 0, 0x34600d5760418060115f395ff35b5f5ffd5f3560e01c8063773acdef14601257
-    memory_object_store_word memorybytes, v3, 32, 0x6016565b601a565b5f80fd5b366024901015603d576039565b60016080526020
-    memory_object_store_word memorybytes, v3, 64, 0x608001608090036080f35b5f80fd5b6027560000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 82, v0
-    v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 82
-    jumpi v5, bb2, bb1
+    v2 = and 113, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760418060115f395ff35b5f5ffd5f3560e01c8063773acdef14601257
+    v4 = add v3, 32
+    mstore v4, 0x6016565b601a565b5f80fd5b366024901015603d576039565b60016080526020
+    v5 = add v3, 64
+    mstore v5, 0x608001608090036080f35b5f80fd5b6027560000000000000000000000000000
+    v6 = slice_ptr v0
+    v7 = add v3, 82
+    mcopy v7, v6, 0
+    v8 = create 0, v3, 82
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = sload 1 !metadata(storage=slot(1))
-    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore 1, v10 !metadata(storage=slot(1))
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = or v11, v12
+    sstore 1, v13 !metadata(storage=slot(1))
     stop
 }
 

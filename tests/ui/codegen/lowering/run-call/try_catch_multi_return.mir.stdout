@@ -31,32 +31,41 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 383, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 320
-    memory_object_store_word memorybytes, v3, 0, 0x34600e5761012e8060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47e
-    memory_object_store_word memorybytes, v3, 32, 0xd114601657601a565b601e565b5f80fd5b61010060405236602490101560e657
-    memory_object_store_word memorybytes, v3, 64, 0x60e2565b6004351515606657600260c0527f6e6f000000000000000000000000
-    memory_object_store_word memorybytes, v3, 96, 0x60e05260f5565b60405180608052
-    memory_object_store_word memorybytes, v3, 128, 0x60408101600d82526020820182806080528203905260028152602090015f8101
-    memory_object_store_word memorybytes, v3, 160, 0x7f6f6b0000000000000000000000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v3, 192, 0x815250602090018180608052900390505f9001601f8101601f198116905060
-    memory_object_store_word memorybytes, v3, 224, 0x40518060a05281810191508160405290508181f35b5f80fd5b60043560029010
-    memory_object_store_word memorybytes, v3, 256, 0x1560e2576031565b7f08c379a000000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v3, 288, 0x5f52602060045260c05160245260e05160445260645ffd
-    memory_object_copy_from_slice_at memorybytes, v3, 320, v0
-    v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 320
-    jumpi v5, bb2, bb1
+    v2 = and 351, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e5761012e8060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47e
+    v4 = add v3, 32
+    mstore v4, 0xd114601657601a565b601e565b5f80fd5b61010060405236602490101560e657
+    v5 = add v3, 64
+    mstore v5, 0x60e2565b6004351515606657600260c0527f6e6f000000000000000000000000
+    v6 = add v3, 96
+    mstore v6, 0x60e05260f5565b60405180608052
+    v7 = add v3, 128
+    mstore v7, 0x60408101600d82526020820182806080528203905260028152602090015f8101
+    v8 = add v3, 160
+    mstore v8, 0x7f6f6b0000000000000000000000000000000000000000000000000000000000
+    v9 = add v3, 192
+    mstore v9, 0x815250602090018180608052900390505f9001601f8101601f198116905060
+    v10 = add v3, 224
+    mstore v10, 0x40518060a05281810191508160405290508181f35b5f80fd5b60043560029010
+    v11 = add v3, 256
+    mstore v11, 0x1560e2576031565b7f08c379a000000000000000000000000000000000000000
+    v12 = add v3, 288
+    mstore v12, 0x5f52602060045260c05160245260e05160445260645ffd
+    v13 = slice_ptr v0
+    v14 = add v3, 320
+    mcopy v14, v13, 0
+    v15 = create 0, v3, 320
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore 0, v10 !metadata(storage=slot(0))
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore 0, v20 !metadata(storage=slot(0))
     stop
 }
 

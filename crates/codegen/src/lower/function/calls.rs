@@ -240,21 +240,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
         let bytecode_len_value = self.builder.imm_u64(bytecode_len);
         let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
-        let object = self.builder.alloc_bytes_object(total_len, AllocationSemantics::INTERNAL);
+        // CREATE consumes a raw byte range, so do not reserve a semantic bytes
+        // header that no later operation can observe.
+        let padding = self.builder.imm_u64(31);
+        let rounded_len = self.builder.checked_add(total_len, padding);
+        let mask = self.builder.not(padding);
+        let allocation_size = self.builder.and(rounded_len, mask);
+        let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
         for (index, chunk) in bytecode.chunks(32).enumerate() {
-            let offset = self.builder.imm_u64(u64::try_from(index).ok()?.saturating_mul(32));
+            let offset = u64::try_from(index).ok()?.saturating_mul(32);
+            let address = self.builder.add_u64_offset(data, offset);
             let value = self.lower_string_literal_word(chunk);
-            self.builder.memory_object_store_word(object, offset, value);
+            self.builder.mstore(address, value);
         }
-        self.builder.memory_object_copy_from_slice_at(
-            object,
-            MemoryObjectKind::Bytes,
-            bytecode_len_value,
-            encoded,
-        );
-
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let encoded_ptr = self.builder.slice_ptr(encoded);
+        let copy_dest = self.builder.add(data, bytecode_len_value);
+        self.builder.copy_slice_data(SliceLocation::Memory, copy_dest, encoded_ptr, encoded_len);
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
         } else {

@@ -95,21 +95,24 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v2 = internal_call @arg, 1
     v3 = abi_encode [word], args v2
     v4 = not 31
-    v5 = and 199, v4
-    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, 136
-    memory_object_store_word memorybytes, v6, 0, 0x6068380380606860c03960c001601f017fffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v6, 32, 0xffffffffffffffffffffffffffffffffe01660405260c060c060683803016020
-    memory_object_store_word memorybytes, v6, 64, 0x8201915081119050156057576053565b605b565b5f80fd5b604f565b60038060
-    memory_object_store_word memorybytes, v6, 96, 0x655f395ff35f80fd000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v6, 104, v3
-    v7 = memory_object_data memorybytes, v6
-    v8 = create2 v0, v7, 136, v1
-    jumpi v8, bb2, bb1
+    v5 = and 167, v4
+    v6 = alloc raw, exact, uninitialized, infallible, v5
+    mstore v6, 0x6068380380606860c03960c001601f017fffffffffffffffffffffffffffffff
+    v7 = add v6, 32
+    mstore v7, 0xffffffffffffffffffffffffffffffffe01660405260c060c060683803016020
+    v8 = add v6, 64
+    mstore v8, 0x8201915081119050156057576053565b605b565b5f80fd5b604f565b60038060
+    v9 = add v6, 96
+    mstore v9, 0x655f395ff35f80fd000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v3
+    v11 = add v6, 104
+    mcopy v11, v10, 32
+    v12 = create2 v0, v6, 136, v1
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    ret v9
+    v13 = sload 0 !metadata(storage=slot(0))
+    ret v13
 }
 

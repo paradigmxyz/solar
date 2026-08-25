@@ -26,28 +26,33 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 229, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 166
-    memory_object_store_word memorybytes, v3, 0, 0x34600d5760958060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718
-    memory_object_store_word memorybytes, v3, 32, 0x146020578063d909b403146024576028565b602e565b602c565b5f80fd5b005b
-    memory_object_store_word memorybytes, v3, 64, 0x60c060405260026080527f6e6f00000000000000000000000000000000000000
-    memory_object_store_word memorybytes, v3, 96, 0x60a0527f08c379a000000000000000000000000000
-    memory_object_store_word memorybytes, v3, 128, 0x5f52602060045260805160245260a05160
-    memory_object_store_word memorybytes, v3, 160, 0x445260645ffd0000000000000000000000000000000000000000000000000000
-    memory_object_copy_from_slice_at memorybytes, v3, 166, v0
-    v4 = memory_object_data memorybytes, v3
-    v5 = create 0, v4, 166
-    jumpi v5, bb2, bb1
+    v2 = and 197, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760958060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718
+    v4 = add v3, 32
+    mstore v4, 0x146020578063d909b403146024576028565b602e565b602c565b5f80fd5b005b
+    v5 = add v3, 64
+    mstore v5, 0x60c060405260026080527f6e6f00000000000000000000000000000000000000
+    v6 = add v3, 96
+    mstore v6, 0x60a0527f08c379a000000000000000000000000000
+    v7 = add v3, 128
+    mstore v7, 0x5f52602060045260805160245260a05160
+    v8 = add v3, 160
+    mstore v8, 0x445260645ffd0000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v0
+    v10 = add v3, 166
+    mcopy v10, v9, 0
+    v11 = create 0, v3, 166
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore 0, v10 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v14, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     stop
 }
 
