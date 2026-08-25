@@ -303,12 +303,20 @@ impl EvmInstSchedule {
         // look shared and disable scheduling for its whole segment.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                let operands = func.inst(inst_id).kind.operands();
+                for (index, &operand) in operands.iter().enumerate() {
+                    if operands[..index].contains(&operand) {
+                        continue;
+                    }
                     counts[operand] += 1;
                 }
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                let operands = SmallVec::<[ValueId; 8]>::from_iter(terminator.operands());
+                for (index, &operand) in operands.iter().enumerate() {
+                    if operands[..index].contains(&operand) {
+                        continue;
+                    }
                     counts[operand] += 1;
                 }
             }
