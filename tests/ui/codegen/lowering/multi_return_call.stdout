@@ -9,8 +9,6 @@ fn @sat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = internal_call @tryAdd, 2, arg0, arg1
     v4 = mload 32 !metadata(memory=scratch)
@@ -18,10 +16,12 @@ fn @sat(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     v6 = mload v5
     v7 = iszero v3
     jumpi v7, bb3, bb4
-  bb3:
-    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   bb4:
     ret v6
+  bb3:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb1:
+    revert 0, 0
 }
 
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
@@ -52,13 +52,13 @@ fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = internal_call @tryAdd, 2, arg0, arg1
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
     ret v3, v6
+  bb1:
+    revert 0, 0
 }
 

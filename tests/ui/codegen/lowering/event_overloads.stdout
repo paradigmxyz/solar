@@ -6,8 +6,6 @@ fn @emitBoth(arg0: address, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -22,5 +20,7 @@ fn @emitBoth(arg0: address, arg1: u256) {
     mstore 32, arg1 !metadata(memory=scratch)
     log1 0, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
     stop
+  bb1:
+    revert 0, 0
 }
 

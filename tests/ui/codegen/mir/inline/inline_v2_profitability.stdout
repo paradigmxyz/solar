@@ -6,9 +6,6 @@
 -     v0 = internal_call @single_large_callee, 1, arg0
 -     ret v0
 +     jump bb2
-+   bb1:
-+     v2 = phi [bb13: v1]
-+     ret v2
 +   bb2:
 +     jump bb3
 +   bb3:
@@ -34,6 +31,9 @@
 +   bb13:
 +     v1 = add arg0, 1
 +     jump bb1
++   bb1:
++     v2 = phi [bb13: v1]
++     ret v2
   }
   
   fn @single_large_callee(arg0: u256) -> u256 {
@@ -68,6 +68,10 @@
     bb0:
 -     v0 = internal_call @multi_return_callee, 2, arg0
 +     jump bb2
++   bb2:
++     v3 = add arg0, 1
++     v4 = add arg0, 2
++     jump bb1
 +   bb1:
 +     v5 = phi [bb2: v3]
 +     v6 = phi [bb2: v4]
@@ -79,10 +83,6 @@
 -     v2 = add v0, v1
 +     v2 = add v5, v1
       ret v2
-+   bb2:
-+     v3 = add arg0, 1
-+     v4 = add arg0, 2
-+     jump bb1
   }
   
   fn @multi_return_callee(arg0: u256) -> (u256, u256) {
@@ -97,16 +97,16 @@
 -     internal_call @tiny_stateful_callee, 0, arg0
 -     internal_call @tiny_stateful_callee, 0, arg1
 +     jump bb2
-+   bb1:
-+     jump bb4
 +   bb2:
 +     sstore 0, arg0
 +     jump bb1
-+   bb3:
-      stop
++   bb1:
++     jump bb4
 +   bb4:
 +     sstore 0, arg1
 +     jump bb3
++   bb3:
+      stop
   }
   
   fn @tiny_stateful_callee(arg0: u256) {
@@ -128,9 +128,6 @@
 -     v0 = internal_call @large_shared_callee, 1, arg0
 -     ret v0
 +     jump bb2
-+   bb1:
-+     v2 = phi [bb13: v1]
-+     ret v2
 +   bb2:
 +     jump bb3
 +   bb3:
@@ -156,6 +153,9 @@
 +   bb13:
 +     v1 = add arg0, 1
 +     jump bb1
++   bb1:
++     v2 = phi [bb13: v1]
++     ret v2
   }
   
   fn @large_shared_callee(arg0: u256) -> u256 {

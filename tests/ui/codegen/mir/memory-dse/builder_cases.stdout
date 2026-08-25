@@ -37,21 +37,21 @@
     bb0:
 -     mstore 128, 0
       jumpi arg0, bb1, bb2
+    bb2:
+      revert 0, 0
     bb1:
       mstore 128, 1
       returndata 128, 32
-    bb2:
-      revert 0, 0
   }
   
   fn @cross_block_read_path(arg0: u256) {
     bb0:
       mstore 128, 7
       jumpi arg0, bb1, bb2
-    bb1:
-      returndata 128, 32
     bb2:
       mstore 128, 9
+      returndata 128, 32
+    bb1:
       returndata 128, 32
   }
   

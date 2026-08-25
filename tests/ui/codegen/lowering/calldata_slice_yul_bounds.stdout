@@ -42,8 +42,6 @@ fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
@@ -60,6 +58,8 @@ fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v11 = make_calldata_slice v9, v10
     v12 = slice_len v11
     ret v12
+  bb1:
+    revert 0, 0
 }
 
 fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
@@ -68,8 +68,6 @@ fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = slice_ptr arg0
     v4 = slice_len arg0
@@ -87,5 +85,7 @@ fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v9 = make_calldata_slice v7, v8
     v10 = slice_len v9
     ret v10
+  bb1:
+    revert 0, 0
 }
 

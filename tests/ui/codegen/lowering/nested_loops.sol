@@ -7,6 +7,7 @@ contract NestedLoops {
     // CHECK: lt [[I]], arg0
     // CHECK: [[J:v[0-9]+]] = mload 192
     // CHECK: lt [[J]], arg1
+    // CHECK: {{v[0-9]+}} = mload 128
     // CHECK: [[BODY_I:v[0-9]+]] = mload 160
     // CHECK: [[BODY_J:v[0-9]+]] = mload 192
     // CHECK: {{v[0-9]+}} = mul [[BODY_I]], [[BODY_J]]

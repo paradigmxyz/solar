@@ -8,6 +8,8 @@
       v0 = phi [bb0: 64], [bb2: v3]
       v1 = lt v0, 100
       jumpi v1, bb2, bb3
+    bb3:
+      ret v2
     bb2:
       v2 = mload 0
 -     sstore v0, v2
@@ -15,8 +17,6 @@
       mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v3 = sub v0, 1
       jump bb1
-    bb3:
-      ret v2
   }
   
   fn @hoist_mload_ascending_iv() -> u256 {
@@ -27,6 +27,8 @@
       v0 = phi [bb0: 64], [bb2: v3]
       v1 = lt v0, 100
       jumpi v1, bb2, bb3
+    bb3:
+      ret v2
     bb2:
 -     v2 = mload 0
 -     sstore v0, v2
@@ -34,7 +36,5 @@
       mstore v0, 7
       v3 = add v0, 1
       jump bb1
-    bb3:
-      ret v2
   }
   

@@ -7,8 +7,6 @@ fn @asValue() {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -26,10 +24,6 @@ fn @asValue() {
     v11 = add 68, 31
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = add v14, 32
@@ -68,6 +62,12 @@ fn @asValue() {
     v49 = add v45, v44
     mstore 64, v49 !metadata(memory=scratch)
     returndata v45, v40
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @viaCall() {
@@ -76,8 +76,6 @@ fn @viaCall() {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
@@ -102,6 +100,8 @@ fn @viaCall() {
     v13 = call v12, arg0, 0, v15, 68, 0, 0
     mstore 128, v13
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @entry() [entry] {
@@ -116,10 +116,10 @@ fn @entry() [entry] {
     v3 = calldataload 0
     v4 = shr 224, v3
     switch v4, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
-  bb3:
-    tail_call @viaCall
   bb4:
     tail_call @asValue
+  bb3:
+    tail_call @viaCall
   bb5:
     revert 0, 0
 }

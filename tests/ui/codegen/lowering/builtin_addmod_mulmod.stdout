@@ -6,8 +6,6 @@ fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     jumpi arg2, bb4, bb3
   bb3:
@@ -17,6 +15,8 @@ fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb4:
     v3 = addmod arg0, arg1, arg2
     ret v3
+  bb1:
+    revert 0, 0
 }
 
 fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
@@ -25,8 +25,6 @@ fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     jumpi arg2, bb4, bb3
   bb3:
@@ -36,5 +34,7 @@ fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [abi_returns=[word]] {
   bb4:
     v3 = mulmod arg0, arg1, arg2
     ret v3
+  bb1:
+    revert 0, 0
 }
 

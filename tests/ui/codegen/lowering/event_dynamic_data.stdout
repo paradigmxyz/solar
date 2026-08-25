@@ -6,8 +6,6 @@ fn @text(arg0: memorybytes) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -51,6 +49,8 @@ fn @text(arg0: memorybytes) {
     set_fmp v30
     log2 v12, v26, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @literal() {
@@ -99,8 +99,6 @@ fn @blob(arg0: memorybytes) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = add 4, arg0
     v4 = calldataload v3
@@ -142,5 +140,7 @@ fn @blob(arg0: memorybytes) {
     set_fmp v29
     log1 v12, v25, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
     stop
+  bb1:
+    revert 0, 0
 }
 

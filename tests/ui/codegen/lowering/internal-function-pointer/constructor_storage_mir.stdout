@@ -22,12 +22,12 @@ fn @__internal_dispatch_0(arg0: function) -> u256 {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @onlyStored, 1
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @onlyStored, 1
+    ret v1
 }
 

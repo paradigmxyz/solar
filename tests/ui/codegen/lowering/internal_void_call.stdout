@@ -12,11 +12,11 @@ fn @set(arg0: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     internal_call @writeIfNonZero, 0, arg0
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @writeIfNonZero(arg0: u256) {
@@ -37,16 +37,16 @@ fn @setUnlessZero(arg0: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
-  bb3:
-    stop
   bb4:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
+  bb3:
+    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @returnVoidCall(arg0: u256) {
@@ -55,11 +55,11 @@ fn @returnVoidCall(arg0: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     internal_call @writeIfNonZero, 0, arg0
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @returnRevert() {
@@ -73,8 +73,6 @@ fn @unitTernary(arg0: bool, arg1: u256) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = iszero v3
@@ -85,14 +83,16 @@ fn @unitTernary(arg0: bool, arg1: u256) {
     revert 0, 0
   bb4:
     jumpi arg0, bb5, bb6
-  bb5:
-    internal_call @writeIfNonZero, 0, arg1
-    jump bb7
   bb6:
     internal_call @clear, 0
     jump bb7
+  bb5:
+    internal_call @writeIfNonZero, 0, arg1
+    jump bb7
   bb7:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @clear() {

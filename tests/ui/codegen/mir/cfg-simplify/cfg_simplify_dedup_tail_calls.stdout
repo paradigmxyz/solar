@@ -14,18 +14,18 @@
   fn @keep_distinct_targets(arg0: bool) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb1:
-      tail_call @target_a
     bb2:
       tail_call @target_b
+    bb1:
+      tail_call @target_a
   }
   
   fn @dedup_same_target(arg0: bool) {
     bb0:
 -     jumpi arg0, bb1, bb2
--   bb1:
--     tail_call @target_a
 -   bb2:
+-     tail_call @target_a
+-   bb1:
       tail_call @target_a
   }
   

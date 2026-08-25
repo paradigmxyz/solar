@@ -16,10 +16,6 @@ fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
     v3 = add v2, 31
     v4 = lt v3, v2
     jumpi v4, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v5 = not 31
     v6 = and v3, v5
@@ -28,10 +24,6 @@ fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
     v9 = add 32, v8
     v10 = lt v9, v8
     jumpi v10, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v11 = alloc memorybytes, exact, uninitialized, infallible, v9
     set_memory_object_len memorybytes, v11, v2
@@ -42,6 +34,14 @@ fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
     v15 = slice_ptr v1
     calldatacopy v12, v15, v2
     ret v11
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @environment() -> u256 [abi_returns=[word]] {
@@ -112,8 +112,6 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = calldatasize
     v4 = make_calldata_slice 0, v3
@@ -121,13 +119,9 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v6 = slice_len v4
     v7 = gt arg1, v6
     jumpi v7, bb3, bb4
-  bb3:
-    revert 0, 0
   bb4:
     v8 = lt arg1, arg0
     jumpi v8, bb5, bb6
-  bb5:
-    revert 0, 0
   bb6:
     v9 = sub arg1, arg0
     v10 = add v5, arg0
@@ -136,10 +130,6 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v13 = add v12, 31
     v14 = lt v13, v12
     jumpi v14, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v15 = not 31
     v16 = and v13, v15
@@ -148,10 +138,6 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v19 = add 32, v18
     v20 = lt v19, v18
     jumpi v20, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v21 = alloc memorybytes, exact, uninitialized, infallible, v19
     set_memory_object_len memorybytes, v21, v12
@@ -162,5 +148,19 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v25 = slice_ptr v11
     calldatacopy v22, v25, v12
     ret v21
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

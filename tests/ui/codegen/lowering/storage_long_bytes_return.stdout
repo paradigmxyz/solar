@@ -35,14 +35,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
