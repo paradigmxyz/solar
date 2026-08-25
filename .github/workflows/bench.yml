@@ -136,6 +136,7 @@ jobs:
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar target/release/solar \
+            --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
             --gas \

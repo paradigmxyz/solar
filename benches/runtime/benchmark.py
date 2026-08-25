@@ -1185,6 +1185,17 @@ def run_test_case(
     return entry
 
 
+def select_tests(modes: Sequence[str], suite: str) -> Sequence[TestCase]:
+    runtime = "runtime" in modes
+    compile_time = "compile-time" in modes
+    return [
+        test
+        for test in TEST_CASES
+        if (suite == "all" or test.suite == suite)
+        and ((test.whole_project and compile_time) or (not test.whole_project and runtime))
+    ]
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Benchmark solc vs Solar codegen on inline and repository contracts"
@@ -1195,10 +1206,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
     )
     parser.add_argument(
+        "--mode",
+        choices=("runtime", "compile-time"),
+        nargs="+",
+        default=("runtime",),
+        help="Benchmark modes to run (default: runtime)",
+    )
+    parser.add_argument(
         "--suite",
         choices=("micro", "repository", "large", "heavy", "all"),
-        default="micro",
-        help="Benchmark suite to run (heavy measures full project compile time)",
+        default="all",
+        help="Subset of the selected modes to run (default: all)",
     )
     parser.add_argument(
         "--compile-repeats",
@@ -1233,19 +1251,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    all_tests = [
-        test
-        for test in TEST_CASES
-        if args.suite == "all" or test.suite == args.suite
-    ]
+    suite_tests = select_tests(args.mode, args.suite)
 
     if args.projects:
         project_set = set(args.projects)
-        all_tests = [test for test in all_tests if test.project in project_set]
+        suite_tests = [test for test in suite_tests if test.project in project_set]
 
-    test_map = {test.test_id: test for test in all_tests}
+    test_map = {test.test_id: test for test in suite_tests}
     if args.list_tests:
-        for test in all_tests:
+        for test in suite_tests:
             if test.project_file is not None:
                 print(f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}")
             else:
@@ -1288,7 +1302,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 1
         tests = [test_map[test_id] for test_id in args.tests]
     else:
-        tests = list(all_tests)
+        tests = list(suite_tests)
 
     skipped = []
     if not args.include_incompatible:
