@@ -267,6 +267,18 @@ impl StackDepths {
             .and_then(|depth| depth.checked_add(growth))
             .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
     }
+
+    /// Returns the maximum reachable depth on entry to a block.
+    pub(super) fn entry_depth(&self, block: BlockId) -> Option<usize> {
+        if self.has_unknown_target || self.unbounded.contains(block) {
+            return None;
+        }
+        match self.before.get(block).and_then(Option::as_ref) {
+            Some(depths) => depths.first().copied(),
+            None if !self.has_unbounded_depth => Some(0),
+            None => None,
+        }
+    }
 }
 
 fn reachable_stack_blocks(

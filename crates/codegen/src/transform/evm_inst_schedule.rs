@@ -127,14 +127,17 @@ impl EvmInstSchedule {
             return false;
         }
 
-        matches!(
-            inst.metadata.effect().unwrap_or_else(|| inst.kind.effect_kind()),
-            crate::mir::EffectKind::Pure
-                | crate::mir::EffectKind::MemoryRead
-                | crate::mir::EffectKind::StorageRead
-                | crate::mir::EffectKind::TransientRead
-                | crate::mir::EffectKind::EnvironmentRead
-        )
+        let movable = |effect| {
+            matches!(
+                effect,
+                crate::mir::EffectKind::Pure
+                    | crate::mir::EffectKind::MemoryRead
+                    | crate::mir::EffectKind::StorageRead
+                    | crate::mir::EffectKind::TransientRead
+                    | crate::mir::EffectKind::EnvironmentRead
+            )
+        };
+        movable(inst.kind.effect_kind()) && inst.metadata.effect().is_none_or(movable)
     }
 
     /// Returns operands in the order their producers should run for EVM emission: deepest stack

@@ -82,3 +82,18 @@ bb8:
   swap1
   sub
   stop
+
+// Moving the push would raise the producer's peak above the EVM stack limit.
+bb9:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->2)
+  calldatasize
+  calldatasize
+  add
+  push 1
+  swap1
+  sub
+  stop
