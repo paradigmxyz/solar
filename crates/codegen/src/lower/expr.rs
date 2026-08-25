@@ -4,6 +4,7 @@ use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
     call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
+    data_is_inline,
 };
 use crate::{
     memory::EvmMemoryLayout,
@@ -1547,10 +1548,14 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Copy bytecode to the object payload.
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let mut data = Vec::with_capacity(aligned_data_len);
-        data.extend_from_slice(&bytecode);
-        data.resize(aligned_data_len, 0);
-        self.copy_data_to_memory(builder, data_start, data.into());
+        if data_is_inline(aligned_data_len) {
+            self.copy_data_slice_to_memory(builder, data_start, &bytecode);
+        } else {
+            let mut data = Vec::with_capacity(aligned_data_len);
+            data.extend_from_slice(&bytecode);
+            data.resize(aligned_data_len, 0);
+            self.copy_data_to_memory(builder, data_start, data.into());
+        }
 
         // Return ptr (the bytes memory value)
         ptr

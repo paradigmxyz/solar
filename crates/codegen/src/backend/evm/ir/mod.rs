@@ -52,7 +52,7 @@ pub(crate) struct DataRef {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Data {
     pub(crate) bytes: Bytes,
-    pub(crate) name: Option<Symbol>,
+    pub(crate) named: bool,
 }
 
 impl DataRef {

@@ -1,8 +1,8 @@
 //! Bytes and string lowering helpers.
 
-use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
+use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode, data_is_inline};
 use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
-use alloy_primitives::{Bytes, U256, keccak256};
+use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
@@ -63,10 +63,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let mut data = Vec::with_capacity(aligned);
-        data.extend_from_slice(bytes);
-        data.resize(aligned, 0);
-        self.copy_data_to_memory(builder, data_start, data.into());
+        if data_is_inline(aligned) {
+            self.copy_data_slice_to_memory(builder, data_start, bytes);
+        } else {
+            let mut data = Vec::with_capacity(aligned);
+            data.extend_from_slice(bytes);
+            data.resize(aligned, 0);
+            self.copy_data_to_memory(builder, data_start, data.into());
+        }
 
         ptr
     }
@@ -994,7 +998,7 @@ impl<'gcx> Lowerer<'gcx> {
             // Copy the bytes into a fresh allocation.
             let alloc_size = (len as u64).div_ceil(32) * 32;
             let ptr = self.allocate_memory(builder, alloc_size);
-            self.copy_data_to_memory(builder, ptr, Bytes::copy_from_slice(bytes));
+            self.copy_data_slice_to_memory(builder, ptr, bytes);
 
             return Ok((ptr, builder.imm_u64(len as u64)));
         }

@@ -45,6 +45,10 @@ const MIN_BULK_ZERO_MEMORY_WORDS: u64 = 4;
 /// Maximum constant word count emitted as individual stores.
 const MAX_INLINE_DATA_WORDS: usize = 4;
 
+fn data_is_inline(size: usize) -> bool {
+    size <= EvmMemoryLayout::WORD_SIZE as usize * MAX_INLINE_DATA_WORDS
+}
+
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
 pub(crate) struct LoopContext {
@@ -248,6 +252,20 @@ pub(crate) struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Copies borrowed constant data into memory without allocating for short values.
+    pub(super) fn copy_data_slice_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: &[u8],
+    ) {
+        if data_is_inline(data.len()) {
+            self.store_data_words(builder, dest, data);
+        } else {
+            self.copy_data_to_memory(builder, dest, Bytes::copy_from_slice(data));
+        }
+    }
+
     /// Copies constant module data into memory.
     pub(super) fn copy_data_to_memory(
         &mut self,
@@ -258,8 +276,7 @@ impl<'gcx> Lowerer<'gcx> {
         if data.is_empty() {
             return;
         }
-        let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-        if data.len() <= word_size * MAX_INLINE_DATA_WORDS {
+        if data_is_inline(data.len()) {
             self.store_data_words(builder, dest, &data);
             return;
         }

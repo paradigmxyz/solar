@@ -30,7 +30,7 @@ pub(crate) struct Immutable {
 #[derive(Clone, Debug)]
 struct Data {
     bytes: Bytes,
-    name: Option<Symbol>,
+    named: bool,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -284,7 +284,7 @@ impl Module {
     }
 
     pub(crate) fn add_data_with_name(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), name });
+        let id = self.data.push(Data { bytes: data.clone(), named: name.is_some() });
         self.data_index.entry(data).or_insert(id);
         id
     }
@@ -295,13 +295,11 @@ impl Module {
     }
 
     fn ensure_data_name(&mut self, id: DataId) {
-        if self.data[id].name.is_none() {
-            self.data[id].name = Some(crate::data_literal_name(id.index()));
-        }
+        self.data[id].named = true;
     }
 
     pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data[id].name
+        self.data[id].named.then(|| crate::data_literal_name(id.index()))
     }
 
     /// Returns constant data if the identifier is allocated.

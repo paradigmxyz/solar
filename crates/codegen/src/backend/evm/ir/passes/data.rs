@@ -10,7 +10,11 @@ use crate::backend::evm::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 pub(super) struct PackData;
@@ -68,7 +72,7 @@ struct DataPool {
 
 enum Placement {
     Existing(DataRef),
-    New { additional_bytes: isize, contained: Vec<DataId> },
+    New { additional_bytes: isize, contained: FxHashSet<DataId> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,14 +96,14 @@ impl DataPool {
     }
 
     fn placement(&self, data: &[u8]) -> Placement {
-        let mut contained = Vec::new();
+        let mut contained = FxHashSet::default();
         let mut removed = 0;
         for (id, known) in &self.entries {
             if let Some(offset) = memmem::find(known, data) {
                 return Placement::Existing(DataRef::new(*id, data_offset(offset)));
             }
             if memmem::find(data, known).is_some() {
-                contained.push(*id);
+                contained.insert(*id);
                 removed += known.len();
             }
         }
@@ -112,8 +116,7 @@ impl DataPool {
             Placement::New { contained, .. } => contained,
         };
         self.entries.retain(|(id, _)| !contained.contains(id));
-        let name = Some(crate::data_literal_name(module.data.len()));
-        let id = module.data.push(Data { bytes: bytes.clone(), name });
+        let id = module.data.push(Data { bytes: bytes.clone(), named: true });
         self.entries.push((id, bytes));
         DataRef::new(id, 0)
     }
@@ -150,14 +153,14 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in rejected.iter().enumerate() {
-            if memmem::find(&data, contained).is_none() {
+            let Some(offset) = memmem::find(&data, contained) else {
                 continue;
-            }
+            };
             let contained_improvement =
                 rewrite_improvement(gcx, contained.len(), contained_rewrites, 0);
             if is_profitable(gcx, contained_improvement) {
                 improvement.add(contained_improvement);
-                absorbed.push(index);
+                absorbed.push((index, offset));
             }
         }
         if !is_profitable(gcx, improvement) {
@@ -168,9 +171,8 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         let size = data.len();
         let data_ref = pool.intern(module, data.clone(), placement);
         prepare_rewrites(&mut prepared, rewrites, data_ref, size);
-        for index in absorbed.into_iter().rev() {
+        for (index, offset) in absorbed.into_iter().rev() {
             let (contained, rewrites) = rejected.swap_remove(index);
-            let offset = memmem::find(&data, &contained).unwrap();
             let offset =
                 data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
             prepare_rewrites(
@@ -307,14 +309,12 @@ fn pack_data(module: &mut Module) -> bool {
     for old_id in referenced {
         let data = &module.data[old_id];
         let data_ref = if let Some(data_ref) = find_data(&packed, &data.bytes) {
-            if data.name.is_some() && packed[data_ref.id].name.is_none() {
-                packed[data_ref.id].name = Some(crate::data_literal_name(data_ref.id.index()));
+            if data.named {
+                packed[data_ref.id].named = true;
             }
             data_ref
         } else {
-            let id = DataId::from_usize(packed.len());
-            let name = data.name.map(|_| crate::data_literal_name(id.index()));
-            let id = packed.push(Data { bytes: data.bytes.clone(), name });
+            let id = packed.push(Data { bytes: data.bytes.clone(), named: data.named });
             DataRef::new(id, 0)
         };
         remap.insert(old_id, data_ref);

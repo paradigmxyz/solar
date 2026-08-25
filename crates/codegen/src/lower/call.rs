@@ -8,7 +8,7 @@ use crate::{
         ValueId,
     },
 };
-use alloy_primitives::{Bytes, U256, keccak256};
+use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
@@ -2846,7 +2846,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let ptr = builder.fmp();
-            self.copy_data_to_memory(builder, ptr, Bytes::copy_from_slice(bytes));
+            self.copy_data_slice_to_memory(builder, ptr, bytes);
             return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
         }
 
