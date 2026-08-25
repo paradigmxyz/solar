@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/data/shared_runs.evmir (before data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/data/shared_runs.evmir (after data) ===
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/shared_runs.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/shared_runs.evmir (after pack-data) ===
   @module shared_runs
   bb0:
     push 128

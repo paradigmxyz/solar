@@ -55,7 +55,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
-    &data::Data,
+    &data::PackData,
     &dce::Dce,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
@@ -70,7 +70,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
-    &data::Data,
+    &data::PackData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &cfg_simplify::CfgSimplify,

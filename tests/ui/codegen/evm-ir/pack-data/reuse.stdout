@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/data/reuse.evmir (before data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/data/reuse.evmir (after data) ===
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (after pack-data) ===
   @module reuse
   bb0:
     push_data literal_0

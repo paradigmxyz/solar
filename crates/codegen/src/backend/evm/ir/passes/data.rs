@@ -11,11 +11,11 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use solar_interface::Symbol;
 use solar_sema::Gcx;
 
-pub(super) struct Data;
+pub(super) struct PackData;
 
-impl EvmPass for Data {
+impl EvmPass for PackData {
     fn name(&self) -> &'static str {
-        "data"
+        "pack-data"
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
