@@ -285,15 +285,14 @@ impl Module {
         DataRef::new(self.add_lowered_data(data), 0)
     }
 
-    pub(crate) fn add_data_with_name(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), named: name.is_some() });
+    pub(crate) fn add_data(&mut self, data: Bytes, named: bool) -> DataId {
+        let id = self.data.push(Data { bytes: data.clone(), named });
         self.data_index.entry(data).or_insert(id);
         id
     }
 
     fn add_lowered_data(&mut self, data: Bytes) -> DataId {
-        let name = Some(crate::data_literal_name(self.data.len()));
-        self.add_data_with_name(data, name)
+        self.add_data(data, true)
     }
 
     fn ensure_data_name(&mut self, id: DataId) {
@@ -302,6 +301,10 @@ impl Module {
 
     pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
         self.data[id].named.then(|| crate::data_literal_name(id.index()))
+    }
+
+    pub(crate) fn data_is_named(&self, id: DataId) -> bool {
+        self.data[id].named
     }
 
     /// Returns constant data if the identifier is allocated.

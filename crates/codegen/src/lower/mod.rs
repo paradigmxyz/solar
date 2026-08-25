@@ -259,10 +259,31 @@ impl<'gcx> Lowerer<'gcx> {
         dest: ValueId,
         data: &[u8],
     ) {
-        if data_is_inline(data.len()) {
+        self.copy_padded_data_slice_to_memory(builder, dest, data, data.len());
+    }
+
+    /// Copies constant data and clears its padding through `padded_size`.
+    pub(super) fn copy_padded_data_slice_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: &[u8],
+        padded_size: usize,
+    ) {
+        debug_assert!(padded_size >= data.len());
+        if padded_size == 0 {
+            return;
+        }
+        if data.iter().all(|&byte| byte == 0) {
+            let size = builder.imm_u64(padded_size as u64);
+            builder.memory_zero(dest, size);
+        } else if data_is_inline(padded_size) {
             self.store_data_words(builder, dest, data);
         } else {
-            self.copy_data_to_memory(builder, dest, Bytes::copy_from_slice(data));
+            let mut padded = Vec::with_capacity(padded_size);
+            padded.extend_from_slice(data);
+            padded.resize(padded_size, 0);
+            self.copy_nonzero_data_to_memory(builder, dest, padded.into());
         }
     }
 
@@ -281,6 +302,15 @@ impl<'gcx> Lowerer<'gcx> {
             builder.memory_zero(dest, size);
             return;
         }
+        self.copy_nonzero_data_to_memory(builder, dest, data);
+    }
+
+    fn copy_nonzero_data_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: Bytes,
+    ) {
         if data_is_inline(data.len()) {
             self.store_data_words(builder, dest, &data);
             return;

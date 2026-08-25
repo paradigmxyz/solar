@@ -871,7 +871,7 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
     fn invalid_data_offset_is_caught() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            let data = module.add_data_with_name(vec![0; 4].into(), None);
+            let data = module.add_data(vec![0; 4].into(), false);
             let mut func = make_func();
             {
                 let mut builder = FunctionBuilder::new(&mut func);

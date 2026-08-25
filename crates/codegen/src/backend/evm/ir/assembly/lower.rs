@@ -104,7 +104,8 @@ fn lower_evm_ir_once(
         }
 
         for inst in &block.instructions {
-            lower_instruction(assembler, &mut program, inst, module, labels);
+            let inst = lower_instruction(assembler, &mut program, inst, module, labels);
+            program.push(inst);
         }
 
         if let Some(terminator) = &block.terminator {
@@ -175,8 +176,8 @@ fn lower_instruction(
     inst: &ir::Instruction,
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-) {
-    let inst = if let Some(id) = inst.deferred_push() {
+) -> AsmInst {
+    if let Some(id) = inst.deferred_push() {
         AsmInst::push_deferred(id)
     } else if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
@@ -187,16 +188,12 @@ fn lower_instruction(
             Some(ir::PushValue::Block(block)) => {
                 AsmInst::push_label(label_for_block(assembler, module, *block, labels))
             }
-            Some(ir::PushValue::Data(data)) => {
-                program.push_data_ref(*data);
-                return;
-            }
+            Some(ir::PushValue::Data(data)) => AsmInst::push_data(program.intern_data_ref(*data)),
             _ => unreachable!("push must have one immediate, block, or data operand"),
         }
     } else {
         AsmInst::op(inst.opcode)
-    };
-    program.push(inst);
+    }
 }
 
 fn lower_terminator(

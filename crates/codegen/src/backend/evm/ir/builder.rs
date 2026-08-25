@@ -69,7 +69,7 @@ impl<'gcx> Assembler<'gcx> {
             let allocated = self
                 .program
                 .data
-                .push(ir::Data { bytes: data.clone(), named: module.data_name(id).is_some() });
+                .push(ir::Data { bytes: data.clone(), named: module.data_is_named(id) });
             debug_assert_eq!(allocated.index(), id.index());
         }
     }

@@ -1,7 +1,7 @@
 use alloy_primitives::U256;
 use solar_ast::{
     Arena,
-    token::{Token, TokenKind, TokenLitKind},
+    token::{BinOpToken, Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{Session, Span, Symbol, source_map::SourceFile};
 use solar_parse::PErr;
@@ -105,6 +105,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.error_at(span, format!("invalid data identifier `{name}`: {err}"))
         })?;
         Ok((id, Some(name)))
+    }
+
+    pub(crate) fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {
+        let id_span = self.token().span;
+        let (id, _) = self.parse_data_id()?;
+        let mut offset_span = id_span;
+        let offset = if self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
+            offset_span = self.token().span;
+            let value = self.parse_uint()?;
+            u32::try_from(value)
+                .map_err(|_| self.error_at(offset_span, "data offset exceeds `u32`"))?
+        } else {
+            0
+        };
+        Ok((id, offset, offset_span))
     }
 
     pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {

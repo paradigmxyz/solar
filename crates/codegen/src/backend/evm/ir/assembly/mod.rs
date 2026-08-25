@@ -75,8 +75,7 @@ impl Program {
         self.push(AsmInst::data(data));
     }
 
-    pub(in crate::backend::evm) fn push_data_ref(&mut self, data: super::DataRef) {
-        let data = self.data_refs.push(data);
-        self.push(AsmInst::push_data(data));
+    pub(in crate::backend::evm) fn intern_data_ref(&mut self, data: super::DataRef) -> DataRefId {
+        self.data_refs.push(data)
     }
 }

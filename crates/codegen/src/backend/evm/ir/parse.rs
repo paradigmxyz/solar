@@ -4,7 +4,7 @@ use super::*;
 use crate::backend::evm::op;
 use solar_ast::{
     Arena,
-    token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
+    token::{Delimiter, TokenKind, TokenLitKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
@@ -208,14 +208,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::dup => Instruction::opcode(op::dup(self.parse_stack_depth("dup")?)),
             sym::swap => Instruction::opcode(op::swap(self.parse_stack_depth("swap")?)),
             sym::push_data => {
-                let (id, _) = self.parse_data_id()?;
-                let offset = if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-                    let value = self.parser.parse_uint()?;
-                    u32::try_from(value)
-                        .map_err(|_| self.parser.error("data offset exceeds `u32`"))?
-                } else {
-                    0
-                };
+                let span = self.parser.token().span;
+                let (id, offset, _) = self.parser.parse_data_ref()?;
+                let id = self.check_assembly_id("program data", span, id)?;
                 Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
             }
             sym::push_deferred => {

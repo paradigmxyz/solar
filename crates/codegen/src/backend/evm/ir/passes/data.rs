@@ -146,24 +146,28 @@ impl DataPool {
     ) -> DataRef {
         let contained = match placement {
             Placement::Existing(data) => {
-                self.entries
-                    .iter_mut()
-                    .find(|(id, _, _)| *id == data.id)
-                    .expect("existing data is pooled")
-                    .2 += reference_count;
+                if self.entries.len() < MAX_DATA_SUBSTRING_ENTRIES {
+                    self.entries
+                        .iter_mut()
+                        .find(|(id, _, _)| *id == data.id)
+                        .expect("existing data is pooled")
+                        .2 += reference_count;
+                }
                 return data;
             }
             Placement::New { contained, .. } => contained,
         };
         let mut reference_count = reference_count;
-        self.entries.retain(|(id, bytes, inherited_references)| {
-            let retain = !contained.contains(id);
-            if !retain {
-                self.exact.remove(bytes);
-                reference_count += *inherited_references;
-            }
-            retain
-        });
+        if !contained.is_empty() {
+            self.entries.retain(|(id, bytes, inherited_references)| {
+                let retain = !contained.contains(id);
+                if !retain {
+                    self.exact.remove(bytes);
+                    reference_count += *inherited_references;
+                }
+                retain
+            });
+        }
         let id = module.data.push(Data { bytes: bytes.clone(), named: true });
         self.entries.push((id, bytes.clone(), reference_count));
         self.exact.insert(bytes, DataRef::new(id, 0));
@@ -172,28 +176,30 @@ impl DataPool {
 }
 
 fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let mut rewrites = Vec::new();
+    let mut groups = FxHashMap::<Bytes, Vec<Rewrite>>::default();
+    let mut reference_counts = IndexVec::from_vec(vec![0; module.data.len()]);
     for (block_id, block) in module.blocks.iter_enumerated() {
         let mut start = 0;
         while start < block.instructions.len() {
+            if let Some(PushValue::Data(data)) = block.instructions[start].value {
+                reference_counts[data.id] += 1;
+            }
             let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, start) else {
                 start += 1;
                 continue;
             };
             start = rewrite.end;
-            rewrites.push((data, rewrite));
+            groups.entry(data).or_default().push(rewrite);
         }
     }
-    let mut groups = FxHashMap::<Bytes, Vec<Rewrite>>::default();
-    for (data, rewrite) in rewrites {
-        groups.entry(data).or_default().push(rewrite);
+    if groups.is_empty() {
+        return false;
     }
     let mut groups = groups.into_iter().collect::<Vec<_>>();
     groups.sort_unstable_by(|(a, _), (b, _)| {
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let reference_counts = data_reference_counts(module);
     let total_reference_count = reference_counts.iter().sum();
     let allow_absorption =
         module.data.len().saturating_add(groups.len()) < MAX_DATA_SUBSTRING_ENTRIES;
@@ -344,12 +350,22 @@ fn placement_additional_bytes(placement: &Placement) -> isize {
 }
 
 fn pack_data(module: &mut Module) -> bool {
+    if module.data.is_empty() {
+        return false;
+    }
     let reference_counts = data_reference_counts(module);
     let total_reference_count = reference_counts.iter().sum();
     let mut referenced = reference_counts
         .iter_enumerated()
         .filter_map(|(id, &count)| (count != 0).then_some(id))
         .collect::<Vec<_>>();
+    if referenced.is_empty() {
+        module.data.clear();
+        return true;
+    }
+    if module.data.len() == 1 {
+        return false;
+    }
     referenced.sort_unstable_by(|&a, &b| {
         module.data[b].bytes.len().cmp(&module.data[a].bytes.len()).then_with(|| a.cmp(&b))
     });
@@ -366,9 +382,6 @@ fn pack_data(module: &mut Module) -> bool {
             .then(|| find_data(&packed, &sources, &data.bytes, old_id, total_reference_count))
             .flatten()
         {
-            if data.named {
-                packed[data_ref.id].named = true;
-            }
             data_ref
         } else {
             let id = packed.push(Data { bytes: data.bytes.clone(), named: data.named });
@@ -376,9 +389,7 @@ fn pack_data(module: &mut Module) -> bool {
             exact.insert(data.bytes.clone(), id);
             DataRef::new(id, 0)
         };
-        if data.named {
-            packed[data_ref.id].named = true;
-        }
+        packed[data_ref.id].named |= data.named;
         remap.insert(old_id, data_ref);
     }
 
@@ -394,7 +405,9 @@ fn pack_data(module: &mut Module) -> bool {
         data.id = packed_remap[data.id];
     }
 
-    let changed = ordered != module.data;
+    if ordered == module.data {
+        return false;
+    }
     module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
@@ -405,7 +418,7 @@ fn pack_data(module: &mut Module) -> bool {
             }
         }
     }
-    changed
+    true
 }
 
 fn find_data(

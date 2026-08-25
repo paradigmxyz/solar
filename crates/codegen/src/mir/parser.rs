@@ -243,7 +243,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let bytes = alloy_primitives::hex::decode(bytes.as_str())
                 .map_err(|err| self.parser.error(format!("invalid data: {err}")))?;
             self.parser.bump();
-            module.add_data_with_name(bytes.into(), name);
+            module.add_data(bytes.into(), name.is_some());
         }
         self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
         Ok(())
@@ -1231,29 +1231,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_data_ref(&mut self) -> PResult<'sess, DataRef> {
         let span = self.parser.token().span;
-        let (value, _) = self.parser.parse_data_id()?;
+        let (value, offset, offset_span) = self.parser.parse_data_ref()?;
         let Ok(index) = usize::try_from(value) else {
             return Err(self.parser.error_at(span, "data ID exceeds the index limit"));
         };
         let Some(&size) = self.data_sizes.get(index) else {
             return Err(self.parser.error_at(span, format!("unknown data ID `{index}`")));
         };
-        let offset = if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-            let offset_span = self.parser.token().span;
-            let value = self.parser.parse_uint()?;
-            let Ok(offset) = u32::try_from(value) else {
-                return Err(self.parser.error_at(offset_span, "data offset exceeds `u32`"));
-            };
-            if offset as usize > size {
-                return Err(self.parser.error_at(
-                    offset_span,
-                    format!("data offset {offset} exceeds data size {size}"),
-                ));
-            }
-            offset
-        } else {
-            0
-        };
+        if offset as usize > size {
+            return Err(self
+                .parser
+                .error_at(offset_span, format!("data offset {offset} exceeds data size {size}")));
+        }
         Ok(DataRef::new(DataId::from_usize(index), offset))
     }
 

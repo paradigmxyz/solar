@@ -1,6 +1,6 @@
 //! Bytes and string lowering helpers.
 
-use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode, data_is_inline};
+use super::{Lowerer, call::StorageArrayMethod, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
@@ -63,14 +63,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        if data_is_inline(aligned) {
-            self.copy_data_slice_to_memory(builder, data_start, bytes);
-        } else {
-            let mut data = Vec::with_capacity(aligned);
-            data.extend_from_slice(bytes);
-            data.resize(aligned, 0);
-            self.copy_data_to_memory(builder, data_start, data.into());
-        }
+        self.copy_padded_data_slice_to_memory(builder, data_start, bytes, aligned);
 
         ptr
     }
