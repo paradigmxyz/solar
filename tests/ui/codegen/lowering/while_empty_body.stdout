@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 42
+  push 41
   dup1
   push 9
   push 0
@@ -25,9 +25,8 @@ bb0:
   sub
   push bb3
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt

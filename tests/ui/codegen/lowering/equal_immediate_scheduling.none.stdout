@@ -23,9 +23,8 @@ bb3 [cold]:
   dup1
   revert
 bb4:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   swap1
