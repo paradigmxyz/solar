@@ -280,6 +280,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             out.push(SpannedOption::None(self.prev_token.span.shrink_to_lo()));
         }
 
+        // A closing delimiter after one or more leading commas terminates one final omitted
+        // component: `(,)` has two holes, while `()` remains empty.
+        if !out.is_empty() && self.check(TokenKind::CloseDelim(delim)) {
+            out.push(SpannedOption::None(self.token.span.shrink_to_lo()));
+        }
+
         // Handle the first potential item. If the list is not closing,
         // we assume there's at least one item.
         if !self.check(TokenKind::CloseDelim(delim)) {
@@ -576,16 +582,18 @@ mod tests {
         check(&[
             ("()", &[]),
             ("(a)", &[Some("a")]),
-            // invalid syntax
-            // ("(,)", &[None, None]),
+            // These are invalid as standalone statements, but occur as nested tuple lvalues.
+            ("(,)", &[None, None]),
+            ("(,,)", &[None, None, None]),
+            ("(,,,)", &[None, None, None, None]),
             ("(a,)", &[Some("a"), None]),
             ("(,b)", &[None, Some("b")]),
+            ("(,b,)", &[None, Some("b"), None]),
+            ("(,,c,)", &[None, None, Some("c"), None]),
             ("(a,b)", &[Some("a"), Some("b")]),
             ("(a,b,)", &[Some("a"), Some("b"), None]),
-            // invalid syntax
-            // ("(,,)", &[None, None, None]),
             ("(a,,)", &[Some("a"), None, None]),
-            ("(a,b,)", &[Some("a"), Some("b"), None]),
+            ("(a,,,)", &[Some("a"), None, None, None]),
             ("(a,b,c)", &[Some("a"), Some("b"), Some("c")]),
             ("(,b,c)", &[None, Some("b"), Some("c")]),
             ("(,,c)", &[None, None, Some("c")]),
