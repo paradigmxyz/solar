@@ -476,6 +476,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             span,
             validate_bounds && element_is_dynamic,
         )?;
+        let value = self.encode_memory_scalar(element, value);
         self.builder.memory_object_store_element(object, layout, index, value);
         let next = self.builder.add_u64_offset(index, 1);
         let backedge = self.builder.current_block();
@@ -847,6 +848,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 span,
                 validate_bounds && element_abi.is_dynamic(),
             )?;
+            let value = self.encode_memory_scalar(element, value);
             self.builder.memory_object_store_element(object, layout, index_value, value);
         }
         Some(object)
@@ -887,6 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let head = self.builder.add_u64_offset(base, offset);
             let value =
                 self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
+            let value = self.encode_memory_scalar(field, value);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
