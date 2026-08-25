@@ -377,7 +377,8 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
             // HACK: skip the input file argument by using a dummy flag.
             config.program.input_file_flag = Some("-I".into());
         }
-    } else if let Some(evm_version) = solc::yul::evm_version(src) {
+    }
+    if let Some(evm_version) = solc::yul::evm_version(src) {
         config.program.args.push("--evm-version".into());
         config.program.args.push(evm_version.to_string().into());
     }

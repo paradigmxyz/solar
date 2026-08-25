@@ -330,7 +330,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
@@ -344,6 +344,7 @@ impl Symbol {
     pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
         match self {
             kw::Basefee => !evm_version.has_base_fee(),
+            kw::Prevrandao => !evm_version.has_prev_randao(),
             kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
                 !evm_version.has_blob_base_fee()
             }

@@ -68,20 +68,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "number_literal_3"
         | "number_literal_4"
         | "data_name_with_literal_newline"
-        | "pc_disallowed"
-        | "for_statement_nested_continue"
-        | "linkersymbol_invalid_redefine_builtin"
-        // TODO: Implemented with Yul object syntax.
-        | "datacopy_shadowing"
-        | "dataoffset_shadowing"
-        | "datasize_shadowing"
-        | "linkersymbol_shadowing"
-        | "loadimmutable_shadowing"
-        | "setimmutable_shadowing"
-        | "eof_names_reserved_in_eof"
-        | "extcall_function_in_eof"
-        | "extdelegatecall_function_in_eof"
-        | "extstaticcall_function_in_eof"
     ) {
         return Err("manually skipped");
     };
