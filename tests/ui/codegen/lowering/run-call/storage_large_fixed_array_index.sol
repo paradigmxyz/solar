@@ -3,6 +3,7 @@
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@ run-call: test() => 7, 8
+//@ run-call: hasExpectedLength() => true
 //@ run-call: read(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffff => 0
 //@ run-call-fail: read(uint256) 0x100000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
@@ -19,5 +20,9 @@ contract StorageLargeFixedArrayIndex {
 
     function read(uint256 index) external view returns (uint256) {
         return arrays[0][index][0];
+    }
+
+    function hasExpectedLength() external view returns (bool) {
+        return arrays[0].length == 2 ** 200;
     }
 }
