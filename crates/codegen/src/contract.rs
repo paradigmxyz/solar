@@ -366,7 +366,7 @@ fn generate_contract_bytecode(
     if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
         && artifact.runtime.len() > limit
     {
-        let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
+        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
             EvmVersion::Amsterdam
         } else {
             EvmVersion::SpuriousDragon
@@ -389,7 +389,7 @@ fn generate_contract_bytecode(
     if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
         && artifact.deployment.len() > limit
     {
-        let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
+        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
             EvmVersion::Amsterdam
         } else {
             EvmVersion::Shanghai
