@@ -1308,13 +1308,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Emits a stack manipulation operation (DUP, SWAP, POP) and updates the scheduler.
     fn emit_stack_op(&mut self, op: StackOp) {
-        self.emit_stack_opcode(op);
-        self.scheduler.stack.apply(op);
-    }
-
-    /// Emits a stack manipulation operation without updating the stack model.
-    fn emit_stack_opcode(&mut self, op: StackOp) {
         self.asm.emit_stack_op(op);
+        self.scheduler.stack.apply(op);
     }
 
     /// Emits an opcode with known stack effects and updates the scheduler.
@@ -1545,7 +1540,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
-        self.emit_stack_opcode(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push_deferred(runtime_offset);
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
@@ -1733,7 +1728,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
-                self.emit_stack_opcode(StackOp::Dup(1));
+                self.asm.emit_stack_op(StackOp::Dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
@@ -2953,7 +2948,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "global-stack edge layout mismatch"
         );
         for op in shuffle.ops {
-            self.emit_stack_opcode(op);
+            self.asm.emit_stack_op(op);
         }
 
         true
@@ -2993,7 +2988,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .shuffle_to_layout(&target)
             .unwrap_or_else(|| panic!("could not construct edge-specific branch layout"));
         for op in shuffle.ops {
-            self.emit_stack_opcode(op);
+            self.asm.emit_stack_op(op);
         }
         Some(union)
     }
@@ -3018,7 +3013,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .shuffle_to_layout(&target)
             .unwrap_or_else(|| panic!("could not construct edge-specific resident stack layout"));
         for op in shuffle.ops {
-            self.emit_stack_opcode(op);
+            self.asm.emit_stack_op(op);
         }
     }
 
@@ -3172,7 +3167,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             "stack-phi edge layout mismatch"
         );
         for op in shuffle.ops {
-            self.emit_stack_opcode(op);
+            self.asm.emit_stack_op(op);
         }
 
         self.set_stack_to_values(&edge.results);
@@ -5066,7 +5061,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Drop dead values after the instruction
         let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
         for op in dead_ops {
-            self.emit_stack_opcode(op);
+            self.asm.emit_stack_op(op);
         }
         #[cfg(debug_assertions)]
         {
@@ -6345,7 +6340,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 dup <= MAX_STACK_ACCESS,
                 "resident caller argument exceeded DUP16 reach at an internal call"
             );
-            self.emit_stack_opcode(StackOp::Dup(dup as u8));
+            self.asm.emit_stack_op(StackOp::Dup(dup as u8));
             return;
         }
 
@@ -6419,7 +6414,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .expect("non-resident stack argument disappeared in the callee prologue");
                 if depth != 0 {
                     assert!(depth <= MAX_STACK_ACCESS, "stack argument exceeded SWAP16 reach");
-                    self.emit_stack_opcode(StackOp::Swap(depth as u8));
+                    self.asm.emit_stack_op(StackOp::Swap(depth as u8));
                     incoming.swap(depth as u8);
                 }
                 let addr = self.static_frame_addr(
@@ -6438,7 +6433,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 panic!("could not construct selective resident entry layout for `{}`", func.name)
             });
             for op in shuffle.ops {
-                self.emit_stack_opcode(op);
+                self.asm.emit_stack_op(op);
             }
             debug_assert_eq!(
                 scheduler.stack.as_slice(),
@@ -7281,7 +7276,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             });
             for op in shuffle.ops {
-                self.emit_stack_opcode(op);
+                self.asm.emit_stack_op(op);
             }
             Some(self.scheduler.stack.clone())
         };
@@ -7468,7 +7463,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &preserved,
                 func,
                 self.gcx.sess.opts.optimization,
-                self.gcx.sess.opts.evm_version,
                 cost_model,
             ) else {
                 continue;
@@ -7487,7 +7481,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &preserved,
                 func,
                 self.gcx.sess.opts.optimization,
-                self.gcx.sess.opts.evm_version,
                 cost_model,
             ) {
                 let cost = plan.cost();
@@ -7730,7 +7723,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             });
             for op in shuffle.ops {
-                self.emit_stack_opcode(op);
+                self.asm.emit_stack_op(op);
             }
             Some(self.scheduler.stack.clone())
         } else {
@@ -7775,7 +7768,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(plan) = &retention_plan {
             for &op in &plan.shuffle_ops {
                 debug_assert!(matches!(op, StackOp::Swap(_)));
-                self.emit_stack_opcode(op);
+                self.asm.emit_stack_op(op);
             }
         }
         self.asm.emit_push_label(callee_label);
@@ -7894,7 +7887,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.stack.push(result);
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         } else {
-            self.emit_stack_opcode(StackOp::Pop);
+            self.asm.emit_stack_op(StackOp::Pop);
         }
     }
 
@@ -8077,7 +8070,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             &preserved,
             func,
             self.gcx.sess.opts.optimization,
-            self.gcx.sess.opts.evm_version,
             self.operand_cost_model(),
         )
     }
@@ -8128,7 +8120,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
-                    self.emit_stack_opcode(stack_op);
+                    self.asm.emit_stack_op(stack_op);
                 }
                 ScheduledOp::PushImmediate(imm) => {
                     self.asm.emit_push(imm);
@@ -8924,14 +8916,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             };
             for op in shuffle.ops {
-                self.emit_stack_opcode(op);
+                self.asm.emit_stack_op(op);
             }
 
             // Rotate the untracked return address from below the result tuple to the top without
             // disturbing result order: SWAP1, SWAP2, ..., SWAPN maps
             // [return, r0, ..., rN] to [r0, ..., rN, return].
             for depth in 1..=plan.arity {
-                self.emit_stack_opcode(StackOp::Swap(depth as u8));
+                self.asm.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.asm.emit_op(op::JUMP);
             self.scheduler.clear_stack();
@@ -9027,7 +9019,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             return;
                         };
                         for op in shuffle.ops {
-                            self.emit_stack_opcode(op);
+                            self.asm.emit_stack_op(op);
                         }
                     }
                 }

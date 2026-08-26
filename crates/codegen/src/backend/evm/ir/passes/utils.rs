@@ -32,10 +32,6 @@ impl MachineInstKey {
     }
 }
 
-pub(super) fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
-    MachineInstKey::new(a) == MachineInstKey::new(b)
-}
-
 #[derive(Clone, Default)]
 struct AbstractValue {
     labels: LabelSet,

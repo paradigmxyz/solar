@@ -65,7 +65,7 @@ fn eliminate_in_block(
         edits.clear();
         let mut start = 0;
         while start < instructions.len() {
-            let Some(StackOp::Dup(depth)) = stack_op(&instructions[start]) else {
+            let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op() else {
                 start += 1;
                 continue;
             };
@@ -233,12 +233,12 @@ fn find_candidate(
         slots.swap(0, 1);
     }
 
-    let start_op = stack_op(&instructions[start])?;
+    let start_op = instructions[start].as_stack_op()?;
     let mut candidate = Candidate::new(start, start_op, evm_version);
 
     let mut index = start + 1;
     while let Some(inst) = instructions.get(index) {
-        let stack_op = stack_op(inst);
+        let stack_op = inst.as_stack_op();
         if stack_op.is_some_and(|stack_op| stack_op.assembled_len(evm_version).is_none()) {
             return None;
         }
@@ -344,8 +344,29 @@ fn retarget_swap(
     ensure_depth(slots, stack_depth);
     let top = slots.len() - 1;
     let selected = slots.len() - stack_depth;
-    for stack_op in swap_replacement(slots, selected, top, max_stack_access)? {
-        push_simplified_stack_op(replacement, stack_op);
+
+    let selected_is_ghost = slots[selected].is_ghost;
+    let top_is_ghost = slots[top].is_ghost;
+    if !selected_is_ghost && !top_is_ghost {
+        let depth = physical_depth(slots, selected);
+        if !(2..=max_stack_access + 1).contains(&depth) {
+            return None;
+        }
+        push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth - 1).unwrap()));
+    } else {
+        let live = slots[selected..=top].iter().filter(|slot| !slot.is_ghost).count();
+        if live > max_stack_access {
+            return None;
+        }
+        if selected_is_ghost {
+            for depth in (1..live).rev() {
+                push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth).unwrap()));
+            }
+        } else {
+            for depth in 1..live {
+                push_simplified_stack_op(replacement, StackOp::Swap(u8::try_from(depth).unwrap()));
+            }
+        }
     }
     slots.swap(selected, top);
     Some(())
@@ -363,35 +384,6 @@ fn push_simplified_stack_op(ops: &mut Vec<StackOp>, stack_op: StackOp) {
         ops.truncate(ops.len() - 3);
         ops.push(exchange);
     }
-}
-
-fn swap_replacement(
-    slots: &[Slot],
-    selected: usize,
-    top: usize,
-    max_stack_access: usize,
-) -> Option<Vec<StackOp>> {
-    let selected_is_ghost = slots[selected].is_ghost;
-    let top_is_ghost = slots[top].is_ghost;
-    if !selected_is_ghost && !top_is_ghost {
-        let depth = physical_depth(slots, selected);
-        return (2..=max_stack_access + 1)
-            .contains(&depth)
-            .then(|| vec![StackOp::Swap(u8::try_from(depth - 1).unwrap())]);
-    }
-
-    let live = slots[selected..=top].iter().filter(|slot| !slot.is_ghost).count();
-    if live > max_stack_access {
-        return None;
-    }
-    let mut replacement = Vec::with_capacity(live.saturating_sub(1));
-    if selected_is_ghost {
-        replacement
-            .extend((1..live).rev().map(|depth| StackOp::Swap(u8::try_from(depth).unwrap())));
-    } else {
-        replacement.extend((1..live).map(|depth| StackOp::Swap(u8::try_from(depth).unwrap())));
-    }
-    Some(replacement)
 }
 
 fn better_candidate(left: Option<Candidate>, right: Option<Candidate>) -> Option<Candidate> {
@@ -426,10 +418,6 @@ fn apply_edits(
             instructions.push(inst);
         }
     }
-}
-
-fn stack_op(inst: &Instruction) -> Option<StackOp> {
-    inst.as_stack_op()
 }
 
 const fn is_analysis_boundary(opcode: u8) -> bool {

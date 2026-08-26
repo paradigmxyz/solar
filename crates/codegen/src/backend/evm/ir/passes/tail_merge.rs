@@ -2,12 +2,11 @@
 
 use super::{
     EvmPass,
-    utils::{
-        FreshLabels, instruction_size_lower_bound, is_terminal_boundary, machine_instructions_equal,
-    },
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
 };
-use crate::backend::evm::ir::{
-    Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
+use crate::backend::evm::{
+    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
+    op::StackOp,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
@@ -195,7 +194,7 @@ fn common_suffix(a: &Block, b: &Block) -> usize {
         .iter()
         .rev()
         .zip(b.instructions.iter().rev())
-        .take_while(|(a, b)| machine_instructions_equal(a, b))
+        .take_while(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
         .count()
 }
 
@@ -205,14 +204,11 @@ fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) 
     terminator_lower_bound(gcx, module, block_id, terminator)
         + block.instructions[block.instructions.len() - common..]
             .iter()
-            .map(|inst| instruction_size(gcx, inst))
+            .map(|inst| match inst.as_stack_op() {
+                Some(StackOp::Exchange(_, ..=16)) => 3,
+                _ => instruction_size_lower_bound(gcx, inst),
+            })
             .sum::<usize>()
-}
-
-fn instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.as_stack_op()
-        .and_then(|stack_op| stack_op.ir_assembled_len(gcx.sess.opts.evm_version))
-        .unwrap_or_else(|| instruction_size_lower_bound(gcx, inst))
 }
 
 fn terminator_lower_bound(

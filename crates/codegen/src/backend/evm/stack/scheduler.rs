@@ -378,14 +378,17 @@ impl OperandPlan {
         }
 
         let mut folded = PlannedActions::new();
-        let mut index = 0;
-        while index < self.actions.len() {
+        let mut pending = SmallVec::<[PlannedAction; 3]>::new();
+        for action in std::mem::take(&mut self.actions) {
+            pending.push(action);
+            if pending.len() < 3 {
+                continue;
+            }
             if let [
                 PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(first)), pushed: None },
                 PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(second)), pushed: None },
                 PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(third)), pushed: None },
-                ..,
-            ] = &self.actions[index..]
+            ] = pending.as_slice()
                 && let Some(exchange) = StackOp::from_swaps(*first, *second, *third)
             {
                 let removed = ScheduleCost::stack_op(StackOp::Swap(*first), evm_version)
@@ -405,12 +408,12 @@ impl OperandPlan {
                 self.cost.actions =
                     self.cost.actions.saturating_sub(removed.actions).saturating_add(added.actions);
                 folded.push(PlannedAction { op: ScheduledOp::Stack(exchange), pushed: None });
-                index += 3;
+                pending.clear();
                 continue;
             }
-            folded.push(self.actions[index].clone());
-            index += 1;
+            folded.push(pending.remove(0));
         }
+        folded.extend(pending);
         self.actions = folded;
         self
     }
@@ -600,7 +603,6 @@ impl StackScheduler {
         preserved: &[ValueId],
         func: &Function,
         optimization: OptimizationMode,
-        evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
         #[cfg(test)]
@@ -609,6 +611,7 @@ impl StackScheduler {
         if matches!(optimization, OptimizationMode::None) {
             return None;
         }
+        let evm_version = self.evm_version;
 
         let goal = operands.iter().rev().copied().collect::<SmallVec<[_; 8]>>();
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
@@ -1043,46 +1046,44 @@ impl StackScheduler {
             consider(ScheduledOp::Stack(StackOp::Pop), None);
         }
 
-        if let Some(expected_top) = goal.first().copied() {
-            let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
-            for depth in (1..=max_swap).filter(|&depth| stack[depth] == Some(expected_top)) {
-                if stack[0] != stack[depth]
-                    && (matches!(optimization, OptimizationMode::Gas)
-                        || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
-                    && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
-                        if i == 0 {
-                            stack[depth]
-                        } else if i == depth {
-                            stack[0]
-                        } else {
-                            stack[i]
-                        }
-                    })
-                {
-                    consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
-                }
-            }
-
-            let max_dup = stack.len().min(max_stack_access);
-            if let Some(depth) =
-                stack[..max_dup].iter().position(|&slot| slot == Some(expected_top))
-                && Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
-                    if i == 0 { Some(expected_top) } else { stack[i - 1] }
+        let Some(&expected_top) = goal.first() else { return best };
+        let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
+        for depth in (1..=max_swap).filter(|&depth| stack[depth] == Some(expected_top)) {
+            if stack[0] != stack[depth]
+                && (matches!(optimization, OptimizationMode::Gas)
+                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                    if i == 0 {
+                        stack[depth]
+                    } else if i == depth {
+                        stack[0]
+                    } else {
+                        stack[i]
+                    }
                 })
             {
-                consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
+                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
             }
         }
 
-        if let Some(&value) = goal.first()
+        let max_dup = stack.len().min(max_stack_access);
+        if let Some(depth) = stack[..max_dup].iter().position(|&slot| slot == Some(expected_top))
             && Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
-                if i == 0 { Some(value) } else { stack[i - 1] }
+                if i == 0 { Some(expected_top) } else { stack[i - 1] }
             })
-            && let Some(op @ ScheduledOp::PushImmediate(_)) = self.materialize_operand(value, func)
         {
-            let accessible = stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
+            consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
+        }
+
+        if Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
+            if i == 0 { Some(expected_top) } else { stack[i - 1] }
+        }) && let Some(op @ ScheduledOp::PushImmediate(_)) =
+            self.materialize_operand(expected_top, func)
+        {
+            let accessible =
+                stack.iter().take(max_stack_access).any(|&slot| slot == Some(expected_top));
             if matches!(optimization, OptimizationMode::Gas) || !accessible {
-                consider(op, Some(value));
+                consider(op, Some(expected_top));
             }
         }
 
@@ -2553,14 +2554,7 @@ mod tests {
         scheduler.stack.push(a);
 
         let plan = scheduler
-            .plan_operands(
-                &[b, a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert!(plan.actions.is_empty());
 
@@ -2579,14 +2573,7 @@ mod tests {
         scheduler.stack.push(b);
 
         let plan = scheduler
-            .plan_operands(
-                &[b, a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(1)));
@@ -2607,14 +2594,7 @@ mod tests {
         scheduler.stack.push(b);
 
         let plan = scheduler
-            .plan_operands(
-                &[b, a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
 
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
@@ -2630,14 +2610,7 @@ mod tests {
         scheduler.stack.push(b);
 
         let plan = scheduler
-            .plan_operands(
-                &[a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
 
         assert_ne!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
@@ -2658,7 +2631,6 @@ mod tests {
                 &[a, b],
                 &func,
                 OptimizationMode::Size,
-                EvmVersion::Shanghai,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -2677,14 +2649,7 @@ mod tests {
         scheduler.stack.push(a);
 
         let plan = scheduler
-            .plan_operands(
-                &[a, a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[a, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         scheduler.apply_operand_plan(plan);
 
@@ -2706,7 +2671,6 @@ mod tests {
                 &[],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Shanghai,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -2733,14 +2697,7 @@ mod tests {
         scheduler.stack.push(one);
 
         let plan = scheduler
-            .plan_operands(
-                &[zero],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[zero], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
 
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(2)));
@@ -2759,14 +2716,7 @@ mod tests {
         scheduler.stack.push(one);
 
         let plan = scheduler
-            .plan_operands(
-                &[zero],
-                &[zero],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[zero], &[zero], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
 
         assert_eq!(plan.actions[0].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
@@ -2789,7 +2739,6 @@ mod tests {
                 &[one],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Shanghai,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -2815,7 +2764,6 @@ mod tests {
                 &[zero],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Shanghai,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -2875,7 +2823,6 @@ mod tests {
                             retained,
                             &func,
                             optimization,
-                            EvmVersion::Shanghai,
                             OperandCostModel::DIRECT,
                         )
                         .unwrap();
@@ -2968,7 +2915,6 @@ mod tests {
                         retained,
                         &func,
                         optimization,
-                        EvmVersion::Shanghai,
                         OperandCostModel::DIRECT,
                     )
                     .unwrap();
@@ -3011,7 +2957,7 @@ mod tests {
                     }
                     for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
                         for evm_version in [EvmVersion::Paris, EvmVersion::Shanghai] {
-                            let mut scheduler = StackScheduler::new();
+                            let mut scheduler = StackScheduler::for_evm_version(evm_version);
                             for &slot in layout.iter().rev() {
                                 if let Some(value) = slot {
                                     scheduler.stack.push(value);
@@ -3033,7 +2979,6 @@ mod tests {
                                 preserved,
                                 &func,
                                 optimization,
-                                evm_version,
                                 OperandCostModel::DIRECT,
                             );
 
@@ -3092,14 +3037,7 @@ mod tests {
         scheduler.stack.push(c);
 
         let plan = scheduler
-            .plan_operands(
-                &[a, c, a],
-                &[a],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[a, c, a], &[a], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
 
         assert_eq!(
@@ -3142,7 +3080,6 @@ mod tests {
                     &[a],
                     &func,
                     OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3160,7 +3097,6 @@ mod tests {
                     &[a],
                     &func,
                     OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3177,14 +3113,7 @@ mod tests {
             limited_searches: MAX_OPERAND_SEARCH_FUNCTION_LIMITS,
         });
         let plan = scheduler
-            .plan_operands(
-                &[a],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert!(plan.is_free());
     }
@@ -3275,14 +3204,7 @@ mod tests {
         assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS));
 
         let plan = scheduler
-            .plan_operands(
-                &[target],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[target], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(16)));
@@ -3302,14 +3224,7 @@ mod tests {
         }
 
         let plan = scheduler
-            .plan_operands(
-                &[target],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Amsterdam,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[target], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(17)));
     }
@@ -3336,7 +3251,6 @@ mod tests {
                 &[],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Amsterdam,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -3365,7 +3279,6 @@ mod tests {
                 &[target],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Amsterdam,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -3396,7 +3309,6 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3439,7 +3351,6 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3482,7 +3393,6 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::Size,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3658,7 +3568,6 @@ mod tests {
                 &[],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Shanghai,
                 OperandCostModel::DYNAMIC_FRAME,
             )
             .unwrap();
@@ -3678,14 +3587,7 @@ mod tests {
         scheduler.stack.push_unknown();
 
         let plan = scheduler
-            .plan_operands(
-                &[value],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         scheduler.apply_operand_plan(plan);
         scheduler.instruction_executed(1, None);
@@ -3714,7 +3616,6 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
@@ -3722,14 +3623,7 @@ mod tests {
 
         scheduler.spills.mark_stored(value);
         let plan = scheduler
-            .plan_operands(
-                &[value],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
     }
@@ -3744,14 +3638,7 @@ mod tests {
         scheduler.spills.mark_reloadable(value);
 
         let plan = scheduler
-            .plan_operands(
-                &[value],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
     }
@@ -3772,14 +3659,7 @@ mod tests {
             scheduler.spills.mark_stored(value);
 
             let plan = scheduler
-                .plan_operands(
-                    &[value],
-                    &[],
-                    &func,
-                    OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
-                    cost_model,
-                )
+                .plan_operands(&[value], &[], &func, OptimizationMode::Gas, cost_model)
                 .unwrap();
 
             assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
@@ -3806,7 +3686,6 @@ mod tests {
                 &[value],
                 &func,
                 OptimizationMode::Gas,
-                EvmVersion::Shanghai,
                 OperandCostModel::DIRECT,
             )
             .unwrap();
@@ -3859,14 +3738,7 @@ mod tests {
         let mut scheduler = StackScheduler::new();
 
         let plan = scheduler
-            .plan_operands(
-                &operands,
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                EvmVersion::Shanghai,
-                OperandCostModel::DIRECT,
-            )
+            .plan_operands(&operands, &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         let ops = scheduler.apply_operand_plan(plan);
 
@@ -3891,14 +3763,7 @@ mod tests {
             scheduler.stack.push(operands[1]);
 
             let plan = scheduler
-                .plan_operands(
-                    &operands,
-                    &[],
-                    &func,
-                    optimization,
-                    EvmVersion::Shanghai,
-                    OperandCostModel::DIRECT,
-                )
+                .plan_operands(&operands, &[], &func, optimization, OperandCostModel::DIRECT)
                 .unwrap();
             assert_eq!(
                 plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
@@ -3929,7 +3794,6 @@ mod tests {
                     &[],
                     &func,
                     OptimizationMode::None,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .is_none()
