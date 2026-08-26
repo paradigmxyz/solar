@@ -6,7 +6,7 @@ use crate::{
     backend::evm::{
         ir::{
             BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            immediate_materialization_cost,
+            default_instruction_stack_effect, immediate_materialization_cost,
         },
         op, push_len,
     },
@@ -27,10 +27,15 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let packed = pack_data(module);
-        let materialized = materialize_data(gcx, module);
+        let mut references = data_references(module);
+        let packed = pack_data(module, &references);
+        if packed {
+            references = data_references(module);
+        }
+        let materialized = materialize_data(gcx, module, &references);
         if materialized {
-            pack_data(module);
+            let references = data_references(module);
+            pack_data(module, &references);
         }
         packed || materialized
     }
@@ -48,7 +53,8 @@ impl EvmPass for FinalizeData {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        pack_data(module)
+        let references = data_references(module);
+        pack_data(module, &references)
     }
 }
 
@@ -69,7 +75,7 @@ struct PreparedRewrite {
 }
 
 struct DataPool {
-    entries: Vec<(DataId, Bytes, usize)>,
+    entries: Vec<(DataId, Bytes, usize, bool)>,
     exact: FxHashMap<Bytes, DataRef>,
 }
 
@@ -92,11 +98,13 @@ impl Improvement {
 }
 
 impl DataPool {
-    fn new(data: &IndexVec<DataId, Data>, reference_counts: &IndexVec<DataId, usize>) -> Self {
+    fn new(data: &IndexVec<DataId, Data>, references: &DataReferences) -> Self {
         Self {
             entries: data
                 .iter_enumerated()
-                .map(|(id, data)| (id, data.bytes.clone(), reference_counts[id]))
+                .map(|(id, data)| {
+                    (id, data.bytes.clone(), references.counts[id], references.subslice_safe[id])
+                })
                 .collect(),
             exact: data
                 .iter_enumerated()
@@ -122,11 +130,12 @@ impl DataPool {
         }
         let mut contained = FxHashSet::default();
         let mut removed = 0;
-        for (id, known, _) in &self.entries {
+        for (id, known, _, subslice_safe) in &self.entries {
             if let Some(offset) = memmem::find(known, data) {
                 return Placement::Existing(DataRef::new(*id, data_offset(offset)));
             }
             if allow_absorption
+                && *subslice_safe
                 && memmem::find(data, known).is_some()
                 && known.len() > total_reference_count
             {
@@ -149,7 +158,7 @@ impl DataPool {
                 if self.entries.len() < MAX_DATA_SUBSTRING_ENTRIES {
                     self.entries
                         .iter_mut()
-                        .find(|(id, _, _)| *id == data.id)
+                        .find(|(id, _, _, _)| *id == data.id)
                         .expect("existing data is pooled")
                         .2 += reference_count;
                 }
@@ -159,7 +168,7 @@ impl DataPool {
         };
         let mut reference_count = reference_count;
         if !contained.is_empty() {
-            self.entries.retain(|(id, bytes, inherited_references)| {
+            self.entries.retain(|(id, bytes, inherited_references, _)| {
                 let retain = !contained.contains(id);
                 if !retain {
                     self.exact.remove(bytes);
@@ -169,21 +178,17 @@ impl DataPool {
             });
         }
         let id = module.data.push(Data { bytes: bytes.clone(), named: true });
-        self.entries.push((id, bytes.clone(), reference_count));
+        self.entries.push((id, bytes.clone(), reference_count, true));
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
     }
 }
 
-fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn materialize_data(gcx: Gcx<'_>, module: &mut Module, references: &DataReferences) -> bool {
     let mut groups = FxHashMap::<Bytes, Vec<Rewrite>>::default();
-    let mut reference_counts = IndexVec::from_vec(vec![0; module.data.len()]);
     for (block_id, block) in module.blocks.iter_enumerated() {
         let mut start = 0;
         while start < block.instructions.len() {
-            if let Some(PushValue::Data(data)) = block.instructions[start].value {
-                reference_counts[data.id] += 1;
-            }
             let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, start) else {
                 start += 1;
                 continue;
@@ -200,10 +205,10 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let total_reference_count = reference_counts.iter().sum();
+    let total_reference_count = references.counts.iter().sum();
     let allow_absorption =
         module.data.len().saturating_add(groups.len()) < MAX_DATA_SUBSTRING_ENTRIES;
-    let mut pool = DataPool::new(&module.data, &reference_counts);
+    let mut pool = DataPool::new(&module.data, references);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, rewrites) in groups {
@@ -349,13 +354,13 @@ fn placement_additional_bytes(placement: &Placement) -> isize {
     }
 }
 
-fn pack_data(module: &mut Module) -> bool {
+fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
     if module.data.is_empty() {
         return false;
     }
-    let reference_counts = data_reference_counts(module);
-    let total_reference_count = reference_counts.iter().sum();
-    let mut referenced = reference_counts
+    let total_reference_count = references.counts.iter().sum();
+    let mut referenced = references
+        .counts
         .iter_enumerated()
         .filter_map(|(id, &count)| (count != 0).then_some(id))
         .collect::<Vec<_>>();
@@ -378,7 +383,8 @@ fn pack_data(module: &mut Module) -> bool {
         let data = &module.data[old_id];
         let data_ref = if let Some(&id) = exact.get(&data.bytes) {
             DataRef::new(id, 0)
-        } else if let Some(data_ref) = (module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
+        } else if let Some(data_ref) = (references.subslice_safe[old_id]
+            && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
             .then(|| find_data(&packed, &sources, &data.bytes, old_id, total_reference_count))
             .flatten()
         {
@@ -439,16 +445,120 @@ fn find_data(
     })
 }
 
-fn data_reference_counts(module: &Module) -> IndexVec<DataId, usize> {
-    let mut counts = IndexVec::from_vec(vec![0; module.data.len()]);
+#[derive(Clone, Copy)]
+enum DataStackValue {
+    Unknown,
+    Immediate(U256),
+    Data(DataRef),
+}
+
+struct DataReferences {
+    counts: IndexVec<DataId, usize>,
+    subslice_safe: IndexVec<DataId, bool>,
+}
+
+fn data_references(module: &Module) -> DataReferences {
+    let mut references = DataReferences {
+        counts: IndexVec::from_vec(vec![0; module.data.len()]),
+        subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
+    };
+    let mut stack = Vec::new();
     for block in &module.blocks {
         for inst in &block.instructions {
-            if let Some(PushValue::Data(data)) = inst.value {
-                counts[data.id] += 1;
+            if let Some(data) = inst.pushed_data() {
+                references.counts[data.id] += 1;
+                stack.push(DataStackValue::Data(data));
+                continue;
+            }
+            if let Some(value) = inst.concrete_immediate() {
+                stack.push(DataStackValue::Immediate(value));
+                continue;
+            }
+            if inst.is_encoded_push() {
+                stack.push(DataStackValue::Unknown);
+                continue;
+            }
+
+            match inst.opcode {
+                opcode if (op::DUP1..=op::DUP16).contains(&opcode) => {
+                    let depth = usize::from(opcode - op::DUP1) + 1;
+                    let value = stack
+                        .len()
+                        .checked_sub(depth)
+                        .map_or(DataStackValue::Unknown, |index| stack[index]);
+                    stack.push(value);
+                }
+                opcode if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
+                    let depth = usize::from(opcode - op::SWAP1) + 1;
+                    ensure_stack_depth(&mut stack, depth + 1);
+                    let top = stack.len() - 1;
+                    stack.swap(top, top - depth);
+                }
+                op::DUPN => {
+                    mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+                    stack.push(DataStackValue::Unknown);
+                }
+                op::SWAPN | op::EXCHANGE => {
+                    mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+                    stack.fill(DataStackValue::Unknown);
+                }
+                _ => {
+                    let Some(effect) =
+                        inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
+                    else {
+                        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+                        stack.clear();
+                        continue;
+                    };
+                    let inputs = usize::from(effect.inputs);
+                    ensure_stack_depth(&mut stack, inputs);
+                    let first_input = stack.len() - inputs;
+                    for (index, value) in stack[first_input..].iter().rev().enumerate() {
+                        let DataStackValue::Data(data) = value else { continue };
+                        let bounded = inst.opcode == op::CODECOPY
+                            && index == 1
+                            && matches!(
+                                stack.get(stack.len() - 3),
+                                Some(DataStackValue::Immediate(size))
+                                    if data_copy_is_bounded(module, *data, *size)
+                            );
+                        if !bounded {
+                            references.subslice_safe[data.id] = false;
+                        }
+                    }
+                    stack.truncate(first_input);
+                    stack.extend(std::iter::repeat_n(
+                        DataStackValue::Unknown,
+                        usize::from(effect.outputs),
+                    ));
+                }
             }
         }
+        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+        stack.clear();
     }
-    counts
+    references
+}
+
+fn mark_stack_data_unsafe(stack: &[DataStackValue], subslice_safe: &mut IndexVec<DataId, bool>) {
+    for value in stack {
+        if let DataStackValue::Data(data) = value {
+            subslice_safe[data.id] = false;
+        }
+    }
+}
+
+fn ensure_stack_depth(stack: &mut Vec<DataStackValue>, depth: usize) {
+    if stack.len() < depth {
+        stack.splice(0..0, std::iter::repeat_n(DataStackValue::Unknown, depth - stack.len()));
+    }
+}
+
+fn data_copy_is_bounded(module: &Module, data: DataRef, size: U256) -> bool {
+    let Ok(size) = usize::try_from(size) else { return false };
+    module.data.get(data.id).is_some_and(|entry| {
+        (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
+    })
 }
 
 fn data_offset(offset: usize) -> u32 {

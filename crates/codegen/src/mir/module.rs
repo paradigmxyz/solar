@@ -5,7 +5,6 @@ use super::{
     MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
 };
 use alloy_primitives::{Bytes, hex};
-use memchr::memmem;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -269,18 +268,6 @@ impl Module {
         if let Some(&id) = self.data_index.get(&data) {
             self.ensure_data_name(id);
             return DataRef::new(id, 0);
-        }
-        if data.is_empty() {
-            return DataRef::new(self.add_lowered_data(data), 0);
-        }
-        if self.data.len() < crate::MAX_DATA_SUBSTRING_ENTRIES {
-            for (id, known) in self.data.iter_enumerated() {
-                if let Some(offset) = memmem::find(&known.bytes, &data) {
-                    let offset = u32::try_from(offset).expect("data offset exceeds `u32`");
-                    self.ensure_data_name(id);
-                    return DataRef::new(id, offset);
-                }
-            }
         }
         DataRef::new(self.add_lowered_data(data), 0)
     }

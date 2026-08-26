@@ -1,0 +1,264 @@
+// === ROOT/tests/ui/codegen/lowering/cross_artifact_data.sol:C (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 384
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 352
+  mstore
+  push 256
+  dup 2
+  add
+  push 64
+  mstore
+  push 224
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  push 224
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 3
+  mload
+  dup 1
+  push 256
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 256
+  mload
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 288
+  mstore
+  push 64
+  dup 4
+  add
+  push 320
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb2
+  jumpi
+  push 32
+  push 288
+  mload
+  sub
+  push 320
+  mload
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb2
+bb2:
+  push 288
+  mload
+  push 320
+  mload
+  add
+  push 256
+  mload
+  push 192
+  mload
+  push 320
+  mload
+  mcopy
+  push 224
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 224
+  mload
+  add
+  push 64
+  mstore
+  push 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+  swap 1
+  push 224
+  mload
+  log1
+  push 338
+  dup 1
+  push 427
+  push 0
+  codecopy
+  push 0
+  return
+
+@data literal_0 hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+// === runtime ===
+@module runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x69ad4ffa
+  sub
+  push bb3
+  jumpi
+  push 320
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 288
+  mstore
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  push 160
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 3
+  mload
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 224
+  mstore
+  push 64
+  dup 4
+  add
+  push 160
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb6
+  jumpi
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb6
+bb6:
+  push 224
+  mload
+  push 160
+  mload
+  add
+  push 128
+  mload
+  push 192
+  mload
+  push 160
+  mload
+  mcopy
+  push 256
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 288
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb3 [cold]:
+  push 0
+  dup 1
+  revert
+
+@data literal_0 hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"

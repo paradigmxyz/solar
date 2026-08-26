@@ -2,15 +2,21 @@
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (after pack-data) ===
   @module subslices
   bb0:
+    push 5
+-   push_data literal_0
 +   push_data literal_1+1
-+   pop
-    push_data literal_0
-    pop
+    push 0
+    codecopy
+    push 2
 -   push_data literal_1
-+   push_data literal_1+1
-    pop
++   push_data literal_0
+    push 32
+    codecopy
+    push 5
 -   push_data literal_2+1
--   pop
++   push_data literal_1+1
+    push 64
+    codecopy
     stop
   
 - @data literal_0 hex"1122334455"
