@@ -88,7 +88,7 @@ jobs:
       - name: Build Solar
         run: |
           cargo build --profile bench -p solar-compiler --bin solar
-          cp target/bench/solar target/bench/solar-head
+          cp target/release/solar target/release/solar-head
 
       - name: Download exact baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
@@ -177,7 +177,7 @@ jobs:
             git checkout --detach "$GITHUB_SHA"
             exit 1
           fi
-          cp target/bench/solar target/bench/solar-base
+          cp target/release/solar target/release/solar-base
           git checkout --detach "$GITHUB_SHA"
 
       - name: Run exact-base benchmark
@@ -186,7 +186,7 @@ jobs:
           set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/bench/solar-base \
+            --solar target/release/solar-base \
             --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
@@ -205,7 +205,7 @@ jobs:
           mkdir -p target/codegen-bench
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/bench/solar-head \
+            --solar target/release/solar-head \
             --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
