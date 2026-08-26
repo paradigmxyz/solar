@@ -48,18 +48,21 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
     for rewrite in rewrites {
         let size = rewrite.data.len();
         let data = module.intern_data(rewrite.data);
-        prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
+        let metadata = module.blocks[rewrite.block].instructions[rewrite.start].metadata;
+        prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data, metadata));
     }
-    for (block, start, end, size, data) in prepared.into_iter().rev() {
-        module.blocks[block].instructions.splice(
-            start..end,
-            [
-                Instruction::push_value(U256::from(size)),
-                Instruction::push_data(data),
-                Instruction::opcode(op::DUP3),
-                Instruction::opcode(op::CODECOPY),
-            ],
-        );
+    for (block, start, end, size, data, metadata) in prepared.into_iter().rev() {
+        let replacement = [
+            Instruction::push_value(U256::from(size)),
+            Instruction::push_data(data),
+            Instruction::opcode(op::DUP3),
+            Instruction::opcode(op::CODECOPY),
+        ]
+        .map(|mut inst| {
+            inst.metadata.set_source_span(metadata.source_span());
+            inst
+        });
+        module.blocks[block].instructions.splice(start..end, replacement);
     }
     true
 }

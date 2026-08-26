@@ -343,7 +343,11 @@ fn apply_edits(
     for (index, inst) in scratch.drain(..).enumerate() {
         if edits.peek().is_some_and(|edit| edit.index == index) {
             let edit = edits.next().unwrap();
-            instructions.extend(edit.replacement.iter().copied().map(Instruction::opcode));
+            instructions.extend(edit.replacement.iter().copied().map(|opcode| {
+                let mut replacement = Instruction::opcode(opcode);
+                replacement.metadata.set_source_span(inst.metadata.source_span());
+                replacement
+            }));
         } else {
             instructions.push(inst);
         }

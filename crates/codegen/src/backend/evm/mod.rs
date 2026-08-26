@@ -24,6 +24,9 @@ pub(super) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
+mod debug_info;
+pub use debug_info::DebugInstruction;
+
 mod disasm;
 pub use disasm::{disassemble, disassemble_standard_json};
 
@@ -36,6 +39,12 @@ pub(crate) mod op;
 pub(crate) mod assembler;
 
 pub(crate) mod stack;
+
+/// Returns the canonical mnemonic for an EVM opcode.
+#[must_use]
+pub const fn opcode_mnemonic(opcode: u8) -> Option<&'static str> {
+    op::mnemonic(opcode)
+}
 
 /// Generates bytecode from finalized EVM IR through the backend pipeline.
 pub fn generate_evm_ir_bytecode(

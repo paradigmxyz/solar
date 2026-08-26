@@ -45,32 +45,39 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            match select(evm_version, value) {
-                CompactPush::Literal => block.instructions.push(inst),
+            let selection = select(evm_version, value);
+            if matches!(selection, CompactPush::Literal) {
+                block.instructions.push(inst);
+                continue;
+            }
+            let metadata = inst.metadata;
+            let mut emit = |mut replacement: Instruction| {
+                replacement.metadata.set_source_span(metadata.source_span());
+                block.instructions.push(replacement);
+            };
+            match selection {
+                CompactPush::Literal => unreachable!(),
                 CompactPush::FullWord => {
-                    block.instructions.push(push(U256::ZERO));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    changed = true;
+                    emit(push(U256::ZERO));
+                    emit(Instruction::opcode(op::NOT));
                 }
                 CompactPush::LowerAllOnesMask { shift } => {
-                    block.instructions.push(push(U256::ZERO));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    block.instructions.push(push(U256::from(shift)));
-                    block.instructions.push(Instruction::opcode(op::SHR));
-                    changed = true;
+                    emit(push(U256::ZERO));
+                    emit(Instruction::opcode(op::NOT));
+                    emit(push(U256::from(shift)));
+                    emit(Instruction::opcode(op::SHR));
                 }
                 CompactPush::Not => {
-                    block.instructions.push(push(!value));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    changed = true;
+                    emit(push(!value));
+                    emit(Instruction::opcode(op::NOT));
                 }
                 CompactPush::Shl { shift } => {
-                    block.instructions.push(push(value >> usize::from(shift)));
-                    block.instructions.push(push(U256::from(shift)));
-                    block.instructions.push(Instruction::opcode(op::SHL));
-                    changed = true;
+                    emit(push(value >> usize::from(shift)));
+                    emit(push(U256::from(shift)));
+                    emit(Instruction::opcode(op::SHL));
                 }
             }
+            changed = true;
         }
     }
     changed

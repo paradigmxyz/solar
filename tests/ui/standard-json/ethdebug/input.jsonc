@@ -1,0 +1,40 @@
+//@ filecheck:
+// CHECK-LABEL: "bytecode": {
+// CHECK-NEXT: "ethdebug": {
+// CHECK: "environment": "create"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "ethdebug": {
+// CHECK: "environment": "call"
+// CHECK: "mnemonic": "ADD"
+// CHECK: "offset": 79
+// CHECK-NEXT: "length": 5
+// CHECK-LABEL: "resources": {
+// CHECK: "name": "solar"
+// CHECK: "path": "A.sol"
+// CHECK: "language": "Solidity"
+// CHECK-LABEL: "types": {}
+// CHECK-LABEL: "pointers": {}
+// CHECK-LABEL: "compilation": {
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f(uint x) external pure returns (uint) { /* é */ return x + 1; } }"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.ethdebug",
+          "evm.deployedBytecode.ethdebug",
+          "ethdebug.resources",
+          "ethdebug.compilation"
+        ]
+      }
+    }
+  }
+}

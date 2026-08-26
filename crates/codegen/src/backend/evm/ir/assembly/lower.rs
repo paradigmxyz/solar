@@ -15,7 +15,11 @@ impl Assembler<'_> {
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend::evm) fn prepare(&mut self, capture_evm_ir: bool) -> PreparedAssembly {
+    pub(in crate::backend::evm) fn prepare(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };
@@ -39,7 +43,7 @@ impl Assembler<'_> {
             return failed_preparation(ir_program, capture_evm_ir);
         }
 
-        let program = lower_evm_ir(self, &mut ir_program, &mut labels);
+        let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -83,6 +87,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     assembler: &mut Assembler<'_>,
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
+    capture_debug_info: bool,
 ) -> Program {
     // Finalized EVM IR represents every control-flow reference as a `BlockId`; the builder's
     // assembler-label table is no longer authoritative. Rebuild it for the final module so a
@@ -101,7 +106,13 @@ pub(in crate::backend::evm) fn lower_evm_ir(
         assembler.gcx.sess.opts.optimization.is_size(),
     );
     for _ in 0..=32 {
-        let program = lower_evm_ir_once(assembler, module, labels, &indexed_jump_lowerings);
+        let program = lower_evm_ir_once(
+            assembler,
+            module,
+            labels,
+            &indexed_jump_lowerings,
+            capture_debug_info,
+        );
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
             module,
@@ -123,6 +134,7 @@ fn lower_evm_ir_once(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
+    capture_debug_info: bool,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
@@ -135,19 +147,22 @@ fn lower_evm_ir_once(
         }
     }
 
-    let mut program = Program::default();
+    let mut program = Program::with_debug_info(capture_debug_info);
     for (block_id, block) in module.blocks.iter_enumerated() {
+        program.set_source_span(None);
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
         }
 
         for inst in &block.instructions {
+            program.set_source_span(inst.metadata.source_span());
             let inst = lower_instruction(assembler, inst, module, labels);
             program.push(inst);
         }
 
         if let Some(terminator) = &block.terminator {
+            program.set_source_span(terminator.metadata.source_span());
             lower_terminator(
                 assembler,
                 &mut program,
@@ -164,9 +179,17 @@ fn lower_evm_ir_once(
         && let Some(terminator) = &block.terminator
         && matches!(&terminator.kind, ir::TerminatorKind::Op(opcode) if *opcode == op::STOP)
     {
+        program.set_source_span(
+            module
+                .blocks
+                .last()
+                .and_then(|block| block.terminator.as_ref())
+                .and_then(|term| term.metadata.source_span()),
+        );
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
+    program.set_source_span(None);
     for data in referenced_data.iter() {
         program.append_data(data);
     }
@@ -335,7 +358,7 @@ mod tests {
             let old_target = assembler.new_label();
             let mut labels = vec![Some(old_entry), Some(old_target), None];
 
-            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels);
+            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
             let target_label =
                 labels[module.blocks[target].label as usize].expect("referenced target label");
 
