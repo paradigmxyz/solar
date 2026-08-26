@@ -204,12 +204,18 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class RpcTransportTests(unittest.TestCase):
-    def test_streams_large_params_through_stdin(self) -> None:
+    def test_streams_large_params_through_file(self) -> None:
         bytecode = "ab" * 100_000
         process = mock.Mock(returncode=0, stdout='"0x1234"\n', stderr="")
+        observed = {}
 
-        with mock.patch.object(benchmark, "run", return_value=process) as run:
-            value, error = benchmark.rpc_request(
+        def run_with_file(command, **kwargs):
+            observed["path"] = kwargs["input_path"]
+            observed["params"] = kwargs["input_path"].read_text()
+            return process
+
+        with mock.patch.object(benchmark, "run", side_effect=run_with_file) as run:
+            value, error = benchmark.rpc_request_from_file(
                 "eth_sendTransaction",
                 ({"data": "0x" + bytecode},),
                 "http://127.0.0.1:8545",
@@ -220,8 +226,76 @@ class RpcTransportTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertTrue(all(bytecode not in argument for argument in command))
         self.assertEqual(
-            run.call_args.kwargs["input_text"],
+            observed["params"],
             json.dumps([{"data": "0x" + bytecode}]),
+        )
+        self.assertFalse(observed["path"].exists())
+
+    def test_deploys_large_creation_code_from_file(self) -> None:
+        bytecode = "ab" * benchmark.CAST_CREATE_FILE_THRESHOLD
+        receipt = {
+            "status": "0x1",
+            "gasUsed": "0x5208",
+            "contractAddress": "0x1234",
+        }
+
+        with (
+            mock.patch.object(
+                benchmark,
+                "rpc_request_from_file",
+                return_value=("0xtx", ""),
+            ) as send,
+            mock.patch.object(
+                benchmark,
+                "rpc_request",
+                return_value=(receipt, ""),
+            ) as request,
+        ):
+            address, gas, error = benchmark.deploy_creation_code(
+                bytecode,
+                (),
+                None,
+                "http://127.0.0.1:8545",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+
+        self.assertEqual((address, gas, error), ("0x1234", 21000, ""))
+        transaction = send.call_args.args[1][0]
+        self.assertEqual(transaction["from"], benchmark.DEFAULT_SENDER)
+        self.assertEqual(transaction["data"], "0x" + bytecode)
+        self.assertEqual(transaction["gas"], hex(int(benchmark.CAST_GAS_LIMIT)))
+        request.assert_called_once_with(
+            "eth_getTransactionReceipt",
+            ("0xtx",),
+            "http://127.0.0.1:8545",
+        )
+
+    def test_falls_back_to_file_when_argument_is_too_long(self) -> None:
+        with (
+            mock.patch.object(
+                benchmark,
+                "run",
+                side_effect=OSError(benchmark.errno.E2BIG, "argument list too long"),
+            ),
+            mock.patch.object(
+                benchmark,
+                "deploy_large_creation_code",
+                return_value=("0x1234", 21000, ""),
+            ) as deploy,
+        ):
+            result = benchmark.deploy_creation_code(
+                "00",
+                (),
+                None,
+                "http://127.0.0.1:8545",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+
+        self.assertEqual(result, ("0x1234", 21000, ""))
+        deploy.assert_called_once_with(
+            "0x00",
+            "http://127.0.0.1:8545",
+            benchmark.DEFAULT_PRIVATE_KEY,
         )
 
 

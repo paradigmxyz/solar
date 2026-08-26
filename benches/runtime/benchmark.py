@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import gzip
 import hashlib
 import json
@@ -15,6 +16,7 @@ import shutil
 import subprocess
 import statistics
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -57,6 +59,8 @@ CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
+# Linux limits each argument to 32 pages, or 128 KiB on CI.
+CAST_CREATE_FILE_THRESHOLD = 100_000
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 
 RESET = "\033[0m"
@@ -514,32 +518,91 @@ def deploy_creation_code(
         return None, None, "constructor args require constructor_sig"
     bytecode += encoded
 
-    proc = run(
-        [
-            "cast",
-            "send",
-            "--rpc-url",
-            rpc_url,
-            "--rpc-timeout",
-            str(CAST_RPC_TIMEOUT),
-            "--timeout",
-            str(CAST_RPC_TIMEOUT),
-            "--gas-limit",
-            CAST_GAS_LIMIT,
-            "--private-key",
-            private_key,
-            "--json",
-            "--create",
-            bytecode,
-        ],
-        timeout=CAST_DEPLOY_TIMEOUT,
-    )
+    if len(bytecode) > CAST_CREATE_FILE_THRESHOLD:
+        return deploy_large_creation_code(bytecode, rpc_url, private_key)
+
+    try:
+        proc = run(
+            [
+                "cast",
+                "send",
+                "--rpc-url",
+                rpc_url,
+                "--rpc-timeout",
+                str(CAST_RPC_TIMEOUT),
+                "--timeout",
+                str(CAST_RPC_TIMEOUT),
+                "--gas-limit",
+                CAST_GAS_LIMIT,
+                "--private-key",
+                private_key,
+                "--json",
+                "--create",
+                bytecode,
+            ],
+            timeout=CAST_DEPLOY_TIMEOUT,
+        )
+    except OSError as exc:
+        if exc.errno != errno.E2BIG:
+            raise
+        return deploy_large_creation_code(bytecode, rpc_url, private_key)
     if proc.returncode != 0:
         return None, None, proc.stderr[:1000]
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         return None, None, f"invalid deploy JSON: {exc}"
+    return parse_deploy_receipt(data)
+
+
+def deploy_large_creation_code(
+    bytecode: str,
+    rpc_url: str,
+    private_key: str,
+) -> Tuple[Optional[str], Optional[int], str]:
+    sender, error = private_key_address(private_key)
+    if sender is None:
+        return None, None, error
+
+    transaction = {
+        "from": sender,
+        "data": bytecode,
+        "gas": hex(int(CAST_GAS_LIMIT)),
+    }
+    tx_hash, error = rpc_request_from_file(
+        "eth_sendTransaction",
+        (transaction,),
+        rpc_url,
+        CAST_DEPLOY_TIMEOUT,
+    )
+    if not isinstance(tx_hash, str):
+        return None, None, error or "deploy transaction missing hash"
+
+    deadline = time.monotonic() + CAST_DEPLOY_TIMEOUT
+    while True:
+        receipt, error = rpc_request("eth_getTransactionReceipt", (tx_hash,), rpc_url)
+        if error:
+            return None, None, error
+        if isinstance(receipt, dict):
+            return parse_deploy_receipt(receipt)
+        if time.monotonic() >= deadline:
+            return None, None, "timed out waiting for deploy receipt"
+        time.sleep(0.1)
+
+
+@lru_cache
+def private_key_address(private_key: str) -> Tuple[Optional[str], str]:
+    if private_key == DEFAULT_PRIVATE_KEY:
+        return DEFAULT_SENDER, ""
+    proc = run(["cast", "wallet", "address", "--private-key", private_key], timeout=30)
+    if proc.returncode != 0:
+        return None, proc.stderr[:1000]
+    return proc.stdout.strip(), ""
+
+
+def parse_deploy_receipt(
+    data: dict[str, object],
+) -> Tuple[Optional[str], Optional[int], str]:
     status = parse_receipt_int(data.get("status"))
     gas = data.get("gasUsed")
     deploy_gas = parse_receipt_int(gas)
@@ -547,7 +610,39 @@ def deploy_creation_code(
         return None, deploy_gas, f"deploy transaction failed (status={status}, gasUsed={deploy_gas})"
     if deploy_gas is None:
         return None, None, "deploy receipt missing gasUsed"
-    return data.get("contractAddress"), deploy_gas, ""
+    contract_address = data.get("contractAddress")
+    return contract_address if isinstance(contract_address, str) else None, deploy_gas, ""
+
+
+def rpc_request_from_file(
+    method: str,
+    params: Sequence[object],
+    rpc_url: str,
+    timeout: int = CAST_READ_TIMEOUT,
+) -> Tuple[Optional[object], str]:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="solar-bench-rpc-",
+        suffix=".json",
+        delete=False,
+    ) as params_file:
+        json.dump(list(params), params_file)
+        params_path = Path(params_file.name)
+    try:
+        proc = run(
+            ["cast", "rpc", "--rpc-url", rpc_url, "--raw", method],
+            input_path=params_path,
+            timeout=timeout,
+        )
+    finally:
+        params_path.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or f"{method} failed")[:1000]
+    try:
+        return json.loads(proc.stdout), ""
+    except json.JSONDecodeError as exc:
+        return None, f"invalid {method} JSON: {exc}"
 
 
 def call_contract(
