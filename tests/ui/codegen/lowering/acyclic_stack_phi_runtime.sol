@@ -6,6 +6,11 @@
 //@ run-call: loopJoin(uint256) 0 => 0
 //@ run-call: loopJoin(uint256) 4 => 12
 //@ run-call: nestedLoops(uint256,uint256) 3, 4 => 42
+//@ run-call: conditionalSelfLoop(uint256,uint256) 0, 4 => 0
+//@ run-call: conditionalSelfLoop(uint256,uint256) 3, 0 => 0
+//@ run-call: conditionalSelfLoop(uint256,uint256) 3, 4 => 42
+//@ run-call: emptyExitSelfLoop(uint256) 0 => 7
+//@ run-call: emptyExitSelfLoop(uint256) 4 => 7
 
 contract AcyclicStackPhi {
     function trimLen(bytes calldata data) external pure returns (uint256) {
@@ -49,5 +54,31 @@ contract AcyclicStackPhi {
                 result += i + j + 1;
             }
         }
+    }
+
+    function conditionalSelfLoop(
+        uint256 outer,
+        uint256 inner
+    ) external pure returns (uint256 result) {
+        for (uint256 i; i < outer; ++i) {
+            if (inner == 0) continue;
+            uint256 j;
+            do {
+                unchecked {
+                    result += i + j + 1;
+                    ++j;
+                }
+            } while (j < inner);
+        }
+    }
+
+    function emptyExitSelfLoop(uint256 n) external pure returns (uint256) {
+        uint256 i;
+        do {
+            unchecked {
+                ++i;
+            }
+        } while (i < n);
+        return 7;
     }
 }

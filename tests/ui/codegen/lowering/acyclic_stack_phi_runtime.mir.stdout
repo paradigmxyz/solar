@@ -242,3 +242,88 @@ fn @nestedLoops(arg0: u256, arg1: u256) -> u256 [selector=0xc538770a, pure, abi_
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
+fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb17: v16]
+    v1 = phi [bb0: 0], [bb17: v17]
+    v2 = phi [bb0: arg1], [bb17: v18]
+    v3 = phi [bb0: 0], [bb17: v20]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v5 = eq v2, 0
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    jump bb10
+  bb10:
+    v6 = phi [bb9: v0], [bb13: v6]
+    v7 = phi [bb9: v1], [bb13: v13]
+    v8 = phi [bb9: 0], [bb13: v14]
+    v9 = phi [bb9: v2], [bb13: v9]
+    v10 = phi [bb9: v3], [bb13: v10]
+    v11 = add v10, v8
+    v12 = add v11, 1
+    v13 = add v7, v12
+    v14 = add v8, 1
+    jump bb12
+  bb12:
+    v15 = lt v14, v9
+    jumpi v15, bb13, bb14
+  bb14:
+    jump bb11
+  bb11:
+    jump bb6
+  bb6:
+    jump bb3
+  bb13:
+    jump bb10
+  bb7:
+    jump bb3
+  bb3:
+    v16 = phi [bb6: v6], [bb7: v0]
+    v17 = phi [bb6: v13], [bb7: v1]
+    v18 = phi [bb6: v9], [bb7: v2]
+    v19 = phi [bb6: v10], [bb7: v3]
+    v20 = add v19, 1
+    v21 = lt v20, v19
+    jumpi v21, bb16, bb17
+  bb17:
+    jump bb1
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    invalid
+}
+
+fn @emptyExitSelfLoop(arg0: u256) -> u256 [selector=0xe817f803, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v3]
+    v1 = phi [bb0: 0], [bb4: v1]
+    v2 = phi [bb0: arg0], [bb4: v2]
+    v3 = add v0, 1
+    jump bb3
+  bb3:
+    v4 = lt v3, v2
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret 7
+  bb4:
+    jump bb1
+  bb6:
+    invalid
+}
