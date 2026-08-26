@@ -124,7 +124,12 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Creates a builder that reuses blocks from an earlier builder for the same function.
     pub(crate) fn with_revert_blocks(func: &'a mut Function, revert_blocks: RevertBlocks) -> Self {
-        Self { func, current_block: BlockId::ENTRY, revert_blocks, current_source_span: Span::DUMMY }
+        Self {
+            func,
+            current_block: BlockId::ENTRY,
+            revert_blocks,
+            current_source_span: Span::DUMMY,
+        }
     }
 
     /// Returns the function-local revert block cache.

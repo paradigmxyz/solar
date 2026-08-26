@@ -188,9 +188,8 @@ pub(super) struct CompilerOutput<'gcx> {
     pub(super) sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
-    // `ethdebug` output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) ethdebug: Option<EthdebugOutput>,
 }
 
 #[derive(Debug, Serialize)]
@@ -257,9 +256,8 @@ pub(super) struct EvmOutput {
 pub(super) struct BytecodeOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) object: Option<MaybeHexBytecode>,
-    // Ethdebug output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) ethdebug: Option<EthdebugProgram>,
     // Function debug data is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // function_debug_data: Option<CowValue<'a>>,
@@ -278,6 +276,108 @@ pub(super) struct BytecodeOutput {
     // generated_sources: Option<CowValue<'a>>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub(super) enum EthdebugId {
+    Number(u32),
+    Text(String),
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugReference {
+    pub(super) id: EthdebugId,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugRange {
+    pub(super) offset: usize,
+    pub(super) length: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugSourceRange {
+    pub(super) source: EthdebugReference,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) range: Option<EthdebugRange>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugContext {
+    pub(super) code: EthdebugSourceRange,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugOperation {
+    pub(super) mnemonic: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) arguments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugInstruction {
+    pub(super) offset: usize,
+    pub(super) operation: EthdebugOperation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) context: Option<EthdebugContext>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugContract {
+    pub(super) name: String,
+    pub(super) definition: EthdebugSourceRange,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum EthdebugEnvironment {
+    Call,
+    Create,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugProgram {
+    pub(super) compilation: EthdebugReference,
+    pub(super) contract: EthdebugContract,
+    pub(super) environment: EthdebugEnvironment,
+    pub(super) instructions: Vec<EthdebugInstruction>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugCompiler {
+    pub(super) name: String,
+    pub(super) version: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugSource {
+    pub(super) id: EthdebugId,
+    pub(super) path: String,
+    pub(super) contents: String,
+    pub(super) language: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugCompilation {
+    pub(super) id: EthdebugId,
+    pub(super) compiler: EthdebugCompiler,
+    pub(super) sources: Vec<EthdebugSource>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugResources {
+    pub(super) compilation: EthdebugCompilation,
+    pub(super) types: Map<String, Value>,
+    pub(super) pointers: Map<String, Value>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub(super) struct EthdebugOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) resources: Option<EthdebugResources>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) compilation: Option<EthdebugCompilation>,
+}
+
 #[derive(Debug, Serialize)]
 pub(super) struct OffsetLength {
     pub(super) start: usize,
@@ -292,6 +392,11 @@ pub(super) struct OutputSelection<'a>(
 impl<'a> OutputSelection<'a> {
     pub(super) fn all(&self) -> OutputSelectionFlags {
         self.source("*")
+    }
+
+    pub(super) fn global(&self) -> OutputSelectionFlags {
+        self.0.get("*").and_then(|contracts| contracts.get("*")).copied().unwrap_or_default()
+            & OutputSelectionFlags::GLOBAL
     }
 
     pub(super) fn source(&self, source: &str) -> OutputSelectionFlags {
@@ -981,5 +1086,6 @@ mod tests {
                 | OutputSelectionFlags::DEVDOC
                 | OutputSelectionFlags::STORAGE_LAYOUT
         );
+        assert_eq!(selection.global(), OutputSelectionFlags::ETHDEBUG_RESOURCES);
     }
 }

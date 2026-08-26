@@ -7,6 +7,7 @@
 use super::{Data, DataId};
 use crate::backend::evm::op::WORD_BYTES;
 use solar_data_structures::index::IndexVec;
+use solar_interface::Span;
 
 mod indexed_jump;
 mod inst;
@@ -37,11 +38,28 @@ pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend::evm) data: IndexVec<DataId, Data>,
     pub(in crate::backend::evm) data_refs: IndexVec<DataRefId, super::DataRef>,
+    pub(in crate::backend::evm) source_spans: Option<Vec<Span>>,
+    current_source_span: Span,
 }
 
 impl Program {
+    pub(in crate::backend::evm) fn with_debug_info(capture: bool) -> Self {
+        Self {
+            source_spans: capture.then(Vec::new),
+            current_source_span: Span::DUMMY,
+            ..Self::default()
+        }
+    }
+
+    pub(in crate::backend::evm) fn set_source_span(&mut self, span: Option<Span>) {
+        self.current_source_span = span.unwrap_or(Span::DUMMY);
+    }
+
     pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
         self.instructions.push(inst);
+        if let Some(source_spans) = &mut self.source_spans {
+            source_spans.push(self.current_source_span);
+        }
     }
 
     pub(in crate::backend::evm) fn push_op(&mut self, opcode: u8) {
