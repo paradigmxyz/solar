@@ -443,21 +443,13 @@ fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=
     jumpi v1, bb1, bb2
   bb2:
     v2 = and 2, 1
-    v3 = lt v2, 2
-    v4 = iszero v3
-    jumpi v4, bb3, bb4
-  bb4:
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = not 255
-    v7 = and v5, v6
-    v8 = and v2, 255
-    v9 = or v7, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = not 255
+    v5 = and v3, v4
+    v6 = and v2, 255
+    v7 = or v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
     ret 1
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 33 !metadata(memory=scratch)

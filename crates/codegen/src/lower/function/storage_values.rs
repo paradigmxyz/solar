@@ -739,8 +739,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
+        let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
         let value = self.normalize_dirty_scalar(value, ty);
-        self.validate_enum(ty, value);
+        if !dirty {
+            self.validate_enum(ty, value);
+        }
         if let Some(offset) = access.offset {
             self.context.storage.store_packed_at_slot(
                 &mut self.builder,
