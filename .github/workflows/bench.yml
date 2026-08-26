@@ -94,6 +94,7 @@ jobs:
         id: baseline
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -105,19 +106,45 @@ jobs:
           fi
           echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
 
-          run_ids="$(
+          runs_json="$(
             gh run list \
               --workflow bench.yml \
               --commit "$base_sha" \
-              --status success \
               --limit 10 \
-              --json databaseId \
-              --jq '.[].databaseId' \
+              --json createdAt,databaseId,status \
               2>/dev/null || true
+          )"
+          latest_run_id="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current)] | max_by(.createdAt).databaseId // empty' \
+              <<< "$runs_json"
+          )"
+          if [[ "${{ github.event_name }}" == "pull_request" && -n "$latest_run_id" ]]; then
+            latest_status="$(
+              jq -r --argjson run_id "$latest_run_id" \
+                '.[] | select(.databaseId == $run_id) | .status' \
+                <<< "$runs_json"
+            )"
+            if [[ "$latest_status" != "completed" ]]; then
+              echo "Waiting for exact-base benchmark run $latest_run_id"
+              gh run watch "$latest_run_id" --interval 10
+              runs_json="$(
+                gh run list \
+                  --workflow bench.yml \
+                  --commit "$base_sha" \
+                  --limit 10 \
+                  --json createdAt,databaseId,status
+              )"
+            fi
+          fi
+          run_ids="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current and .status == "completed")] | sort_by(.createdAt) | reverse | .[].databaseId' \
+              <<< "$runs_json"
           )"
           if [[ -z "$run_ids" ]]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No successful benchmark run was found for exact base $base_sha"
+            echo "::warning::No completed benchmark run was found for exact base $base_sha"
             exit 0
           fi
 
