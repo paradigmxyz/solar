@@ -70,16 +70,6 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     /// Returns the MIR representation used for a function return value.
     pub(super) fn mir_return_type(ty: Ty<'_>) -> MirType {
-        if let TyKind::Ref(inner, DataLocation::Calldata) = ty.kind
-            && matches!(
-                inner.peel_refs().kind,
-                TyKind::DynArray(_)
-                    | TyKind::Slice(_)
-                    | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
-            )
-        {
-            return Self::mir_type(inner);
-        }
         Self::mir_type(ty)
     }
 
@@ -92,7 +82,7 @@ impl<'gcx> TypeLowerer<'gcx> {
     /// Builds the ABI output shape for a function return value.
     pub(super) fn abi_type(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
         self.seen_structs.clear();
-        self.abi_type_inner(ty)
+        self.abi_type_inner(ty, ty.loc().unwrap_or(DataLocation::Memory))
     }
 
     /// Builds the ABI shape of a return value, which is always encoded from
@@ -249,8 +239,10 @@ impl<'gcx> TypeLowerer<'gcx> {
                 (AbiType::Word, AbiParamType::Scalar(MirType::Address))
             }
             TyKind::DynArray(element) => {
-                let (abi_element, param_element) =
-                    self.abi_return_shapes_inner(element, location)?;
+                let (abi_element, param_element) = self.abi_return_shapes_inner(
+                    element.with_loc_if_ref(self.gcx, location),
+                    location,
+                )?;
                 (
                     AbiType::DynamicArray {
                         element: Box::new(abi_element),
@@ -260,13 +252,17 @@ impl<'gcx> TypeLowerer<'gcx> {
                 )
             }
             TyKind::Slice(element) => {
-                let (abi_element, param_element) =
-                    self.abi_return_shapes_inner(element, location)?;
+                let (abi_element, param_element) = self.abi_return_shapes_inner(
+                    element.with_loc_if_ref(self.gcx, location),
+                    location,
+                )?;
                 (abi_element, AbiParamType::DynamicArray(Box::new(param_element)))
             }
             TyKind::Array(element, len) => {
-                let (abi_element, param_element) =
-                    self.abi_return_shapes_inner(element, location)?;
+                let (abi_element, param_element) = self.abi_return_shapes_inner(
+                    element.with_loc_if_ref(self.gcx, location),
+                    location,
+                )?;
                 (
                     AbiType::FixedArray {
                         element: Box::new(abi_element),
@@ -289,7 +285,10 @@ impl<'gcx> TypeLowerer<'gcx> {
                     .fields
                     .iter()
                     .map(|&field| {
-                        self.abi_return_shapes_inner(self.gcx.type_of_item(field.into()), location)
+                        self.abi_return_shapes_inner(
+                            self.gcx.type_of_item(field.into()).with_loc_if_ref(self.gcx, location),
+                            location,
+                        )
                     })
                     .collect::<Option<Vec<_>>>()?;
                 self.seen_structs.remove(&id);
@@ -306,7 +305,7 @@ impl<'gcx> TypeLowerer<'gcx> {
         })
     }
 
-    fn abi_type_inner(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
+    fn abi_type_inner(&mut self, ty: Ty<'gcx>, location: DataLocation) -> Option<AbiType> {
         Some(match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                 AbiType::Bytes(Self::abi_slice_location(ty))
@@ -315,12 +314,18 @@ impl<'gcx> TypeLowerer<'gcx> {
             TyKind::Fn(function) if function.is_external() => AbiType::Function,
             TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Super(_) => AbiType::Word,
             TyKind::DynArray(element) => AbiType::DynamicArray {
-                element: Box::new(self.abi_type_inner(element)?),
+                element: Box::new(
+                    self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location)?,
+                ),
                 location: Self::abi_slice_location(ty),
             },
-            TyKind::Slice(element) => return self.abi_type_inner(element),
+            TyKind::Slice(element) => {
+                return self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location);
+            }
             TyKind::Array(element, len) => AbiType::FixedArray {
-                element: Box::new(self.abi_type_inner(element)?),
+                element: Box::new(
+                    self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location)?,
+                ),
                 len: u64::try_from(len).ok()?,
             },
             TyKind::Struct(id) => {
@@ -333,12 +338,20 @@ impl<'gcx> TypeLowerer<'gcx> {
                     .strukt(id)
                     .fields
                     .iter()
-                    .map(|&field| self.abi_type_inner(self.gcx.type_of_item(field.into())))
+                    .map(|&field| {
+                        self.abi_type_inner(
+                            self.gcx.type_of_item(field.into()).with_loc_if_ref(self.gcx, location),
+                            location,
+                        )
+                    })
                     .collect::<Option<Vec<_>>>()?;
                 self.seen_structs.remove(&id);
                 AbiType::Tuple(fields.into_boxed_slice())
             }
-            TyKind::Udvt(underlying, _) => return self.abi_type_inner(underlying),
+            TyKind::Udvt(underlying, _) => {
+                return self
+                    .abi_type_inner(underlying.with_loc_if_ref(self.gcx, location), location);
+            }
             _ => AbiType::Word,
         })
     }

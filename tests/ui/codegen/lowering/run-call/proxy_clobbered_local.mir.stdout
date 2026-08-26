@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
+@module Impl
+fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
+@module C
+fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 42], [bb2: 1]
+    v2 = calldatasize
+    calldatacopy 0, 0, v2 !metadata(memory=scratch)
+    v3 = add v1, arg1
+    v4 = lt v3, v1
+    jumpi v4, bb4, bb5
+  bb5:
+    v5 = sub v3, arg1
+    v6 = lt v3, arg1
+    jumpi v6, bb6, bb7
+  bb7:
+    v7 = add v5, arg2
+    v8 = lt v7, v5
+    jumpi v8, bb8, bb9
+  bb9:
+    v9 = sub v7, arg2
+    v10 = lt v7, arg2
+    jumpi v10, bb10, bb11
+  bb11:
+    v11 = add v9, arg3
+    v12 = lt v11, v9
+    jumpi v12, bb12, bb13
+  bb13:
+    v13 = sub v11, arg3
+    v14 = lt v11, arg3
+    jumpi v14, bb14, bb15
+  bb15:
+    v15 = add v13, arg4
+    v16 = lt v15, v13
+    jumpi v16, bb16, bb17
+  bb17:
+    v17 = sub v15, arg4
+    v18 = lt v15, arg4
+    jumpi v18, bb18, bb19
+  bb19:
+    ret v17
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 117, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760458060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c
+    v4 = add v3, 32
+    mstore v4, 0x14601657601a565b601e565b5f80fd5b6024361015604157603d565b60043560
+    v5 = add v3, 64
+    mstore v5, 0x80526020608001608090036080f35b5f80fd5b602a5600000000000000000000
+    v6 = slice_ptr v0
+    v7 = add v3, 86
+    mcopy v7, v6, 0 !metadata(memory=heap)
+    v8 = create 0, v3, 86
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v10 = mload 64 !metadata(memory=scratch)
+    v11 = calldatasize
+    calldatacopy 0, 0, v11 !metadata(memory=scratch)
+    v12 = mload v9
+    v13 = add v9, 32
+    v14 = gas
+    v15 = delegatecall v14, v8, v13, v12, 0, 32
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = eq v16, 7
+    v18 = and v15, v17
+    v19 = eq v18, 1
+    v20 = iszero v19
+    jumpi v20, bb3, bb4
+  bb4:
+    ret 1
+  bb3:
+    internal_call @revert_error, 0, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

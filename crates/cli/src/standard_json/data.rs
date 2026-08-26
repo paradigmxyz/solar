@@ -1,6 +1,6 @@
 //! Standard JSON data structures, serialization, selection parsing, and statistics.
 
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::Address;
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
@@ -201,11 +201,8 @@ pub(super) struct EvmOutput {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct BytecodeOutput {
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_hex_bytes"
-    )]
-    pub(super) object: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) object: Option<String>,
     // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'a>>,
@@ -537,17 +534,6 @@ impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
         }
 
         deserializer.deserialize_str(CowStrVisitor)
-    }
-}
-
-fn serialize_optional_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if let Some(bytes) = bytes {
-        serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
-    } else {
-        serializer.serialize_none()
     }
 }
 

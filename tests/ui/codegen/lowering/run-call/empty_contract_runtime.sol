@@ -4,6 +4,8 @@
 //@ run-call: B::nonEmptyCode() => true
 //@ run-call: EmptyContractRuntime::hasNonCallableRuntime() => true
 //@ run-call: EmptyContractRuntime::deploysRevertingRuntime() => true
+//@ run-call: EmptyContractRuntime::hasCode() => true
+//@ run-call: EmptyContractRuntime::rejectsCalls() => true
 // ported-from: test/libsolidity/semanticTests/constants/assign_type_info.sol
 
 contract A {}
@@ -44,5 +46,16 @@ contract EmptyContractRuntime {
         A target = new A();
         (bool success,) = address(target).call(hex"deadbeef");
         return address(target).code.length > 0 && !success;
+    }
+
+    function hasCode() external returns (bool) {
+        A target = new A();
+        return address(target).code.length != 0;
+    }
+
+    function rejectsCalls() external returns (bool) {
+        A target = new A();
+        (bool success,) = address(target).call("");
+        return !success;
     }
 }

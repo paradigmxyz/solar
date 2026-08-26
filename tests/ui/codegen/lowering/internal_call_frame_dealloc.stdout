@@ -71,6 +71,8 @@ bb12:
   push bb14
   jumpi
   push 0
+  jump bb19
+bb19:
   push 160
   mload
   push 96
@@ -256,9 +258,4 @@ bb15:
   lt
   push bb18
   jumpi
-  push 160
-  mload
-  push 96
-  add
-  mstore
-  jump
+  jump bb19

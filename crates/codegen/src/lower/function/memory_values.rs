@@ -241,26 +241,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
-        if ty.is_ref_at(DataLocation::Calldata)
-            && matches!(
-                ty.peel_refs().kind,
-                TyKind::DynArray(_)
-                    | TyKind::Slice(_)
-                    | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String,)
-            )
-        {
+        if ty.is_ref_at(DataLocation::Calldata) {
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
         }
         self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
-    }
-
-    pub(super) fn deferred_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
-        if ty.is_ref_at(DataLocation::Memory) {
-            self.default_binding_value(ty)
-        } else {
-            self.default_value(ty)
-        }
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {

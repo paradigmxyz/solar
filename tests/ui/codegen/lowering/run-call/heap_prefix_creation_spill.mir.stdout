@@ -1,0 +1,130 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation ===
+@module Implementation
+fn @ping() -> u256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
+@module Harness
+fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 96, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c80635c36b186
+    v4 = add v3, 32
+    mstore v4, 0x14601657601a565b601e565b5f80fd5b60076080526020608001608090036080
+    v5 = add v3, 64
+    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
+    v6 = slice_ptr v0
+    v7 = add v3, 65
+    mcopy v7, v6, 0 !metadata(memory=heap)
+    v8 = create 0, v3, 65
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v9, 15
+    memory_object_store_word memorybytes, v9, 0, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v10 = shl 0, 1
+    v11 = internal_call @_cloneDeterministic, 1, v8, v9, v10
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = gas
+    v14 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, 0, 32
+    jumpi v17, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v18 = returndatasize
+    v19 = lt v18, 32
+    jumpi v19, bb5, bb6
+  bb6:
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = eq v23, 7
+    v25 = iszero v24
+    jumpi v25, bb7, bb8
+  bb8:
+    ret 1
+  bb7:
+    internal_call @revert_error, 0, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    invalid
+  bb5:
+    revert 0, 0
+}
+
+fn @_cloneDeterministic(arg0: address, arg1: memorybytes, arg2: bytes32) -> address {
+  bb0:
+    v0 = internal_call @_creationStart, 1, arg1
+    v1 = sub arg1, 96
+    v2 = mload v1
+    v3 = sub arg1, 64
+    v4 = mload v3
+    v5 = sub arg1, 32
+    v6 = mload v5
+    v7 = mload arg1
+    v8 = add arg1, 32
+    v9 = add v8, v7
+    v10 = mload v9
+    v11 = add v7, 2
+    mstore arg1, 0x5af43d3d93803e606057fd5bf3
+    v12 = sub arg1, 13
+    mstore v12, arg0
+    v13 = shl 72, v11
+    v14 = or v13, 0x593da1005b363d3d373d3d3d3d610000806062363936013d73
+    v15 = sub arg1, 33
+    mstore v15, v14
+    v16 = sub arg1, 58
+    mstore v16, 0x9e4ac34f21c619cefc926c8bd93b54bf5a39c7ab2127a895af1cc0691d7e3dff
+    v17 = add v11, 98
+    v18 = shl 120, v17
+    v19 = or v18, 0xfd6100003d81600a3d39f336602c57343d527f
+    v20 = lt v11, 0xff9e
+    v21 = add 89, v20
+    v22 = sub arg1, v21
+    mstore v22, v19
+    v23 = shl 240, v11
+    mstore v9, v23
+    v24 = add v11, 108
+    v25 = create2 0, v0, v24, arg2
+    v26 = iszero v25
+    v27 = eq v26, 0
+    v28 = iszero v27
+    jumpi v28, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    mstore v9, v10
+    mstore arg1, v7
+    v29 = sub arg1, 32
+    mstore v29, v6
+    v30 = sub arg1, 64
+    mstore v30, v4
+    v31 = sub arg1, 96
+    mstore v31, v2
+    ret v25
+  bb1:
+    revert 0, 0
+}
+
+fn @_creationStart(arg0: memorybytes) -> u256 [pure] {
+  bb0:
+    v0 = sub arg0, 76
+    ret v0
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

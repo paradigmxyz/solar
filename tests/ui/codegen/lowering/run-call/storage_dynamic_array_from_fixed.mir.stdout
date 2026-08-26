@@ -1,0 +1,126 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
+@module StorageDynamicArrayFromFixed
+fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = and 4, 7
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v1
+    v2 = and 5, 7
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = gt v3, 2
+    jumpi v4, bb1, bb2
+  bb1:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: 2], [bb4: v20]
+    v6 = lt v5, v3
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    v21 = phi [bb2: 0], [bb10: v39]
+    v22 = lt v21, 2
+    jumpi v22, bb7, bb8
+  bb8:
+    v40 = sload 0 !metadata(storage=slot(0))
+    v41 = sload 0 !metadata(storage=slot(0))
+    v42 = lt 0, v41
+    v43 = iszero v42
+    jumpi v43, bb11, bb12
+  bb12:
+    v44 = storage_array_data_slot 0
+    v45 = div 0, 32
+    v46 = add v44, v45
+    v47 = mod 0, 32
+    v48 = mul v47, 1
+    v49 = sload v46 !metadata(storage=symbolic(v46))
+    v50 = mul v48, 8
+    v51 = shr v50, v49
+    v52 = and v51, 255
+    v53 = lt v52, 6
+    v54 = iszero v53
+    jumpi v54, bb13, bb14
+  bb14:
+    v55 = sload 0 !metadata(storage=slot(0))
+    v56 = lt 1, v55
+    v57 = iszero v56
+    jumpi v57, bb15, bb16
+  bb16:
+    v58 = storage_array_data_slot 0
+    v59 = div 1, 32
+    v60 = add v58, v59
+    v61 = mod 1, 32
+    v62 = mul v61, 1
+    v63 = sload v60 !metadata(storage=symbolic(v60))
+    v64 = mul v62, 8
+    v65 = shr v64, v63
+    v66 = and v65, 255
+    v67 = lt v66, 6
+    v68 = iszero v67
+    jumpi v68, bb17, bb18
+  bb18:
+    ret v40, v52, v66
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v23 = memory_object_load_element memoryfixedarray<2, 1>, v0, v21
+    v24 = storage_array_data_slot 0
+    v25 = div v21, 32
+    v26 = add v24, v25
+    v27 = mod v21, 32
+    v28 = mul v27, 1
+    v29 = lt v23, 6
+    v30 = iszero v29
+    jumpi v30, bb9, bb10
+  bb10:
+    v31 = mul v28, 8
+    v32 = shl v31, 255
+    v33 = sload v26 !metadata(storage=symbolic(v26))
+    v34 = not v32
+    v35 = and v33, v34
+    v36 = and v23, 255
+    v37 = shl v31, v36
+    v38 = or v35, v37
+    sstore v26, v38 !metadata(storage=symbolic(v26))
+    v39 = add v21, 1
+    jump bb6
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = storage_array_data_slot 0
+    v8 = div v5, 32
+    v9 = add v7, v8
+    v10 = mod v5, 32
+    v11 = mul v10, 1
+    v12 = mul v11, 8
+    v13 = shl v12, 255
+    v14 = sload v9 !metadata(storage=symbolic(v9))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and 0, 255
+    v18 = shl v12, v17
+    v19 = or v16, v18
+    sstore v9, v19 !metadata(storage=symbolic(v9))
+    v20 = add v5, 1
+    jump bb3
+}

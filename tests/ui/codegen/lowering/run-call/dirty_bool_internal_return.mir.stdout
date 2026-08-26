@@ -1,0 +1,16 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol:DirtyBoolInternalReturn ===
+@module DirtyBoolInternalReturn
+fn @dirty(arg0: bool) -> bool [pure] {
+  bb0:
+    v0 = mul arg0, 3
+    ret v0
+}
+
+fn @readDirty() -> (bool, u256) [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @dirty, 1, 1
+    v1 = eq v0, 0
+    v2 = iszero v1
+    v3 = eq v2, 1
+    ret v3, v0
+}

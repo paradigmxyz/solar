@@ -18,15 +18,22 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[w
     set_memory_object_len memorybytes, v8, 1
     memory_object_store_word memorybytes, v8, 0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v9 = memory_object_load_element memorybytes, v8, 0
-    v10 = memory_object_len memorybytes, v2
-    v11 = lt 95, v10
-    v12 = iszero v11
-    jumpi v12, bb3, bb4
+    v10 = memory_object_len memorybytes, v8
+    v11 = lt v10, 1
+    v12 = sub 1, v10
+    v13 = mul 8, v12
+    v14 = shl v13, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v15 = select v11, v14, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v16 = and v9, v15
+    v17 = memory_object_len memorybytes, v2
+    v18 = lt 95, v17
+    v19 = iszero v18
+    jumpi v19, bb3, bb4
   bb4:
-    v13 = byte 0, v9
-    memory_object_store_byte memorybytes, v2, 95, v13
-    v14 = keccak256_bytes v2
-    ret v14
+    v20 = byte 0, v16
+    memory_object_store_byte memorybytes, v2, 95, v20
+    v21 = keccak256_bytes v2
+    ret v21
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

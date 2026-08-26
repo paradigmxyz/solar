@@ -42,21 +42,22 @@ fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_params=[], a
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v0, 0, v2
-    v3 = add 0, 1
-    v4 = internal_call @load_storage_packed_array_4_2, 1, v3
-    memory_object_store_field memorystruct<2>, v0, 1, v4
-    v5 = memory_object_load_field memorystruct<2>, v0, 0
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = memory_object_load_field memorystruct<2>, v0, 1
-    v8 = memory_object_len memoryarray, v7
-    v9 = lt 0, v8
-    v10 = iszero v9
-    jumpi v10, bb1, bb2
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<2>, v0, 0, v3
+    v4 = add 0, 1
+    v5 = internal_call @load_storage_packed_array_4_2, 1, v4
+    memory_object_store_field memorystruct<2>, v0, 1, v5
+    v6 = memory_object_load_field memorystruct<2>, v0, 0
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = memory_object_len memoryarray, v8
+    v10 = lt 0, v9
+    v11 = iszero v10
+    jumpi v11, bb1, bb2
   bb2:
-    v11 = memory_object_load_element memoryarray<1>, v7, 0
-    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v6, v12
+    v12 = memory_object_load_element memoryarray<1>, v8, 0
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v7, v13
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -68,21 +69,22 @@ fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_params=[],
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v0, 0, v2
-    v3 = add 0, 1
-    v4 = internal_call @load_storage_packed_array_4_2, 1, v3
-    memory_object_store_field memorystruct<2>, v0, 1, v4
-    v5 = memory_object_load_field memorystruct<2>, v0, 0
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = memory_object_load_field memorystruct<2>, v0, 1
-    v8 = memory_object_len memoryarray, v7
-    v9 = lt 0, v8
-    v10 = iszero v9
-    jumpi v10, bb1, bb2
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<2>, v0, 0, v3
+    v4 = add 0, 1
+    v5 = internal_call @load_storage_packed_array_4_2, 1, v4
+    memory_object_store_field memorystruct<2>, v0, 1, v5
+    v6 = memory_object_load_field memorystruct<2>, v0, 0
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = memory_object_len memoryarray, v8
+    v10 = lt 0, v9
+    v11 = iszero v10
+    jumpi v11, bb1, bb2
   bb2:
-    v11 = memory_object_load_element memoryarray<1>, v7, 0
-    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v6, v12
+    v12 = memory_object_load_element memoryarray<1>, v8, 0
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v7, v13
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

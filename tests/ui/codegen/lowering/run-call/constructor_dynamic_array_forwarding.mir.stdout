@@ -280,7 +280,7 @@ fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, ab
     mstore v43, 0xff90166080526020608001608090036080f35b5f80fd5b604a56000000000000
     v44 = slice_ptr v0
     v45 = add v8, 0x47a
-    mcopy v45, v44, v1
+    mcopy v45, v44, v1 !metadata(memory=heap)
     v46 = create 0, v8, v2
     jumpi v46, bb6, bb5
   bb5:

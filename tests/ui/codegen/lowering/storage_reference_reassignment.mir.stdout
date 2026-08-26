@@ -117,11 +117,11 @@ fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_params=[u8], abi
   bb0:
     v0 = mul 1, 8
     v1 = shl v0, 255
-    v2 = sload 3 !metadata(storage=slot(3))
+    v2 = shl v0, arg0
     v3 = not v1
-    v4 = and v2, v3
-    v5 = shl v0, arg0
-    v6 = or v4, v5
+    v4 = sload 3 !metadata(storage=slot(3))
+    v5 = and v4, v3
+    v6 = or v5, v2
     sstore 3, v6 !metadata(storage=slot(3))
     ret 1
 }

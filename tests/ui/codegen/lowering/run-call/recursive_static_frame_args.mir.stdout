@@ -1,0 +1,24 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/recursive_static_frame_args.sol:RecursiveStaticFrameArgs ===
+@module RecursiveStaticFrameArgs
+fn @permute(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xa733caae, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @recurse, 1, arg0, arg1, arg2
+    ret v0
+}
+
+fn @recurse(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = eq arg2, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v4 = mul arg0, 0x3e8
+    v5 = add v4, arg1
+    ret v5
+  bb1:
+    v2 = sub arg2, 1
+    v3 = internal_call @recurse, 1, arg1, arg0, v2
+    ret v3
+}

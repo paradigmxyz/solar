@@ -186,6 +186,16 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = kind;
     }
 
+    /// Records stack growth proven safe by the MIR backend.
+    pub(crate) fn set_unknown_target_stack_headroom(&mut self, headroom: usize) {
+        self.program.unknown_target_stack_headroom = headroom;
+    }
+
+    /// Enables size-oriented outlining for an oversized gas-mode runtime.
+    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
+        self.program.enable_size_outlining = enable;
+    }
+
     /// Returns the conservative indexed-jump target width for this artifact.
     pub(crate) fn indexed_jump_target_width_bound(&self) -> usize {
         assembly::indexed_jump_target_width_bound(

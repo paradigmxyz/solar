@@ -78,7 +78,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     target_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
-                let access = self.storage_access_or_error(arg)?;
+                let Some(access) = self.storage_access(arg) else {
+                    return report_unsupported(self.context.gcx, arg.span, "storage access");
+                };
                 self.load_storage_bytes(access.slot)
             } else {
                 self.lower_expr(arg)?
@@ -406,18 +408,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let value = self.lower_typed_expr(argument, parameter)?;
+            let value = self.normalize_internal_call_argument(value, parameter);
             values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
-        let returns = function.returns.len();
-        if returns == 0 {
+        if function.returns.is_empty() {
             self.builder.internal_call_void(dispatcher, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
-        let result_ty = types::TypeLowerer::mir_return_type(function.returns[0]);
-        Some(self.builder.internal_call(dispatcher, values, result_ty, returns))
+        let first_ty = function.returns[0];
+        let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        let returns = Self::internal_returns_words(function.returns.iter().copied());
+        let result =
+            self.builder.internal_call(dispatcher, values, result_ty, function.returns.len());
+        Some(self.rebuild_first_internal_return(result, first_ty, returns))
     }
 
     pub(super) fn lower_internal_function_value(
@@ -480,7 +486,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_size = fixed_bytes_size(from);
         let destination_size = fixed_bytes_size(to);
         if let Some(size) = destination_size
-            && self.is_dynamic_bytes_type(from)
+            && (self.is_dynamic_bytes_type(from)
+                || matches!(from.peel_refs().kind, TyKind::StringLiteral(..)))
         {
             let zero = self.builder.imm_u64(0);
             let word_and_length = match self.builder.func().value_ty(value) {
@@ -617,6 +624,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.normalize_abi_scalar(value, ty)
     }
 
+    fn normalize_internal_call_argument(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        if matches!(ty.peel_refs().kind, TyKind::Udvt(..)) {
+            value
+        } else {
+            self.normalize_dirty_scalar(value, ty)
+        }
+    }
+
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
@@ -644,7 +659,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm_u64(64);
             return self.builder.shl(shift, value);
         }
-        value
+        self.normalize_abi_scalar(value, ty)
     }
 
     pub(super) fn lower_function_call(
@@ -665,6 +680,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let delegate_call = self.context.gcx.type_of_expr(callee.id).is_some_and(
             |ty| matches!(ty.kind, TyKind::Fn(function) if function.is_delegate_call()),
         );
+        let attached_receiver = if attached {
+            let ExprKind::Member(receiver, _) = callee.kind else {
+                return report_unsupported(
+                    self.context.gcx,
+                    expr.span,
+                    "attached function receiver",
+                );
+            };
+            Some(receiver)
+        } else {
+            None
+        };
         if let ExprKind::Member(receiver, _) = callee.kind
             && self.context.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
@@ -688,14 +715,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.context.gcx.hir.function(function_id);
         if delegate_call {
-            if let Some(address) = self.linked_library_address(function_id) {
-                return self.lower_linked_library_call(expr, function_id, args, address);
-            }
-            return report_error(
-                self.context.gcx,
-                expr.span,
-                "codegen requires a linked address for public library calls",
-            );
+            let address = self.library_address(function_id);
+            return self.lower_library_call(expr, function_id, attached_receiver, args, address);
         }
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
@@ -707,23 +728,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .call_param_source(callee)
             .map(|source| self.context.gcx.callable_param_names(source));
         let mut values = Vec::with_capacity(function.parameters.len());
-        if attached {
-            let ExprKind::Member(receiver, _) = callee.kind else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
-                    "attached function receiver",
-                );
-            };
+        if let Some(receiver) = attached_receiver {
             let parameter_ty = self.context.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                self.storage_access_or_error(receiver)?.slot
+                let Some(access) = self.storage_access(receiver) else {
+                    return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                };
+                access.slot
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
+            let value = self.normalize_internal_call_argument(value, parameter_ty);
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
-        for (index, &parameter) in function.parameters.iter().enumerate().skip(receiver_count) {
+        let mut parameter_indices = (receiver_count..function.parameters.len()).collect::<Vec<_>>();
+        if function.is_yul {
+            parameter_indices.reverse();
+        }
+        let mut arguments = vec![None; function.parameters.len() - receiver_count];
+        for index in parameter_indices {
+            let parameter = function.parameters[index];
             let Some(argument) =
                 args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
             else {
@@ -731,12 +755,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                self.storage_access_or_error(argument)?.slot
+                let Some(access) = self.storage_access(argument) else {
+                    return report_unsupported(self.context.gcx, argument.span, "storage access");
+                };
+                access.slot
             } else {
                 self.lower_typed_expr(argument, parameter_ty)?
             };
-            values.push(self.materialize_call_argument(parameter_ty, value, argument.span)?);
+            let value = self.normalize_internal_call_argument(value, parameter_ty);
+            arguments[index - receiver_count] =
+                Some(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
+        values.extend(arguments.into_iter().map(|value| value.expect("argument lowered")));
         let Some(&mir_id) = self.context.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
@@ -747,10 +777,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
-        let result_ty = types::TypeLowerer::mir_return_type(
-            self.context.gcx.type_of_item((*function.returns.first()?).into()),
+        let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
+        let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        let returns = Self::internal_returns_words(
+            function.returns.iter().map(|&id| self.context.gcx.type_of_item(id.into())),
         );
         let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
+        let result = self.rebuild_first_internal_return(result, first_ty, returns);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -904,7 +937,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .argument_for_parameter(index, parameter_names)
                     .or_else(|| report_unsupported(self.context.gcx, span, error))?;
                 if storage_parameters && Self::is_storage_parameter(parameter_ty) {
-                    Some((self.storage_access_or_error(argument)?.slot, AbiType::Word))
+                    let Some(access) = self.storage_access(argument) else {
+                        return report_unsupported(
+                            self.context.gcx,
+                            argument.span,
+                            "storage access",
+                        );
+                    };
+                    Some((access.slot, AbiType::Word))
                 } else {
                     Some(self.lower_abi_call_argument(argument, parameter_ty)?)
                 }
@@ -914,14 +954,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((values, types))
     }
 
-    pub(super) fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
-        let contract_id = self.context.gcx.hir.function(function_id).contract?;
+    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
+        let contract_id = self
+            .context
+            .gcx
+            .hir
+            .function(function_id)
+            .contract
+            .expect("library function must have a contract");
         let contract = self.context.gcx.hir.contract(contract_id);
-        if contract.kind != hir::ContractKind::Library {
-            return None;
-        }
+        assert_eq!(contract.kind, hir::ContractKind::Library);
         let source = self.context.gcx.hir.source(contract.source).file.name.display().to_string();
-        self.context
+        if let Some(address) = self
+            .context
             .gcx
             .sess
             .opts
@@ -932,12 +977,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && library.source.as_ref().is_none_or(|path| source.ends_with(path))
             })
             .map(|library| U256::from_be_slice(library.address.as_slice()))
+        {
+            return address;
+        }
+
+        let name = contract.name.as_str_in(self.context.gcx.sess).to_string();
+        let hash = keccak256(format!("{source}:{name}"));
+        let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
+        placeholder[0] |= 0x80;
+        self.context.module.add_library_link(LibraryLink { source, name, placeholder });
+        U256::from_be_slice(&placeholder)
     }
 
-    pub(super) fn lower_linked_library_call(
+    pub(super) fn lower_library_call(
         &mut self,
         expr: &hir::Expr<'_>,
         function_id: hir::FunctionId,
+        receiver: Option<&hir::Expr<'_>>,
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
@@ -946,25 +1002,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if !ok { revert_returndata() }
         // result = abi_decode(returndata) | 0
         let function = self.context.gcx.hir.function(function_id);
-        if args.len() != function.parameters.len() {
-            return report_unsupported(self.context.gcx, expr.span, "linked library arguments");
+        let receiver_count = usize::from(receiver.is_some());
+        if args.len() + receiver_count != function.parameters.len() {
+            return report_unsupported(self.context.gcx, expr.span, "library arguments");
         }
         let parameter_names =
             self.context.gcx.callable_param_names(CallableParamSource::Function {
                 id: function_id,
-                skips_receiver: false,
+                skips_receiver: receiver.is_some(),
             });
         let gcx = self.context.gcx;
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
-        let (values, types) = self.lower_abi_call_arguments(
+        let mut parameter_types = parameter_types.skip(receiver_count);
+        let (mut values, mut types) = self.lower_abi_call_arguments(
             args,
-            parameter_types,
+            &mut parameter_types,
             Some(&parameter_names),
             expr.span,
-            "linked library argument",
+            "library argument",
             true,
         )?;
+        if let Some(receiver) = receiver {
+            let parameter_ty = gcx.type_of_item(function.parameters[0].into());
+            let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
+            values.insert(0, value);
+            types.insert(0, ty);
+        }
 
         let selector = self.context.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
@@ -997,6 +1061,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         self.lower_decoded_return_value(data, &return_types, expr.span, zero)
+    }
+
+    pub(super) fn lower_abi_receiver(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<(ValueId, AbiType)> {
+        if Self::is_storage_parameter(parameter_ty) {
+            let Some(access) = self.storage_access(receiver) else {
+                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            };
+            Some((access.slot, AbiType::Word))
+        } else {
+            self.lower_abi_call_argument(receiver, parameter_ty)
+        }
     }
 
     fn static_aggregate_return_layout(

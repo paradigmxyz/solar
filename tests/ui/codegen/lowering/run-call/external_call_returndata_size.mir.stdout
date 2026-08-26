@@ -73,7 +73,7 @@ fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns
     mstore v19, 0x6080f30000000000000000000000000000000000000000000000000000000000
     v20 = slice_ptr v0
     v21 = add v3, 515
-    mcopy v21, v20, 0
+    mcopy v21, v20, 0 !metadata(memory=heap)
     v22 = create 0, v3, 515
     jumpi v22, bb2, bb1
   bb1:
@@ -145,7 +145,7 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_return
     mstore v19, 0x6080f30000000000000000000000000000000000000000000000000000000000
     v20 = slice_ptr v0
     v21 = add v3, 515
-    mcopy v21, v20, 0
+    mcopy v21, v20, 0 !metadata(memory=heap)
     v22 = create 0, v3, 515
     jumpi v22, bb2, bb1
   bb1:
@@ -222,7 +222,7 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_r
     mstore v19, 0x6080f30000000000000000000000000000000000000000000000000000000000
     v20 = slice_ptr v0
     v21 = add v3, 515
-    mcopy v21, v20, 0
+    mcopy v21, v20, 0 !metadata(memory=heap)
     v22 = create 0, v3, 515
     jumpi v22, bb2, bb1
   bb1:
@@ -300,7 +300,7 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_
     mstore v19, 0x6080f30000000000000000000000000000000000000000000000000000000000
     v20 = slice_ptr v0
     v21 = add v3, 515
-    mcopy v21, v20, 0
+    mcopy v21, v20, 0 !metadata(memory=heap)
     v22 = create 0, v3, 515
     jumpi v22, bb2, bb1
   bb1:
@@ -354,7 +354,7 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_retur
     mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
     v6 = slice_ptr v0
     v7 = add v3, 65
-    mcopy v7, v6, 0
+    mcopy v7, v6, 0 !metadata(memory=heap)
     v8 = create 0, v3, 65
     jumpi v8, bb2, bb1
   bb1:
@@ -401,7 +401,7 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_retu
     mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
     v6 = slice_ptr v0
     v7 = add v3, 65
-    mcopy v7, v6, 0
+    mcopy v7, v6, 0 !metadata(memory=heap)
     v8 = create 0, v3, 65
     jumpi v8, bb2, bb1
   bb1:
@@ -452,7 +452,7 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
     mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
     v6 = slice_ptr v0
     v7 = add v3, 65
-    mcopy v7, v6, 0
+    mcopy v7, v6, 0 !metadata(memory=heap)
     v8 = create 0, v3, 65
     jumpi v8, bb2, bb1
   bb1:
@@ -501,7 +501,7 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_return
     mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
     v6 = slice_ptr v0
     v7 = add v3, 65
-    mcopy v7, v6, 0
+    mcopy v7, v6, 0 !metadata(memory=heap)
     v8 = create 0, v3, 65
     jumpi v8, bb2, bb1
   bb1:

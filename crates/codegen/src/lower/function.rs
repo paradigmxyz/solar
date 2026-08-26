@@ -10,8 +10,8 @@ use crate::{
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
         AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-        PanicCode, SliceLocation, Value, ValueId,
+        FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Module, PanicCode, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256, keccak256};
@@ -146,7 +146,13 @@ pub(super) fn lower(
             mir.abi_returns = Some(
                 context.module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())),
             );
-            if output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup) {
+            let has_calldata_aggregate_return = hir_function.returns.iter().any(|&ret| {
+                types::TypeLowerer::mir_return_type(gcx.type_of_item(ret.into()))
+                    == MirType::Slice(SliceLocation::Calldata)
+            });
+            if has_calldata_aggregate_return
+                || output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup)
+            {
                 mir.abi_return_params =
                     Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
             }
@@ -621,7 +627,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let access = self.storage_access_or_error(rhs)?;
+                    let Some(access) = self.storage_access(rhs) else {
+                        return report_unsupported(self.context.gcx, rhs.span, "storage access");
+                    };
                     let Some(id) = self.context.gcx.resolved_variable(lhs) else {
                         return report_unsupported(
                             self.context.gcx,

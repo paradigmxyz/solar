@@ -10,6 +10,8 @@
 //@ run-call: dynamicNested(uint256[][]) [[8], [7]] => [[8], [7]]
 //@ run-call: dynamicEmptyAtEnd(uint256[]) [] => []
 //@ run-call: dynamicWrappingEnd(uint256[]) [] => [0]
+//@ run-call: returnedSlice(bytes) 0x01020304 => 0x01020304
+//@ run-call: emptyUnassignedSlice() => 0
 //@ run-call-fail: dynamicWords(uint256[]) []
 //@ run-call-fail: dynamicFixed(uint256[2][]) []
 //@ run-call-fail: dynamicNarrow(uint8[]) []
@@ -156,5 +158,37 @@ contract AssemblyCalldataReferenceAssignment {
             values.length := 1
         }
         return values;
+    }
+
+    function returnedSlice(bytes calldata values) external pure returns (bytes4) {
+        bytes calldata result = slice(values, 0);
+        bytes32 value;
+        assembly {
+            value := calldataload(result.offset)
+        }
+        return bytes4(value);
+    }
+
+    function emptyUnassignedSlice() external pure returns (uint256) {
+        bytes calldata value;
+        assembly {
+            value.length := 0
+        }
+        return sliceLength(value);
+    }
+
+    function sliceLength(bytes calldata value) internal pure returns (uint256) {
+        return value.length;
+    }
+
+    function slice(bytes calldata values, uint256 offset)
+        internal
+        pure
+        returns (bytes calldata result)
+    {
+        assembly {
+            result.offset := add(values.offset, offset)
+            result.length := sub(values.length, offset)
+        }
     }
 }

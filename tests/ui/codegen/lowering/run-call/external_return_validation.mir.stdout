@@ -126,12 +126,14 @@ fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, ab
     v0 = internal_call @dirtyValueInternal, 1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v1, 0, 0
-    memory_object_store_field memorystruct<1>, v1, 0, v0
+    v2 = and v0, 255
+    memory_object_store_field memorystruct<1>, v1, 0, v2
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    memory_object_store_field memorystruct<1>, v1, 0, 1
+    v3 = and 1, 255
+    memory_object_store_field memorystruct<1>, v1, 0, v3
     jump bb3
   bb3:
     ret v1
@@ -435,15 +437,16 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     v6 = gt v5, 255
     jumpi v6, bb3, bb4
   bb4:
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v5
-    v7 = lt 0, 1
-    v8 = iszero v7
-    jumpi v8, bb5, bb6
+    v7 = and v5, 255
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v7
+    v8 = lt 0, 1
+    v9 = iszero v8
+    jumpi v9, bb5, bb6
   bb6:
-    v9 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v10 = and v9, 255
-    v11 = eq v10, 2
-    ret v11
+    v10 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v11 = and v10, 255
+    v12 = eq v11, 2
+    ret v12
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

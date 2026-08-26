@@ -358,7 +358,7 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
     mstore v15, 0x601a565b601e565b5f80fd5b0000000000000000000000000000000000000000
     v16 = slice_ptr v0
     v17 = add v3, 396
-    mcopy v17, v16, 0
+    mcopy v17, v16, 0 !metadata(memory=heap)
     v18 = create 0, v3, 396
     jumpi v18, bb2, bb1
   bb1:

@@ -8,9 +8,9 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
+        BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId,
+        Immediate, ImmutableEncoding, InstId, InstKind, Instruction, MirType, Module, Terminator,
+        Value, ValueId,
     },
     pass::MirPass,
 };
@@ -1190,8 +1190,10 @@ fn inline_call_impl(
     caller.blocks[continuation].terminator = old_terminator;
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
-    let caller_is_external =
-        caller.selector.is_some() || caller.attributes.is_receive || caller.attributes.is_fallback;
+    let caller_is_external = caller.selector.is_some()
+        || caller.attributes.is_constructor
+        || caller.attributes.is_receive
+        || caller.attributes.is_fallback;
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
@@ -1222,7 +1224,13 @@ fn inline_call_impl(
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
-        insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
+        insert_extra_return_stores(
+            cloner.caller,
+            continuation,
+            &return_values[1..],
+            caller_is_external,
+            caller_frame_prefix,
+        )?;
     }
 
     cloner.caller.replace_uses(&replacements);
@@ -1425,40 +1433,55 @@ fn build_return_values(
     Some(values)
 }
 
-fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, values: &[ValueId]) {
+fn insert_extra_return_stores(
+    caller: &mut Function,
+    continuation: BlockId,
+    values: &[ValueId],
+    caller_is_external: bool,
+    caller_frame_prefix: u64,
+) -> Option<()> {
     if values.is_empty() {
-        return;
+        return Some(());
     }
 
-    // Insert the stores right after the continuation block's leading phis.
+    let size = u64::try_from(values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+    let local_offset = caller.internal_frame_size;
+    caller.internal_frame_size = caller.internal_frame_size.checked_add(size)?;
+    let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
+
     let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
-
     let existing_len = caller.blocks[continuation].instructions.len();
-    let appended = {
+    let instructions = {
         let mut builder = FunctionBuilder::new(caller);
         builder.switch_to_block(continuation);
-
-        let len = values.len() as u64 + 1;
-        let size = builder.imm_u64(len * 32);
-        let layout = MemoryObjectLayout::FixedArray { len, element_words: 1 };
-        let object = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         for (index, &value) in values.iter().enumerate() {
-            let index = builder.imm_u64(index as u64 + 1);
-            builder.memory_object_store_element(object, layout, index, value);
+            let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+            let offset = if caller_is_external {
+                builder.imm_u64(
+                    EvmMemoryLayout::HEAP_START.checked_add(local_offset.checked_add(offset)?)?,
+                )
+            } else {
+                builder.internal_frame_addr(frame_offset.checked_add(offset)?)
+            };
+            builder.mstore(offset, value);
         }
-        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+        let base = if caller_is_external {
+            builder.imm_u64(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
+        } else {
+            builder.internal_frame_addr(frame_offset)
+        };
         builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
-
         builder.func_mut().blocks[continuation]
             .instructions
             .drain(existing_len..)
             .collect::<Vec<_>>()
     };
-    caller.blocks[continuation].instructions.splice(phi_count..phi_count, appended);
+    caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
+    Some(())
 }
 
 fn redirect_phi_predecessors(

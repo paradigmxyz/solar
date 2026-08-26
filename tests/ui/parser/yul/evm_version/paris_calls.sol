@@ -8,14 +8,14 @@ contract C {
     function randomness() external view returns (uint256 result) {
         assembly {
             result := prevrandao()
-            //~[london]^ ERROR: unresolved symbol `prevrandao`
+            //~[london]^ ERROR: Yul builtin `prevrandao` requires Paris-compatible EVM
         }
     }
 
     function difficultyValue() external view returns (uint256 result) {
         assembly {
             result := difficulty()
-            //~[paris]^ ERROR: unresolved symbol `difficulty`
+            //~[paris]^ ERROR: Yul builtin `difficulty` is unavailable for Paris-compatible EVM
         }
     }
 }

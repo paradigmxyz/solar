@@ -1,0 +1,166 @@
+//@ codegen-matrix: standard
+//@ run-call: Router::go() => 1
+//@ run-call: Router::goRich() => 2
+
+// A spill store is a path fact: the third return of the second `fetch` was
+// live through a branch diamond, its store landed only in the arm the plan
+// emitted it in, and paths through the sibling arm reached the later reload
+// with the reserved slot never written (reading stale decode scratch). The
+// backend must drop a store's guarantee in blocks its emitting block does
+// not dominate.
+
+interface IMgr {
+    function bal(address) external view returns (uint256);
+    function delta(address) external view returns (int256);
+    function consume(uint256 x) external;
+    function sync(address) external;
+    function last() external view returns (uint256);
+    function phasedDelta(address u) external view returns (int256);
+    function advance(Key calldata key, Params calldata params, bytes calldata data)
+        external
+        returns (int256);
+}
+
+struct Key {
+    address asset0;
+    address asset1;
+    uint24 fee;
+    int24 spacing;
+    address hook;
+}
+
+struct Params {
+    bool zeroForOne;
+    int256 amount;
+    uint160 limit;
+}
+
+contract Mgr {
+    uint256 public last;
+    bool internal advanced;
+
+    function bal(address) external pure returns (uint256) {
+        return 7;
+    }
+
+    function delta(address u) external pure returns (int256) {
+        return u == address(1) ? int256(-202) : int256(100);
+    }
+
+    function phasedDelta(address u) external view returns (int256) {
+        if (!advanced) return 0;
+        return u == address(1) ? int256(-202) : int256(100);
+    }
+
+    function consume(uint256 x) external {
+        last = x;
+    }
+
+    function sync(address) external {}
+
+    function advance(Key calldata key, Params calldata params, bytes calldata data)
+        external
+        returns (int256)
+    {
+        advanced = true;
+        return int256(uint256(key.fee) + uint256(params.limit) + data.length);
+    }
+}
+
+library Settler {
+    function settle(IMgr m, address, uint256 amount) internal {
+        m.sync(address(0x1234));
+        m.consume(amount);
+    }
+}
+
+contract Router {
+    IMgr internal mgr;
+    bool internal flagA = true;
+    bool internal flagB = false;
+
+    constructor() {
+        mgr = IMgr(address(new Mgr()));
+    }
+
+    function fetch(address u) internal view returns (uint256 a, uint256 b, int256 d) {
+        a = mgr.bal(u);
+        b = mgr.bal(address(this));
+        d = mgr.delta(u);
+    }
+
+    function fetchRich(address u) internal view returns (uint256 a, uint256 b, int256 d) {
+        a = mgr.bal(u);
+        b = mgr.bal(address(this));
+        d = mgr.phasedDelta(u);
+    }
+
+    function go() external returns (uint256) {
+        (,, int256 dA0) = fetch(address(1));
+        (,, int256 dA1) = fetch(address(2));
+        require(dA0 == -202, "d0");
+        if (flagA) {
+            if (flagB) {
+                require(dA1 >= 0, "x");
+            } else {
+                require(dA1 <= 100, "over");
+            }
+        }
+        if (dA0 < 0) {
+            Settler.settle(mgr, msg.sender, uint256(-dA0));
+        }
+        if (dA1 < 0) {
+            Settler.settle(mgr, msg.sender, uint256(-dA1));
+        }
+        if (dA0 > 0) {
+            mgr.consume(uint256(dA0));
+        }
+        if (dA1 > 0) {
+            mgr.consume(uint256(dA1));
+        }
+        require(mgr.last() == 100, "took wrong amount");
+        return 1;
+    }
+
+    function goRich() external returns (uint256) {
+        // The later fetch result stays live through a nested condition. A
+        // sibling store must not become available merely because intervening
+        // blocks were emitted after it; only stores on their path propagate.
+        Key memory key = Key(address(1), address(2), 3000, 60, address(3));
+        Params memory params = Params(true, 101, 99);
+        bytes memory data = hex"12345678";
+
+        (,, int256 before0) = fetchRich(key.asset0);
+        (,, int256 before1) = fetchRich(key.asset1);
+        require(before0 == 0, "before0");
+        require(before1 == 0, "before1");
+
+        int256 callResult = mgr.advance(key, params, data);
+
+        (,, int256 after0) = fetchRich(key.asset0);
+        (,, int256 after1) = fetchRich(key.asset1);
+        if (params.zeroForOne) {
+            if (params.amount < 0) {
+                require(after0 >= params.amount, "a");
+                require(after1 >= 0, "b");
+            } else {
+                require(after0 <= 0, "c");
+                require(after1 <= params.amount, "d");
+            }
+        } else if (params.amount < 0) {
+            require(after1 >= params.amount, "e");
+            require(after0 >= 0, "f");
+        } else {
+            require(after1 <= params.amount, "g");
+            require(after0 <= 0, "h");
+        }
+
+        if (after0 < 0) Settler.settle(mgr, msg.sender, uint256(-after0));
+        if (after1 < 0) Settler.settle(mgr, msg.sender, uint256(-after1));
+        if (after0 > 0) mgr.consume(uint256(after0));
+        if (after1 > 0) mgr.consume(uint256(after1));
+        require(callResult == 3103, "wrong call result");
+        require(mgr.last() == 100, "took wrong rich amount");
+        return 2;
+    }
+}

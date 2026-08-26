@@ -22,7 +22,8 @@ pub use backend::{Backend, evm::EvmCodegen};
 
 mod contract;
 pub use contract::{
-    ContractArtifact, ContractSelection, ImmutableReference, generate_contract_bytecodes,
+    ContractArtifact, ContractSelection, ImmutableReference, LibraryReference,
+    generate_contract_bytecodes,
 };
 
 mod ir_parse;

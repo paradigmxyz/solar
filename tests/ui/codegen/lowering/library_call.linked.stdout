@@ -253,14 +253,10 @@ bb3 [cold]:
   revert
 bb10 [cold]:
   returndatasize
-  dup 1
-  push 224
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 224
-  mload
+  returndatasize
   push 0
   revert
 bb11 [cold]:

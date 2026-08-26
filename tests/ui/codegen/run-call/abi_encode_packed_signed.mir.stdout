@@ -154,7 +154,7 @@ fn @packedDynamicHashLocal(arg0: bytes32, arg1: calldataslice) -> bytes32 [selec
     v3 = add v2, 32
     v4 = slice_len arg1
     v5 = slice_ptr arg1
-    calldatacopy v3, v5, v4
+    calldatacopy v3, v5, v4 !metadata(memory=heap)
     v6 = add v3, v0
     v7 = sub v6, v2
     v8 = keccak256 v2, v7

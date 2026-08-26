@@ -368,14 +368,14 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
 fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     let mut declared_revisions = Vec::new();
-    let mut mir_revisions = Vec::new();
+    let mut dump_revisions = Vec::new();
     let mut scoped_runtime_revisions = Vec::new();
     let mut emitted_revisions = Vec::new();
     let mut unscoped_run_call = false;
     let mut base_mir_dump = false;
     if codegen_matrix::is_standard(src) {
         declared_revisions.extend(codegen_matrix::revisions(src).into_iter().map(str::to_owned));
-        mir_revisions.push("mir".to_owned());
+        dump_revisions.push("mir".to_owned());
         emitted_revisions.extend(["none", "gas", "size"].map(str::to_owned));
     }
     for line in src.lines() {
@@ -399,14 +399,14 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
         if !directive.contains("compile-flags") {
             continue;
         }
-        let is_mir = directive.contains("-Zdump=mir");
+        let is_dump = directive.contains("-Zdump=");
         let emits_artifacts = directive.split_whitespace().any(|arg| arg == "--emit=abi,bin");
         for revision in revisions.split(',').map(|revision| revision.trim().to_owned()) {
             if emits_artifacts {
                 emitted_revisions.push(revision.clone());
             }
-            if is_mir {
-                mir_revisions.push(revision);
+            if is_dump {
+                dump_revisions.push(revision);
             } else {
                 scoped_runtime_revisions.push(revision);
             }
@@ -418,7 +418,7 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     } else {
         declared_revisions
             .iter()
-            .filter(|revision| !mir_revisions.iter().any(|mir| mir == *revision))
+            .filter(|revision| !dump_revisions.iter().any(|dump| dump == *revision))
             .cloned()
             .collect()
     };
@@ -467,11 +467,11 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             .push((run_call_stdout_regex().clone().into(), vec![]));
     }
     if unscoped_run_call {
-        if !mir_revisions.is_empty() {
+        if !dump_revisions.is_empty() {
             config
                 .comment_defaults
                 .revisioned
-                .entry(mir_revisions)
+                .entry(dump_revisions)
                 .or_default()
                 .normalize_stdout
                 .push((run_call_mir_stdout_regex().clone().into(), vec![]));

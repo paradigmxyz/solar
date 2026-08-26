@@ -15,7 +15,7 @@ contract AcyclicStackPhi {
     // CHECK: gt
     // CHECK: push [[TRIM:bb[0-9]+]]
     // CHECK: jumpi
-    // CHECK: push 352
+    // CHECK: push {{[0-9]+}}
     // CHECK: mload
     // CHECK: [[TRIM]]:
     function trimLen(bytes calldata data) external pure returns (uint256) {

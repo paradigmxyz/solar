@@ -1,0 +1,170 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
+@module DirtyInternalNamedReturn
+fn @dirtyAddress(arg0: address) -> address [pure] {
+  bb0:
+    v0 = shl 160, 1
+    v1 = or arg0, v0
+    ret v1
+}
+
+fn @dirtyBytes(arg0: bytes1) -> bytes1 [pure] {
+  bb0:
+    v0 = or arg0, 1
+    ret v0
+}
+
+fn @dirtyUint8(arg0: u8) -> u8 [pure] {
+  bb0:
+    v0 = shl 8, 1
+    v1 = or arg0, v0
+    ret v1
+}
+
+fn @dirtyBool(arg0: bool) -> bool [pure] {
+  bb0:
+    v0 = mul arg0, 2
+    ret v0
+}
+
+fn @addressBits() -> bool [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyAddress, 1, 2
+    v1 = shr 160, v0
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 2
+    v4 = and v3, v1
+    ret v4
+}
+
+fn @bytesBits() -> bool [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v1 = shr 248, v0
+    v2 = eq v1, 66
+    v3 = and v2, v0
+    ret v3
+}
+
+fn @same.6(arg0: address, arg1: address) -> bool [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+fn @same.7(arg0: bytes1, arg1: bytes1) -> bool [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+fn @sameWord(arg0: u256, arg1: u256) -> bool [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+fn @sameBytes32(arg0: bytes32, arg1: bytes32) -> bool [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}
+
+fn @typedCallCleans() -> bool [selector=0x27e15135, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyAddress, 1, 2
+    v1 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v2 = internal_call @dirtyUint8, 1, 3
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = internal_call @same.6, 1, v3, 2
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v5 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v6 = internal_call @same.7, 1, v5, 0x4200000000000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v6], [bb2: 0]
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v8 = and v2, 255
+    v9 = internal_call @sameWord, 1, v8, 3
+    jump bb6
+  bb6:
+    v10 = phi [bb4: v9], [bb5: 0]
+    jumpi v10, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v11 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v12 = internal_call @sameBytes32, 1, v11, 0x4200000000000000000000000000000000000000000000000000000000000000
+    jump bb9
+  bb9:
+    v13 = phi [bb7: v12], [bb8: 0]
+    ret v13
+}
+
+fn @directTypedCallCleans() -> bool [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyAddress, 1, 2
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = internal_call @same.6, 1, v1, 2
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = internal_call @same.7, 1, v4, 0x4200000000000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v5], [bb2: 0]
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v7 = internal_call @dirtyUint8, 1, 3
+    v8 = and v7, 255
+    v9 = internal_call @sameWord, 1, v8, 3
+    jump bb6
+  bb6:
+    v10 = phi [bb4: v9], [bb5: 0]
+    ret v10
+}
+
+fn @directComparisonCleans() -> bool [selector=0x38576c60, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyAddress, 1, 2
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = eq v1, 2
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = eq v4, 0x4200000000000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v5], [bb2: 0]
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v7 = internal_call @dirtyUint8, 1, 3
+    v8 = and v7, 255
+    v9 = eq v8, 3
+    jump bb6
+  bb6:
+    v10 = phi [bb4: v9], [bb5: 0]
+    ret v10
+}
+
+fn @boolBits() -> bool [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @dirtyBool, 1, 1
+    v1 = eq v0, 2
+    ret v1
+}

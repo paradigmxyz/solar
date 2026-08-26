@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_scribbles_frame_locals.sol:AssemblyScribblesFrameLocals ===
+@module AssemblyScribblesFrameLocals
+fn @_anonymous() [fallback] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v9]
+    v1 = phi [bb0: 0], [bb5: v8]
+    v2 = calldatasize
+    v3 = lt v0, v2
+    v4 = eq v3, 0
+    v5 = iszero v4
+    jumpi v5, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    v6 = calldataload v0
+    v7 = byte 0, v6
+    mstore8 v1, v7
+    v8 = add v1, 1
+    v9 = add v0, 1
+    jump bb5
+  bb5:
+    jump bb1
+}

@@ -218,14 +218,10 @@ bb7:
   jump bb13
 bb11 [cold]:
   returndatasize
-  dup 1
-  push 224
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 224
-  mload
+  returndatasize
   push 0
   revert
 bb12 [cold]:
@@ -382,14 +378,10 @@ bb3 [cold]:
   revert
 bb9 [cold]:
   returndatasize
-  dup 1
-  push 224
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 224
-  mload
+  returndatasize
   push 0
   revert
 bb10 [cold]:

@@ -254,7 +254,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "array pop");
                 };
-                self.storage_access_or_error(receiver)?;
+                if self.storage_access(receiver).is_none() {
+                    return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                }
                 Some(self.builder.imm_u256(U256::ZERO))
             }
             Builtin::ContractCreationCode
@@ -325,7 +327,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
                         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
                         let zero = self.builder.imm_u256(U256::ZERO);
-                        self.builder.extcodecopy(address, data, zero, length);
+                        self.builder.extcodecopy_heap(address, data, zero, length);
                         Some(object)
                     }
                     _ => unreachable!(),
@@ -344,7 +346,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             Builtin::FunctionSelector => {
-                // if resolved_function_or_error { selector = imm(selector) << 224 }
+                // if resolved_item { selector = imm(selector) << 224 }
                 // if external_function_value { selector = (value & 0xffffffff) << 224 }
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "function selector");
@@ -1164,9 +1166,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: &hir::CallArgs<'_>,
     ) -> Option<[ValueId; N]> {
         let exprs = self.builtin_args::<N>(builtin, args)?;
-        let values =
-            exprs.iter().map(|arg| self.lower_yul_word_expr(arg)).collect::<Option<Vec<_>>>()?;
-        values.try_into().ok()
+        let mut values = [None; N];
+        if builtin.is_yul() {
+            for index in (0..N).rev() {
+                values[index] = Some(self.lower_yul_word_expr(&exprs[index])?);
+            }
+        } else {
+            for index in 0..N {
+                values[index] = Some(self.lower_yul_word_expr(&exprs[index])?);
+            }
+        }
+        Some(values.map(|value| value.expect("all builtin arguments lowered")))
     }
 
     fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {

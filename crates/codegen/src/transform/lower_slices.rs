@@ -9,7 +9,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         ArgIdx, BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-        MirType, Module, SliceLocation, Value, ValueId,
+        MirType, Module, SliceLocation, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -353,6 +353,145 @@ impl LowerSlices {
         changed
     }
 
+    fn expand_call_returns(
+        func: &mut Function,
+        signatures: &FxHashMap<FunctionId, Vec<ParamRepr>>,
+    ) -> bool {
+        let mut changed = false;
+        let mut replacements = FxHashMap::default();
+        let mut constructors = Vec::new();
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        for block_id in block_ids {
+            let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(block_id);
+            for inst_id in instructions {
+                builder.func_mut().blocks[block_id].instructions.push(inst_id);
+                let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
+                    InstKind::InternalCall { function, returns, .. } => {
+                        signatures.get(&function).and_then(|signature| {
+                            (usize::try_from(returns).ok() == Some(signature.len())
+                                && signature.contains(&ParamRepr::Pair))
+                            .then(|| {
+                                builder
+                                    .func()
+                                    .inst_result_value(inst_id)
+                                    .map(|result| (signature, result))
+                            })
+                            .flatten()
+                        })
+                    }
+                    _ => None,
+                }) else {
+                    continue;
+                };
+
+                let returns = u32::try_from(
+                    signature.len()
+                        + signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count(),
+                )
+                .expect("MIR return count fits in u32");
+
+                let instruction = builder.func_mut().inst_mut(inst_id);
+                let InstKind::InternalCall { returns: call_returns, .. } = &mut instruction.kind
+                else {
+                    unreachable!()
+                };
+                *call_returns = returns;
+                let Some(MirType::Slice(location)) = instruction.result_ty else {
+                    changed = true;
+                    continue;
+                };
+                instruction.result_ty = Some(slice_param_ptr_type(location));
+
+                let already_rebuilt = builder.func().instructions().any(|user| {
+                    matches!(builder.func().inst(user).kind, InstKind::MakeSlice { ptr, .. } if ptr == result)
+                });
+                if already_rebuilt {
+                    changed = true;
+                    continue;
+                }
+
+                let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+                let base = builder.mload(slot);
+                let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
+                let length = builder.mload(length_address);
+                let slice = builder.make_slice(result, length, location);
+                let Value::Inst(constructor) = *builder.func().value(slice) else { unreachable!() };
+                replacements.insert(result, slice);
+                constructors.push((constructor, result, length, location));
+                changed = true;
+            }
+        }
+        func.replace_uses_canonicalized(&replacements);
+        for (constructor, pointer, length, location) in constructors {
+            func.inst_mut(constructor).kind =
+                InstKind::MakeSlice { ptr: pointer, len: length, location };
+        }
+        changed
+    }
+
+    fn lower_returns(func: &mut Function, signature: &[ParamRepr]) -> bool {
+        let added_slots = signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count();
+        let lowers_word_slice = func
+            .returns
+            .iter()
+            .zip(signature)
+            .any(|(ty, repr)| Self::is_slice(ty) && *repr != ParamRepr::Pair);
+        if added_slots == 0 && !lowers_word_slice {
+            return false;
+        }
+        let shifted = Self::shifted_frame_offsets(func, added_slots)
+            .expect("slice return expansion was checked before lowering");
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        for block_id in block_ids {
+            let Some(Terminator::Return { values }) = func.blocks[block_id].terminator.as_ref()
+            else {
+                continue;
+            };
+            if values.len() != signature.len() {
+                continue;
+            }
+            let values = values.clone();
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(block_id);
+            let mut expanded = Vec::with_capacity(values.len() + added_slots);
+            for (value, repr) in values.into_iter().zip(signature) {
+                match repr {
+                    ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(value),
+                    ParamRepr::Pair => {
+                        expanded.push(builder.slice_ptr(value));
+                        expanded.push(builder.slice_len(value));
+                    }
+                }
+            }
+            builder.func_mut().blocks[block_id].terminator =
+                Some(Terminator::Return { values: expanded.into() });
+        }
+        for (inst_id, shifted) in shifted {
+            let InstKind::InternalFrameAddr(offset) = &mut func.inst_mut(inst_id).kind else {
+                unreachable!()
+            };
+            *offset = shifted;
+        }
+        let mut returns = Vec::with_capacity(func.returns.len() + added_slots);
+        for (&ty, repr) in func.returns.iter().zip(signature) {
+            match repr {
+                ParamRepr::Word | ParamRepr::CompactCalldata => match ty {
+                    MirType::Slice(location) => returns.push(slice_param_ptr_type(location)),
+                    _ => returns.push(ty),
+                },
+                ParamRepr::Pair => {
+                    let MirType::Slice(location) = ty else { unreachable!() };
+                    returns.push(slice_param_ptr_type(location));
+                    returns.push(MirType::uint256());
+                }
+            }
+        }
+        func.returns = returns;
+        true
+    }
+
     fn lower_params(func: &mut Function, signature: &IndexVec<ArgIdx, ParamRepr>) -> bool {
         if func.selector.is_some()
             || func.blocks.is_empty()
@@ -628,38 +767,13 @@ impl LowerSlices {
             return true;
         }
 
-        // Aggregate uses need a future explicit lowering rule. Keep those
-        // slices intact instead of guessing at a one-word representation.
-        let mut removable: FxHashSet<ValueId> = components.keys().copied().collect();
-        for inst_id in &live_insts {
-            let inst = func.inst(*inst_id);
-            for operand in inst.kind.operands() {
-                if components.contains_key(&operand)
-                    && !matches!(inst.kind, InstKind::SlicePtr(v) | InstKind::SliceLen(v) if v == operand)
-                {
-                    removable.remove(&operand);
-                }
-            }
-        }
-        for block in func.blocks.iter() {
-            if let Some(term) = &block.terminator {
-                for operand in term.operands() {
-                    removable.remove(&operand);
-                }
-            }
-        }
-        if removable.is_empty() {
-            return false;
-        }
-
         for (&slice, &(ptr, len, constructor)) in &components {
-            if removable.contains(&slice) {
-                removed.insert(constructor);
-                for (&result, &(projected_slice, inst, is_ptr)) in &projections {
-                    if projected_slice == slice {
-                        replacements.insert(result, if is_ptr { ptr } else { len });
-                        removed.insert(inst);
-                    }
+            replacements.insert(slice, ptr);
+            removed.insert(constructor);
+            for (&result, &(projected_slice, inst, is_ptr)) in &projections {
+                if projected_slice == slice {
+                    replacements.insert(result, if is_ptr { ptr } else { len });
+                    removed.insert(inst);
                 }
             }
         }
@@ -672,6 +786,35 @@ impl LowerSlices {
     }
     fn run(module: &mut Module) -> bool {
         let compact = Self::infer_compact_params(module);
+        let return_signatures: FxHashMap<_, _> = module
+            .functions
+            .iter_enumerated()
+            .filter(|(_, func)| func.selector.is_none())
+            .map(|(id, func)| {
+                let signature = func
+                    .returns
+                    .iter()
+                    .enumerate()
+                    .map(|(index, ty)| {
+                        let has_slice_value = func.blocks.iter().any(|block| {
+                            matches!(
+                                &block.terminator,
+                                Some(Terminator::Return { values })
+                                    if values.get(index).is_some_and(|&value| {
+                                        func.value_slice_location(value).is_some()
+                                    })
+                            )
+                        });
+                        if Self::is_slice(ty) && has_slice_value {
+                            ParamRepr::Pair
+                        } else {
+                            ParamRepr::Word
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (id, signature)
+            })
+            .collect();
         let signatures: FxHashMap<_, _> = module
             .functions
             .iter_enumerated()
@@ -703,6 +846,13 @@ impl LowerSlices {
             } else {
                 0
             };
+            let added_slots = added_slots
+                + return_signatures
+                    .get(&id)
+                    .into_iter()
+                    .flatten()
+                    .filter(|&&repr| repr == ParamRepr::Pair)
+                    .count();
             Self::shifted_frame_offsets(func, added_slots).is_none()
         }) {
             return false;
@@ -714,11 +864,17 @@ impl LowerSlices {
             // stages can expand or fold.
             changed |= Self::split_slice_aggregates(func);
             changed |= Self::expand_call_args(func, &signatures);
+            changed |= Self::expand_call_returns(func, &return_signatures);
             changed |= Self::lower_external_args(func);
+            if let Some(signature) = return_signatures.get(&id) {
+                changed |= Self::lower_returns(func, signature);
+            }
             changed |= Self::lower_params(func, &signatures[&id]);
             changed |= Self::split_slice_aggregates(func);
             changed |= Self::lower_mixed_slice_phis(func);
-            changed |= Self::lower_projections(func);
+            while Self::lower_projections(func) {
+                changed = true;
+            }
         }
         changed
     }

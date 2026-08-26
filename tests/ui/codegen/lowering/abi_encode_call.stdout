@@ -12,8 +12,8 @@ fn @asValue() [selector=0x440a9300, pure] {
     jumpi v4, bb1, bb3
   bb3:
     v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v33 = add v9, 128
-    mstore 64, v33 !metadata(memory=scratch)
+    v36 = add v9, 128
+    mstore 64, v36 !metadata(memory=scratch)
     mstore v9, 68
     v10 = add v9, 32
     mstore v10, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
@@ -25,27 +25,30 @@ fn @asValue() [selector=0x440a9300, pure] {
     v14 = add v13, 32
     v15 = sub v14, v13
     mstore v13, v15
+    v17 = iszero v9
+    v18 = iszero v17
     v16 = mload v9
-    mstore v14, v16
-    v18 = add v16, 31
-    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v13, 64
-    jumpi v19, bb4, bb5
+    v19 = mul v16, v18
+    mstore v14, v19
+    v21 = add v19, 31
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v13, 64
+    jumpi v22, bb4, bb5
   bb4:
-    v22 = sub v19, 32
-    v23 = add v20, v22
-    mstore v23, 0
+    v25 = sub v22, 32
+    v26 = add v23, v25
+    mstore v26, 0
     jump bb5
   bb5:
-    v25 = add v20, v19
-    mcopy v20, v10, v16
-    v26 = sub v25, v13
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v31 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v34 = add v31, v30
-    mstore 64, v34 !metadata(memory=scratch)
-    returndata v31, v26
+    v28 = add v23, v22
+    mcopy v23, v10, v19
+    v29 = sub v28, v13
+    v31 = add v29, 31
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v37 = add v34, v33
+    mstore 64, v37 !metadata(memory=scratch)
+    returndata v34, v29
   bb1:
     revert 0, 0
 }

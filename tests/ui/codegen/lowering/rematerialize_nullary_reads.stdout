@@ -18,7 +18,7 @@ bb2 [cold]:
   dup 1
   revert
 bb3:
-  push 128
+  push 992
   push 64
   mstore
   calldatasize
@@ -76,9 +76,16 @@ bb3:
   push 544
   mstore
   number
+  dup 1
+  push 960
+  mstore
   push 576
   mstore
-  number
+  push 960
+  mload
+  dup 1
+  push 960
+  mstore
   push 608
   mstore
   prevrandao

@@ -17,7 +17,7 @@ fn @_anonymous() [constructor] {
     mstore v4, 0x14601657601a565b601e565b5f80fd5b00000000000000000000000000000000
     v5 = slice_ptr v0
     v6 = add v3, 48
-    mcopy v6, v5, 0
+    mcopy v6, v5, 0 !metadata(memory=heap)
     v7 = create 0, v3, 48
     jumpi v7, bb2, bb1
   bb1:

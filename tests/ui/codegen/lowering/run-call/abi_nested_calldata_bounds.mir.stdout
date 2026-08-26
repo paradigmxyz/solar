@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_nested_calldata_bounds.sol:NestedCalldataBounds ===
+@module NestedCalldataBounds
+fn @nested(arg0: memoryarray) -> u256 [selector=0x798068af, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = memory_object_load_element memoryarray<1>, arg0, 0
+    v4 = eq v3, 0
+    jumpi v4, bb3, bb4
+  bb3:
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v5, 0
+    memory_object_store_element memoryarray<1>, arg0, 0, v5
+    jump bb4
+  bb4:
+    v6 = phi [bb2: v3], [bb3: v5]
+    v7 = memory_object_len memorybytes, v6
+    ret v7
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

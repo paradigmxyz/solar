@@ -1706,9 +1706,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let data = self.parse_value(builder)?;
                 let data_ty = builder.func().value_ty(data);
+                let pending_call = matches!(
+                    builder.func().value(data),
+                    Value::Inst(inst)
+                        if matches!(builder.func().inst(*inst).kind, InstKind::InternalCall { .. })
+                );
                 if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
                     && !(data_ty == Some(MirType::MemPtr)
                         && !layout.types.iter().any(AbiParamType::has_dynamic_child))
+                    && !pending_call
                 {
                     return Err(self
                         .parser

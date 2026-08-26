@@ -1,0 +1,42 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
+@module UninitializedMemoryReferences
+fn @fmpIsStable() -> (bool, u256, u256) [selector=0x8543d886, pure, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = eq v0, v1
+    v3 = memory_object_len memorybytes, 96
+    v4 = memory_object_len memoryarray, 96
+    ret v2, v3, v4
+}
+
+fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = abi_encode [memory_array<memory_bytes>], object, args v0
+    v2 = not 0
+    mstore 0, v2 !metadata(memory=scratch)
+    v3 = abi_encode [memory_array<memory_bytes>], object, args v0
+    mstore 0, 0 !metadata(memory=scratch)
+    v4 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v4, 2
+    v5 = abi_encode [memory_array<memory_array<word>>], object, args v4
+    v6 = not 0
+    mstore 0, v6 !metadata(memory=scratch)
+    v7 = abi_encode [memory_array<memory_array<word>>], object, args v4
+    v8 = keccak256_bytes v1
+    v9 = keccak256_bytes v3
+    v10 = eq v8, v9
+    jumpi v10, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v11 = keccak256_bytes v5
+    v12 = keccak256_bytes v7
+    v13 = eq v11, v12
+    jump bb3
+  bb3:
+    v14 = phi [bb1: v13], [bb2: 0]
+    ret v14
+}
