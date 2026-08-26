@@ -45,12 +45,12 @@ use tracing as _;
 pub fn main() -> ExitCode {
     signal_handler::install();
     solar_interface::panic_hook::install();
-    let _guard = utils::init_logger(utils::LogDestination::Stderr);
 
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
+    let _guard = utils::init_logger(utils::LogDestination::Stderr, args.compile.allow.as_slice());
     commands::run(args)
 }
 

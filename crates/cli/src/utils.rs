@@ -1,6 +1,8 @@
 //! Utility functions used by the Solar CLI.
 
 use solar_interface::diagnostics::DiagCtxt;
+#[cfg(not(feature = "tracing"))]
+use solar_interface::diagnostics::DiagId;
 
 #[cfg(feature = "tracing")]
 use solar_sema::ast::Either;
@@ -72,18 +74,20 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
 
 /// Initialize the tracing logger.
 #[must_use]
-pub fn init_logger(dst: LogDestination) -> impl Sized {
+pub fn init_logger(dst: LogDestination, _allowed_codes: &[String]) -> impl Sized + use<> {
     #[cfg(not(feature = "tracing"))]
     {
         let _ = dst;
+        let dcx =
+            DiagCtxt::new_early().with_allowed_diagnostic_codes(_allowed_codes.iter().cloned());
         if std::env::var_os("RUST_LOG").is_some() {
             let msg = "`RUST_LOG` is set, but \"tracing\" support was not enabled at compile time";
-            DiagCtxt::new_early().warn(msg).emit();
+            dcx.warn(msg).code(DiagId::new_str("solar-rust-log-disabled")).emit();
         }
         if std::env::var_os("SOLAR_PROFILE").is_some() {
             let msg =
                 "`SOLAR_PROFILE` is set, but \"tracing\" support was not enabled at compile time";
-            DiagCtxt::new_early().warn(msg).emit();
+            dcx.warn(msg).code(DiagId::new_str("solar-profile-disabled")).emit();
         }
     }
 
