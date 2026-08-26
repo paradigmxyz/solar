@@ -367,9 +367,9 @@ fn generate_contract_bytecode(
         && artifact.runtime.len() > limit
     {
         let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
-            "Amsterdam"
+            EvmVersion::Amsterdam
         } else {
-            "Spurious Dragon"
+            EvmVersion::SpuriousDragon
         };
         gcx.dcx()
             .warn(format!(
@@ -390,9 +390,9 @@ fn generate_contract_bytecode(
         && artifact.deployment.len() > limit
     {
         let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
-            "Amsterdam"
+            EvmVersion::Amsterdam
         } else {
-            "Shanghai"
+            EvmVersion::Shanghai
         };
         gcx.dcx()
             .warn(format!(

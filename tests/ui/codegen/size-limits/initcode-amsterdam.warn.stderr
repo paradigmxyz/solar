@@ -9,7 +9,7 @@ LL │ ┃         new A();
 LL │ ┃ }
    │ ┗━┛
    │
-   ├ note: the limit was introduced in Amsterdam
+   ├ note: the limit was introduced in amsterdam
    ├ note: this contract may not be deployable on Mainnet
    ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
 

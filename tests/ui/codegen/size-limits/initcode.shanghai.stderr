@@ -9,7 +9,7 @@ LL │ ┃         new B();
 LL │ ┃ }
    │ ┗━┛
    │
-   ├ note: the limit was introduced in Shanghai
+   ├ note: the limit was introduced in shanghai
    ├ note: this contract may not be deployable on Mainnet
    ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
 
