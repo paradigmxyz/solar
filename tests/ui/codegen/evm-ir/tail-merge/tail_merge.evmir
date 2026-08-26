@@ -122,6 +122,33 @@ bb9:
 bb10:
   stop
 
+// A six-byte hot suffix does not pay for its runtime jump in gas mode.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}push 11
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}stop
+bb11:
+  push 11
+  push 1
+  push 2
+  push0
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push 12
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}stop
+bb12:
+  push 12
+  push 1
+  push 2
+  push0
+  stop
+
 // CHECK: + [[TAIL_B]]:
 // CHECK: {{^[ +].*}}push 33
 // CHECK: {{^[ +].*}}revert

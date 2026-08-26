@@ -5,7 +5,7 @@ bb0:
   callvalue
   push bb1
   jumpi
-  push 968
+  push 971
   dup 1
   push 18
   push 0
@@ -314,11 +314,9 @@ bb0:
   push bb29
   jumpi
   pop
-  jump bb51
-bb51:
-  pop
   jump bb50
 bb50:
+  pop
   pop
   pop
   pop
@@ -371,7 +369,7 @@ bb29:
   iszero
   push bb30
   jumpi
-  jump bb51
+  jump bb50
 bb30:
   swap 4
   push 0x5c0
@@ -395,7 +393,11 @@ bb30:
   iszero
   push bb31
   jumpi
-  jump bb50
+  pop
+  pop
+  pop
+  pop
+  jump bb49
 bb31:
   swap 3
   push 0x5a0

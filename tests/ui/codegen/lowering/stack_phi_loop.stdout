@@ -74,13 +74,11 @@ bb12:
   jumpi
   dup 1
   push 192
-  jump bb57
-bb57:
+  jump bb56
+bb56:
   mstore
   push 128
   mstore
-  jump bb56
-bb56:
   pop
   push 32
   push 128
@@ -234,7 +232,10 @@ bb26:
   push 128
   mstore
   pop
-  jump bb56
+  pop
+  push 32
+  push 128
+  return
 bb28:
   push 1
   push 160
@@ -316,7 +317,7 @@ bb35:
   jumpi
   dup 1
   push 320
-  jump bb57
+  jump bb56
 bb38:
   dup 1
   push 224
