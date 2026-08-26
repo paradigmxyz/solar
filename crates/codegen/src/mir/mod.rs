@@ -24,9 +24,9 @@ pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion,
-    StorageAlias,
+    AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
+    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
+    MemoryRegion, StorageAlias,
 };
 
 mod block;

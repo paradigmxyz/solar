@@ -746,8 +746,8 @@ impl GlobalStackPlan {
 }
 
 impl StackPhiPlan {
-    fn analyze(func: &Function) -> Self {
-        StackPhiPlanner::new(func).plan()
+    fn analyze(func: &Function, liveness: &Liveness) -> Self {
+        StackPhiPlanner::new(func).plan(liveness)
     }
 
     fn edge_fits(edge: &StackPhiEdge, values: &[ValueId]) -> bool {
@@ -868,10 +868,10 @@ impl<'a> StackPhiPlanner<'a> {
         planner
     }
 
-    fn plan(&self) -> StackPhiPlan {
+    fn plan(&self, liveness: &Liveness) -> StackPhiPlan {
         let mut plan = StackPhiPlan::default();
         for loop_info in &self.loops {
-            self.plan_loop(loop_info, &mut plan);
+            self.plan_loop(loop_info, liveness, &mut plan);
         }
         self.plan_branch_phi_joins(&mut plan);
         for block in self.func.blocks.indices() {
@@ -1064,7 +1064,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    fn plan_loop(&self, loop_info: &Loop, plan: &mut StackPhiPlan) {
+    fn plan_loop(&self, loop_info: &Loop, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let Some(preheader) = loop_info.preheader else {
             return;
         };
@@ -1072,7 +1072,15 @@ impl<'a> StackPhiPlanner<'a> {
             return;
         };
         if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-            || !matches!(self.func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+        {
+            return;
+        }
+        if *latch == loop_info.header
+            && self.plan_conditional_self_loop(loop_info, preheader, liveness, plan)
+        {
+            return;
+        }
+        if !matches!(self.func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
         {
             return;
         }
@@ -1082,6 +1090,9 @@ impl<'a> StackPhiPlanner<'a> {
         let has_branching_body = loop_info.blocks.iter().any(|block_id| {
             block_id != loop_info.header
                 && matches!(self.func.blocks[block_id].terminator, Some(Terminator::Branch { .. }))
+        });
+        let has_nested_loop = self.loops.iter().any(|other| {
+            other.header != loop_info.header && loop_info.blocks.contains(other.header)
         });
         if has_branching_body && !self.can_plan_branching_loop(loop_info) {
             return;
@@ -1100,7 +1111,13 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let mut carry_through = self.carry_through_values(loop_info);
-        if !has_branching_body {
+        if has_branching_body {
+            if has_nested_loop {
+                carry_through.clear();
+            } else {
+                self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+            }
+        } else {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
@@ -1138,20 +1155,135 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
+    fn plan_conditional_self_loop(
+        &self,
+        loop_info: &Loop,
+        preheader: BlockId,
+        liveness: &Liveness,
+        plan: &mut StackPhiPlan,
+    ) -> bool {
+        let header = loop_info.header;
+        if loop_info.blocks.iter().any(|block| block != header)
+            || plan.entries.contains_key(&header)
+            || plan.edges.contains_key(&preheader)
+            || plan.edges.contains_key(&header)
+            || plan.branch_edges.contains_key(&header)
+            || !self.loop_instructions_are_stack_safe(loop_info)
+        {
+            return false;
+        }
+        let Some(Terminator::Branch { then_block, else_block, .. }) =
+            self.func.blocks[header].terminator.as_ref()
+        else {
+            return false;
+        };
+        let (self_is_then, exit) = match (*then_block == header, *else_block == header) {
+            (true, false) => (true, *else_block),
+            (false, true) => (false, *then_block),
+            _ => return false,
+        };
+        if loop_info.blocks.contains(exit)
+            || self.func.blocks[exit].predecessors.as_slice() != [header]
+            || !self.phi_insts(&self.func.blocks[exit]).is_empty()
+            || plan.entries.contains_key(&exit)
+        {
+            return false;
+        }
+
+        let phi_insts = self.phi_insts(&self.func.blocks[header]);
+        if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
+            return false;
+        }
+        let Some(results) = self.phi_result_values(&phi_insts) else { return false };
+        let mut carry_through = self.carry_through_values(loop_info);
+        if carry_through.is_empty() {
+            // Keep enclosing-loop phis resident; other live-outs can still spill.
+            self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+        }
+        let mut entry = carry_through.clone();
+        entry.extend(results.iter().copied());
+        if entry.len() > STACK_PHI_LAYOUT_LIMIT {
+            return false;
+        }
+
+        let Some(initial_phi_sources) = self.phi_sources_for_pred(&phi_insts, preheader) else {
+            return false;
+        };
+        let Some(backedge_phi_sources) = self.phi_sources_for_pred(&phi_insts, header) else {
+            return false;
+        };
+        let mut initial_sources = carry_through.clone();
+        initial_sources.extend(initial_phi_sources);
+        let mut backedge_sources = carry_through;
+        backedge_sources.extend(backedge_phi_sources);
+        if initial_sources.len() != entry.len()
+            || backedge_sources.len() != entry.len()
+            || initial_sources.len() > MAX_STACK_ACCESS
+            || backedge_sources.len() > MAX_STACK_ACCESS
+        {
+            return false;
+        }
+
+        let exit_values = entry
+            .iter()
+            .copied()
+            .filter(|value| liveness.live_in(exit).contains(*value))
+            .collect::<Vec<_>>();
+        let backedge = StackPhiEdge { sources: backedge_sources, results: entry.clone() };
+        let exit_edge = StackPhiEdge { sources: exit_values.clone(), results: exit_values.clone() };
+        let (then_edge, else_edge) =
+            if self_is_then { (backedge, exit_edge) } else { (exit_edge, backedge) };
+        let union = union_values(&then_edge.sources, &else_edge.sources);
+        if union.is_empty() || union.len() > MAX_STACK_ACCESS {
+            return false;
+        }
+
+        plan.entries.insert(header, entry.clone());
+        if !exit_values.is_empty() {
+            plan.entries.insert(exit, exit_values);
+        }
+        plan.edge_sources.insert(preheader, initial_sources.clone());
+        plan.edges.insert(preheader, StackPhiEdge { sources: initial_sources, results: entry });
+        plan.edge_sources.insert(header, union.clone());
+        plan.branch_edges.insert(header, StackPhiBranch { then_edge, else_edge, union });
+        true
+    }
+
     fn can_plan_branching_loop(&self, loop_info: &Loop) -> bool {
         let mut nesting_depth = 0;
         for other in &self.loops {
             if other.header == loop_info.header {
                 continue;
             }
-            if loop_info.blocks.contains(other.header) {
-                return false;
-            }
             nesting_depth += usize::from(other.blocks.contains(loop_info.header));
         }
         if nesting_depth != 0 && nesting_depth != 2 {
             return false;
         }
+        if !self.loop_instructions_are_stack_safe(loop_info) {
+            return false;
+        }
+        let branch_shapes_safe = loop_info
+            .blocks
+            .iter()
+            .filter(|&block_id| block_id != loop_info.header)
+            .all(|block_id| {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    self.func.blocks[block_id].terminator.as_ref()
+                else {
+                    return true;
+                };
+                (loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block))
+                    || (!loop_info.blocks.contains(*then_block)
+                        && self.is_noreturn_block(*then_block))
+                    || (!loop_info.blocks.contains(*else_block)
+                        && self.is_noreturn_block(*else_block))
+                    || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
+            });
+        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+    }
+
+    fn loop_instructions_are_stack_safe(&self, loop_info: &Loop) -> bool {
         for block_id in loop_info.blocks.iter() {
             for &inst_id in &self.func.blocks[block_id].instructions {
                 let kind = &self.func.inst(inst_id).kind;
@@ -1196,39 +1328,12 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let function_safe = self.func.blocks.iter().all(|block| {
-            block.instructions.iter().all(|&inst_id| {
-                !matches!(
-                    self.func.inst(inst_id).kind,
-                    InstKind::CalldataCopy(_, _, _) | InstKind::SLoad(_) | InstKind::SStore(_, _)
-                )
-            })
-        });
-        let branch_shapes_safe = loop_info
-            .blocks
-            .iter()
-            .filter(|&block_id| block_id != loop_info.header)
-            .all(|block_id| {
-                let Some(Terminator::Branch { then_block, else_block, .. }) =
-                    self.func.blocks[block_id].terminator.as_ref()
-                else {
-                    return true;
-                };
-                (loop_info.blocks.contains(*then_block) == loop_info.blocks.contains(*else_block))
-                    || (!loop_info.blocks.contains(*then_block)
-                        && self.is_noreturn_block(*then_block))
-                    || (!loop_info.blocks.contains(*else_block)
-                        && self.is_noreturn_block(*else_block))
-                    || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
-            });
-        function_safe
-            && branch_shapes_safe
-            && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        true
     }
 
     fn is_noreturn_block(&self, block_id: BlockId) -> bool {
-        self.func.blocks[block_id].instructions.is_empty()
-            && matches!(
+        GlobalStackPlan::is_terminal_block(self.func, block_id)
+            || matches!(
                 self.func.blocks[block_id].terminator.as_ref(),
                 Some(Terminator::TailCall { args, .. }) if args.is_empty()
             )
@@ -1337,6 +1442,26 @@ impl<'a> StackPhiPlanner<'a> {
             }
             if let Some(term) = &block.terminator {
                 for value in term.operands() {
+                    self.push_live_through_value(loop_info, value, values);
+                }
+            }
+        }
+    }
+
+    fn extend_live_across_exits(
+        &self,
+        loop_info: &Loop,
+        liveness: &Liveness,
+        values: &mut Vec<ValueId>,
+    ) {
+        for block_id in &loop_info.blocks {
+            let Some(terminator) = &self.func.blocks[block_id].terminator else { continue };
+            for successor in terminator
+                .successors()
+                .into_iter()
+                .filter(|successor| !loop_info.blocks.contains(*successor))
+            {
+                for value in liveness.live_in(successor) {
                     self.push_live_through_value(loop_info, value, values);
                 }
             }
@@ -2647,7 +2772,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // plan without a phi. Avoid that analysis for the overwhelmingly
         // common phi-free function.
         let mut stack_phi_plan =
-            if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
+            if has_phis { StackPhiPlan::analyze(func, liveness) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let mut global_stack_plan = resident_stack_plan
             .clone()
@@ -3662,8 +3787,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         }
         self.can_emit_stack_phi_value(func, condition)
-            && self.can_prepare_stack_phi_edge(func, &branch.then_edge)
-            && self.can_prepare_stack_phi_edge(func, &branch.else_edge)
+            && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
+            && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)
+    }
+
+    fn can_prepare_stack_phi_branch_edge(&self, func: &Function, edge: &StackPhiEdge) -> bool {
+        (edge.sources.is_empty() && edge.results.is_empty())
+            || self.can_prepare_stack_phi_edge(func, edge)
     }
 
     fn emit_stack_phi_edge_layout(&mut self, edge: &StackPhiEdge) {
@@ -6155,6 +6285,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// per candidate made the search quadratic on large functions.
     fn resident_search_context(
         func: &Function,
+        liveness: &Liveness,
         values: &[ValueId],
         has_phis: bool,
     ) -> ResidentSearchContext {
@@ -6172,7 +6303,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         ResidentSearchContext {
-            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func)),
+            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func, liveness)),
             cfg: CfgInfo::new(func),
             value_uses,
         }
@@ -6354,7 +6485,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, has_phis);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -6526,7 +6657,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, has_phis);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -6705,7 +6836,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let context = Self::resident_search_context(func, &values, has_phis);
+                let context = Self::resident_search_context(func, liveness, &values, has_phis);
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
@@ -10354,22 +10485,40 @@ mod tests {
     }
 
     #[test]
-    fn stable_nullary_reads_are_always_rematerializable() {
+    fn nullary_reads_have_expected_rematerialization_opcodes() {
         let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-        let (_, calldata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
-        let (_, block_number) = function
-            .alloc_value_inst(Instruction::new(InstKind::BlockNumber, Some(MirType::uint256())));
-        let (_, returndata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::ReturnDataSize, Some(MirType::uint256())));
-        let (_, gas) =
-            function.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::uint256())));
 
-        assert!(EvmCodegen::is_always_rematerializable_value(&function, calldata_size));
-        assert!(EvmCodegen::is_always_rematerializable_value(&function, block_number));
-        assert!(!EvmCodegen::can_own_spill_slot(&function, calldata_size));
-        assert!(!EvmCodegen::is_always_rematerializable_value(&function, returndata_size));
-        assert!(!EvmCodegen::is_always_rematerializable_value(&function, gas));
+        for (kind, expected_op) in [
+            (InstKind::CalldataSize, op::CALLDATASIZE),
+            (InstKind::CodeSize, op::CODESIZE),
+            (InstKind::Caller, op::CALLER),
+            (InstKind::CallValue, op::CALLVALUE),
+            (InstKind::Address, op::ADDRESS),
+            (InstKind::Origin, op::ORIGIN),
+            (InstKind::GasPrice, op::GASPRICE),
+            (InstKind::Coinbase, op::COINBASE),
+            (InstKind::Timestamp, op::TIMESTAMP),
+            (InstKind::BlockNumber, op::NUMBER),
+            (InstKind::PrevRandao, op::PREVRANDAO),
+            (InstKind::GasLimit, op::GASLIMIT),
+            (InstKind::ChainId, op::CHAINID),
+            (InstKind::BaseFee, op::BASEFEE),
+            (InstKind::BlobBaseFee, op::BLOBBASEFEE),
+        ] {
+            let (_, value) =
+                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), Some(expected_op));
+            assert!(!EvmCodegen::can_own_spill_slot(&function, value));
+        }
+
+        for kind in
+            [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
+        {
+            let (_, value) =
+                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
+            assert!(EvmCodegen::can_own_spill_slot(&function, value));
+        }
     }
 
     #[test]

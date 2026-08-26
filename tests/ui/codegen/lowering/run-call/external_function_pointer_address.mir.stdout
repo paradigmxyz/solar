@@ -16,4 +16,3 @@ fn @f() -> bool [selector=0x26121ff0, view, abi_params=[], abi_returns=[word]] {
     v6 = eq v4, v5
     ret v6
 }
-

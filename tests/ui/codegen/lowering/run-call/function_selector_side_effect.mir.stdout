@@ -18,4 +18,3 @@ fn @read() -> u256 [selector=0x57de26a4, abi_params=[], abi_returns=[word]] {
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
 }
-

@@ -437,4 +437,3 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

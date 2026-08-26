@@ -345,4 +345,3 @@ fn @newValue(arg0: u256) -> u256 [selector=0x44772b8c, pure, abi_params=[u256], 
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

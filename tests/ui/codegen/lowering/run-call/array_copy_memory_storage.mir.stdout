@@ -307,4 +307,3 @@ fn @copyFixed() -> u32 [selector=0x23235673, abi_params=[], abi_returns=[word]] 
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

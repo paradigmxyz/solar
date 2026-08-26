@@ -20,4 +20,3 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
-

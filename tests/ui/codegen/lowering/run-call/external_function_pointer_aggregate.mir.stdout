@@ -40,7 +40,6 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> (u256, memorybytes) [select
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
 @module ExternalFunctionPointerAggregate
 fn @_anonymous() [constructor] {
@@ -578,4 +577,3 @@ fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_
   bb3:
     revert 0, 0
 }
-

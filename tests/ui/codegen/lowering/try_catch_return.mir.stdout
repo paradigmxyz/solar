@@ -11,7 +11,6 @@ fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
   bb1:
     revert 0, 0
 }
-
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
 fn @_anonymous() [constructor] {
@@ -249,4 +248,3 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
   bb3:
     ret 0
 }
-

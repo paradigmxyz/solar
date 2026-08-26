@@ -14,4 +14,3 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
   bb2:
     revert 0, 0
 }
-

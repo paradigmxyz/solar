@@ -5,20 +5,20 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data 0
-// CHECK-NEXT: {{^[ +].*}}dup3
+// CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}stop
 bb0:
   push 128
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
   push 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-  swap1
+  swap 1
   mstore
   stop
 

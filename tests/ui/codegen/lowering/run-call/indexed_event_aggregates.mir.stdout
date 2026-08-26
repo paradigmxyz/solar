@@ -311,4 +311,3 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

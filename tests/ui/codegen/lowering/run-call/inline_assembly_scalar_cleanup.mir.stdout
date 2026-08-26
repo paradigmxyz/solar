@@ -192,4 +192,3 @@ fn @dirtyNot(arg0: u8) -> u8 [pure] {
     v0 = div arg0, 256
     ret v0
 }
-

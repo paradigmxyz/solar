@@ -628,4 +628,3 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
   bb1:
     revert 0, 0
 }
-

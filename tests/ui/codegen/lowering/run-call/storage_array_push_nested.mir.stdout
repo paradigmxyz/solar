@@ -188,8 +188,7 @@ fn @pushMemory() -> u256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
 fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
-    memory_object_store_field memorystruct<4>, v0, 1, 0
+    memory_zero v0, 128
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v1, 96
     memory_object_store_field memorystruct<4>, v0, 2, v1
@@ -852,4 +851,3 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-

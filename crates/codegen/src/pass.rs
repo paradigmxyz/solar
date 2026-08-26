@@ -39,6 +39,7 @@ pub use crate::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
+    &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::SpecializeFunctionPointers,
     &outline_reverts::OutlineReverts,
@@ -131,7 +132,9 @@ impl<P: MirPass, const GAS: bool> MirPass for OptimizationOnly<P, GAS> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // Clone one constant call to a shared pure leaf so scalar passes can fold it.
+    &GasOnly::new(inline::InlineConstantLeaves),
+    // Broad MIR inlining remains available as an ad-hoc pass, but static internal
     // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.

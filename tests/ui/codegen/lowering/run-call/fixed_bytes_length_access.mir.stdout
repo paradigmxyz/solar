@@ -35,4 +35,3 @@ fn @makeBytes() -> bytes4 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -227,7 +227,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.context.gcx.type_of_expr(lhs.id)?.peel_refs();
-        let access = self.storage_access(lhs)?;
+        let access = self.storage_access_or_error(lhs)?;
         self.store_constant_storage_value(ty, access, rhs)
     }
 
@@ -294,7 +294,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
-        match &expr.peel_parens().kind {
+        let expr = self.peel_bytes_conversion(expr);
+        match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.context.gcx.resolved_variable(expr)?;
                 if let Some(access) = self.storage_refs.get(&id).copied() {
@@ -329,8 +330,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let base = self.storage_access(receiver)?;
                 let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
                 let index_ty = self.context.gcx.type_of_expr(index.id)?;
-                let index = self.lower_expr(index)?;
                 if let TyKind::Mapping(_, value) = ty.kind {
+                    let index = self.lower_expr(index)?;
+                    let index = self.normalize_abi_scalar(index, index_ty);
                     let slot = self.mapping_slot(index, index_ty, base.slot);
                     if let Some((size, encoding)) = self.context.storage.packed_encoding(value) {
                         let location = StorageLocation::packed_word(size, encoding);
@@ -342,6 +344,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset: None,
                     });
                 }
+                let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, false, self.builder.imm_u256(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
@@ -380,6 +383,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => None,
         }
+    }
+
+    pub(super) fn storage_access_or_error(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<StorageAccess> {
+        self.storage_access(expr).or_else(|| {
+            report_error(self.context.gcx, expr.span, "codegen cannot resolve storage access")
+        })
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
@@ -509,7 +521,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = alloc_bytes(old.len + 1); copy(old)
         // object[old.len] = byte
         // store_storage_bytes(slot, object)
-        let access = self.storage_access(receiver)?;
+        let access = self.storage_access_or_error(receiver)?;
         let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
             let shift = self.builder.imm_u64(248);
@@ -556,7 +568,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            let access = self.storage_access(receiver)?;
+            let access = self.storage_access_or_error(receiver)?;
             let old = self.load_storage_bytes(access.slot);
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u64(0);
@@ -597,7 +609,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
-        let base = self.storage_access(receiver)?;
+        let base = self.storage_access_or_error(receiver)?;
         let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
@@ -739,8 +751,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
+        let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
         let value = self.normalize_dirty_scalar(value, ty);
-        self.validate_enum(ty, value);
+        if !dirty {
+            self.validate_enum(ty, value);
+        }
         if let Some(offset) = access.offset {
             self.context.storage.store_packed_at_slot(
                 &mut self.builder,

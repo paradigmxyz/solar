@@ -6,13 +6,13 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
   push 8
-  swap1
+  swap 1
   sub
-  dup1
+  dup 1
   push 57
   gt
   push bb4
@@ -24,11 +24,9 @@ bb13 [cold]:
   push 0
   revert
 bb4:
-  indexed_jump bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58, bb59, bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71
+  indexed_jump bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58, bb59, bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70
 bb5:
   push 100
-  jump bb14
-bb14:
   push 0
   mstore
   push 32
@@ -36,31 +34,61 @@ bb14:
   return
 bb6:
   push 101
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb7:
   push 102
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb8:
   push 103
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb9:
   push 104
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb10:
   push 105
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb11:
   push 106
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb12:
   push 107
-  jump bb14
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb2 [cold]:
   push 0
-  dup1
+  dup 1
   revert
-bb15:
+bb14:
   jump bb5
+bb15:
+  jump bb13
 bb16:
   jump bb13
 bb17:
@@ -74,9 +102,9 @@ bb20:
 bb21:
   jump bb13
 bb22:
-  jump bb13
-bb23:
   jump bb6
+bb23:
+  jump bb13
 bb24:
   jump bb13
 bb25:
@@ -90,9 +118,9 @@ bb28:
 bb29:
   jump bb13
 bb30:
-  jump bb13
-bb31:
   jump bb7
+bb31:
+  jump bb13
 bb32:
   jump bb13
 bb33:
@@ -106,9 +134,9 @@ bb36:
 bb37:
   jump bb13
 bb38:
-  jump bb13
-bb39:
   jump bb8
+bb39:
+  jump bb13
 bb40:
   jump bb13
 bb41:
@@ -122,9 +150,9 @@ bb44:
 bb45:
   jump bb13
 bb46:
-  jump bb13
-bb47:
   jump bb9
+bb47:
+  jump bb13
 bb48:
   jump bb13
 bb49:
@@ -138,9 +166,9 @@ bb52:
 bb53:
   jump bb13
 bb54:
-  jump bb13
-bb55:
   jump bb10
+bb55:
+  jump bb13
 bb56:
   jump bb13
 bb57:
@@ -154,9 +182,9 @@ bb60:
 bb61:
   jump bb13
 bb62:
-  jump bb13
-bb63:
   jump bb11
+bb63:
+  jump bb13
 bb64:
   jump bb13
 bb65:
@@ -170,12 +198,10 @@ bb68:
 bb69:
   jump bb13
 bb70:
-  jump bb13
-bb71:
   jump bb12
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x56 ; bb11
+PUSH1 0x6a ; bb10
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -200,14 +226,20 @@ REVERT
 JUMPDEST
 PUSH1 0x04
 MUL
-PUSH1 0x5a
+PUSH1 0x6e
 ADD
 JUMP ; unknown
 ; bb2
 JUMPDEST
 PUSH1 0x64
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb3
 JUMPDEST
+PUSH1 0x65
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -215,47 +247,64 @@ PUSH0
 RETURN
 ; bb4
 JUMPDEST
-PUSH1 0x65
-PUSH1 0x25 ; bb3
-JUMP
+PUSH1 0x66
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb5
 JUMPDEST
-PUSH1 0x66
-PUSH1 0x25 ; bb3
-JUMP
+PUSH1 0x67
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb6
 JUMPDEST
-PUSH1 0x67
-PUSH1 0x25 ; bb3
-JUMP
+PUSH1 0x68
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb7
 JUMPDEST
-PUSH1 0x68
-PUSH1 0x25 ; bb3
-JUMP
+PUSH1 0x69
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb8
 JUMPDEST
-PUSH1 0x69
-PUSH1 0x25 ; bb3
-JUMP
+PUSH1 0x6a
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
 ; bb9
 JUMPDEST
-PUSH1 0x6a
-PUSH1 0x25 ; bb3
-JUMP
-; bb10
-JUMPDEST
 PUSH1 0x6b
-PUSH1 0x25 ; bb3
-JUMP
-; bb11
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb10
 JUMPDEST
 PUSH0
 DUP1
 REVERT
-; bb12
+; bb11
 JUMPDEST
 PUSH1 0x22 ; bb2
+JUMP
+; bb12
+JUMPDEST
+PUSH1 0x16 ; bb0
 JUMP
 ; bb13
 JUMPDEST
@@ -283,11 +332,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb19
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x2b ; bb3
 JUMP
 ; bb20
 JUMPDEST
-PUSH1 0x2c ; bb4
+PUSH1 0x16 ; bb0
 JUMP
 ; bb21
 JUMPDEST
@@ -315,11 +364,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb27
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x34 ; bb4
 JUMP
 ; bb28
 JUMPDEST
-PUSH1 0x32 ; bb5
+PUSH1 0x16 ; bb0
 JUMP
 ; bb29
 JUMPDEST
@@ -347,11 +396,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb35
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x3d ; bb5
 JUMP
 ; bb36
 JUMPDEST
-PUSH1 0x38 ; bb6
+PUSH1 0x16 ; bb0
 JUMP
 ; bb37
 JUMPDEST
@@ -379,11 +428,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb43
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x46 ; bb6
 JUMP
 ; bb44
 JUMPDEST
-PUSH1 0x3e ; bb7
+PUSH1 0x16 ; bb0
 JUMP
 ; bb45
 JUMPDEST
@@ -411,11 +460,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb51
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x4f ; bb7
 JUMP
 ; bb52
 JUMPDEST
-PUSH1 0x44 ; bb8
+PUSH1 0x16 ; bb0
 JUMP
 ; bb53
 JUMPDEST
@@ -443,11 +492,11 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb59
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x58 ; bb8
 JUMP
 ; bb60
 JUMPDEST
-PUSH1 0x4a ; bb9
+PUSH1 0x16 ; bb0
 JUMP
 ; bb61
 JUMPDEST
@@ -475,9 +524,5 @@ PUSH1 0x16 ; bb0
 JUMP
 ; bb67
 JUMPDEST
-PUSH1 0x16 ; bb0
-JUMP
-; bb68
-JUMPDEST
-PUSH1 0x50 ; bb10
+PUSH1 0x61 ; bb9
 JUMP

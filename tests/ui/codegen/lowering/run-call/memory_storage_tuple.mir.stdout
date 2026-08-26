@@ -132,4 +132,3 @@ fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

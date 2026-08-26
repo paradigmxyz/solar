@@ -255,4 +255,3 @@ fn @rightI8(arg0: i8, arg1: u8) -> i8 [selector=0x06a33d87, pure, abi_params=[i8
     v0 = sar arg1, arg0
     ret v0
 }
-

@@ -212,7 +212,55 @@ fn @_anonymous() [constructor] {
     v252 = shl v246, v251
     v253 = or v250, v252
     sstore v243, v253 !metadata(storage=symbolic(v243))
+    v254 = sload 2 !metadata(storage=slot(2))
+    v255 = add v254, 1
+    v256 = lt v255, v254
+    jumpi v256, bb62, bb63
+  bb63:
+    v257 = storage_array_data_slot 2
+    v258 = div v254, 1
+    v259 = add v257, v258
+    v260 = mod v254, 1
+    v261 = mul v260, 20
+    v262 = mul v261, 8
+    v263 = shl v262, 0xffffffffffffffffffffffffffffffffffffffff
+    v264 = sload v259 !metadata(storage=symbolic(v259))
+    v265 = not v263
+    v266 = and v264, v265
+    v267 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
+    v268 = shl v262, v267
+    v269 = or v266, v268
+    sstore v259, v269 !metadata(storage=symbolic(v259))
+    sstore 2, v255 !metadata(storage=slot(2))
+    v270 = sload 2 !metadata(storage=slot(2))
+    v271 = add v270, 1
+    v272 = lt v271, v270
+    jumpi v272, bb64, bb65
+  bb65:
+    v273 = storage_array_data_slot 2
+    v274 = div v270, 1
+    v275 = add v273, v274
+    v276 = mod v270, 1
+    v277 = mul v276, 20
+    v278 = mul v277, 8
+    v279 = shl v278, 0xffffffffffffffffffffffffffffffffffffffff
+    v280 = sload v275 !metadata(storage=symbolic(v275))
+    v281 = not v279
+    v282 = and v280, v281
+    v283 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
+    v284 = shl v278, v283
+    v285 = or v282, v284
+    sstore v275, v285 !metadata(storage=symbolic(v275))
+    sstore 2, v271 !metadata(storage=slot(2))
     stop
+  bb64:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb62:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb60:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1402,6 +1450,12 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     revert 0, 36
 }
 
+fn @from_address_storage() -> memoryarray [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+  bb0:
+    v0 = internal_call @load_storage_packed_array_20_0, 1, 2
+    ret v0
+}
+
 fn @load_storage_packed_array_1_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -1448,3 +1502,48 @@ fn @load_storage_packed_array_1_0(arg0: u256) -> memoryarray {
     revert 0, 36
 }
 
+fn @load_storage_packed_array_20_0(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v9, v0
+    v10 = storage_array_data_slot arg0
+    jump bb5
+  bb5:
+    v11 = phi [bb4: 0], [bb6: v20]
+    v12 = lt v11, v0
+    jumpi v12, bb6, bb7
+  bb7:
+    ret v9
+  bb6:
+    v13 = shr 0, v11
+    v14 = and v11, 0
+    v15 = add v10, v13
+    v16 = sload v15 !metadata(storage=symbolic(v15))
+    v17 = mul v14, 160
+    v18 = shr v17, v16
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v9, v11, v19
+    v20 = add v11, 1
+    jump bb5
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

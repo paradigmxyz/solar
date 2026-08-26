@@ -94,7 +94,6 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
   bb3:
     revert 0, 0
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
 fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
@@ -147,4 +146,3 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

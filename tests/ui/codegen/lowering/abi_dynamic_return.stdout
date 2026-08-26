@@ -15,4 +15,3 @@ fn @stringLiteral() -> memorybytes [selector=0xb5d549e9, pure, abi_params=[], ab
     memory_object_store_word memorybytes, v0, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }
-

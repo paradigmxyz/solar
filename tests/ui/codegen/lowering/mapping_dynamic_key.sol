@@ -32,11 +32,13 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @nestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_calldata arg0, 1
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
+    // CHECK: [[KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     mapping(string => mapping(address => uint256)) public nestedFirst;
 
     // CHECK-LABEL: fn @nestedSecond{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 2
+    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_calldata arg1, [[OUTER]]
     mapping(address => mapping(string => uint256)) public nestedSecond;
 
@@ -65,7 +67,8 @@ contract MappingDynamicKeyPaths {
     // Nested mappings dispatch on the key type at every level.
     // CHECK-LABEL: fn @setNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
+    // CHECK: [[KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedFirst(string memory k, address a, uint256 v) public {
         nestedFirst[k][a] = v;
@@ -73,14 +76,16 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @getNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
+    // CHECK: [[KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sload [[INNER]]
     function getNestedFirst(string memory k, address a) public view returns (uint256) {
         return nestedFirst[k][a];
     }
 
     // CHECK-LABEL: fn @setNestedSecond{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 2
+    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedSecond(address a, string memory k, uint256 v) public {

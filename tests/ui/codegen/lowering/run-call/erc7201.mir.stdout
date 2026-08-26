@@ -143,4 +143,3 @@ fn @storageValue() -> u256 [selector=0xa977a973, view, abi_params=[], abi_return
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -339,7 +339,6 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -570,7 +569,6 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -801,7 +799,6 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
 fn @_anonymous() [constructor] {
@@ -1042,7 +1039,6 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -1281,4 +1277,3 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-

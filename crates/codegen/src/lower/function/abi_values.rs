@@ -52,13 +52,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_bytes(layout, selector, values))
     }
 
-    pub(super) fn lower_abi_encode_slice(
+    pub(super) fn lower_abi_encode_scratch(
         &mut self,
         exprs: &[hir::Expr<'_>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
-        Some(self.builder.abi_encode(layout, selector, values))
+        Some(self.builder.abi_encode_scratch(layout, selector, values))
     }
 
     fn lower_abi_encode_arguments(
@@ -128,18 +128,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if literal { selector = imm(keccak256(bytes)[0..4] << 224) }
         // if ternary { selector = select(condition, selector(then), selector(else)) }
         // selector = shl(224, shr(224, keccak256_bytes(materialize(signature))))
-        if let ExprKind::Lit(lit) = &signature.kind
-            && let LitKind::Str(_, value, _) = &lit.kind
-        {
-            let hash = keccak256(value.as_byte_str());
-            let selector = U256::from_be_slice(&hash[..4]) << 224;
+        if let Some(selector) = Self::literal_signature_selector(signature) {
             return Some(self.builder.imm_u256(selector));
         }
 
-        if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind {
+        if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
+            && let Some(then_selector) = Self::literal_signature_selector(then_expr)
+            && let Some(else_selector) = Self::literal_signature_selector(else_expr)
+        {
             let condition = self.lower_expr(condition)?;
-            let then_selector = self.lower_signature_selector(then_expr)?;
-            let else_selector = self.lower_signature_selector(else_expr)?;
+            let then_selector = self.builder.imm_u256(then_selector);
+            let else_selector = self.builder.imm_u256(else_selector);
             return Some(self.builder.select(condition, then_selector, else_selector));
         }
 
@@ -158,6 +157,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let shift = self.builder.imm_u64(224);
         let selector = self.builder.shr(shift, hash);
         Some(self.builder.shl(shift, selector))
+    }
+
+    fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {
+        let ExprKind::Lit(lit) = &signature.peel_parens().kind else { return None };
+        let LitKind::Str(_, value, _) = &lit.kind else { return None };
+        let hash = keccak256(value.as_byte_str());
+        Some(U256::from_be_slice(&hash[..4]) << 224)
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -228,12 +234,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        if !self.is_external_abi_argument(value) {
+        let external_argument = self.is_external_abi_argument(value);
+        let external_only = external_argument
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
+        if !external_argument {
             self.validate_enum(ty, value);
         }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
+            _ if external_only => value,
             _ => self.normalize_abi_scalar(value, ty),
         }
     }
@@ -245,28 +255,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Value::Inst(inst) = self.builder.func().value(value) else { return false };
         let kind = &self.builder.func().inst(*inst).kind;
         match kind {
-            InstKind::InternalCall { function, args, .. } => {
-                // An aggregate argument may carry dirty ABI words into an
-                // otherwise pure helper. Keep the cleanup in that case.
-                if args.iter().any(|&arg| {
-                    matches!(self.builder.func().value_ty(arg), Some(MirType::MemoryObject(_)))
-                }) {
-                    return false;
-                }
-                let function = self.context.module.function(*function);
-                !function.instructions().any(|inst| {
-                    matches!(
-                        function.inst(inst).kind,
-                        InstKind::MStore(..)
-                            | InstKind::MStore8(..)
-                            | InstKind::CalldataCopy(..)
-                            | InstKind::CodeCopy(..)
-                            | InstKind::ReturnDataCopy(..)
-                            | InstKind::ExtCodeCopy(..)
-                            | InstKind::MCopy(..)
-                    )
-                })
-            }
             InstKind::MemoryObjectLoadField { object, .. }
             | InstKind::MemoryObjectLoadElement { object, .. } => {
                 self.value_is_canonical(*object, seen)
@@ -282,9 +270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // output = alloc_same_layout(input)
         // if dynamic { output.len = input.len }
         // for i { output[i] = canonicalize(element, input[i]) }
-        if self.is_external_abi_argument(value)
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
-        {
+        if self.is_external_only_abi_argument(value) {
             return value;
         }
         if self.value_is_canonical(value, &mut FxHashSet::default()) {
@@ -906,7 +892,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.keccak256(zero, size))
     }
 
-    fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
         if matches!(
             self.peel_bytes_conversion(expr).peel_parens().kind,
             ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Str(..))

@@ -27,7 +27,6 @@ fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, view, abi_params=[by
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
     ret v2
 }
-
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
 fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, view, abi_params=[bytes], abi_returns=[word]] {
@@ -40,17 +39,19 @@ fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, view, abi_params=[by
 fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d, view, abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 1
-    v1 = mapping_slot arg1, v0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = mapping_slot v1, v0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
 fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb9, view, abi_params=[address, bytes], abi_returns=[word]] {
   bb0:
-    v0 = mapping_slot arg0, 2
-    v1 = mapping_slot_calldata arg1, v0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 2
+    v2 = mapping_slot_calldata arg1, v1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
 fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -132,24 +133,27 @@ fn @setLitLong(arg0: u256) [selector=0x7490efc0, abi_params=[u256], abi_returns=
 fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) [selector=0xf7d7b4f3, abi_params=[bytes, address, u256], abi_returns=[]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
-    v1 = mapping_slot arg1, v0
-    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = mapping_slot v1, v0
+    sstore v2, arg2 !metadata(storage=symbolic(v2))
     stop
 }
 
 fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [selector=0x95cfa550, view, abi_params=[bytes, address], abi_returns=[word]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
-    v1 = mapping_slot arg1, v0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = mapping_slot v1, v0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
 fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) [selector=0xf589e254, abi_params=[address, bytes, u256], abi_returns=[]] {
   bb0:
-    v0 = mapping_slot arg0, 2
-    v1 = mapping_slot_memory arg1, v0
-    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 2
+    v2 = mapping_slot_memory arg1, v1
+    sstore v2, arg2 !metadata(storage=symbolic(v2))
     stop
 }
 
@@ -313,4 +317,3 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-

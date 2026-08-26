@@ -381,4 +381,3 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

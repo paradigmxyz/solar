@@ -39,4 +39,3 @@ fn @reinterpretSigned(arg0: u8) -> i8 [selector=0x55c3e2bc, pure, abi_params=[u8
     v0 = signextend 0, arg0
     ret v0
 }
-

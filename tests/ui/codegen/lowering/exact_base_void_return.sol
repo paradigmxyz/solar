@@ -1,9 +1,8 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: Derived::f(bool) true => 2
 //@ run-call: Derived::f(bool) false => 2
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
 
 contract Base {
     uint256 internal x;

@@ -1,12 +1,10 @@
 //@ revisions: unlinked linked
-//@[unlinked] compile-flags: -Zdump=evm-ir-runtime
-//@[unlinked] filecheck: --check-prefixes=COMMON,UNLINKED --implicit-check-not=delegatecall
+//@[unlinked] compile-flags: -O none --emit=bin
 //@[linked] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=evm-ir-runtime
 //@[linked] filecheck: --check-prefixes=COMMON,LINKED
 
 // A `public`/`external` library function called from another contract is
-// inlined without a link address and lowered to a DELEGATECALL when linked.
-// Both forms preserve the caller's storage and `msg` context.
+// lowered to a DELEGATECALL when linked.
 
 library Lib {
     // COMMON-LABEL: @module runtime
@@ -28,14 +26,6 @@ library Lib {
 contract C {
     mapping(address => uint256) bal;
 
-    // UNLINKED-LABEL: @module runtime
-    // UNLINKED: push 0x3dd41ca6
-    // UNLINKED: keccak256
-    // UNLINKED: sload
-    // UNLINKED: sstore
-    // UNLINKED: caller
-    // UNLINKED: return
-
     // LINKED-LABEL: @module runtime
     // LINKED: push 0x3dd41ca6
     // LINKED: push 0xed2f0bb8
@@ -50,5 +40,6 @@ contract C {
     // LINKED: revert
     function inc(address k, uint256 by) external returns (uint256) {
         return Lib.bump(bal, k, by);
+        //~[unlinked]^ ERROR: codegen requires a linked address for public library calls
     }
 }

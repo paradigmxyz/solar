@@ -112,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             if Self::is_storage_parameter(parameter_ty) {
-                let access = self.storage_access(argument)?;
+                let access = self.storage_access_or_error(argument)?;
                 self.storage_refs.insert(parameter, access);
             } else {
                 let value = self.lower_typed_expr(argument, parameter_ty)?;

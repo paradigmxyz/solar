@@ -459,4 +459,3 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

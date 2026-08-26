@@ -161,6 +161,30 @@ fn @nestedStaticDefaults() -> u256 [selector=0x1ebfa70d, pure, abi_params=[], ab
     revert 0, 36
 }
 
+fn @literalBytes() -> memorybytes [selector=0x95549276, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @literalAllocation() -> u256 [selector=0x222f8ae4, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @freeMemoryPointer, 1
+    v1 = internal_call @literalBytes, 1
+    v2 = internal_call @freeMemoryPointer, 1
+    v3 = sub v2, v0
+    v4 = lt v2, v0
+    jumpi v4, bb1, bb2
+  bb2:
+    ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @isEmpty(arg0: memorybytes) -> bool [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
@@ -173,4 +197,3 @@ fn @freeMemoryPointer() -> u256 [pure] {
     v0 = mload 64 !metadata(memory=scratch)
     ret v0
 }
-

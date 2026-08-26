@@ -27,4 +27,3 @@ fn @f(arg0: u256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u2
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -53,3 +53,20 @@
       ret v4
   }
   
+  fn @storage_identity_caller(arg0: storageptr) -> storageptr {
+    bb0:
+-     v0 = internal_call @storage_identity, 1, arg0
+-     ret v0
++     jump bb2
++   bb2:
++     jump bb1
++   bb1:
++     v1 = phi [bb2: arg0]
++     ret v1
+  }
+  
+  fn @storage_identity(arg0: storageptr) -> storageptr [pure] {
+    bb0:
+      ret arg0
+  }
+  

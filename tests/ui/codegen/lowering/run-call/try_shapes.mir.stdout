@@ -29,7 +29,6 @@ fn @g(arg0: u256) -> (u256, u256) [selector=0xe420264a, pure, abi_params=[u256],
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:TryShapes ===
 @module TryShapes
 fn @_anonymous() [constructor] {
@@ -765,4 +764,3 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
   bb3:
     ret 0
 }
-

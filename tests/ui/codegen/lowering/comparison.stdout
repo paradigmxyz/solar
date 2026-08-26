@@ -17,4 +17,3 @@ fn @is_zero(arg0: u256) -> bool [selector=0xe9b4cfc4, pure, abi_params=[u256], a
     v0 = eq arg0, 0
     ret v0
 }
-

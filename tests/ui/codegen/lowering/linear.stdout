@@ -38,4 +38,3 @@ fn @add_one(arg0: u256) -> u256 [selector=0xdde38a34, pure, abi_params=[u256], a
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

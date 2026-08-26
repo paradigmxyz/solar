@@ -374,4 +374,3 @@ fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [selector=0xa376b2ef, pure, abi_par
     v1 = and v0, 255
     ret v1
 }
-

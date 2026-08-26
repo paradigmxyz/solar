@@ -575,11 +575,14 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
         match stmt.kind {
             hir::StmtKind::Break => self.check_break_continue(stmt.span, "break"),
             hir::StmtKind::Continue => self.check_break_continue(stmt.span, "continue"),
-            hir::StmtKind::Loop(block, _) => {
+            hir::StmtKind::Loop(block, source) => {
                 self.loop_depth += 1;
-                let r = self.visit_block(block);
+                self.visit_block(block)?;
+                if let hir::LoopSource::For { update: Some(update) } = source {
+                    self.visit_stmt(update)?;
+                }
                 self.loop_depth -= 1;
-                return r;
+                return ControlFlow::Continue(());
             }
             _ => {}
         }

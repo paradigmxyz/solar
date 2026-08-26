@@ -358,4 +358,3 @@ fn @copyDoesNotOverlapSource() -> (u72, u72, u72, bytes32) [selector=0x8b005e62,
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

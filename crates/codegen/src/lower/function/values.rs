@@ -112,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.context.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                return Some(vec![self.storage_access(expr)?.slot]);
+                return Some(vec![self.storage_access_or_error(expr)?.slot]);
             }
             return Some(vec![self.lower_typed_expr(expr, ty)?]);
         }
@@ -128,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = (*value)?;
                     let ty = self.context.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
-                        self.storage_access(value).map(|access| access.slot)
+                        self.storage_access_or_error(value).map(|access| access.slot)
                     } else {
                         self.lower_typed_expr(value, ty)
                     }
@@ -223,7 +223,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if !self.is_storage_reference_binding(lhs) {
                     return report_unsupported(self.context.gcx, lhs.span, "mixed storage tuple");
                 }
-                let access = self.storage_access(rhs)?;
+                let access = self.storage_access_or_error(rhs)?;
                 let Some(id) = self.context.gcx.resolved_variable(lhs) else {
                     return report_unsupported(
                         self.context.gcx,

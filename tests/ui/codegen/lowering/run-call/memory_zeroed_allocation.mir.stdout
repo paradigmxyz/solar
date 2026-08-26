@@ -271,4 +271,3 @@ fn @readStatic(arg0: u256, arg1: u256) -> u256 [selector=0xf90f6c35, pure, abi_p
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

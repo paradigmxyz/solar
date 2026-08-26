@@ -64,4 +64,3 @@ fn @_anonymous(arg0: calldataslice) -> memorybytes [fallback] {
   bb1:
     revert 0, 0
 }
-

@@ -12,6 +12,7 @@
 //@ run-call: packedYulRebind true, 3, 5, 17 => 17, 0, 0
 //@ run-call: yulPackedOffset 17 => 1
 //@ run-call: assignmentExpression 3, 5, 17 => 0, 17
+//@ run-call: chainedAssignmentExpression 3, 5, 17 => 0, 17
 //@ run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
 contract StorageReferenceReassignment {
@@ -121,6 +122,16 @@ contract StorageReferenceReassignment {
     {
         Item storage item = items[first];
         (item = items[second]).a = value;
+        return (items[first].a, items[second].a);
+    }
+
+    function chainedAssignmentExpression(uint256 first, uint256 second, uint256 value)
+        external
+        returns (uint256, uint256)
+    {
+        Item storage firstItem = items[first];
+        Item storage secondItem = items[first];
+        (firstItem = secondItem = items[second]).a = value;
         return (items[first].a, items[second].a);
     }
 

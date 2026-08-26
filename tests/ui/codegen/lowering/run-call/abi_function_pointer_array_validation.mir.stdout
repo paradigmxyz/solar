@@ -120,4 +120,3 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

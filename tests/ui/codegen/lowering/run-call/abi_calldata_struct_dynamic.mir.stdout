@@ -37,7 +37,7 @@ fn @hash(arg0: calldataslice) -> bytes32 [selector=0x43298469, pure, abi_params=
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
   bb11:
-    v73 = abi_encode [memory_array<tuple<memory_array<word>>>], args v19
+    v73 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v19
     v74 = slice_ptr v73
     v75 = slice_len v73
     v76 = keccak256 v74, v75
@@ -161,4 +161,3 @@ fn @unused(arg0: calldataslice) -> u256 [selector=0x642b2333, pure, abi_params=[
   bb0:
     ret 1
 }
-

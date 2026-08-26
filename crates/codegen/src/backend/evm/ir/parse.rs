@@ -204,6 +204,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 PushValue::Block(block) => Instruction::push_block(block),
                 PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
             },
+            sym::dup => Instruction::opcode(op::dup(self.parse_stack_depth("dup")?)),
+            sym::swap => Instruction::opcode(op::swap(self.parse_stack_depth("swap")?)),
             sym::push_data => {
                 let id = self.parse_assembly_id("program data")?;
                 Instruction::push_data(DataId::from_usize(id as usize))
@@ -388,6 +390,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u8")))
     }
 
+    fn parse_stack_depth(&mut self, op: &str) -> PResult<'sess, u8> {
+        let depth = self.parse_u8()?;
+        if !(1..=16).contains(&depth) {
+            return Err(self.parser.error(format!("`{op}` depth must be between 1 and 16")));
+        }
+        Ok(depth)
+    }
+
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
         Ok(self.current_block_label()?.is_some()
             && !matches!(
@@ -400,6 +410,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
     use std::path::{Path, PathBuf};
 
@@ -417,6 +428,30 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
+    }
+
+    #[test]
+    fn legacy_stack_ops_print_with_operands() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let output = sess.enter(|| {
+            parse_module(&sess, "@module legacy\nbb0:\n  push 1\n  dup1\n  swap16\n  stop\n")
+                .unwrap()
+                .to_text()
+                .to_string()
+        });
+
+        assert_data_eq!(
+            output,
+            str![[r#"
+@module legacy
+bb0:
+  push 1
+  dup 1
+  swap 16
+  stop
+
+"#]]
+        );
     }
 
     #[test]

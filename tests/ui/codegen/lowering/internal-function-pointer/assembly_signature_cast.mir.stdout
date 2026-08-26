@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_signature_cast.sol:InternalFunctionPointerAssemblyCast ===
+@module InternalFunctionPointerAssemblyCast
+fn @compareBytes32(arg0: bytes32, arg1: bytes32) -> bool [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 2, arg0, arg1
+    ret v0
+}
+
+fn @compareAddress(arg0: u256, arg1: u256) -> bool [selector=0xf627b917, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 4, arg0, arg1
+    ret v0
+}
+
+fn @compareInt256(arg0: u256, arg1: u256) -> bool [selector=0x28717b2d, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 6, arg0, arg1
+    ret v0
+}
+
+fn @_bytes32Greater(arg0: bytes32, arg1: bytes32) -> bool [pure] {
+  bb0:
+    v0 = gt arg0, arg1
+    ret v0
+}
+
+fn @_addressGreater(arg0: address, arg1: address) -> bool [pure] {
+  bb0:
+    v0 = gt arg0, arg1
+    ret v0
+}
+
+fn @_int256Less(arg0: i256, arg1: i256) -> bool [pure] {
+  bb0:
+    v0 = slt arg0, arg1
+    ret v0
+}
+
+fn @internal_dispatcher_p_u256_u256_r_bool(arg0: function, arg1: u256, arg2: u256) -> bool [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 4
+    jumpi v2, bb3, bb4
+  bb4:
+    v6 = eq arg0, 6
+    jumpi v6, bb5, bb6
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v7 = internal_call @_int256Less, 1, arg1, arg2
+    ret v7
+  bb3:
+    v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = internal_call @_addressGreater, 1, v3, v4
+    ret v5
+  bb1:
+    v1 = internal_call @_bytes32Greater, 1, arg1, arg2
+    ret v1
+}

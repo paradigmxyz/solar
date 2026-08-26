@@ -94,4 +94,3 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -440,7 +440,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut value = zero;
         if let Some(options) = options {
             for option in options.args {
-                let option_value = self.lower_expr(&option.value)?;
+                let option_value =
+                    self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
                 match option.name.name {
                     kw::Gas => gas = option_value,
                     sym::value if allow_value => value = option_value,
@@ -620,7 +621,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.imm_u256(U256::ZERO));
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let access = self.storage_access(rhs)?;
+                    let access = self.storage_access_or_error(rhs)?;
                     let Some(id) = self.context.gcx.resolved_variable(lhs) else {
                         return report_unsupported(
                             self.context.gcx,
@@ -672,7 +673,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if preserve_calldata_slice {
                     rhs_value
                 } else {
-                    self.materialize_memory_argument(lhs_ty, rhs_value, rhs.span)?
+                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
+                        memory_rhs_ty
+                    } else {
+                        lhs_ty
+                    };
+                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
                 self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;

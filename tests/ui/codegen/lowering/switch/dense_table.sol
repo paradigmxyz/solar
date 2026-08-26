@@ -2,9 +2,9 @@
 //@ filecheck: --check-prefix=TABLE
 
 // TABLE: push 10
-// TABLE-NEXT: swap1
+// TABLE-NEXT: swap 1
 // TABLE-NEXT: sub
-// TABLE-NEXT: dup1
+// TABLE-NEXT: dup 1
 // TABLE-NEXT: push 24
 // TABLE-NEXT: gt
 // TABLE-NEXT: push [[IN_RANGE:bb[0-9]+]]

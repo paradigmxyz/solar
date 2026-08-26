@@ -2,9 +2,9 @@
 
 use crate::{
     mir::{
-        AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder, InstKind,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Terminator, Value,
-        ValueId, utils::resolve_replacement,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
+        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Terminator,
+        Value, ValueId, utils::resolve_replacement,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
@@ -60,6 +60,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let mut replacements = FxHashMap::default();
+    let mut literal_objects = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -67,7 +68,7 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let InstKind::AbiEncode { returns_object, selector, args, layout } =
+            let InstKind::AbiEncode { mode, selector, args, layout } =
                 &builder.func().inst(inst).kind
             else {
                 let current = builder.current_block();
@@ -80,9 +81,9 @@ fn lower_function(func: &mut Function) -> bool {
                 .map(|&value| resolve_replacement(value, &replacements))
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
-            let returns_object = *returns_object;
-            let replacement = lower_encode(&mut builder, &layout, selector, &args, returns_object);
-            remove_literal_objects(builder.func_mut(), &args);
+            let mode = *mode;
+            let replacement = lower_encode(&mut builder, &layout, selector, &args, mode);
+            literal_objects.extend(args.iter().copied());
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             replacements.insert(result, replacement);
@@ -91,6 +92,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
+    remove_literal_objects(func, &literal_objects.into_iter().collect::<Vec<_>>());
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
 }
@@ -128,14 +130,14 @@ fn lower_encode(
     layout: &AbiLayout,
     selector: Option<ValueId>,
     args: &[ValueId],
-    returns_object: bool,
+    mode: AbiEncodeMode,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
     if !layout.types.iter().any(AbiType::is_dynamic) {
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
-        if returns_object {
+        if mode == AbiEncodeMode::Bytes {
             let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
             let object = builder.alloc_object(
                 allocation_size,
@@ -152,7 +154,7 @@ fn lower_encode(
             encode_tuple(builder, args, &layout.types, dest);
             return object;
         }
-        if selector.is_none() {
+        if mode == AbiEncodeMode::Slice && selector.is_none() {
             // Constructor arguments do not need a raw slice, and keeping their
             // object header lets the memory lowering preserve the established
             // allocation path for creation code.
@@ -168,8 +170,12 @@ fn lower_encode(
             encode_static_tuple(builder, args, &layout.types, data);
             return builder.make_slice(data, total, SliceLocation::Memory);
         }
-        let allocation_size = builder.imm_u64(aligned_size);
-        let buffer = builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
+        let buffer = if mode == AbiEncodeMode::Scratch {
+            builder.fmp()
+        } else {
+            let allocation_size = builder.imm_u64(aligned_size);
+            builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
+        };
         if let Some(selector) = selector {
             builder.mstore(buffer, selector);
         }
@@ -182,8 +188,11 @@ fn lower_encode(
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
     let allocation_base = builder.fmp();
-    let buffer =
-        if returns_object { offset_ptr(builder, allocation_base, 32) } else { allocation_base };
+    let buffer = if mode == AbiEncodeMode::Bytes {
+        offset_ptr(builder, allocation_base, 32)
+    } else {
+        allocation_base
+    };
     if let Some(selector) = selector {
         builder.mstore(buffer, selector);
     }
@@ -191,7 +200,7 @@ fn lower_encode(
     let encoded_size = encode_tuple(builder, args, &layout.types, dest);
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(encoded_size, selector_size);
-    if returns_object {
+    if mode == AbiEncodeMode::Bytes {
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc_object(
             allocation_size,
@@ -200,6 +209,9 @@ fn lower_encode(
         );
         builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
         return object;
+    }
+    if mode == AbiEncodeMode::Scratch {
+        return builder.make_slice(allocation_base, total, SliceLocation::Memory);
     }
     let thirty_one = builder.imm_u64(31);
     let rounded = builder.add(total, thirty_one);

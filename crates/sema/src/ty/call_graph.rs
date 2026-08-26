@@ -145,7 +145,7 @@ impl<'gcx> CallGraphBuilder<'gcx> {
                 else {
                     return false;
                 };
-                if !function.is_internal() && !self.is_unlinked_library_function(function_id) {
+                if !function.is_internal() {
                     return false;
                 }
                 let function = self.resolve_call_target(callee, function_id);
@@ -158,19 +158,6 @@ impl<'gcx> CallGraphBuilder<'gcx> {
             }
             _ => false,
         }
-    }
-
-    fn is_unlinked_library_function(&self, function_id: hir::FunctionId) -> bool {
-        let Some(contract_id) = self.gcx.hir.function(function_id).contract else { return false };
-        let contract = self.gcx.hir.contract(contract_id);
-        if contract.kind != hir::ContractKind::Library {
-            return false;
-        }
-        let source = self.gcx.hir.source(contract.source).file.name.display().to_string();
-        !self.gcx.sess.opts.libraries.iter().any(|spec| {
-            spec.name == contract.name.as_str_in(self.gcx.sess)
-                && spec.source.as_ref().is_none_or(|path| source.ends_with(path))
-        })
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {

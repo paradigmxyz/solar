@@ -120,4 +120,3 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [selector=0xb62868c3, pure, abi_
   bb1:
     revert 0, 0
 }
-

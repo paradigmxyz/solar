@@ -4,6 +4,7 @@
 //@ run-call: copyDynamic(uint256[][]) [[10, 11], [20, 21, 22]] => 33
 //@ run-call: copyFixedDynamic(uint256[][2]) [[10, 11], [20, 21]] => 33
 //@ run-call: copyDynamicFixed(uint256[2][]) [[10, 11], [20, 21]] => 33
+//@ run-call: copyDynamicFixedWiden(uint256[2][]) [[10, 11]] => 22
 //@ run-call: copyFixed(uint256[2][2]) [[10, 11], [20, 21]] => 31
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_array_calldata_to_storage.sol
 
@@ -13,6 +14,7 @@ contract StorageNestedDynamicWordsCalldata {
     uint256[][] private dynamicValues;
     uint256[][2] private fixedOuter;
     uint256[2][] private dynamicOuterFixed;
+    uint256[4][] private dynamicOuterWidened;
     uint256[2][2] private fixedValues;
 
     function copyDynamic(uint256[][] calldata input) external returns (uint256) {
@@ -28,6 +30,13 @@ contract StorageNestedDynamicWordsCalldata {
     function copyDynamicFixed(uint256[2][] calldata input) external returns (uint256) {
         dynamicOuterFixed = input;
         return dynamicOuterFixed.length + dynamicOuterFixed[0][1] + dynamicOuterFixed[1][0];
+    }
+
+    function copyDynamicFixedWiden(uint256[2][] calldata input) external returns (uint256) {
+        dynamicOuterWidened = input;
+        return dynamicOuterWidened.length + dynamicOuterWidened[0][0]
+            + dynamicOuterWidened[0][1] + dynamicOuterWidened[0][2]
+            + dynamicOuterWidened[0][3];
     }
 
     function copyFixed(uint256[2][2] calldata input) external returns (uint256) {

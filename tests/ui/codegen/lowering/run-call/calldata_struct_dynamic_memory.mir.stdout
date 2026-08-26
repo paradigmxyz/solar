@@ -224,4 +224,3 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0x2f4f3794, pure, abi_params=[ar
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

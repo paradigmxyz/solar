@@ -3,9 +3,8 @@
 fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
+    memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
-    memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, 96
     memory_object_store_field memorystruct<4>, v0, 0, 7
     v1 = alloc memorybytes, exact, uninitialized, infallible, 128
@@ -188,9 +187,8 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_r
 fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
+    memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
-    memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, 96
     memory_object_store_field memorystruct<4>, v0, 0, 7
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -373,9 +371,8 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_r
 fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
+    memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
-    memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, 96
     v1 = memory_object_load_field memorystruct<4>, v0, 0
     v2 = sload 1 !metadata(storage=slot(1))
@@ -614,4 +611,3 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
-

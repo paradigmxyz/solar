@@ -519,4 +519,3 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
   bb1:
     revert 0, 0
 }
-

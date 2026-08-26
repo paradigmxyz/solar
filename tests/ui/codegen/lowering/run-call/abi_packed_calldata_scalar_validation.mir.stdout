@@ -163,4 +163,3 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_p
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

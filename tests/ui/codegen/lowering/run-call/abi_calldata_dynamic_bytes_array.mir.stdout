@@ -2,7 +2,7 @@
 @module AbiCalldataDynamicBytesArray
 fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [calldata_array<memory_bytes>], args arg0
+    v0 = abi_encode [calldata_array<memory_bytes>], scratch, args arg0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = keccak256 v1, v2
@@ -422,4 +422,3 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

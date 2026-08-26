@@ -27,4 +27,3 @@ fn @clear() -> bool [selector=0x52efea6e, abi_params=[], abi_returns=[word]] {
     v15 = eq v14, 0
     ret v15
 }
-

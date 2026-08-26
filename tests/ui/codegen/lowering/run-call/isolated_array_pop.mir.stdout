@@ -110,4 +110,3 @@ fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_retu
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

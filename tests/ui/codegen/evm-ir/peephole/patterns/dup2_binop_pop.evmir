@@ -3,325 +3,325 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}add
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb0:
   push 1
   push 2
-  dup2
+  dup 2
   add
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}mul
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb1:
   push 1
   push 2
-  dup2
+  dup 2
   mul
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}and
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb2:
   push 1
   push 2
-  dup2
+  dup 2
   and
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}or
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb3:
   push 1
   push 2
-  dup2
+  dup 2
   or
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb4:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}xor
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb4:
   push 1
   push 2
-  dup2
+  dup 2
   xor
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb5:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: {{^[ +].*}}eq
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 bb5:
   push 1
   push 2
-  dup2
+  dup 2
   eq
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - sub
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + sub
 bb6:
   push 1
   push 2
-  dup2
+  dup 2
   sub
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb7:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - div
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + div
 bb7:
   push 1
   push 2
-  dup2
+  dup 2
   div
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb8:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - sdiv
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + sdiv
 bb8:
   push 1
   push 2
-  dup2
+  dup 2
   sdiv
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb9:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - mod
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + mod
 bb9:
   push 1
   push 2
-  dup2
+  dup 2
   mod
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb10:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - smod
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + smod
 bb10:
   push 1
   push 2
-  dup2
+  dup 2
   smod
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb11:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - exp
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + exp
 bb11:
   push 1
   push 2
-  dup2
+  dup 2
   exp
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb12:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - signextend
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + signextend
 bb12:
   push 1
   push 2
-  dup2
+  dup 2
   signextend
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb13:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - lt
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 // CHECK: + gt
 bb13:
   push 1
   push 2
-  dup2
+  dup 2
   lt
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb14:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - gt
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 // CHECK: + lt
 bb14:
   push 1
   push 2
-  dup2
+  dup 2
   gt
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb15:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - slt
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 // CHECK: + sgt
 bb15:
   push 1
   push 2
-  dup2
+  dup 2
   slt
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb16:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - sgt
-// CHECK: - swap1
+// CHECK: - swap 1
 // CHECK: - pop
 // CHECK: + slt
 bb16:
   push 1
   push 2
-  dup2
+  dup 2
   sgt
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb17:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - byte
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + byte
 bb17:
   push 1
   push 2
-  dup2
+  dup 2
   byte
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb18:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - shl
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + shl
 bb18:
   push 1
   push 2
-  dup2
+  dup 2
   shl
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb19:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - shr
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + shr
 bb19:
   push 1
   push 2
-  dup2
+  dup 2
   shr
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb20:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - sar
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + sar
 bb20:
   push 1
   push 2
-  dup2
+  dup 2
   sar
-  swap1
+  swap 1
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb21:
-// CHECK: - dup2
+// CHECK: - dup 2
 // CHECK: - keccak256
-// CHECK: {{^[ +].*}}swap1
+// CHECK: {{^[ +].*}}swap 1
 // CHECK: - pop
 // CHECK: + keccak256
 bb21:
   push 1
   push 2
-  dup2
+  dup 2
   keccak256
-  swap1
+  swap 1
   pop
   stop

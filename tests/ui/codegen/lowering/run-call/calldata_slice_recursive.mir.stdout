@@ -61,4 +61,3 @@ fn @use(arg0: calldataslice) -> u256 [selector=0x01bd03f7, pure, abi_params=[byt
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
-

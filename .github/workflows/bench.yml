@@ -136,6 +136,7 @@ jobs:
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar target/release/solar \
+            --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
             --gas \
@@ -166,6 +167,10 @@ jobs:
             args+=(--baseline target/codegen-bench/baseline/results.json)
           fi
           python3 benches/runtime/report.py "${args[@]}"
+
+      - name: Add report to job summary
+        if: always()
+        run: cat target/codegen-bench/report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment on PR
         if: >-

@@ -123,13 +123,11 @@ contract NamedReturnAndDelete {
         returns (uint256[] memory values, bytes memory data)
     {}
 
-    // Named struct defaults initialize scalar fields and reference fields.
+    // Wide named struct defaults bulk-zero scalars and initialize references.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 0, 0
+    // CHECK: memory_zero [[WIDE]], 128
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, 96
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 2, 0
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 3, 0
     // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 

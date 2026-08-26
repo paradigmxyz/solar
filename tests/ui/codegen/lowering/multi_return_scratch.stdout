@@ -86,4 +86,3 @@ fn @ternary(arg0: bool, arg1: u256) -> (u256, u256) [selector=0x09a143f6, pure, 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

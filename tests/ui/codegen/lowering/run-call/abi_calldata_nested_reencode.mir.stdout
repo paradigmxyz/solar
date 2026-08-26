@@ -37,7 +37,7 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
   bb11:
-    v112 = abi_encode [memory_array<memory_array<memory_array<word>>>], args v19
+    v112 = abi_encode [memory_array<memory_array<memory_array<word>>>], scratch, args v19
     v113 = slice_ptr v112
     v114 = slice_len v112
     v115 = keccak256 v113, v114
@@ -282,7 +282,7 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
   bb11:
-    v134 = abi_encode [memory_array<array<2, memory_array<word>>>], args v19
+    v134 = abi_encode [memory_array<array<2, memory_array<word>>>], scratch, args v19
     v135 = slice_ptr v134
     v136 = slice_len v134
     v137 = keccak256 v135, v136
@@ -529,4 +529,3 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

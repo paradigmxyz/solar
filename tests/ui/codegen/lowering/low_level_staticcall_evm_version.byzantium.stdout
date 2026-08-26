@@ -37,4 +37,3 @@ fn @probeCall(arg0: address) -> u256 [selector=0x9c6db033, abi_params=[address],
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

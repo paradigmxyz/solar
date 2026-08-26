@@ -23,8 +23,8 @@ contract ResidentArgsExternalCall {
     // Keep each source argument and its derived value live across CALL. This
     // leaves the stack-only target and gas operands close to the DUP16 limit
     // before the six CALL operands are materialized.
-    // CHECK: dup14
-    // CHECK-NEXT: dup14
+    // CHECK: dup 14
+    // CHECK-NEXT: dup 14
     // CHECK-COUNT-5: push 0
     // CHECK: call
     function callAndSum(

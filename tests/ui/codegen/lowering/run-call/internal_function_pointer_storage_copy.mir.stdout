@@ -324,4 +324,3 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) [function_pointer_dispatch
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
 }
-

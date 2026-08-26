@@ -276,17 +276,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
-        if let ExprKind::Call(callee, args, _) = &expr.kind
-            && let ExprKind::Type(ty) = &callee.kind
-            && matches!(
-                ty.kind,
-                hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            )
-            && let hir::CallArgsKind::Unnamed([inner]) = args.kind
-        {
-            return inner;
+        let mut expr = expr;
+        loop {
+            expr = expr.peel_parens();
+            if let ExprKind::Call(callee, args, _) = &expr.kind
+                && let ExprKind::Type(ty) = &callee.kind
+                && matches!(
+                    ty.kind,
+                    hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                )
+                && let hir::CallArgsKind::Unnamed([inner]) = args.kind
+            {
+                expr = inner;
+            } else {
+                return expr;
+            }
         }
-        expr
     }
 
     pub(super) fn lower_constant_variable(

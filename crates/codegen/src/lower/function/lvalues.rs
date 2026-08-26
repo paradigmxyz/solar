@@ -56,7 +56,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return report_unsupported(self.context.gcx, expr.span, "index l-value");
                 };
                 let object = self.lower_expr(receiver)?;
-                let index = self.lower_expr(index)?;
+                let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
@@ -172,9 +172,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
-        let access = self.storage_access(self.peel_bytes_conversion(receiver))?;
+        let access = self.storage_access_or_error(self.peel_bytes_conversion(receiver))?;
         let object = self.load_storage_bytes(access.slot);
-        let index = self.lower_expr(index)?;
+        let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
         self.builder.bounds_check(index, length);
         let ty = self.type_of_expr_or_variable(expr)?;

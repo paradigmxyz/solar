@@ -4,21 +4,18 @@ fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderB ===
 @module EvaluationOrderB
 fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderC ===
 @module EvaluationOrderC
 fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:D ===
 @module D
 fn @_anonymous() [constructor] {
@@ -111,4 +108,3 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

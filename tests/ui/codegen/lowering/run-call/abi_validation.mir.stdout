@@ -10,3 +10,39 @@ fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_retu
     ret arg0
 }
 
+fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v9, v10
+    v12 = iszero v11
+    jumpi v12, bb5, bb6
+  bb6:
+    v13 = add 0, 0
+    v14 = mload v13
+    ret v14
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+}
+
+fn @vAddressTarget(arg0: address) -> address [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}

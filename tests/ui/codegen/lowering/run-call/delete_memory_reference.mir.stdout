@@ -50,4 +50,3 @@ fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=
     v11 = and v4, v10
     ret v2, v3, v11
 }
-

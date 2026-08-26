@@ -9,7 +9,7 @@
     jump bb1
   bb1 [cold]:
     push_deferred 0
-    dup1
+    dup 1
     revert
   bb2:
     push 1
@@ -19,7 +19,7 @@
     jump bb3
   bb3 [cold]:
     push_immutable 0, 32
-    dup1
+    dup 1
     revert
   bb4:
     stop

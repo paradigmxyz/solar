@@ -217,4 +217,3 @@ fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, pure, abi_params=[u
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

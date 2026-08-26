@@ -59,4 +59,3 @@ fn @emitNamed() [selector=0x4135d839, abi_params=[], abi_returns=[]] {
     log1 v1, v2, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
     stop
 }
-

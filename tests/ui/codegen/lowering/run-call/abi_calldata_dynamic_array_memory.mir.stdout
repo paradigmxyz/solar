@@ -169,4 +169,3 @@ fn @sumMemory(arg0: memoryarray) -> u256 [selector=0x13201b5d, pure, abi_params=
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

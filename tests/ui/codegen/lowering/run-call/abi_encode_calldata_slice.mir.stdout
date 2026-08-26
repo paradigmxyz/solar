@@ -1125,4 +1125,3 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

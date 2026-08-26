@@ -10,6 +10,8 @@
 //@ run-call: defaultThroughInternalCall() => true
 //@ run-call: fixedArrayDynamicDefaults() => 64, 96, 96
 //@ run-call: nestedStaticDefaults() => 192
+//@ run-call: literalBytes() => 0x31
+//@ run-call: literalAllocation() => 64
 
 contract UninitializedMemoryAllocation {
     struct Pair {
@@ -111,6 +113,16 @@ contract UninitializedMemoryAllocation {
         assembly {
             pop(fields)
         }
+        return freeMemoryPointer() - before;
+    }
+
+    function literalBytes() public pure returns (bytes memory) {
+        return "1";
+    }
+
+    function literalAllocation() external pure returns (uint256) {
+        uint256 before = freeMemoryPointer();
+        literalBytes();
         return freeMemoryPointer() - before;
     }
 

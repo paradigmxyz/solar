@@ -490,6 +490,28 @@ pub(crate) enum AllocationKind {
     Object(MemoryObjectLayout),
 }
 
+/// Storage policy for an ABI-encoded result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AbiEncodeMode {
+    /// Return a heap-backed raw memory slice.
+    Slice,
+    /// Return an owned Solidity bytes object.
+    Bytes,
+    /// Return a slice staged at the free-memory pointer without reserving it.
+    Scratch,
+}
+
+impl AbiEncodeMode {
+    /// Returns the MIR result type for this mode.
+    #[must_use]
+    pub(crate) const fn result_type(self) -> MirType {
+        match self {
+            Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
+            Self::Bytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+        }
+    }
+}
+
 impl AllocationKind {
     /// Returns the MIR result type of this allocation.
     #[must_use]
@@ -803,10 +825,10 @@ pub(crate) enum InstKind {
         /// Number of bytes to copy.
         length: ValueId,
     },
-    /// ABI-encode values into freshly allocated memory.
+    /// ABI-encode values into memory.
     AbiEncode {
-        /// Whether the result is an owned bytes object instead of a raw memory slice.
-        returns_object: bool,
+        /// Storage policy for the encoded result.
+        mode: AbiEncodeMode,
         /// Optional left-aligned four-byte selector prefix.
         selector: Option<ValueId>,
         /// Values corresponding to the tuple layout.

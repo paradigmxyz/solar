@@ -1,0 +1,71 @@
+// === ROOT/tests/ui/codegen/lowering/abi_encode_with_signature_dynamic.sol:AbiEncodeWithSignatureDynamic ===
+@module AbiEncodeWithSignatureDynamic
+fn @callCond(arg0: address, arg1: bool, arg2: u256) -> bool [selector=0x407a1bfe, abi_params=[address, bool, u256], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = select arg1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [word], object, selector v1, args arg2
+    v3 = memory_object_data memorybytes, v2
+    v4 = memory_object_len memorybytes, v2
+    v5 = call v0, arg0, 0, v3, v4, 0, 0
+    ret v5
+}
+
+fn @encodeCond(arg0: bool, arg1: u256) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = select arg0, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [word], object, selector v0, args arg1
+    ret v1
+}
+
+fn @encodeLiteral(arg0: u256) -> memorybytes [selector=0xb7e00125, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word], object, selector 0x2b8fbce800000000000000000000000000000000000000000000000000000000, args arg0
+    ret v0
+}
+
+fn @encodeRuntime(arg0: memorybytes, arg1: u256) -> memorybytes [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = keccak256_bytes arg0
+    v1 = shr 224, v0
+    v2 = shl 224, v1
+    v3 = abi_encode [word], object, selector v2, args arg1
+    ret v3
+}
+
+fn @firstSignature() -> memorybytes {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 7
+    memory_object_store_word memorybytes, v0, 0, 0x6669727374282900000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @secondSignature() -> memorybytes {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 8
+    memory_object_store_word memorybytes, v0, 0, 0x7365636f6e642829000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @selectedBranch(arg0: bool) -> u256 [selector=0xe62aee61, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v1 = internal_call @secondSignature, 1
+    jump bb3
+  bb1:
+    v0 = internal_call @firstSignature, 1
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = keccak256_bytes v2
+    v4 = shr 224, v3
+    v5 = shl 224, v4
+    v6 = abi_encode [], object, selector v5
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
+}

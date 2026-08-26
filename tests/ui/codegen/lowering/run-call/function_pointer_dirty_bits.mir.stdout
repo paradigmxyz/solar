@@ -56,18 +56,17 @@ fn @abiEncoding() -> bool [selector=0xe9e87e69, view, abi_params=[], abi_returns
     v17 = not 0xffffffff
     v18 = and v11, v17
     v19 = or v18, v16
-    v20 = abi_encode [function], args v19
+    v20 = abi_encode [function], scratch, args v19
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = keccak256 v21, v22
     v24 = address
     v25 = shl 32, v24
     v26 = or v25, 0xe2179b8e
-    v27 = abi_encode [function], args v26
+    v27 = abi_encode [function], scratch, args v26
     v28 = slice_ptr v27
     v29 = slice_len v27
     v30 = keccak256 v28, v29
     v31 = eq v23, v30
     ret v31
 }
-

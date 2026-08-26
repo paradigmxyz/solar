@@ -1,0 +1,30 @@
+//@ compile-flags: -Zmir-pipeline=inline-constant-leaves
+//@ filecheck:
+@module InlineConstantLeaf
+
+// CHECK-LABEL: fn @constant_caller
+// CHECK: - {{.*}}internal_call @shared_leaf
+// CHECK: + {{.*}} = add arg0, 7
+fn @constant_caller(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_call @shared_leaf, 1, arg0, 7
+    ret v0
+}
+
+// CHECK-LABEL: fn @dynamic_caller
+// CHECK: internal_call @shared_leaf
+fn @dynamic_caller(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = internal_call @shared_leaf, 1, arg0, arg1
+    ret v0
+}
+
+fn @shared_leaf(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = xor v0, arg1
+    v2 = add v1, 1
+    v3 = xor v2, arg1
+    v4 = add v3, 2
+    ret v4
+}

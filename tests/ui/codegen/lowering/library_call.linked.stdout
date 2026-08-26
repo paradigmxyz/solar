@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xed2f0bb8
   eq
   push bb4
@@ -16,7 +16,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb9 [cold]:
   push 0x4e487b71
@@ -42,8 +42,13 @@ bb4:
   shr
   push bb3
   jumpi
+  push 0
+  not
+  push 96
+  shr
   push 36
   calldataload
+  and
   push 0
   mstore
   push 4
@@ -53,15 +58,15 @@ bb4:
   push 64
   push 0
   keccak256
-  dup1
+  dup 1
   push 192
   mstore
   sload
   push 68
   calldataload
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
   lt
@@ -78,9 +83,9 @@ bb4:
   push 255
   caller
   and
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
   lt
@@ -103,7 +108,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x3dd41ca6
   sub
   push bb3
@@ -122,78 +127,70 @@ bb0:
   shr
   push bb3
   jumpi
-  push 0
-  not
-  push 96
-  shr
-  push 4
-  calldataload
-  and
   push 64
   mload
-  dup1
+  dup 1
   push 224
   mstore
   push 128
-  dup2
+  dup 2
   add
   push 64
   mstore
   push 0xed2f0bb8
   push 224
   shl
-  dup2
+  dup 2
   mstore
   push 4
-  dup2
+  dup 2
   add
   push 0
-  swap1
+  swap 1
   mstore
   push 36
-  dup2
+  dup 2
   add
-  dup3
-  swap1
+  push 4
+  calldataload
+  swap 1
   mstore
-  swap1
-  pop
   push 68
-  dup2
+  dup 2
   add
   push 36
   calldataload
-  swap1
+  swap 1
   mstore
   gas
-  dup1
+  dup 1
   push 256
   mstore
   push 0
   push 0
   push 100
-  dup5
+  dup 5
   push 0x1111111111111111111111111111111111111111
-  dup6
+  dup 6
   delegatecall
-  swap2
+  swap 2
   pop
   pop
   iszero
   push bb10
   jumpi
   returndatasize
-  dup1
+  dup 1
   push 192
   mstore
   push 63
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   lt
   push bb11
   jumpi
@@ -202,43 +199,43 @@ bb0:
   and
   push 64
   mload
-  dup1
+  dup 1
   push 224
   mstore
-  swap1
-  dup2
+  swap 1
+  dup 2
   add
   push 64
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
-  dup3
-  dup1
+  dup 3
+  dup 1
   push 192
   mstore
   push 0
-  dup3
+  dup 3
   returndatacopy
-  swap2
+  swap 2
   pop
   mload
-  dup1
-  dup3
+  dup 1
+  dup 3
   add
-  dup3
+  dup 3
   gt
-  swap1
+  swap 1
   push 32
   gt
   or
-  swap1
+  swap 1
   pop
   push bb3
   jumpi
@@ -252,15 +249,15 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb10 [cold]:
   returndatasize
-  dup1
+  dup 1
   push 224
   mstore
   push 0
-  dup1
+  dup 1
   returndatacopy
   push 224
   mload

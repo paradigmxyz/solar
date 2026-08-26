@@ -127,4 +127,3 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> i256 [selector=0xaabf50
   bb1:
     revert 0, 0
 }
-

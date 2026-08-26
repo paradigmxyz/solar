@@ -26,4 +26,3 @@ fn @encodeWords(arg0: calldataslice) -> u256 [selector=0x5d8a4779, pure, abi_par
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
-

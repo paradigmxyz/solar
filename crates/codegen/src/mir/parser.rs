@@ -32,8 +32,8 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType, AbiType,
-    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+    AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
+    AbiType, AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
     AllocationSemantics, BlockId, Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function,
     FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
@@ -269,12 +269,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             };
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
-                    let InstKind::InternalCall { function: target, .. } =
-                        &mut module.functions[owner].inst_mut(inst).kind
+                    let result_ty = module.functions[*function].returns.first().copied();
+                    let instruction = module.functions[owner].inst_mut(inst);
+                    let InstKind::InternalCall { function: target, returns, .. } =
+                        &mut instruction.kind
                     else {
                         unreachable!()
                     };
                     *target = *function;
+                    if *returns > 0 && result_ty.is_some() {
+                        instruction.result_ty = result_ty;
+                    }
                 }
                 FunctionRefTarget::Terminator(block) => {
                     let Some(Terminator::TailCall { function: target, .. }) =
@@ -1657,13 +1662,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Semantic ABI encoding.
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
-                let mut returns_object = false;
+                let mut mode = AbiEncodeMode::Slice;
                 let mut selector = None;
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     match group {
-                        sym::object if !returns_object => returns_object = true,
+                        sym::object if mode == AbiEncodeMode::Slice => mode = AbiEncodeMode::Bytes,
+                        sym::scratch if mode == AbiEncodeMode::Slice => {
+                            mode = AbiEncodeMode::Scratch
+                        }
                         sym::selector if selector.is_none() => {
                             selector = Some(self.parse_value(builder)?)
                         }
@@ -1688,24 +1696,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         args.len()
                     )));
                 }
-                let result_ty = if returns_object {
-                    MirType::MemoryObject(MemoryObjectKind::Bytes)
-                } else {
-                    MirType::Slice(SliceLocation::Memory)
-                };
                 (
-                    InstKind::AbiEncode { returns_object, selector, args: args.into(), layout },
-                    Some(result_ty),
+                    InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+                    Some(mode.result_type()),
                 )
             }
             sym::abi_decode => {
                 let layout = self.parse_abi_param_layout()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let data = self.parse_value(builder)?;
-                if builder.func().value_ty(data)
-                    != Some(MirType::MemoryObject(crate::mir::MemoryObjectKind::Bytes))
+                let data_ty = builder.func().value_ty(data);
+                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    && !(data_ty == Some(MirType::MemPtr)
+                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
                 {
-                    return Err(self.parser.error("ABI decode requires a bytes object"));
+                    return Err(self
+                        .parser
+                        .error("ABI decode requires bytes or a static memory pointer"));
                 }
                 let result_ty = layout
                     .types

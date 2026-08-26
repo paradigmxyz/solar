@@ -78,4 +78,3 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

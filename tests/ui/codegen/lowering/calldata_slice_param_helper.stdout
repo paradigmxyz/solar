@@ -7,11 +7,10 @@ fn @lastWord() [selector=0x3955f902, pure] {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:
-    v3 = internal_call @decode_calldata_slice, 2, 4
-    v10 = mload 32 !metadata(memory=scratch)
-    v5 = add v10, 32
-    v6 = mload v5
-    v0 = internal_call @_last, 1, v3, v6
+    v3 = internal_call @decode_calldata_slice, 1, 4
+    v4 = calldataload v3
+    v5 = add v3, 32
+    v0 = internal_call @_last, 1, v5, v4
     mstore 128, v0
     returndata 128, 32
   bb1:
@@ -24,15 +23,14 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
     v12 = lt v11, 36
     jumpi v12, bb1, bb3
   bb3:
-    v13 = internal_call @decode_calldata_slice, 2, 4
-    v20 = mload 32 !metadata(memory=scratch)
-    v15 = add v20, 32
-    v16 = mload v15
-    v0 = internal_call @_last, 1, v13, v16
-    jumpi v16, bb2, bb1
+    v13 = internal_call @decode_calldata_slice, 1, 4
+    v14 = calldataload v13
+    v15 = add v13, 32
+    v0 = internal_call @_last, 1, v15, v14
+    jumpi v14, bb2, bb1
   bb2:
-    v6 = sub v16, 1
-    v7 = add v13, 1
+    v6 = sub v14, 1
+    v7 = add v15, 1
     v9 = internal_call @_last, 1, v7, v6
     v10 = xor v0, v9
     mstore 128, v10
@@ -49,7 +47,7 @@ fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure] {
     ret v4
 }
 
-fn @decode_calldata_slice(arg0: u256) -> (u256, u256) {
+fn @decode_calldata_slice(arg0: u256) -> u256 {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -64,7 +62,7 @@ fn @decode_calldata_slice(arg0: u256) -> (u256, u256) {
     v11 = or v6, v10
     jumpi v11, bb2, bb1
   bb1:
-    ret v3, v7
+    ret v2
   bb2:
     revert 0, 0
 }
@@ -84,4 +82,3 @@ fn @entry() [entry] {
   bb4:
     revert 0, 0
 }
-

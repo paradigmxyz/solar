@@ -1,8 +1,109 @@
-//@compile-flags: -Zmir-pipeline=lower-abi
+//@compile-flags: -O gas -Zmir-pipeline=lower-abi
 // A dynamic memory value is encoded into returndata by the ABI wrapper. The
 // later lower-abi-encode pass expands the semantic encoder operation.
 @module LowerAbiDynamicReturn
 fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
   bb0:
     ret arg0
+}
+
+fn @canonicalAddresses() -> memoryarray {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+    v1 = add 2, 0
+    set_memory_object_len memoryarray, v0, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v5 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+  bb0:
+    v0 = internal_call @canonicalAddresses, 1
+    ret v0
+}
+
+fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+  bb0:
+    v0 = internal_call @canonicalAddresses, 1
+    ret v0
+}
+
+fn @canonicalAddressArrays() -> memoryarray {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+    v1 = add 1, 0
+    set_memory_object_len memoryarray, v0, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = internal_call @canonicalAddresses, 1
+    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v5 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+  bb0:
+    v0 = internal_call @canonicalAddressArrays, 1
+    ret v0
+}
+
+fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+  bb0:
+    v0 = internal_call @canonicalAddressArrays, 1
+    ret v0
+}
+
+fn @dirtyAddressArrays() -> memoryarray {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+    v1 = add 1, 0
+    set_memory_object_len memoryarray, v0, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, v1
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = internal_call @canonicalAddresses, 1
+    memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v5 = add v2, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+  bb0:
+    v0 = internal_call @dirtyAddressArrays, 1
+    ret v0
+}
+
+fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+  bb0:
+    v0 = internal_call @dirtyAddressArrays, 1
+    ret v0
+}
+
+fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    memory_zero v0, 64
+    ret v0
 }

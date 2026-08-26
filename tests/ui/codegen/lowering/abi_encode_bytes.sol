@@ -6,7 +6,7 @@
 // `keccak256(abi.encode(...))` consumes the typed ABI slice directly.
 contract AbiEncodeBytes {
     // CHECK-LABEL: fn @hash3{{[( ]}}
-    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, word, word], args arg0, arg1, arg2
+    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, word, word], scratch, args arg0, arg1, arg2
     // CHECK: [[DATA:v[0-9]+]] = slice_ptr [[ENCODED]]
     // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
     // CHECK: {{v[0-9]+}} = keccak256 [[DATA]], [[LEN]]
@@ -29,7 +29,7 @@ contract AbiEncodeBytes {
     }
 
     // CHECK-LABEL: fn @hashDynamic{{[( ]}}
-    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, memory_bytes], args arg0, arg1
+    // CHECK: [[ENCODED:v[0-9]+]] = abi_encode [word, memory_bytes], scratch, args arg0, arg1
     // CHECK: [[DATA:v[0-9]+]] = slice_ptr [[ENCODED]]
     // CHECK: [[LEN:v[0-9]+]] = slice_len [[ENCODED]]
     // CHECK: keccak256 [[DATA]], [[LEN]]

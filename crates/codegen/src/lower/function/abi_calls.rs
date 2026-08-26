@@ -180,6 +180,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
+    pub(super) fn is_external_only_abi_argument(&self, value: ValueId) -> bool {
+        self.is_external_abi_argument(value)
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
+    }
+
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {
@@ -268,7 +273,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
-            let access = self.storage_access(source_expr)?;
+            let access = self.storage_access_or_error(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         let value = self.lower_expr(expr)?;

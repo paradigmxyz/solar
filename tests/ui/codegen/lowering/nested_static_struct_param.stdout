@@ -13,4 +13,3 @@ fn @take(arg0: calldataslice) -> (u256, u256) [selector=0xd1a79489, pure, abi_pa
     v8 = calldataload v7
     ret v5, v8
 }
-

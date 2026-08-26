@@ -47,4 +47,3 @@ fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_params=[bool], abi
     v4 = slice_len v2
     revert v3, v4
 }
-

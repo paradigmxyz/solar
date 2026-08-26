@@ -180,6 +180,25 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     revert 0, 36
 }
 
+fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v1 = abi_encode [memory_bytes], object, args v0
+    v2 = keccak256_bytes v0
+    v3 = eq v2, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = memory_object_len memorybytes, v1
+    v5 = eq v4, 0
+    v6 = iszero v5
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v6], [bb2: 0]
+    ret v7
+}
+
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -228,4 +247,3 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

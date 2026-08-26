@@ -29,4 +29,3 @@ fn @blob(arg0: memorybytes) [selector=0x03cd5167, abi_params=[bytes], abi_return
     log1 v1, v2, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
     stop
 }
-

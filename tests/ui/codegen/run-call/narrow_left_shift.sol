@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: leftU8(uint8,uint8) 255, 0 => 255
 //@ run-call: leftU8(uint8,uint8) 255, 1 => 254
 //@ run-call: leftU8(uint8,uint8) 255, 8 => 0

@@ -184,7 +184,6 @@ fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_params=[], abi_returns=[array<3, word>, word]] {
@@ -286,10 +285,8 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, pure
 fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
+    memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
-    memory_object_store_field memorystruct<4>, v0, 2, 0
-    memory_object_store_field memorystruct<4>, v0, 3, 0
     ret v0
 }
 
@@ -425,4 +422,3 @@ fn @bulkDeleteRebind() -> (u256, u256) [selector=0x535bf203, pure, abi_params=[]
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-

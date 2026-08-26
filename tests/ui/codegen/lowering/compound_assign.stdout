@@ -84,4 +84,3 @@ fn @bump_pre() -> u256 [selector=0xe9063fd9, abi_params=[], abi_returns=[word]] 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

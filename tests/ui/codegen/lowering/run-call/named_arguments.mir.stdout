@@ -72,4 +72,3 @@ fn @d() -> u256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word]] {
   bb2:
     revert 0, 0
 }
-

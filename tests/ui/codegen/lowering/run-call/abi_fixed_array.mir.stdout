@@ -349,7 +349,6 @@ fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, a
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
 @module ConstructorAbiFixedArray
 fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
@@ -398,7 +397,6 @@ fn @_anonymous(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[arr
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
 @module ConstructorAbiDynamic
 fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
@@ -431,7 +429,6 @@ fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[a
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
 @module ConstructorAbiDynamicWords
 fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
@@ -455,7 +452,6 @@ fn @_anonymous(arg0: memoryarray) [constructor, abi_params=[array<_, u256>]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
 @module ConstructorAbiBytes
 fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
@@ -470,7 +466,6 @@ fn @_anonymous(arg0: memorybytes) [constructor, abi_params=[bytes]] {
     sstore 0, v0 !metadata(storage=slot(0))
     stop
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
 @module ConstructorAbiStruct
 fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
@@ -495,4 +490,3 @@ fn @_anonymous(arg0: memorystruct) [constructor, abi_params=[tuple<u256, bytes>]
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

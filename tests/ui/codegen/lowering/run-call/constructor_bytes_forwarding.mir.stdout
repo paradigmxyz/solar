@@ -164,7 +164,6 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain ===
 @module ConstructorBytesMain
 fn @_anonymous(arg0: memorybytes, arg1: u256) [constructor, abi_params=[bytes, u256]] {
@@ -341,7 +340,6 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v4 = add v1, 1
     jump bb1
 }
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesCreator ===
 @module ConstructorBytesCreator
 fn @f(arg0: u256, arg1: memorybytes) -> (u256, bytes1) [selector=0xcdc9dc79, abi_params=[u256, bytes], abi_returns=[word, word]] {
@@ -535,4 +533,3 @@ fn @f(arg0: u256, arg1: memorybytes) -> (u256, bytes1) [selector=0xcdc9dc79, abi
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

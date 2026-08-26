@@ -13,4 +13,18 @@ contract AbiEncodePackedStaticHash {
     function hash(uint64 size, uint64 maxSize, bytes32 root) external pure returns (bytes32) {
         return keccak256(abi.encodePacked("Memory:", size, maxSize, root));
     }
+
+    // CHECK-LABEL: fn @hashLocal{{[( ]}}
+    // CHECK-NOT: alloc memorybytes
+    // CHECK: mstore 0, {{v[0-9]+}}
+    // CHECK: mstore 23, arg2
+    // CHECK: {{v[0-9]+}} = keccak256 0, 55
+    function hashLocal(uint64 size, uint64 maxSize, bytes32 root)
+        external
+        pure
+        returns (bytes32)
+    {
+        bytes memory preimage = abi.encodePacked("Memory:", size, maxSize, root);
+        return keccak256(preimage);
+    }
 }

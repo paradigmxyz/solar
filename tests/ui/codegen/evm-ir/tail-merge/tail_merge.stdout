@@ -60,15 +60,27 @@
     stop
   bb8:
     push0
-    dup1
+    dup 1
     pop
     jump bb10
   bb9:
     push0
-    dup1
+    dup 1
     pop
     jump bb10
   bb10:
+    stop
+  bb11:
+    push 11
+    push 1
+    push 2
+    push0
+    stop
+  bb12:
+    push 12
+    push 1
+    push 2
+    push0
     stop
 + bb4:
 +   push 33

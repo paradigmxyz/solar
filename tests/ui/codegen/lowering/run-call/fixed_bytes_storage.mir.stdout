@@ -90,4 +90,3 @@ fn @selector() -> (bytes4, u32) [selector=0xea3d508a, pure, abi_params=[], abi_r
     v4 = shr 224, v3
     ret v1, v4
 }
-

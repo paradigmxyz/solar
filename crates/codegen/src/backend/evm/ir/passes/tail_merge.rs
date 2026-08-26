@@ -75,9 +75,15 @@ impl RunState {
                 }
             }
 
+            // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
                 && common > 0
-                && suffix_lower_bound(gcx, module, block_id, common) > 5
+                && {
+                    let hot = !block.metadata.hotness.is_cold()
+                        || !module.blocks[representative].metadata.hotness.is_cold();
+                    let minimum = 5 + usize::from(gcx.sess.opts.optimization.is_gas() && hot);
+                    suffix_lower_bound(gcx, module, block_id, common) > minimum
+                }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {

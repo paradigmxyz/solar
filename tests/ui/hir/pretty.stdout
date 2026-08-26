@@ -50,6 +50,9 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                     else {
                         break;
                     }
+                    hir.loop.update {
+                        i++;
+                    }
                 }
             }
             hir.loop(while) {
@@ -88,6 +91,9 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                         }
                         else {
                             break;
+                        }
+                        hir.loop.update {
+                            j = add(j, 1);
                         }
                     }
                 }

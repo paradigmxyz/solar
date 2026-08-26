@@ -14,4 +14,3 @@ fn @_anonymous(arg0: address) [constructor, abi_params=[address]] {
     storeimmutable owner, arg0
     stop
 }
-

@@ -50,4 +50,3 @@ fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[
   bb3:
     revert 0, 0
 }
-
