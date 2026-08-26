@@ -434,11 +434,11 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v14 = add v13, 32
     v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v21 = add v15, v14
-    mstore 64, v21 !metadata(memory=scratch)
+    v20 = add v15, v14
+    mstore 64, v20 !metadata(memory=scratch)
     mstore v15, v7
-    v18 = add v15, 32
-    calldatacopy v18, v3, v7
+    v17 = add v15, 32
+    calldatacopy v17, v3, v7
     ret v15
   bb2:
     revert 0, 0

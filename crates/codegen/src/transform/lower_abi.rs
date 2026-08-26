@@ -208,8 +208,8 @@ impl LowerAbiCx {
             return true;
         }
 
-        self.synthesize_shared_aggregate_type_helpers(module, &targets);
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
+        self.synthesize_shared_aggregate_type_helpers(module, &targets);
         if gas_mode {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
         }
@@ -532,18 +532,27 @@ impl LowerAbiCx {
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
-            let tuple_base = builder.imm_u64(4);
-            let input_end = builder.calldatasize();
-            let mut current = builder.current_block();
-            let value = Self::decode_aggregate_argument(
-                &mut builder,
-                &ty,
-                ty.mir_type(),
-                head,
-                tuple_base,
-                &mut current,
-                DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
-            );
+            let value = if matches!(ty, AbiParamType::Bytes)
+                && let Some(helper) = self.calldata_slice_helper
+            {
+                let base = builder.internal_call(helper, vec![head], MirType::uint256(), 1);
+                let len = builder.calldataload(base);
+                let data = builder.add_u64_offset(base, 32);
+                Self::materialize_calldata_bytes(&mut builder, data, len)
+            } else {
+                let tuple_base = builder.imm_u64(4);
+                let input_end = builder.calldatasize();
+                let mut current = builder.current_block();
+                Self::decode_aggregate_argument(
+                    &mut builder,
+                    &ty,
+                    ty.mir_type(),
+                    head,
+                    tuple_base,
+                    &mut current,
+                    DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
+                )
+            };
             builder.add_return(ty.mir_type());
             builder.ret([value]);
         }
@@ -559,14 +568,25 @@ impl LowerAbiCx {
             .iter()
             .map(|&id| {
                 let func = module.function(id);
+                let uses = func.arg_uses();
                 func.abi_params.as_ref().map_or(0, |layout| {
                     layout
                         .types
                         .iter()
                         .zip(&func.params)
-                        .filter(|&(ty, arg_type)| {
-                            matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
-                                && matches!(ty, AbiParamType::Bytes)
+                        .enumerate()
+                        .filter(|&(index, (ty, arg_type))| {
+                            matches!(ty, AbiParamType::Bytes)
+                                && (matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+                                    || (matches!(arg_type, MirType::MemoryObject(_))
+                                        && func
+                                            .abi_param_locations
+                                            .as_deref()
+                                            .and_then(|locations| locations.get(index))
+                                            == Some(&AbiParamLocation::Memory)
+                                        && uses
+                                            .get(ArgIdx::new(index))
+                                            .is_none_or(|uses| uses.is_empty())))
                         })
                         .count()
                 })
@@ -625,7 +645,7 @@ impl LowerAbiCx {
             let tuple_base = builder.imm_u64(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
-            let (data, len) = Self::decode_calldata_bytes_slice_values(
+            let (base, _, _) = Self::decode_calldata_bytes_slice_values(
                 &mut builder,
                 head,
                 tuple_base,
@@ -634,8 +654,7 @@ impl LowerAbiCx {
                 true,
             );
             builder.add_return(MirType::uint256());
-            builder.add_return(MirType::uint256());
-            builder.ret([data, len]);
+            builder.ret([base]);
         }
         module.add_function(function)
     }
@@ -734,6 +753,7 @@ impl LowerAbiCx {
         Self::validate_memory_tuple_input(builder, base, length, head_size, current);
 
         let mut invalid = builder.imm_bool(false);
+        let mut grouped = Vec::new();
         let mut offset = 0_u64;
         for ty in &layout.types {
             Self::validate_static_memory_child(
@@ -742,8 +762,13 @@ impl LowerAbiCx {
                 base,
                 &mut offset,
                 &mut invalid,
+                &mut grouped,
                 has_bitwise_shifting,
             );
+        }
+        for (validator, value) in grouped {
+            let violation = validator.violation(builder, value, true);
+            invalid = builder.or(invalid, violation);
         }
 
         *current = builder.revert_if(invalid);
@@ -771,10 +796,26 @@ impl LowerAbiCx {
         ty: &AbiParamType,
         head: ValueId,
         invalid: &mut ValueId,
+        grouped: &mut Vec<(AbiWordValidator, ValueId)>,
         has_bitwise_shifting: bool,
     ) {
         if let Some(validator) = ty.word_validator() {
             let value = builder.mload(head);
+            if has_bitwise_shifting
+                && matches!(
+                    validator,
+                    AbiWordValidator::Unsigned(_) | AbiWordValidator::LeftAligned(_)
+                )
+            {
+                if let Some((_, previous)) =
+                    grouped.iter_mut().find(|(candidate, _)| *candidate == validator)
+                {
+                    *previous = builder.or(*previous, value);
+                } else {
+                    grouped.push((validator, value));
+                }
+                return;
+            }
             let violation = validator.violation(builder, value, has_bitwise_shifting);
             *invalid = builder.or(*invalid, violation);
             return;
@@ -789,6 +830,7 @@ impl LowerAbiCx {
                         head,
                         &mut offset,
                         invalid,
+                        grouped,
                         has_bitwise_shifting,
                     );
                 }
@@ -802,6 +844,7 @@ impl LowerAbiCx {
                         head,
                         &mut offset,
                         invalid,
+                        grouped,
                         has_bitwise_shifting,
                     );
                 }
@@ -819,6 +862,7 @@ impl LowerAbiCx {
         head: ValueId,
         offset: &mut u64,
         invalid: &mut ValueId,
+        grouped: &mut Vec<(AbiWordValidator, ValueId)>,
         has_bitwise_shifting: bool,
     ) {
         let child_head = builder.add_u64_offset(head, *offset);
@@ -827,6 +871,7 @@ impl LowerAbiCx {
             child,
             child_head,
             invalid,
+            grouped,
             has_bitwise_shifting,
         );
         *offset = offset
@@ -1359,15 +1404,23 @@ impl LowerAbiCx {
                             && (location != AbiParamLocation::Memory
                                 || (!constructor && matches!(ty, AbiParamType::Bytes)));
                         if validate_only {
-                            Self::validate_dynamic_aggregate_argument(
-                                &mut builder,
-                                ty,
-                                head,
-                                tuple_base,
-                                input_end,
-                                constructor,
-                                &mut current,
-                            );
+                            if !constructor
+                                && location == AbiParamLocation::Memory
+                                && matches!(ty, AbiParamType::Bytes)
+                                && let Some(helper) = self.calldata_slice_helper
+                            {
+                                builder.internal_call_void(helper, vec![head], 1);
+                            } else {
+                                Self::validate_dynamic_aggregate_argument(
+                                    &mut builder,
+                                    ty,
+                                    head,
+                                    tuple_base,
+                                    input_end,
+                                    constructor,
+                                    &mut current,
+                                );
+                            }
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
                                 && matches!(arg_type, MirType::MemoryObject(_))
@@ -1401,12 +1454,10 @@ impl LowerAbiCx {
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
-                            let data =
-                                builder.internal_call(helper, vec![head], MirType::uint256(), 2);
                             let base =
-                                builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                            let len_pos = builder.add_u64_offset(base, 32);
-                            let len = builder.mload(len_pos);
+                                builder.internal_call(helper, vec![head], MirType::uint256(), 1);
+                            let len = builder.calldataload(base);
+                            let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, SliceLocation::Calldata)
                         } else {
                             Self::decode_aggregate_argument(
@@ -1652,7 +1703,7 @@ impl LowerAbiCx {
             && matches!(ty, crate::mir::AbiParamType::Bytes)
             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
         {
-            let (data, len) = Self::decode_calldata_bytes_slice_values(
+            let (_, data, len) = Self::decode_calldata_bytes_slice_values(
                 builder,
                 head,
                 tuple_base,
@@ -1905,20 +1956,15 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm_u64(32);
-                let thirty_one = builder.imm_u64(31);
                 let data = builder.add(base, word);
                 Self::guard_input_range_value(builder, data, len, input_end, current);
                 // The source range check bounds calldata lengths before
                 // rounding; only memory-input decoding needs the explicit
                 // overflow branches used by Solidity's allocator.
-                let total = if constructor {
-                    Self::checked_padded_size(builder, len, current)
-                } else {
-                    let rounded = builder.add(len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let data_size = builder.and(rounded, mask);
-                    builder.add(data_size, word)
-                };
+                if !constructor {
+                    return Self::materialize_calldata_bytes(builder, data, len);
+                }
+                let total = Self::checked_padded_size(builder, len, current);
                 let layout = crate::mir::MemoryObjectLayout::Bytes;
                 let ptr =
                     builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
@@ -1989,6 +2035,25 @@ impl LowerAbiCx {
             }
             _ => builder.undef(arg_type),
         }
+    }
+
+    fn materialize_calldata_bytes(
+        builder: &mut FunctionBuilder<'_>,
+        data: ValueId,
+        len: ValueId,
+    ) -> ValueId {
+        let word = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let mask = builder.not(thirty_one);
+        let data_size = builder.and(rounded, mask);
+        let total = builder.add(data_size, word);
+        let layout = crate::mir::MemoryObjectLayout::Bytes;
+        let ptr = builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
+        builder.set_memory_object_len(ptr, len, layout.kind());
+        let source = builder.make_slice(data, len, SliceLocation::Calldata);
+        builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
+        ptr
     }
 
     fn validate_scalar_array(
@@ -2108,7 +2173,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         current: &mut BlockId,
         head_checked: bool,
-    ) -> (ValueId, ValueId) {
+    ) -> (ValueId, ValueId, ValueId) {
         builder.switch_to_block(*current);
         if !head_checked {
             Self::guard_input_range(builder, head, 32, input_end, current);
@@ -2127,7 +2192,7 @@ impl LowerAbiCx {
         let tail_invalid = builder.gt(len, remaining);
         let invalid = builder.or(head_invalid, tail_invalid);
         *current = builder.revert_if(invalid);
-        (data, len)
+        (base, data, len)
     }
 
     fn decode_static_calldata_argument(

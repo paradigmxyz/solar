@@ -24,7 +24,7 @@ bb4 [cold]:
   dup 1
   revert
 bb5:
-  push 448
+  push 416
   push 64
   mstore
   push 68
@@ -46,12 +46,12 @@ bb19:
   push 4
   dup 2
   add
-  push 36
-  dup 3
-  add
   dup 1
   push 384
   mstore
+  push 36
+  dup 3
+  add
   swap 2
   push 0
   not
@@ -62,30 +62,36 @@ bb19:
   dup 4
   gt
   or
-  swap 1
+  dup 2
   calldataload
-  dup 1
-  push 416
-  mstore
-  dup 3
+  dup 4
   calldatasize
   sub
-  dup 2
-  gt
+  swap 4
+  pop
+  swap 1
+  swap 3
+  lt
   swap 1
   swap 2
   or
   push bb21
   jumpi
   swap 1
-  swap 2
   jump
 bb8:
-  dup 2
-  push 192
+  dup 1
+  push 256
   mstore
   dup 1
+  calldataload
+  dup 1
   push 160
+  mstore
+  swap 1
+  push 32
+  add
+  push 192
   mstore
   gas
   push 224
@@ -96,8 +102,7 @@ bb8:
   shr
   dup 2
   gt
-  swap 2
-  pop
+  swap 1
   pop
   push bb4
   jumpi
@@ -137,7 +142,7 @@ bb23:
   swap 1
   jump
 bb12:
-  push 448
+  push 416
   push 64
   mstore
   push 68
@@ -155,11 +160,18 @@ bb12:
   push 36
   jump bb19
 bb15:
-  dup 2
-  push 192
+  dup 1
+  push 256
   mstore
   dup 1
+  calldataload
+  dup 1
   push 160
+  mstore
+  swap 1
+  push 32
+  add
+  push 192
   mstore
   gas
   push 224
@@ -170,8 +182,7 @@ bb15:
   shr
   dup 2
   gt
-  swap 2
-  pop
+  swap 1
   pop
   push bb4
   jumpi
@@ -255,7 +266,6 @@ bb25:
   delegatecall
   jump bb22
 bb21 [cold]:
-  pop
   pop
   push 0
   dup 1
