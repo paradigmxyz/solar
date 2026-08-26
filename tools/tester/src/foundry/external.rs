@@ -51,6 +51,8 @@ struct ExternalProject {
     /// Solc version to emulate on the compiler leg, for projects whose sources
     /// pin an exact solc version that forge's resolver checks pragmas against.
     solc_version: Option<&'static str>,
+    /// Foundry profile used for both compiler legs.
+    profile: Option<&'static str>,
     skip_tests: &'static [Skip],
     skip_contracts: &'static [Skip],
     notes: &'static str,
@@ -67,6 +69,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         rev: "d09dd1c4b9c7d9d05f976faa7ebfdc424dae5e8c",
         mode: ExternalMode::Test,
         solc_version: Some("0.8.19"),
+        profile: None,
         skip_tests: &[],
         skip_contracts: &[],
         notes: "lending core: exact 0.8.19 pragma, invariant suite, evm paris",
@@ -78,6 +81,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         // The test files pin `pragma solidity 0.8.15` exactly.
         solc_version: Some("0.8.15"),
+        profile: None,
         skip_tests: &[],
         skip_contracts: &[],
         notes: "token/utility library: heavy fuzz coverage of arithmetic edge cases",
@@ -88,6 +92,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         rev: "cedd7936a11807acd819c9f6acf48fdcefee3f73",
         mode: ExternalMode::Test,
         solc_version: None,
+        profile: None,
         skip_tests: &[],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
@@ -102,9 +107,10 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Build,
         // `contracts/Seaport.sol` pins `pragma solidity =0.8.24`.
         solc_version: Some("0.8.24"),
+        profile: Some("optimized"),
         skip_tests: &[],
         skip_contracts: &[],
-        notes: "build-only: whole-project codegen, artifact parity and EIP-170 tracker",
+        notes: "build-only: whole-project codegen and artifact parity",
     },
     ExternalProject {
         name: "openzeppelin-contracts",
@@ -112,6 +118,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         rev: "f646874fdc9b151631e3c96a68defbdbe736cd53",
         mode: ExternalMode::Test,
         solc_version: None,
+        profile: None,
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: broadest idiomatic Solidity surface; needs a forge that knows evm osaka",
@@ -123,6 +130,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         // `src/PoolManager.sol` pins `pragma solidity =0.8.26`.
         solc_version: Some("0.8.26"),
+        profile: None,
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
@@ -148,6 +156,7 @@ struct ResolvedProject {
     source: ProjectSource,
     mode: ExternalMode,
     solc_version: Option<String>,
+    profile: Option<String>,
     skip_tests: Vec<SkipEntry>,
     skip_contracts: Vec<SkipEntry>,
     notes: String,
@@ -173,6 +182,7 @@ struct ManifestProject {
     #[serde(default = "default_mode")]
     mode: ExternalMode,
     solc_version: Option<String>,
+    profile: Option<String>,
     #[serde(default)]
     skip_tests: Vec<ManifestSkip>,
     #[serde(default)]
@@ -204,6 +214,7 @@ impl ResolvedProject {
             },
             mode: project.mode,
             solc_version: project.solc_version.map(str::to_string),
+            profile: project.profile.map(str::to_string),
             skip_tests: skip_entries(project.skip_tests),
             skip_contracts: skip_entries(project.skip_contracts),
             notes: project.notes.to_string(),
@@ -230,6 +241,7 @@ impl ResolvedProject {
             source,
             mode: project.mode,
             solc_version: project.solc_version,
+            profile: project.profile,
             skip_tests: manifest_skips(project.skip_tests),
             skip_contracts: manifest_skips(project.skip_contracts),
             notes: project.notes,
@@ -250,6 +262,7 @@ impl ResolvedProject {
             build_only: self.mode == ExternalMode::Build,
             fuzz_seed: Some(EXTERNAL_FUZZ_SEED),
             solc_wrapper_version: self.solc_version.clone(),
+            foundry_profile: self.profile.clone(),
             traces: false,
             rerun_command: format!("cargo tq foundry-external {}", self.name),
         }

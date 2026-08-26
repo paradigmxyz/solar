@@ -7,34 +7,31 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import gzip
 import hashlib
 import json
 import re
 import shutil
-import subprocess
 import statistics
+import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
 
 from cases import (
     DEFAULT_FOURTH,
     DEFAULT_SENDER,
     DEFAULT_SPENDER,
     DEFAULT_THIRD,
-    EDGE_BYTES32,
-    MAX_UINT128,
     MAX_UINT256,
-    MIXED_BYTES32,
-    SIGNED_HASH,
     TEST_CASES,
-    TestCase,
     ZERO_ADDRESS,
+    TestCase,
     gas_calls,
     runtime_checks,
 )
@@ -109,7 +106,7 @@ def verbose_log(enabled: bool, message: str) -> None:
         print(message, flush=True)
 
 
-def find_binary(explicit: Optional[str], candidates: Sequence[str]) -> Optional[Path]:
+def find_binary(explicit: str | None, candidates: Sequence[str]) -> Path | None:
     if explicit:
         path = Path(explicit)
         if path.exists():
@@ -131,7 +128,7 @@ def find_binary(explicit: Optional[str], candidates: Sequence[str]) -> Optional[
     return None
 
 
-def binary_version(path: Path) -> Tuple[str, str]:
+def binary_version(path: Path) -> tuple[str, str]:
     result = run([str(path), "--version"], timeout=30)
     if result.returncode != 0:
         error = (result.stderr or result.stdout or "version command failed").strip()
@@ -142,22 +139,20 @@ def binary_version(path: Path) -> Tuple[str, str]:
     return version, ""
 
 
-def parse_version_tuple(version: str) -> Optional[Tuple[int, int, int]]:
+def parse_version_tuple(version: str) -> tuple[int, int, int] | None:
     match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
     if not match:
         return None
     return tuple(int(part) for part in match.groups())
 
 
-def version_in_range(version: str, minimum: Optional[str], maximum: Optional[str]) -> bool:
+def version_in_range(version: str, minimum: str | None, maximum: str | None) -> bool:
     parsed = parse_version_tuple(version)
     if parsed is None:
         return True
     if minimum and parsed < parse_version_tuple(minimum):
         return False
-    if maximum and parsed > parse_version_tuple(maximum):
-        return False
-    return True
+    return not (maximum and parsed > parse_version_tuple(maximum))
 
 
 @dataclass(frozen=True)
@@ -196,7 +191,7 @@ def standard_json_input(test_case: TestCase) -> str:
     return json.dumps(payload)
 
 
-@lru_cache(maxsize=None)
+@cache
 def project_full_standard_json_input(project_file: str) -> str:
     path = PROJECTS_ROOT / project_file
     with gzip.open(path, mode="rt", encoding="utf-8") as file:
@@ -207,7 +202,7 @@ def full_project_standard_json_input(project_file: str) -> str:
     return project_full_standard_json_input(project_file)
 
 
-def with_evm_version(input_text: str, evm_version: Optional[str]) -> str:
+def with_evm_version(input_text: str, evm_version: str | None) -> str:
     if evm_version is None:
         return input_text
     payload = json.loads(input_text)
@@ -253,8 +248,8 @@ def compile_case(
     spec: CompilerSpec,
     test_case: TestCase,
     compile_repeats: int = 1,
-    evm_version: Optional[str] = None,
-) -> Dict[str, object]:
+    evm_version: str | None = None,
+) -> dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -348,7 +343,7 @@ def compile_case(
     return result
 
 
-def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
+def parse_whole_project_output(stdout: str) -> tuple[int, int, str]:
     """Returns contract entries, entries with nonempty bytecode, and an error."""
     try:
         output = json.loads(stdout)
@@ -373,14 +368,14 @@ def parse_whole_project_output(stdout: str) -> Tuple[int, int, str]:
     return compiled, objects, ""
 
 
-def parse_full_project_output(stdout: str, test_case: TestCase) -> Tuple[int, int, str]:
+def parse_full_project_output(stdout: str, test_case: TestCase) -> tuple[int, int, str]:
     del test_case
     return parse_whole_project_output(stdout)
 
 
 def parse_standard_json_output(
     stdout: str, test_case: TestCase
-) -> Tuple[Optional[str], Optional[str], str]:
+) -> tuple[str | None, str | None, str]:
     try:
         output = json.loads(stdout)
     except json.JSONDecodeError as exc:
@@ -406,17 +401,19 @@ def parse_standard_json_output(
                 return bytecode, deployed, ""
 
     available = [
-        name
-        for source_contracts in contracts.values()
-        for name in source_contracts.keys()
+        name for source_contracts in contracts.values() for name in source_contracts
     ]
-    return None, None, f"contract {test_case.contract_name} not found; available: {', '.join(available)}"
+    return (
+        None,
+        None,
+        f"contract {test_case.contract_name} not found; available: {', '.join(available)}",
+    )
 
 
-
-
-@lru_cache(maxsize=None)
-def compile_runtime_fixture(solc_path: str, contract_name: str) -> Tuple[Optional[str], str]:
+@cache
+def compile_runtime_fixture(
+    solc_path: str, contract_name: str
+) -> tuple[str | None, str]:
     source_name = str(RUNTIME_FIXTURES.relative_to(ROOT))
     payload = {
         "language": "Solidity",
@@ -426,7 +423,9 @@ def compile_runtime_fixture(solc_path: str, contract_name: str) -> Tuple[Optiona
             "outputSelection": {"*": {contract_name: ["evm.bytecode.object"]}},
         },
     }
-    proc = run([solc_path, "--standard-json"], input_text=json.dumps(payload), timeout=120)
+    proc = run(
+        [solc_path, "--standard-json"], input_text=json.dumps(payload), timeout=120
+    )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or "fixture compiler failed")[:1000]
     try:
@@ -485,7 +484,9 @@ def start_anvil(rpc_url: str) -> subprocess.Popen[bytes]:
     raise RuntimeError("anvil did not accept RPC requests")
 
 
-def abi_encode_constructor(constructor_args: Sequence[str], constructor_sig: Optional[str]) -> Optional[str]:
+def abi_encode_constructor(
+    constructor_args: Sequence[str], constructor_sig: str | None
+) -> str | None:
     if not constructor_args:
         return ""
     if not constructor_sig:
@@ -494,7 +495,7 @@ def abi_encode_constructor(constructor_args: Sequence[str], constructor_sig: Opt
     if proc.returncode != 0:
         return None
     encoded = proc.stdout.strip()
-    return encoded[2:] if encoded.startswith("0x") else encoded
+    return encoded.removeprefix("0x")
 
 
 def deploy_contract(
@@ -502,7 +503,7 @@ def deploy_contract(
     test_case: TestCase,
     rpc_url: str,
     private_key: str,
-) -> Tuple[Optional[str], Optional[int], str]:
+) -> tuple[str | None, int | None, str]:
     return deploy_creation_code(
         bytecode,
         test_case.constructor_args,
@@ -515,10 +516,10 @@ def deploy_contract(
 def deploy_creation_code(
     bytecode: str,
     constructor_args: Sequence[str],
-    constructor_sig: Optional[str],
+    constructor_sig: str | None,
     rpc_url: str,
     private_key: str,
-) -> Tuple[Optional[str], Optional[int], str]:
+) -> tuple[str | None, int | None, str]:
     if not bytecode.startswith("0x"):
         bytecode = "0x" + bytecode
 
@@ -533,7 +534,7 @@ def deploy_creation_code_from_file(
     bytecode: str,
     rpc_url: str,
     private_key: str,
-) -> Tuple[Optional[str], Optional[int], str]:
+) -> tuple[str | None, int | None, str]:
     sender, error = private_key_address(private_key)
     if sender is None:
         return None, None, error
@@ -565,7 +566,7 @@ def deploy_creation_code_from_file(
 
 
 @lru_cache
-def private_key_address(private_key: str) -> Tuple[Optional[str], str]:
+def private_key_address(private_key: str) -> tuple[str | None, str]:
     if private_key == DEFAULT_PRIVATE_KEY:
         return DEFAULT_SENDER, ""
     proc = run(["cast", "wallet", "address", "--private-key", private_key], timeout=30)
@@ -576,16 +577,24 @@ def private_key_address(private_key: str) -> Tuple[Optional[str], str]:
 
 def parse_deploy_receipt(
     data: dict[str, object],
-) -> Tuple[Optional[str], Optional[int], str]:
+) -> tuple[str | None, int | None, str]:
     status = parse_receipt_int(data.get("status"))
     gas = data.get("gasUsed")
     deploy_gas = parse_receipt_int(gas)
     if status is not None and status != 1:
-        return None, deploy_gas, f"deploy transaction failed (status={status}, gasUsed={deploy_gas})"
+        return (
+            None,
+            deploy_gas,
+            f"deploy transaction failed (status={status}, gasUsed={deploy_gas})",
+        )
     if deploy_gas is None:
         return None, None, "deploy receipt missing gasUsed"
     contract_address = data.get("contractAddress")
-    return contract_address if isinstance(contract_address, str) else None, deploy_gas, ""
+    return (
+        contract_address if isinstance(contract_address, str) else None,
+        deploy_gas,
+        "",
+    )
 
 
 def rpc_request_from_file(
@@ -593,7 +602,7 @@ def rpc_request_from_file(
     params: Sequence[object],
     rpc_url: str,
     timeout: int = CAST_READ_TIMEOUT,
-) -> Tuple[Optional[object], str]:
+) -> tuple[object | None, str]:
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -625,7 +634,7 @@ def call_contract(
     args: Sequence[str],
     rpc_url: str,
     private_key: str,
-) -> Tuple[Optional[int], str]:
+) -> tuple[int | None, str]:
     proc = run(
         [
             "cast",
@@ -667,7 +676,7 @@ def read_contract(
     signature: str,
     args: Sequence[str],
     rpc_url: str,
-) -> Tuple[Optional[str], str]:
+) -> tuple[str | None, str]:
     proc = run(
         [
             "cast",
@@ -692,7 +701,9 @@ def read_contract(
     return value, ""
 
 
-def rpc_request(method: str, params: Sequence[object], rpc_url: str) -> Tuple[Optional[object], str]:
+def rpc_request(
+    method: str, params: Sequence[object], rpc_url: str
+) -> tuple[object | None, str]:
     proc = run(
         ["cast", "rpc", "--rpc-url", rpc_url, "--raw", method],
         input_text=json.dumps(list(params)),
@@ -738,7 +749,7 @@ def send_value(address: str, amount: str, rpc_url: str, private_key: str) -> str
     return "" if status in (None, 1) else f"value transfer failed (status={status})"
 
 
-def encode_calldata(signature: str, args: Sequence[str]) -> Tuple[Optional[str], str]:
+def encode_calldata(signature: str, args: Sequence[str]) -> tuple[str | None, str]:
     proc = run(["cast", "calldata", signature, *args], timeout=30)
     if proc.returncode != 0:
         return None, proc.stderr[:1000]
@@ -750,7 +761,7 @@ def eth_call_raw(
     signature: str,
     args: Sequence[str],
     rpc_url: str,
-) -> Tuple[Optional[str], Optional[str], str]:
+) -> tuple[str | None, str | None, str]:
     calldata, error = encode_calldata(signature, args)
     if calldata is None:
         return None, None, error
@@ -780,15 +791,15 @@ def eth_call_raw(
     return None, None, message[:1000]
 
 
-def runtime_ok(label: str, value: object) -> Dict[str, object]:
+def runtime_ok(label: str, value: object) -> dict[str, object]:
     return {"label": label, "status": "ok", "value": str(value)}
 
 
-def runtime_error(label: str, error: str) -> Dict[str, object]:
+def runtime_error(label: str, error: str) -> dict[str, object]:
     return {"label": label, "status": "failed", "error": error}
 
 
-def checked_value(label: str, actual: object, expected: object) -> Dict[str, object]:
+def checked_value(label: str, actual: object, expected: object) -> dict[str, object]:
     actual_text = str(actual)
     expected_text = str(expected)
     if actual_text != expected_text:
@@ -801,7 +812,7 @@ def read_uint(
     signature: str,
     args: Sequence[str],
     rpc_url: str,
-) -> Tuple[Optional[int], str]:
+) -> tuple[int | None, str]:
     value, error = read_contract(address, signature, args, rpc_url)
     if value is None:
         return None, error
@@ -816,19 +827,23 @@ def read_address(
     signature: str,
     args: Sequence[str],
     rpc_url: str,
-) -> Tuple[Optional[str], str]:
+) -> tuple[str | None, str]:
     value, error = read_contract(address, signature, args, rpc_url)
     if value is None:
         return None, error
     match = re.search(r"0x[0-9a-fA-F]{40}", value)
-    return (match.group(0).lower(), "") if match else (None, f"invalid address result: {value}")
+    return (
+        (match.group(0).lower(), "")
+        if match
+        else (None, f"invalid address result: {value}")
+    )
 
 
-def decode_words(data: str) -> List[int]:
-    raw = data[2:] if data.startswith("0x") else data
+def decode_words(data: str) -> list[int]:
+    raw = data.removeprefix("0x")
     if len(raw) % 64 != 0:
         raise ValueError(f"ABI result has {len(raw)} hex digits")
-    return [int(raw[index:index + 64], 16) for index in range(0, len(raw), 64)]
+    return [int(raw[index : index + 64], 16) for index in range(0, len(raw), 64)]
 
 
 def run_vesting_cold_paths(
@@ -836,7 +851,7 @@ def run_vesting_cold_paths(
     solc_path: Path,
     rpc_url: str,
     private_key: str,
-) -> List[Dict[str, object]]:
+) -> list[dict[str, object]]:
     error = send_value(address, "1000", rpc_url, private_key)
     if error:
         return [runtime_error("cold-vesting-eth-setup", error)]
@@ -856,7 +871,9 @@ def run_vesting_cold_paths(
     )
     if token is None:
         return [runtime_error("cold-vesting-token-deploy", error)]
-    _, error = call_contract(address, "release(address)", (token,), rpc_url, private_key)
+    _, error = call_contract(
+        address, "release(address)", (token,), rpc_url, private_key
+    )
     if error:
         return [runtime_error("cold-vesting-token-release", error)]
 
@@ -864,19 +881,49 @@ def run_vesting_cold_paths(
     reads = (
         ("cold-vesting-released-eth", address, "released()(uint256)", (), 1000),
         ("cold-vesting-releasable-eth", address, "releasable()(uint256)", (), 0),
-        ("cold-vesting-released-token", address, "released(address)(uint256)", (token,), 2000),
-        ("cold-vesting-releasable-token", address, "releasable(address)(uint256)", (token,), 0),
-        ("cold-vesting-token-empty", token, "balanceOf(address)(uint256)", (address,), 0),
-        ("cold-vesting-owner-token", token, "balanceOf(address)(uint256)", (DEFAULT_SENDER,), 2000),
+        (
+            "cold-vesting-released-token",
+            address,
+            "released(address)(uint256)",
+            (token,),
+            2000,
+        ),
+        (
+            "cold-vesting-releasable-token",
+            address,
+            "releasable(address)(uint256)",
+            (token,),
+            0,
+        ),
+        (
+            "cold-vesting-token-empty",
+            token,
+            "balanceOf(address)(uint256)",
+            (address,),
+            0,
+        ),
+        (
+            "cold-vesting-owner-token",
+            token,
+            "balanceOf(address)(uint256)",
+            (DEFAULT_SENDER,),
+            2000,
+        ),
     )
     for label, target, signature, args, expected in reads:
         value, error = read_uint(target, signature, args, rpc_url)
-        observations.append(runtime_error(label, error) if value is None else checked_value(label, value, expected))
+        observations.append(
+            runtime_error(label, error)
+            if value is None
+            else checked_value(label, value, expected)
+        )
     balance, error = rpc_request("eth_getBalance", (address, "latest"), rpc_url)
     if balance is None:
         observations.append(runtime_error("cold-vesting-eth-empty", error))
     else:
-        observations.append(checked_value("cold-vesting-eth-empty", int(str(balance), 16), 0))
+        observations.append(
+            checked_value("cold-vesting-eth-empty", int(str(balance), 16), 0)
+        )
     return observations
 
 
@@ -885,14 +932,16 @@ def run_fractional_cold_paths(
     solc_path: Path,
     rpc_url: str,
     private_key: str,
-) -> List[Dict[str, object]]:
+) -> list[dict[str, object]]:
     nft_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeNFT")
     if nft_bytecode is None:
         return [runtime_error("cold-fractional-nft-compile", error)]
     nft, _, error = deploy_creation_code(nft_bytecode, (), None, rpc_url, private_key)
     if nft is None:
         return [runtime_error("cold-fractional-nft-deploy", error)]
-    _, error = call_contract(nft, "setApprovalForAll(address,bool)", (address, "true"), rpc_url, private_key)
+    _, error = call_contract(
+        nft, "setApprovalForAll(address,bool)", (address, "true"), rpc_url, private_key
+    )
     if error:
         return [runtime_error("cold-fractional-approve-nft", error)]
     _, error = call_contract(
@@ -913,7 +962,11 @@ def run_fractional_cold_paths(
     except ValueError as exc:
         return [runtime_error("cold-fractional-vault", str(exc))]
     if len(vault) != 4:
-        return [runtime_error("cold-fractional-vault", f"expected 4 words, got {len(vault)}")]
+        return [
+            runtime_error(
+                "cold-fractional-vault", f"expected 4 words, got {len(vault)}"
+            )
+        ]
     token = "0x" + f"{vault[3]:040x}"
 
     observations = [
@@ -926,16 +979,22 @@ def run_fractional_cold_paths(
     observations.append(
         runtime_error("cold-fractional-nft-custody", error)
         if nft_owner is None
-        else checked_value("cold-fractional-nft-custody", nft_owner == address.lower(), True)
+        else checked_value(
+            "cold-fractional-nft-custody", nft_owner == address.lower(), True
+        )
     )
-    share_balance, error = read_uint(token, "balanceOf(address)(uint256)", (DEFAULT_SENDER,), rpc_url)
+    share_balance, error = read_uint(
+        token, "balanceOf(address)(uint256)", (DEFAULT_SENDER,), rpc_url
+    )
     observations.append(
         runtime_error("cold-fractional-share-minted", error)
         if share_balance is None
         else checked_value("cold-fractional-share-minted", share_balance, 1000)
     )
 
-    _, error = call_contract(token, "approve(address,uint256)", (address, MAX_UINT256), rpc_url, private_key)
+    _, error = call_contract(
+        token, "approve(address,uint256)", (address, MAX_UINT256), rpc_url, private_key
+    )
     if error:
         observations.append(runtime_error("cold-fractional-approve-share", error))
         return observations
@@ -946,16 +1005,28 @@ def run_fractional_cold_paths(
 
     empty_vault, _, error = eth_call_raw(address, "getVault(uint256)", ("1",), rpc_url)
     if empty_vault is None:
-        observations.append(runtime_error("cold-fractional-vault-cleared", error or "getVault reverted"))
+        observations.append(
+            runtime_error("cold-fractional-vault-cleared", error or "getVault reverted")
+        )
     else:
-        observations.append(checked_value("cold-fractional-vault-cleared", all(word == 0 for word in decode_words(empty_vault)), True))
+        observations.append(
+            checked_value(
+                "cold-fractional-vault-cleared",
+                all(word == 0 for word in decode_words(empty_vault)),
+                True,
+            )
+        )
     nft_owner, error = read_address(nft, "ownerOf(uint256)(address)", ("1",), rpc_url)
     observations.append(
         runtime_error("cold-fractional-nft-returned", error)
         if nft_owner is None
-        else checked_value("cold-fractional-nft-returned", nft_owner, DEFAULT_SENDER.lower())
+        else checked_value(
+            "cold-fractional-nft-returned", nft_owner, DEFAULT_SENDER.lower()
+        )
     )
-    share_balance, error = read_uint(token, "balanceOf(address)(uint256)", (DEFAULT_SENDER,), rpc_url)
+    share_balance, error = read_uint(
+        token, "balanceOf(address)(uint256)", (DEFAULT_SENDER,), rpc_url
+    )
     observations.append(
         runtime_error("cold-fractional-share-burned", error)
         if share_balance is None
@@ -971,8 +1042,8 @@ def keccak256(data: bytes) -> bytes:
     return bytes.fromhex(proc.stdout.strip().removeprefix("0x"))
 
 
-@lru_cache(maxsize=None)
-def nitro_dispatch_vector(opcode: int) -> Tuple[str, str]:
+@cache
+def nitro_dispatch_vector(opcode: int) -> tuple[str, str]:
     zero = bytes(32)
     u32_zero = bytes(4)
     u64_zero = bytes(8)
@@ -982,20 +1053,27 @@ def nitro_dispatch_vector(opcode: int) -> Tuple[str, str]:
     functions_root = keccak256(b"Function:" + instructions_hash)
     memory_hash = keccak256(b"Memory:" + u64_zero + u64_zero + zero)
     module = zero + u64_zero + u64_zero + zero + zero + functions_root + zero + u32_zero
-    module_hash = keccak256(b"Module:" + zero + memory_hash + zero + functions_root + zero + u32_zero)
+    module_hash = keccak256(
+        b"Module:" + zero + memory_hash + zero + functions_root + zero + u32_zero
+    )
 
     inactive_multi = zero + zero
     multistack_hash = keccak256(b"multistack:" + zero + zero + zero)
-    recovery_pc = bytes([0xff]) * 32
+    recovery_pc = bytes([0xFF]) * 32
     machine = (
         b"\x00"
-        + zero + u256_zero
-        + inactive_multi
-        + zero + u256_zero
-        + zero + b"\x00"
+        + zero
+        + u256_zero
         + inactive_multi
         + zero
-        + u32_zero + u32_zero + u32_zero
+        + u256_zero
+        + zero
+        + b"\x00"
+        + inactive_multi
+        + zero
+        + u32_zero
+        + u32_zero
+        + u32_zero
         + recovery_pc
         + module_hash
     )
@@ -1005,7 +1083,9 @@ def nitro_dispatch_vector(opcode: int) -> Tuple[str, str]:
         + zero
         + multistack_hash
         + zero
-        + u32_zero + u32_zero + u32_zero
+        + u32_zero
+        + u32_zero
+        + u32_zero
         + recovery_pc
         + module_hash
     )
@@ -1013,7 +1093,7 @@ def nitro_dispatch_vector(opcode: int) -> Tuple[str, str]:
     return "0x" + before_hash.hex(), "0x" + proof.hex()
 
 
-def run_nitro_cold_paths(address: str, rpc_url: str) -> List[Dict[str, object]]:
+def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, object]]:
     dispatches = (
         ("prover0", 0x01, DEFAULT_SENDER, 1),
         ("prover-mem", 0x28, DEFAULT_SPENDER, 2),
@@ -1044,9 +1124,13 @@ def run_nitro_cold_paths(address: str, rpc_url: str) -> List[Dict[str, object]]:
             if error:
                 observations.append(runtime_error(f"cold-nitro-{label}", error))
             elif revert_data is None:
-                observations.append(runtime_error(f"cold-nitro-{label}", "expected mock-prover revert"))
+                observations.append(
+                    runtime_error(f"cold-nitro-{label}", "expected mock-prover revert")
+                )
             else:
-                observations.append(checked_value(f"cold-nitro-{label}", revert_data, expected))
+                observations.append(
+                    checked_value(f"cold-nitro-{label}", revert_data, expected)
+                )
     finally:
         for _, _, prover, _ in dispatches:
             rpc_request("anvil_setCode", (prover, "0x"), rpc_url)
@@ -1059,7 +1143,7 @@ def run_cold_path_checks(
     solc_path: Path,
     rpc_url: str,
     private_key: str,
-) -> List[Dict[str, object]]:
+) -> list[dict[str, object]]:
     if test_case.test_id == "openzeppelin-vesting-wallet":
         return run_vesting_cold_paths(address, solc_path, rpc_url, private_key)
     if test_case.test_id == "lilweb3-fractional":
@@ -1069,9 +1153,11 @@ def run_cold_path_checks(
     return []
 
 
-def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSpec]) -> None:
+def compare_runtime_results(
+    entry: dict[str, object], specs: Sequence[CompilerSpec]
+) -> None:
     labels = []
-    values_by_compiler: Dict[str, Dict[str, str]] = {}
+    values_by_compiler: dict[str, dict[str, str]] = {}
     failed = False
 
     for spec in specs:
@@ -1091,6 +1177,10 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
 
     if not labels:
         entry["runtime_status"] = "skipped"
+        return
+    if len(specs) < 2:
+        entry["runtime_status"] = "failed" if failed else "skipped"
+        entry["runtime_mismatches"] = []
         return
     if len(specs) < 2:
         entry["runtime_status"] = "failed" if failed else "skipped"
@@ -1119,14 +1209,91 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
         entry["runtime_status"] = "ok"
 
 
+def result_key(result: dict[str, object]) -> tuple[str, str]:
+    return str(result.get("suite", "repository")), str(result.get("test_id", ""))
+
+
+def load_reference_results(path: Path) -> dict[tuple[str, str], dict[str, object]]:
+    document = json.loads(path.read_text())
+    results = document.get("results") if isinstance(document, dict) else None
+    if not isinstance(results, list):
+        raise ValueError("expected a benchmark result document")
+    return {
+        result_key(result): result for result in results if isinstance(result, dict)
+    }
+
+
+def workload_signature(data: dict[str, object]) -> tuple[object, ...]:
+    signature = []
+    for field in ("gas_results", "runtime_results"):
+        observations = data.get(field)
+        if not isinstance(observations, list):
+            continue
+        signature.append(
+            (
+                field,
+                tuple(
+                    (
+                        observation.get("label"),
+                        observation.get("call"),
+                        tuple(observation.get("args") or ()),
+                    )
+                    for observation in observations
+                    if isinstance(observation, dict)
+                ),
+            )
+        )
+    return tuple(signature)
+
+
+def merge_reference_compiler(
+    entry: dict[str, object],
+    references: dict[tuple[str, str], dict[str, object]],
+    compiler_id: str,
+) -> bool:
+    reference = references.get(result_key(entry))
+    if reference is None:
+        return False
+    reference_compilers = reference.get("compilers")
+    if not isinstance(reference_compilers, dict):
+        return False
+    reference_data = reference_compilers.get(compiler_id)
+    compilers = entry.get("compilers") or {}
+    if not isinstance(reference_data, dict) or not isinstance(compilers, dict):
+        return False
+
+    reference_fingerprint = reference_data.get("input_fingerprint")
+    current_fingerprints = {
+        data.get("input_fingerprint")
+        for data in compilers.values()
+        if isinstance(data, dict) and data.get("input_fingerprint")
+    }
+    if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
+        return False
+    if entry.get("gas_profile") != reference.get("gas_profile"):
+        return False
+    if not any(
+        workload_signature(data) == workload_signature(reference_data)
+        for data in compilers.values()
+        if isinstance(data, dict)
+    ):
+        return False
+
+    entry["compilers"] = {
+        compiler_id: copy.deepcopy(reference_data),
+        **compilers,
+    }
+    return True
+
+
 def failed_test_result(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
     gas_profile: str,
     error: Exception,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     message = f"unexpected benchmark failure: {type(error).__name__}: {error}"[:1000]
-    entry: Dict[str, object] = {
+    entry: dict[str, object] = {
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
@@ -1134,8 +1301,7 @@ def failed_test_result(
         "gas_profile": gas_profile,
         "benchmark_error": message,
         "compilers": {
-            spec.compiler_id: {"status": "failed", "error": message}
-            for spec in specs
+            spec.compiler_id: {"status": "failed", "error": message} for spec in specs
         },
     }
     if test_case.project_file is not None:
@@ -1153,10 +1319,10 @@ def run_test_case(
     private_key: str,
     verbose: bool = False,
     compile_repeats: int = 1,
-    evm_version: Optional[str] = None,
-    reference_solc_path: Optional[Path] = None,
-) -> Dict[str, object]:
-    entry: Dict[str, object] = {
+    evm_version: str | None = None,
+    reference_solc_path: Path | None = None,
+) -> dict[str, object]:
+    entry: dict[str, object] = {
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
@@ -1167,6 +1333,9 @@ def run_test_case(
     if test_case.project_file is not None:
         entry["project"] = test_case.project
         entry["source"] = test_case.source
+    reference_solc = next(
+        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
+    )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         compiled = compile_case(spec, test_case, compile_repeats, evm_version)
@@ -1214,24 +1383,33 @@ def run_test_case(
         for call in calls:
             for index in range(call.repeat):
                 label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
-                verbose_log(verbose, f"[{test_case.test_id}] {spec.compiler_id} tx {label}: {call.signature}")
-                gas, error = call_contract(address, call.signature, call.args, rpc_url, private_key)
+                verbose_log(
+                    verbose,
+                    f"[{test_case.test_id}] {spec.compiler_id} tx {label}: {call.signature}",
+                )
+                gas, error = call_contract(
+                    address, call.signature, call.args, rpc_url, private_key
+                )
                 if gas is None:
                     gas_failed = True
-                    gas_results.append({
+                    gas_results.append(
+                        {
+                            "label": label,
+                            "call": call.signature,
+                            "args": list(call.args),
+                            "gas": None,
+                            "error": error,
+                        }
+                    )
+                    continue
+                gas_results.append(
+                    {
                         "label": label,
                         "call": call.signature,
                         "args": list(call.args),
-                        "gas": None,
-                        "error": error,
-                    })
-                    continue
-                gas_results.append({
-                    "label": label,
-                    "call": call.signature,
-                    "args": list(call.args),
-                    "gas": gas,
-                })
+                        "gas": gas,
+                    }
+                )
                 total_gas += gas
         compiler_entry["gas_results"] = gas_results
         compiler_entry["gas_status"] = "failed" if gas_failed else "ok"
@@ -1240,39 +1418,53 @@ def run_test_case(
         runtime_results = []
         runtime_failed = False
         for check in checks:
-            verbose_log(verbose, f"[{test_case.test_id}] {spec.compiler_id} read {check.label}: {check.signature}")
+            verbose_log(
+                verbose,
+                f"[{test_case.test_id}] {spec.compiler_id} read {check.label}: {check.signature}",
+            )
             value, error = read_contract(address, check.signature, check.args, rpc_url)
             if value is None:
                 runtime_failed = True
-                runtime_results.append({
+                runtime_results.append(
+                    {
+                        "label": check.label,
+                        "call": check.signature,
+                        "args": list(check.args),
+                        "status": "failed",
+                        "error": error,
+                    }
+                )
+                continue
+            runtime_results.append(
+                {
                     "label": check.label,
                     "call": check.signature,
                     "args": list(check.args),
-                    "status": "failed",
-                    "error": error,
-                })
-                continue
-            runtime_results.append({
-                "label": check.label,
-                "call": check.signature,
-                "args": list(check.args),
-                "status": "ok",
-                "value": value,
-            })
+                    "status": "ok",
+                    "value": value,
+                }
+            )
         if has_cold_paths:
-            if reference_solc_path is None:
-                cold_results = [runtime_error("cold-path-setup", "reference solc is required")]
+            if reference_solc is None:
+                cold_results = [
+                    runtime_error("cold-path-setup", "reference solc is required")
+                ]
             else:
-                verbose_log(verbose, f"[{test_case.test_id}] {spec.compiler_id} cold-path differential")
+                verbose_log(
+                    verbose,
+                    f"[{test_case.test_id}] {spec.compiler_id} cold-path differential",
+                )
                 cold_results = run_cold_path_checks(
                     test_case,
                     address,
-                    reference_solc_path,
+                    reference_solc,
                     rpc_url,
                     private_key,
                 )
             runtime_results.extend(cold_results)
-            runtime_failed |= any(result.get("status") != "ok" for result in cold_results)
+            runtime_failed |= any(
+                result.get("status") != "ok" for result in cold_results
+            )
         if checks or has_cold_paths:
             compiler_entry["runtime_results"] = runtime_results
             compiler_entry["runtime_status"] = "failed" if runtime_failed else "ok"
@@ -1290,15 +1482,20 @@ def select_tests(modes: Sequence[str], suite: str) -> Sequence[TestCase]:
         test
         for test in TEST_CASES
         if (suite == "all" or test.suite == suite)
-        and ((test.whole_project and compile_time) or (not test.whole_project and runtime))
+        and (
+            (test.whole_project and compile_time)
+            or (not test.whole_project and runtime)
+        )
     ]
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Benchmark solc vs Solar codegen on inline and repository contracts"
     )
-    parser.add_argument("--solc", default="solc", help="Path to solc binary (default: solc)")
+    parser.add_argument(
+        "--solc", default="solc", help="Path to solc binary (default: solc)"
+    )
     parser.add_argument(
         "--solar",
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
@@ -1331,32 +1528,68 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Benchmark Solar without compiling each case with solc",
     )
+    parser.add_argument(
+        "--reference-results",
+        type=Path,
+        help="Reuse matching solc results from another benchmark result document",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
-    parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
-    parser.add_argument("--list-tests", action="store_true", help="List available tests and exit")
+    parser.add_argument(
+        "--projects", nargs="*", help="Subset of repository project names to run"
+    )
+    parser.add_argument(
+        "--list-tests", action="store_true", help="List available tests and exit"
+    )
     parser.add_argument(
         "--include-incompatible",
         action="store_true",
         help="Run repository contracts even when their pragma is incompatible with the selected solc",
     )
-    parser.add_argument("--gas", action="store_true", help="Deploy, execute gas calls, and compare runtime results with cast/anvil")
+    parser.add_argument(
+        "--gas",
+        action="store_true",
+        help="Deploy, execute gas calls, and compare runtime results with cast/anvil",
+    )
     parser.add_argument(
         "--gas-profile",
         choices=("smoke", "hot"),
         default="smoke",
         help="Gas workload profile: smoke preserves the existing calls, hot runs a broader optimizer workload",
     )
-    parser.add_argument("--start-anvil", action="store_true", help="Start anvil automatically for --gas")
-    parser.add_argument("--rpc-url", default=DEFAULT_RPC_URL, help=f"RPC URL (default: {DEFAULT_RPC_URL})")
-    parser.add_argument("--private-key", default=DEFAULT_PRIVATE_KEY, help="Private key for transactions")
+    parser.add_argument(
+        "--start-anvil", action="store_true", help="Start anvil automatically for --gas"
+    )
+    parser.add_argument(
+        "--rpc-url",
+        default=DEFAULT_RPC_URL,
+        help=f"RPC URL (default: {DEFAULT_RPC_URL})",
+    )
+    parser.add_argument(
+        "--private-key",
+        default=DEFAULT_PRIVATE_KEY,
+        help="Private key for transactions",
+    )
     parser.add_argument("--output", help="Output JSON path")
-    parser.add_argument("--verbose", action="store_true", help="Print compiler errors for failed rows")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print compiler errors for failed rows"
+    )
     parser.add_argument(
         "--allow-failures",
         action="store_true",
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
+
+    if args.reference_results and not args.solar_only:
+        parser.error("--reference-results requires --solar-only")
+    try:
+        reference_results = (
+            load_reference_results(args.reference_results)
+            if args.reference_results
+            else {}
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        parser.error(f"failed to load reference results: {exc}")
 
     suite_tests = select_tests(args.mode, args.suite)
 
@@ -1368,13 +1601,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.list_tests:
         for test in suite_tests:
             if test.project_file is not None:
-                print(f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}")
+                print(
+                    f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}"
+                )
             else:
-                print(f"{test.test_id}	{test.suite}	inline	{test.contract_name}")
+                print(
+                    f"{test.test_id}	{test.suite}	inline	{test.contract_name}"
+                )
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc and not args.solar_only:
+    if not solc and (not args.solar_only or args.reference_results):
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1387,15 +1624,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ],
     )
     if not solar:
-        print(_color("solar binary not found; build Solar or pass --solar /path/to/solar", RED), file=sys.stderr)
+        print(
+            _color(
+                "solar binary not found; build Solar or pass --solar /path/to/solar",
+                RED,
+            ),
+            file=sys.stderr,
+        )
         return 1
 
     if args.gas and not check_tool("cast"):
-        print(_color("cast not found; install Foundry or omit --gas", RED), file=sys.stderr)
+        print(
+            _color("cast not found; install Foundry or omit --gas", RED),
+            file=sys.stderr,
+        )
         return 1
 
+    use_reference_solc = bool(args.reference_results)
     solc_version, solc_version_error = (
-        binary_version(solc) if solc and not args.solar_only else ("unavailable", "")
+        binary_version(solc)
+        if solc and (not args.solar_only or use_reference_solc)
+        else ("unavailable", "")
     )
     solar_version, solar_version_error = binary_version(solar)
 
@@ -1404,18 +1653,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
+    reference_solc_spec = (
+        CompilerSpec("solc", f"solc {solc_version}", solc, "solc")
+        if use_reference_solc and solc is not None
+        else None
+    )
 
     if args.tests:
         missing = [test_id for test_id in args.tests if test_id not in test_map]
         if missing:
-            print(_color(f"unknown test IDs: {', '.join(missing)}", RED), file=sys.stderr)
+            print(
+                _color(f"unknown test IDs: {', '.join(missing)}", RED), file=sys.stderr
+            )
             return 1
         tests = [test_map[test_id] for test_id in args.tests]
     else:
         tests = list(suite_tests)
 
     skipped = []
-    if not args.solar_only and not args.include_incompatible:
+    if (not args.solar_only or use_reference_solc) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1433,15 +1689,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         and not runtime_checks(test)
         for test in tests
     ):
-        print(_color("repository contracts without gas calls or runtime checks will show N/A in the gas table", YELLOW), file=sys.stderr)
+        print(
+            _color(
+                "repository contracts without gas calls or runtime checks will show N/A in the gas table",
+                YELLOW,
+            ),
+            file=sys.stderr,
+        )
 
     if args.gas and args.start_anvil and not check_tool("anvil"):
-        print(_color("anvil not found; install Foundry or omit --start-anvil", RED), file=sys.stderr)
+        print(
+            _color("anvil not found; install Foundry or omit --start-anvil", RED),
+            file=sys.stderr,
+        )
         return 1
 
     for spec in specs:
         print(f"Using {spec.label}")
-    if not args.solar_only and solc_version_error:
+    if args.reference_results:
+        print(f"Reusing solc results from {display_path(args.reference_results)}")
+    if (not args.solar_only or use_reference_solc) and solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -1451,10 +1718,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             file=sys.stderr,
         )
     if solar_version_error:
-        print(_color(f"Warning: `solar --version` failed: {solar_version_error}", YELLOW), file=sys.stderr)
+        print(
+            _color(f"Warning: `solar --version` failed: {solar_version_error}", YELLOW),
+            file=sys.stderr,
+        )
     if skipped:
         skipped_ids = ", ".join(test.test_id for test in skipped)
-        print(_color(f"Skipping {len(skipped)} incompatible tests for solc {solc_version}: {skipped_ids}", YELLOW))
+        print(
+            _color(
+                f"Skipping {len(skipped)} incompatible tests for solc {solc_version}: {skipped_ids}",
+                YELLOW,
+            )
+        )
     if args.evm_version:
         print(f"Forcing EVM version {args.evm_version}")
     print(f"Running {len(tests)} tests")
@@ -1480,7 +1755,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             suite = test.suite
             if suite != current_suite:
                 if current_suite is not None and suite_started is not None:
-                    timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
+                    timings[current_suite] = (
+                        timings.get(current_suite, 0.0)
+                        + time.monotonic()
+                        - suite_started
+                    )
                 current_suite = suite
                 suite_started = time.monotonic()
             try:
@@ -1498,13 +1777,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 )
             except Exception as exc:
                 print(
-                    _color(f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED),
+                    _color(
+                        f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED
+                    ),
                     file=sys.stderr,
                 )
                 result = failed_test_result(test, specs, args.gas_profile, exc)
+            if reference_solc_spec:
+                if merge_reference_compiler(result, reference_results, "solc"):
+                    if args.gas:
+                        compare_runtime_results(result, (reference_solc_spec, *specs))
+                else:
+                    print(
+                        _color(
+                            f"[{test.test_id}] matching solc reference result not found",
+                            YELLOW,
+                        ),
+                        file=sys.stderr,
+                    )
             results.append(result)
         if current_suite is not None and suite_started is not None:
-            timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
+            timings[current_suite] = (
+                timings.get(current_suite, 0.0) + time.monotonic() - suite_started
+            )
     finally:
         if anvil_proc:
             print("Stopping anvil...")
@@ -1517,7 +1812,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for result in results:
             for compiler_id, data in result["compilers"].items():
                 if data.get("status") != "ok":
-                    print(f"\n{result['test_id']} {compiler_id} error:\n{data.get('error', '')}")
+                    print(
+                        f"\n{result['test_id']} {compiler_id} error:\n{data.get('error', '')}"
+                    )
                 for check in data.get("runtime_results") or []:
                     if check.get("status") != "ok":
                         print(
@@ -1535,7 +1832,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     f"{compiler_id}={value}"
                     for compiler_id, value in mismatch.get("values", {}).items()
                 )
-                print(f"\n{result['test_id']} runtime mismatch {mismatch.get('label')}: {values}")
+                print(
+                    f"\n{result['test_id']} runtime mismatch {mismatch.get('label')}: {values}"
+                )
 
     RESULT_ROOT.mkdir(parents=True, exist_ok=True)
     output = Path(args.output) if args.output else RESULT_ROOT / "solar_latest.json"
@@ -1568,17 +1867,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if (failed or runtime_failed or gas_failed) and not args.allow_failures:
         if failed:
             print(
-                _color(f"{len(failed)} compiler runs failed; use --allow-failures to keep exit code 0", RED),
+                _color(
+                    f"{len(failed)} compiler runs failed; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
                 file=sys.stderr,
             )
         if runtime_failed:
             print(
-                _color(f"{len(runtime_failed)} runtime checks failed; use --allow-failures to keep exit code 0", RED),
+                _color(
+                    f"{len(runtime_failed)} runtime checks failed; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
                 file=sys.stderr,
             )
         if gas_failed:
             print(
-                _color(f"{len(gas_failed)} gas transaction runs failed; use --allow-failures to keep exit code 0", RED),
+                _color(
+                    f"{len(gas_failed)} gas transaction runs failed; use --allow-failures to keep exit code 0",
+                    RED,
+                ),
                 file=sys.stderr,
             )
         return 1

@@ -66,7 +66,9 @@ def main() -> int:
 
         # Always exercise `eth_call` so the exact return/revert bytes are
         # compared, including for the panic/revert vectors.
-        call_envelope = {"from": args.sender, "gas": evm.TX_GAS} if mode == "tx" else None
+        call_envelope = (
+            {"from": args.sender, "gas": evm.TX_GAS} if mode == "tx" else None
+        )
         solc_result: dict[str, Any] = {
             "call": evm.eth_call(
                 args.rpc_url, evm.SOLC_ADDRESS, calldata, args.timeout, call_envelope

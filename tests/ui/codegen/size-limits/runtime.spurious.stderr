@@ -1,0 +1,15 @@
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract test {
+LL │ ┃     function f() public pure returns (string memory ret) {
+LL │ ┃         // 27000 bytes long data
+LL │ ┃         ret = ".....................................................................................................................…
+LL │ ┃     }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+

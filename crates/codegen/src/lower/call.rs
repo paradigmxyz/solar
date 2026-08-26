@@ -1526,6 +1526,13 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(value);
         }
 
+        // Handle free functions accessed through an import namespace.
+        if matches!(self.gcx.resolved_expr(base), Some(hir::Res::Namespace(_)))
+            && let Some(func_id) = self.resolved_function_callee(callee)
+        {
+            return self.lower_internal_call(builder, func_id, args);
+        }
+
         // Handle library function calls: Library.func(args).
         if self.is_library_type_expr(base)
             && let Some(func_id) = self.resolved_function_callee(callee)

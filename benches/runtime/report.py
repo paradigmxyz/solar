@@ -42,9 +42,14 @@ def load_document(path: Path | None, label: str) -> dict[str, Any]:
     if isinstance(data, list):
         return {"results": data, "timings": {}}
     if not isinstance(data, dict) or not isinstance(data.get("results"), list):
-        warning(f"{label} benchmark results have unexpected shape: expected result document")
+        warning(
+            f"{label} benchmark results have unexpected shape: expected result document"
+        )
         return empty
-    return {"results": data["results"], "timings": normalize_timings(data.get("timings"))}
+    return {
+        "results": data["results"],
+        "timings": normalize_timings(data.get("timings")),
+    }
 
 
 def suite_name(result: dict[str, Any]) -> str:
@@ -84,7 +89,9 @@ def shorten(value: Any, limit: int = 160) -> str:
 
 
 def format_values(values: dict[str, Any]) -> str:
-    return ", ".join(f"{compiler}={shorten(value)}" for compiler, value in values.items())
+    return ", ".join(
+        f"{compiler}={shorten(value)}" for compiler, value in values.items()
+    )
 
 
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
@@ -128,7 +135,11 @@ def baseline_regression_details(
 
         solar_gas = total_gas(result, "solar")
         base_solar_gas = total_gas(base, "solar")
-        if solar_gas is not None and base_solar_gas is not None and solar_gas > base_solar_gas:
+        if (
+            solar_gas is not None
+            and base_solar_gas is not None
+            and solar_gas > base_solar_gas
+        ):
             details.append(
                 f"{test_id} solar gas regressed vs previous Solar run: "
                 f"{base_solar_gas:,} -> {solar_gas:,} "
@@ -138,7 +149,11 @@ def baseline_regression_details(
 
         solar_size = runtime_size(result, "solar")
         base_solar_size = runtime_size(base, "solar")
-        if solar_size is not None and base_solar_size is not None and solar_size > base_solar_size:
+        if (
+            solar_size is not None
+            and base_solar_size is not None
+            and solar_size > base_solar_size
+        ):
             details.append(
                 f"{test_id} solar runtime size regressed vs previous Solar run: "
                 f"{base_solar_size:,}B -> {solar_size:,}B "
@@ -219,12 +234,20 @@ def has_codegen_changes(
 
         solar_gas = total_gas(result, "solar")
         base_solar_gas = total_gas(base, "solar")
-        if solar_gas is not None and base_solar_gas is not None and solar_gas != base_solar_gas:
+        if (
+            solar_gas is not None
+            and base_solar_gas is not None
+            and solar_gas != base_solar_gas
+        ):
             return True
 
         solar_size = runtime_size(result, "solar")
         base_solar_size = runtime_size(base, "solar")
-        if solar_size is not None and base_solar_size is not None and solar_size != base_solar_size:
+        if (
+            solar_size is not None
+            and base_solar_size is not None
+            and solar_size != base_solar_size
+        ):
             return True
 
     return False
@@ -326,7 +349,9 @@ def successful_compile_time(result: dict[str, Any], compiler: str) -> float | No
     return compile_time(result, compiler)
 
 
-def compiler_build_fingerprint(result: dict[str, Any], compiler: str) -> tuple[str, str]:
+def compiler_build_fingerprint(
+    result: dict[str, Any], compiler: str
+) -> tuple[str, str]:
     data = compiler_data(result, compiler)
     command = str(data.get("command") or "")
     if "target/release/" in command or "target\\release\\" in command:
@@ -368,7 +393,7 @@ def fmt_int(value: int | None, suffix: str = "") -> str:
     return f"{value:,}{suffix}"
 
 
-def fmt_bytes(value: int | float | None) -> str:
+def fmt_bytes(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"{value / (1024 * 1024):,.1f} MiB"
@@ -463,7 +488,9 @@ def benchmark_rows(
                     fmt_value_with_lower_is_better_delta(
                         solar_size, solar_size, base_solar_size, "B"
                     ),
-                    fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
+                    fmt_value_with_delta_vs_current(
+                        solc_size, solar_size, solc_size, "B"
+                    ),
                 ]
             )
             + " |"
@@ -474,7 +501,7 @@ def benchmark_rows(
 def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
     ids = []
     for result in results:
-        for compiler_id in (result.get("compilers") or {}).keys():
+        for compiler_id in result.get("compilers") or {}:
             if compiler_id not in ids:
                 ids.append(compiler_id)
     return ids
@@ -555,16 +582,16 @@ def compile_time_rows(
         solc_time = compile_time(result, "solc")
         solar_time = compile_time(result, "solar")
         base = baseline.get(suite_key(result), {})
-        base_solar_time = (
-            baseline_compile_time(result, base, "solar") if base else None
-        )
+        base_solar_time = baseline_compile_time(result, base, "solar") if base else None
         rows.append(
             "| "
             + " | ".join(
                 [
                     markdown_cell(test_id),
-                    f"{fmt_duration(solar_time)} "
-                    f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})",
+                    (
+                        f"{fmt_duration(solar_time)} "
+                        f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})"
+                    ),
                     f"{fmt_duration(solc_time)} ({fmt_pct_vs_current(solar_time, solc_time)})",
                 ]
             )
@@ -584,7 +611,11 @@ def compile_time_report(
         (compile_time(result, "solc"), compile_time(result, "solar"))
         for result in results
     ]
-    paired = [(solc, solar) for solc, solar in paired if solc is not None and solar is not None]
+    paired = [
+        (solc, solar)
+        for solc, solar in paired
+        if solc is not None and solar is not None
+    ]
     if not paired:
         return []
 
@@ -597,8 +628,10 @@ def compile_time_report(
         f"| bench | time (vs {baseline_label}) | solc |",
         "| ----- | --------------------- | ---- |",
         *compile_time_rows(results, baseline),
-        f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
-        f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |",
+        (
+            f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
+            f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
+        ),
         "",
     ]
 
@@ -645,7 +678,9 @@ def codegen_report(
     return report_section("Codegen benchmark", results, baseline_results, baseline_ref)
 
 
-def emit_warnings(results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]) -> None:
+def emit_warnings(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> None:
     for failure in compiler_failures(results):
         warning(f"compiler failure recorded: {failure}")
     for detail in runtime_issue_details(results):
@@ -692,8 +727,7 @@ def format_report(
         )
     if not has_changes:
         notices += (
-            "> [!NOTE]\n"
-            f"> Codegen benchmark output is unchanged from `{base_ref}`.\n\n"
+            f"> [!NOTE]\n> Codegen benchmark output is unchanged from `{base_ref}`.\n\n"
         )
     details = (
         "<details>\n"
@@ -704,14 +738,14 @@ def format_report(
     return notices + details
 
 
-def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
+def metric(value: float, unit: str, statistic: str) -> dict[str, Any]:
     return {"value": value, "unit": unit, "statistic": statistic}
 
 
 def common_benchmark(
     name: str,
     results: list[dict[str, Any]],
-    timing: int | float | None,
+    timing: float | None,
 ) -> dict[str, Any] | None:
     if not results or timing is None:
         return None
@@ -851,7 +885,9 @@ def main() -> int:
     should_comment = has_codegen_changes(results, baseline_results)
     if not args.ignore_compile_time_changes:
         should_comment |= has_compile_time_changes(results, baseline_results)
-    markdown = format_report(report, should_comment, branch_is_behind(base_ref), base_ref)
+    markdown = format_report(
+        report, should_comment, branch_is_behind(base_ref), base_ref
+    )
     print(markdown)
     append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")

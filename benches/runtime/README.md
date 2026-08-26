@@ -14,11 +14,21 @@ Pass `--evm-version VERSION` to replace every archived Standard JSON target and 
 corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
 installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
+Use `--solar-only` for repeated local runs after recording a two-compiler baseline. This skips the
+reference solc compile for each case while retaining Solar compilation, gas measurements, and
+runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
+runtime comparisons are marked as skipped unless a matching reference result is supplied.
+
+Pass `--reference-results PATH` with `--solar-only` to reuse matching solc results from a prior
+run. The benchmark copies solc compile, gas, and runtime data only when the input fingerprint
+matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
+as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
+
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
-at commit `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The benchmark still compiles each contract with
-both compilers, deploys both artifacts, executes the same ordered transactions, and requires their
-normalized runtime observations to match.
+at commit `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The combined profile still contains each contract
+from both compilers, both deployed artifacts, the same ordered transactions, and matching normalized
+runtime observations.
 
 | Case | Upstream source | Revision | Files |
 | --- | --- | --- | ---: |
