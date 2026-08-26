@@ -6,7 +6,6 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,11 +43,11 @@ class BenchmarkEntry:
 class BenchmarkData:
     """Encapsulates benchmark data and provides methods for analysis and visualization."""
 
-    def __init__(self, entries: List[BenchmarkEntry]) -> None:
+    def __init__(self, entries: list[BenchmarkEntry]) -> None:
         """Initialize with a list of benchmark entries."""
         self.entries = entries
-        self.parsers = sorted(set(entry.parser for entry in entries))
-        self.benchmarks = sorted(set(entry.bench_name for entry in entries))
+        self.parsers = sorted({entry.parser for entry in entries})
+        self.benchmarks = sorted({entry.bench_name for entry in entries})
         self.kinds = KINDS
 
         # Filter out the "empty" benchmark
@@ -56,10 +55,10 @@ class BenchmarkData:
 
     def get_entries(
         self,
-        bench_name: Optional[str] = None,
-        parser: Optional[str] = None,
-        kind: Optional[str] = None,
-    ) -> List[BenchmarkEntry]:
+        bench_name: str | None = None,
+        parser: str | None = None,
+        kind: str | None = None,
+    ) -> list[BenchmarkEntry]:
         """Get entries filtered by benchmark name, parser, and/or kind."""
         result = self.entries
         if bench_name:
@@ -70,7 +69,7 @@ class BenchmarkData:
             result = [e for e in result if e.kind == kind]
         return result
 
-    def get_available_parsers(self, kind: str) -> List[str]:
+    def get_available_parsers(self, kind: str) -> list[str]:
         """Get parsers that have data for a specific kind."""
         available_parsers = []
         for parser in self.get_sorted_parsers()[kind]:
@@ -79,8 +78,8 @@ class BenchmarkData:
         return available_parsers
 
     def get_complete_benchmarks(
-        self, benchmarks: List[str], parsers: List[str], kind: str
-    ) -> List[str]:
+        self, benchmarks: list[str], parsers: list[str], kind: str
+    ) -> list[str]:
         """Get benchmarks with data from every parser."""
         return [
             bench_name
@@ -103,7 +102,7 @@ class BenchmarkData:
             return 0
         return max(e.time_ns for e in entries)
 
-    def calculate_parser_avg_times(self) -> Dict[str, Dict[str, float]]:
+    def calculate_parser_avg_times(self) -> dict[str, dict[str, float]]:
         """Calculate average times for each parser and kind."""
         parser_avg_times = {kind: {} for kind in self.kinds}
 
@@ -116,7 +115,7 @@ class BenchmarkData:
 
         return parser_avg_times
 
-    def calculate_benchmark_avg_times(self) -> Dict[str, Dict[str, float]]:
+    def calculate_benchmark_avg_times(self) -> dict[str, dict[str, float]]:
         """Calculate average times for each benchmark and kind."""
         bench_avg_times = {kind: {} for kind in self.kinds}
 
@@ -129,7 +128,7 @@ class BenchmarkData:
 
         return bench_avg_times
 
-    def get_sorted_parsers(self) -> Dict[str, List[str]]:
+    def get_sorted_parsers(self) -> dict[str, list[str]]:
         """Get parsers sorted by average time (fastest first)."""
         parser_avg_times = self.calculate_parser_avg_times()
 
@@ -142,7 +141,7 @@ class BenchmarkData:
             for kind in self.kinds
         }
 
-    def get_sorted_benchmarks(self) -> Dict[str, List[str]]:
+    def get_sorted_benchmarks(self) -> dict[str, list[str]]:
         """Get benchmarks sorted by average time (fastest first)."""
         bench_avg_times = self.calculate_benchmark_avg_times()
 
@@ -225,7 +224,7 @@ def main() -> None:
         print(out_s)
 
 
-def read_input() -> List[str]:
+def read_input() -> list[str]:
     """Read and preprocess input from stdin."""
     lines = sys.stdin.readlines()
     if not lines:
@@ -240,7 +239,7 @@ def read_input() -> List[str]:
     return lines
 
 
-def extract_benchmarks(lines: List[str]) -> List[Tuple[str, int, int]]:
+def extract_benchmarks(lines: list[str]) -> list[tuple[str, int, int]]:
     """Extract benchmark information from input lines."""
     benchmark_re = re.compile(r"(\w+): (?:\d+ files, )?(\d+) LoC, (\d+) bytes")
     benchmarks = []
@@ -258,7 +257,7 @@ def extract_benchmarks(lines: List[str]) -> List[Tuple[str, int, int]]:
 
 
 def extract_timing_data(
-    lines: List[str], benchmarks: List[Tuple[str, int, int]]
+    lines: list[str], benchmarks: list[tuple[str, int, int]]
 ) -> BenchmarkData:
     """Extract timing data from input lines."""
     time = r"(\s*[\d\.]+ \w+)"
@@ -279,7 +278,7 @@ def extract_timing_data(
 
 
 def generate_markdown_tables(
-    data: BenchmarkData, benchmarks: List[Tuple[str, int, int]]
+    data: BenchmarkData, benchmarks: list[tuple[str, int, int]]
 ) -> str:
     """
     Generate markdown tables for each benchmark and kind.
@@ -336,11 +335,11 @@ def generate_markdown_tables(
                     (
                         slowest_time / time_ns,
                         [
-                        parser,
-                        relative,
-                        time_s,
-                        loc_s,
-                        bytes_s,
+                            parser,
+                            relative,
+                            time_s,
+                            loc_s,
+                            bytes_s,
                         ],
                     )
                 )
@@ -349,7 +348,9 @@ def generate_markdown_tables(
                 continue
 
             # Sort by relative speed (fastest first).
-            table.extend(row for _, row in sorted(rows, key=lambda row: row[0], reverse=True))
+            table.extend(
+                row for _, row in sorted(rows, key=lambda row: row[0], reverse=True)
+            )
 
             out_s += f"#### {kind.capitalize()}\n"
             out_s += tabulate(table, headers="firstrow", tablefmt="pipe")
@@ -358,7 +359,7 @@ def generate_markdown_tables(
     return out_s
 
 
-def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
+def plot_benchmark_times(data: BenchmarkData) -> dict[str, str]:
     """
     Plot the parsing and lexing times on a log chart for all parsers.
 
@@ -417,8 +418,8 @@ def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
 def create_plot(
     data: BenchmarkData,
     kind: str,
-    sorted_bench_names: List[str],
-    available_parsers: List[str],
+    sorted_bench_names: list[str],
+    available_parsers: list[str],
     output_dir: str,
     color_map,
 ) -> str:
@@ -493,8 +494,8 @@ def create_plot(
 def create_relative_plot(
     data: BenchmarkData,
     kind: str,
-    sorted_bench_names: List[str],
-    available_parsers: List[str],
+    sorted_bench_names: list[str],
+    available_parsers: list[str],
     output_dir: str,
     color_map,
 ) -> str:

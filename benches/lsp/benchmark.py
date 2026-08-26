@@ -17,14 +17,14 @@ import stat
 import subprocess
 import sys
 import tempfile
-from functools import lru_cache
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from enum import Enum
+from functools import cache
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any
 from urllib.parse import urlsplit
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 FIXTURE_DIR = SCRIPT_DIR / "fixture"
@@ -100,9 +100,7 @@ METHOD_CONFIG: dict[str, dict[str, Any]] = {
 
 RESULT_METHOD_CONFIG: dict[str, dict[str, Any]] = {
     method: {
-        key: value
-        for key, value in config.items()
-        if key in {"line", "col", "trigger"}
+        key: value for key, value in config.items() if key in {"line", "col", "trigger"}
     }
     for method, config in METHOD_CONFIG.items()
 }
@@ -187,9 +185,7 @@ def validate_context(
         raise ValidationError("head SHA must equal merge candidate SHA")
     if not isinstance(run_url, str):
         raise ValidationError("run URL must be a string")
-    if any(
-        ord(character) < 0x20 or ord(character) == 0x7F for character in run_url
-    ):
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in run_url):
         raise ValidationError("run URL contains control characters")
 
     try:
@@ -274,8 +270,7 @@ def _strict_json_equal(left: Any, right: Any) -> bool:
         )
     if isinstance(left, list):
         return len(left) == len(right) and all(
-            _strict_json_equal(item, expected)
-            for item, expected in zip(left, right)
+            _strict_json_equal(item, expected) for item, expected in zip(left, right)
         )
     return left == right
 
@@ -301,7 +296,9 @@ def _read_json(path: Path, max_bytes: int, label: str) -> Any:
 
 def _write_bytes_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", dir=path.parent
+    )
     temporary_path = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as output:
@@ -315,7 +312,9 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
 
 
 def _write_json_atomic(path: Path, value: Any) -> None:
-    data = (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
+    data = (
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode()
     _write_bytes_atomic(path, data)
 
 
@@ -442,7 +441,9 @@ def _verify_upstream_binary(binary: Path) -> None:
                 env=environment,
             )
         except (OSError, subprocess.TimeoutExpired) as error:
-            raise ExecutionError("could not execute the pinned lsp-bench binary") from error
+            raise ExecutionError(
+                "could not execute the pinned lsp-bench binary"
+            ) from error
     version = completed.stdout.strip()
     if completed.returncode != 0 or version != expected:
         raise ExecutionError("lsp-bench binary version does not match upstream.json")
@@ -558,9 +559,15 @@ def _validate_generated_config(
         if server.get("label") != role or not isinstance(arguments, list):
             raise ValidationError(f"config.servers[{index}] does not match role {role}")
         if arguments != ["lsp"]:
-            raise ValidationError(f"config.servers[{index}].args is not the Solar contract")
+            raise ValidationError(
+                f"config.servers[{index}].args is not the Solar contract"
+            )
         command = server.get("cmd")
-        if not isinstance(command, str) or not command or not Path(command).is_absolute():
+        if (
+            not isinstance(command, str)
+            or not command
+            or not Path(command).is_absolute()
+        ):
             raise ValidationError(f"config.servers[{index}].cmd must be absolute")
     return config
 
@@ -578,9 +585,7 @@ def _position(value: Any, path: str) -> tuple[int, int]:
     return line, character
 
 
-def _lsp_range(
-    value: Any, path: str
-) -> tuple[tuple[int, int], tuple[int, int]]:
+def _lsp_range(value: Any, path: str) -> tuple[tuple[int, int], tuple[int, int]]:
     location_range = _mapping(value, path)
     if set(location_range) != {"start", "end"}:
         raise ValidationError(f"{path} is not an LSP range")
@@ -602,13 +607,9 @@ def _location(
             raise ValidationError(f"{path} is not an LSP location link")
         uri = location.get("targetUri")
         location_range = _lsp_range(location.get("targetRange"), f"{path}.targetRange")
-        _lsp_range(
-            location.get("targetSelectionRange"), f"{path}.targetSelectionRange"
-        )
+        _lsp_range(location.get("targetSelectionRange"), f"{path}.targetSelectionRange")
         if "originSelectionRange" in location:
-            _lsp_range(
-                location["originSelectionRange"], f"{path}.originSelectionRange"
-            )
+            _lsp_range(location["originSelectionRange"], f"{path}.originSelectionRange")
     else:
         if set(location) != {"uri", "range"}:
             raise ValidationError(f"{path} is not an LSP location")
@@ -675,7 +676,9 @@ def _symbol_kind(value: Any, path: str) -> int:
 
 def _validate_symbol_tags(value: Any, path: str) -> None:
     tags = _array(value, path)
-    if any(isinstance(tag, bool) or not isinstance(tag, int) or tag != 1 for tag in tags):
+    if any(
+        isinstance(tag, bool) or not isinstance(tag, int) or tag != 1 for tag in tags
+    ):
         raise ValidationError(f"{path} contains an invalid LSP symbol tag")
 
 
@@ -689,11 +692,15 @@ def _validate_response(
 
     if method == UPSTREAM_DIAGNOSTICS_BENCHMARK:
         params = _mapping(response, path)
-        if not {"uri", "diagnostics"} <= set(params) <= {
-            "uri",
-            "version",
-            "diagnostics",
-        }:
+        if (
+            not {"uri", "diagnostics"}
+            <= set(params)
+            <= {
+                "uri",
+                "version",
+                "diagnostics",
+            }
+        ):
             raise ValidationError(f"{path} is not publishDiagnostics params")
         uri = params.get("uri")
         if uri != _fixture_uri(config, "Main.sol"):
@@ -784,9 +791,7 @@ def _validate_response(
         return
 
     if method == "textDocument/definition":
-        locations = _locations(
-            response, path, allow_single=True, allow_links=True
-        )
+        locations = _locations(response, path, allow_single=True, allow_links=True)
         expected_uri = _fixture_uri(config, "Math.sol")
         if any(uri != expected_uri for uri, _ in locations) or not any(
             location_range[0][0] == 4 for _, location_range in locations
@@ -808,7 +813,9 @@ def _validate_response(
             (8, 13),
             (13, 15),
         }.issubset(positions):
-            raise ValidationError(f"{path} is missing the declaration or call reference")
+            raise ValidationError(
+                f"{path} is missing the declaration or call reference"
+            )
         return
 
     if method == "textDocument/completion":
@@ -917,7 +924,9 @@ def _validate_response(
     raise ValidationError(f"{path} uses an unexpected benchmark method")
 
 
-def _expected_benchmark_input(method: str, config: dict[str, Any]) -> dict[str, Any] | None:
+def _expected_benchmark_input(
+    method: str, config: dict[str, Any]
+) -> dict[str, Any] | None:
     if method in {"initialize", UPSTREAM_DIAGNOSTICS_BENCHMARK}:
         return None
 
@@ -1039,9 +1048,7 @@ def _validate_results(
                 _nonnegative_integer(row["rss_kb"], f"{row_path}.rss_kb")
             if "response" not in row:
                 raise ValidationError(f"{row_path} has no canonical response")
-            _validate_response(
-                method, row["response"], f"{row_path}.response", config
-            )
+            _validate_response(method, row["response"], f"{row_path}.response", config)
 
             iterations = _array(row.get("iterations"), f"{row_path}.iterations")
             if len(iterations) != MEASURED_ITERATIONS:
@@ -1052,7 +1059,9 @@ def _validate_results(
                 iteration = _mapping(iteration, iteration_path)
                 if set(iteration) != {"ms", "response"}:
                     raise ValidationError(f"{iteration_path} has unexpected fields")
-                samples.append(_positive_number(iteration.get("ms"), f"{iteration_path}.ms"))
+                samples.append(
+                    _positive_number(iteration.get("ms"), f"{iteration_path}.ms")
+                )
                 if "response" not in iteration:
                     raise ValidationError(f"{iteration_path} has no response")
                 _validate_response(
@@ -1212,7 +1221,10 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
     }
     if set(manifest) != expected_keys:
         raise ValidationError("manifest fields do not match the raw artifact contract")
-    if manifest.get("schema_version") != RAW_SCHEMA_VERSION or manifest.get("kind") != RAW_KIND:
+    if (
+        manifest.get("schema_version") != RAW_SCHEMA_VERSION
+        or manifest.get("kind") != RAW_KIND
+    ):
         raise ValidationError("manifest schema is unsupported")
 
     context = _mapping(manifest.get("context"), "manifest.context")
@@ -1230,7 +1242,9 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
         "run_url": expected.run_url,
     }
     if context != expected_context:
-        raise ValidationError("manifest context does not match the trusted workflow context")
+        raise ValidationError(
+            "manifest context does not match the trusted workflow context"
+        )
 
     protocol = _mapping(manifest.get("protocol"), "manifest.protocol")
     expected_protocol = {
@@ -1248,9 +1262,13 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
     if protocol != expected_protocol:
         raise ValidationError("manifest protocol does not match the trusted adapter")
     if manifest.get("upstream") != pinned_upstream():
-        raise ValidationError("manifest upstream metadata does not match the pinned release")
+        raise ValidationError(
+            "manifest upstream metadata does not match the pinned release"
+        )
     if manifest.get("fixture") != {"sha256": fixture_sha256()}:
-        raise ValidationError("manifest fixture digest does not match the trusted fixture")
+        raise ValidationError(
+            "manifest fixture digest does not match the trusted fixture"
+        )
 
     binaries = _mapping(manifest.get("binaries"), "manifest.binaries")
     if set(binaries) != {"base", "head"}:
@@ -1275,10 +1293,7 @@ def _validate_artifact_layout(root: Path) -> None:
     expected_directories = {
         "passes",
         *(f"passes/{pass_name}" for pass_name, _ in PASSES),
-        *(
-            f"passes/{pass_name}/{session}"
-            for pass_name, session, _ in PASS_SESSIONS
-        ),
+        *(f"passes/{pass_name}/{session}" for pass_name, session, _ in PASS_SESSIONS),
     }
     seen_files: set[str] = set()
     seen_directories: set[str] = set()
@@ -1292,7 +1307,9 @@ def _validate_artifact_layout(root: Path) -> None:
             elif stat.S_ISDIR(metadata.st_mode) and relative in expected_directories:
                 seen_directories.add(relative)
             else:
-                raise ValidationError(f"raw artifact contains unexpected entry {relative}")
+                raise ValidationError(
+                    f"raw artifact contains unexpected entry {relative}"
+                )
     except OSError as error:
         raise ValidationError("raw artifact layout could not be inspected") from error
     if seen_files != expected_files or seen_directories != expected_directories:
@@ -1329,16 +1346,24 @@ def validate_artifact(
         ):
             raise ValidationError(f"manifest.passes[{index}] has the wrong pass order")
 
-        config_metadata = _mapping(entry.get("config"), f"manifest.passes[{index}].config")
-        results_metadata = _mapping(entry.get("results"), f"manifest.passes[{index}].results")
+        config_metadata = _mapping(
+            entry.get("config"), f"manifest.passes[{index}].config"
+        )
+        results_metadata = _mapping(
+            entry.get("results"), f"manifest.passes[{index}].results"
+        )
         expected_config_path = f"passes/{pass_name}/{session}/config.json"
         expected_results_path = f"passes/{pass_name}/{session}/results.json"
-        if config_metadata.get("path") != expected_config_path or set(config_metadata) != {
+        if config_metadata.get("path") != expected_config_path or set(
+            config_metadata
+        ) != {
             "path",
             "sha256",
         }:
             raise ValidationError(f"manifest.passes[{index}].config is invalid")
-        if results_metadata.get("path") != expected_results_path or set(results_metadata) != {
+        if results_metadata.get("path") != expected_results_path or set(
+            results_metadata
+        ) != {
             "path",
             "sha256",
         }:
@@ -1352,12 +1377,20 @@ def validate_artifact(
         expected_results_digest = _require_sha256(
             results_metadata.get("sha256"), f"manifest.passes[{index}].results.sha256"
         )
-        config_bytes = _read_regular_file(config_path, MAX_CONFIG_BYTES, f"{pass_name} config")
-        results_bytes = _read_regular_file(results_path, MAX_RESULTS_BYTES, f"{pass_name} results")
+        config_bytes = _read_regular_file(
+            config_path, MAX_CONFIG_BYTES, f"{pass_name} config"
+        )
+        results_bytes = _read_regular_file(
+            results_path, MAX_RESULTS_BYTES, f"{pass_name} results"
+        )
         if hashlib.sha256(config_bytes).hexdigest() != expected_config_digest:
-            raise ValidationError(f"{pass_name} config digest does not match the manifest")
+            raise ValidationError(
+                f"{pass_name} config digest does not match the manifest"
+            )
         if hashlib.sha256(results_bytes).hexdigest() != expected_results_digest:
-            raise ValidationError(f"{pass_name} results digest does not match the manifest")
+            raise ValidationError(
+                f"{pass_name} results digest does not match the manifest"
+            )
 
         config = _validate_generated_config(
             _loads_json(config_bytes, f"{pass_name} config"), server_order
@@ -1408,7 +1441,7 @@ def _decimal_percentile(samples: Iterable[Decimal], percent: float) -> Decimal:
     return ordered[index]
 
 
-@lru_cache(maxsize=None)
+@cache
 def _paired_bootstrap_interval(
     base: tuple[Decimal, ...], head: tuple[Decimal, ...]
 ) -> dict[str, tuple[Decimal, Decimal]]:
@@ -1444,8 +1477,7 @@ def method_verdict(strata: Sequence[dict[str, Any]]) -> str:
     absolute_threshold = Decimal(str(THRESHOLD_ABSOLUTE_MS))
 
     regression = all(
-        stratum["confidence_interval_95"][delta_kind][percentile_name][0]
-        >= threshold
+        stratum["confidence_interval_95"][delta_kind][percentile_name][0] >= threshold
         for stratum in strata
         for percentile_name in ("p50", "p95")
         for delta_kind, threshold in (
@@ -1457,8 +1489,7 @@ def method_verdict(strata: Sequence[dict[str, Any]]) -> str:
         return "regression"
 
     improvement = all(
-        stratum["confidence_interval_95"][delta_kind][percentile_name][1]
-        <= -threshold
+        stratum["confidence_interval_95"][delta_kind][percentile_name][1] <= -threshold
         for stratum in strata
         for percentile_name in ("p50", "p95")
         for delta_kind, threshold in (
@@ -1494,7 +1525,9 @@ def _rounded_delta(value: Decimal, path: str, decimals: int, rounding: str) -> f
         quantum = Decimal(1).scaleb(-decimals)
         rounded = float(value.quantize(quantum, rounding=rounding))
     except (ArithmeticError, OverflowError, ValueError) as error:
-        raise ValidationError(f"{path} must remain finite after trusted rounding") from error
+        raise ValidationError(
+            f"{path} must remain finite after trusted rounding"
+        ) from error
     if not math.isfinite(rounded):
         raise ValidationError(f"{path} must remain finite after trusted rounding")
     return rounded
@@ -1522,8 +1555,12 @@ def _statistics_for_sessions(
         }
 
     for percentile_name, percent in (("p50", 50), ("p95", 95)):
-        base = [_session_metric(session, "base", method, percent) for session in sessions]
-        head = [_session_metric(session, "head", method, percent) for session in sessions]
+        base = [
+            _session_metric(session, "base", method, percent) for session in sessions
+        ]
+        head = [
+            _session_metric(session, "head", method, percent) for session in sessions
+        ]
         base_estimate = _decimal_mean(base)
         head_estimate = _decimal_mean(head)
         absolute_delta = head_estimate - base_estimate
@@ -1631,9 +1668,7 @@ def build_comparison(
                     **_comparison_statistics(statistics, f"{method} {pass_name}"),
                 }
             )
-        methods.append(
-            method_comparison
-        )
+        methods.append(method_comparison)
 
     if "regression" in verdicts:
         overall = "regression"
@@ -1696,9 +1731,7 @@ def add_publication_state(
     current_main_sha: str,
     current_pr_head_sha: str,
 ) -> dict[str, Any]:
-    state = validate_publication_state(
-        context, current_main_sha, current_pr_head_sha
-    )
+    state = validate_publication_state(context, current_main_sha, current_pr_head_sha)
     result = dict(comparison)
     result["freshness"] = state.value
     result["current_main_sha"] = current_main_sha
@@ -1851,8 +1884,17 @@ def render_artifact(
             comparison, context, current_main_sha, current_pr_head_sha
         )
         valid = True
-    except (BenchmarkError, OSError, ArithmeticError, KeyError, TypeError, ValueError) as error:
-        comparison = inconclusive_comparison(context, str(error) or "artifact validation failed")
+    except (
+        BenchmarkError,
+        OSError,
+        ArithmeticError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
+        comparison = inconclusive_comparison(
+            context, str(error) or "artifact validation failed"
+        )
         valid = False
     _write_json_atomic(comparison_path.resolve(), comparison)
     _write_text_atomic(report_path.resolve(), render_markdown(comparison))

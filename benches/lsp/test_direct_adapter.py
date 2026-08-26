@@ -8,7 +8,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 LSP_DIR = ROOT / "benches" / "lsp"
 UPSTREAM_PATH = LSP_DIR / "upstream.json"
@@ -46,9 +45,7 @@ class DirectAdapterTests(unittest.TestCase):
             self.metadata["source"]["url"],
             f"https://codeload.github.com/asyncswap/lsp-bench/tar.gz/{commit}",
         )
-        self.assertEqual(
-            self.metadata["source"]["name"], f"lsp-bench-{commit}.tar.gz"
-        )
+        self.assertEqual(self.metadata["source"]["name"], f"lsp-bench-{commit}.tar.gz")
         self.assertEqual(
             self.metadata["source"]["sha256"],
             "145dc03c5606d6b5ec66647d233486bab9f4e65022275763bf445bc26414470e",
@@ -69,12 +66,8 @@ class DirectAdapterTests(unittest.TestCase):
 
         self.assertEqual(old_paths, ["a/build.rs", "a/src/main.rs"])
         self.assertEqual(new_paths, ["b/build.rs", "b/src/main.rs"])
-        self.assertIn(
-            f'.filter(|commit| commit == "{short_commit}")', self.patch
-        )
-        self.assertIn(
-            f'.unwrap_or_else(|| "{short_commit}".to_string())', self.patch
-        )
+        self.assertIn(f'.filter(|commit| commit == "{short_commit}")', self.patch)
+        self.assertIn(f'.unwrap_or_else(|| "{short_commit}".to_string())', self.patch)
         self.assertIn("is_valid_initialize_response", self.patch)
         self.assertIn("is_fixture_ready_diagnostics", self.patch)
         self.assertIn('Some("textDocument/publishDiagnostics")', self.patch)

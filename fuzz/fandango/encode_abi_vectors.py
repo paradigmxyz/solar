@@ -37,12 +37,14 @@ def main() -> int:
         calldata = evm.cast_calldata(args.cast, signature, values)
 
         out: dict[str, Any] = dict(vector)
-        out.update({
-            "index": index,
-            "signature": signature,
-            "args": vector.get("args", []),
-            "calldata": calldata,
-        })
+        out.update(
+            {
+                "index": index,
+                "signature": signature,
+                "args": vector.get("args", []),
+                "calldata": calldata,
+            }
+        )
         if args.seed is not None:
             out["seed"] = args.seed
         # `index` resets on each invocation (corpus + one run per seed), so build

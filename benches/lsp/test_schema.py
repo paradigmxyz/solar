@@ -9,10 +9,14 @@ import unittest
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, ValidationError
-
-from test_benchmark import CONTEXT, RawArtifact, benchmark, constant_sessions
-from test_benchmark import CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
-
+from test_benchmark import (
+    CONTEXT,
+    CURRENT_MAIN_SHA,
+    CURRENT_PR_HEAD_SHA,
+    RawArtifact,
+    benchmark,
+    constant_sessions,
+)
 
 DIRECTORY = Path(__file__).resolve().parent
 RAW_SCHEMA = json.loads((DIRECTORY / "raw.schema.json").read_text(encoding="utf-8"))

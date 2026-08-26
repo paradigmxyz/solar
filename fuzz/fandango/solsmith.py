@@ -17,7 +17,6 @@ import random
 from dataclasses import dataclass
 from typing import Self
 
-
 U256_MASK = (1 << 256) - 1
 
 DEFAULT_REQUIRED_FEATURES = (
@@ -81,29 +80,39 @@ class Generator:
 
     def _u256_expr(self, depth: int = 0) -> Expr:
         if depth >= 2:
-            return self.rng.choice([
-                Expr("a"),
-                Expr("b"),
-                Expr("value", ("storage-read",)),
-                Expr("values[a & 7]", ("mapping-read",)),
-                Expr("values[b & 7]", ("mapping-read",)),
-            ])
+            return self.rng.choice(
+                [
+                    Expr("a"),
+                    Expr("b"),
+                    Expr("value", ("storage-read",)),
+                    Expr("values[a & 7]", ("mapping-read",)),
+                    Expr("values[b & 7]", ("mapping-read",)),
+                ]
+            )
 
         left = self._u256_expr(depth + 1)
         right = self._u256_expr(depth + 1)
         op = self.rng.choice(["+", "^", "&", "|"])
         if op == "&":
             right = self.rng.choice([Expr("15"), Expr("255"), right])
-        expr = Expr(f"({left.code} {op} {right.code})", (*left.features, *right.features, "arith"))
+        expr = Expr(
+            f"({left.code} {op} {right.code})",
+            (*left.features, *right.features, "arith"),
+        )
         if self.rng.random() < 0.35:
             expr = Expr(f"helper({expr.code})", (*expr.features, "internal-call"))
         return expr
 
     def _condition(self) -> Expr:
         lhs = self._u256_expr()
-        rhs = self.rng.choice([Expr("a"), Expr("b"), Expr("value", ("storage-read",)), Expr("7")])
+        rhs = self.rng.choice(
+            [Expr("a"), Expr("b"), Expr("value", ("storage-read",)), Expr("7")]
+        )
         op = self.rng.choice(["<", ">", "==", "!="])
-        return Expr(f"(({lhs.code}) & 255) {op} (({rhs.code}) & 255)", (*lhs.features, *rhs.features))
+        return Expr(
+            f"(({lhs.code}) & 255) {op} (({rhs.code}) & 255)",
+            (*lhs.features, *rhs.features),
+        )
 
     def _arithmetic_body(self) -> tuple[str, list[str]]:
         expr = self._u256_expr()
@@ -114,7 +123,12 @@ class Generator:
         then_expr = self._u256_expr()
         else_expr = self._u256_expr()
         body = f"if ({cond.code}) {{ r = {then_expr.code}; }} else {{ r = {else_expr.code}; }}"
-        return body, ["branch", *cond.features, *then_expr.features, *else_expr.features]
+        return body, [
+            "branch",
+            *cond.features,
+            *then_expr.features,
+            *else_expr.features,
+        ]
 
     def _loop_body(self) -> tuple[str, list[str]]:
         expr = self._u256_expr()
@@ -125,10 +139,12 @@ class Generator:
     def _mapping_body(self) -> tuple[str, list[str]]:
         expr = self._u256_expr()
         key = self.rng.choice(["a & 7", "b & 7", "(a + b) & 7", "(value + a) & 7"])
-        update = self.rng.choice([
-            f"values[key] = values[key] + ({expr.code}) + 1; r = values[key] + value;",
-            f"r = values[key] ^ ({expr.code}); values[(key + 1) & 7] = r;",
-        ])
+        update = self.rng.choice(
+            [
+                f"values[key] = values[key] + ({expr.code}) + 1; r = values[key] + value;",
+                f"r = values[key] ^ ({expr.code}); values[(key + 1) & 7] = r;",
+            ]
+        )
         return f"uint256 key = {key}; {update}", [
             "mapping-read",
             "mapping-write",
@@ -143,20 +159,24 @@ class Generator:
         return body, ["memory-array", "storage-read", *expr0.features, *expr1.features]
 
     def _bytes_body(self) -> tuple[str, list[str]]:
-        body = self.rng.choice([
-            "r = value + data.length; if (data.length != 0) { r += uint8(data[0]); }",
-            "uint256 limit = data.length < 5 ? data.length : 5; r = value; for (uint256 i = 0; i < limit; ++i) { r = (r << 1) + uint8(data[i]); }",
-            "r = data.length; if (data.length > 1) { r += uint8(data[1]) + value; }",
-        ])
+        body = self.rng.choice(
+            [
+                "r = value + data.length; if (data.length != 0) { r += uint8(data[0]); }",
+                "uint256 limit = data.length < 5 ? data.length : 5; r = value; for (uint256 i = 0; i < limit; ++i) { r = (r << 1) + uint8(data[i]); }",
+                "r = data.length; if (data.length > 1) { r += uint8(data[1]) + value; }",
+            ]
+        )
         return body, ["calldata-bytes", "storage-read"]
 
     def _combined_body(self) -> tuple[str, list[str]]:
         expr = self._u256_expr()
-        body = self.rng.choice([
-            f"uint256 key = a & 7; uint256[2] memory xs = [values[key], {expr.code}]; r = xs[0] + xs[1] + value;",
-            f"uint256 limit = (a & 3) + 1; r = values[b & 7]; for (uint256 i = 0; i < limit; ++i) {{ r += mix(i, {expr.code}); }}",
-            f"r = mix(a, b); if (data.length > 0) {{ values[uint8(data[0]) & 7] = {expr.code}; }} r += values[a & 7];",
-        ])
+        body = self.rng.choice(
+            [
+                f"uint256 key = a & 7; uint256[2] memory xs = [values[key], {expr.code}]; r = xs[0] + xs[1] + value;",
+                f"uint256 limit = (a & 3) + 1; r = values[b & 7]; for (uint256 i = 0; i < limit; ++i) {{ r += mix(i, {expr.code}); }}",
+                f"r = mix(a, b); if (data.length > 0) {{ values[uint8(data[0]) & 7] = {expr.code}; }} r += values[a & 7];",
+            ]
+        )
         return body, [
             "combined",
             "mapping-read",
@@ -240,7 +260,9 @@ def main() -> int:
     if args.require_default_features:
         required_features.update(DEFAULT_REQUIRED_FEATURES)
 
-    programs = _generate_batch(generator, args.count, required_features, args.max_attempts)
+    programs = _generate_batch(
+        generator, args.count, required_features, args.max_attempts
+    )
     metadata = []
     feature_counts: dict[str, int] = {}
     for index, program in enumerate(programs):
@@ -248,27 +270,41 @@ def main() -> int:
         path.write_text(program.source)
         for feature in program.features:
             feature_counts[feature] = feature_counts.get(feature, 0) + 1
-        metadata.append({
-            "path": str(path),
-            "seed": args.seed,
-            "index": index,
-            "features": list(program.features),
-        })
+        metadata.append(
+            {
+                "path": str(path),
+                "seed": args.seed,
+                "index": index,
+                "features": list(program.features),
+            }
+        )
 
     if args.metadata is not None:
         args.metadata.parent.mkdir(parents=True, exist_ok=True)
-        args.metadata.write_text(json.dumps({
-            "sources": metadata,
-            "feature_counts": feature_counts,
-            "required_features": sorted(required_features),
-        }, indent=2, sort_keys=True) + "\n")
+        args.metadata.write_text(
+            json.dumps(
+                {
+                    "sources": metadata,
+                    "feature_counts": feature_counts,
+                    "required_features": sorted(required_features),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
 
-    print(json.dumps({
-        "sources": len(programs),
-        "seed": args.seed,
-        "out_dir": str(args.out_dir),
-        "features": feature_counts,
-    }, separators=(",", ":")))
+    print(
+        json.dumps(
+            {
+                "sources": len(programs),
+                "seed": args.seed,
+                "out_dir": str(args.out_dir),
+                "features": feature_counts,
+            },
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 
@@ -290,7 +326,7 @@ def _generate_batch(
 
         missing = required_features - covered
         if missing:
-            program = generator.program_for_feature(sorted(missing)[0])
+            program = generator.program_for_feature(min(missing))
         else:
             program = generator.program()
         if len(programs) < count:
