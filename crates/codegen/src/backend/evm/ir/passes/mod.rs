@@ -101,10 +101,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Regenerate only after structural sharing is fixed. Doing this before
     // tail merging can make otherwise-identical blocks context-dependent and
     // lose more shared bytes than the local CSE removes.
-    &block_cse::BlockCseCleanup,
-    &dce::DceCleanup,
-    // DCE retargets physical stack operations and exposes local rewrites.
-    &peephole::Peephole,
+    &peephole::Cleanup(&block_cse::BlockCse),
+    &peephole::Cleanup(&dce::Dce),
     &stack_normalize::StackNormalize,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.

@@ -1,6 +1,6 @@
 //! Late dead-value elimination over scheduled EVM IR.
 
-use super::{EvmPass, peephole};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module},
     op::{self, StackOp},
@@ -9,9 +9,6 @@ use solar_config::EvmVersion;
 use solar_sema::Gcx;
 
 pub(super) struct Dce;
-
-/// Default-pipeline adapter that cleans up only when dead-value elimination changed the module.
-pub(super) struct DceCleanup;
 
 impl EvmPass for Dce {
     fn name(&self) -> &'static str {
@@ -24,16 +21,6 @@ impl EvmPass for Dce {
             !gcx.sess.opts.optimization.is_size(),
             gcx.sess.opts.evm_version,
         )
-    }
-}
-
-impl EvmPass for DceCleanup {
-    fn name(&self) -> &'static str {
-        "dce"
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        peephole::run_with_cleanup(&Dce, gcx, module)
     }
 }
 

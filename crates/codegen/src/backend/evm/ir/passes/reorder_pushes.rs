@@ -5,7 +5,7 @@ use super::{
     utils::{StackDepths, terminator_lowering_growth},
 };
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, StackEffect},
+    ir::{BlockId, Instruction, Module},
     op,
     stack::MAX_STACK_DEPTH,
 };
@@ -76,7 +76,7 @@ fn reorder(
     let mut depth = entry_depth;
     let mut relative_depth = 0isize;
     for inst in source.drain(..) {
-        let effect = stack_effect(&inst);
+        let effect = inst.effective_stack_effect();
         depth = effect.and_then(|effect| {
             depth.and_then(|before| {
                 before
@@ -139,7 +139,7 @@ fn update_expressions(
     node: usize,
 ) {
     let inst = sequence.instruction(node);
-    let effect = if let Some(effect) = stack_effect(inst)
+    let effect = if let Some(effect) = inst.effective_stack_effect()
         && !inst.is_physical_stack_op()
         && inst.raw_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1
@@ -167,16 +167,12 @@ fn update_expressions(
     expressions.push(Expression { start: first, peak });
 }
 
-fn stack_effect(inst: &Instruction) -> Option<StackEffect> {
-    inst.effective_stack_effect()
-}
-
 fn relative_high_water(module: &Module, block_id: BlockId) -> Option<isize> {
     let block = &module.blocks[block_id];
     let mut depth = 0isize;
     let mut high_water = 0isize;
     for inst in &block.instructions {
-        let effect = stack_effect(inst)?;
+        let effect = inst.effective_stack_effect()?;
         depth += isize::from(effect.outputs) - isize::from(effect.inputs);
         high_water = high_water.max(depth);
     }

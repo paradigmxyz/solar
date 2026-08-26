@@ -14,6 +14,9 @@ use tracing::trace;
 
 pub(super) struct Peephole;
 
+/// Runs peephole cleanup only when the wrapped pass changes the module.
+pub(super) struct Cleanup(pub(super) &'static dyn EvmPass);
+
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
         "peephole"
@@ -24,12 +27,18 @@ impl EvmPass for Peephole {
     }
 }
 
-pub(super) fn run_with_cleanup(pass: &dyn EvmPass, gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let changed = pass.run_pass(gcx, module);
-    if changed {
-        let _ = Peephole.run_pass(gcx, module);
+impl EvmPass for Cleanup {
+    fn name(&self) -> &'static str {
+        self.0.name()
     }
-    changed
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let changed = self.0.run_pass(gcx, module);
+        if changed {
+            let _ = Peephole.run_pass(gcx, module);
+        }
+        changed
+    }
 }
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";

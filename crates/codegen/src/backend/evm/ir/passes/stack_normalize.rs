@@ -26,32 +26,31 @@ impl EvmPass for StackNormalize {
 }
 
 fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
-    let source = std::mem::take(instructions);
-    instructions.reserve(source.len());
-    let mut source = source.into_iter().peekable();
-    let mut run = Vec::new();
+    struct Normalization {
+        start: usize,
+        end: usize,
+        output: Vec<StackOp>,
+    }
+
+    let mut normalizations = Vec::new();
     let mut input = Vec::new();
-    let mut changed = false;
-    while let Some(inst) = source.next() {
-        if stack_op(&inst).is_none() {
-            instructions.push(inst);
+    let mut cursor = 0;
+    while cursor < instructions.len() {
+        if stack_op(&instructions[cursor]).is_none() {
+            cursor += 1;
             continue;
         }
-
-        run.clear();
-        run.push(inst);
-        while source.peek().is_some_and(|inst| stack_op(inst).is_some()) {
-            run.push(source.next().unwrap());
+        let start = cursor;
+        while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
+            cursor += 1;
         }
-        if !(2..=MAX_STACK_RUN_LEN).contains(&run.len()) {
-            instructions.append(&mut run);
+        if !(2..=MAX_STACK_RUN_LEN).contains(&(cursor - start)) {
             continue;
         }
 
         input.clear();
-        input.extend(run.iter().map(|inst| stack_op(inst).unwrap()));
+        input.extend(instructions[start..cursor].iter().map(|inst| stack_op(inst).unwrap()));
         let Some(output) = resynthesize_physical_ops(&input) else {
-            instructions.append(&mut run);
             continue;
         };
         let input_gas = input.iter().map(|op| op.static_gas()).sum::<u32>();
@@ -60,18 +59,33 @@ fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
             || output_gas > input_gas
             || (output.len() == input.len() && output_gas == input_gas)
         {
-            instructions.append(&mut run);
             continue;
         }
+        normalizations.push(Normalization { start, end: cursor, output });
+    }
+    if normalizations.is_empty() {
+        return false;
+    }
 
-        for (op, mut inst) in output.into_iter().zip(run.drain(..)) {
+    let source = std::mem::take(instructions);
+    instructions.reserve(source.len());
+    let mut source = source.into_iter().enumerate().peekable();
+    for normalization in normalizations {
+        while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
+            instructions.push(source.next().unwrap().1);
+        }
+        for op in normalization.output {
+            let (_, mut inst) = source.next().unwrap();
             inst.opcode = op.opcode();
             inst.metadata.stack = None;
             instructions.push(inst);
         }
-        changed = true;
+        while source.peek().is_some_and(|&(index, _)| index < normalization.end) {
+            source.next();
+        }
     }
-    changed
+    instructions.extend(source.map(|(_, inst)| inst));
+    true
 }
 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {

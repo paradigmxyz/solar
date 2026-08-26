@@ -74,11 +74,11 @@ pub(crate) fn resynthesize_physical_ops(ops: &[StackOp]) -> Option<Vec<StackOp>>
     if let Some(ops) = synthesize_unique_permutation(&source, &target) {
         return Some(ops);
     }
-    let shuffler = StackShuffler::new(&source, &target);
+    let mut shuffler = StackShuffler::new(&source, &target);
     let result = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
         shuffler.shuffle()
     } else {
-        shuffler.shuffle_greedy()
+        shuffler.run_greedy()
     };
     result.map(|result| result.ops)
 }
@@ -94,20 +94,22 @@ fn synthesize_unique_permutation(
         return Some(Vec::new());
     }
 
-    let mut target_positions = FxHashMap::default();
+    let mut target_positions = [usize::MAX; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT];
     for (index, &TargetSlot::Value(value)) in target.iter().enumerate() {
-        if target_positions.insert(value, index).is_some() {
+        let position = &mut target_positions[value.index()];
+        if *position != usize::MAX {
             return None;
         }
+        *position = index;
     }
     let mut current: SmallVec<[ValueId; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT]> = source
         .iter()
-        .map(|value| value.filter(|value| target_positions.contains_key(value)))
+        .map(|value| value.filter(|value| target_positions[value.index()] != usize::MAX))
         .collect::<Option<_>>()?;
 
     let mut ops = Vec::new();
     loop {
-        let top_target = target_positions[&current[0]];
+        let top_target = target_positions[current[0].index()];
         if top_target != 0 {
             ops.push(StackOp::Swap(top_target as u8));
             current.swap(0, top_target);
@@ -221,11 +223,6 @@ impl<'a> StackShuffler<'a> {
         greedy.or_else(|| {
             Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
         })
-    }
-
-    /// Performs only the bounded-work greedy shuffle.
-    pub(crate) fn shuffle_greedy(mut self) -> Option<ShuffleResult> {
-        self.run_greedy()
     }
 
     fn run_greedy(&mut self) -> Option<ShuffleResult> {
