@@ -221,91 +221,129 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
   bb11:
     v32 = mload v27
     v33 = add v27, 32
-    v34 = sub v15, v33
-    v35 = shr 5, v34
-    v36 = gt v32, v35
-    jumpi v36, bb14, bb13
-  bb13:
-    v37 = mul v32, 32
-    v38 = add v37, 32
-    v39 = alloc memoryarray<1>, exact, uninitialized, infallible, v38
-    set_memory_object_len memoryarray, v39, v32
-    v40 = make_memory_slice v33, v37
-    memory_object_copy_from_slice memoryarray, v39, v40
-    memory_object_store_field memorystruct<1>, v25, 0, v39
-    v41 = add v14, 32
-    v42 = mload v41
-    v43 = add v14, v42
-    v44 = sub v15, v14
-    v45 = gt v42, v44
-    jumpi v45, bb16, bb15
-  bb15:
-    v46 = sub v15, v43
-    v47 = gt 32, v46
-    jumpi v47, bb18, bb17
+    v34 = add v32, 1
+    v35 = lt v34, v32
+    jumpi v35, bb13, bb14
+  bb14:
+    v36 = mul v34, 32
+    v37 = iszero 32
+    v38 = div v36, 32
+    v39 = eq v38, v34
+    v40 = or v37, v39
+    v41 = iszero v40
+    jumpi v41, bb15, bb16
+  bb16:
+    v42 = alloc memoryarray<1>, exact, uninitialized, panic, v36
+    set_memory_object_len memoryarray, v42, v32
+    v43 = sub v15, v33
+    v44 = shr 5, v43
+    v45 = gt v32, v44
+    jumpi v45, bb18, bb17
   bb17:
-    v48 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v49 = mload v43
-    v50 = add v43, v49
-    v51 = add v50, 32
-    v52 = gt v49, 0xffffffffffffffff
-    v53 = gt v51, v15
-    v54 = or v52, v53
-    jumpi v54, bb20, bb19
+    v46 = mul v32, 32
+    v47 = make_memory_slice v33, v46
+    memory_object_copy_from_slice memoryarray, v42, v47
+    memory_object_store_field memorystruct<1>, v25, 0, v42
+    v48 = add v14, 32
+    v49 = mload v48
+    v50 = add v14, v49
+    v51 = sub v15, v14
+    v52 = gt v49, v51
+    jumpi v52, bb20, bb19
   bb19:
-    v55 = mload v50
-    v56 = add v50, 32
-    v57 = sub v15, v56
-    v58 = shr 5, v57
-    v59 = gt v55, v58
-    jumpi v59, bb22, bb21
+    v53 = sub v15, v50
+    v54 = gt 32, v53
+    jumpi v54, bb22, bb21
   bb21:
-    v60 = mul v55, 32
-    v61 = add v60, 32
-    v62 = alloc memoryarray<1>, exact, uninitialized, infallible, v61
-    set_memory_object_len memoryarray, v62, v55
-    v63 = make_memory_slice v56, v60
-    memory_object_copy_from_slice memoryarray, v62, v63
-    memory_object_store_field memorystruct<1>, v48, 0, v62
-    v64 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v65 = memory_object_data memoryfixedarray, v64
-    frame_store multi_return, word, 0, v65 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v64, 1, v48
-    v66 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v67 = memory_object_load_element memoryfixedarray<2, 1>, v66, 1
-    v68 = memory_object_load_field memorystruct<1>, v25, 0
-    v69 = memory_object_len memoryarray, v68
-    v70 = lt 0, v69
-    v71 = iszero v70
-    jumpi v71, bb23, bb24
-  bb24:
-    memory_object_store_element memoryarray<1>, v68, 0, 9
-    v72 = memory_object_load_field memorystruct<1>, v67, 0
-    v73 = memory_object_len memoryarray, v72
-    v74 = lt 0, v73
-    v75 = iszero v74
-    jumpi v75, bb25, bb26
+    v55 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v56 = mload v50
+    v57 = add v50, v56
+    v58 = add v57, 32
+    v59 = gt v56, 0xffffffffffffffff
+    v60 = gt v58, v15
+    v61 = or v59, v60
+    jumpi v61, bb24, bb23
+  bb23:
+    v62 = mload v57
+    v63 = add v57, 32
+    v64 = add v62, 1
+    v65 = lt v64, v62
+    jumpi v65, bb25, bb26
   bb26:
-    v76 = memory_object_load_element memoryarray<1>, v72, 0
-    ret v76
+    v66 = mul v64, 32
+    v67 = iszero 32
+    v68 = div v66, 32
+    v69 = eq v68, v64
+    v70 = or v67, v69
+    v71 = iszero v70
+    jumpi v71, bb27, bb28
+  bb28:
+    v72 = alloc memoryarray<1>, exact, uninitialized, panic, v66
+    set_memory_object_len memoryarray, v72, v62
+    v73 = sub v15, v63
+    v74 = shr 5, v73
+    v75 = gt v62, v74
+    jumpi v75, bb30, bb29
+  bb29:
+    v76 = mul v62, 32
+    v77 = make_memory_slice v63, v76
+    memory_object_copy_from_slice memoryarray, v72, v77
+    memory_object_store_field memorystruct<1>, v55, 0, v72
+    v78 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v79 = memory_object_data memoryfixedarray, v78
+    frame_store multi_return, word, 0, v79 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v78, 1, v55
+    v80 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v81 = memory_object_load_element memoryfixedarray<2, 1>, v80, 1
+    v82 = memory_object_load_field memorystruct<1>, v25, 0
+    v83 = memory_object_len memoryarray, v82
+    v84 = lt 0, v83
+    v85 = iszero v84
+    jumpi v85, bb31, bb32
+  bb32:
+    memory_object_store_element memoryarray<1>, v82, 0, 9
+    v86 = memory_object_load_field memorystruct<1>, v81, 0
+    v87 = memory_object_len memoryarray, v86
+    v88 = lt 0, v87
+    v89 = iszero v88
+    jumpi v89, bb33, bb34
+  bb34:
+    v90 = memory_object_load_element memoryarray<1>, v86, 0
+    ret v90
+  bb33:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb30:
+    revert 0, 0
+  bb27:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb25:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+  bb24:
+    revert 0, 0
   bb22:
     revert 0, 0
   bb20:
     revert 0, 0
   bb18:
     revert 0, 0
-  bb16:
-    revert 0, 0
-  bb14:
-    revert 0, 0
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb12:
     revert 0, 0
   bb10:
@@ -838,6 +876,84 @@ fn @dynamicTarget(arg0: u256) [selector=0x32079384, pure, abi_params=[u256], abi
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 33 !metadata(memory=scratch)
     returndata 0, arg0
+}
+
+fn @dynamicLengthOverflow() -> u256 [selector=0x5e963174, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0xe136590400000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    v12 = make_returndata_slice 0, v6
+    memory_object_copy_from_slice memorybytes, v11, v12
+    v13 = abi_decode [bytes], v11
+    v14 = memory_object_len memorybytes, v13
+    ret v14
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @dynamicLengthOverflowTarget() [selector=0xe1365904, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    mstore 0, 32 !metadata(memory=scratch)
+    mstore 32, 0x10000000000000000 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @dynamicArrayLengthOverflow() -> u256 [selector=0xbd5e58ee, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x839ae55400000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    v12 = make_returndata_slice 0, v6
+    memory_object_copy_from_slice memorybytes, v11, v12
+    v13 = abi_decode [array<_, u256>], v11
+    v14 = memory_object_len memoryarray, v13
+    ret v14
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, pure, abi_params=[], abi_returns=[memory_array<word>]] {
+  bb0:
+    mstore 0, 32 !metadata(memory=scratch)
+    mstore 32, 0x10000000000000000 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memorystruct {
