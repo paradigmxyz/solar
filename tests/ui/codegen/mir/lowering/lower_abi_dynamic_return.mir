@@ -37,3 +37,10 @@ fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memo
     v0 = internal_call @canonicalAddresses, 1
     ret v0
 }
+
+fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    memory_zero v0, 64
+    ret v0
+}

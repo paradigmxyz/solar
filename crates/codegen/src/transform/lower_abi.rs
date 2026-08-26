@@ -3271,7 +3271,7 @@ fn is_canonical_return_object(
                 visiting,
             )
         });
-        let zero = zeroed && !ty.needs_return_cleanup();
+        let zero = zeroed && (ty.is_scalar_word() || !ty.needs_return_cleanup());
         canonical || zero
     })
 }
