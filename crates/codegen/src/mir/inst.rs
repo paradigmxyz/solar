@@ -1536,7 +1536,6 @@ impl InstKind {
             | Self::SignExtend(_, _) => EffectKind::Pure,
         }
     }
-
 }
 
 impl fmt::Display for InstKind {

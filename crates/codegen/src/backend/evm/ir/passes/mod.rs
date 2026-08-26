@@ -16,6 +16,7 @@ mod outline;
 mod peephole;
 mod reorder_pushes;
 mod share_reverts;
+mod stack_normalize;
 mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
@@ -58,6 +59,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &reorder_pushes::ReorderPushes,
     &share_reverts::ShareReverts,
+    &stack_normalize::StackNormalize,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
     &constant_data::ConstantData,
@@ -103,6 +105,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &dce::DceCleanup,
     // DCE retargets physical stack operations and exposes local rewrites.
     &peephole::Peephole,
+    &stack_normalize::StackNormalize,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,

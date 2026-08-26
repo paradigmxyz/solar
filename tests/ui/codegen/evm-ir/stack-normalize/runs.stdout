@@ -1,0 +1,49 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (after stack-normalize) ===
+  @module module
+  bb0:
+    push 1
+    push 2
+    push 3
+-   dup 3
+-   dup 3
+-   swap 1
+-   swap 2
+    pop
+-   swap 2
+-   pop
+-   swap 2
+-   pop
+    stop
+  bb1:
+    push 4
+    push 5
+    push 6
+-   swap 1
+    swap 2
+    swap 1
+-   swap 2
+    stop
+  bb2:
+    push 7
+    push 8
+-   swap 1
+-   swap 1
+    stop
+  bb3:
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    swap 6
+-   swap 1
+-   swap 2
+-   swap 1
+-   swap 2
+-   swap 1
+-   swap 2
+    stop
+  

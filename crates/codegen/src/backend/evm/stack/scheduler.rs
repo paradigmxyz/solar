@@ -103,8 +103,7 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    backend::evm::op::StackOp,
-    backend::evm::materialize::rematerializable_nullary_opcode,
+    backend::evm::{materialize::rematerializable_nullary_opcode, op::StackOp},
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
@@ -1102,7 +1101,7 @@ impl StackScheduler {
             consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
         }
 
-        if  prepend_reaches_goal && let Some(op) = materialized {
+        if prepend_reaches_goal && let Some(op) = materialized {
             let accessible =
                 stack.iter().take(max_stack_access).any(|&slot| slot == Some(expected_top));
             if matches!(optimization, OptimizationMode::Gas)

@@ -14,7 +14,9 @@ use super::{
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
-    materialize::{is_cross_block_recomputable_kind, rematerializable_nullary_opcode, cross_block_values, },
+    materialize::{
+        cross_block_values, is_cross_block_recomputable_kind, rematerializable_nullary_opcode,
+    },
     op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,

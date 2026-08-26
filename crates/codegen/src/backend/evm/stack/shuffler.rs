@@ -94,18 +94,7 @@ impl<'a> StackShuffler<'a> {
     pub(crate) fn shuffle(mut self) -> Option<ShuffleResult> {
         let original = self.source.clone();
         let max_stack_access = self.max_stack_access();
-
-        // Phase 1: Ensure we have enough copies of each value.
-        self.ensure_multiplicities();
-
-        // Phase 2: Arrange values to match target positions.
-        self.arrange_positions();
-
-        // Phase 3: Pop excess values.
-        self.pop_excess();
-
-        let greedy = Self::matches_target(&self.source, self.target)
-            .then_some(ShuffleResult { ops: self.ops });
+        let greedy = self.run_greedy();
         let operation_lower_bound = original
             .len()
             .abs_diff(self.target.len())
@@ -139,6 +128,19 @@ impl<'a> StackShuffler<'a> {
         greedy.or_else(|| {
             Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
         })
+    }
+
+    /// Performs only the bounded-work greedy shuffle.
+    pub(crate) fn shuffle_greedy(mut self) -> Option<ShuffleResult> {
+        self.run_greedy()
+    }
+
+    fn run_greedy(&mut self) -> Option<ShuffleResult> {
+        self.ensure_multiplicities();
+        self.arrange_positions();
+        self.pop_excess();
+        Self::matches_target(&self.source, self.target)
+            .then(|| ShuffleResult { ops: std::mem::take(&mut self.ops) })
     }
 
     fn search_exact(

@@ -1,0 +1,77 @@
+//@compile-flags: -Zevm-ir-pipeline=stack-normalize
+//@filecheck:
+@module module
+
+// A long generated cleanup can be resynthesized as the one required pop.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 3
+// CHECK-NEXT: -   dup 3
+// CHECK-NEXT: -   dup 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
+bb0:
+  push 1
+  push 2
+  push 3
+  dup 3
+  dup 3
+  swap 1
+  swap 2
+  pop
+  swap 2
+  pop
+  swap 2
+  pop
+  stop
+
+// Normalize a nonidentity permutation without matching its opcode sequence.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 6
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}stop
+bb1:
+  push 4
+  push 5
+  push 6
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  stop
+
+// Canonical stack metadata carries the same semantics as the opcode default.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NOT: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}stop
+bb2:
+  push 7
+  push 8
+  swap 1 !meta(stack=2->2)
+  swap 1
+  stop
+
+// Larger layouts use the bounded greedy shuffler without exact-search fallback.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}push 15
+// CHECK-NEXT: {{^[ +].*}}swap 6
+// CHECK: {{^[ +].*}}stop
+bb3:
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  swap 6
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  stop
