@@ -229,13 +229,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         let external_argument = self.is_external_abi_argument(value);
+        let external_only = external_argument
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         if !external_argument {
             self.validate_enum(ty, value);
         }
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
-            _ if self.is_external_only_abi_argument(value) => value,
+            _ if external_only => value,
             _ => self.normalize_abi_scalar(value, ty),
         }
     }

@@ -1423,9 +1423,7 @@ impl LowerAbiCx {
                             && (location != AbiParamLocation::Memory
                                 || (!constructor && matches!(ty, AbiParamType::Bytes)));
                         if validate_only {
-                            if !constructor
-                                && location == AbiParamLocation::Memory
-                                && matches!(ty, AbiParamType::Bytes)
+                            if location == AbiParamLocation::Memory
                                 && let Some(helper) = self.calldata_slice_helper
                             {
                                 builder.internal_call_void(helper, vec![head], 1);
@@ -2061,12 +2059,7 @@ impl LowerAbiCx {
         data: ValueId,
         len: ValueId,
     ) -> ValueId {
-        let word = builder.imm_u64(32);
-        let thirty_one = builder.imm_u64(31);
-        let rounded = builder.add(len, thirty_one);
-        let mask = builder.not(thirty_one);
-        let data_size = builder.and(rounded, mask);
-        let total = builder.add(data_size, word);
+        let total = builder.padded_size(len);
         let layout = crate::mir::MemoryObjectLayout::Bytes;
         let ptr = builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
         builder.set_memory_object_len(ptr, len, layout.kind());

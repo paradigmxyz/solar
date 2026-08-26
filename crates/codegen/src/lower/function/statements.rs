@@ -605,7 +605,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let hash = self.lower_keccak_abi_encode_packed(args)?;
                 self.builder.ret(vec![hash]);
-                stmts.next().expect("matched return");
                 break;
             }
             self.lower_stmt(stmt)?;

@@ -18,56 +18,19 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
-  dup 1
-  push 64
-  mstore
-  dup 1
+  push 32
   push 128
   mstore
-  push 32
-  dup 2
-  add
-  dup 2
-  dup 2
-  sub
-  dup 3
-  mstore
   push 2
-  swap 1
+  push 160
   mstore
-  push 64
-  dup 2
-  add
   push 0x3339
   push 240
   shl
-  swap 1
+  push 192
   mstore
   push 96
-  jump bb7
-bb7:
-  dup 2
-  add
-  sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup 1
-  push 160
-  mstore
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
-  dup 2
+  push 128
   return
 bb4 [cold]:
   push 0
@@ -107,7 +70,28 @@ bb6:
   swap 1
   mstore
   push 128
-  jump bb7
+  dup 2
+  add
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 160
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
 bb0:

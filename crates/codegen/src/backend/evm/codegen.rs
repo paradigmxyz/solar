@@ -747,7 +747,7 @@ impl GlobalStackPlan {
 
 impl StackPhiPlan {
     fn analyze(func: &Function, liveness: &Liveness) -> Self {
-        StackPhiPlanner::new(func, liveness).plan()
+        StackPhiPlanner::new(func).plan(liveness)
     }
 
     fn edge_fits(edge: &StackPhiEdge, values: &[ValueId]) -> bool {
@@ -844,14 +844,13 @@ impl StackPhiPlan {
 
 struct StackPhiPlanner<'a> {
     func: &'a Function,
-    liveness: &'a Liveness,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
     definitions: IndexVec<ValueId, Option<BlockId>>,
 }
 
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function, liveness: &'a Liveness) -> Self {
+    fn new(func: &'a Function) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -864,16 +863,15 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner =
-            Self { func, liveness, loops, header_results: FxHashMap::default(), definitions };
+        let mut planner = Self { func, loops, header_results: FxHashMap::default(), definitions };
         planner.collect_header_results();
         planner
     }
 
-    fn plan(&self) -> StackPhiPlan {
+    fn plan(&self, liveness: &Liveness) -> StackPhiPlan {
         let mut plan = StackPhiPlan::default();
         for loop_info in &self.loops {
-            self.plan_loop(loop_info, &mut plan);
+            self.plan_loop(loop_info, liveness, &mut plan);
         }
         self.plan_branch_phi_joins(&mut plan);
         for block in self.func.blocks.indices() {
@@ -1066,7 +1064,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    fn plan_loop(&self, loop_info: &Loop, plan: &mut StackPhiPlan) {
+    fn plan_loop(&self, loop_info: &Loop, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let Some(preheader) = loop_info.preheader else {
             return;
         };
@@ -1103,7 +1101,7 @@ impl<'a> StackPhiPlanner<'a> {
 
         let mut carry_through = self.carry_through_values(loop_info);
         if has_branching_body {
-            self.extend_live_across_exits(loop_info, &mut carry_through);
+            self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
         } else {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
@@ -1221,13 +1219,11 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     fn is_noreturn_block(&self, block_id: BlockId) -> bool {
-        match self.func.blocks[block_id].terminator.as_ref() {
-            Some(
-                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
-            ) => true,
-            Some(Terminator::TailCall { args, .. }) => args.is_empty(),
-            _ => false,
-        }
+        GlobalStackPlan::is_terminal_block(self.func, block_id)
+            || matches!(
+                self.func.blocks[block_id].terminator.as_ref(),
+                Some(Terminator::TailCall { args, .. }) if args.is_empty()
+            )
     }
 
     fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
@@ -1339,7 +1335,12 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    fn extend_live_across_exits(&self, loop_info: &Loop, values: &mut Vec<ValueId>) {
+    fn extend_live_across_exits(
+        &self,
+        loop_info: &Loop,
+        liveness: &Liveness,
+        values: &mut Vec<ValueId>,
+    ) {
         for block_id in &loop_info.blocks {
             let Some(terminator) = &self.func.blocks[block_id].terminator else { continue };
             for successor in terminator
@@ -1347,7 +1348,7 @@ impl<'a> StackPhiPlanner<'a> {
                 .into_iter()
                 .filter(|successor| !loop_info.blocks.contains(*successor))
             {
-                for value in self.liveness.live_in(successor) {
+                for value in liveness.live_in(successor) {
                     self.push_live_through_value(loop_info, value, values);
                 }
             }

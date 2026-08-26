@@ -20,23 +20,22 @@ fn @pushStr() [selector=0xe6e6accc] {
     v56 = gt v53, v55
     jumpi v56, bb13, bb16
   bb16:
-    v57 = add v53, 31
+    v57 = add v53, 63
     v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = add v59, 32
-    v61 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v71 = add v61, v60
-    mstore 64, v71 !metadata(memory=scratch)
-    mstore v61, v53
-    v68 = add v61, 32
-    calldatacopy v68, v49, v53
+    v60 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v70 = add v60, v59
+    mstore 64, v70 !metadata(memory=scratch)
+    mstore v60, v53
+    v67 = add v60, 32
+    calldatacopy v67, v49, v53
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb2:
     mstore 0, 0 !metadata(memory=scratch)
-    v63 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v63, v0
+    v62 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = add v62, v0
     v5 = sload v4 !metadata(storage=symbolic(v4))
     v6 = and v5, 1
     v7 = eq v6, 1
@@ -47,7 +46,7 @@ fn @pushStr() [selector=0xe6e6accc] {
     v12 = eq v7, v11
     jumpi v12, bb3, bb4
   bb4:
-    v13 = mload v61
+    v13 = mload v60
     v16 = add v10, 31
     v17 = shr 5, v16
     v18 = add v13, 31
@@ -70,23 +69,23 @@ fn @pushStr() [selector=0xe6e6accc] {
     v35 = or v34, 1
     sstore v4, v35 !metadata(storage=symbolic(v4))
     mstore 0, v4 !metadata(memory=scratch)
-    v64 = keccak256 0, 32 !metadata(memory=scratch)
+    v63 = keccak256 0, 32 !metadata(memory=scratch)
     jump bb11
   bb11:
     v37 = phi [bb9: 0], [bb12: v42]
-    v43 = phi [bb9: v64], [bb12: v44]
+    v43 = phi [bb9: v63], [bb12: v44]
     v38 = lt v37, v20
     jumpi v38, bb12, bb10
   bb12:
     v39 = shl 5, v37
-    v67 = add v68, v39
-    v40 = mload v67
+    v66 = add v67, v39
+    v40 = mload v66
     sstore v43, v40 !metadata(storage=symbolic(v43))
     v42 = add v37, 1
     v44 = add v43, 1
     jump bb11
   bb8:
-    v25 = mload v68
+    v25 = mload v67
     v26 = sub 32, v13
     v27 = shl 3, v26
     v28 = shl v27, 1

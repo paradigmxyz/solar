@@ -410,7 +410,7 @@ impl CfgSimplifier {
         else {
             return None;
         };
-        let value = func.value(*condition).as_immediate()?.as_u256()?;
+        let value = func.value_u256(*condition)?;
         Some(if value.is_zero() { *else_block } else { *then_block })
     }
 

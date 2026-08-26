@@ -206,15 +206,13 @@ bb4:
   lt
   push bb3
   jumpi
-  push 31
+  push 63
   push 160
   mload
   add
   push 31
   not
   and
-  push 32
-  add
   push 64
   mload
   dup 1
