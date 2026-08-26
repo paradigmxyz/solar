@@ -171,6 +171,10 @@ bb11:
   stop
 
 // Raw PUSH0 participates in symbolic cleanup.
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push0
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: -   push0
 bb12:
   calldatasize
   push0
@@ -180,6 +184,11 @@ bb12:
   stop
 
 // Deferred pushes cannot be removed before assembly resolves them.
+// CHECK-LABEL: {{^[ +].*}}bb13:
+// CHECK-NEXT: {{^[ +].*}}calldatasize
+// CHECK-NEXT: {{^    push_deferred 0}}
+// CHECK-NEXT: {{^    pop}}
+// CHECK-NEXT: {{^    push0}}
 bb13:
   calldatasize
   push_deferred 0
@@ -189,6 +198,13 @@ bb13:
   stop
 
 // Do not remove an identity that only holds with an unavailable stack prefix.
+// CHECK-LABEL: {{^[ +].*}}bb14:
+// CHECK: {{^    swap 2}}
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   pop
+// CHECK-NEXT: +   swap 2
 bb14:
   push 0
   push 1

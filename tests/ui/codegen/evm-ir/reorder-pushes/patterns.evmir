@@ -1,6 +1,12 @@
 //@compile-flags: -Zevm-ir-pipeline=reorder-pushes
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-NEXT: +   push 10
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}calldataload
+// CHECK: -   swap 1
 bb0:
   push 0
   calldataload
@@ -9,6 +15,10 @@ bb0:
   sub
   stop
 
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   calldatasize
 bb1:
   calldatasize
   push 3
@@ -17,6 +27,9 @@ bb1:
   stop
 
 // Move the push before the complete nested expression.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
 bb2:
   push 0
   calldataload
@@ -28,6 +41,8 @@ bb2:
   stop
 
 // `gas` and `pc` observe changes caused by moving a push.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^    swap 1}}
 bb3:
   gas
   push 10
@@ -84,6 +99,8 @@ bb8:
   stop
 
 // Moving the push would raise the producer's peak above the EVM stack limit.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^    swap 1}}
 bb9:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)
@@ -99,6 +116,10 @@ bb9:
   stop
 
 // Chained rewrites must account for headroom already spent by an earlier push.
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK: +   push 1
+// CHECK: -   swap 1
+// CHECK: {{^    swap 1}}
 bb10:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)
@@ -116,6 +137,11 @@ bb10:
   stop
 
 // A cheap rewrite can expose a nested producer for the next candidate.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK-NEXT: -   calldatasize
+// CHECK-NEXT: +   push 20
+// CHECK: -   swap 1
+// CHECK: -   swap 1
 bb11:
   calldatasize
   push 10
@@ -146,6 +172,9 @@ bb13:
   stop
 
 // A preceding push does not affect memory expansion or access warming.
+// CHECK-LABEL: {{^[ +].*}}bb14:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
 bb14:
   push 0
   mload
@@ -163,6 +192,10 @@ bb15:
   stop
 
 // Long chains stay linear and place every push before the producer.
+// CHECK-LABEL: {{^[ +].*}}bb16:
+// CHECK-NEXT: -   calldatasize
+// CHECK-COUNT-16: -   swap 1
+// CHECK-NEXT: +   calldatasize
 bb16:
   calldatasize
   push 1
