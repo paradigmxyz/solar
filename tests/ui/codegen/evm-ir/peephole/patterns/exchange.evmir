@@ -49,3 +49,21 @@ bb3:
   exchange 2, 3
   exchange 2, 3
   stop
+
+bb4:
+  push 0
+  push 1
+  push 2
+  push 3
+  exchange 2, 3
+  swap 3
+  stop
+
+bb5:
+  push 0
+  push 1
+  push 2
+  push 3
+  swap 3
+  exchange 2, 3
+  stop

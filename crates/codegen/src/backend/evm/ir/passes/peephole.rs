@@ -306,15 +306,23 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
     }
 
     // `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
+    // `EXCHANGE n, m SWAPm -> SWAPm SWAPn`.
     // `SWAPn EXCHANGE n, m -> SWAPm SWAPn`.
+    // `SWAPm EXCHANGE n, m -> SWAPn SWAPm`.
     if let [.., first, second] = instructions.as_slice()
         && let Some((first_depth, second_depth)) = match (first.as_stack_op(), second.as_stack_op())
         {
             (Some(op::StackOp::Exchange(n, m)), Some(op::StackOp::Swap(depth))) if n == depth => {
                 Some((n, m))
             }
+            (Some(op::StackOp::Exchange(n, m)), Some(op::StackOp::Swap(depth))) if m == depth => {
+                Some((m, n))
+            }
             (Some(op::StackOp::Swap(depth)), Some(op::StackOp::Exchange(n, m))) if n == depth => {
                 Some((m, n))
+            }
+            (Some(op::StackOp::Swap(depth)), Some(op::StackOp::Exchange(n, m))) if m == depth => {
+                Some((n, m))
             }
             _ => None,
         }
