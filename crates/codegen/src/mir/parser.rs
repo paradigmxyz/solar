@@ -1705,10 +1705,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let layout = self.parse_abi_param_layout()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let data = self.parse_value(builder)?;
-                if builder.func().value_ty(data)
-                    != Some(MirType::MemoryObject(crate::mir::MemoryObjectKind::Bytes))
+                let data_ty = builder.func().value_ty(data);
+                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    && !(data_ty == Some(MirType::MemPtr)
+                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
                 {
-                    return Err(self.parser.error("ABI decode requires a bytes object"));
+                    return Err(self
+                        .parser
+                        .error("ABI decode requires bytes or a static memory pointer"));
                 }
                 let result_ty = layout
                     .types
