@@ -1357,6 +1357,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.solar,
         [
             "solar",
+            "target/bench/solar",
             "target/release/solar",
             "target/debug/solar",
         ],
