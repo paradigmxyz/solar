@@ -117,6 +117,31 @@ str_enum! {
 }
 
 impl EvmVersion {
+    /// Returns the maximum deployed code size for this EVM version.
+    pub fn runtime_code_size_limit(self) -> Option<usize> {
+        match self {
+            Self::Homestead | Self::TangerineWhistle => None,
+            _ => Some(24_576),
+        }
+    }
+
+    /// Returns the maximum initcode size for this EVM version.
+    pub fn initcode_size_limit(self) -> Option<usize> {
+        match self {
+            Self::Homestead
+            | Self::TangerineWhistle
+            | Self::SpuriousDragon
+            | Self::Byzantium
+            | Self::Constantinople
+            | Self::Petersburg
+            | Self::Istanbul
+            | Self::Berlin
+            | Self::London
+            | Self::Paris => None,
+            _ => Some(49_152),
+        }
+    }
+
     pub fn can_overcharge_gas_for_call(self) -> bool {
         self >= Self::TangerineWhistle
     }
