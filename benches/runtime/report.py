@@ -154,6 +154,48 @@ COMPILE_TIME_TOTAL_CHANGE = 0.10
 COMPILE_TIME_TOTAL_ABSOLUTE_CHANGE = 1.0
 
 
+def compiler_status(result: dict[str, Any] | None, compiler: str) -> str | None:
+    if result is None:
+        return None
+    data = compiler_data(result, compiler)
+    if not data:
+        return None
+    return "ok" if data.get("status") == "ok" else "n/a"
+
+
+def compilation_failure_report(
+    results: list[dict[str, Any]],
+    baseline_results: list[dict[str, Any]],
+    baseline_ref: str,
+) -> list[str]:
+    current = by_test_id(results)
+    baseline = by_test_id(baseline_results)
+    keys = [*current, *(key for key in baseline if key not in current)]
+    rows = []
+    for key in keys:
+        current_status = compiler_status(current.get(key), "solar")
+        baseline_status = compiler_status(baseline.get(key), "solar")
+        if "n/a" not in (current_status, baseline_status):
+            continue
+
+        statuses = []
+        if baseline_status is not None:
+            statuses.append(f"`{baseline_ref}` = `{baseline_status}`")
+        if current_status is not None:
+            statuses.append(f"branch = `{current_status}`")
+        rows.append(f"> - `{'/'.join(key)}`: {', '.join(statuses)}")
+
+    if not rows:
+        return []
+    return [
+        "> [!NOTE]",
+        "> The compiler failed on these benchmarks; `n/a` marks the failed revision:",
+        ">",
+        *rows,
+        "",
+    ]
+
+
 def has_codegen_changes(
     results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> bool:
@@ -162,6 +204,15 @@ def has_codegen_changes(
         base = baseline.get(suite_key(result))
         if base is None:
             continue
+
+        current_status = compiler_status(result, "solar")
+        baseline_status = compiler_status(base, "solar")
+        if (
+            current_status is not None
+            and baseline_status is not None
+            and current_status != baseline_status
+        ):
+            return True
 
         solar_gas = total_gas(result, "solar")
         base_solar_gas = total_gas(base, "solar")
@@ -566,6 +617,7 @@ def report_section(
         lines.extend(
             [f"No `{baseline_ref}` baseline artifact was available for comparison.", ""]
         )
+    lines.extend(compilation_failure_report(results, baseline_results, baseline_ref))
 
     rows = benchmark_rows(results, baseline)
     if rows:

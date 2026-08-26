@@ -148,6 +148,56 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
+    def test_codegen_report_labels_failed_revision(self):
+        def timed_result(test_id, solar_status):
+            return {
+                "test_id": test_id,
+                "suite": "repository",
+                "compilers": {
+                    "solc": {"status": "ok", "compile_time_seconds": 0.100},
+                    "solar": {
+                        "status": solar_status,
+                        "compile_time_seconds": 0.010,
+                        "command": "target/release/solar --standard-json",
+                        "label": "solar 0.2.0",
+                        "input_fingerprint": "input",
+                    },
+                },
+            }
+
+        current = [
+            timed_result("base-failed", "ok"),
+            timed_result("branch-failed", "failed"),
+            timed_result("both-failed", "failed"),
+        ]
+        baseline = [
+            timed_result("base-failed", "failed"),
+            timed_result("branch-failed", "ok"),
+            timed_result("both-failed", "failed"),
+        ]
+        report = benchmark.codegen_report(current, baseline)
+        self.assertIn(
+            "> [!NOTE]\n"
+            "> The compiler failed on these benchmarks; `n/a` marks the failed revision:\n"
+            ">\n"
+            "> - `repository/base-failed`: `main` = `n/a`, branch = `ok`\n"
+            "> - `repository/branch-failed`: `main` = `ok`, branch = `n/a`\n"
+            "> - `repository/both-failed`: `main` = `n/a`, branch = `n/a`\n",
+            report,
+        )
+        self.assertIn(
+            "| base-failed | 10.0 ms (n/a) | 100.0 ms (✅ +900.00%) |", report
+        )
+        self.assertIn(
+            "| branch-failed | n/a (n/a) | 100.0 ms (n/a) |", report
+        )
+
+        for index in range(2):
+            self.assertTrue(
+                benchmark.has_codegen_changes([current[index]], [baseline[index]])
+            )
+        self.assertFalse(benchmark.has_codegen_changes(current[2:], baseline[2:]))
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, results, timings=None):
