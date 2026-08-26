@@ -49,3 +49,4 @@ fn @runtimeData() -> memorybytes [abi_returns=[memory_bytes]] {
     data_copy literal_1, v1, 160
     ret v0
 }
+
