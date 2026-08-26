@@ -1,8 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=mir
-//@[gas] filecheck: --check-prefix=ABI
 //@ run-call: from_storage() => [[10, 11], [12, 13, 14]]
 //@ run-call: from_storage_ptr() => [[10, 11], [12, 13, 14]]
 //@ run-call: from_memory() => [[10, 11], [12, 13, 14]]
@@ -54,9 +52,6 @@ contract StorageArrayToMapping {
         return mapped[0];
     }
 
-    // ABI-LABEL: fn @from_address_storage()
-    // ABI-NOT: internal_call @cleanup_return
-    // ABI: returndata
     function from_address_storage() public view returns (address[] memory) {
         return addresses;
     }

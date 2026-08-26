@@ -269,12 +269,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             };
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
-                    let InstKind::InternalCall { function: target, .. } =
-                        &mut module.functions[owner].inst_mut(inst).kind
+                    let result_ty = module.functions[*function].returns.first().copied();
+                    let instruction = module.functions[owner].inst_mut(inst);
+                    let InstKind::InternalCall { function: target, returns, .. } =
+                        &mut instruction.kind
                     else {
                         unreachable!()
                     };
                     *target = *function;
+                    if *returns > 0 && result_ty.is_some() {
+                        instruction.result_ty = result_ty;
+                    }
                 }
                 FunctionRefTarget::Terminator(block) => {
                     let Some(Terminator::TailCall { function: target, .. }) =
