@@ -280,7 +280,9 @@ fn find_candidate(
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                if inst.as_legacy_opcode().is_some_and(is_analysis_boundary) {
+                if !inst.has_canonical_stack_effect()
+                    || inst.as_legacy_opcode().is_some_and(is_analysis_boundary)
+                {
                     return None;
                 }
                 let effect = inst.effective_stack_effect()?;

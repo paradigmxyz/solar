@@ -275,6 +275,19 @@ fn @metadata_effect_is_a_barrier(
     ret v10
 }
 
+// Metadata cannot make an intrinsically effectful instruction movable.
+// CHECK-LABEL: {{^[ +].*}}fn @metadata_cannot_downgrade_effect{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: [[CALL:v[0-9]+]] = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
+// CHECK-NEXT: [[SIZE:v[0-9]+]] = returndatasize
+// CHECK-NEXT: ret [[CALL]], [[CALL]], [[SIZE]]
+fn @metadata_cannot_downgrade_effect() -> (bool, bool, u256) {
+  bb0:
+    v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
+    v1 = returndatasize
+    ret v0, v0, v1
+}
+
 // Each block starts with empty scheduling scratch state.
 // CHECK-LABEL: {{^[ +].*}}fn @block_local_scratch{{[( ]}}
 // CHECK: - [[ADD0:v[0-9]+]] = add arg0, arg1

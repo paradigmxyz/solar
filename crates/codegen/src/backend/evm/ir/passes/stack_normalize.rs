@@ -56,6 +56,9 @@ fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) 
         let Some(output) = resynthesize_physical_ops(&input, evm_version) else {
             continue;
         };
+        if relative_peak(&output) > relative_peak(&input) {
+            continue;
+        }
         let input_cost = lowered_stack_cost(&input, evm_version);
         let output_cost = lowered_stack_cost(&output, evm_version);
         if output_cost.0 > input_cost.0
@@ -96,4 +99,18 @@ fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {
     inst.has_canonical_stack_effect().then_some(())?;
     inst.as_stack_op()
+}
+
+fn relative_peak(ops: &[StackOp]) -> isize {
+    let mut depth = 0isize;
+    let mut peak = 0isize;
+    for op in ops {
+        match op {
+            StackOp::Dup(_) => depth += 1,
+            StackOp::Pop => depth -= 1,
+            StackOp::Swap(_) | StackOp::Exchange(_, _) => {}
+        }
+        peak = peak.max(depth);
+    }
+    peak
 }

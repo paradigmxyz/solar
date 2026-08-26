@@ -45,31 +45,11 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            match select(evm_version, value) {
-                CompactPush::Literal => block.instructions.push(inst),
-                CompactPush::FullWord => {
-                    block.instructions.push(push(U256::ZERO));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    changed = true;
-                }
-                CompactPush::LowerAllOnesMask { shift } => {
-                    block.instructions.push(push(U256::ZERO));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    block.instructions.push(push(U256::from(shift)));
-                    block.instructions.push(Instruction::opcode(op::SHR));
-                    changed = true;
-                }
-                CompactPush::Not => {
-                    block.instructions.push(push(!value));
-                    block.instructions.push(Instruction::opcode(op::NOT));
-                    changed = true;
-                }
-                CompactPush::Shl { shift } => {
-                    block.instructions.push(push(value >> usize::from(shift)));
-                    block.instructions.push(push(U256::from(shift)));
-                    block.instructions.push(Instruction::opcode(op::SHL));
-                    changed = true;
-                }
+            if matches!(select(evm_version, value), CompactPush::Literal) {
+                block.instructions.push(inst);
+            } else {
+                materialize_immediate(&mut block.instructions, evm_version, value);
+                changed = true;
             }
         }
     }
@@ -89,6 +69,35 @@ fn immediate(inst: &Instruction) -> Option<U256> {
 
 fn push(value: U256) -> Instruction {
     Instruction::push_value(value)
+}
+
+pub(super) fn materialize_immediate(
+    instructions: &mut Vec<Instruction>,
+    evm_version: EvmVersion,
+    value: U256,
+) {
+    match select(evm_version, value) {
+        CompactPush::Literal => instructions.push(push(value)),
+        CompactPush::FullWord => {
+            instructions.push(push(U256::ZERO));
+            instructions.push(Instruction::opcode(op::NOT));
+        }
+        CompactPush::LowerAllOnesMask { shift } => {
+            instructions.push(push(U256::ZERO));
+            instructions.push(Instruction::opcode(op::NOT));
+            instructions.push(push(U256::from(shift)));
+            instructions.push(Instruction::opcode(op::SHR));
+        }
+        CompactPush::Not => {
+            instructions.push(push(!value));
+            instructions.push(Instruction::opcode(op::NOT));
+        }
+        CompactPush::Shl { shift } => {
+            instructions.push(push(value >> usize::from(shift)));
+            instructions.push(push(U256::from(shift)));
+            instructions.push(Instruction::opcode(op::SHL));
+        }
+    }
 }
 
 fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
@@ -155,29 +164,32 @@ pub(in crate::backend::evm) fn immediate_materialization_cost(
     value: U256,
 ) -> (usize, usize) {
     match select(evm_version, value) {
-        CompactPush::Literal => literal_cost(evm_version, value),
+        CompactPush::Literal => literal_materialization_cost(evm_version, value),
         CompactPush::FullWord => {
-            let (zero_len, zero_gas) = literal_cost(evm_version, U256::ZERO);
+            let (zero_len, zero_gas) = literal_materialization_cost(evm_version, U256::ZERO);
             (zero_len + 1, zero_gas + VERY_LOW_GAS)
         }
         CompactPush::LowerAllOnesMask { shift } => {
-            let (zero_len, zero_gas) = literal_cost(evm_version, U256::ZERO);
-            let (shift_len, shift_gas) = literal_cost(evm_version, U256::from(shift));
+            let (zero_len, zero_gas) = literal_materialization_cost(evm_version, U256::ZERO);
+            let (shift_len, shift_gas) =
+                literal_materialization_cost(evm_version, U256::from(shift));
             (zero_len + 1 + shift_len + 1, zero_gas + VERY_LOW_GAS + shift_gas + VERY_LOW_GAS)
         }
         CompactPush::Not => {
-            let (inverted_len, inverted_gas) = literal_cost(evm_version, !value);
+            let (inverted_len, inverted_gas) = literal_materialization_cost(evm_version, !value);
             (inverted_len + 1, inverted_gas + VERY_LOW_GAS)
         }
         CompactPush::Shl { shift } => {
-            let (value_len, value_gas) = literal_cost(evm_version, value >> usize::from(shift));
-            let (shift_len, shift_gas) = literal_cost(evm_version, U256::from(shift));
+            let (value_len, value_gas) =
+                literal_materialization_cost(evm_version, value >> usize::from(shift));
+            let (shift_len, shift_gas) =
+                literal_materialization_cost(evm_version, U256::from(shift));
             (value_len + shift_len + 1, value_gas + shift_gas + VERY_LOW_GAS)
         }
     }
 }
 
-fn literal_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
+fn literal_materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
     (
         fixed_push_len(evm_version, push_width(evm_version, value)),
         if value.is_zero() && evm_version.has_push0() { BASE_GAS } else { VERY_LOW_GAS },

@@ -150,6 +150,13 @@
       ret v6
   }
   
+  fn @metadata_cannot_downgrade_effect() -> (bool, bool, u256) {
+    bb0:
+      v0 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
+      v1 = returndatasize
+      ret v0, v0, v1
+  }
+  
   fn @block_local_scratch(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:
 -     v0 = add arg0, arg1

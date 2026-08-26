@@ -127,8 +127,13 @@ impl EvmInstSchedule {
             return false;
         }
 
+        Self::is_movable_effect(inst.kind.effect_kind())
+            && inst.metadata.effect().is_none_or(Self::is_movable_effect)
+    }
+
+    fn is_movable_effect(effect: crate::mir::EffectKind) -> bool {
         matches!(
-            inst.metadata.effect().unwrap_or_else(|| inst.kind.effect_kind()),
+            effect,
             crate::mir::EffectKind::Pure
                 | crate::mir::EffectKind::MemoryRead
                 | crate::mir::EffectKind::StorageRead

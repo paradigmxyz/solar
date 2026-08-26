@@ -87,3 +87,20 @@ bb3:
   swap 1
   swap 2
   stop
+
+// Do not raise the transient stack peak even when a shorter run has the same result.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}stop
+bb4:
+  push 16
+  push 17
+  push 18
+  swap 2
+  pop
+  dup 1
+  swap 2
+  stop

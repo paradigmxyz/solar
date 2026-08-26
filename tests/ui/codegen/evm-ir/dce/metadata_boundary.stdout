@@ -1,0 +1,9 @@
+- // === ROOT/tests/ui/codegen/evm-ir/dce/metadata_boundary.evmir (before dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/dce/metadata_boundary.evmir (after dce) ===
+  @module MetadataBoundary
+  bb0:
+    push 1
+    op_0c !meta(stack=1->1)
+    pop
+    stop
+  

@@ -1,6 +1,9 @@
 //! Local peephole optimization over scheduled EVM IR.
 
-use super::{EvmPass, compact_pushes::immediate_materialization_cost};
+use super::{
+    EvmPass,
+    compact_pushes::{immediate_materialization_cost, materialize_immediate},
+};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
@@ -8,6 +11,7 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -172,7 +176,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
             && result_gas <= input_gas
             && (result_size < input_size || result_gas < input_gas)
         {
-            return rewrite(instructions, 3, Edit::FoldConstants(result), block);
+            return rewrite(instructions, 3, Edit::FoldConstants(result, evm_version), block);
         }
     }
 
@@ -554,7 +558,7 @@ enum Edit {
     ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
-    FoldConstants(U256),
+    FoldConstants(U256, EvmVersion),
 }
 
 impl Edit {
@@ -612,9 +616,9 @@ impl Edit {
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
             }
-            Self::FoldConstants(value) => {
-                instructions[start] = Instruction::push_value(value);
-                instructions.truncate(start + 1);
+            Self::FoldConstants(value, evm_version) => {
+                instructions.truncate(start);
+                materialize_immediate(instructions, evm_version, value);
             }
         }
     }

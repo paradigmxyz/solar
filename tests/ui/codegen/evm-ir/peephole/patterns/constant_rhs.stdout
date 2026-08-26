@@ -94,4 +94,11 @@
 -   mul
 +   push 128
     stop
+  bb18:
+-   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+-   push 1
+-   add
++   push 0
++   not
+    stop
   
