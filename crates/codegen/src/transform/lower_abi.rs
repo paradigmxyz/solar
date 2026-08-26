@@ -3184,6 +3184,12 @@ fn is_canonical_return_scalar(
     {
         return true;
     }
+    if source == ReturnValueSource::Scalar
+        && let Value::Inst(inst) = func.value(value)
+        && matches!(func.inst(*inst).kind, InstKind::LoadImmutable(_))
+    {
+        return true;
+    }
     let Value::Inst(inst) = func.value(value) else {
         return func.value_u256(value).is_some_and(|value| value & !expected == U256::ZERO);
     };
