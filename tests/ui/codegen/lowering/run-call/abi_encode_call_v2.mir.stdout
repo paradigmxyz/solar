@@ -430,11 +430,10 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
 fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    memory_zero v0, 160
     memory_object_store_field memorystruct<5>, v0, 0, 96
-    memory_object_store_field memorystruct<5>, v0, 1, 0
     memory_object_store_field memorystruct<5>, v0, 2, 96
     memory_object_store_field memorystruct<5>, v0, 3, 96
-    memory_object_store_field memorystruct<5>, v0, 4, 0
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v1, 3
     memory_object_store_field memorystruct<5>, v0, 0, v1

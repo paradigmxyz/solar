@@ -285,10 +285,8 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, pure
 fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, 0
+    memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
-    memory_object_store_field memorystruct<4>, v0, 2, 0
-    memory_object_store_field memorystruct<4>, v0, 3, 0
     ret v0
 }
 

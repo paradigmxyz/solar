@@ -2,6 +2,8 @@
 
 use super::*;
 
+const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
@@ -269,7 +271,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if preserve_fmp && dynamic { object = ZERO_SLOT }
         // else { object = alloc(default_layout) }
         // if bytes_or_dynamic_array { object.len = 0 }
-        // if struct { object[field] = default(field) }
+        // if wide_preserved_struct { memory_zero(object, size) }
+        // if struct { object[reference_field] = default(reference_field) }
         // if fixed_array { zero_uninitialized_elements(); object[i] = default(element) }
         let layout = self.types.memory_layout(ty)?;
         if preserve_fmp
@@ -292,9 +295,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
             TyKind::Struct(id) => {
+                let fields = self.context.gcx.hir.strukt(id).fields;
+                let bulk_zero = preserve_fmp && fields.len() >= MIN_BULK_ZERO_STRUCT_FIELDS;
+                if bulk_zero {
+                    self.builder.memory_zero(object, size);
+                }
                 let zero = self.builder.imm_u256(U256::ZERO);
-                for (index, &field) in self.context.gcx.hir.strukt(id).fields.iter().enumerate() {
+                for (index, &field) in fields.iter().enumerate() {
                     let field_ty = self.context.gcx.type_of_item(field.into());
+                    if bulk_zero && field_ty.peel_refs().is_value_type() {
+                        continue;
+                    }
                     let value =
                         self.default_object_with_mode(field_ty, preserve_fmp).unwrap_or(zero);
                     self.builder.memory_object_store_field(object, layout, index as u64, value);
