@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -171,6 +172,59 @@ class CorpusTests(unittest.TestCase):
         )
 
 
+class FailureHandlingTests(unittest.TestCase):
+    def test_process_spawn_error_is_a_command_failure(self) -> None:
+        with mock.patch(
+            "common.subprocess.Popen",
+            side_effect=OSError(7, "Argument list too long"),
+        ):
+            result = benchmark.run(["cast", "send"])
+
+        self.assertEqual(result.returncode, -1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Argument list too long", result.stderr)
+
+    def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
+        test_id = benchmark.TEST_CASES[0].test_id
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            benchmark,
+            "find_binary",
+            side_effect=lambda value, _fallbacks: Path(value),
+        ), mock.patch.object(
+            benchmark,
+            "binary_version",
+            return_value=("0.8.36", ""),
+        ), mock.patch.object(
+            benchmark,
+            "run_test_case",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--solc",
+                    "solc",
+                    "--solar",
+                    "solar",
+                    "--tests",
+                    test_id,
+                    "--allow-failures",
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(return_code, 0)
+        self.assertEqual(len(document["results"]), 1)
+        failure = document["results"][0]
+        self.assertIn("RuntimeError: unexpected", failure["benchmark_error"])
+        self.assertEqual(
+            {compiler["status"] for compiler in failure["compilers"].values()},
+            {"failed"},
+        )
+
+
 class RuntimeComparisonTests(unittest.TestCase):
     def test_reports_cross_compiler_mismatch(self) -> None:
         specs = (
@@ -204,12 +258,18 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class RpcTransportTests(unittest.TestCase):
-    def test_streams_large_params_through_stdin(self) -> None:
+    def test_streams_large_params_through_file(self) -> None:
         bytecode = "ab" * 100_000
         process = mock.Mock(returncode=0, stdout='"0x1234"\n', stderr="")
+        observed = {}
 
-        with mock.patch.object(benchmark, "run", return_value=process) as run:
-            value, error = benchmark.rpc_request(
+        def run_with_file(command, **kwargs):
+            observed["path"] = kwargs["input_path"]
+            observed["params"] = kwargs["input_path"].read_text()
+            return process
+
+        with mock.patch.object(benchmark, "run", side_effect=run_with_file) as run:
+            value, error = benchmark.rpc_request_from_file(
                 "eth_sendTransaction",
                 ({"data": "0x" + bytecode},),
                 "http://127.0.0.1:8545",
@@ -220,8 +280,48 @@ class RpcTransportTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertTrue(all(bytecode not in argument for argument in command))
         self.assertEqual(
-            run.call_args.kwargs["input_text"],
+            observed["params"],
             json.dumps([{"data": "0x" + bytecode}]),
+        )
+        self.assertFalse(observed["path"].exists())
+
+    def test_deploys_creation_code_from_file(self) -> None:
+        bytecode = "ab"
+        receipt = {
+            "status": "0x1",
+            "gasUsed": "0x5208",
+            "contractAddress": "0x1234",
+        }
+
+        with (
+            mock.patch.object(
+                benchmark,
+                "rpc_request_from_file",
+                return_value=("0xtx", ""),
+            ) as send,
+            mock.patch.object(
+                benchmark,
+                "rpc_request",
+                return_value=(receipt, ""),
+            ) as request,
+        ):
+            address, gas, error = benchmark.deploy_creation_code(
+                bytecode,
+                (),
+                None,
+                "http://127.0.0.1:8545",
+                benchmark.DEFAULT_PRIVATE_KEY,
+            )
+
+        self.assertEqual((address, gas, error), ("0x1234", 21000, ""))
+        transaction = send.call_args.args[1][0]
+        self.assertEqual(transaction["from"], benchmark.DEFAULT_SENDER)
+        self.assertEqual(transaction["data"], "0x" + bytecode)
+        self.assertEqual(transaction["gas"], hex(int(benchmark.CAST_GAS_LIMIT)))
+        request.assert_called_once_with(
+            "eth_getTransactionReceipt",
+            ("0xtx",),
+            "http://127.0.0.1:8545",
         )
 
 

@@ -313,6 +313,7 @@ impl Symbol {
                 | kw::Break
                 | kw::Continue
                 | kw::Leave
+                | kw::Hex
                 | kw::True
                 | kw::False
         )
@@ -1058,6 +1059,7 @@ symbols! {
         err,
         error,
         evm_dash_shaped: "evm-shaped",
+        evmasm,
         exact,
         experimental,
         external_call,

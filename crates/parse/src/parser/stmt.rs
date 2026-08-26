@@ -3,7 +3,7 @@ use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::CollectAndApply;
-use solar_interface::{Ident, Span, SpannedOption, Symbol, kw, sym};
+use solar_interface::{Ident, Span, SpannedOption, Symbol, error_code, kw, sym};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement.
@@ -174,6 +174,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an assembly block.
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
+        if let Some(dialect) = &dialect
+            && dialect.value != sym::evmasm
+        {
+            self.dcx()
+                .err("`evmasm` is the only supported assembly dialect")
+                .code(error_code!(4531))
+                .span(dialect.span)
+                .emit();
+        }
         let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, Self::parse_str_lit)?
         } else {
