@@ -35,7 +35,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-latest-8
     timeout-minutes: 45
     permissions:
       actions: read
@@ -203,17 +203,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
-          if ! python3 benches/runtime/benchmark.py --verbose \
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/release/solar-head \
-            --mode runtime compile-time \
-            --suite all \
-            --compile-repeats 5 \
-            --gas \
-            --gas-profile hot \
-            --start-anvil \
-            --allow-failures \
-            --output target/codegen-bench/results.json; then
+          args=(
+            --verbose
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+            --solar target/release/solar-head
+            --mode runtime compile-time
+            --suite all
+            --compile-repeats 5
+            --gas
+            --gas-profile hot
+            --start-anvil
+            --allow-failures
+            --output target/codegen-bench/results.json
+          )
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
+            -f target/codegen-bench/baseline/results.json ]]; then
+            args+=(
+              --solar-only
+              --reference-results target/codegen-bench/baseline/results.json
+            )
+          fi
+          if ! python3 benches/runtime/benchmark.py "${args[@]}"; then
             echo "::warning::Codegen benchmark failed to complete"
           fi
 
@@ -288,7 +298,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codspeed'
-    runs-on: depot-ubuntu-latest-4
+    runs-on: depot-ubuntu-latest-8
     permissions:
       contents: read
     steps:

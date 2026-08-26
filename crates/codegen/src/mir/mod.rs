@@ -112,6 +112,7 @@ impl BlockId {
 mod round_trip {
     use super::Module;
     use crate::lower;
+    use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -231,7 +232,12 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(
+                    gcx,
+                    id,
+                    &FxHashMap::default(),
+                    gcx.sess.opts.optimization.is_size(),
+                );
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -305,7 +311,12 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(
+                    gcx,
+                    id,
+                    &FxHashMap::default(),
+                    gcx.sess.opts.optimization.is_size(),
+                );
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

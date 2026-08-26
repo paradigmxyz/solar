@@ -7,7 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    EIP170_RUNTIME_CODE_SIZE_LIMIT, EVM_WORD_BYTES,
+    EVM_WORD_BYTES,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
@@ -1894,8 +1894,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             MirPhase::EvmShaped,
             "EVM codegen requires MIR in the final phase"
         );
-        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas()
-            && self.gcx.sess.opts.evm_version >= solar_config::EvmVersion::SpuriousDragon;
+        let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
+        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
         let mut code_size_rescue = false;
         let mut gas_first_result = None;
         loop {
@@ -1953,15 +1953,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
             if may_need_code_size_rescue
                 && !code_size_rescue
-                && result.bytecode.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
-                && result.bytecode.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT * 2
+                && let Some(limit) = runtime_code_size_limit
+                && result.bytecode.len() > limit
+                && result.bytecode.len() <= limit * 2
             {
                 gas_first_result = Some(result);
                 code_size_rescue = true;
                 continue;
             }
             let result = if code_size_rescue
-                && result.bytecode.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
+                && result.bytecode.len()
+                    > runtime_code_size_limit.expect("code-size rescue requires a size limit")
             {
                 gas_first_result.take().expect("code-size rescue must retain the gas-first runtime")
             } else {

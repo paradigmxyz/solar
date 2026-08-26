@@ -2921,27 +2921,8 @@ fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {
 }
 
 /// Lowers a contract from HIR to MIR.
-pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
-    lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
-}
-
-/// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.
 #[tracing::instrument(name = "mir_lower_contract", level = "debug", skip_all, fields(?contract_id))]
-pub fn lower_contract_with_bytecodes(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Bytes>,
-) -> Module {
-    lower_contract_with_bytecodes_and_body_sharing(
-        gcx,
-        contract_id,
-        child_bytecodes,
-        gcx.sess.opts.optimization.is_size(),
-    )
-}
-
-/// Lowers a contract while explicitly selecting shared public function bodies.
-pub(crate) fn lower_contract_with_bytecodes_and_body_sharing(
+pub fn lower_contract(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     child_bytecodes: &FxHashMap<ContractId, Bytes>,

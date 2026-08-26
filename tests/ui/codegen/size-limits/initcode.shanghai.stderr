@@ -1,0 +1,15 @@
+warning[3860]: contract initcode size is <SIZE> bytes and exceeds 49152 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/initcode.sol:LL:CC
+   │
+LL │ ┏ contract test {
+LL │ ┃     constructor() {
+LL │ ┃         new A();
+LL │ ┃         new B();
+   ‡ ┃
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in shanghai
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+

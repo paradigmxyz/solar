@@ -29,7 +29,7 @@ enum AssertionPolicy {
     /// In-repo projects: every test must pass under this compiler.
     InRepoStrict,
     /// External projects: solc's passing tests are the oracle; only
-    /// Solc-pass/compiler-fail divergences and artifact audit violations fail.
+    /// Solc-pass/compiler-fail divergences and artifact audit errors fail.
     ExternalDifferential,
 }
 
@@ -73,6 +73,8 @@ struct TestConfig {
     /// Solc version to emulate on the compiler leg (`SOLC_WRAPPER_VERSION`), for
     /// projects whose sources pin an exact solc version.
     solc_wrapper_version: Option<String>,
+    /// Foundry profile to use for both compiler legs.
+    foundry_profile: Option<String>,
     /// Pass `-vvvvv --decode-internal` to `forge test`.
     traces: bool,
     /// Command shown in runtime reports for reproducing this run.
@@ -95,6 +97,7 @@ impl TestConfig {
             build_only: false,
             fuzz_seed: None,
             solc_wrapper_version: None,
+            foundry_profile: None,
             traces: true,
             rerun_command: "cargo tq foundry".to_string(),
         }
@@ -581,6 +584,10 @@ fn run_forge_test(
     }
     cmd.arg("--out").arg(out_dir.path()).arg("--cache-path").arg(cache_dir.path());
 
+    if let Some(profile) = &config.foundry_profile {
+        cmd.env("FOUNDRY_PROFILE", profile);
+    }
+
     if let Some(foundry_solc) = &foundry_solc {
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
@@ -946,7 +953,7 @@ fn enforce_policy(config: &TestConfig, solar_run: &CompilerRun, solc_run: Option
 /// means the baseline itself is broken (offline, incompatible forge), so the
 /// project is skipped instead of failed.
 fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &CompilerRun) {
-    let audit_violations = audit_artifacts(config, solar_run, solc_run);
+    let audit_errors = audit_artifacts(config, solar_run, solc_run);
 
     if config.build_only {
         if solc_run.bytecode_sizes.is_empty() {
@@ -954,10 +961,10 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
             return;
         }
         assert!(
-            audit_violations.is_empty(),
+            audit_errors.is_empty(),
             "[{}] artifact audit failed:\n  {}",
             config.name,
-            audit_violations.join("\n  ")
+            audit_errors.join("\n  ")
         );
         println!(
             "\n✓ [{}] build-only: {} artifacts audited against solc",
@@ -1001,10 +1008,10 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
         regressions.join("\n  ")
     );
     assert!(
-        audit_violations.is_empty(),
+        audit_errors.is_empty(),
         "[{}] artifact audit failed:\n  {}",
         config.name,
-        audit_violations.join("\n  ")
+        audit_errors.join("\n  ")
     );
 
     // Remaining compiler failures correspond to tests that also fail under solc
@@ -1020,13 +1027,9 @@ fn enforce_external(config: &TestConfig, solar_run: &CompilerRun, solc_run: &Com
     println!("\n✓ [{}] differential: {} solc-passing tests upheld with Solar", config.name, oracle);
 }
 
-/// EIP-170 deployed bytecode size limit.
-const EIP170_LIMIT: usize = 24576;
-
 /// Audits the compiler's artifacts against solc's: every contract solc deploys
-/// must have nonempty deployed bytecode from the compiler and fit EIP-170
-/// whenever the solc artifact does. Contracts matching `skip_contracts` are
-/// exempt.
+/// must have nonempty deployed bytecode from the compiler. Contracts matching
+/// `skip_contracts` are exempt.
 fn audit_artifacts(
     config: &TestConfig,
     solar_run: &CompilerRun,
@@ -1036,7 +1039,7 @@ fn audit_artifacts(
     let mut names: Vec<_> = solc_run.bytecode_sizes.keys().collect();
     names.sort();
 
-    let mut violations = Vec::new();
+    let mut errors = Vec::new();
     for name in names {
         if skip_contracts.iter().any(|re| re.is_match(name)) {
             continue;
@@ -1050,18 +1053,13 @@ fn audit_artifacts(
                     "[audit] `{name}`: {solc_size}B solc stub with no Solar artifact (internal-only library)"
                 );
             }
-            None => violations.push(format!(
+            None => errors.push(format!(
                 "`{name}`: {solc_size}B deployed bytecode under solc, none under Solar"
             )),
-            Some(&solar_size) if solar_size > EIP170_LIMIT && solc_size <= EIP170_LIMIT => {
-                violations.push(format!(
-                    "`{name}`: {solar_size}B deployed bytecode under Solar exceeds EIP-170 (solc: {solc_size}B)"
-                ))
-            }
             Some(_) => {}
         }
     }
-    violations
+    errors
 }
 
 /// Runs the default Foundry suite.

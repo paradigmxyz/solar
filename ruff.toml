@@ -1,0 +1,4 @@
+extend-exclude = ["testdata"]
+
+[lint]
+ignore = ["BLE001", "EXE001", "TRY004"]
