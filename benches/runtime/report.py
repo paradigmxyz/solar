@@ -651,15 +651,6 @@ def emit_warnings(results: list[dict[str, Any]], baseline_results: list[dict[str
         warning(f"benchmark regression recorded: {detail}")
 
 
-def append_step_summary(markdown: str) -> None:
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
-    with open(summary_path, "a") as f:
-        f.write(markdown)
-        f.write("\n")
-
-
 def append_github_output(name: str, value: str) -> None:
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
@@ -859,7 +850,6 @@ def main() -> int:
         should_comment |= has_compile_time_changes(results, baseline_results)
     markdown = format_report(report, should_comment, branch_is_behind(base_ref), base_ref)
     print(markdown)
-    append_step_summary(markdown)
     append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
     if args.report_output is not None:
