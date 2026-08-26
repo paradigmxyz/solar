@@ -14,7 +14,7 @@ use super::{
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
-    materialize::{is_cross_block_recomputable_kind, rematerializable_nullary_opcode},
+    materialize::{is_cross_block_recomputable_kind, rematerializable_nullary_opcode, cross_block_values, },
     op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
@@ -3807,9 +3807,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
-            let recomputable = Self::cross_block_recomputable_values_with(func, |value| {
-                !self.scheduler.is_stack_only_value(value)
-            });
+            let recomputable =
+                cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
             let reloaded = values
                 .iter()
                 .any(|value| {
@@ -4100,58 +4099,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         values
-    }
-
-    /// Computes cross-block rematerialization while excluding leaves unavailable under the active
-    /// calling convention. A reverse-use worklist handles long expression chains linearly.
-    /// Stack-only arguments have no frame home, so an expression depending on one must be stored
-    /// at its definition instead of being rebuilt after the argument is gone.
-    fn cross_block_recomputable_values_with(
-        func: &Function,
-        leaf_is_available: impl Fn(ValueId) -> bool,
-    ) -> DenseBitSet<ValueId> {
-        let mut users =
-            IndexVec::<ValueId, SmallVec<[ValueId; 2]>>::with_capacity(func.num_values());
-        let mut remaining = IndexVec::<ValueId, usize>::with_capacity(func.num_values());
-        for _ in 0..func.num_values() {
-            users.push(SmallVec::new());
-            remaining.push(usize::MAX);
-        }
-
-        let mut recomputable = DenseBitSet::new_empty(func.num_values());
-        let mut worklist = Vec::new();
-        for value in func.live_values() {
-            if Self::is_rematerializable_value(func, value)
-                && leaf_is_available(value)
-                && recomputable.insert(value)
-            {
-                worklist.push(value);
-            }
-        }
-        for inst_id in func.instructions() {
-            let Some(result) = func.inst_result_value(inst_id) else { continue };
-            if !Self::is_cross_block_recomputable_inst(func, result) {
-                continue;
-            }
-            let operands = func.inst(inst_id).kind.operands();
-            remaining[result] = operands.len();
-            if operands.is_empty() && recomputable.insert(result) {
-                worklist.push(result);
-            }
-            for operand in operands {
-                users[operand].push(result);
-            }
-        }
-
-        while let Some(value) = worklist.pop() {
-            for &user in &users[value] {
-                remaining[user] -= 1;
-                if remaining[user] == 0 && recomputable.insert(user) {
-                    worklist.push(user);
-                }
-            }
-        }
-        recomputable
     }
 
     fn is_cross_block_recomputable_inst(func: &Function, value: ValueId) -> bool {
@@ -11162,70 +11109,6 @@ mod tests {
 
             assert!(codegen.block_copies.is_empty());
         });
-    }
-
-    #[test]
-    fn cross_block_recomputation_requires_stable_leaves() {
-        let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::uint256());
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(argument, immediate),
-            Some(MirType::uint256()),
-        ));
-        let (nested_safe_inst, nested_safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Mul(safe, argument),
-            Some(MirType::uint256()),
-        ));
-        let (calldata_inst, calldata) = function.alloc_value_inst(Instruction::new(
-            InstKind::CalldataLoad(safe),
-            Some(MirType::uint256()),
-        ));
-        let (calldata_safe_inst, calldata_safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(calldata, immediate),
-            Some(MirType::uint256()),
-        ));
-        let (context_inst, context) = function
-            .alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
-        let (immutable_inst, immutable) = function.alloc_value_inst(Instruction::new(
-            InstKind::LoadImmutable(ImmutableId::from_usize(0)),
-            Some(MirType::uint256()),
-        ));
-        let (mutable_inst, mutable) = function.alloc_value_inst(Instruction::new(
-            InstKind::SLoad(immediate),
-            Some(MirType::uint256()),
-        ));
-        let (unsafe_inst, unsafe_value) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(mutable, immediate),
-            Some(MirType::uint256()),
-        ));
-        function.blocks[BlockId::ENTRY].instructions.extend([
-            safe_inst,
-            nested_safe_inst,
-            calldata_inst,
-            calldata_safe_inst,
-            context_inst,
-            immutable_inst,
-            mutable_inst,
-            unsafe_inst,
-        ]);
-        let recomputable = EvmCodegen::cross_block_recomputable_values_with(&function, |_| true);
-        let without_argument =
-            EvmCodegen::cross_block_recomputable_values_with(&function, |value| value != argument);
-
-        assert!(recomputable.contains(safe));
-        assert!(recomputable.contains(nested_safe));
-        assert!(recomputable.contains(calldata));
-        assert!(recomputable.contains(calldata_safe));
-        assert!(recomputable.contains(context));
-        assert!(!recomputable.contains(immutable));
-        assert!(!recomputable.contains(mutable));
-        assert!(!recomputable.contains(unsafe_value));
-        assert!(!without_argument.contains(safe));
-        assert!(!without_argument.contains(nested_safe));
-        assert!(!without_argument.contains(calldata));
-        assert!(!without_argument.contains(calldata_safe));
-        assert!(without_argument.contains(context));
     }
 
     #[test]
