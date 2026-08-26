@@ -54,10 +54,16 @@ bb2:
   swap 1
   stop
 
-// Larger layouts use the bounded greedy shuffler without exact-search fallback.
+// Resynthesize multiple cycles in a larger unique permutation with minimal star swaps.
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}push 15
-// CHECK-NEXT: {{^[ +].*}}swap 6
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 4
+// CHECK-NEXT: {{^[ +].*}}swap 5
+// CHECK-NEXT: {{^[ +].*}}swap 3
 // CHECK: {{^[ +].*}}stop
 bb3:
   push 9
@@ -67,7 +73,13 @@ bb3:
   push 13
   push 14
   push 15
-  swap 6
+  swap 1
+  swap 2
+  swap 1
+  swap 3
+  swap 4
+  swap 5
+  swap 3
   swap 1
   swap 2
   swap 1

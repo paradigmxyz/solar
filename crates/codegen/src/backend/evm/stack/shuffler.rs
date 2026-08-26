@@ -33,6 +33,49 @@ const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
 type Layout = SmallVec<[Option<ValueId>; 16]>;
 type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
 
+fn synthesize_unique_permutation(
+    source: &StackModel,
+    target: &[TargetSlot],
+) -> Option<Vec<StackOp>> {
+    if source.depth() != target.len() {
+        return None;
+    }
+    if target.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut target_positions = FxHashMap::default();
+    for (index, &TargetSlot::Value(value)) in target.iter().enumerate() {
+        if target_positions.insert(value, index).is_some() {
+            return None;
+        }
+    }
+    let mut current: SmallVec<[ValueId; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT]> = source
+        .iter()
+        .map(|value| value.filter(|value| target_positions.contains_key(value)))
+        .collect::<Option<_>>()?;
+
+    let mut ops = Vec::new();
+    loop {
+        let top_target = target_positions[&current[0]];
+        if top_target != 0 {
+            ops.push(StackOp::Swap(top_target as u8));
+            current.swap(0, top_target);
+            continue;
+        }
+
+        let Some(cycle) = current
+            .iter()
+            .zip(target)
+            .position(|(&current, &TargetSlot::Value(target))| current != target)
+        else {
+            return Some(ops);
+        };
+        ops.push(StackOp::Swap(cycle as u8));
+        current.swap(0, cycle);
+    }
+}
+
 /// Result of a shuffle operation.
 #[derive(Clone, Debug)]
 pub(crate) struct ShuffleResult {
