@@ -733,7 +733,7 @@ impl LowerAbiCx {
         let head_size = layout.checked_head_size().expect("static ABI layout");
         Self::validate_memory_tuple_input(builder, base, length, head_size, current);
 
-        let mut valid = builder.imm_bool(true);
+        let mut invalid = builder.imm_bool(false);
         let mut offset = 0_u64;
         for ty in &layout.types {
             Self::validate_static_memory_child(
@@ -741,12 +741,11 @@ impl LowerAbiCx {
                 ty,
                 base,
                 &mut offset,
-                &mut valid,
+                &mut invalid,
                 has_bitwise_shifting,
             );
         }
 
-        let invalid = builder.iszero(valid);
         *current = builder.revert_if(invalid);
     }
 
@@ -771,13 +770,13 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
         head: ValueId,
-        valid: &mut ValueId,
+        invalid: &mut ValueId,
         has_bitwise_shifting: bool,
     ) {
         if let Some(validator) = ty.word_validator() {
             let value = builder.mload(head);
-            let condition = validator.condition(builder, value, has_bitwise_shifting);
-            *valid = builder.and(*valid, condition);
+            let violation = validator.violation(builder, value, has_bitwise_shifting);
+            *invalid = builder.or(*invalid, violation);
             return;
         }
         match ty {
@@ -789,7 +788,7 @@ impl LowerAbiCx {
                         element,
                         head,
                         &mut offset,
-                        valid,
+                        invalid,
                         has_bitwise_shifting,
                     );
                 }
@@ -802,7 +801,7 @@ impl LowerAbiCx {
                         field,
                         head,
                         &mut offset,
-                        valid,
+                        invalid,
                         has_bitwise_shifting,
                     );
                 }
@@ -819,7 +818,7 @@ impl LowerAbiCx {
         child: &AbiParamType,
         head: ValueId,
         offset: &mut u64,
-        valid: &mut ValueId,
+        invalid: &mut ValueId,
         has_bitwise_shifting: bool,
     ) {
         let child_head = builder.add_u64_offset(head, *offset);
@@ -827,7 +826,7 @@ impl LowerAbiCx {
             builder,
             child,
             child_head,
-            valid,
+            invalid,
             has_bitwise_shifting,
         );
         *offset = offset
