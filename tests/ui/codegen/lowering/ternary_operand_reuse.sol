@@ -1,8 +1,13 @@
-//@compile-flags: --emit=bin-runtime
+//@compile-flags: --emit=bin-runtime -Zdump=evm-ir-runtime
+//@filecheck:
 
 contract TernaryOperandReuse {
-    // `caller()` is not rematerializable: consuming it as the modulus and then
-    // returning it used to make the backend lose the value and ICE.
+    // The planner may consume `caller()` as the modulus because the return can
+    // rematerialize it instead of retaining a stack copy.
+    // CHECK-LABEL: {{^}}bb9:
+    // CHECK: caller
+    // CHECK-NOT: pop
+    // CHECK: return
     function addCaller(uint256 x, uint256 y) external view returns (uint256, address) {
         assembly {
             let sender := caller()
@@ -13,8 +18,12 @@ contract TernaryOperandReuse {
         }
     }
 
-    // Repeated ternary operands must keep one physical copy beyond the two
-    // occurrences consumed by `MULMOD`.
+    // Repeated ternary operands need two input words; the return can rematerialize
+    // its later occurrence instead of keeping a third physical copy.
+    // CHECK-LABEL: {{^}}bb8:
+    // CHECK: caller
+    // CHECK-NEXT: caller
+    // CHECK-NEXT: mulmod
     function mulRepeated(uint256 modulus) external view returns (uint256, address) {
         assembly {
             let sender := caller()

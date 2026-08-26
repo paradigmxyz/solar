@@ -1,1 +1,64 @@
-{"contracts":{"ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse":{"bin-runtime":"34601d575f3560e01c80630718ec94146021578063fd9e0caf14603f575b5f80fd5b60043603604013601d5733602435600435085b5f523360205260405ff35b60043603602013601d57600435338009603456"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse":{"bin-runtime":"34601d575f3560e01c80630718ec94146021578063fd9e0caf14603f575b5f80fd5b60043603604013601d5733602435600435085b5f523360205260405ff35b60043603602013601d57600435333309603456"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x718ec94
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xfd9e0caf
+  eq
+  push bb8
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup 1
+  revert
+bb5:
+  push 4
+  calldatasize
+  sub
+  push 64
+  sgt
+  push bb4
+  jumpi
+  caller
+  push 36
+  calldataload
+  push 4
+  calldataload
+  addmod
+  jump bb9
+bb9:
+  push 0
+  mstore
+  caller
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb8:
+  push 4
+  calldatasize
+  sub
+  push 32
+  sgt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  caller
+  caller
+  mulmod
+  jump bb9

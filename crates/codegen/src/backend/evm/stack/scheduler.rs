@@ -104,6 +104,7 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::op::StackOp,
+    backend::evm::materialize::rematerializable_nullary_opcode,
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
@@ -158,6 +159,8 @@ pub(crate) enum ScheduledOp {
     Stack(StackOp),
     /// Push an immediate value.
     PushImmediate(alloy_primitives::U256),
+    /// Re-emit a stable nullary read.
+    RematerializeNullary(u8),
     /// Load a spilled value from memory.
     LoadSpill(SpillSlot),
     /// Load a function argument through the active calling convention.
@@ -318,6 +321,7 @@ impl ScheduleCost {
                     (3, (immediate_bytes + 1) as u32)
                 }
             }
+            ScheduledOp::RematerializeNullary(_) => (2, 1),
             ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
                 (cost_model.load_static_gas, cost_model.load_encoded_bytes)
             }
@@ -974,6 +978,7 @@ impl StackScheduler {
                     stack.pop();
                 }
                 ScheduledOp::PushImmediate(_)
+                | ScheduledOp::RematerializeNullary(_)
                 | ScheduledOp::LoadSpill(_)
                 | ScheduledOp::LoadArg(_) => {
                     let pushed = action.pushed?;
@@ -1097,10 +1102,13 @@ impl StackScheduler {
             consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
         }
 
-        if prepend_reaches_goal && let Some(op @ ScheduledOp::PushImmediate(_)) = materialized {
+        if  prepend_reaches_goal && let Some(op) = materialized {
             let accessible =
                 stack.iter().take(max_stack_access).any(|&slot| slot == Some(expected_top));
-            if matches!(optimization, OptimizationMode::Gas) || !accessible {
+            if matches!(optimization, OptimizationMode::Gas)
+                || !accessible
+                || matches!(op, ScheduledOp::RematerializeNullary(_))
+            {
                 consider(op, Some(expected_top));
             }
         }
@@ -1679,7 +1687,10 @@ impl StackScheduler {
                 None
             }
             ScheduledOp::Stack(StackOp::Pop) => stack.remove(0),
-            ScheduledOp::PushImmediate(_) | ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+            ScheduledOp::PushImmediate(_)
+            | ScheduledOp::RematerializeNullary(_)
+            | ScheduledOp::LoadSpill(_)
+            | ScheduledOp::LoadArg(_) => {
                 stack.insert(0, action.pushed);
                 None
             }
@@ -1700,6 +1711,7 @@ impl StackScheduler {
             }
             ScheduledOp::Stack(StackOp::Dup(_))
             | ScheduledOp::PushImmediate(_)
+            | ScheduledOp::RematerializeNullary(_)
             | ScheduledOp::LoadSpill(_)
             | ScheduledOp::LoadArg(_) => {
                 stack.remove(0);
@@ -1947,6 +1959,7 @@ impl StackScheduler {
             match &action.op {
                 ScheduledOp::Stack(stack_op) => self.stack.apply(*stack_op),
                 ScheduledOp::PushImmediate(_)
+                | ScheduledOp::RematerializeNullary(_)
                 | ScheduledOp::LoadSpill(_)
                 | ScheduledOp::LoadArg(_) => {
                     self.stack.push(action.pushed.expect("materialization pushes a known value"));
@@ -2002,6 +2015,10 @@ impl StackScheduler {
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().map(ScheduledOp::PushImmediate),
             crate::mir::Value::Arg(index) => Some(ScheduledOp::LoadArg(*index)),
+            crate::mir::Value::Inst(inst_id) => {
+                rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+                    .map(ScheduledOp::RematerializeNullary)
+            }
             _ => None,
         }
     }
@@ -2672,6 +2689,36 @@ mod tests {
         assert!(plan.actions.iter().all(|action| {
             action.op == ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)
         }));
+    }
+
+    #[test]
+    fn operand_plan_prefers_rematerialized_nullary() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let mut scheduler = StackScheduler::new();
+            scheduler.stack.push(caller);
+
+            let plan = scheduler
+                .plan_operands(
+                    &[caller, caller],
+                    &[],
+                    &func,
+                    optimization,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .unwrap();
+
+            assert_eq!(plan.actions.len(), 1);
+            assert_eq!(
+                plan.actions[0].op,
+                ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLER)
+            );
+            assert_eq!(plan.actions[0].pushed, Some(caller));
+            assert_eq!(plan.cost.static_gas, 2);
+        }
     }
 
     #[test]

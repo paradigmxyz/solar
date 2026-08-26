@@ -9540,9 +9540,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             let carried_arg_is_live = self.global_stack_active
                 && matches!(func.value(value), crate::mir::Value::Arg(_))
                 && !liveness.is_dead_after(value, block, inst_idx);
+            let rematerializable = Self::is_rematerializable_value(func, value)
+                || Self::is_always_rematerializable_value(func, value);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
-                && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
+                && (!rematerializable || carried_arg_is_live)
                 && (scheduler.reloadable_spill(value).is_none() || scheduler.stack.contains(value))
             {
                 preserved.push(value);
@@ -9564,6 +9566,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::PushImmediate(imm) => {
                     self.asm.emit_push(imm);
+                }
+                ScheduledOp::RematerializeNullary(opcode) => {
+                    self.asm.emit_op(opcode);
                 }
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
