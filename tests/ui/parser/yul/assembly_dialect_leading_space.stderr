@@ -1,0 +1,8 @@
+error[4531]: `evmasm` is the only supported assembly dialect
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_dialect_leading_space.sol:LL:CC
+   │
+LL │     assembly " evmasm" {}
+   ╰╴             ━━━━━━━━━
+
+error: aborting due to 1 previous error
+

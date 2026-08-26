@@ -25,7 +25,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("no JSON AST");
     }
 
-    if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental/") {
+    if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental") {
         return Err("solidity experimental is not implemented");
     }
 
@@ -70,6 +70,8 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "broken_version_1"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
+        // Arbitrary `pragma experimental` values are allowed by Solc apparently.
+        | "experimental_test_warning"
         // Invalid UTF-8 is not supported.
         | "invalid_utf8_sequence"
         // Validation is in solar's AST stage (https://github.com/paradigmxyz/solar/pull/120).
