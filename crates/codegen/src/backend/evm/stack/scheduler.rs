@@ -2183,13 +2183,12 @@ impl StackScheduler {
         // contiguous run immediately below a live top needs only one SWAP followed by one POP per
         // dead value; removing the same values independently would need one SWAP per value.
         let mut depth = 1usize;
-        let max_stack_access = self.max_stack_access();
-        while depth <= self.stack.depth().saturating_sub(1).min(max_stack_access) {
+        while depth <= self.stack.depth().saturating_sub(1).min(MAX_STACK_ACCESS) {
             if let Some(val) = self.stack.peek(depth)
                 && liveness.is_dead_after(val, block, inst_idx)
             {
                 if depth == 1 {
-                    let dead_run = (1..=self.stack.depth().saturating_sub(1).min(max_stack_access))
+                    let dead_run = (1..=self.stack.depth().saturating_sub(1).min(MAX_STACK_ACCESS))
                         .take_while(|&depth| {
                             self.stack
                                 .peek(depth)
@@ -3957,6 +3956,28 @@ mod tests {
 
         assert_eq!(ops, [StackOp::Swap(2), StackOp::Pop, StackOp::Pop]);
         assert!(scheduler.stack.iter().eq([Some(sum), Some(c)]));
+    }
+
+    #[test]
+    fn leaves_deep_dead_values_for_later_cleanup() {
+        let mut func = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut func);
+        let a = builder.add_param(MirType::uint256());
+        let b = builder.add_param(MirType::uint256());
+        let sum = builder.add(a, b);
+        builder.ret([sum]);
+
+        let liveness = Liveness::compute(&func);
+        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
+        scheduler.stack.push(a);
+        for _ in 0..=MAX_STACK_ACCESS {
+            scheduler.stack.push(sum);
+        }
+
+        let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
+
+        assert!(ops.is_empty());
+        assert_eq!(scheduler.stack.find(a), Some(MAX_STACK_ACCESS + 1));
     }
 
     #[test]
