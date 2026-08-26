@@ -7,6 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
+    DebugInstruction,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
@@ -68,6 +69,7 @@ const STACK_ARG_ROTATION_LIMIT: usize = 16;
 struct GeneratedCode {
     bytecode: Vec<u8>,
     evm_ir: Option<ir::Module>,
+    debug_info: Option<Vec<DebugInstruction>>,
 }
 
 struct PreparedDeploymentPrefix {
@@ -2423,6 +2425,7 @@ pub struct EvmCodegen<'gcx> {
     switch_gas_code_growth_remaining: usize,
     capture_mir: bool,
     capture_evm_ir: bool,
+    capture_debug_info: bool,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -2489,6 +2492,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             switch_gas_code_growth_remaining,
             capture_mir: false,
             capture_evm_ir: false,
+            capture_debug_info: false,
         }
     }
 
@@ -2685,6 +2689,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether generated artifacts include final EVM IR.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
+    }
+
+    /// Controls whether generated artifacts include final instruction locations.
+    pub fn set_capture_debug_info(&mut self, capture: bool) {
+        self.capture_debug_info = capture;
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -2899,6 +2908,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
+            deployment_debug_info: deploy_code.debug_info,
+            runtime_debug_info: runtime_code.debug_info,
         }
     }
 
@@ -3222,7 +3233,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::REVERT);
         }
         PreparedDeploymentPrefix {
-            assembly: self.asm.prepare(self.capture_evm_ir),
+            assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
             constructor_arg_offset,
             runtime_offset,
         }
@@ -3240,7 +3251,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         deferred_values.push((prepared.runtime_offset, U256::from(runtime_offset)));
         let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
-        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
+        GeneratedCode {
+            bytecode: result.bytecode,
+            evm_ir: result.evm_ir,
+            debug_info: result.debug_info,
+        }
     }
 
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -3306,7 +3321,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             self.asm.set_enable_size_outlining(code_size_rescue);
 
-            let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
+            let result =
+                self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
             if may_need_code_size_rescue
                 && !code_size_rescue
                 && let Some(limit) = runtime_code_size_limit
@@ -3326,7 +3342,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 result
             };
             self.runtime_immutable_refs = result.immutable_refs;
-            return GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir };
+            return GeneratedCode {
+                bytecode: result.bytecode,
+                evm_ir: result.evm_ir,
+                debug_info: result.debug_info,
+            };
         }
     }
 
@@ -4161,6 +4181,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
 
+                if self.capture_debug_info {
+                    self.asm.set_source_span(inst.metadata.source_span());
+                }
+
                 // A whole-calldata-forwarding clobber overwrites the low memory
                 // the spill area lives in. Reload every value live across it
                 // onto the stack while the slot is still valid, and drop the
@@ -4230,6 +4254,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.spill_value_if_needed(func, result);
                     }
                 }
+            }
+            if self.capture_debug_info {
+                self.asm.set_source_span(None);
             }
 
             // Every clobber in this block has now been emitted, so its spill
@@ -4424,6 +4451,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Generate terminator. An edge-specific resident branch owns its cleanup and jumps.
+            if self.capture_debug_info {
+                let span = block
+                    .instructions
+                    .iter()
+                    .rev()
+                    .find_map(|&inst_id| func.inst(inst_id).metadata.source_span());
+                self.asm.set_source_span(span);
+            }
             if let (
                 Some(union),
                 Some((then_layout, else_layout)),
@@ -4462,6 +4497,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             } else if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
+            }
+            if self.capture_debug_info {
+                self.asm.set_source_span(None);
             }
             self.scheduler.spills.release_block_locals();
             if preserve_stack_to_fallthrough {
@@ -12093,6 +12131,10 @@ pub struct EvmArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Final deployment-prefix instruction locations.
+    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    /// Final runtime instruction locations.
+    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

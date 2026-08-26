@@ -15,7 +15,7 @@ use super::op::{self, StackOp};
 use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
-use solar_interface::Symbol;
+use solar_interface::{Span, Symbol};
 
 pub(in crate::backend::evm) mod builder;
 mod display;
@@ -286,7 +286,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::EMPTY },
         }
     }
 
@@ -320,7 +320,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::EMPTY },
         }
     }
 
@@ -594,15 +594,28 @@ enum PushValue {
 }
 
 /// Metadata carried by instructions and terminators.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
+    /// Solidity source span associated with this machine operation.
+    source_span: Span,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None };
+    pub(crate) const EMPTY: Self = Self { stack: None, source_span: Span::DUMMY };
+
+    /// Returns the source span associated with this operation.
+    #[must_use]
+    pub(crate) fn source_span(self) -> Option<Span> {
+        (!self.source_span.is_dummy()).then_some(self.source_span)
+    }
+
+    /// Sets the source span associated with this operation.
+    pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
+        self.source_span = span.unwrap_or(Span::DUMMY);
+    }
 }
 
 /// Stack effect metadata for one EVM IR operation.
