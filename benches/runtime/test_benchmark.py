@@ -231,8 +231,8 @@ class RpcTransportTests(unittest.TestCase):
         )
         self.assertFalse(observed["path"].exists())
 
-    def test_deploys_large_creation_code_from_file(self) -> None:
-        bytecode = "ab" * benchmark.CAST_CREATE_FILE_THRESHOLD
+    def test_deploys_creation_code_from_file(self) -> None:
+        bytecode = "ab"
         receipt = {
             "status": "0x1",
             "gasUsed": "0x5208",
@@ -268,34 +268,6 @@ class RpcTransportTests(unittest.TestCase):
             "eth_getTransactionReceipt",
             ("0xtx",),
             "http://127.0.0.1:8545",
-        )
-
-    def test_falls_back_to_file_when_argument_is_too_long(self) -> None:
-        with (
-            mock.patch.object(
-                benchmark,
-                "run",
-                side_effect=OSError(benchmark.errno.E2BIG, "argument list too long"),
-            ),
-            mock.patch.object(
-                benchmark,
-                "deploy_large_creation_code",
-                return_value=("0x1234", 21000, ""),
-            ) as deploy,
-        ):
-            result = benchmark.deploy_creation_code(
-                "00",
-                (),
-                None,
-                "http://127.0.0.1:8545",
-                benchmark.DEFAULT_PRIVATE_KEY,
-            )
-
-        self.assertEqual(result, ("0x1234", 21000, ""))
-        deploy.assert_called_once_with(
-            "0x00",
-            "http://127.0.0.1:8545",
-            benchmark.DEFAULT_PRIVATE_KEY,
         )
 
 

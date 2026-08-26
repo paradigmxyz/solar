@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import gzip
 import hashlib
 import json
@@ -59,8 +58,6 @@ CAST_TX_TIMEOUT = 30
 CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
-# Linux limits each argument to 32 pages, or 128 KiB on CI.
-CAST_CREATE_FILE_THRESHOLD = 100_000
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 
 RESET = "\033[0m"
@@ -517,45 +514,10 @@ def deploy_creation_code(
     if encoded is None:
         return None, None, "constructor args require constructor_sig"
     bytecode += encoded
-
-    if len(bytecode) > CAST_CREATE_FILE_THRESHOLD:
-        return deploy_large_creation_code(bytecode, rpc_url, private_key)
-
-    try:
-        proc = run(
-            [
-                "cast",
-                "send",
-                "--rpc-url",
-                rpc_url,
-                "--rpc-timeout",
-                str(CAST_RPC_TIMEOUT),
-                "--timeout",
-                str(CAST_RPC_TIMEOUT),
-                "--gas-limit",
-                CAST_GAS_LIMIT,
-                "--private-key",
-                private_key,
-                "--json",
-                "--create",
-                bytecode,
-            ],
-            timeout=CAST_DEPLOY_TIMEOUT,
-        )
-    except OSError as exc:
-        if exc.errno != errno.E2BIG:
-            raise
-        return deploy_large_creation_code(bytecode, rpc_url, private_key)
-    if proc.returncode != 0:
-        return None, None, proc.stderr[:1000]
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        return None, None, f"invalid deploy JSON: {exc}"
-    return parse_deploy_receipt(data)
+    return deploy_creation_code_from_file(bytecode, rpc_url, private_key)
 
 
-def deploy_large_creation_code(
+def deploy_creation_code_from_file(
     bytecode: str,
     rpc_url: str,
     private_key: str,
