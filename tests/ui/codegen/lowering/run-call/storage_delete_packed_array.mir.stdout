@@ -271,6 +271,99 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     revert 0, 36
 }
 
+fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 6 !metadata(storage=slot(6))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 6
+    v4 = div v0, 32
+    v5 = add v3, v4
+    v6 = mod v0, 32
+    v7 = mul v6, 1
+    v8 = mul v7, 8
+    v9 = shl v8, 255
+    v10 = sload v5 !metadata(storage=symbolic(v5))
+    v11 = not v9
+    v12 = and v10, v11
+    v13 = and 1, 255
+    v14 = shl v8, v13
+    v15 = or v12, v14
+    sstore v5, v15 !metadata(storage=symbolic(v5))
+    sstore 6, v1 !metadata(storage=slot(6))
+    v16 = sload 6 !metadata(storage=slot(6))
+    sstore 6, 0 !metadata(storage=slot(6))
+    v17 = div v16, 32
+    v18 = mod v16, 32
+    v19 = iszero v18
+    v20 = iszero v19
+    v21 = add v17, v20
+    v22 = storage_array_data_slot 6
+    jump bb3
+  bb3:
+    v23 = phi [bb2: 0], [bb4: v26]
+    v24 = lt v23, v21
+    jumpi v24, bb4, bb5
+  bb5:
+    v27 = sload 6 !metadata(storage=slot(6))
+    v28 = add v27, 1
+    v29 = lt v28, v27
+    jumpi v29, bb6, bb7
+  bb7:
+    v30 = storage_array_data_slot 6
+    v31 = div v27, 32
+    v32 = add v30, v31
+    v33 = mod v27, 32
+    v34 = mul v33, 1
+    v35 = mul v34, 8
+    v36 = shl v35, 255
+    v37 = sload v32 !metadata(storage=symbolic(v32))
+    v38 = not v36
+    v39 = and v37, v38
+    v40 = and 7, 255
+    v41 = shl v35, v40
+    v42 = or v39, v41
+    sstore v32, v42 !metadata(storage=symbolic(v32))
+    sstore 6, v28 !metadata(storage=slot(6))
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = sload 6 !metadata(storage=slot(6))
+    v45 = lt 0, v44
+    v46 = iszero v45
+    jumpi v46, bb8, bb9
+  bb9:
+    v47 = storage_array_data_slot 6
+    v48 = div 0, 32
+    v49 = add v47, v48
+    v50 = mod 0, 32
+    v51 = mul v50, 1
+    v52 = sload v49 !metadata(storage=symbolic(v49))
+    v53 = mul v51, 8
+    v54 = shr v53, v52
+    v55 = and v54, 255
+    v56 = sload 6 !metadata(storage=slot(6))
+    ret v43, v55, v56
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v25 = add v22, v23
+    sstore v25, 0 !metadata(storage=symbolic(v25))
+    v26 = add v23, 1
+    jump bb3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = lt 0, 3

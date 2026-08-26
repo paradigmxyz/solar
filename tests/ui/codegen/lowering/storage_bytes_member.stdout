@@ -586,6 +586,9 @@ bb146:
   push 32
   push 0
   keccak256
+  dup 1
+  push 768
+  mstore
   push 640
   mload
   swap 1

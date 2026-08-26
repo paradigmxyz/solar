@@ -7,12 +7,14 @@
 //@ run-call: clearDynamicDirtyWord() => 0
 //@ run-call: clearFixedDirtyWord() => 0
 //@ run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
+//@ run-call: deleteThenPush() => 42, 7, 1
 
 contract StorageDeletePackedArray {
     uint8[] private values;
     uint8[3] private fixedValues;
     bytes9[] private oddValues;
     bytes9[7] private oddFixedValues;
+    uint8[] private pushedValues;
 
     function clear() external returns (uint8 first, uint8 deleted, uint8 last) {
         values.push(1);
@@ -29,6 +31,20 @@ contract StorageDeletePackedArray {
         uint8[3] storage valuesRef = fixedValues;
         delete valuesRef;
         return (fixedValues[0], fixedValues[1], fixedValues[2]);
+    }
+
+    function deleteThenPush() external returns (uint256, uint8, uint256) {
+        assembly {
+            sstore(values.slot, 42)
+        }
+        pushedValues.push(1);
+        delete pushedValues;
+        pushedValues.push(7);
+        uint256 canary;
+        assembly {
+            canary := sload(values.slot)
+        }
+        return (canary, pushedValues[0], pushedValues.length);
     }
 
     function clearFixed() external returns (uint8 first, uint8 deleted, uint8 last) {
