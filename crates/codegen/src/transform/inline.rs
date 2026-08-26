@@ -183,7 +183,12 @@ impl MirInliner {
 
     #[must_use]
     fn for_constant_leaves() -> Self {
-        Self { inline_single_call: false, mode: InlineMode::ConstantLeaves, ..Self::default() }
+        Self {
+            max_instructions: 64,
+            inline_single_call: false,
+            mode: InlineMode::ConstantLeaves,
+            ..Self::default()
+        }
     }
 }
 
@@ -496,6 +501,7 @@ impl MirInliner {
                 && site.has_constant_argument
                 && summary.is_pure
                 && summary.block_count == 1
+                && summary.instruction_count <= self.max_instructions
                 && !summary.has_internal_call
                 && !summary.has_reference_return;
         }
