@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import statistics
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -525,33 +526,57 @@ def deploy_creation_code(
     if encoded is None:
         return None, None, "constructor args require constructor_sig"
     bytecode += encoded
+    return deploy_creation_code_from_file(bytecode, rpc_url, private_key)
 
-    proc = run(
-        [
-            "cast",
-            "send",
-            "--rpc-url",
-            rpc_url,
-            "--rpc-timeout",
-            str(CAST_RPC_TIMEOUT),
-            "--timeout",
-            str(CAST_RPC_TIMEOUT),
-            "--gas-limit",
-            CAST_GAS_LIMIT,
-            "--private-key",
-            private_key,
-            "--json",
-            "--create",
-            bytecode,
-        ],
-        timeout=CAST_DEPLOY_TIMEOUT,
+
+def deploy_creation_code_from_file(
+    bytecode: str,
+    rpc_url: str,
+    private_key: str,
+) -> Tuple[Optional[str], Optional[int], str]:
+    sender, error = private_key_address(private_key)
+    if sender is None:
+        return None, None, error
+
+    transaction = {
+        "from": sender,
+        "data": bytecode,
+        "gas": hex(int(CAST_GAS_LIMIT)),
+    }
+    tx_hash, error = rpc_request_from_file(
+        "eth_sendTransaction",
+        (transaction,),
+        rpc_url,
+        CAST_DEPLOY_TIMEOUT,
     )
+    if not isinstance(tx_hash, str):
+        return None, None, error or "deploy transaction missing hash"
+
+    deadline = time.monotonic() + CAST_DEPLOY_TIMEOUT
+    while True:
+        receipt, error = rpc_request("eth_getTransactionReceipt", (tx_hash,), rpc_url)
+        if error:
+            return None, None, error
+        if isinstance(receipt, dict):
+            return parse_deploy_receipt(receipt)
+        if time.monotonic() >= deadline:
+            return None, None, "timed out waiting for deploy receipt"
+        time.sleep(0.1)
+
+
+@lru_cache
+def private_key_address(private_key: str) -> Tuple[Optional[str], str]:
+    if private_key == DEFAULT_PRIVATE_KEY:
+        return DEFAULT_SENDER, ""
+    proc = run(["cast", "wallet", "address", "--private-key", private_key], timeout=30)
     if proc.returncode != 0:
-        return None, None, proc.stderr[:1000]
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        return None, None, f"invalid deploy JSON: {exc}"
+        return None, proc.stderr[:1000]
+    return proc.stdout.strip(), ""
+
+
+def parse_deploy_receipt(
+    data: dict[str, object],
+) -> Tuple[Optional[str], Optional[int], str]:
     status = parse_receipt_int(data.get("status"))
     gas = data.get("gasUsed")
     deploy_gas = parse_receipt_int(gas)
@@ -559,7 +584,39 @@ def deploy_creation_code(
         return None, deploy_gas, f"deploy transaction failed (status={status}, gasUsed={deploy_gas})"
     if deploy_gas is None:
         return None, None, "deploy receipt missing gasUsed"
-    return data.get("contractAddress"), deploy_gas, ""
+    contract_address = data.get("contractAddress")
+    return contract_address if isinstance(contract_address, str) else None, deploy_gas, ""
+
+
+def rpc_request_from_file(
+    method: str,
+    params: Sequence[object],
+    rpc_url: str,
+    timeout: int = CAST_READ_TIMEOUT,
+) -> Tuple[Optional[object], str]:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="solar-bench-rpc-",
+        suffix=".json",
+        delete=False,
+    ) as params_file:
+        json.dump(list(params), params_file)
+        params_path = Path(params_file.name)
+    try:
+        proc = run(
+            ["cast", "rpc", "--rpc-url", rpc_url, "--raw", method],
+            input_path=params_path,
+            timeout=timeout,
+        )
+    finally:
+        params_path.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or f"{method} failed")[:1000]
+    try:
+        return json.loads(proc.stdout), ""
+    except json.JSONDecodeError as exc:
+        return None, f"invalid {method} JSON: {exc}"
 
 
 def call_contract(
@@ -1062,6 +1119,31 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
         entry["runtime_status"] = "ok"
 
 
+def failed_test_result(
+    test_case: TestCase,
+    specs: Sequence[CompilerSpec],
+    gas_profile: str,
+    error: Exception,
+) -> Dict[str, object]:
+    message = f"unexpected benchmark failure: {type(error).__name__}: {error}"[:1000]
+    entry: Dict[str, object] = {
+        "test_id": test_case.test_id,
+        "description": test_case.description,
+        "contract_name": test_case.contract_name,
+        "suite": test_case.suite,
+        "gas_profile": gas_profile,
+        "benchmark_error": message,
+        "compilers": {
+            spec.compiler_id: {"status": "failed", "error": message}
+            for spec in specs
+        },
+    }
+    if test_case.project_file is not None:
+        entry["project"] = test_case.project
+        entry["source"] = test_case.source
+    return entry
+
+
 def run_test_case(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
@@ -1383,7 +1465,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         if args.gas and args.start_anvil:
             print("Starting anvil...")
-            anvil_proc = start_anvil(args.rpc_url)
+            try:
+                anvil_proc = start_anvil(args.rpc_url)
+            except Exception as exc:
+                print(_color(f"Benchmark setup failed: {exc}", RED), file=sys.stderr)
+                results.extend(
+                    failed_test_result(test, specs, args.gas_profile, exc)
+                    for test in tests
+                )
+                tests = []
         current_suite = None
         suite_started = None
         for test in tests:
@@ -1393,8 +1483,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
                 current_suite = suite
                 suite_started = time.monotonic()
-            results.append(
-                run_test_case(
+            try:
+                result = run_test_case(
                     test,
                     specs,
                     args.gas,
@@ -1406,13 +1496,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.evm_version,
                     solc,
                 )
-            )
+            except Exception as exc:
+                print(
+                    _color(f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED),
+                    file=sys.stderr,
+                )
+                result = failed_test_result(test, specs, args.gas_profile, exc)
+            results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
     finally:
         if anvil_proc:
             print("Stopping anvil...")
-            stop_anvil(anvil_proc)
+            try:
+                stop_anvil(anvil_proc)
+            except Exception as exc:
+                print(_color(f"Failed to stop anvil: {exc}", RED), file=sys.stderr)
 
     if args.verbose:
         for result in results:
