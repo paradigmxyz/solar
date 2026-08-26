@@ -58,10 +58,11 @@ bb15 [cold]:
   mstore
   push bb17
   jumpi
-  push 4
   push 0x7a65726f
   push 224
   shl
+  push 4
+  swap 1
   jump bb22
 bb22 [cold]:
   push 224
@@ -129,8 +130,9 @@ bb19 [cold]:
   push 0x74776f
   jump bb24
 bb21 [cold]:
-  push 5
   push 0x6f74686572
   push 216
   shl
+  push 5
+  swap 1
   jump bb22

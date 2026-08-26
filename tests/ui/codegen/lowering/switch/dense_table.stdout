@@ -20,9 +20,10 @@ bb0:
   sgt
   push bb3
   jumpi
-  push 10
   push 4
   calldataload
+  push 10
+  swap 1
   sub
   dup 1
   push 24
