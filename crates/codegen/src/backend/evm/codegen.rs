@@ -8810,14 +8810,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, size);
         }
 
-        self.asm.emit_push_data(data);
-        self.scheduler.stack.push_unknown();
-
+        // Keep `dest` within DUP16 reach before the anonymous relocation push.
         self.emit_operand(func, dest);
         let dest_consumed = if dest == size { 2 } else { 1 };
         if !self.block_local_copy_survives(liveness, block, dest, dest_consumed) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, dest);
         }
+
+        self.asm.emit_push_data(data);
+        self.scheduler.stack.push_unknown();
+        self.emit_stack_op(StackOp::Swap(1));
 
         self.asm.emit_op(op::CODECOPY);
         self.scheduler.instruction_executed(3, None);
@@ -9217,7 +9219,7 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
+    use crate::mir::{DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
     use solar_config::CompileOpts;
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
@@ -9301,6 +9303,45 @@ mod tests {
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE
         )));
         assert!(!EvmCodegen::static_frame_offsets_are_local(&make_function(u64::MAX)));
+    }
+
+    #[test]
+    fn data_copy_reaches_destination_before_relocation_push() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            module.phase = MirPhase::EvmShaped;
+            let data = module.add_data(vec![0; 32].into(), false);
+
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let one = builder.imm_u64(1);
+            let dest = builder.add(one, one);
+            let size = builder.imm_u64(32);
+            builder.data_copy(DataRef::new(data, 0), dest, size);
+            builder.stop();
+            let function = module.add_function(function);
+
+            codegen.asm.load_data(&module);
+            let function = &module.functions[function];
+            let liveness = Liveness::compute(function);
+            codegen.scheduler.stack.push(dest);
+            for _ in 0..MAX_STACK_ACCESS - 2 {
+                codegen.scheduler.stack.push_unknown();
+            }
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+
+            codegen.emit_data_copy(
+                function,
+                DataRef::new(data, 0),
+                dest,
+                size,
+                &liveness,
+                BlockId::ENTRY,
+                1,
+            );
+
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+        });
     }
 
     #[test]
