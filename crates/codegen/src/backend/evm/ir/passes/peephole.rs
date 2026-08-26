@@ -32,6 +32,14 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
         self.0.name()
     }
 
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let changed = self.0.run_pass(gcx, module);
         if changed {

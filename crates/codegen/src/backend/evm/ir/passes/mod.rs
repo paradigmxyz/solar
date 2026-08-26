@@ -103,7 +103,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // lose more shared bytes than the local CSE removes.
     &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
-    &stack_normalize::StackNormalize,
+    // Stack normalization exposes local rewrites.
+    &peephole::Cleanup(stack_normalize::StackNormalize),
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
