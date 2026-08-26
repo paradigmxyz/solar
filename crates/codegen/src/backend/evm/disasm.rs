@@ -267,7 +267,7 @@ fn instructions(
 
         let push_width =
             if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
-        let kind = if !opcode_is_available(opcode, evm_version) {
+        let kind = if !op::is_decodable(opcode, evm_version) {
             DecodedOpcode::Unavailable
         } else if matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE) {
             let immediate = bytecode.get(offset).copied().unwrap_or(0);
@@ -293,12 +293,6 @@ fn instructions(
         offset = end;
         Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data, kind })
     })
-}
-
-fn opcode_is_available(opcode: u8, evm_version: EvmVersion) -> bool {
-    (opcode != op::SLOTNUM || evm_version.has_slot_num())
-        && (!matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
-            || evm_version.has_extended_stack_ops())
 }
 
 fn versioned_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {

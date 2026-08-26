@@ -377,6 +377,21 @@ impl OperandPlan {
             return self;
         }
 
+        let exchange = |actions: &[PlannedAction]| -> Option<_> {
+            let [
+                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(first)), pushed: None },
+                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(second)), pushed: None },
+                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(third)), pushed: None },
+            ] = actions
+            else {
+                return None;
+            };
+            Some((StackOp::from_swaps(*first, *second, *third)?, *first, *second))
+        };
+        if !self.actions.windows(3).any(|actions| exchange(actions).is_some()) {
+            return self;
+        }
+
         let mut folded = PlannedActions::new();
         let mut pending = SmallVec::<[PlannedAction; 3]>::new();
         for action in std::mem::take(&mut self.actions) {
@@ -384,16 +399,10 @@ impl OperandPlan {
             if pending.len() < 3 {
                 continue;
             }
-            if let [
-                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(first)), pushed: None },
-                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(second)), pushed: None },
-                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(third)), pushed: None },
-            ] = pending.as_slice()
-                && let Some(exchange) = StackOp::from_swaps(*first, *second, *third)
-            {
-                let removed = ScheduleCost::stack_op(StackOp::Swap(*first), evm_version)
-                    .plus(ScheduleCost::stack_op(StackOp::Swap(*second), evm_version))
-                    .plus(ScheduleCost::stack_op(StackOp::Swap(*third), evm_version));
+            if let Some((exchange, first, second)) = exchange(&pending) {
+                let removed = ScheduleCost::stack_op(StackOp::Swap(first), evm_version)
+                    .plus(ScheduleCost::stack_op(StackOp::Swap(second), evm_version))
+                    .plus(ScheduleCost::stack_op(StackOp::Swap(first), evm_version));
                 let added = ScheduleCost::stack_op(exchange, evm_version);
                 self.cost.static_gas = self
                     .cost
@@ -1048,21 +1057,24 @@ impl StackScheduler {
 
         let Some(&expected_top) = goal.first() else { return best };
         let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
-        for depth in (1..=max_swap).filter(|&depth| stack[depth] == Some(expected_top)) {
-            if stack[0] != stack[depth]
-                && (matches!(optimization, OptimizationMode::Gas)
-                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
-                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
-                    if i == 0 {
-                        stack[depth]
-                    } else if i == depth {
-                        stack[0]
-                    } else {
-                        stack[i]
-                    }
-                })
-            {
-                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
+        for depths in [1..=max_swap.min(16), 17..=max_swap] {
+            for depth in depths.filter(|&depth| stack[depth] == Some(expected_top)) {
+                if stack[0] != stack[depth]
+                    && (matches!(optimization, OptimizationMode::Gas)
+                        || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+                    && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                        if i == 0 {
+                            stack[depth]
+                        } else if i == depth {
+                            stack[0]
+                        } else {
+                            stack[i]
+                        }
+                    })
+                {
+                    consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
+                    break;
+                }
             }
         }
 

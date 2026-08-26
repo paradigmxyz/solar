@@ -267,25 +267,18 @@ fn find_candidate(
                     return None;
                 }
                 let replacement = StackOp::Dup(u8::try_from(physical_depth).ok()?);
-                replacement.assembled_len(evm_version)?;
                 candidate.replace(index, StackOp::Dup(depth as u8), vec![replacement], evm_version);
                 slots.push(Slot { aliases_copy: selected.aliases_copy, is_ghost: false });
             }
             Some(StackOp::Swap(depth)) => {
                 let mut replacement = Vec::new();
                 retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
-                if replacement.iter().any(|op| op.assembled_len(evm_version).is_none()) {
-                    return None;
-                }
                 candidate.replace(index, StackOp::Swap(depth), replacement, evm_version);
             }
             Some(StackOp::Exchange(n, m)) => {
                 let mut replacement = Vec::new();
                 for depth in [n, m, n] {
                     retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
-                }
-                if replacement.iter().any(|op| op.assembled_len(evm_version).is_none()) {
-                    return None;
                 }
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }

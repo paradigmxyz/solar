@@ -65,14 +65,6 @@ pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
     verify::validate_evm_version(dcx, module, evm_version, true);
 }
 
-fn validate_stack_ops_for_evm_version(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_stack_ops_for_evm_version(dcx, module, evm_version);
-}
-
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
@@ -223,6 +215,9 @@ impl Instruction {
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
+        if let Some(stack_op) = StackOp::from_legacy_opcode(opcode) {
+            return Self::stack_op(stack_op);
+        }
         Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
     }
 

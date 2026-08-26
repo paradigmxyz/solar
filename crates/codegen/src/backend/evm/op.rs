@@ -475,9 +475,21 @@ pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
         PUSH0 => evm_version >= EvmVersion::Shanghai,
         BLOBHASH | BLOBBASEFEE | TLOAD | TSTORE | MCOPY => evm_version >= EvmVersion::Cancun,
         CLZ => evm_version >= EvmVersion::Osaka,
+        SLOTNUM => evm_version.has_slot_num(),
+        DUPN | SWAPN | EXCHANGE => evm_version.has_extended_stack_ops(),
         DATALOAD | DATALOADN | DATASIZE | DATACOPY | RJUMP | RJUMPI | RJUMPV | CALLF | RETF
-        | JUMPF | DUPN | SWAPN | EXCHANGE | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD
-        | EXTCALL | EXTDELEGATECALL | EXTSTATICCALL => false,
+        | JUMPF | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD | EXTCALL | EXTDELEGATECALL
+        | EXTSTATICCALL => false,
+        _ => mnemonic(opcode).is_some(),
+    }
+}
+
+/// Returns whether a known opcode can be decoded for `evm_version`.
+#[must_use]
+pub(crate) fn is_decodable(opcode: u8, evm_version: EvmVersion) -> bool {
+    match opcode {
+        SLOTNUM => evm_version.has_slot_num(),
+        DUPN | SWAPN | EXCHANGE => evm_version.has_extended_stack_ops(),
         _ => mnemonic(opcode).is_some(),
     }
 }

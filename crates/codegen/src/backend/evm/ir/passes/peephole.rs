@@ -444,8 +444,7 @@ impl Edit {
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     debug_assert!(raw_opcode(inst).is_some());
     let metadata = std::mem::take(&mut inst.metadata);
-    *inst = op::StackOp::from_legacy_opcode(opcode)
-        .map_or_else(|| Instruction::opcode(opcode), Instruction::stack_op);
+    *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
     inst.metadata.stack = None;
 }

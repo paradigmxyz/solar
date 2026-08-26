@@ -1182,10 +1182,6 @@ def compare_runtime_results(
         entry["runtime_status"] = "failed" if failed else "skipped"
         entry["runtime_mismatches"] = []
         return
-    if len(specs) < 2:
-        entry["runtime_status"] = "failed" if failed else "skipped"
-        entry["runtime_mismatches"] = []
-        return
 
     mismatches = []
     for label in labels:

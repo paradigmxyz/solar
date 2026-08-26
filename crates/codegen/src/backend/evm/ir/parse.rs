@@ -251,8 +251,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 })?;
                 if opcode == op::PUSH0 {
                     Instruction::push_value(U256::ZERO)
-                } else if let Some(stack_op) = op::StackOp::from_legacy_opcode(opcode) {
-                    Instruction::stack_op(stack_op)
                 } else {
                     Instruction::opcode(opcode)
                 }
