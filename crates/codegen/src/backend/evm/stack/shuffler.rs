@@ -29,16 +29,34 @@ use std::collections::VecDeque;
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
-const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 16;
+const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 236;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
 type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
 
+pub(crate) fn lowered_stack_cost(
+    ops: &[StackOp],
+    evm_version: EvmVersion,
+) -> (usize, usize, usize) {
+    ops.iter().fold((0, 0, 0), |(instructions, gas, size), op| {
+        let metrics = op.metrics(evm_version).expect("valid stack operation");
+        (
+            instructions + metrics.instruction_count,
+            gas + metrics.static_gas,
+            size + metrics.assembled_len,
+        )
+    })
+}
+
 /// Resynthesizes a bounded physical stack operation sequence from its symbolic result.
-pub(crate) fn resynthesize_physical_ops(ops: &[StackOp]) -> Option<Vec<StackOp>> {
+pub(crate) fn resynthesize_physical_ops(
+    ops: &[StackOp],
+    evm_version: EvmVersion,
+) -> Option<Vec<StackOp>> {
     let mut source_depth = 0usize;
     let mut available = 0usize;
     for &stack_op in ops {
+        stack_op.lowering(evm_version)?;
         let required = match stack_op {
             StackOp::Dup(depth) => usize::from(depth),
             StackOp::Swap(depth) => usize::from(depth) + 1,
@@ -67,34 +85,49 @@ pub(crate) fn resynthesize_physical_ops(ops: &[StackOp]) -> Option<Vec<StackOp>>
     for &stack_op in ops {
         target.apply(stack_op);
     }
-    let target: SmallVec<[TargetSlot; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT]> = target
+    let target: SmallVec<[TargetSlot; 16]> = target
         .iter()
         .map(|value| TargetSlot::Value(value.expect("physical stack run values stay known")))
         .collect();
-    if let Some(ops) = synthesize_unique_permutation(&source, &target) {
-        return Some(ops);
+    let permutation = synthesize_unique_permutation(source.as_slice(), &target)
+        .filter(|ops| ops.iter().all(|op| op.lowering(evm_version).is_some()));
+    if !evm_version.has_extended_stack_ops() && permutation.is_some() {
+        return permutation;
     }
-    let mut shuffler = StackShuffler::new(&source, &target);
-    let result = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
+    let mut shuffler = StackShuffler::for_evm_version(&source, &target, evm_version);
+    let shuffled = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
         shuffler.shuffle()
     } else {
         shuffler.run_greedy()
-    };
-    result.map(|result| result.ops)
+    }
+    .map(|result| result.ops);
+    match (permutation, shuffled) {
+        (Some(permutation), Some(shuffled)) => Some(
+            if lowered_stack_cost(&permutation, evm_version)
+                <= lowered_stack_cost(&shuffled, evm_version)
+            {
+                permutation
+            } else {
+                shuffled
+            },
+        ),
+        (ops @ Some(_), None) | (None, ops @ Some(_)) => ops,
+        (None, None) => None,
+    }
 }
 
 fn synthesize_unique_permutation(
-    source: &StackModel,
+    source: &[Option<ValueId>],
     target: &[TargetSlot],
 ) -> Option<Vec<StackOp>> {
-    if source.depth() != target.len() {
+    if source.len() != target.len() {
         return None;
     }
     if target.is_empty() {
         return Some(Vec::new());
     }
 
-    let mut target_positions = [usize::MAX; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT];
+    let mut target_positions = SmallVec::<[usize; 16]>::from_elem(usize::MAX, source.len());
     for (index, &TargetSlot::Value(value)) in target.iter().enumerate() {
         let position = &mut target_positions[value.index()];
         if *position != usize::MAX {
@@ -102,8 +135,9 @@ fn synthesize_unique_permutation(
         }
         *position = index;
     }
-    let mut current: SmallVec<[ValueId; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT]> = source
+    let mut current: SmallVec<[ValueId; 16]> = source
         .iter()
+        .copied()
         .map(|value| value.filter(|value| target_positions[value.index()] != usize::MAX))
         .collect::<Option<_>>()?;
 
@@ -196,7 +230,7 @@ impl<'a> StackShuffler<'a> {
             .max(usize::from(!Self::matches_target(&original, self.target)));
         if original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
             && greedy.as_ref().is_none_or(|result| {
-                Self::lowered_cost(&result.ops, self.evm_version).0 > operation_lower_bound
+                lowered_stack_cost(&result.ops, self.evm_version).0 > operation_lower_bound
             })
         {
             let exact =
@@ -204,9 +238,9 @@ impl<'a> StackShuffler<'a> {
             return match (greedy, exact) {
                 (Some(greedy), Some(exact)) => {
                     let (exact_actions, exact_gas, exact_size) =
-                        Self::lowered_cost(&exact.ops, self.evm_version);
+                        lowered_stack_cost(&exact.ops, self.evm_version);
                     let (greedy_actions, greedy_gas, greedy_size) =
-                        Self::lowered_cost(&greedy.ops, self.evm_version);
+                        lowered_stack_cost(&greedy.ops, self.evm_version);
                     let use_exact = exact_actions <= greedy_actions
                         && exact_gas <= greedy_gas
                         && exact_size <= greedy_size
@@ -303,17 +337,6 @@ impl<'a> StackShuffler<'a> {
         }
 
         None
-    }
-
-    fn lowered_cost(ops: &[StackOp], evm_version: EvmVersion) -> (usize, usize, usize) {
-        ops.iter().fold((0, 0, 0), |(instructions, gas, size), op| {
-            let metrics = op.metrics(evm_version).expect("valid shuffle operation");
-            (
-                instructions + metrics.instruction_count,
-                gas + metrics.static_gas,
-                size + metrics.assembled_len,
-            )
-        })
     }
 
     fn enqueue(

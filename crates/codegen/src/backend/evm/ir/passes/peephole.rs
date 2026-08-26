@@ -4,10 +4,9 @@ use super::{EvmPass, compact_pushes::immediate_materialization_cost};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
-    stack::StackOp as PhysicalStackOp,
+    stack::{StackModel, StackOp as PhysicalStackOp},
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -61,7 +60,11 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
             block.terminator.as_ref().map(|term| &term.kind),
             Some(TerminatorKind::Op(op::STOP))
         ) {
-            while block.instructions.last().is_some_and(|inst| raw_opcode(inst) == Some(op::POP)) {
+            while block
+                .instructions
+                .last()
+                .is_some_and(|inst| inst.as_legacy_opcode() == Some(op::POP))
+            {
                 block.instructions.pop();
                 rewrites += 1;
             }
@@ -96,7 +99,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
         && is_removable_push(lhs)
         && let Some(value) = push_value(pushed)
-        && let Some(opcode) = raw_opcode(instruction)
+        && let Some(opcode) = instruction.as_legacy_opcode()
     {
         if value.is_zero()
             && matches!(
@@ -118,7 +121,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH 1 EXP -> POP PUSH 1`.
     if let [.., pushed, instruction] = instructions.as_slice()
         && let Some(value) = push_value(pushed)
-        && let Some(opcode) = raw_opcode(instruction)
+        && let Some(opcode) = instruction.as_legacy_opcode()
     {
         if value.is_zero() {
             match opcode {
@@ -151,7 +154,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && instruction.has_canonical_stack_effect()
         && let Some(lhs_value) = push_value(lhs)
         && let Some(rhs_value) = push_value(rhs)
-        && let Some(opcode) = instruction.raw_opcode()
+        && let Some(opcode) = instruction.as_legacy_opcode()
         && let Some((result, opcode_gas)) = match opcode {
             op::ADD => Some((lhs_value.wrapping_add(rhs_value), 3)),
             op::MUL => Some((lhs_value.wrapping_mul(rhs_value), 5)),
@@ -175,14 +178,14 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH x POP -> ∅`.
     if let [.., pushed, pop] = instructions.as_slice()
         && is_removable_push(pushed)
-        && raw_opcode(pop) == Some(op::POP)
+        && pop.as_legacy_opcode() == Some(op::POP)
     {
         return rewrite(instructions, 2, Edit::Keep(0), block);
     }
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
     if let [.., first, second] = instructions.as_slice()
-        && ((raw_opcode(first), raw_opcode(second)) == (Some(op::NOT), Some(op::NOT))
+        && ((first.as_legacy_opcode(), second.as_legacy_opcode()) == (Some(op::NOT), Some(op::NOT))
             || (second.as_stack_op() == Some(op::StackOp::Pop)
                 && matches!(first.as_stack_op(), Some(op::StackOp::Dup(_))))
             || (first.as_stack_op() == second.as_stack_op()
@@ -196,26 +199,26 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `DUPn SWAPn -> DUPn` because the swapped values are equal.
     if let [.., dup, swap] = instructions.as_slice()
-        && let Some(dup) = dup.raw_opcode()
+        && let Some(dup) = dup.as_legacy_opcode()
         && (op::DUP1..=op::DUP16).contains(&dup)
-        && swap.raw_opcode() == Some(op::swap(dup - op::DUP1 + 1))
+        && swap.as_legacy_opcode() == Some(op::swap(dup - op::DUP1 + 1))
     {
         return rewrite(instructions, 2, Edit::Keep(1), block);
     }
 
     // `ISZERO ISZERO ISZERO -> ISZERO`.
     if let [.., first, second, third] = instructions.as_slice()
-        && raw_opcode(first) == Some(op::ISZERO)
-        && raw_opcode(second) == Some(op::ISZERO)
-        && raw_opcode(third) == Some(op::ISZERO)
+        && first.as_legacy_opcode() == Some(op::ISZERO)
+        && second.as_legacy_opcode() == Some(op::ISZERO)
+        && third.as_legacy_opcode() == Some(op::ISZERO)
     {
         return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), block);
     }
 
     // `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
     if let [.., swap, instruction] = instructions.as_slice()
-        && raw_opcode(swap) == Some(op::SWAP1)
-        && let Some(opcode) = raw_opcode(instruction)
+        && swap.as_legacy_opcode() == Some(op::SWAP1)
+        && let Some(opcode) = instruction.as_legacy_opcode()
         && is_commutative(opcode)
     {
         return rewrite(instructions, 2, Edit::RemoveFirstKeepOne, block);
@@ -223,8 +226,8 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
     if let [.., swap, comparison] = instructions.as_slice()
-        && raw_opcode(swap) == Some(op::SWAP1)
-        && let Some(comparison) = raw_opcode(comparison)
+        && swap.as_legacy_opcode() == Some(op::SWAP1)
+        && let Some(comparison) = comparison.as_legacy_opcode()
         && let Some(flipped) = flipped_comparison(comparison)
     {
         return rewrite(instructions, 2, Edit::RemoveFirstOverwrite(flipped), block);
@@ -233,10 +236,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `DUP2 OP SWAP1 POP -> OP`.
     // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
     if let [.., dup, binop, swap, pop] = instructions.as_slice()
-        && raw_opcode(dup) == Some(op::DUP2)
-        && let Some(binop) = raw_opcode(binop)
-        && raw_opcode(swap) == Some(op::SWAP1)
-        && raw_opcode(pop) == Some(op::POP)
+        && dup.as_legacy_opcode() == Some(op::DUP2)
+        && let Some(binop) = binop.as_legacy_opcode()
+        && swap.as_legacy_opcode() == Some(op::SWAP1)
+        && pop.as_legacy_opcode() == Some(op::POP)
     {
         if is_commutative(binop) {
             return rewrite(instructions, 4, Edit::OverwriteOne(binop), block);
@@ -266,20 +269,20 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `DUP2 SINK POP -> SWAP1 SINK`.
     if let [.., dup, sink, pop] = instructions.as_slice()
-        && raw_opcode(dup) == Some(op::DUP2)
-        && let Some(opcode) = raw_opcode(sink)
+        && dup.as_legacy_opcode() == Some(op::DUP2)
+        && let Some(opcode) = sink.as_legacy_opcode()
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
-        && raw_opcode(pop) == Some(op::POP)
+        && pop.as_legacy_opcode() == Some(op::POP)
     {
         return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), block);
     }
 
     // `SWAP1 POP SWAP2 POP -> SWAP3 POP POP`.
     if let [.., first_swap, first_pop, second_swap, second_pop] = instructions.as_slice()
-        && first_swap.raw_opcode() == Some(op::SWAP1)
-        && first_pop.raw_opcode() == Some(op::POP)
-        && second_swap.raw_opcode() == Some(op::SWAP2)
-        && second_pop.raw_opcode() == Some(op::POP)
+        && first_swap.as_legacy_opcode() == Some(op::SWAP1)
+        && first_pop.as_legacy_opcode() == Some(op::POP)
+        && second_swap.as_legacy_opcode() == Some(op::SWAP2)
+        && second_pop.as_legacy_opcode() == Some(op::POP)
     {
         return rewrite(instructions, 4, Edit::MergeSwapPop(3), block);
     }
@@ -290,12 +293,12 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         let Some(start) = instructions.len().checked_sub(input_len) else {
             break;
         };
-        if raw_opcode(&instructions[start]) == Some(op::swap(depth as u8))
+        if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
             && instructions[start + 1..instructions.len() - 2]
                 .iter()
-                .all(|inst| raw_opcode(inst) == Some(op::POP))
-            && raw_opcode(&instructions[instructions.len() - 2]) == Some(op::SWAP1)
-            && raw_opcode(&instructions[instructions.len() - 1]) == Some(op::POP)
+                .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
+            && instructions[instructions.len() - 2].as_legacy_opcode() == Some(op::SWAP1)
+            && instructions[instructions.len() - 1].as_legacy_opcode() == Some(op::POP)
         {
             let merged_depth = depth + 1;
             return rewrite(instructions, input_len, Edit::MergeSwapPop(merged_depth as u8), block);
@@ -308,8 +311,8 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         let Some(start) = instructions.len().checked_sub(input_len) else {
             break;
         };
-        if instructions[start].raw_opcode() == Some(op::swap(depth as u8))
-            && instructions[start + 1..].iter().all(|inst| inst.raw_opcode() == Some(op::POP))
+        if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
+            && instructions[start + 1..].iter().all(|inst| inst.as_legacy_opcode() == Some(op::POP))
         {
             return rewrite(instructions, input_len, Edit::DropDiscardedSwap, block);
         }
@@ -317,12 +320,12 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
     if let [.., dup_a, push_a, store_a, dup_b, push_b, store_b] = instructions.as_slice()
-        && raw_opcode(dup_a) == Some(op::DUP1)
+        && dup_a.as_legacy_opcode() == Some(op::DUP1)
         && let Some(a) = push_value(push_a)
-        && raw_opcode(store_a) == Some(op::MSTORE)
-        && raw_opcode(dup_b) == Some(op::DUP1)
+        && store_a.as_legacy_opcode() == Some(op::MSTORE)
+        && dup_b.as_legacy_opcode() == Some(op::DUP1)
         && let Some(b) = push_value(push_b)
-        && raw_opcode(store_b) == Some(op::MSTORE)
+        && store_b.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
         return rewrite(instructions, 6, Edit::Keep(3), block);
@@ -331,10 +334,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH x MLOAD DUP1 PUSH x MSTORE -> PUSH x MLOAD`.
     if let [.., load_addr, load, dup, store_addr, store] = instructions.as_slice()
         && let Some(a) = push_value(load_addr)
-        && raw_opcode(load) == Some(op::MLOAD)
-        && raw_opcode(dup) == Some(op::DUP1)
+        && load.as_legacy_opcode() == Some(op::MLOAD)
+        && dup.as_legacy_opcode() == Some(op::DUP1)
         && let Some(b) = push_value(store_addr)
-        && raw_opcode(store) == Some(op::MSTORE)
+        && store.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
         return rewrite(instructions, 5, Edit::Keep(2), block);
@@ -342,12 +345,12 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop, loaded, load] = instructions.as_slice()
-        && raw_opcode(dup) == Some(op::DUP1)
+        && dup.as_legacy_opcode() == Some(op::DUP1)
         && let Some(a) = push_value(pushed)
-        && raw_opcode(store) == Some(op::MSTORE)
-        && raw_opcode(pop) == Some(op::POP)
+        && store.as_legacy_opcode() == Some(op::MSTORE)
+        && pop.as_legacy_opcode() == Some(op::POP)
         && let Some(b) = push_value(loaded)
-        && raw_opcode(load) == Some(op::MLOAD)
+        && load.as_legacy_opcode() == Some(op::MLOAD)
         && a == b
     {
         return rewrite(instructions, 6, Edit::Keep(3), block);
@@ -356,9 +359,9 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
         && let Some(a) = push_value(store_addr)
-        && raw_opcode(store) == Some(op::MSTORE)
+        && store.as_legacy_opcode() == Some(op::MSTORE)
         && let Some(b) = push_value(load_addr)
-        && raw_opcode(load) == Some(op::MLOAD)
+        && load.as_legacy_opcode() == Some(op::MLOAD)
         && a == b
     {
         return rewrite(instructions, 4, Edit::ReloadStoredValue, block);
@@ -366,32 +369,36 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop] = instructions.as_slice()
-        && raw_opcode(dup) == Some(op::DUP1)
+        && dup.as_legacy_opcode() == Some(op::DUP1)
         && pushed.is_encoded_push()
-        && raw_opcode(store) == Some(op::MSTORE)
-        && raw_opcode(pop) == Some(op::POP)
+        && store.as_legacy_opcode() == Some(op::MSTORE)
+        && pop.as_legacy_opcode() == Some(op::POP)
     {
         return rewrite(instructions, 4, Edit::RemoveFirstKeepTwo, block);
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
     if let [.., first, second, target, jump] = instructions.as_slice()
-        && raw_opcode(first) == Some(op::ISZERO)
-        && raw_opcode(second) == Some(op::ISZERO)
+        && first.as_legacy_opcode() == Some(op::ISZERO)
+        && second.as_legacy_opcode() == Some(op::ISZERO)
         && is_block_push(target)
-        && raw_opcode(jump) == Some(op::JUMPI)
+        && jump.as_legacy_opcode() == Some(op::JUMPI)
     {
         return rewrite(instructions, 4, Edit::DropDoubleIszero, block);
     }
 
     // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
     if let [.., eq, iszero, target, jump] = instructions.as_slice()
-        && raw_opcode(eq) == Some(op::EQ)
-        && raw_opcode(iszero) == Some(op::ISZERO)
+        && eq.as_legacy_opcode() == Some(op::EQ)
+        && iszero.as_legacy_opcode() == Some(op::ISZERO)
         && is_block_push(target)
-        && raw_opcode(jump) == Some(op::JUMPI)
+        && jump.as_legacy_opcode() == Some(op::JUMPI)
     {
         return rewrite(instructions, 4, Edit::EqIszeroJumpi, block);
+    }
+
+    if let Some(len) = noop_stack_suffix_len(instructions) {
+        return rewrite(instructions, len, Edit::Keep(0), block);
     }
 
     // `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
@@ -416,28 +423,22 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
             _ => None,
         }
     {
-        return rewrite(
-            instructions,
-            2,
-            Edit::StackOps(op::StackOp::Swap(first_depth), op::StackOp::Swap(second_depth)),
-            block,
-        );
+        let start = instructions.len() - 2;
+        instructions[start] = Instruction::stack_op(op::StackOp::Swap(first_depth));
+        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(second_depth));
+        return true;
     }
 
     // `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
     if let [.., first, second, third] = instructions.as_slice()
-        && let (
-            Some(op::StackOp::Swap(first)),
-            Some(op::StackOp::Swap(second)),
-            Some(op::StackOp::Swap(third)),
-        ) = (first.as_stack_op(), second.as_stack_op(), third.as_stack_op())
+        && let (Some(first), Some(second), Some(third)) =
+            (swap_depth(first), swap_depth(second), swap_depth(third))
         && let Some(exchange) = op::StackOp::from_swaps(first, second, third)
     {
-        return rewrite(instructions, 3, Edit::StackOp(exchange), block);
-    }
-
-    if let Some(len) = noop_stack_suffix_len(instructions) {
-        return rewrite(instructions, len, Edit::Keep(0), block);
+        let start = instructions.len() - 3;
+        instructions[start] = Instruction::stack_op(exchange);
+        instructions.truncate(start + 1);
+        return true;
     }
 
     false
@@ -473,41 +474,37 @@ fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
 }
 
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let mut stack = SmallVec::<[u8; MAX_STACK_PEEPHOLE_WINDOW]>::new();
+    let mut stack = StackModel::new();
     let mut next_push = 0;
     for inst in instructions {
         match stack_op(inst) {
             Some(SymbolicStackOp::Push) => {
-                stack.push(next_push);
+                stack.push(crate::mir::ValueId::from_usize(next_push));
                 next_push += 1;
             }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Dup(depth))) => {
-                let Some(index) = stack.len().checked_sub(usize::from(depth)) else { return false };
-                stack.push(stack[index]);
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Swap(depth))) => {
-                let Some(index) = stack.len().checked_sub(usize::from(depth) + 1) else {
-                    return false;
+            Some(SymbolicStackOp::Physical(op)) => {
+                let required = match op {
+                    PhysicalStackOp::Dup(depth) => usize::from(depth),
+                    PhysicalStackOp::Swap(depth) => usize::from(depth) + 1,
+                    PhysicalStackOp::Exchange(first, second) => usize::from(first.max(second)) + 1,
+                    PhysicalStackOp::Pop => 1,
                 };
-                let top = stack.len() - 1;
-                stack.swap(index, top);
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Pop)) => {
-                if stack.pop().is_none() {
+                if stack.depth() < required {
                     return false;
                 }
+                stack.apply(op);
             }
             None => return false,
         }
     }
-    stack.is_empty()
+    stack.depth() == 0
 }
 
 fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if is_removable_push(inst) || inst.raw_opcode() == Some(op::PUSH0) {
+    if is_removable_push(inst) {
         return Some(SymbolicStackOp::Push);
     }
-    PhysicalStackOp::from_opcode(inst.raw_opcode()?).map(SymbolicStackOp::Physical)
+    inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.
@@ -543,8 +540,6 @@ enum Edit {
     ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
-    StackOp(op::StackOp),
-    StackOps(op::StackOp, op::StackOp),
     FoldConstants(U256),
 }
 
@@ -607,29 +602,21 @@ impl Edit {
                 instructions[start] = Instruction::push_value(value);
                 instructions.truncate(start + 1);
             }
-            Self::StackOp(stack_op) => {
-                instructions[start] = Instruction::stack_op(stack_op);
-                instructions.truncate(start + 1);
-            }
-            Self::StackOps(first, second) => {
-                instructions[start] = Instruction::stack_op(first);
-                instructions[start + 1] = Instruction::stack_op(second);
-                instructions.truncate(start + 2);
-            }
         }
     }
 }
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
-    debug_assert!(raw_opcode(inst).is_some());
+    debug_assert!(inst.as_legacy_opcode().is_some());
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
     inst.metadata.stack = None;
 }
 
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    inst.as_legacy_opcode()
+fn swap_depth(inst: &Instruction) -> Option<u8> {
+    let op::StackOp::Swap(depth) = inst.as_stack_op()? else { return None };
+    Some(depth)
 }
 
 const fn is_commutative(opcode: u8) -> bool {

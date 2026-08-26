@@ -3,8 +3,9 @@
 use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module},
-    stack::{StackOp, resynthesize_physical_ops},
+    stack::{StackOp, lowered_stack_cost, resynthesize_physical_ops},
 };
+use solar_config::EvmVersion;
 use solar_sema::Gcx;
 
 const MAX_STACK_RUN_LEN: usize = 24;
@@ -16,16 +17,16 @@ impl EvmPass for StackNormalize {
         "stack-normalize"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
         for block in &mut module.blocks {
-            changed |= normalize_runs(&mut block.instructions);
+            changed |= normalize_runs(&mut block.instructions, gcx.sess.opts.evm_version);
         }
         changed
     }
 }
 
-fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
+fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
     struct Normalization {
         start: usize,
         end: usize,
@@ -36,28 +37,31 @@ fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
     let mut input = Vec::new();
     let mut cursor = 0;
     while cursor < instructions.len() {
-        if stack_op(&instructions[cursor]).is_none() {
+        let start = cursor;
+        input.clear();
+        while cursor < instructions.len()
+            && let Some(op) = stack_op(&instructions[cursor])
+        {
+            input.push(op);
+            cursor += 1;
+        }
+        if cursor == start {
             cursor += 1;
             continue;
         }
-        let start = cursor;
-        while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
-            cursor += 1;
-        }
-        if !(2..=MAX_STACK_RUN_LEN).contains(&(cursor - start)) {
+        if !(2..=MAX_STACK_RUN_LEN).contains(&input.len()) {
             continue;
         }
 
-        input.clear();
-        input.extend(instructions[start..cursor].iter().map(|inst| stack_op(inst).unwrap()));
-        let Some(output) = resynthesize_physical_ops(&input) else {
+        let Some(output) = resynthesize_physical_ops(&input, evm_version) else {
             continue;
         };
-        let input_gas = input.iter().map(|op| op.static_gas()).sum::<u32>();
-        let output_gas = output.iter().map(|op| op.static_gas()).sum::<u32>();
-        if output.len() > input.len()
-            || output_gas > input_gas
-            || (output.len() == input.len() && output_gas == input_gas)
+        let input_cost = lowered_stack_cost(&input, evm_version);
+        let output_cost = lowered_stack_cost(&output, evm_version);
+        if output_cost.0 > input_cost.0
+            || output_cost.1 > input_cost.1
+            || output_cost.2 > input_cost.2
+            || output_cost == input_cost
         {
             continue;
         }
@@ -76,9 +80,10 @@ fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
         }
         for op in normalization.output {
             let (_, mut inst) = source.next().unwrap();
-            inst.opcode = op.opcode();
-            inst.metadata.stack = None;
-            instructions.push(inst);
+            let mut replacement = Instruction::stack_op(op);
+            replacement.metadata = std::mem::take(&mut inst.metadata);
+            replacement.metadata.stack = None;
+            instructions.push(replacement);
         }
         while source.peek().is_some_and(|&(index, _)| index < normalization.end) {
             source.next();
@@ -90,5 +95,5 @@ fn normalize_runs(instructions: &mut Vec<Instruction>) -> bool {
 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {
     inst.has_canonical_stack_effect().then_some(())?;
-    StackOp::from_opcode(inst.raw_opcode()?)
+    inst.as_stack_op()
 }

@@ -3,7 +3,7 @@
 use super::op;
 use crate::mir::{Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
 
 /// Returns whether a MIR value is a calling-convention-backed rematerializable leaf.
 pub(super) const fn is_rematerializable_leaf(value: &Value) -> bool {
@@ -77,12 +77,8 @@ pub(super) fn cross_block_values(
     func: &Function,
     leaf_is_available: impl Fn(ValueId) -> bool,
 ) -> DenseBitSet<ValueId> {
-    let mut users = IndexVec::<ValueId, SmallVec<[ValueId; 2]>>::with_capacity(func.num_values());
-    let mut remaining = IndexVec::<ValueId, usize>::with_capacity(func.num_values());
-    for _ in 0..func.num_values() {
-        users.push(SmallVec::new());
-        remaining.push(usize::MAX);
-    }
+    let mut users = index_vec![SmallVec::<[ValueId; 2]>::new(); func.num_values()];
+    let mut remaining = index_vec![usize::MAX; func.num_values()];
 
     let mut recomputable = DenseBitSet::new_empty(func.num_values());
     let mut worklist = Vec::new();

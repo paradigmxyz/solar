@@ -1587,7 +1587,15 @@ impl StackScheduler {
         }
 
         let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
+        let mut deep_values = SmallVec::<[ValueId; 8]>::new();
         for depth in 1..=max_swap {
+            if depth > MAX_STACK_ACCESS {
+                let Some(value) = stack[depth] else { continue };
+                if !required_counts.contains_key(&value) || deep_values.contains(&value) {
+                    continue;
+                }
+                deep_values.push(value);
+            }
             if stack[0] != stack[depth] {
                 actions.push(PlannedAction {
                     op: ScheduledOp::Stack(StackOp::Swap(depth as u8)),

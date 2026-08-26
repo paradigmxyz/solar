@@ -21,7 +21,7 @@ impl EvmPass for ReorderPushes {
 
     fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
         !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && (!matches!(gcx.sess.opts.optimization, OptimizationMode::Size)
+            && (!gcx.sess.opts.optimization.is_size()
                 || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 
