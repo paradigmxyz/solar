@@ -1043,32 +1043,34 @@ impl StackScheduler {
             consider(ScheduledOp::Stack(StackOp::Pop), None);
         }
 
-        let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
-        for depth in 1..=max_swap {
-            if stack[0] != stack[depth]
-                && (matches!(optimization, OptimizationMode::Gas)
-                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
-                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
-                    if i == 0 {
-                        stack[depth]
-                    } else if i == depth {
-                        stack[0]
-                    } else {
-                        stack[i]
-                    }
+        if let Some(expected_top) = goal.first().copied() {
+            let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
+            for depth in (1..=max_swap).filter(|&depth| stack[depth] == Some(expected_top)) {
+                if stack[0] != stack[depth]
+                    && (matches!(optimization, OptimizationMode::Gas)
+                        || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+                    && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                        if i == 0 {
+                            stack[depth]
+                        } else if i == depth {
+                            stack[0]
+                        } else {
+                            stack[i]
+                        }
+                    })
+                {
+                    consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
+                }
+            }
+
+            let max_dup = stack.len().min(max_stack_access);
+            if let Some(depth) =
+                stack[..max_dup].iter().position(|&slot| slot == Some(expected_top))
+                && Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
+                    if i == 0 { Some(expected_top) } else { stack[i - 1] }
                 })
             {
-                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
-            }
-        }
-
-        let max_dup = stack.len().min(max_stack_access);
-        for depth in 0..max_dup {
-            let Some(value) = stack[depth] else { continue };
-            if Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
-                if i == 0 { Some(value) } else { stack[i - 1] }
-            }) {
-                consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(value));
+                consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
             }
         }
 
