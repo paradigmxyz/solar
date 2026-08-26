@@ -4,7 +4,7 @@ use super::{
     AbiLayout, AbiLayoutRef, DataId, DataRef, Disambiguator, Function, FunctionId, ImmutableId,
     MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
 };
-use alloy_primitives::{Bytes, hex};
+use alloy_primitives::Bytes;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -289,10 +289,6 @@ impl Module {
         self.data[id].named = true;
     }
 
-    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data[id].named.then(|| crate::data_literal_name(id.index()))
-    }
-
     pub(crate) fn data_is_named(&self, id: DataId) -> bool {
         self.data[id].named
     }
@@ -329,10 +325,16 @@ impl Module {
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
                 for (id, data) in self.iter_data() {
-                    let name = self
-                        .data_name(id)
-                        .map_or_else(|| id.index().to_string(), |n| n.to_string());
-                    writeln!(f, "  {name}: hex\"{}\"", hex::encode(data))?;
+                    if self.data_is_named(id) {
+                        write!(f, "  {}", crate::data_literal_name(id.index()))?;
+                    } else {
+                        write!(f, "  {}", id.index())?;
+                    }
+                    write!(f, ": hex\"")?;
+                    for byte in data {
+                        write!(f, "{byte:02x}")?;
+                    }
+                    writeln!(f, "\"")?;
                 }
                 writeln!(f)?;
             }

@@ -227,7 +227,7 @@ fn lower_instruction(
             Some(ir::PushValue::Block(block)) => {
                 AsmInst::push_label(label_for_block(assembler, module, *block, labels))
             }
-            Some(ir::PushValue::Data(data)) => AsmInst::push_data(program.intern_data_ref(*data)),
+            Some(ir::PushValue::Data(data)) => AsmInst::push_data(program.push_data_ref(*data)),
             _ => unreachable!("push must have one immediate, block, or data operand"),
         }
     } else {

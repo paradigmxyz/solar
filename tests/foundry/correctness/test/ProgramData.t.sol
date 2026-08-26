@@ -92,23 +92,22 @@ contract ProgramDataTest is MetadataStrings {
         assert(address(first) != address(second));
         assert(factory.rendererForSalt(firstSalt) == address(first));
         assert(factory.rendererForSalt(secondSalt) == address(second));
-        assert(first.factory() == address(factory));
-        assert(second.factory() == address(factory));
-        assert(first.expectedDocumentHash() == EXPECTED_DOCUMENT_HASH);
-        assert(second.expectedDocumentHash() == EXPECTED_DOCUMENT_HASH);
-        assert(
-            keccak256(bytes(_callString(address(first), MetadataRenderer.document.selector))) == EXPECTED_DOCUMENT_HASH
-        );
-        assert(
-            keccak256(bytes(_callString(address(second), MetadataRenderer.document.selector))) == EXPECTED_DOCUMENT_HASH
-        );
-        assert(
-            keccak256(bytes(_callString(address(first), MetadataRenderer.excerpt.selector))) == EXPECTED_EXCERPT_HASH
-        );
-        assert(
-            keccak256(bytes(_callString(address(second), MetadataRenderer.excerpt.selector))) == EXPECTED_EXCERPT_HASH
-        );
+        _assertRenderer(first, factory);
+        _assertRenderer(second, factory);
         assert(factory.rendererCreationCodeHash() == keccak256(type(MetadataRenderer).creationCode));
+    }
+
+    function _assertRenderer(MetadataRenderer renderer, MetadataFactory factory) private view {
+        assert(renderer.factory() == address(factory));
+        assert(renderer.expectedDocumentHash() == EXPECTED_DOCUMENT_HASH);
+        assert(
+            keccak256(bytes(_callString(address(renderer), MetadataRenderer.document.selector)))
+                == EXPECTED_DOCUMENT_HASH
+        );
+        assert(
+            keccak256(bytes(_callString(address(renderer), MetadataRenderer.excerpt.selector)))
+                == EXPECTED_EXCERPT_HASH
+        );
     }
 
     function _callString(address target, bytes4 selector) private view returns (string memory value) {

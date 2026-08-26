@@ -1,15 +1,12 @@
 //! Materialize and pack program data.
 
 use super::EvmPass;
-use crate::{
-    MAX_DATA_SUBSTRING_ENTRIES,
-    backend::evm::{
-        ir::{
-            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            default_instruction_stack_effect, immediate_materialization_cost,
-        },
-        op, push_len,
+use crate::backend::evm::{
+    ir::{
+        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+        default_instruction_stack_effect, immediate_materialization_cost,
     },
+    op, push_len,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -19,6 +16,9 @@ use solar_data_structures::{
 };
 use solar_sema::Gcx;
 
+/// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
+const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
+
 pub(super) struct PackData;
 
 impl EvmPass for PackData {
@@ -27,12 +27,12 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut references = data_references(module);
+        let (mut references, groups) = data_references_and_runs(gcx, module);
         let packed = pack_data(module, &references);
         if packed {
             references = data_references(module);
         }
-        let materialized = materialize_data(gcx, module, &references);
+        let materialized = materialize_data(gcx, module, &references, groups);
         if materialized {
             let references = data_references(module);
             pack_data(module, &references);
@@ -74,10 +74,19 @@ struct PreparedRewrite {
     size: usize,
 }
 
+struct PoolEntry {
+    id: DataId,
+    bytes: Bytes,
+    references: usize,
+    subslice_safe: bool,
+}
+
 struct DataPool {
-    entries: Vec<(DataId, Bytes, usize, bool)>,
+    entries: Vec<PoolEntry>,
     exact: FxHashMap<Bytes, DataRef>,
 }
+
+type RewriteGroups = FxHashMap<Bytes, Vec<Rewrite>>;
 
 enum Placement {
     Existing(DataRef),
@@ -102,8 +111,11 @@ impl DataPool {
         Self {
             entries: data
                 .iter_enumerated()
-                .map(|(id, data)| {
-                    (id, data.bytes.clone(), references.counts[id], references.subslice_safe[id])
+                .map(|(id, data)| PoolEntry {
+                    id,
+                    bytes: data.bytes.clone(),
+                    references: references.counts[id],
+                    subslice_safe: references.subslice_safe[id],
                 })
                 .collect(),
             exact: data
@@ -130,17 +142,17 @@ impl DataPool {
         }
         let mut contained = FxHashSet::default();
         let mut removed = 0;
-        for (id, known, _, subslice_safe) in &self.entries {
-            if let Some(offset) = memmem::find(known, data) {
-                return Placement::Existing(DataRef::new(*id, data_offset(offset)));
+        for entry in &self.entries {
+            if let Some(offset) = memmem::find(&entry.bytes, data) {
+                return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
             }
             if allow_absorption
-                && *subslice_safe
-                && memmem::find(data, known).is_some()
-                && known.len() > total_reference_count
+                && entry.subslice_safe
+                && memmem::find(data, &entry.bytes).is_some()
+                && entry.bytes.len() > total_reference_count
             {
-                contained.insert(*id);
-                removed += known.len();
+                contained.insert(entry.id);
+                removed += entry.bytes.len();
             }
         }
         Placement::New { additional_bytes: data.len() as isize - removed as isize, contained }
@@ -158,9 +170,9 @@ impl DataPool {
                 if self.entries.len() < MAX_DATA_SUBSTRING_ENTRIES {
                     self.entries
                         .iter_mut()
-                        .find(|(id, _, _, _)| *id == data.id)
+                        .find(|entry| entry.id == data.id)
                         .expect("existing data is pooled")
-                        .2 += reference_count;
+                        .references += reference_count;
                 }
                 return data;
             }
@@ -168,35 +180,33 @@ impl DataPool {
         };
         let mut reference_count = reference_count;
         if !contained.is_empty() {
-            self.entries.retain(|(id, bytes, inherited_references, _)| {
-                let retain = !contained.contains(id);
+            self.entries.retain(|entry| {
+                let retain = !contained.contains(&entry.id);
                 if !retain {
-                    self.exact.remove(bytes);
-                    reference_count += *inherited_references;
+                    self.exact.remove(&entry.bytes);
+                    reference_count += entry.references;
                 }
                 retain
             });
         }
         let id = module.data.push(Data { bytes: bytes.clone(), named: true });
-        self.entries.push((id, bytes.clone(), reference_count, true));
+        self.entries.push(PoolEntry {
+            id,
+            bytes: bytes.clone(),
+            references: reference_count,
+            subslice_safe: true,
+        });
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
     }
 }
 
-fn materialize_data(gcx: Gcx<'_>, module: &mut Module, references: &DataReferences) -> bool {
-    let mut groups = FxHashMap::<Bytes, Vec<Rewrite>>::default();
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        let mut start = 0;
-        while start < block.instructions.len() {
-            let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, start) else {
-                start += 1;
-                continue;
-            };
-            start = rewrite.end;
-            groups.entry(data).or_default().push(rewrite);
-        }
-    }
+fn materialize_data(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    references: &DataReferences,
+    groups: RewriteGroups,
+) -> bool {
     if groups.is_empty() {
         return false;
     }
@@ -448,7 +458,7 @@ fn find_data(
 #[derive(Clone, Copy)]
 enum DataStackValue {
     Unknown,
-    Immediate(U256),
+    Immediate(usize),
     Data(DataRef),
 }
 
@@ -457,87 +467,122 @@ struct DataReferences {
     subslice_safe: IndexVec<DataId, bool>,
 }
 
+impl DataReferences {
+    fn new(module: &Module) -> Self {
+        Self {
+            counts: IndexVec::from_vec(vec![0; module.data.len()]),
+            subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
+        }
+    }
+}
+
 fn data_references(module: &Module) -> DataReferences {
-    let mut references = DataReferences {
-        counts: IndexVec::from_vec(vec![0; module.data.len()]),
-        subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
-    };
+    let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for block in &module.blocks {
         for inst in &block.instructions {
-            if let Some(data) = inst.pushed_data() {
-                references.counts[data.id] += 1;
-                stack.push(DataStackValue::Data(data));
-                continue;
-            }
-            if let Some(value) = inst.concrete_immediate() {
-                stack.push(DataStackValue::Immediate(value));
-                continue;
-            }
-            if inst.is_encoded_push() {
-                stack.push(DataStackValue::Unknown);
-                continue;
-            }
-
-            match inst.opcode {
-                opcode if (op::DUP1..=op::DUP16).contains(&opcode) => {
-                    let depth = usize::from(opcode - op::DUP1) + 1;
-                    let value = stack
-                        .len()
-                        .checked_sub(depth)
-                        .map_or(DataStackValue::Unknown, |index| stack[index]);
-                    stack.push(value);
-                }
-                opcode if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
-                    let depth = usize::from(opcode - op::SWAP1) + 1;
-                    ensure_stack_depth(&mut stack, depth + 1);
-                    let top = stack.len() - 1;
-                    stack.swap(top, top - depth);
-                }
-                op::DUPN => {
-                    mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-                    stack.push(DataStackValue::Unknown);
-                }
-                op::SWAPN | op::EXCHANGE => {
-                    mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-                    stack.fill(DataStackValue::Unknown);
-                }
-                _ => {
-                    let Some(effect) =
-                        inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-                    else {
-                        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-                        stack.clear();
-                        continue;
-                    };
-                    let inputs = usize::from(effect.inputs);
-                    ensure_stack_depth(&mut stack, inputs);
-                    let first_input = stack.len() - inputs;
-                    for (index, value) in stack[first_input..].iter().rev().enumerate() {
-                        let DataStackValue::Data(data) = value else { continue };
-                        let bounded = inst.opcode == op::CODECOPY
-                            && index == 1
-                            && matches!(
-                                stack.get(stack.len() - 3),
-                                Some(DataStackValue::Immediate(size))
-                                    if data_copy_is_bounded(module, *data, *size)
-                            );
-                        if !bounded {
-                            references.subslice_safe[data.id] = false;
-                        }
-                    }
-                    stack.truncate(first_input);
-                    stack.extend(std::iter::repeat_n(
-                        DataStackValue::Unknown,
-                        usize::from(effect.outputs),
-                    ));
-                }
-            }
+            track_data_reference(module, inst, &mut stack, &mut references);
         }
         mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
         stack.clear();
     }
     references
+}
+
+fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
+    let mut references = DataReferences::new(module);
+    let mut groups = RewriteGroups::default();
+    let mut stack = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let mut next_run_start = 0;
+        for (index, inst) in block.instructions.iter().enumerate() {
+            if index >= next_run_start
+                && let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, index)
+            {
+                next_run_start = rewrite.end;
+                groups.entry(data).or_default().push(rewrite);
+            }
+            track_data_reference(module, inst, &mut stack, &mut references);
+        }
+        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+        stack.clear();
+    }
+    (references, groups)
+}
+
+fn track_data_reference(
+    module: &Module,
+    inst: &Instruction,
+    stack: &mut Vec<DataStackValue>,
+    references: &mut DataReferences,
+) {
+    if let Some(data) = inst.pushed_data() {
+        references.counts[data.id] += 1;
+        stack.push(DataStackValue::Data(data));
+        return;
+    }
+    if let Some(value) = inst.concrete_immediate() {
+        stack.push(
+            usize::try_from(value).map_or(DataStackValue::Unknown, DataStackValue::Immediate),
+        );
+        return;
+    }
+    if inst.is_encoded_push() {
+        stack.push(DataStackValue::Unknown);
+        return;
+    }
+
+    match inst.opcode {
+        opcode if (op::DUP1..=op::DUP16).contains(&opcode) => {
+            let depth = usize::from(opcode - op::DUP1) + 1;
+            let value = stack
+                .len()
+                .checked_sub(depth)
+                .map_or(DataStackValue::Unknown, |index| stack[index]);
+            stack.push(value);
+        }
+        opcode if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
+            let depth = usize::from(opcode - op::SWAP1) + 1;
+            ensure_stack_depth(stack, depth + 1);
+            let top = stack.len() - 1;
+            stack.swap(top, top - depth);
+        }
+        op::DUPN => {
+            mark_stack_data_unsafe(stack, &mut references.subslice_safe);
+            stack.push(DataStackValue::Unknown);
+        }
+        op::SWAPN | op::EXCHANGE => {
+            mark_stack_data_unsafe(stack, &mut references.subslice_safe);
+            stack.fill(DataStackValue::Unknown);
+        }
+        _ => {
+            let Some(effect) =
+                inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
+            else {
+                mark_stack_data_unsafe(stack, &mut references.subslice_safe);
+                stack.clear();
+                return;
+            };
+            let inputs = usize::from(effect.inputs);
+            ensure_stack_depth(stack, inputs);
+            let first_input = stack.len() - inputs;
+            for (index, value) in stack[first_input..].iter().rev().enumerate() {
+                let DataStackValue::Data(data) = value else { continue };
+                let bounded = inst.opcode == op::CODECOPY
+                    && index == 1
+                    && matches!(
+                        stack.get(stack.len() - 3),
+                        Some(DataStackValue::Immediate(size))
+                            if data_copy_is_bounded(module, *data, *size)
+                    );
+                if !bounded {
+                    references.subslice_safe[data.id] = false;
+                }
+            }
+            stack.truncate(first_input);
+            stack.extend(std::iter::repeat_n(DataStackValue::Unknown, usize::from(effect.outputs)));
+        }
+    }
 }
 
 fn mark_stack_data_unsafe(stack: &[DataStackValue], subslice_safe: &mut IndexVec<DataId, bool>) {
@@ -554,8 +599,7 @@ fn ensure_stack_depth(stack: &mut Vec<DataStackValue>, depth: usize) {
     }
 }
 
-fn data_copy_is_bounded(module: &Module, data: DataRef, size: U256) -> bool {
-    let Ok(size) = usize::try_from(size) else { return false };
+fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
     module.data.get(data.id).is_some_and(|entry| {
         (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
     })

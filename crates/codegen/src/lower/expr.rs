@@ -4212,14 +4212,7 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
     ) -> ValueId {
         let scratch = builder.fmp();
-        for (i, chunk) in bytes.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let val = builder.imm_u256(U256::from_be_bytes(padded));
-            let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(scratch, off);
-            builder.mstore(dest, val);
-        }
+        self.store_data_words(builder, scratch, bytes);
         let len = builder.imm_u64(bytes.len() as u64);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);

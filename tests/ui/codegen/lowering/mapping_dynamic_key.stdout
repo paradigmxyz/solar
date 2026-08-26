@@ -339,13 +339,12 @@ fn @setLit(arg0: u256) {
     jumpi v2, bb1, bb2
   bb2:
     v3 = fmp
-    v4 = add v3, 0
-    mstore v4, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v5 = add v3, 5
-    mstore v5, 0
-    v6 = add 5, 32
-    v7 = keccak256 v3, v6
-    sstore v7, arg0 !metadata(storage=symbolic(v7))
+    mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v4 = add v3, 5
+    mstore v4, 0
+    v5 = add 5, 32
+    v6 = keccak256 v3, v5
+    sstore v6, arg0 !metadata(storage=symbolic(v6))
     stop
   bb1:
     revert 0, 0
@@ -359,15 +358,14 @@ fn @setLitLong(arg0: u256) {
     jumpi v2, bb1, bb2
   bb2:
     v3 = fmp
-    v4 = add v3, 0
-    mstore v4, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v5 = add v3, 32
-    mstore v5, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v6 = add v3, 58
-    mstore v6, 0
-    v7 = add 58, 32
-    v8 = keccak256 v3, v7
-    sstore v8, arg0 !metadata(storage=symbolic(v8))
+    mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v4 = add v3, 32
+    mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v5 = add v3, 58
+    mstore v5, 0
+    v6 = add 58, 32
+    v7 = keccak256 v3, v6
+    sstore v7, arg0 !metadata(storage=symbolic(v7))
     stop
   bb1:
     revert 0, 0

@@ -20,9 +20,11 @@ impl Module {
                 writeln!(f)?;
             }
             for (id, data) in self.data.iter_enumerated() {
-                let name = data.named.then(|| crate::data_literal_name(id.index()));
-                let name = name.map_or_else(|| id.index().to_string(), |name| name.to_string());
-                write!(f, "@data {name} hex\"")?;
+                if data.named {
+                    write!(f, "@data {} hex\"", crate::data_literal_name(id.index()))?;
+                } else {
+                    write!(f, "@data {} hex\"", id.index())?;
+                }
                 for byte in &data.bytes {
                     write!(f, "{byte:02x}")?;
                 }
