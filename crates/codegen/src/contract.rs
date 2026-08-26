@@ -333,6 +333,11 @@ fn generate_contract_bytecode(
         share_public_bodies,
     );
     gcx.dcx().has_errors()?;
+    // Security analysis runs on the freshly lowered `Built` module, before the
+    // optimization pipeline folds guards or lowers away semantic structure.
+    if gcx.sess.opts.unstable.security {
+        crate::analysis::security::analyze(gcx, &module);
+    }
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)

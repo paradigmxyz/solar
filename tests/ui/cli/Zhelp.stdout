@@ -60,6 +60,11 @@ Options:
       -Zcodegen-all-functions
           Lower all contract functions instead of only reachable ones. This is intended for benchmarks and compiler debugging
 
+      -Zsecurity
+          Run MIR-based security analysis and emit findings as diagnostics.
+
+          Experimental. Analyzes the freshly lowered (`Built`-phase) MIR before the optimization pipeline runs, so semantic structure (external calls, storage writes, environment reads) is still intact.
+
       -Zswitch-lowering <SWITCH_LOWERING>
           Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`, `linear`, `binary`, `buckets`, `dense`, or `perfect`)
 

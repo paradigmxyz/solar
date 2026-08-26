@@ -34,3 +34,5 @@ pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};
 
 mod validator;
 pub(crate) use validator::validate;
+
+pub(crate) mod security;

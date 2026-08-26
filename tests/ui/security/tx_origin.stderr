@@ -1,0 +1,16 @@
+warning[SEC-TX-ORIGIN]: use of `tx.origin`
+   ╭▸ ROOT/tests/ui/security/tx_origin.sol:LL:CC
+   │
+LL │         return tx.origin == owner;
+   │                ━━━━━━━━━
+   │
+   ╰ help: use `msg.sender` for authorization; `tx.origin` can be spoofed by an intermediary contract
+
+warning[SEC-TX-ORIGIN]: use of `tx.origin`
+   ╭▸ ROOT/tests/ui/security/tx_origin.sol:LL:CC
+   │
+LL │         if (tx.origin != owner) {
+   │             ━━━━━━━━━
+   │
+   ╰ help: use `msg.sender` for authorization; `tx.origin` can be spoofed by an intermediary contract
+
