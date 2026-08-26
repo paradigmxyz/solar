@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import gzip
 import hashlib
 import json
@@ -1107,6 +1108,83 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
         entry["runtime_status"] = "ok"
 
 
+def result_key(result: Dict[str, object]) -> Tuple[str, str]:
+    return str(result.get("suite", "repository")), str(result.get("test_id", ""))
+
+
+def load_reference_results(path: Path) -> Dict[Tuple[str, str], Dict[str, object]]:
+    document = json.loads(path.read_text())
+    results = document.get("results") if isinstance(document, dict) else None
+    if not isinstance(results, list):
+        raise ValueError("expected a benchmark result document")
+    return {
+        result_key(result): result
+        for result in results
+        if isinstance(result, dict)
+    }
+
+
+def workload_signature(data: Dict[str, object]) -> Tuple[object, ...]:
+    signature = []
+    for field in ("gas_results", "runtime_results"):
+        observations = data.get(field)
+        if not isinstance(observations, list):
+            continue
+        signature.append((
+            field,
+            tuple(
+                (
+                    observation.get("label"),
+                    observation.get("call"),
+                    tuple(observation.get("args") or ()),
+                )
+                for observation in observations
+                if isinstance(observation, dict)
+            ),
+        ))
+    return tuple(signature)
+
+
+def merge_reference_compiler(
+    entry: Dict[str, object],
+    references: Dict[Tuple[str, str], Dict[str, object]],
+    compiler_id: str,
+) -> bool:
+    reference = references.get(result_key(entry))
+    if reference is None:
+        return False
+    reference_compilers = reference.get("compilers")
+    if not isinstance(reference_compilers, dict):
+        return False
+    reference_data = reference_compilers.get(compiler_id)
+    compilers = entry.get("compilers") or {}
+    if not isinstance(reference_data, dict) or not isinstance(compilers, dict):
+        return False
+
+    reference_fingerprint = reference_data.get("input_fingerprint")
+    current_fingerprints = {
+        data.get("input_fingerprint")
+        for data in compilers.values()
+        if isinstance(data, dict) and data.get("input_fingerprint")
+    }
+    if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
+        return False
+    if entry.get("gas_profile") != reference.get("gas_profile"):
+        return False
+    if not any(
+        workload_signature(data) == workload_signature(reference_data)
+        for data in compilers.values()
+        if isinstance(data, dict)
+    ):
+        return False
+
+    entry["compilers"] = {
+        compiler_id: copy.deepcopy(reference_data),
+        **compilers,
+    }
+    return True
+
+
 def failed_test_result(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
@@ -1318,6 +1396,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Benchmark Solar without compiling each case with solc",
     )
+    parser.add_argument(
+        "--reference-results",
+        type=Path,
+        help="Reuse matching solc results from another benchmark result document",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
     parser.add_argument("--list-tests", action="store_true", help="List available tests and exit")
@@ -1345,6 +1428,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.reference_results and not args.solar_only:
+        parser.error("--reference-results requires --solar-only")
+    try:
+        reference_results = (
+            load_reference_results(args.reference_results)
+            if args.reference_results
+            else {}
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        parser.error(f"failed to load reference results: {exc}")
+
     suite_tests = select_tests(args.mode, args.suite)
 
     if args.projects:
@@ -1361,7 +1455,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc and not args.solar_only:
+    if not solc and (not args.solar_only or args.reference_results):
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1381,8 +1475,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("cast not found; install Foundry or omit --gas", RED), file=sys.stderr)
         return 1
 
+    use_reference_solc = bool(args.reference_results)
     solc_version, solc_version_error = (
-        binary_version(solc) if solc and not args.solar_only else ("unavailable", "")
+        binary_version(solc)
+        if solc and (not args.solar_only or use_reference_solc)
+        else ("unavailable", "")
     )
     solar_version, solar_version_error = binary_version(solar)
 
@@ -1391,6 +1488,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
+    reference_solc_spec = (
+        CompilerSpec("solc", f"solc {solc_version}", solc, "solc")
+        if use_reference_solc and solc is not None
+        else None
+    )
 
     if args.tests:
         missing = [test_id for test_id in args.tests if test_id not in test_map]
@@ -1402,7 +1504,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if not args.solar_only and not args.include_incompatible:
+    if (not args.solar_only or use_reference_solc) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1428,7 +1530,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     for spec in specs:
         print(f"Using {spec.label}")
-    if not args.solar_only and solc_version_error:
+    if args.reference_results:
+        print(f"Reusing solc results from {display_path(args.reference_results)}")
+    if (not args.solar_only or use_reference_solc) and solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -1486,6 +1590,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     file=sys.stderr,
                 )
                 result = failed_test_result(test, specs, args.gas_profile, exc)
+            if reference_solc_spec:
+                if merge_reference_compiler(result, reference_results, "solc"):
+                    if args.gas:
+                        compare_runtime_results(result, (reference_solc_spec, *specs))
+                else:
+                    print(
+                        _color(
+                            f"[{test.test_id}] matching solc reference result not found",
+                            YELLOW,
+                        ),
+                        file=sys.stderr,
+                    )
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
