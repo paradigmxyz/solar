@@ -30,3 +30,11 @@
 +     ret 3
   }
   
+  fn @keep_store_before_partial_call_output(arg0: u256) -> u256 {
+    bb0:
+      mstore 32, arg0
+      v0 = staticcall 0x3e8, 0xbeef, 0, 0, 32, 32
+      v1 = mload 32
+      ret v1
+  }
+  

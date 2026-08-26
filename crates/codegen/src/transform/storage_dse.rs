@@ -215,15 +215,18 @@ impl StorageStoreEliminator {
             return;
         }
 
-        for &access in effects.reads() {
-            if let Access::Location(Location::Storage(alias)) = access {
-                Self::remove_aliasing_set(aa, later_writes, alias);
-            }
-        }
+        // Reverse transfer applies writes before reads. A packed aggregate
+        // copy reports both for a read-modify-write slot: the read must remove
+        // the write again so an earlier store feeding preserved bytes stays live.
         for &access in effects.writes() {
             if let Access::Location(Location::Storage(alias)) = access {
                 Self::remove_aliasing_set(aa, later_writes, alias);
                 later_writes.insert(alias);
+            }
+        }
+        for &access in effects.reads() {
+            if let Access::Location(Location::Storage(alias)) = access {
+                Self::remove_aliasing_set(aa, later_writes, alias);
             }
         }
     }

@@ -32,7 +32,7 @@ fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
     v14 = add v12, v13
     mstore v14, 0
     v15 = slice_ptr v1
-    calldatacopy v12, v15, v2
+    calldatacopy v12, v15, v2 !metadata(memory=heap)
     ret v11
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -146,7 +146,7 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v24 = add v22, v23
     mstore v24, 0
     v25 = slice_ptr v11
-    calldatacopy v22, v25, v12
+    calldatacopy v22, v25, v12 !metadata(memory=heap)
     ret v21
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

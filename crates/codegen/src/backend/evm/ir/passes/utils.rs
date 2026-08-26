@@ -179,6 +179,7 @@ pub(super) struct StackDepths {
     unbounded: DenseBitSet<BlockId>,
     has_unbounded_depth: bool,
     has_unknown_target: bool,
+    unknown_target_headroom: usize,
 }
 
 impl StackDepths {
@@ -236,19 +237,30 @@ impl StackDepths {
                 }
             }
         }
-        Some(Self { before, unbounded, has_unbounded_depth, has_unknown_target })
+        Some(Self {
+            before,
+            unbounded,
+            has_unbounded_depth,
+            has_unknown_target,
+            unknown_target_headroom: module.unknown_target_stack_headroom,
+        })
     }
 
     /// Returns whether an instruction has room for `growth` additional words.
     pub(super) fn has_headroom(&self, block: BlockId, index: usize, growth: usize) -> bool {
-        if self.has_unknown_target || self.unbounded.contains(block) {
+        if growth <= self.unknown_target_headroom {
+            return true;
+        }
+        if self.unbounded.contains(block)
+            || self.has_unknown_target && growth > self.unknown_target_headroom
+        {
             return false;
         }
         let Some(depths) = self.before.get(block).and_then(Option::as_ref) else {
             // A block with no explicit incoming edge is unreachable in the EVM IR CFG. It may be
             // a standalone pass fixture or dead code. Treat it as safe only when no reachable
             // positive-depth cycle could transfer its unbounded prefix through a return label.
-            return !self.has_unbounded_depth;
+            return !self.has_unbounded_depth && !self.has_unknown_target;
         };
         depths
             .get(index)

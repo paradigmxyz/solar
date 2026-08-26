@@ -16,7 +16,8 @@ fn @emitBoth(arg0: address, arg1: u256) {
   bb4:
     mstore 0, arg1 !metadata(memory=scratch)
     log1 0, 32, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
-    mstore 0, arg0 !metadata(memory=scratch)
+    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v6 !metadata(memory=scratch)
     mstore 32, arg1 !metadata(memory=scratch)
     log1 0, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
     stop

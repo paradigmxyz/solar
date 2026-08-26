@@ -22,18 +22,21 @@
 // CHECK: + // === {{.*}} (after storage-dse) ===
 // CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
 // CHECK: - sstore 0, 1 !metadata(storage=slot(0))
+// CHECK: {{^[ +].*}}fn @keeps_store_feeding_packed_copy{{[( ]}}
+// CHECK: {{^[ +].*}}sstore 0, arg0
+// CHECK: {{^[ +].*}}memory_to_storage struct<0:u8>, arg1, 0
 
 fn @reads_memory(arg0: memptr) {
   bb0:
     mstore arg0, 7
-    memory_to_storage struct<word>, arg0, 0
+    memory_to_storage struct<0:word>, arg0, 0
     stop
 }
 
 fn @overwrites_memory(arg0: memptr) -> u256 {
   bb0:
     mstore arg0, 7
-    storage_to_memory struct<word>, 0, arg0
+    storage_to_memory struct<0:word>, 0, arg0
     v0 = mload arg0
     ret v0
 }
@@ -41,7 +44,7 @@ fn @overwrites_memory(arg0: memptr) -> u256 {
 fn @flat_memory_write_is_precise() -> u256 {
   bb0:
     v0 = mload 128
-    storage_to_memory struct<word>, 0, 256
+    storage_to_memory struct<0:word>, 0, 256
     v1 = mload 128
     v2 = add v0, v1
     ret v2
@@ -50,7 +53,7 @@ fn @flat_memory_write_is_precise() -> u256 {
 fn @nested_memory_write_is_barrier() -> u256 {
   bb0:
     v0 = mload 128
-    storage_to_memory struct<struct<word>>, 0, 256
+    storage_to_memory struct<0:struct<0:word>>, 0, 256
     v1 = mload 128
     v2 = add v0, v1
     ret v2
@@ -59,7 +62,7 @@ fn @nested_memory_write_is_barrier() -> u256 {
 fn @disjoint_storage() -> u256 {
   bb0:
     v0 = sload 0
-    clear_storage struct<word, word>, 10
+    clear_storage struct<0:word, 1:word>, 10
     v1 = sload 0
     v2 = add v0, v1
     ret v2
@@ -68,7 +71,7 @@ fn @disjoint_storage() -> u256 {
 fn @overlapping_storage() -> u256 {
   bb0:
     v0 = sload 0
-    clear_storage struct<word, word>, 0
+    clear_storage struct<0:word, 1:word>, 0
     v1 = sload 0
     v2 = add v0, v1
     ret v2
@@ -77,7 +80,7 @@ fn @overlapping_storage() -> u256 {
 fn @observes_storage(arg0: memptr) {
   bb0:
     sstore 0, 1
-    storage_to_memory struct<word>, 0, arg0
+    storage_to_memory struct<0:word>, 0, arg0
     sstore 0, 2
     stop
 }
@@ -85,7 +88,14 @@ fn @observes_storage(arg0: memptr) {
 fn @clobbers_stored_value() {
   bb0:
     sstore 0, 1
-    clear_storage struct<word>, 0
+    clear_storage struct<0:word>, 0
     sstore 0, 1
+    stop
+}
+
+fn @keeps_store_feeding_packed_copy(arg0: u256, arg1: memptr) {
+  bb0:
+    sstore 0, arg0
+    memory_to_storage struct<0:u8>, arg1, 0
     stop
 }

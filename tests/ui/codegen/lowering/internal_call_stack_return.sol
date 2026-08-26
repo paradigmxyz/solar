@@ -13,38 +13,27 @@
 contract InternalCallStackReturn {
     uint256 private state;
 
-    // Capture the dispatch targets so checks remain independent of block numbering and layout.
+    // Capture the dispatch targets in their hash-bucket order so checks remain independent of
+    // block numbering. Equivalent one-result entries share one block after the late structural
+    // sweep, while stateful, nested, and multi-operand callers retain their specialized layouts.
     // GAS-LABEL: @module runtime
-    // GAS: push 0x1e388922
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[MEMORY_ENTRY:bb[0-9]+]]
-    // GAS: push 0x2137370e
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[STACK_ENTRY:bb[0-9]+]]
-    // GAS: push 0xb1e54a6c
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[NESTED_ENTRY:bb[0-9]+]]
-    // GAS: push 0xc877cdbb
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[MULTI_ENTRY:bb[0-9]+]]
     // GAS: push 0xf368aee0
     // GAS-NEXT: eq
     // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
+    // GAS: push 0x1e388922
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[COMMON_ENTRY:bb[0-9]+]]
+    // GAS: push 0xc877cdbb
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[MULTI_ENTRY:bb[0-9]+]]
+    // GAS: push 0xb1e54a6c
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[NESTED_ENTRY:bb[0-9]+]]
+    // GAS: push 0x2137370e
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[COMMON_ENTRY]]
     //
-    // The stack-return entry carries its multiplication result through the shared argument-store
-    // block: only the call argument is stored, then SWAP1 returns with the caller word intact.
-    // GAS: [[STACK_ENTRY]]:
-    // GAS: push [[STACK_SETUP:bb[0-9]+]]
-    // GAS-NEXT: jump [[COMMON_ARGS:bb[0-9]+]]
-    // GAS: [[COMMON_ARGS]]:
-    // GAS: mul
-    // GAS: mstore
-    // GAS-NEXT: swap 1
-    // GAS-NEXT: jump
-    //
-    // The memory-return and nested-call entries use the same preserved caller layout.
-    // GAS: [[MEMORY_ENTRY]]:
-    // GAS: jump [[COMMON_ARGS]]
+    // A void call carries the caller multiplication beneath the hidden return label.
     // GAS: [[VOID_ENTRY]]:
     // GAS: mul
     // GAS-NEXT: push [[VOID_RETURN:bb[0-9]+]]
@@ -53,26 +42,35 @@ contract InternalCallStackReturn {
     // GAS: [[VOID_RETURN]]:
     // GAS-NEXT: push 4
     // GAS-NEXT: calldataload
-    // GAS-NEXT: jump [[ADD_RETURN:bb[0-9]+]]
+    //
+    // A nested helper rotates its one-word result above the hidden return label.
     // GAS: [[NESTED_ENTRY]]:
-    // GAS: jump [[COMMON_ARGS]]
+    // GAS: push 11
+    // GAS-NEXT: mul
+    // GAS-NEXT: push 3
+    // GAS-NEXT: add
+    // GAS-NEXT: swap1
+    // GAS-NEXT: jump
+    //
+    // ADDMOD consumes two caller words and the helper result without a frame reload.
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
-    // GAS-NEXT: push [[MULTI_SETUP:bb[0-9]+]]
-    // GAS-NEXT: jump [[COMMON_ARGS]]
-    // GAS: swap 1
-    // GAS-NEXT: addmod
+    // GAS: addmod
+    //
+    // The ordinary one-result callers share a tail-merged stack-only entry.
+    // GAS: [[COMMON_ENTRY]]:
+    // GAS: push 11
+    // GAS-NEXT: mul
 
-    // Gas mode keeps a one-word helper result on the physical stack and removes its frame slot.
-    // Size mode retains the shared memory convention. Five operations keep each leaf above the
-    // tiny-leaf inlining threshold so these checks exercise the internal-call conventions.
+    // Both optimized modes keep a one-word helper result on the physical stack and remove its
+    // frame slot. Five operations keep each leaf above the tiny-leaf inlining threshold so these
+    // checks exercise the internal-call conventions.
     //
     // SIZE-LABEL: @module runtime
-    // SIZE: push [[RETURN_SLOT:[0-9]+]]
-    // SIZE-NEXT: mstore
+    // SIZE: push 11
+    // SIZE-NEXT: mul
+    // SIZE-NEXT: swap1
     // SIZE-NEXT: jump
-    // SIZE: push [[RETURN_SLOT]]
-    // SIZE-NEXT: mload
     function stackAcross(uint256 x) external pure returns (uint256) {
         unchecked {
             uint256 keep = x * 3;

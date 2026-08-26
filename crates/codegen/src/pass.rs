@@ -210,13 +210,18 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
+    // Encoder helpers are synthesized after the main optimization pipeline. Promote their loop
+    // cursors before aggregate and memory lowering so they receive the same SSA treatment as
+    // source-level internal functions.
+    &frame_promotion::FrameSlotPromotion,
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Late CSE reduces runtime gas after aggregate lowering, but can grow
-    // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly(cse::Cse),
+    // Aggregate and ABI-helper lowering expose repeated address calculations and loads. Run CSE
+    // for both optimized objectives; the backend's objective-aware stack scheduler decides whether
+    // retaining the resulting value is cheaper than rematerializing it.
+    &cse::Cse,
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,

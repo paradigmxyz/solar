@@ -9,7 +9,8 @@ contract MappingDynamicKey {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
-    // CHECK: sstore [[SLOT]], arg1
+    // CHECK: [[CLEAN:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: sstore [[SLOT]], [[CLEAN]]
     function set(string memory name, address owner) public {
         lookup[name] = owner;
     }

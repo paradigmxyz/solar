@@ -4619,10 +4619,12 @@ dependencies = [
  "cfg-if",
  "evm2",
  "regex",
+ "serde",
  "serde_json",
  "solar-config",
  "strum 0.28.0",
  "tempfile",
+ "toml_edit",
  "ui_test",
 ]
 

@@ -7,7 +7,9 @@ use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
-const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
+// Literal arithmetic can temporarily need one bit beyond the EVM word even
+// when its final value fits, most notably `2**256 - 1`.
+const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -358,7 +360,7 @@ impl IntScalar {
     }
 
     fn checked(data: BigInt) -> Result<Self, EE> {
-        if Self::bits(&data) > MAX_BITS {
+        if Self::bits(&data) > MAX_INTERMEDIATE_BITS {
             return Err(EE::ArithmeticOverflow);
         }
         Ok(Self { data })
@@ -455,7 +457,7 @@ impl IntScalar {
             .try_into()
             .map_err(|_| EE::ArithmeticOverflow)?;
         let bits = Self::bits(&self.data);
-        if shift > MAX_BITS.saturating_sub(bits) {
+        if shift > MAX_INTERMEDIATE_BITS.saturating_sub(bits) {
             return Err(EE::ArithmeticOverflow);
         }
         Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
@@ -474,7 +476,7 @@ impl IntScalar {
             return Self::checked(if is_odd { self.data } else { BigInt::one() });
         }
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-        if exp > U256::from(MAX_BITS) {
+        if exp > U256::from(MAX_INTERMEDIATE_BITS) {
             return Err(EE::ArithmeticOverflow);
         }
         let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;

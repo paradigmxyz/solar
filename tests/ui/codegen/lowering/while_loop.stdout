@@ -49,27 +49,23 @@ fn @do_at_least_once(arg0: u256) -> u256 [abi_returns=[word]] {
     v3 = mload 128
     v4 = add v3, 1
     v5 = lt v4, v3
-    jumpi v5, bb5, bb6
-  bb6:
+    jumpi v5, bb6, bb7
+  bb7:
     mstore 128, v4
+    jump bb5
+  bb5:
     v6 = mload 128
     v7 = lt v6, arg0
-    jumpi v7, bb7, bb9
-  bb9:
-    jump bb4
+    jumpi v7, bb3, bb4
   bb4:
     v8 = mload 128
     ret v8
-  bb7:
-    jump bb3
-  bb5:
+  bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb1:
     revert 0, 0
-  bb8:
-    jump bb3
 }
 
 fn @break_when_found(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {

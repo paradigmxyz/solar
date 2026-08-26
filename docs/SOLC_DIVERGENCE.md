@@ -110,4 +110,47 @@ No intentional divergences documented yet.
 
 ## Code Generation
 
-No intentional divergences documented yet.
+### CODEGEN-001: Dirty bits do not survive assembly-assigned variables read from Solidity
+
+- ID: CODEGEN-001
+- Status: intentional
+- Difference: When inline assembly assigns a variable whose type spans fewer
+  than 256 bits, `solc` leaves the raw word in the variable and cleans it at
+  each use site that needs a canonical value (comparisons, checked arithmetic,
+  ABI encoding). `solar` instead canonicalizes once, at every Solidity-level
+  read of such a variable; reads inside assembly see the raw word in both
+  compilers. Code that deliberately round-trips dirty upper bits through a
+  typed variable or an internal-function return back into assembly — solady's
+  `Brutalizer` test helpers assert exactly that — observes cleaned values
+  under `solar`.
+- Rationale: The Solidity documentation makes bits outside a type's width
+  unspecified after assembly assignments, so both models are conforming. A
+  single cleanup point at the assembly-to-Solidity boundary covers every
+  downstream consumer (comparisons, arithmetic, mapping keys, encodes) without
+  per-use-site masks, and keeps the in-assembly raw-scratch idiom
+  (`value := shl(96, value)` then reading `value` back) working exactly like
+  `solc`.
+- Coverage: `tests/ui/codegen/run-call/assembly_assign_cleanup.sol`;
+  external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
+  `testBrutalizedBool` fail by asserting dirt survives.
+
+### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
+
+- ID: CODEGEN-002
+- Status: parity debt
+- Difference: ABI-heavy contracts can have substantially larger deployed
+  bytecode than their `solc` equivalents. Seaport currently has six helpers
+  that fit below EIP-170's 24,576-byte limit with `solc` but exceed it with
+  this compiler: `PausableZoneController` (26,974 bytes),
+  `SuggestedActionHelper` (46,267 bytes), `ExecutionsHelper` (28,064 bytes),
+  `MatchFulfillmentHelper` (39,280 bytes), `SeaportValidator` (52,420 bytes),
+  and `SeaportNavigator` (27,642 bytes).
+- Rationale: Progressive ABI lowering currently expands structurally similar
+  aggregate decoders independently in each external wrapper. The EVM IR
+  outliner shares repeated straight-line instruction runs but not equivalent
+  decoder control-flow subgraphs, so these large wrappers retain duplicated
+  validation and materialization code. The external artifact audit exempts
+  only these named contracts while continuing to enforce artifact presence
+  and EIP-170 parity for the rest of the corpus.
+- Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
+  `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.

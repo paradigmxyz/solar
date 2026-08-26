@@ -178,6 +178,24 @@ impl SpillManager {
         self.stored.contains(value)
     }
 
+    /// Iterates every value whose slot already-emitted code has stored.
+    pub(crate) fn stored_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.stored.iter()
+    }
+
+    /// Iterates every value whose spill slot can be loaded at this point,
+    /// whether stored in this block or delivered by an edge.
+    pub(crate) fn reloadable_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.reloadable.iter()
+    }
+
+    /// Drops a value's mandatory-store obligation. Used when a value is kept
+    /// stack-resident across a memory clobber and consumed before any block
+    /// exit, so it needs no memory home at all.
+    pub(crate) fn clear_store_requirement(&mut self, value: ValueId) {
+        self.mandatory_store.remove(value);
+    }
+
     /// Marks an unstored value as safe to rematerialize from stable inputs.
     pub(crate) fn mark_recomputable(&mut self, value: ValueId) {
         debug_assert!(self.slots.contains_key(&value));

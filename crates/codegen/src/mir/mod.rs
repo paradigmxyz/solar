@@ -13,7 +13,9 @@ mod abi;
 pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
 
 mod storage;
-pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
+pub use storage::{
+    PackedKind, PackedValue, StorageField, StorageLayout, StorageLayoutRef, StructField,
+};
 
 mod value;
 pub(crate) use value::{Immediate, Value};

@@ -3,6 +3,7 @@
 use super::Lowerer;
 use crate::mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, TypeSize, ValueId};
 use alloy_primitives::U256;
+use solar_ast::DataLocation;
 use solar_sema::{
     hir::{self, ElementaryType},
     ty::TyKind,
@@ -16,13 +17,27 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
-        if let Some((slot_val, fixed_len, elem_slots)) =
-            self.storage_array_slot_of_base(builder, base)
-        {
+        if let Some(array) = self.storage_array_slot_of_base(builder, base) {
             let index_val = self.lower_index_value(builder, base.span, index);
+            if let Some(packed) = array.packed {
+                let data_slot =
+                    self.storage_array_data_slot(builder, array.slot, array.fixed_len, index_val);
+                return self.load_packed_array_element(builder, data_slot, index_val, packed);
+            }
             let element_slot = self.lower_storage_array_element_slot(
-                builder, slot_val, fixed_len, index_val, elem_slots,
+                builder,
+                array.slot,
+                array.fixed_len,
+                index_val,
+                array.elem_slots,
             );
+            if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Array(..))
+                && let Some(value) =
+                    self.materialize_storage_array_value(builder, ty, element_slot, expr.span)
+            {
+                return value;
+            }
             if let Some(ty) = self.get_expr_type(expr)
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             {
@@ -43,6 +58,13 @@ impl<'gcx> Lowerer<'gcx> {
                 return mapping.slot;
             }
             if let Some(ty) = self.get_expr_type(expr)
+                && matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Array(..))
+                && let Some(value) =
+                    self.materialize_storage_array_value(builder, ty, mapping.slot, expr.span)
+            {
+                return value;
+            }
+            if let Some(ty) = self.get_expr_type(expr)
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             {
                 let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
@@ -56,6 +78,13 @@ impl<'gcx> Lowerer<'gcx> {
             }
             if self.expr_has_bytes_or_string_type(expr) {
                 return self.materialize_storage_bytes(builder, mapping.slot);
+            }
+            // A narrow mapping value owns its slot but is stored in solc's
+            // low-aligned masked form; canonicalize on load.
+            if let Some(ty) = self.get_expr_type(expr)
+                && let Some(packed) = self.packed_value_of_ty(ty)
+            {
+                return builder.load_packed(mapping.slot, 0, packed);
             }
             return builder.sload(mapping.slot);
         }
@@ -98,6 +127,27 @@ impl<'gcx> Lowerer<'gcx> {
                     let byte_offset = builder.mul(index_val, stride);
                     builder.add(data_pos, byte_offset)
                 };
+                // An indexed dynamic element whose expression remains
+                // calldata-located is itself a logical calldata slice. Keep
+                // its `(data, length)` pair instead of eagerly copying the
+                // body to memory: calldata locals and calldata parameters
+                // need the original offset for `.offset`, forwarding, and
+                // low-level calls.
+                let is_calldata_ref = self.get_expr_type(expr).is_some_and(|ty| {
+                    matches!(ty.kind, TyKind::Ref(_, DataLocation::Calldata) | TyKind::Slice(_))
+                });
+                if is_calldata_ref
+                    && matches!(
+                        elem_ty.peel_refs().kind,
+                        TyKind::DynArray(_)
+                            | TyKind::Slice(_)
+                            | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                {
+                    let len = builder.calldataload(element_pos);
+                    let data = builder.add(element_pos, offset_32);
+                    return builder.make_slice(data, len, crate::mir::SliceLocation::Calldata);
+                }
                 return self.materialize_calldata_value_at(
                     builder,
                     super::bytes::AbiSource::Calldata,
@@ -183,24 +233,32 @@ impl<'gcx> Lowerer<'gcx> {
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
     ) {
-        if let Some((slot_val, fixed_len, elem_slots)) =
-            self.storage_array_slot_of_base(builder, base)
-        {
+        if let Some(array) = self.storage_array_slot_of_base(builder, base) {
             let index_val = self.lower_index_value(builder, base.span, index);
+            if let Some(packed) = array.packed {
+                let data_slot =
+                    self.storage_array_data_slot(builder, array.slot, array.fixed_len, index_val);
+                self.store_packed_array_element(builder, data_slot, index_val, packed, rhs);
+                return;
+            }
             let element_slot = self.lower_storage_array_element_slot(
-                builder, slot_val, fixed_len, index_val, elem_slots,
+                builder,
+                array.slot,
+                array.fixed_len,
+                index_val,
+                array.elem_slots,
             );
-            builder.sstore(element_slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_at(builder, ty, element_slot, rhs);
+            } else {
+                builder.sstore(element_slot, rhs);
+            }
             return;
         }
 
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if let Some(ty) = self.get_expr_type(lhs)
-                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-            {
-                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
-            } else if self.expr_has_bytes_or_string_type(lhs) {
-                self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
+            if let Some(ty) = self.get_expr_type(lhs) {
+                self.store_storage_value_at(builder, ty, mapping.slot, rhs);
             } else {
                 builder.sstore(mapping.slot, rhs);
             }
@@ -258,12 +316,14 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        if let Some((slot_val, fixed_len, elem_slots)) =
-            self.storage_array_slot_of_base(builder, base)
-        {
+        if let Some(array) = self.storage_array_slot_of_base(builder, base) {
             let index_val = self.lower_index_value(builder, base.span, index);
             return Some(self.lower_storage_array_element_slot(
-                builder, slot_val, fixed_len, index_val, elem_slots,
+                builder,
+                array.slot,
+                array.fixed_len,
+                index_val,
+                array.elem_slots,
             ));
         }
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {

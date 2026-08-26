@@ -191,8 +191,8 @@ bb4:
   push 320
   mload
   sload
-  push 255
   caller
+  push 255
   and
   dup 2
   add

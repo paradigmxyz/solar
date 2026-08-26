@@ -48,7 +48,7 @@ fn @probeCall(arg0: address) -> u256 [abi_returns=[word]] {
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     set_memory_object_len memorybytes, v16, v11
     v17 = memory_object_data memorybytes, v16
-    returndatacopy v17, v10, v11
+    returndatacopy v17, v10, v11 !metadata(memory=heap)
     v18 = mload v16
     ret v18
   bb1:
