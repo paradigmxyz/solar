@@ -1,6 +1,6 @@
 //! Materialize and pack program data.
 
-use super::EvmPass;
+use super::{EvmPass, utils::StackDepths};
 use crate::backend::evm::{
     ir::{
         BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
@@ -28,6 +28,9 @@ impl EvmPass for PackData {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let (mut references, groups) = data_references_and_runs(gcx, module);
+        if references.layout_is_observable() {
+            return false;
+        }
         let packed = pack_data(module, &references);
         if packed {
             references = data_references(module);
@@ -54,6 +57,9 @@ impl EvmPass for FinalizeData {
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         let references = data_references(module);
+        if references.layout_is_observable() {
+            return false;
+        }
         pack_data(module, &references)
     }
 }
@@ -210,6 +216,7 @@ fn materialize_data(
     if groups.is_empty() {
         return false;
     }
+    let Some(depths) = StackDepths::new(module) else { return false };
     let mut groups = groups.into_iter().collect::<Vec<_>>();
     groups.sort_unstable_by(|(a, _), (b, _)| {
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
@@ -221,7 +228,11 @@ fn materialize_data(
     let mut pool = DataPool::new(&module.data, references);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
-    for (data, rewrites) in groups {
+    for (data, mut rewrites) in groups {
+        rewrites.retain(|rewrite| depths.has_headroom(rewrite.block, rewrite.start, 3));
+        if rewrites.is_empty() {
+            continue;
+        }
         let placement = pool.placement(&data, allow_absorption, total_reference_count);
         let additional_bytes = placement_additional_bytes(&placement);
         let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
@@ -473,6 +484,13 @@ impl DataReferences {
             counts: IndexVec::from_vec(vec![0; module.data.len()]),
             subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
         }
+    }
+
+    fn layout_is_observable(&self) -> bool {
+        self.counts
+            .iter()
+            .zip(&self.subslice_safe)
+            .any(|(&count, &subslice_safe)| count != 0 && !subslice_safe)
     }
 }
 

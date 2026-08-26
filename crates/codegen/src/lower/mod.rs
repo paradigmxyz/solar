@@ -385,7 +385,9 @@ impl<'gcx> Lowerer<'gcx> {
         } else if data.iter().all(|&byte| byte == 0) {
             let size = builder.imm_u64(padded_size as u64);
             builder.memory_zero(dest, size);
-        } else if data_is_inline(padded_size) {
+        } else if data_is_inline(padded_size)
+            && padded_size <= data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
+        {
             self.store_data_words(builder, dest, data);
         } else {
             let mut padded = Vec::with_capacity(padded_size);

@@ -2,8 +2,10 @@
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (after pack-data) ===
   @module reuse
   bb0:
+    push 64
     push_data literal_0
-    pop
+    push 0
+    codecopy
     push 128
 -   push 0
 -   dup 2

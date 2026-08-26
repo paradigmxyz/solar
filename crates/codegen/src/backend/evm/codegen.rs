@@ -7908,6 +7908,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::MStore8(addr, _) => end_of(addr, 1),
                 InstKind::MCopy(dest, src, size) => sized_end(dest, size).max(sized_end(src, size)),
                 InstKind::CalldataCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size)
                 | InstKind::ExtCodeCopy(_, dest, _, size)
@@ -8014,6 +8015,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         match func.inst(inst_id).kind {
             InstKind::CalldataCopy(dest, _, size)
+            | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ExtCodeCopy(_, dest, _, size)
             | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
@@ -8307,6 +8309,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::MemoryZero(offset, size)
             | InstKind::Keccak256(offset, size)
             | InstKind::CalldataCopy(offset, _, size)
+            | InstKind::DataCopy(_, offset, size)
             | InstKind::CodeCopy(offset, _, size)
             | InstKind::ReturnDataCopy(offset, _, size)
             | InstKind::ExtCodeCopy(_, offset, _, size) => overlaps(*offset, *size),
@@ -10730,7 +10733,10 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
+    use crate::mir::{
+        DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+        utils as mir_utils,
+    };
     use solar_config::CompileOpts;
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
@@ -10853,6 +10859,28 @@ mod tests {
 
             assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
         });
+    }
+
+    #[test]
+    fn data_copy_participates_in_memory_analysis() {
+        let data = DataRef::new(crate::mir::DataId::from_usize(0), 0);
+
+        let mut constant = Function::new(Ident::DUMMY);
+        let dest = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
+        let size = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x20))));
+        let inst =
+            constant.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
+        constant.blocks[BlockId::ENTRY].instructions.push(inst);
+        assert_eq!(EvmCodegen::constant_memory_high_water_mark(&constant), 0x60);
+        assert!(EvmCodegen::function_may_observe_free_memory_slot(&constant));
+        assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
+
+        let mut dynamic = Function::new(Ident::DUMMY);
+        let dest = dynamic.alloc_param(MirType::MemPtr);
+        let size = dynamic.alloc_param(MirType::uint256());
+        let inst = dynamic.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
+        dynamic.blocks[BlockId::ENTRY].instructions.push(inst);
+        assert_eq!(EvmCodegen::dynamic_spill_write_dest(&dynamic, inst), Some(dest));
     }
 
     #[test]

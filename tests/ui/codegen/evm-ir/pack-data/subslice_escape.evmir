@@ -7,18 +7,34 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push_data literal_0
 // CHECK: {{^[ +].*}}push_data literal_1
+// CHECK: {{^[ +].*}}push_data literal_2
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mstore
 bb0:
   push 3
   push_data literal_0
   push 0
   codecopy
-  push 7
+  push 2
   push_data literal_1
   push 32
   codecopy
+  push 1
+  push_data literal_2
+  push 64
+  codecopy
+  push 128
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
   stop
 
 // CHECK: @data literal_0 hex"2233"
-// CHECK: @data literal_1 hex"00112233445566"
+// CHECK: @data literal_1 hex"2233"
+// CHECK: @data literal_2 hex"aa"
 @data literal_0 hex"2233"
-@data literal_1 hex"00112233445566"
+@data literal_1 hex"2233"
+@data literal_2 hex"aa"
