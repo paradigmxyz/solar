@@ -1,12 +1,6 @@
 //! Contract bytecode generation and dependency orchestration.
 
-use crate::{
-    Backend, EvmCodegen,
-    backend::evm::{EIP170_RUNTIME_CODE_SIZE_LIMIT, ir},
-    lower,
-    mir::Module,
-    pass::run_pipeline,
-};
+use crate::{Backend, EvmCodegen, backend::evm::ir, lower, mir::Module, pass::run_pipeline};
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
@@ -17,7 +11,7 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Scope},
 };
-use solar_interface::Result;
+use solar_interface::{Result, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
@@ -314,12 +308,7 @@ fn generate_contract_bytecode(
         })
         .collect();
     let share_public_bodies = gcx.sess.opts.optimization.is_size();
-    let mut module = lower::lower_contract_with_bytecodes_and_body_sharing(
-        gcx,
-        contract_id,
-        &child_bytecodes,
-        share_public_bodies,
-    );
+    let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes, share_public_bodies);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
@@ -336,25 +325,20 @@ fn generate_contract_bytecode(
         let mut artifact = codegen.lower_module(&mut module);
         gcx.dcx().has_errors()?;
         if gcx.sess.opts.optimization.is_gas()
-            && gcx.sess.opts.evm_version >= EvmVersion::SpuriousDragon
-            && artifact.runtime.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
-            && artifact.runtime.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT * 2
+            && let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
+            && artifact.runtime.len() > limit
+            && artifact.runtime.len() <= limit * 2
         {
             let gas_first_module = module.clone();
             let gas_first_artifact = artifact;
-            module = lower::lower_contract_with_bytecodes_and_body_sharing(
-                gcx,
-                contract_id,
-                &child_bytecodes,
-                true,
-            );
+            module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new(gcx);
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             let size_rescue_artifact = codegen.lower_module(&mut module);
             gcx.dcx().has_errors()?;
-            if size_rescue_artifact.runtime.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT {
+            if size_rescue_artifact.runtime.len() <= limit {
                 artifact = size_rescue_artifact;
             } else {
                 module = gas_first_module;
@@ -369,6 +353,52 @@ fn generate_contract_bytecode(
         }
         Default::default()
     };
+    if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
+        && artifact.runtime.len() > limit
+    {
+        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
+            EvmVersion::Amsterdam
+        } else {
+            EvmVersion::SpuriousDragon
+        };
+        gcx.dcx()
+            .warn(format!(
+                "contract code size is {} bytes and exceeds {} bytes",
+                artifact.runtime.len(),
+                limit
+            ))
+            .code(error_code!(5574))
+            .span(gcx.hir.contract(contract_id).span)
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet")
+            .help(
+                "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
+            )
+            .emit();
+    }
+    if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
+        && artifact.deployment.len() > limit
+    {
+        let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
+            EvmVersion::Amsterdam
+        } else {
+            EvmVersion::Shanghai
+        };
+        gcx.dcx()
+            .warn(format!(
+                "contract initcode size is {} bytes and exceeds {} bytes",
+                artifact.deployment.len(),
+                limit
+            ))
+            .code(error_code!(3860))
+            .span(gcx.hir.contract(contract_id).span)
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet")
+            .help(
+                "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
+            )
+            .emit();
+    }
     let immutable_references = artifact
         .immutable_references
         .iter()
