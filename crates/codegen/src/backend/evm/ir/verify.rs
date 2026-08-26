@@ -465,13 +465,46 @@ pub(super) fn validate_evm_version(
 ) {
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
-            if inst.as_stack_op().is_none() {
+            if let Some(stack_op) = inst.as_stack_op() {
+                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
+            } else {
                 validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_legacy_opcodes);
             }
         }
         if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
             validate_opcode(dcx, block_id, *opcode, evm_version, allow_legacy_opcodes);
         }
+    }
+}
+
+pub(super) fn validate_stack_ops_for_evm_version(
+    dcx: &DiagCtxt,
+    module: &Module,
+    evm_version: EvmVersion,
+) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            if let Some(stack_op) = inst.as_stack_op() {
+                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
+            }
+        }
+    }
+}
+
+fn validate_stack_op(
+    dcx: &DiagCtxt,
+    block: BlockId,
+    inst: &Instruction,
+    stack_op: op::StackOp,
+    evm_version: EvmVersion,
+) {
+    if stack_op.lowering(evm_version).is_none() {
+        dcx.err(format!(
+            "EVM IR verification failed: block {}: `{}` requires Amsterdam-compatible EVM",
+            block.index(),
+            inst.mnemonic()
+        ))
+        .emit();
     }
 }
 

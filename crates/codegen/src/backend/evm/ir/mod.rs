@@ -65,6 +65,14 @@ pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
     verify::validate_evm_version(dcx, module, evm_version, true);
 }
 
+fn validate_stack_ops_for_evm_version(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_stack_ops_for_evm_version(dcx, module, evm_version);
+}
+
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
