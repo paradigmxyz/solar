@@ -1355,7 +1355,20 @@ impl LowerAbiCx {
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
-                        if location == AbiParamLocation::Memory {
+                        let validate_only = ty.is_dynamic()
+                            && (location != AbiParamLocation::Memory
+                                || (!constructor && matches!(ty, AbiParamType::Bytes)));
+                        if validate_only {
+                            Self::validate_dynamic_aggregate_argument(
+                                &mut builder,
+                                ty,
+                                head,
+                                tuple_base,
+                                input_end,
+                                constructor,
+                                &mut current,
+                            );
+                        } else if location == AbiParamLocation::Memory {
                             if !constructor
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
@@ -1374,16 +1387,6 @@ impl LowerAbiCx {
                                 );
                                 logical_values[index] = Some(value);
                             }
-                        } else if ty.is_dynamic() {
-                            Self::validate_dynamic_aggregate_argument(
-                                &mut builder,
-                                ty,
-                                head,
-                                tuple_base,
-                                input_end,
-                                constructor,
-                                &mut current,
-                            );
                         }
                     } else {
                         let value = if !constructor

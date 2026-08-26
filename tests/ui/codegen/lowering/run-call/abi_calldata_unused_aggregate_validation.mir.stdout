@@ -5,6 +5,11 @@ fn @unusedBytes(arg0: calldataslice) -> u256 [selector=0x46e5c92b, pure, abi_par
     ret 1
 }
 
+fn @unusedMemoryBytes(arg0: memorybytes) -> u256 [selector=0x2758f02b, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
 fn @unusedStruct(arg0: calldataslice) -> u256 [selector=0xf3a326f8, pure, abi_params=[tuple<u256, bytes, u256>], abi_returns=[word]] {
   bb0:
     ret 1
