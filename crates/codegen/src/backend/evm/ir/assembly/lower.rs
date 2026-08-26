@@ -1,6 +1,6 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
-use super::{AsmInst, Program, indexed_jump};
+use super::{AsmInst, AsmInstKind, Program, indexed_jump};
 use crate::backend::evm::{
     assembler::{Assembler, Label, PreparedAssembly},
     ir::{self, BlockId},
@@ -23,16 +23,29 @@ impl Assembler<'_> {
         ir::builder::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && ir::builder::is_valid(&ir_program);
+        let errors_before = self.gcx.dcx().err_count();
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
-        if self.gcx.dcx().has_errors().is_err() {
-            return PreparedAssembly {
-                evm_ir: capture_evm_ir.then_some(ir_program),
-                ..PreparedAssembly::default()
-            };
+        if self.gcx.dcx().err_count() != errors_before {
+            return failed_preparation(ir_program, capture_evm_ir);
         }
         debug_assert!(!input_is_valid || ir::builder::is_valid(&ir_program));
+        let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
+        if self.gcx.dcx().err_count() != errors_before {
+            return failed_preparation(ir_program, capture_evm_ir);
+        }
+        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
+            ir::validate(self.gcx.dcx(), &ir_program);
+        }
+        ir::validate_evm_version(self.gcx.dcx(), &ir_program, self.gcx.sess.opts.evm_version);
+        if self.gcx.dcx().err_count() != errors_before {
+            return failed_preparation(ir_program, capture_evm_ir);
+        }
 
         let program = lower_evm_ir(self, &mut ir_program, &mut labels);
+        validate_program_evm_version(self, &program);
+        if self.gcx.dcx().err_count() != errors_before {
+            return failed_preparation(ir_program, capture_evm_ir);
+        }
         let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
             evm_ir,
@@ -41,6 +54,28 @@ impl Assembler<'_> {
             immutable_pushes: std::mem::take(&mut self.immutable_pushes),
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
+        }
+    }
+}
+
+fn failed_preparation(ir_program: ir::Module, capture_evm_ir: bool) -> PreparedAssembly {
+    PreparedAssembly { evm_ir: capture_evm_ir.then_some(ir_program), ..Default::default() }
+}
+
+fn validate_program_evm_version(assembler: &Assembler<'_>, program: &Program) {
+    let evm_version = assembler.gcx.sess.opts.evm_version;
+    for inst in &program.instructions {
+        if let AsmInstKind::Op(opcode) = inst.kind()
+            && !op::is_available(opcode, evm_version)
+        {
+            let name = op::mnemonic(opcode).unwrap_or("unknown");
+            assembler
+                .gcx
+                .dcx()
+                .err(format!(
+                    "final assembly opcode `{name}` is unavailable for `{evm_version}` EVM"
+                ))
+                .emit();
         }
     }
 }

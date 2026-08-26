@@ -462,6 +462,26 @@ pub(crate) const fn is_terminal(op: u8) -> bool {
     matches!(op, STOP | JUMP | RETURN | REVERT | INVALID | SELFDESTRUCT)
 }
 
+/// Returns whether an opcode is available in legacy bytecode for `evm_version`.
+#[must_use]
+pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
+    match opcode {
+        RETURNDATASIZE | RETURNDATACOPY | STATICCALL | REVERT => {
+            evm_version >= EvmVersion::Byzantium
+        }
+        SHL | SHR | SAR | EXTCODEHASH | CREATE2 => evm_version >= EvmVersion::Constantinople,
+        CHAINID | SELFBALANCE => evm_version >= EvmVersion::Istanbul,
+        BASEFEE => evm_version >= EvmVersion::London,
+        PUSH0 => evm_version >= EvmVersion::Shanghai,
+        BLOBHASH | BLOBBASEFEE | TLOAD | TSTORE | MCOPY => evm_version >= EvmVersion::Cancun,
+        CLZ => evm_version >= EvmVersion::Osaka,
+        DATALOAD | DATALOADN | DATASIZE | DATACOPY | RJUMP | RJUMPI | RJUMPV | CALLF | RETF
+        | JUMPF | DUPN | SWAPN | EXCHANGE | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD
+        | EXTCALL | EXTDELEGATECALL | EXTSTATICCALL => false,
+        _ => mnemonic(opcode).is_some(),
+    }
+}
+
 /// Returns whether an opcode's operands may be swapped without changing its result.
 #[must_use]
 pub(crate) const fn is_commutative(op: u8) -> bool {
