@@ -25,7 +25,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("no JSON AST");
     }
 
-    if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental") {
+    if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental/") {
         return Err("solidity experimental is not implemented");
     }
 
@@ -57,7 +57,8 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     #[rustfmt::skip]
     if matches!(
         stem,
-        // Exponent is too large, but apparently it's fine in Solc because the result is 0 or it gets evaluated at compile time.
+        // Solc supports unlimited-precision rational arithmetic, while we reject these literals
+        // as too large during parsing.
         | "rational_number_exp_limit_fine"
         | "exponent_fine"
         | "rational_large_1"
@@ -65,20 +66,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
         | "address_payable_type_expression"
         | "mapping_from_address_payable"
-        // `hex` is not a keyword, looks like just a Solc limitation?
-        | "hex_as_identifier"
-        // TODO: These should be checked after parsing.
-        | "assembly_invalid_type"
-        | "assembly_dialect_leading_space"
-        // `1wei` gets lexed as two different tokens, I think it's fine.
-        | "invalid_denomination_no_whitespace"
-        // Not actually a broken version, we just don't check "^0 and ^1".
+        // Compiler version requirements are not enforced.
         | "broken_version_1"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"
-        // Arbitrary `pragma experimental` values are allowed by Solc apparently.
-        | "experimental_test_warning"
-        // "." is not a valid import path.
         // Invalid UTF-8 is not supported.
         | "invalid_utf8_sequence"
         // Validation is in solar's AST stage (https://github.com/paradigmxyz/solar/pull/120).

@@ -6,7 +6,7 @@ use solar_ast::{
 };
 use solar_data_structures::hint::cold_path;
 use solar_interface::{
-    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
+    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, error_code, source_map::SourceFile,
 };
 
 mod cursor;
@@ -148,6 +148,15 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     TokenKind::Ident(sym)
                 }
                 RawTokenKind::Literal { kind } => {
+                    if matches!(kind, RawLiteralKind::Int { .. } | RawLiteralKind::Rational { .. })
+                        && self.cursor.as_bytes().first().is_some_and(|&c| is_id_start_byte(c))
+                    {
+                        self.dcx()
+                            .err("identifier-start is not allowed at end of a number")
+                            .code(error_code!(8936))
+                            .span(self.new_span(self.pos, self.pos + 1))
+                            .emit();
+                    }
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(kind, symbol)
                 }
