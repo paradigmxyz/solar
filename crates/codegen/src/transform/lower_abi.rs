@@ -213,6 +213,11 @@ impl LowerAbiCx {
         if gas_mode {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
         }
+        let canonical_return_calls = if gas_mode {
+            find_canonical_return_calls(module, &targets)
+        } else {
+            FxHashSet::default()
+        };
 
         if has_decodes && !self.lower_decode_instructions(module) {
             return false;
@@ -258,9 +263,13 @@ impl LowerAbiCx {
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if let Some(body_id) =
-                self.wrap_function(module, id, internally_called.contains(id), gas_mode)
-            {
+            if let Some(body_id) = self.wrap_function(
+                module,
+                id,
+                internally_called.contains(id),
+                gas_mode,
+                &canonical_return_calls,
+            ) {
                 body_of_wrapper.insert(id, body_id);
             }
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
@@ -1035,6 +1044,7 @@ impl LowerAbiCx {
         wrapper_id: FunctionId,
         needs_body: bool,
         gas_mode: bool,
+        canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
         // Keep the external body in place only when several dynamic
@@ -1075,6 +1085,7 @@ impl LowerAbiCx {
             return_params.as_ref(),
             abi_params.as_ref(),
             &self.return_cleanup_helpers,
+            canonical_return_calls,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -2963,6 +2974,47 @@ fn can_encode_live_returns(func: &Function) -> bool {
     })
 }
 
+fn find_canonical_return_calls(
+    module: &Module,
+    targets: &[FunctionId],
+) -> FxHashSet<(FunctionId, AbiParamType)> {
+    let types = targets
+        .iter()
+        .filter_map(|&id| module.function(id).abi_return_params.as_ref())
+        .flat_map(|layout| layout.types.iter())
+        .filter(|ty| ty.needs_return_cleanup() && !ty.is_scalar_word())
+        .cloned()
+        .collect::<FxHashSet<_>>();
+
+    let mut canonical = FxHashSet::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        for ty in &types {
+            if func.returns.as_slice() != [ty.mir_type()] {
+                continue;
+            }
+            let mut has_return = false;
+            let valid = func.blocks.iter().all(|block| {
+                let Some(Terminator::Return { values }) = &block.terminator else {
+                    return true;
+                };
+                has_return = true;
+                values.len() == 1
+                    && is_canonical_return_value(
+                        func,
+                        ty,
+                        values[0],
+                        None,
+                        ReturnValueSource::Memory,
+                    )
+            });
+            if has_return && valid {
+                canonical.insert((id, ty.clone()));
+            }
+        }
+    }
+    canonical
+}
+
 fn canonical_input_for_arg<'a>(
     func: &Function,
     value: ValueId,
@@ -3072,6 +3124,24 @@ fn is_canonical_return_value_inner(
     };
     visiting.remove(&value);
     result
+}
+
+fn is_canonical_return_call(
+    func: &Function,
+    ty: &AbiParamType,
+    value: ValueId,
+    canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
+) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    let InstKind::InternalCall { function, returns: 1, .. } = func.inst(*inst).kind else {
+        return false;
+    };
+    func.value_ty(value) == Some(ty.mir_type())
+        && func
+            .blocks
+            .iter()
+            .any(|block| block.instructions.last() == Some(inst) && block.terminator.is_none())
+        && canonical_calls.contains(&(function, ty.clone()))
 }
 
 fn is_canonical_return_scalar(
@@ -3569,6 +3639,7 @@ fn encode_live_returns(
     return_params: Option<&AbiParamLayout>,
     input_params: Option<&AbiParamLayout>,
     cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
+    canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
 ) {
     let Some(mut layout) = func.abi_returns.take() else { return };
     let return_blocks = func
@@ -3624,13 +3695,15 @@ fn encode_live_returns(
                 if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
-                    if is_canonical_return_value(
-                        builder.func(),
-                        &ty,
-                        value,
-                        input_params,
-                        ReturnValueSource::Scalar,
-                    ) {
+                    if is_canonical_return_call(builder.func(), &ty, value, canonical_calls)
+                        || is_canonical_return_value(
+                            builder.func(),
+                            &ty,
+                            value,
+                            input_params,
+                            ReturnValueSource::Scalar,
+                        )
+                    {
                         value
                     } else {
                         builder.internal_call(helper, vec![value], ty.mir_type(), 1)
