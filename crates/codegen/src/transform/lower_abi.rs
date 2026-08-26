@@ -214,7 +214,7 @@ impl LowerAbiCx {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
         }
         let canonical_return_calls = if gas_mode {
-            find_canonical_return_calls(module, &targets)
+            find_canonical_return_calls(module, &targets, &self.return_cleanup_helpers)
         } else {
             FxHashSet::default()
         };
@@ -2977,42 +2977,50 @@ fn can_encode_live_returns(func: &Function) -> bool {
 fn find_canonical_return_calls(
     module: &Module,
     targets: &[FunctionId],
+    cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) -> FxHashSet<(FunctionId, AbiParamType)> {
-    let types = targets
-        .iter()
-        .filter_map(|&id| module.function(id).abi_return_params.as_ref())
-        .flat_map(|layout| layout.types.iter())
-        .filter(|ty| ty.needs_return_cleanup() && !ty.is_scalar_word())
-        .cloned()
-        .collect::<FxHashSet<_>>();
-
-    let mut canonical = FxHashSet::default();
-    for (id, func) in module.functions.iter_enumerated() {
-        for ty in &types {
-            if func.returns.as_slice() != [ty.mir_type()] {
-                continue;
-            }
-            let mut has_return = false;
-            let valid = func.blocks.iter().all(|block| {
-                let Some(Terminator::Return { values }) = &block.terminator else {
-                    return true;
-                };
-                has_return = true;
-                values.len() == 1
-                    && is_canonical_return_value(
-                        func,
-                        ty,
-                        values[0],
-                        None,
-                        ReturnValueSource::Memory,
-                    )
-            });
-            if has_return && valid {
-                canonical.insert((id, ty.clone()));
+    let mut candidates = FxHashSet::default();
+    for &id in targets {
+        let func = module.function(id);
+        let Some(layout) = &func.abi_return_params else { continue };
+        for block in &func.blocks {
+            let Some(Terminator::Return { values }) = &block.terminator else { continue };
+            for (&value, ty) in values.iter().zip(&layout.types) {
+                let flat_array = matches!(ty,
+                    AbiParamType::DynamicArray(element)
+                    | AbiParamType::FixedArray { element, .. }
+                    if element.is_scalar_word()
+                );
+                if flat_array
+                    && cleanup_helpers.contains_key(ty)
+                    && let Value::Inst(inst) = func.value(value)
+                    && let InstKind::InternalCall { function, returns: 1, .. } =
+                        func.inst(*inst).kind
+                    && func.value_ty(value) == Some(ty.mir_type())
+                {
+                    candidates.insert((function, ty.clone()));
+                }
             }
         }
     }
-    canonical
+
+    candidates.retain(|(id, ty)| {
+        let func = module.function(*id);
+        if func.returns.as_slice() != [ty.mir_type()] {
+            return false;
+        }
+        let mut has_return = false;
+        let valid = func.blocks.iter().all(|block| {
+            let Some(Terminator::Return { values }) = &block.terminator else {
+                return true;
+            };
+            has_return = true;
+            values.len() == 1
+                && is_canonical_return_value(func, ty, values[0], None, ReturnValueSource::Memory)
+        });
+        has_return && valid
+    });
+    candidates
 }
 
 fn canonical_input_for_arg<'a>(
@@ -3128,6 +3136,7 @@ fn is_canonical_return_value_inner(
 
 fn is_canonical_return_call(
     func: &Function,
+    block: BlockId,
     ty: &AbiParamType,
     value: ValueId,
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
@@ -3136,11 +3145,8 @@ fn is_canonical_return_call(
     let InstKind::InternalCall { function, returns: 1, .. } = func.inst(*inst).kind else {
         return false;
     };
-    func.value_ty(value) == Some(ty.mir_type())
-        && func
-            .blocks
-            .iter()
-            .any(|block| block.instructions.last() == Some(inst) && block.terminator.is_none())
+    func.blocks[block].instructions.last() == Some(inst)
+        && func.blocks[block].terminator.is_none()
         && canonical_calls.contains(&(function, ty.clone()))
 }
 
@@ -3695,15 +3701,19 @@ fn encode_live_returns(
                 if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
-                    if is_canonical_return_call(builder.func(), &ty, value, canonical_calls)
-                        || is_canonical_return_value(
-                            builder.func(),
-                            &ty,
-                            value,
-                            input_params,
-                            ReturnValueSource::Scalar,
-                        )
-                    {
+                    if is_canonical_return_call(
+                        builder.func(),
+                        block_id,
+                        &ty,
+                        value,
+                        canonical_calls,
+                    ) || is_canonical_return_value(
+                        builder.func(),
+                        &ty,
+                        value,
+                        input_params,
+                        ReturnValueSource::Scalar,
+                    ) {
                         value
                     } else {
                         builder.internal_call(helper, vec![value], ty.mir_type(), 1)
