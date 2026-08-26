@@ -13,21 +13,21 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Sequence
-
+from typing import Any
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 TESTDATA_ROOT = REPOSITORY_ROOT / "testdata"
 PROJECTS_ROOT = TESTDATA_ROOT / "projects"
 RUNTIME_CORPUS_ROOT = Path(__file__).resolve().parent
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
-DEFAULT_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
-IMPORT_RE = re.compile(
-    r"""\bimport\s+(?:(?:[^;]*?)\s+from\s+)?["']([^"']+)["']\s*;"""
+DEFAULT_PRIVATE_KEY = (
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 )
+
+IMPORT_RE = re.compile(r"""\bimport\s+(?:(?:[^;]*?)\s+from\s+)?["']([^"']+)["']\s*;""")
 
 
 @dataclass(frozen=True)
@@ -35,10 +35,10 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
-    peak_rss_bytes: Optional[int] = None
+    peak_rss_bytes: int | None = None
 
 
-def _read_peak_rss(path: Path) -> Optional[int]:
+def _read_peak_rss(path: Path) -> int | None:
     try:
         peak_rss_kib = int(path.read_text().strip())
     except (OSError, ValueError):
@@ -48,11 +48,15 @@ def _read_peak_rss(path: Path) -> Optional[int]:
 
 def run(
     cmd: Sequence[str],
-    input_text: Optional[str] = None,
+    input_text: str | None = None,
     timeout: int = 120,
-    cwd: Optional[Path] = None,
+    cwd: Path | None = None,
     measure_peak_rss: bool = False,
+    input_path: Path | None = None,
 ) -> CommandResult:
+    if input_text is not None and input_path is not None:
+        raise ValueError("input_text and input_path are mutually exclusive")
+
     start = time.monotonic()
     peak_rss_path = None
     run_cmd = list(cmd)
@@ -67,15 +71,28 @@ def run(
     kwargs = {}
     if os.name != "nt":
         kwargs["start_new_session"] = True
-    proc = subprocess.Popen(
-        run_cmd,
-        stdin=subprocess.PIPE if input_text is not None else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=cwd,
-        **kwargs,
-    )
+    input_file = input_path.open() if input_path is not None else None
+    stdin = input_file
+    if stdin is None and input_text is not None:
+        stdin = subprocess.PIPE
+    try:
+        try:
+            proc = subprocess.Popen(
+                run_cmd,
+                stdin=stdin,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                **kwargs,
+            )
+        except OSError as exc:
+            if peak_rss_path is not None:
+                peak_rss_path.unlink(missing_ok=True)
+            return CommandResult(-1, "", f"failed to run {cmd[0]}: {exc}")
+    finally:
+        if input_file is not None:
+            input_file.close()
     try:
         stdout, stderr = proc.communicate(input=input_text, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -93,7 +110,9 @@ def run(
             stdout, stderr = proc.communicate()
         elapsed = time.monotonic() - start
         stderr = (stderr or "").strip()
-        message = f"TIMEOUT after {elapsed:.1f}s: {shlex.join(str(part) for part in cmd)}"
+        message = (
+            f"TIMEOUT after {elapsed:.1f}s: {shlex.join(str(part) for part in cmd)}"
+        )
         if stderr:
             message = f"{message}\n{stderr}"
         result = CommandResult(-1, stdout or "", message)
@@ -103,11 +122,13 @@ def run(
     if peak_rss_path is not None:
         peak_rss_bytes = _read_peak_rss(peak_rss_path)
         peak_rss_path.unlink(missing_ok=True)
-        result = CommandResult(result.returncode, result.stdout, result.stderr, peak_rss_bytes)
+        result = CommandResult(
+            result.returncode, result.stdout, result.stderr, peak_rss_bytes
+        )
     return result
 
 
-def parse_receipt_int(value: object) -> Optional[int]:
+def parse_receipt_int(value: object) -> int | None:
     if isinstance(value, str):
         return int(value, 16) if value.startswith("0x") else int(value)
     if value is None:

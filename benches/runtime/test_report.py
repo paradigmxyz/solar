@@ -11,9 +11,11 @@ from jsonschema import Draft202012Validator
 sys.path.insert(0, str(Path(__file__).parent))
 import report as benchmark
 
-
 SCHEMA = json.loads(
-    (Path(__file__).resolve().parents[2] / "benches/schema/benchmark-result-v1.schema.json").read_text()
+    (
+        Path(__file__).resolve().parents[2]
+        / "benches/schema/benchmark-result-v1.schema.json"
+    ).read_text()
 )
 
 
@@ -35,7 +37,9 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_changed_report_has_no_details(self):
-        self.assertEqual(benchmark.format_report("## Results", True, False), "## Results")
+        self.assertEqual(
+            benchmark.format_report("## Results", True, False), "## Results"
+        )
 
     def test_unchanged_report_uses_base_branch(self):
         report = benchmark.format_report("## Results", False, False, "feat/base")
@@ -120,9 +124,13 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_codegen_report_combines_all_benches(self):
-        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
+        micro = result(
+            "micro", suite="micro", status="ok", total_gas=10, runtime_size=20
+        )
         repository = result("repository", status="ok", total_gas=30, runtime_size=40)
-        large = result("large", suite="large", status="ok", total_gas=50, runtime_size=60)
+        large = result(
+            "large", suite="large", status="ok", total_gas=50, runtime_size=60
+        )
         report = benchmark.codegen_report(
             [micro, repository, large], [micro, repository, large]
         )
@@ -134,11 +142,13 @@ class ReportFormattingTests(unittest.TestCase):
             "| ----- | ------------- | ---- | -------------- | ---- |\n"
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n"
             "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n"
-            "| large | 50 (~0%) | n/a (n/a) | 60B (~0%) | n/a (n/a) |\n"
+            "| large | 50 (~0%) | n/a (n/a) | 60B (~0%) | n/a (n/a) |\n",
         )
 
     def test_codegen_report_uses_base_branch(self):
-        micro = result("micro", suite="micro", status="ok", total_gas=10, runtime_size=20)
+        micro = result(
+            "micro", suite="micro", status="ok", total_gas=10, runtime_size=20
+        )
         self.assertEqual(
             benchmark.codegen_report([micro], [micro], "feat/base"),
             "## Codegen benchmark\n"
@@ -148,22 +158,95 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
+    def test_codegen_report_labels_failed_revision(self):
+        def timed_result(test_id, solar_status):
+            return {
+                "test_id": test_id,
+                "suite": "repository",
+                "compilers": {
+                    "solc": {"status": "ok", "compile_time_seconds": 0.100},
+                    "solar": {
+                        "status": solar_status,
+                        "compile_time_seconds": 0.010,
+                        "command": "target/release/solar --standard-json",
+                        "label": "solar 0.2.0",
+                        "input_fingerprint": "input",
+                    },
+                },
+            }
+
+        current = [
+            timed_result("base-failed", "ok"),
+            timed_result("branch-failed", "failed"),
+            timed_result("both-failed", "failed"),
+        ]
+        baseline = [
+            timed_result("base-failed", "failed"),
+            timed_result("branch-failed", "ok"),
+            timed_result("both-failed", "failed"),
+        ]
+        report = benchmark.codegen_report(current, baseline)
+        self.assertIn(
+            "> [!NOTE]\n"
+            "> The compiler failed on these benchmarks; `n/a` marks the failed revision:\n"
+            ">\n"
+            "> - `repository/base-failed`: `main` = `n/a`, branch = `ok`\n"
+            "> - `repository/branch-failed`: `main` = `ok`, branch = `n/a`\n"
+            "> - `repository/both-failed`: `main` = `n/a`, branch = `n/a`\n",
+            report,
+        )
+        self.assertIn(
+            "| base-failed | 10.0 ms (n/a) | 100.0 ms (✅ +900.00%) |", report
+        )
+        self.assertIn("| branch-failed | n/a (n/a) | 100.0 ms (n/a) |", report)
+
+        for index in range(2):
+            self.assertTrue(
+                benchmark.has_codegen_changes([current[index]], [baseline[index]])
+            )
+        self.assertFalse(benchmark.has_codegen_changes(current[2:], baseline[2:]))
+
+    def test_unexpected_benchmark_failure_is_reported_once(self):
+        failure = {
+            "test_id": "crashed",
+            "suite": "repository",
+            "benchmark_error": "unexpected benchmark failure: RuntimeError: broken",
+            "compilers": {
+                "solc": {"status": "failed"},
+                "solar": {"status": "failed"},
+            },
+        }
+
+        self.assertEqual(
+            benchmark.compiler_failures([failure]),
+            [
+                (
+                    "repository/crashed: unexpected benchmark failure: "
+                    "RuntimeError: broken"
+                )
+            ],
+        )
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, results, timings=None):
         if timings is None:
             timings = {"micro": 1.25}
-        with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ,
-            {
-                "GITHUB_REPOSITORY": "paradigmxyz/solar",
-                "GITHUB_SHA": "0123456789abcdef0123456789abcdef01234567",
-                "BENCHMARK_PR_NUMBER": "123",
-            },
-        ), patch.object(
-            benchmark,
-            "runner_metadata",
-            return_value={"os": "linux", "arch": "x86_64", "logical_cpus": 4},
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(
+                os.environ,
+                {
+                    "GITHUB_REPOSITORY": "paradigmxyz/solar",
+                    "GITHUB_SHA": "0123456789abcdef0123456789abcdef01234567",
+                    "BENCHMARK_PR_NUMBER": "123",
+                },
+            ),
+            patch.object(
+                benchmark,
+                "runner_metadata",
+                return_value={"os": "linux", "arch": "x86_64", "logical_cpus": 4},
+            ),
         ):
             output = Path(directory) / "common.json"
             benchmark.write_common_result(output, results, timings)
@@ -190,9 +273,7 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 peak_rss_bytes=200,
             ),
         ]
-        document = self.write_result(
-            [{**entry, "suite": "micro"} for entry in micro]
-        )
+        document = self.write_result([{**entry, "suite": "micro"} for entry in micro])
         self.assertEqual(
             document,
             {
@@ -210,7 +291,11 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                             "statistic": "total",
                         },
                         "counters": {
-                            "tests": {"value": 2, "unit": "count", "statistic": "total"},
+                            "tests": {
+                                "value": 2,
+                                "unit": "count",
+                                "statistic": "total",
+                            },
                             "successful_compilations": {
                                 "value": 2,
                                 "unit": "count",
@@ -223,7 +308,11 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                             },
                         },
                         "gas": {
-                            "runtime": {"value": 11, "unit": "gas", "statistic": "total"},
+                            "runtime": {
+                                "value": 11,
+                                "unit": "gas",
+                                "statistic": "total",
+                            },
                             "deployment": {
                                 "value": 22,
                                 "unit": "gas",
@@ -269,7 +358,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         benchmark_result = document["benchmarks"][0]
         self.assertNotIn("gas", benchmark_result)
         self.assertNotIn("compiler", benchmark_result)
-        self.assertEqual(benchmark_result["counters"]["failed_compilations"]["value"], 1)
+        self.assertEqual(
+            benchmark_result["counters"]["failed_compilations"]["value"], 1
+        )
 
     def test_omits_each_incomplete_metric(self):
         complete = {
@@ -463,7 +554,13 @@ class CompileTimeReportTests(unittest.TestCase):
 
     def test_compile_time_bootstrap_triggers_comments(self):
         current = [self.timed_result("bench", 1.0, 0.1)]
-        base = [{"test_id": "bench", "suite": "repository", "compilers": {"solar": {"status": "ok"}}}]
+        base = [
+            {
+                "test_id": "bench",
+                "suite": "repository",
+                "compilers": {"solar": {"status": "ok"}},
+            }
+        ]
         self.assertTrue(benchmark.has_baseline_changes(current, base))
 
     def test_codegen_changes_trigger_comments(self):
