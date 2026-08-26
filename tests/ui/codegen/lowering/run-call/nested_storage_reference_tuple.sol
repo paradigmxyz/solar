@@ -1,9 +1,10 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: fromCall() => 10, 31, 41, 7
 //@ run-call: fromTuple() => 10, 31, 41, 7
+//@ run-call: fromFunctionPointer() => 10, 31, 41, 7
+//@ run-call: fromDeclaration() => 10, 31, 7
 
 contract NestedStorageReferenceTuple {
     struct Item {
@@ -32,6 +33,24 @@ contract NestedStorageReferenceTuple {
         first.value = 31;
         second.value = 41;
         return (items[0].value, items[1].value, items[2].value, marker);
+    }
+
+    function fromFunctionPointer() external returns (uint256, uint256, uint256, uint256) {
+        initialize();
+        Item storage first = items[0];
+        Item storage second = items[1];
+        uint256 marker;
+        ((first, second), marker) = ((true ? pair : pair)(), 7);
+        first.value = 31;
+        second.value = 41;
+        return (items[0].value, items[1].value, items[2].value, marker);
+    }
+
+    function fromDeclaration() external returns (uint256, uint256, uint256) {
+        initialize();
+        (Item storage item, uint256 marker) = (items[1], 7);
+        item.value = 31;
+        return (items[0].value, items[1].value, marker);
     }
 
     function initialize() private {

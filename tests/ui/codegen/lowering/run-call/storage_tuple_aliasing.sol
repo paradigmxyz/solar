@@ -1,7 +1,6 @@
-//@ revisions: none gas size
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
 //@ run-call: storageAliases() => 10, 10, 2, 1
 //@ run-call: lhsMutation() => 99, 20
 //@ run-call: memorySnapshot() => 10, 99

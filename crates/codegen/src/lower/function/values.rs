@@ -158,17 +158,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if values.len() != elements.len() {
                 return report_unsupported(self.context.gcx, rhs.span, "storage reference tuple");
             }
-            let ExprKind::Call(callee, ..) = &rhs.kind else {
-                unreachable!("storage reference values only come from calls")
-            };
-            let function_id = self.context.gcx.resolved_function(callee)?;
-            let returns = self.context.gcx.hir.function(function_id).returns;
             let mut assignments = Vec::with_capacity(elements.len());
-            for (element, ((value, access), &return_id)) in
-                elements.iter().zip(values.into_iter().zip(returns))
-            {
+            for (element, (value, source_ty, access)) in elements.iter().zip(values) {
                 let Some(element) = element else { continue };
-                let source_ty = self.context.gcx.type_of_item(return_id.into());
                 if let Some(access) = access {
                     if self.is_storage_reference_binding(element) {
                         assignments
@@ -475,14 +467,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
                         {
                             TupleAssignmentRhs::StorageReference {
-                                access: self.storage_access(rhs)?,
+                                access: self.storage_access_or_error(rhs)?,
                             }
                         } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
                                 && self.types.memory_layout(ty).is_some()
                         }) {
                             TupleAssignmentRhs::StorageCopy {
-                                access: self.storage_access(rhs)?,
+                                access: self.storage_access_or_error(rhs)?,
                                 source_ty: source_ty?,
                                 span: rhs.span,
                             }
@@ -515,36 +507,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_storage_reference_call(
         &mut self,
         expr: &hir::Expr<'_>,
-    ) -> Option<Vec<(ValueId, Option<StorageAccess>)>> {
+    ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
         let ExprKind::Call(callee, ..) = &expr.kind else { return None };
-        let function_id = self.context.gcx.resolved_function(callee)?;
-        let returns = self.context.gcx.hir.function(function_id).returns;
-        if returns.is_empty() {
+        let return_types = if let Some(function_id) = self.context.gcx.resolved_function(callee) {
+            self.context
+                .gcx
+                .hir
+                .function(function_id)
+                .returns
+                .iter()
+                .map(|&id| self.context.gcx.type_of_item(id.into()))
+                .collect::<Vec<_>>()
+        } else {
+            let TyKind::Fn(function) = self.context.gcx.type_of_expr(callee.id)?.kind else {
+                return None;
+            };
+            function.returns.to_vec()
+        };
+        if return_types.is_empty() {
             return None;
         }
-        let has_storage_return = returns
-            .iter()
-            .any(|&id| self.context.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage));
-        if !has_storage_return {
+        if !return_types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
             return None;
         }
         let values = self.lower_values(expr)?;
-        (values.len() == returns.len()).then(|| {
+        (values.len() == return_types.len()).then(|| {
             values
                 .into_iter()
-                .zip(returns)
-                .map(|(value, id)| {
-                    let access = self
-                        .context
-                        .gcx
-                        .type_of_item((*id).into())
-                        .is_ref_at(DataLocation::Storage)
-                        .then(|| StorageAccess {
-                            slot: value,
-                            location: StorageLocation::word(U256::ZERO),
-                            offset: None,
-                        });
-                    (value, access)
+                .zip(return_types)
+                .map(|(value, ty)| {
+                    let access = ty.is_ref_at(DataLocation::Storage).then(|| StorageAccess {
+                        slot: value,
+                        location: StorageLocation::word(U256::ZERO),
+                        offset: None,
+                    });
+                    (value, ty, access)
                 })
                 .collect()
         })
