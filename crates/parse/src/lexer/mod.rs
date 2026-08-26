@@ -529,7 +529,6 @@ mod tests {
             ("hex \"\"", &[(0..3, id("hex")), (4..6, lit(Str, ""))]),
             //
             ("0", &[(0..1, lit(Integer, "0"))]),
-            ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
             ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
             (
                 "0.e-1",
@@ -551,12 +550,13 @@ mod tests {
         ];
 
         checks_full![
+            ("0a", true, &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
             ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
-            ("0B0", false, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
+            ("0B0", true, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
             ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
-            ("0O0", false, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
+            ("0O0", true, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
             ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
-            ("0Xa", false, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
+            ("0Xa", true, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
         ];
     }
 
