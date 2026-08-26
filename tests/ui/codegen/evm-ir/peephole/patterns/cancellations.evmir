@@ -169,3 +169,33 @@ bb11:
   push 0
   mstore
   stop
+
+// Raw PUSH0 participates in symbolic cleanup.
+bb12:
+  calldatasize
+  push0
+  pop
+  push0
+  mstore
+  stop
+
+// Deferred pushes cannot be removed before assembly resolves them.
+bb13:
+  calldatasize
+  push_deferred 0
+  pop
+  push0
+  mstore
+  stop
+
+// Do not remove an identity that only holds with an unavailable stack prefix.
+bb14:
+  push 0
+  push 1
+  swap 1
+  swap 2
+  swap 1
+  pop
+  swap 1
+  pop
+  stop

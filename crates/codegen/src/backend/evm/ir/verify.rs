@@ -282,9 +282,7 @@ impl<'a> Verifier<'a> {
                     }
                 } else {
                     let effect = inst
-                        .metadata
-                        .stack
-                        .or_else(|| default_instruction_stack_effect(inst))
+                        .effective_stack_effect()
                         .expect("instruction stack effect must be known after shape validation");
                     if self.apply_effect(block_id, inst.mnemonic(), effect, &mut stack).is_err() {
                         valid = false;

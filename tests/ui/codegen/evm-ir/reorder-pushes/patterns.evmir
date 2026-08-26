@@ -161,3 +161,40 @@ bb15:
   swap 1
   sub
   stop
+
+// Long chains stay linear and place every push before the producer.
+bb16:
+  calldatasize
+  push 1
+  swap 1
+  push 2
+  swap 1
+  push 3
+  swap 1
+  push 4
+  swap 1
+  push 5
+  swap 1
+  push 6
+  swap 1
+  push 7
+  swap 1
+  push 8
+  swap 1
+  push 9
+  swap 1
+  push 10
+  swap 1
+  push 11
+  swap 1
+  push 12
+  swap 1
+  push 13
+  swap 1
+  push 14
+  swap 1
+  push 15
+  swap 1
+  push 16
+  swap 1
+  stop

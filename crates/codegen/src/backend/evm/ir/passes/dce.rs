@@ -1,8 +1,8 @@
 //! Late dead-value elimination over scheduled EVM IR.
 
-use super::{EvmPass, peephole::Peephole};
+use super::{EvmPass, peephole};
 use crate::backend::evm::{
-    ir::{Instruction, Module, default_instruction_stack_effect},
+    ir::{Instruction, Module},
     op::{self, StackOp},
 };
 use solar_config::EvmVersion;
@@ -33,11 +33,7 @@ impl EvmPass for DceCleanup {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let changed = Dce.run_pass(gcx, module);
-        if changed {
-            let _ = Peephole.run_pass(gcx, module);
-        }
-        changed
+        peephole::run_with_cleanup(&Dce, gcx, module)
     }
 }
 
@@ -300,8 +296,7 @@ fn find_candidate(
                 if inst.as_legacy_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
-                let effect =
-                    inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
+                let effect = inst.effective_stack_effect()?;
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)

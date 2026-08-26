@@ -397,6 +397,12 @@ impl Instruction {
         if self.is_encoded_push() { None } else { Some(self.opcode) }
     }
 
+    /// Returns metadata's stack effect override or the opcode's default effect.
+    #[must_use]
+    pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
+        self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
+    }
+
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {

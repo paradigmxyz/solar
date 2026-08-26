@@ -20,4 +20,25 @@
     swap 1
     sub
     stop
+  bb2:
++   push 1
+    calldatasize
+    calldatasize
+    add
+-   push 1
+-   swap 1
+    jump bb4
+  bb3:
+    stop
+  bb4:
+    stop
+  bb5:
+    calldatasize
+    calldatasize
+    add
+    push 1
+    swap 1
+    jump bb6
+  bb6:
+    stop
   

@@ -4,6 +4,7 @@ use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
+    stack::StackOp as PhysicalStackOp,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -21,6 +22,14 @@ impl EvmPass for Peephole {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         optimize_module(gcx, module)
     }
+}
+
+pub(super) fn run_with_cleanup(pass: &dyn EvmPass, gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let changed = pass.run_pass(gcx, module);
+    if changed {
+        let _ = Peephole.run_pass(gcx, module);
+    }
+    changed
 }
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
@@ -390,67 +399,68 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
 const MAX_STACK_PEEPHOLE_WINDOW: usize = 24;
 
 #[derive(Clone, Copy)]
-enum StackOp {
+enum SymbolicStackOp {
     Push,
-    Dup(usize),
-    Swap(usize),
-    Pop,
+    Physical(PhysicalStackOp),
 }
 
 fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
     let end = instructions.len();
-    let start = instructions[..end.saturating_sub(1)]
+    let last = stack_op(instructions.last()?)?;
+    if end < 2
+        || matches!(
+            last,
+            SymbolicStackOp::Push | SymbolicStackOp::Physical(PhysicalStackOp::Dup(_))
+        )
+    {
+        return None;
+    }
+    let floor = end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW);
+    let start = instructions[floor..end - 1]
         .iter()
         .rposition(|inst| stack_op(inst).is_none())
-        .map_or(0, |index| index + 1)
-        .max(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW));
-    (start..end.saturating_sub(1))
+        .map_or(floor, |index| floor + index + 1);
+    (start..end - 1)
         .find(|&start| is_noop_stack_sequence(&instructions[start..]))
         .map(|start| end - start)
 }
 
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let mut stack = SmallVec::<[u8; 64]>::from_iter(0..32);
-    let initial = stack.clone();
-    let mut next_push = 32;
+    let mut stack = SmallVec::<[u8; MAX_STACK_PEEPHOLE_WINDOW]>::new();
+    let mut next_push = 0;
     for inst in instructions {
         match stack_op(inst) {
-            Some(StackOp::Push) => {
+            Some(SymbolicStackOp::Push) => {
                 stack.push(next_push);
                 next_push += 1;
             }
-            Some(StackOp::Dup(depth)) => {
-                let Some(index) = stack.len().checked_sub(depth) else { return false };
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Dup(depth))) => {
+                let Some(index) = stack.len().checked_sub(usize::from(depth)) else { return false };
                 stack.push(stack[index]);
             }
-            Some(StackOp::Swap(depth)) => {
-                let Some(index) = stack.len().checked_sub(depth + 1) else { return false };
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Swap(depth))) => {
+                let Some(index) = stack.len().checked_sub(usize::from(depth) + 1) else {
+                    return false;
+                };
                 let top = stack.len() - 1;
                 stack.swap(index, top);
             }
-            Some(StackOp::Pop) => {
-                stack.pop();
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Pop)) => {
+                if stack.pop().is_none() {
+                    return false;
+                }
             }
             None => return false,
         }
     }
-    stack == initial
+    stack.is_empty()
 }
 
-fn stack_op(inst: &Instruction) -> Option<StackOp> {
+fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
     if is_removable_push(inst) || inst.raw_opcode() == Some(op::PUSH0) {
-        return Some(StackOp::Push);
+        return Some(SymbolicStackOp::Push);
     }
-    let opcode = inst.raw_opcode()?;
-    if (op::DUP1..=op::DUP16).contains(&opcode) {
-        Some(StackOp::Dup(usize::from(opcode - op::DUP1 + 1)))
-    } else if (op::SWAP1..=op::SWAP16).contains(&opcode) {
-        Some(StackOp::Swap(usize::from(opcode - op::SWAP1 + 1)))
-    } else if opcode == op::POP {
-        Some(StackOp::Pop)
-    } else {
-        None
-    }
+    PhysicalStackOp::from_opcode(inst.raw_opcode()?).map(SymbolicStackOp::Physical)
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.

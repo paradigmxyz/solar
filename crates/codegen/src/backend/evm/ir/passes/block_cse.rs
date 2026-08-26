@@ -1,6 +1,6 @@
 //! Block-local common-subexpression regeneration over scheduled EVM IR.
 
-use super::{EvmPass, peephole::Peephole};
+use super::{EvmPass, peephole};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
     op,
@@ -36,11 +36,7 @@ impl EvmPass for BlockCseCleanup {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let changed = BlockCse.run_pass(gcx, module);
-        if changed {
-            let _ = Peephole.run_pass(gcx, module);
-        }
-        changed
+        peephole::run_with_cleanup(&BlockCse, gcx, module)
     }
 }
 

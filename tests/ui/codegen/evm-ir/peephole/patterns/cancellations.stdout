@@ -107,16 +107,42 @@
     push 4
     push 5
     swap 3
--   push 0
--   push 1
+    push 0
+    push 1
+    swap 1
+    swap 2
 -   swap 1
--   swap 2
++   swap 2
+    pop
 -   swap 1
--   pop
--   swap 1
--   pop
+    pop
     swap 4
     push 0
     mstore
+    stop
+  bb12:
+    calldatasize
+    push0
+-   pop
+-   push0
+    mstore
+    stop
+  bb13:
+    calldatasize
+    push_deferred 0
+    pop
+    push0
+    mstore
+    stop
+  bb14:
+    push 0
+    push 1
+    swap 1
+    swap 2
+-   swap 1
+-   pop
+-   swap 1
+-   pop
++   swap 2
     stop
   

@@ -104,7 +104,6 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::op::StackOp,
-    backend::evm::materialize::is_cheap_recomputable_kind,
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;
@@ -1974,12 +1973,6 @@ impl StackScheduler {
         }) && stack[goal.len()..].iter().all(|&slot| {
             slot.is_none_or(|value| !goal.contains(&value) || preserve_counts.contains_key(&value))
         })
-    }
-
-    /// Returns whether an instruction result is cheap enough to recompute from its operands.
-    pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
-        is_cheap_recomputable_kind(&func.inst(*inst_id).kind)
     }
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.

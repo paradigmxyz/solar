@@ -7,7 +7,7 @@
 use crate::backend::evm::{
     ir::{
         BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind,
-        default_instruction_stack_effect, default_terminator_stack_effect,
+        default_terminator_stack_effect,
     },
     op, push_len,
     stack::MAX_STACK_DEPTH,
@@ -343,17 +343,7 @@ fn analyze_block(
     }
 
     let term = block.terminator.as_ref()?;
-    let next = block_id
-        .index()
-        .checked_add(1)
-        .filter(|&index| index < module.blocks.len())
-        .map(BlockId::from_usize);
-    let lowering_growth = match &term.kind {
-        TerminatorKind::IndexedJump(_) => 3,
-        TerminatorKind::Jump(target) => usize::from(Some(*target) != next),
-        TerminatorKind::JumpI { .. } => 1,
-        TerminatorKind::Op(_) => 0,
-    };
+    let lowering_growth = terminator_lowering_growth(module, block_id)?;
     if stack.depth().checked_add(lowering_growth)? > MAX_STACK_DEPTH {
         return None;
     }
@@ -370,6 +360,21 @@ fn analyze_block(
     }
     term.kind.visit_targets(|target| targets.push((target, stack.clone())));
     Some(BlockStackDepths { before: instruction_depths, targets, has_unknown_target })
+}
+
+pub(super) fn terminator_lowering_growth(module: &Module, block_id: BlockId) -> Option<usize> {
+    let block = &module.blocks[block_id];
+    let next = block_id
+        .index()
+        .checked_add(1)
+        .filter(|&index| index < module.blocks.len())
+        .map(BlockId::from_usize);
+    match &block.terminator.as_ref()?.kind {
+        TerminatorKind::IndexedJump(_) => Some(3),
+        TerminatorKind::Jump(target) => Some(usize::from(Some(*target) != next)),
+        TerminatorKind::JumpI { .. } => Some(1),
+        TerminatorKind::Op(_) => Some(0),
+    }
 }
 
 fn apply_instruction(stack: &mut AbstractStack, inst: &Instruction) -> Option<()> {
@@ -412,7 +417,7 @@ fn apply_instruction(stack: &mut AbstractStack, inst: &Instruction) -> Option<()
             Some(())
         }
         _ => {
-            let effect = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
+            let effect = inst.effective_stack_effect()?;
             stack.apply_effect(effect)
         }
     }
