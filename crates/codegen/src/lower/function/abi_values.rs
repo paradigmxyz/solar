@@ -906,7 +906,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.keccak256(zero, size))
     }
 
-    fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
         if matches!(
             self.peel_bytes_conversion(expr).peel_parens().kind,
             ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Str(..))

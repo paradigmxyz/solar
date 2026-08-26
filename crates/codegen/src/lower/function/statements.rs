@@ -596,13 +596,61 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
-        for stmt in block.stmts {
+        let mut stmts = block.stmts.iter().peekable();
+        while let Some(stmt) = stmts.next() {
             if self.is_terminated() {
+                break;
+            }
+            if let Some(args) = self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
+            {
+                let hash = self.lower_keccak_abi_encode_packed(args)?;
+                self.builder.ret(vec![hash]);
+                stmts.next().expect("matched return");
                 break;
             }
             self.lower_stmt(stmt)?;
         }
         Some(())
+    }
+
+    fn immediate_packed_hash_return_args(
+        &self,
+        stmt: &hir::Stmt<'_>,
+        next: Option<&hir::Stmt<'_>>,
+    ) -> Option<hir::CallArgs<'gcx>> {
+        if !self.return_targets.is_empty() {
+            return None;
+        }
+        let StmtKind::DeclSingle(id) = stmt.kind else { return None };
+        let variable = self.context.gcx.hir.variable(id);
+        let ty = self.context.gcx.type_of_item(id.into());
+        if !ty.is_ref_at(DataLocation::Memory) || !self.is_dynamic_bytes_type(ty) {
+            return None;
+        }
+
+        let ExprKind::Call(callee, args, _) = &variable.initializer?.peel_parens().kind else {
+            return None;
+        };
+        if self.context.gcx.resolved_builtin(callee) != Some(Builtin::AbiEncodePacked) {
+            return None;
+        }
+        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, args)?;
+        if !exprs.iter().all(|expr| self.is_scratch_packed_expr(expr)) {
+            return None;
+        }
+
+        let StmtKind::Return(Some(expr)) = &next?.kind else { return None };
+        let ExprKind::Call(callee, hash_args, _) = &expr.peel_parens().kind else {
+            return None;
+        };
+        match (self.context.gcx.resolved_builtin(callee), hash_args.kind, self.returns.as_slice()) {
+            (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
+                if self.context.gcx.resolved_variable(arg) == Some(id) =>
+            {
+                Some(*args)
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn lower_word_value(

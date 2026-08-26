@@ -13,3 +13,17 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, p
     v6 = keccak256 0, 55 !metadata(memory=scratch)
     ret v6
 }
+
+fn @hashLocal(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0x9f31b347, pure, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffff
+    v2 = shl 136, v0
+    v3 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v2
+    v4 = shl 72, v1
+    v5 = or v3, v4
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 23, arg2 !metadata(memory=scratch)
+    v6 = keccak256 0, 55 !metadata(memory=scratch)
+    ret v6
+}
