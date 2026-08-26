@@ -1,3 +1,15 @@
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
+   │
+LL │ pragma amogus 69 diwqbn9ru3b2q945 390ru31290r 0qjr09wadm;
+   ╰╴                                     ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
+   │
+LL │ pragma amogus 69 diwqbn9ru3b2q945 390ru31290r 0qjr09wadm;
+   ╰╴                                               ━
+
 error: unknown pragma
    ╭▸ ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    │
@@ -34,5 +46,5 @@ error: only `solidity` is supported as a version pragma
 LL │ pragma amogus 0.8.15;
    ╰╴       ━━━━━━
 
-error: aborting due to 6 previous errors
+error: aborting due to 8 previous errors
 
