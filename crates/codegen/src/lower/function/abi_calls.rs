@@ -180,6 +180,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(self.builder.func().value(value), Value::Arg(_))
     }
 
+    pub(super) fn is_external_only_abi_argument(&self, value: ValueId) -> bool {
+        self.is_external_abi_argument(value)
+            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
+    }
+
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
         let ty = ty.peel_refs();
         match ty.kind {

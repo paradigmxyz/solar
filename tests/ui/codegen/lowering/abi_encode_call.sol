@@ -12,7 +12,8 @@ interface IERC20 {
 contract AbiEncodeCall {
     // AEC-LABEL: fn @asValue
     // AEC: 0xa9059cbb
-    function asValue(address to, uint256 v) public pure returns (bytes memory) {
+    // AEC-NOT: and arg0
+    function asValue(address to, uint256 v) external pure returns (bytes memory) {
         return abi.encodeCall(IERC20.transfer, (to, v));
     }
 
