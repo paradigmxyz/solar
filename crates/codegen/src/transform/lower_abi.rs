@@ -110,6 +110,12 @@ enum ReturnValueSource {
     Memory,
 }
 
+#[derive(Default)]
+struct CanonicalCallProof<'a> {
+    module: Option<&'a Module>,
+    visiting: FxHashSet<(FunctionId, AbiParamType)>,
+}
+
 struct StaticBytesReturn {
     len: u64,
     word: U256,
@@ -2987,13 +2993,7 @@ fn find_canonical_return_calls(
         for block in &func.blocks {
             let Some(Terminator::Return { values }) = &block.terminator else { continue };
             for (&value, ty) in values.iter().zip(&layout.types) {
-                let flat_array = matches!(ty,
-                    AbiParamType::DynamicArray(element)
-                    | AbiParamType::FixedArray { element, .. }
-                    if element.is_scalar_word()
-                );
-                if flat_array
-                    && cleanup_helpers.contains_key(ty)
+                if cleanup_helpers.contains_key(ty)
                     && let Value::Inst(inst) = func.value(value)
                     && let InstKind::InternalCall { function, returns: 1, .. } =
                         func.inst(*inst).kind
@@ -3006,20 +3006,11 @@ fn find_canonical_return_calls(
     }
 
     candidates.retain(|(id, ty)| {
-        let func = module.function(*id);
-        if func.returns.as_slice() != [ty.mir_type()] {
-            return false;
-        }
-        let mut has_return = false;
-        let valid = func.blocks.iter().all(|block| {
-            let Some(Terminator::Return { values }) = &block.terminator else {
-                return true;
-            };
-            has_return = true;
-            values.len() == 1
-                && is_canonical_return_value(func, ty, values[0], None, ReturnValueSource::Memory)
-        });
-        has_return && valid
+        is_canonical_return_function(
+            &mut CanonicalCallProof { module: Some(module), ..Default::default() },
+            *id,
+            ty,
+        )
     });
     candidates
 }
@@ -3096,7 +3087,16 @@ fn is_canonical_return_value(
     }
 
     let mut visiting = FxHashSet::default();
-    is_canonical_return_value_inner(func, ty, value, input_params, source, &mut visiting)
+    let mut calls = CanonicalCallProof::default();
+    is_canonical_return_value_inner(
+        func,
+        ty,
+        value,
+        input_params,
+        source,
+        &mut visiting,
+        &mut calls,
+    )
 }
 
 fn is_canonical_return_value_inner(
@@ -3106,12 +3106,21 @@ fn is_canonical_return_value_inner(
     input_params: Option<&AbiParamLayout>,
     source: ReturnValueSource,
     visiting: &mut FxHashSet<ValueId>,
+    calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
     {
         return true;
+    }
+    if calls.module.is_some()
+        && let Value::Inst(inst) = func.value(value)
+        && let InstKind::InternalCall { function, returns: 1, .. } = func.inst(*inst).kind
+        && func.value_ty(value) == Some(ty.mir_type())
+        && (ty.is_scalar_word() || is_unmodified_call_result(func, value, *inst))
+    {
+        return is_canonical_return_function(calls, function, ty);
     }
     if !visiting.insert(value) {
         return false;
@@ -3122,17 +3131,82 @@ fn is_canonical_return_value_inner(
         AbiParamType::Enum { .. } => false,
         AbiParamType::Bytes => true,
         AbiParamType::Tuple(fields) => {
-            is_canonical_return_object(func, fields, value, input_params, visiting)
+            is_canonical_return_object(func, fields, value, input_params, visiting, calls)
         }
         AbiParamType::FixedArray { element, len } => {
-            is_canonical_return_array(func, element, *len, value, input_params, visiting)
+            is_canonical_return_array(func, element, *len, value, input_params, visiting, calls)
         }
         AbiParamType::DynamicArray(element) => {
-            is_canonical_return_dynamic_array(func, element, value, input_params, visiting)
+            is_canonical_return_dynamic_array(func, element, value, input_params, visiting, calls)
         }
     };
     visiting.remove(&value);
     result
+}
+
+fn is_canonical_return_function(
+    calls: &mut CanonicalCallProof<'_>,
+    id: FunctionId,
+    ty: &AbiParamType,
+) -> bool {
+    let key = (id, ty.clone());
+    if !calls.visiting.insert(key.clone()) {
+        return false;
+    }
+    let module = calls.module.expect("recursive canonical proof has a module");
+    let func = module.function(id);
+    let result = func.returns.as_slice() == [ty.mir_type()]
+        && func
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+        && func.blocks.iter().all(|block| {
+            let Some(Terminator::Return { values }) = &block.terminator else { return true };
+            let mut value_visiting = FxHashSet::default();
+            values.len() == 1
+                && is_canonical_return_value_inner(
+                    func,
+                    ty,
+                    values[0],
+                    None,
+                    ReturnValueSource::Memory,
+                    &mut value_visiting,
+                    calls,
+                )
+        });
+    calls.visiting.remove(&key);
+    result
+}
+
+fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> bool {
+    for inst in func.instructions() {
+        if inst == call {
+            continue;
+        }
+        match func.inst(inst).kind {
+            InstKind::MemoryObjectLen(object, _)
+            | InstKind::MemoryObjectLoadByte { object, .. }
+                if object == value => {}
+            InstKind::MemoryObjectLoadField { object, .. }
+            | InstKind::MemoryObjectLoadElement { object, .. }
+                if object == value
+                    && func
+                        .inst_result_value(inst)
+                        .and_then(|result| func.value_ty(result))
+                        .is_some_and(|ty| !matches!(ty, MirType::MemoryObject(_))) => {}
+            InstKind::MemoryObjectStoreField { value: stored, .. }
+            | InstKind::MemoryObjectStoreElement { value: stored, .. }
+                if stored == value => {}
+            _ if func.inst(inst).operands().contains(&value) => return false,
+            _ => {}
+        }
+    }
+    func.blocks.iter().all(|block| {
+        block.terminator.as_ref().is_none_or(|term| {
+            !term.operands().contains(&value)
+                || matches!(term, Terminator::Return { values } if values.contains(&value))
+        })
+    })
 }
 
 fn is_canonical_return_call(
@@ -3231,6 +3305,7 @@ fn is_canonical_return_object(
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
     visiting: &mut FxHashSet<ValueId>,
+    calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
     let InstKind::Alloc { kind: AllocationKind::Object(_), .. } = &func.inst(*alloc).kind else {
@@ -3276,6 +3351,7 @@ fn is_canonical_return_object(
                 input_params,
                 ReturnValueSource::Memory,
                 visiting,
+                calls,
             )
         });
         let zero = zeroed && (ty.is_scalar_word() || !ty.needs_return_cleanup());
@@ -3290,6 +3366,7 @@ fn is_canonical_return_array(
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
     visiting: &mut FxHashSet<ValueId>,
+    calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
     if !matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), .. }) {
@@ -3322,6 +3399,7 @@ fn is_canonical_return_array(
                 input_params,
                 ReturnValueSource::Memory,
                 visiting,
+                calls,
             )
         })
     })
@@ -3334,6 +3412,7 @@ fn is_canonical_return_dynamic_array(
     object: ValueId,
     input_params: Option<&AbiParamLayout>,
     visiting: &mut FxHashSet<ValueId>,
+    calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
     let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } = &func.inst(*alloc).kind
@@ -3377,6 +3456,7 @@ fn is_canonical_return_dynamic_array(
         input_params,
         ReturnValueSource::Memory,
         visiting,
+        calls,
     ) {
         return false;
     }
