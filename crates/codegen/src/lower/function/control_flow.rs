@@ -396,7 +396,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         let parameter_ty = self.context.gcx.type_of_item(parameter.into());
                         let (value, ty) = if Self::is_storage_parameter(parameter_ty) {
-                            (self.storage_access(receiver)?.slot, AbiType::Word)
+                            (self.storage_access_or_error(receiver)?.slot, AbiType::Word)
                         } else {
                             self.lower_abi_call_argument(receiver, parameter_ty)?
                         };

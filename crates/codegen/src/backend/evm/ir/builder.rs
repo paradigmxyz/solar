@@ -31,6 +31,16 @@ impl<'gcx> Assembler<'gcx> {
                 .err("cannot assemble unresolved `push_deferred` instruction")
                 .emit());
         }
+        if module.blocks.iter().any(|block| {
+            block.instructions.iter().any(|inst| {
+                matches!(inst.opcode, op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL)
+            })
+        }) {
+            return Err(gcx
+                .dcx()
+                .err("cannot assemble EOF-only external calls into legacy bytecode")
+                .emit());
+        }
 
         debug_assert!(is_valid(&module));
 

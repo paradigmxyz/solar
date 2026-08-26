@@ -42,8 +42,13 @@ bb4:
   shr
   push bb3
   jumpi
+  push 0
+  not
+  push 96
+  shr
   push 36
   calldataload
+  and
   push 0
   mstore
   push 4

@@ -466,8 +466,13 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
             }
             hir::StmtKind::Block(block)
             | hir::StmtKind::UncheckedBlock(block)
-            | hir::StmtKind::AssemblyBlock(block)
-            | hir::StmtKind::Loop(block, _) => self.visit_block(block)?,
+            | hir::StmtKind::AssemblyBlock(block) => self.visit_block(block)?,
+            hir::StmtKind::Loop(block, source) => {
+                self.visit_block(block)?;
+                if let hir::LoopSource::For { update: Some(update) } = source {
+                    self.visit_stmt(update)?;
+                }
+            }
             hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => self.visit_expr(expr)?,
             hir::StmtKind::Return(expr) => {
                 if let Some(expr) = expr {

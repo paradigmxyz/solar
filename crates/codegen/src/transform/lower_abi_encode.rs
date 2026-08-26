@@ -60,6 +60,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let mut replacements = FxHashMap::default();
+    let mut literal_objects = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -82,7 +83,7 @@ fn lower_function(func: &mut Function) -> bool {
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
             let replacement = lower_encode(&mut builder, &layout, selector, &args, mode);
-            remove_literal_objects(builder.func_mut(), &args);
+            literal_objects.extend(args.iter().copied());
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             replacements.insert(result, replacement);
@@ -91,6 +92,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
+    remove_literal_objects(func, &literal_objects.into_iter().collect::<Vec<_>>());
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
 }

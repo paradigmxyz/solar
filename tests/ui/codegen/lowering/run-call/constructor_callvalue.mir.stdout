@@ -77,8 +77,9 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     jumpi v20, bb9, bb10
   bb10:
     v21 = internal_call @deploy, 1, v16
-    v22 = eq v21, 0
-    ret v22
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = eq v22, 0
+    ret v23
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -107,8 +108,9 @@ fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_
     set_memory_object_len memorybytes, v0, 20
     memory_object_store_word memorybytes, v0, 0, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v1 = internal_call @deploy, 1, v0
-    v2 = eq v1, 0
-    ret v2
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 0
+    ret v3
 }
 
 fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi_returns=[word]] {
@@ -118,8 +120,9 @@ fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi
     memory_object_store_word memorybytes, v0, 0, 0x60c06040523460105760015f556014565b5f80fd5b600380601e5f395ff35f80
     memory_object_store_word memorybytes, v0, 32, 0xfd00000000000000000000000000000000000000000000000000000000000000
     v1 = internal_call @deploy, 1, v0
-    v2 = eq v1, 0
-    ret v2
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 0
+    ret v3
 }
 
 fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word]] {
@@ -128,8 +131,9 @@ fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi
     set_memory_object_len memorybytes, v0, 29
     memory_object_store_word memorybytes, v0, 0, 0x60c060405234600c576010565b5f80fd5b600380601a5f395ff35f80fd000000
     v1 = internal_call @deploy, 1, v0
-    v2 = eq v1, 0
-    ret v2
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 0
+    ret v3
 }
 
 fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word]] {
@@ -138,19 +142,20 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     set_memory_object_len memorybytes, v0, 17
     memory_object_store_word memorybytes, v0, 0, 0x60c0604052600380600e5f395ff35f80fd000000000000000000000000000000
     v1 = internal_call @deploy, 1, v0
-    v2 = eq v1, 0
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 0
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v4 = balance v1
-    v5 = callvalue
-    v6 = eq v4, v5
+    v5 = balance v1
+    v6 = callvalue
+    v7 = eq v5, v6
     jump bb3
   bb3:
-    v7 = phi [bb1: v6], [bb2: 0]
-    ret v7
+    v8 = phi [bb1: v7], [bb2: 0]
+    ret v8
 }
 
 fn @deploy(arg0: memorybytes) -> address {

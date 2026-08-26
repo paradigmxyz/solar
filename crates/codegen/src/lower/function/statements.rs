@@ -10,13 +10,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.context.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let Some(initializer) = initializer else { return Some(()) };
-                    let Some(access) = self.storage_access(initializer) else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            initializer.span,
-                            "storage reference",
-                        );
-                    };
+                    let access = self.storage_access_or_error(initializer)?;
                     self.storage_refs.insert(*id, access);
                     return Some(());
                 }

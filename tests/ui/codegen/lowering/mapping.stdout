@@ -9,10 +9,12 @@ fn @balances(arg0: u256) -> u256 [selector=0x4903b0d1, view, abi_params=[u256], 
 
 fn @allowances(arg0: address, arg1: address) -> u256 [selector=0x55b6ed5c, view, abi_params=[address, address], abi_returns=[word]] {
   bb0:
-    v0 = mapping_slot arg0, 1
-    v1 = mapping_slot arg1, v0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = mapping_slot v2, v1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @set_balance(arg0: u256, arg1: u256) [selector=0xb41d1f5c, abi_params=[u256, u256], abi_returns=[]] {
@@ -41,16 +43,20 @@ fn @add_balance(arg0: u256, arg1: u256) [selector=0xe72cc64e, abi_params=[u256, 
 
 fn @approve(arg0: address, arg1: address, arg2: u256) [selector=0xe1f21c67, abi_params=[address, address, u256], abi_returns=[]] {
   bb0:
-    v0 = mapping_slot arg0, 1
-    v1 = mapping_slot arg1, v0
-    sstore v1, arg2 !metadata(storage=symbolic(v1))
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = mapping_slot v2, v1
+    sstore v3, arg2 !metadata(storage=symbolic(v3))
     stop
 }
 
 fn @get_allowance(arg0: address, arg1: address) -> u256 [selector=0x18836994, view, abi_params=[address, address], abi_returns=[word]] {
   bb0:
-    v0 = mapping_slot arg0, 1
-    v1 = mapping_slot arg1, v0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = mapping_slot v2, v1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }

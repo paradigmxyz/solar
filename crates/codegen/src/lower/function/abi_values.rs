@@ -128,18 +128,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if literal { selector = imm(keccak256(bytes)[0..4] << 224) }
         // if ternary { selector = select(condition, selector(then), selector(else)) }
         // selector = shl(224, shr(224, keccak256_bytes(materialize(signature))))
-        if let ExprKind::Lit(lit) = &signature.kind
-            && let LitKind::Str(_, value, _) = &lit.kind
-        {
-            let hash = keccak256(value.as_byte_str());
-            let selector = U256::from_be_slice(&hash[..4]) << 224;
+        if let Some(selector) = Self::literal_signature_selector(signature) {
             return Some(self.builder.imm_u256(selector));
         }
 
-        if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind {
+        if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
+            && let Some(then_selector) = Self::literal_signature_selector(then_expr)
+            && let Some(else_selector) = Self::literal_signature_selector(else_expr)
+        {
             let condition = self.lower_expr(condition)?;
-            let then_selector = self.lower_signature_selector(then_expr)?;
-            let else_selector = self.lower_signature_selector(else_expr)?;
+            let then_selector = self.builder.imm_u256(then_selector);
+            let else_selector = self.builder.imm_u256(else_selector);
             return Some(self.builder.select(condition, then_selector, else_selector));
         }
 
@@ -158,6 +157,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let shift = self.builder.imm_u64(224);
         let selector = self.builder.shr(shift, hash);
         Some(self.builder.shl(shift, selector))
+    }
+
+    fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {
+        let ExprKind::Lit(lit) = &signature.peel_parens().kind else { return None };
+        let LitKind::Str(_, value, _) = &lit.kind else { return None };
+        let hash = keccak256(value.as_byte_str());
+        Some(U256::from_be_slice(&hash[..4]) << 224)
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -249,28 +255,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Value::Inst(inst) = self.builder.func().value(value) else { return false };
         let kind = &self.builder.func().inst(*inst).kind;
         match kind {
-            InstKind::InternalCall { function, args, .. } => {
-                // An aggregate argument may carry dirty ABI words into an
-                // otherwise pure helper. Keep the cleanup in that case.
-                if args.iter().any(|&arg| {
-                    matches!(self.builder.func().value_ty(arg), Some(MirType::MemoryObject(_)))
-                }) {
-                    return false;
-                }
-                let function = self.context.module.function(*function);
-                !function.instructions().any(|inst| {
-                    matches!(
-                        function.inst(inst).kind,
-                        InstKind::MStore(..)
-                            | InstKind::MStore8(..)
-                            | InstKind::CalldataCopy(..)
-                            | InstKind::CodeCopy(..)
-                            | InstKind::ReturnDataCopy(..)
-                            | InstKind::ExtCodeCopy(..)
-                            | InstKind::MCopy(..)
-                    )
-                })
-            }
             InstKind::MemoryObjectLoadField { object, .. }
             | InstKind::MemoryObjectLoadElement { object, .. } => {
                 self.value_is_canonical(*object, seen)

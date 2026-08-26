@@ -18,6 +18,24 @@
       ret v2
   }
   
+  fn @absolute_alias() -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 7
+      v2 = mload 128
+      ret v2
+  }
+  
+  fn @mstore8_escape() -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 9
+      mstore8 0, v1
+      ret 0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
   @module CopyElision
@@ -35,5 +53,23 @@
       calldatacopy v1, 4, 32
       v2 = mload v1
       ret v2
+  }
+  
+  fn @absolute_alias() -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 7
+      v2 = mload 128
+      ret v2
+  }
+  
+  fn @mstore8_escape() -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 9
+      mstore8 0, v1
+      ret 0
   }
   

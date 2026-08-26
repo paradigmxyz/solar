@@ -8,8 +8,10 @@ contract Mapping {
     mapping(uint256 => uint256) public balances;
 
     // CHECK-LABEL: fn @allowances{{[( ]}}
-    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot arg0, 1
-    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot arg1, [[OWNER]]
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sload [[SPENDER]]
     mapping(address => mapping(address => uint256)) public allowances;
 
@@ -31,16 +33,20 @@ contract Mapping {
     }
 
     // CHECK-LABEL: fn @approve{{[( ]}}
-    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot arg0, 1
-    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot arg1, [[OWNER]]
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sstore [[SPENDER]], arg2
     function approve(address owner, address spender, uint256 amount) public {
         allowances[owner][spender] = amount;
     }
 
     // CHECK-LABEL: fn @get_allowance{{[( ]}}
-    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot arg0, 1
-    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot arg1, [[OWNER]]
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sload [[SPENDER]]
     function get_allowance(address owner, address spender) public view returns (uint256) {
         return allowances[owner][spender];

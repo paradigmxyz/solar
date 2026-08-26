@@ -60,7 +60,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(index) = index else {
             return report_unsupported(self.context.gcx, expr.span, "index");
         };
-        let index = self.lower_expr(index)?;
+        let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let object = self.lower_expr(receiver)?;
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
@@ -198,9 +198,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let base_ptr = self.builder.slice_ptr(source);
         let base_len = self.builder.slice_len(source);
-        let start =
-            if let Some(start) = start { self.lower_expr(start)? } else { self.builder.imm_u64(0) };
-        let end = if let Some(end) = end { self.lower_expr(end)? } else { base_len };
+        let start = if let Some(start) = start {
+            self.lower_typed_expr(start, self.context.gcx.types.uint(256))?
+        } else {
+            self.builder.imm_u64(0)
+        };
+        let end = if let Some(end) = end {
+            self.lower_typed_expr(end, self.context.gcx.types.uint(256))?
+        } else {
+            base_len
+        };
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         let invalid = self.builder.or(past_end, backwards);

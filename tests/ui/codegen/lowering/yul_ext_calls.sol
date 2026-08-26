@@ -1,16 +1,14 @@
-//@compile-flags: -O none -Zdump=mir
-//@filecheck:
+//@ compile-flags: -O none --emit=bin
 
 contract YulExtCalls {
-    // CHECK-LABEL: fn @extCalls{{[( ]}}
-    // CHECK: {{v[0-9]+}} = extcall arg0, 0, 0, 0
-    // CHECK: {{v[0-9]+}} = extdelegatecall arg0, 0, 0
-    // CHECK: {{v[0-9]+}} = extstaticcall arg0, 0, 0
     function extCalls(address target) public returns (uint256 result) {
         assembly {
             pop(extcall(target, 0, 0, 0))
+            //~^ ERROR: codegen cannot emit EOF-only external calls in legacy bytecode
             pop(extdelegatecall(target, 0, 0))
+            //~^ ERROR: codegen cannot emit EOF-only external calls in legacy bytecode
             result := extstaticcall(target, 0, 0)
+            //~^ ERROR: codegen cannot emit EOF-only external calls in legacy bytecode
         }
     }
 }

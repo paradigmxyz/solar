@@ -14,6 +14,7 @@
 //! that reads it, or an escape into a call/return) keeps every write.
 
 use crate::{
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize},
     mir::{Function, InstId, InstKind, Module, ValueId},
     pass::{MirPass, run_function_pass},
 };
@@ -33,7 +34,9 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| CopyElisionCx::default().run(func))
+        run_function_pass(module, analyses, |func, analyses| {
+            CopyElisionCx::default().run(func, &analyses.alias)
+        })
     }
 }
 
@@ -48,7 +51,7 @@ struct CopyElisionCx {
 }
 
 impl CopyElisionCx {
-    fn run(&mut self, func: &mut Function) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
             return false;
         }
@@ -71,6 +74,11 @@ impl CopyElisionCx {
 
             let mut dead = FxHashSet::default();
             for &object in &allocs {
+                if alias.value_escapes(func, object)
+                    || self.allocation_may_be_read(func, alias, object)
+                {
+                    continue;
+                }
                 let Some(writes) = self.write_only_writes(func, object) else { continue };
                 dead.extend(writes);
                 self.eliminated += 1;
@@ -84,6 +92,30 @@ impl CopyElisionCx {
             changed = true;
         }
         changed
+    }
+
+    fn allocation_may_be_read(
+        &self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        object: ValueId,
+    ) -> bool {
+        let Some(allocation) = alias.bare_memory_location(func, object, LocationSize::Unknown)
+        else {
+            return true;
+        };
+        let reads_allocation = |access: Access| match access {
+            Access::Any(AddressSpace::Memory) => true,
+            Access::Location(Location::Memory(location)) => {
+                alias.memory_alias(allocation, location).may_alias()
+            }
+            _ => false,
+        };
+        func.instructions().any(|inst| {
+            alias.instruction_mod_ref(func, inst).reads().iter().copied().any(reads_allocation)
+        }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
+            alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
+        })
     }
 
     fn index_uses(&mut self, func: &Function) {
@@ -152,7 +184,15 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MStore8(addr, _) | InstKind::MemoryZero(addr, _) => {
+                    InstKind::MStore8(addr, value) => {
+                        if derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryZero(addr, _) => {
                         if derived.contains(addr) {
                             writes.push(inst_id);
                         }

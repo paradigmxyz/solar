@@ -27,6 +27,8 @@
 //@ run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
 //@ run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
 //@ run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
+//@ run-call: ExternalReturnValidation::dirtyInternalWiden() => 0
+//@ run-call: ExternalReturnValidation::dirtyInternalAggregate() => (1, true)
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_dynamic_array.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
@@ -128,6 +130,21 @@ contract ExternalReturnValidation {
     function dirtyValueInternal() internal pure returns (uint8 value) {
         assembly {
             value := 0x100
+        }
+    }
+
+    function dirtyInternalWiden() external pure returns (uint256) {
+        return dirtyValueInternal();
+    }
+
+    function dirtyInternalAggregate() external pure returns (Pair memory) {
+        return dirtyAggregate();
+    }
+
+    function dirtyAggregate() internal pure returns (Pair memory pair) {
+        assembly {
+            mstore(pair, 0x101)
+            mstore(add(pair, 0x20), 2)
         }
     }
 

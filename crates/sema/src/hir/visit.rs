@@ -231,11 +231,11 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Loop(block, source) => {
-                if let LoopSource::For { update: Some(update) } = source {
-                    self.visit_stmt(update)?;
-                }
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
+                }
+                if let LoopSource::For { update: Some(update) } = source {
+                    self.visit_stmt(update)?;
                 }
             }
             StmtKind::Emit(expr) => self.visit_expr(expr)?,

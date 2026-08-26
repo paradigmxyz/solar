@@ -173,7 +173,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if send { return ok }
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
-        let amount = self.lower_expr(amount)?;
+        let amount = self.lower_typed_expr(amount, self.context.gcx.types.uint(256))?;
         let zero = self.builder.imm_u256(U256::ZERO);
         let stipend = self.builder.imm_u64(2300);
         let amount_is_zero = self.builder.iszero(amount);
@@ -254,7 +254,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return report_unsupported(self.context.gcx, expr.span, "array pop");
                 };
-                self.storage_access(receiver)?;
+                self.storage_access_or_error(receiver)?;
                 Some(self.builder.imm_u256(U256::ZERO))
             }
             Builtin::ContractCreationCode
@@ -945,20 +945,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
                 Some(self.builder.$method($($arg),*))
             }};
-            ($method:ident($($arg:ident),* $(,)?); $name:literal) => {{
-                let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
-                match self.context.gcx.sess.opts.evm_version.has_ext_call() {
-                    true => {}
-                    false => {
-                        return self.unsupported_yul_version(
-                            concat!("codegen requires Prague-compatible EVM for `", $name, "`"),
-                            "compile with `--evm-version prague` or newer",
-                            args.span,
-                        );
-                    }
-                }
-                Some(self.builder.$method($($arg),*))
-            }};
         }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
@@ -1030,15 +1016,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::YulCreate => lower!(create(value, offset, size)),
             Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
-            Builtin::YulExtcall => {
-                lower!(extcall(address, input_offset, input_size, value); "extcall")
-            }
-            Builtin::YulExtdelegatecall => {
-                lower!(extdelegatecall(address, input_offset, input_size); "extdelegatecall")
-            }
-            Builtin::YulExtstaticcall => {
-                lower!(extstaticcall(address, input_offset, input_size); "extstaticcall")
-            }
+            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => self
+                .unsupported_yul_version(
+                    "codegen cannot emit EOF-only external calls in legacy bytecode",
+                    "remove the EOF-only call or use a compiler that emits EOF containers",
+                    args.span,
+                ),
             _ => report_error(
                 self.context.gcx,
                 args.span,

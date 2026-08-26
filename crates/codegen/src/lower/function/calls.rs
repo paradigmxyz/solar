@@ -78,7 +78,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     target_ty.peel_refs().kind,
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
-                let access = self.storage_access(arg)?;
+                let access = self.storage_access_or_error(arg)?;
                 self.load_storage_bytes(access.slot)
             } else {
                 self.lower_expr(arg)?
@@ -659,13 +659,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = internal_call[_void](function, args)
         // result = external_abi_call(function, args, opts)
         // result = delegatecall(library, args)
-        let function_id = self.resolve_call_target(callee, function_id);
         let function = self.context.gcx.hir.function(function_id);
         let attached =
             self.context.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
+        let delegate_call = self.context.gcx.type_of_expr(callee.id).is_some_and(
+            |ty| matches!(ty.kind, TyKind::Fn(function) if function.is_delegate_call()),
+        );
         if let ExprKind::Member(receiver, _) = callee.kind
             && self.context.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
+            let function_id = self.resolve_call_target(callee, function_id);
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         if !attached
@@ -682,11 +685,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
-        if !attached
-            && matches!(function.visibility, hir::Visibility::Public | hir::Visibility::External)
-            && let Some(address) = self.linked_library_address(function_id)
-        {
-            return self.lower_linked_library_call(expr, function_id, args, address);
+        let function_id = self.resolve_call_target(callee, function_id);
+        let function = self.context.gcx.hir.function(function_id);
+        if delegate_call {
+            if let Some(address) = self.linked_library_address(function_id) {
+                return self.lower_linked_library_call(expr, function_id, args, address);
+            }
+            return report_error(
+                self.context.gcx,
+                expr.span,
+                "codegen requires a linked address for public library calls",
+            );
         }
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
@@ -708,7 +717,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let parameter_ty = self.context.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                self.storage_access(receiver)?.slot
+                self.storage_access_or_error(receiver)?.slot
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
@@ -722,7 +731,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                self.storage_access(argument)?.slot
+                self.storage_access_or_error(argument)?.slot
             } else {
                 self.lower_typed_expr(argument, parameter_ty)?
             };
@@ -741,7 +750,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.context.gcx.type_of_item((*function.returns.first()?).into()),
         );
-        Some(self.builder.internal_call(mir_id, values, result_ty, function.returns.len()))
+        let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
+        self.dirty_values.insert(result);
+        Some(result)
     }
 
     fn lower_pure_struct_constructor(
@@ -893,7 +904,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .argument_for_parameter(index, parameter_names)
                     .or_else(|| report_unsupported(self.context.gcx, span, error))?;
                 if storage_parameters && Self::is_storage_parameter(parameter_ty) {
-                    Some((self.storage_access(argument)?.slot, AbiType::Word))
+                    Some((self.storage_access_or_error(argument)?.slot, AbiType::Word))
                 } else {
                     Some(self.lower_abi_call_argument(argument, parameter_ty)?)
                 }

@@ -1783,12 +1783,24 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
         match stmt.kind {
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block)
-            | StmtKind::Loop(block, _) => self.visit_block_scope(block),
+            | StmtKind::AssemblyBlock(block) => self.visit_block_scope(block),
+            StmtKind::Loop(block, source) => self.visit_loop_scope(block, source),
             _ => {
                 let _ = self.visit_stmt(stmt);
             }
         }
+    }
+
+    fn visit_loop_scope(&mut self, block: hir::Block<'gcx>, source: hir::LoopSource<'gcx>) {
+        let Some(scope) = self.push_child_scope(block.span) else { return };
+        self.with_scope(scope, |this| {
+            for stmt in block.stmts {
+                let _ = this.visit_stmt(stmt);
+            }
+            if let hir::LoopSource::For { update: Some(update) } = source {
+                let _ = this.visit_stmt(update);
+            }
+        });
     }
 }
 
@@ -1904,8 +1916,8 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             }
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block)
-            | StmtKind::Loop(block, _) => self.visit_block_scope(block),
+            | StmtKind::AssemblyBlock(block) => self.visit_block_scope(block),
+            StmtKind::Loop(block, source) => self.visit_loop_scope(block, source),
             StmtKind::If(_, true_, false_) => {
                 self.visit_statement_child_scope(true_);
                 if let Some(false_) = false_ {

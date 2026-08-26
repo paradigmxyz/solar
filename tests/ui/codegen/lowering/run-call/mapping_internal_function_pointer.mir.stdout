@@ -2,37 +2,40 @@
 @module MappingInternalFunctionPointer
 fn @_anonymous() [constructor] {
   bb0:
-    v0 = mapping_slot 0x1234, 1
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 2, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = not 0xffffffffffffffff
+    v4 = and v2, v3
+    v5 = and 2, 0xffffffffffffffff
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=symbolic(v1))
     stop
 }
 
 fn @stage0() {
   bb0:
-    v0 = mapping_slot 0x1234, 1
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 3, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = not 0xffffffffffffffff
+    v4 = and v2, v3
+    v5 = and 3, 0xffffffffffffffff
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=symbolic(v1))
     stop
 }
 
 fn @stage1() {
   bb0:
-    v0 = mapping_slot 0x1234, 1
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 4, 0xffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = not 0xffffffffffffffff
+    v4 = and v2, v3
+    v5 = and 4, 0xffffffffffffffff
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=symbolic(v1))
     stop
 }
 
@@ -49,21 +52,24 @@ fn @stage2() {
 
 fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = mapping_slot 0x1234, 1
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = and v1, 0xffffffffffffffff
-    internal_call @internal_dispatcher_p_none_r_none, 0, v2
-    v3 = mapping_slot 0x1234, 1
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 0xffffffffffffffff
-    internal_call @internal_dispatcher_p_none_r_none, 0, v5
-    v6 = mapping_slot 0x1234, 1
-    v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = and v7, 0xffffffffffffffff
-    internal_call @internal_dispatcher_p_none_r_none, 0, v8
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = and v9, 255
-    ret v10
+    v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffff
+    internal_call @internal_dispatcher_p_none_r_none, 0, v3
+    v4 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = mapping_slot v4, 1
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = and v6, 0xffffffffffffffff
+    internal_call @internal_dispatcher_p_none_r_none, 0, v7
+    v8 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = mapping_slot v8, 1
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 0xffffffffffffffff
+    internal_call @internal_dispatcher_p_none_r_none, 0, v11
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = and v12, 255
+    ret v13
 }
 
 fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatcher] {
