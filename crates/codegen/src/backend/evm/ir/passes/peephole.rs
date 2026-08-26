@@ -4,9 +4,10 @@ use super::{EvmPass, compact_pushes::immediate_materialization_cost};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
-    stack::{StackModel, StackOp as PhysicalStackOp},
+    stack::StackOp as PhysicalStackOp,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -474,30 +475,43 @@ fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
 }
 
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let mut stack = StackModel::new();
+    let mut stack = SmallVec::<[u8; MAX_STACK_PEEPHOLE_WINDOW]>::new();
     let mut next_push = 0;
     for inst in instructions {
         match stack_op(inst) {
             Some(SymbolicStackOp::Push) => {
-                stack.push(crate::mir::ValueId::from_usize(next_push));
+                stack.push(next_push);
                 next_push += 1;
             }
-            Some(SymbolicStackOp::Physical(op)) => {
-                let required = match op {
-                    PhysicalStackOp::Dup(depth) => usize::from(depth),
-                    PhysicalStackOp::Swap(depth) => usize::from(depth) + 1,
-                    PhysicalStackOp::Exchange(first, second) => usize::from(first.max(second)) + 1,
-                    PhysicalStackOp::Pop => 1,
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Dup(depth))) => {
+                let Some(index) = stack.len().checked_sub(usize::from(depth)) else { return false };
+                stack.push(stack[index]);
+            }
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Swap(depth))) => {
+                let Some(index) = stack.len().checked_sub(usize::from(depth) + 1) else {
+                    return false;
                 };
-                if stack.depth() < required {
+                let top = stack.len() - 1;
+                stack.swap(index, top);
+            }
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Exchange(first, second))) => {
+                let (Some(first), Some(second)) = (
+                    stack.len().checked_sub(usize::from(first) + 1),
+                    stack.len().checked_sub(usize::from(second) + 1),
+                ) else {
+                    return false;
+                };
+                stack.swap(first, second);
+            }
+            Some(SymbolicStackOp::Physical(PhysicalStackOp::Pop)) => {
+                if stack.pop().is_none() {
                     return false;
                 }
-                stack.apply(op);
             }
             None => return false,
         }
     }
-    stack.depth() == 0
+    stack.is_empty()
 }
 
 fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {

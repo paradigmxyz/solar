@@ -38,6 +38,13 @@ impl StackModel {
         Self { stack: SmallVec::new(), max_depth: 0 }
     }
 
+    /// Creates a stack model from values ordered top to bottom.
+    pub(crate) fn from_top_to_bottom(values: impl IntoIterator<Item = Option<ValueId>>) -> Self {
+        let stack = values.into_iter().collect::<SmallVec<_>>();
+        let max_depth = stack.len();
+        Self { stack, max_depth }
+    }
+
     /// Returns the current stack depth.
     #[must_use]
     pub(crate) fn depth(&self) -> usize {

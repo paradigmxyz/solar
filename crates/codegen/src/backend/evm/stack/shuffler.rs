@@ -77,10 +77,9 @@ pub(crate) fn resynthesize_physical_ops(
         return None;
     }
 
-    let mut source = StackModel::new();
-    for index in (0..source_depth).rev() {
-        source.push(ValueId::from_usize(index));
-    }
+    let source = StackModel::from_top_to_bottom(
+        (0..source_depth).map(|index| Some(ValueId::from_usize(index))),
+    );
     let mut target = source.clone();
     for &stack_op in ops {
         target.apply(stack_op);
