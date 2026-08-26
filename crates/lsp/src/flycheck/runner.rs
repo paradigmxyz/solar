@@ -278,8 +278,10 @@ async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u
 mod tests {
     use super::*;
     #[cfg(unix)]
+    use crate::config::negotiate_capabilities;
+    use crate::test_support::TestProject;
+    #[cfg(unix)]
     use crate::test_support::process_exists;
-    use crate::{config::negotiate_capabilities, test_support::TestProject};
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
     #[cfg(unix)]
