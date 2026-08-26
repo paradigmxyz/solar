@@ -226,6 +226,42 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
+    def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "ok",
+                    "runtime_results": [
+                        {"label": "value", "status": "ok", "value": "1"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "skipped")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
+    def test_single_compiler_runtime_failure_still_fails(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "failed",
+                    "runtime_results": [
+                        {"label": "value", "status": "failed", "error": "reverted"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "failed")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
     def test_reports_cross_compiler_mismatch(self) -> None:
         specs = (
             benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),

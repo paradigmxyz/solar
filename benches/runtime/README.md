@@ -10,6 +10,11 @@ both modes with `--mode runtime compile-time`.
 Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
 dependency on a second repository and its recursive submodules.
 
+Use `--solar-only` for repeated local runs after recording a two-compiler baseline. This skips the
+reference solc compile for each case while retaining Solar compilation, gas measurements, and
+runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
+runtime comparisons are marked as skipped. CI does not use this option.
+
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
 at commit `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The benchmark still compiles each contract with

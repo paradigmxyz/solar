@@ -1080,6 +1080,10 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
     if not labels:
         entry["runtime_status"] = "skipped"
         return
+    if len(specs) < 2:
+        entry["runtime_status"] = "failed" if failed else "skipped"
+        entry["runtime_mismatches"] = []
+        return
 
     mismatches = []
     for label in labels:
@@ -1137,6 +1141,7 @@ def run_test_case(
     private_key: str,
     verbose: bool = False,
     compile_repeats: int = 1,
+    reference_solc_path: Optional[Path] = None,
 ) -> Dict[str, object]:
     entry: Dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1149,7 +1154,9 @@ def run_test_case(
     if test_case.project_file is not None:
         entry["project"] = test_case.project
         entry["source"] = test_case.source
-    reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
+    reference_solc = next(
+        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
+    )
 
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
@@ -1251,7 +1258,7 @@ def run_test_case(
                 cold_results = run_cold_path_checks(
                     test_case,
                     address,
-                    reference_solc.path,
+                    reference_solc,
                     rpc_url,
                     private_key,
                 )
@@ -1306,6 +1313,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=1,
         help="Compile each test this many times and record the median time (default: 1)",
     )
+    parser.add_argument(
+        "--solar-only",
+        action="store_true",
+        help="Benchmark Solar without compiling each case with solc",
+    )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
     parser.add_argument("--list-tests", action="store_true", help="List available tests and exit")
@@ -1349,7 +1361,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc:
+    if not solc and not args.solar_only:
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1369,13 +1381,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("cast not found; install Foundry or omit --gas", RED), file=sys.stderr)
         return 1
 
-    solc_version, solc_version_error = binary_version(solc)
+    solc_version, solc_version_error = (
+        binary_version(solc) if solc and not args.solar_only else ("unavailable", "")
+    )
     solar_version, solar_version_error = binary_version(solar)
 
-    specs = [
-        CompilerSpec("solc", f"solc {solc_version}", solc, "solc"),
-        CompilerSpec("solar", f"solar {solar_version}", solar, "solar"),
-    ]
+    specs = []
+    if not args.solar_only:
+        assert solc is not None
+        specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
 
     if args.tests:
         missing = [test_id for test_id in args.tests if test_id not in test_map]
@@ -1387,7 +1402,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if not args.include_incompatible:
+    if not args.solar_only and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1411,8 +1426,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("anvil not found; install Foundry or omit --start-anvil", RED), file=sys.stderr)
         return 1
 
-    print(f"Using {specs[0].label}")
-    if solc_version_error:
+    for spec in specs:
+        print(f"Using {spec.label}")
+    if not args.solar_only and solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -1421,7 +1437,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ),
             file=sys.stderr,
         )
-    print(f"Using {specs[1].label}")
     if solar_version_error:
         print(_color(f"Warning: `solar --version` failed: {solar_version_error}", YELLOW), file=sys.stderr)
     if skipped:
@@ -1463,6 +1478,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.private_key,
                     args.verbose,
                     args.compile_repeats,
+                    solc,
                 )
             except Exception as exc:
                 print(
