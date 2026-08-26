@@ -76,15 +76,20 @@ def run(
     if stdin is None and input_text is not None:
         stdin = subprocess.PIPE
     try:
-        proc = subprocess.Popen(
-            run_cmd,
-            stdin=stdin,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            **kwargs,
-        )
+        try:
+            proc = subprocess.Popen(
+                run_cmd,
+                stdin=stdin,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                **kwargs,
+            )
+        except OSError as exc:
+            if peak_rss_path is not None:
+                peak_rss_path.unlink(missing_ok=True)
+            return CommandResult(-1, "", f"failed to run {cmd[0]}: {exc}")
     finally:
         if input_file is not None:
             input_file.close()

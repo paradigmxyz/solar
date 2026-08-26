@@ -64,6 +64,9 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
     failures = []
     for result in results:
         test_id = "/".join(suite_key(result))
+        if error := result.get("benchmark_error"):
+            failures.append(f"{test_id}: {error}")
+            continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
             if data.get("status") != "ok":

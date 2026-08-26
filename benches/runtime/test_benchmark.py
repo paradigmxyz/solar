@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -168,6 +169,59 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(
             list(benchmark.project_slice(project, "src/A.sol")),
             ["shared/D.sol", "src/A.sol", "src/B.sol", "vendor/pkg/C.sol"],
+        )
+
+
+class FailureHandlingTests(unittest.TestCase):
+    def test_process_spawn_error_is_a_command_failure(self) -> None:
+        with mock.patch(
+            "common.subprocess.Popen",
+            side_effect=OSError(7, "Argument list too long"),
+        ):
+            result = benchmark.run(["cast", "send"])
+
+        self.assertEqual(result.returncode, -1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Argument list too long", result.stderr)
+
+    def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
+        test_id = benchmark.TEST_CASES[0].test_id
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            benchmark,
+            "find_binary",
+            side_effect=lambda value, _fallbacks: Path(value),
+        ), mock.patch.object(
+            benchmark,
+            "binary_version",
+            return_value=("0.8.36", ""),
+        ), mock.patch.object(
+            benchmark,
+            "run_test_case",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--solc",
+                    "solc",
+                    "--solar",
+                    "solar",
+                    "--tests",
+                    test_id,
+                    "--allow-failures",
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(return_code, 0)
+        self.assertEqual(len(document["results"]), 1)
+        failure = document["results"][0]
+        self.assertIn("RuntimeError: unexpected", failure["benchmark_error"])
+        self.assertEqual(
+            {compiler["status"] for compiler in failure["compilers"].values()},
+            {"failed"},
         )
 
 

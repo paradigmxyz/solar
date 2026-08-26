@@ -1103,6 +1103,31 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
         entry["runtime_status"] = "ok"
 
 
+def failed_test_result(
+    test_case: TestCase,
+    specs: Sequence[CompilerSpec],
+    gas_profile: str,
+    error: Exception,
+) -> Dict[str, object]:
+    message = f"unexpected benchmark failure: {type(error).__name__}: {error}"[:1000]
+    entry: Dict[str, object] = {
+        "test_id": test_case.test_id,
+        "description": test_case.description,
+        "contract_name": test_case.contract_name,
+        "suite": test_case.suite,
+        "gas_profile": gas_profile,
+        "benchmark_error": message,
+        "compilers": {
+            spec.compiler_id: {"status": "failed", "error": message}
+            for spec in specs
+        },
+    }
+    if test_case.project_file is not None:
+        entry["project"] = test_case.project
+        entry["source"] = test_case.source
+    return entry
+
+
 def run_test_case(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
@@ -1410,7 +1435,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         if args.gas and args.start_anvil:
             print("Starting anvil...")
-            anvil_proc = start_anvil(args.rpc_url)
+            try:
+                anvil_proc = start_anvil(args.rpc_url)
+            except Exception as exc:
+                print(_color(f"Benchmark setup failed: {exc}", RED), file=sys.stderr)
+                results.extend(
+                    failed_test_result(test, specs, args.gas_profile, exc)
+                    for test in tests
+                )
+                tests = []
         current_suite = None
         suite_started = None
         for test in tests:
@@ -1420,8 +1453,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
                 current_suite = suite
                 suite_started = time.monotonic()
-            results.append(
-                run_test_case(
+            try:
+                result = run_test_case(
                     test,
                     specs,
                     args.gas,
@@ -1431,13 +1464,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.verbose,
                     args.compile_repeats,
                 )
-            )
+            except Exception as exc:
+                print(
+                    _color(f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED),
+                    file=sys.stderr,
+                )
+                result = failed_test_result(test, specs, args.gas_profile, exc)
+            results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = timings.get(current_suite, 0.0) + time.monotonic() - suite_started
     finally:
         if anvil_proc:
             print("Stopping anvil...")
-            stop_anvil(anvil_proc)
+            try:
+                stop_anvil(anvil_proc)
+            except Exception as exc:
+                print(_color(f"Failed to stop anvil: {exc}", RED), file=sys.stderr)
 
     if args.verbose:
         for result in results:

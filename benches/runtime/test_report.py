@@ -198,6 +198,25 @@ class ReportFormattingTests(unittest.TestCase):
             )
         self.assertFalse(benchmark.has_codegen_changes(current[2:], baseline[2:]))
 
+    def test_unexpected_benchmark_failure_is_reported_once(self):
+        failure = {
+            "test_id": "crashed",
+            "suite": "repository",
+            "benchmark_error": "unexpected benchmark failure: RuntimeError: broken",
+            "compilers": {
+                "solc": {"status": "failed"},
+                "solar": {"status": "failed"},
+            },
+        }
+
+        self.assertEqual(
+            benchmark.compiler_failures([failure]),
+            [
+                "repository/crashed: unexpected benchmark failure: "
+                "RuntimeError: broken"
+            ],
+        )
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, results, timings=None):
