@@ -412,6 +412,15 @@ impl StackOp {
         self.metrics(evm_version).map(|metrics| metrics.assembled_len)
     }
 
+    /// Returns the assembled length used by target-neutral EVM IR transforms.
+    #[must_use]
+    pub(crate) fn ir_assembled_len(self, evm_version: EvmVersion) -> Option<usize> {
+        match self {
+            Self::Exchange(_, ..=16) if self.is_valid() => Some(3),
+            _ => self.assembled_len(evm_version),
+        }
+    }
+
     /// Returns the `EXCHANGE` represented by a three-swap sequence.
     #[must_use]
     pub(crate) const fn from_swaps(first: u8, second: u8, third: u8) -> Option<Self> {
@@ -568,8 +577,10 @@ mod tests {
             Some(StackOpLowering::Direct(SWAPN, Some(0xdb)))
         );
         assert_eq!(StackOp::Exchange(1, 16).assembled_len(EvmVersion::Osaka), Some(3));
+        assert_eq!(StackOp::Exchange(1, 16).ir_assembled_len(EvmVersion::Amsterdam), Some(3));
         assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Osaka), None);
         assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Amsterdam), Some(2));
+        assert_eq!(StackOp::Exchange(1, 17).ir_assembled_len(EvmVersion::Amsterdam), Some(2));
         assert_eq!(StackOp::from_swaps(2, 3, 2), Some(StackOp::Exchange(2, 3)));
 
         for depth in 17..=235 {

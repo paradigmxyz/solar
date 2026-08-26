@@ -70,6 +70,20 @@
     jump bb10
   bb10:
     stop
+  bb11:
+    push 1
+    push 2
+    push 3
+-   exchange 1, 2
+-   pop
+-   pop
+-   stop
++   jump bb13
+  bb12:
+    push 4
+    push 5
+    push 6
++   jump bb13
 + bb4:
 +   push 33
 +   push 44
@@ -84,4 +98,9 @@
 +   push 444
 +   push 555
 +   revert
++ bb13:
+    exchange 1, 2
+    pop
+    pop
+    stop
   

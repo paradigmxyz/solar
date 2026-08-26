@@ -22,6 +22,20 @@ use solar_sema::Gcx;
 
 type LabelSet = SmallVec<[BlockId; 1]>;
 
+/// The machine-level identity shared by transforms that compare instructions.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
+
+impl MachineInstKey {
+    pub(super) fn new(inst: &Instruction) -> Self {
+        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
+    }
+}
+
+pub(super) fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
+    MachineInstKey::new(a) == MachineInstKey::new(b)
+}
+
 #[derive(Clone, Default)]
 struct AbstractValue {
     labels: LabelSet,

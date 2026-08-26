@@ -2,7 +2,7 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, StackDepths, instruction_size_lower_bound},
+    utils::{FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -373,16 +373,6 @@ struct ChosenGroup {
     outputs: u16,
 }
 
-/// The identity of an instruction for outlining: what a run must match on.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct InstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
-
-impl InstKey {
-    fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
-    }
-}
-
 /// Per-block instruction tables: whether each instruction occurs more than
 /// once module-wide, and prefix hashes so any run hashes in constant time.
 ///
@@ -400,10 +390,10 @@ impl InstHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
     fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<InstKey, u32>::default();
+        let mut counts = FxHashMap::<MachineInstKey, u32>::default();
         for block in module.blocks.iter() {
             for inst in &block.instructions {
-                *counts.entry(InstKey::new(inst)).or_default() += 1;
+                *counts.entry(MachineInstKey::new(inst)).or_default() += 1;
             }
         }
 
@@ -416,7 +406,7 @@ impl InstHashes {
             let mut repeated = DenseBitSet::new_empty(block.instructions.len());
             prefix.push(0u64);
             for (index, inst) in block.instructions.iter().enumerate() {
-                let key = InstKey::new(inst);
+                let key = MachineInstKey::new(inst);
                 if counts.get(&key).copied().unwrap_or(0) >= 2 {
                     repeated.insert(index);
                 }
@@ -460,12 +450,11 @@ struct MachineInstSlice<'a> {
 impl PartialEq for MachineInstSlice<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.insts.len() == other.insts.len()
-            && self.insts.iter().zip(other.insts).all(|(a, b)| {
-                a.opcode == b.opcode
-                    && a.encoding == b.encoding
-                    && a.value == b.value
-                    && a.as_stack_op() == b.as_stack_op()
-            })
+            && self
+                .insts
+                .iter()
+                .zip(other.insts)
+                .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
     }
 }
 

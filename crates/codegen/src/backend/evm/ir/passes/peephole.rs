@@ -64,24 +64,22 @@ fn optimize(
 
 fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
     // `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
-    if let [.., exchange, swap] = instructions.as_slice()
-        && let Some(op::StackOp::Exchange(n, m)) = exchange.as_stack_op()
-        && swap_depth(swap) == Some(n)
-    {
-        let start = instructions.len() - 2;
-        instructions[start] = Instruction::stack_op(op::StackOp::Swap(n));
-        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(m));
-        return true;
-    }
-
     // `SWAPn EXCHANGE n, m -> SWAPm SWAPn`.
-    if let [.., swap, exchange] = instructions.as_slice()
-        && let Some(op::StackOp::Exchange(n, m)) = exchange.as_stack_op()
-        && swap_depth(swap) == Some(n)
+    if let [.., first, second] = instructions.as_slice()
+        && let Some((first_depth, second_depth)) = match (first.as_stack_op(), second.as_stack_op())
+        {
+            (Some(op::StackOp::Exchange(n, m)), Some(op::StackOp::Swap(depth))) if n == depth => {
+                Some((n, m))
+            }
+            (Some(op::StackOp::Swap(depth)), Some(op::StackOp::Exchange(n, m))) if n == depth => {
+                Some((m, n))
+            }
+            _ => None,
+        }
     {
         let start = instructions.len() - 2;
-        instructions[start] = Instruction::stack_op(op::StackOp::Swap(m));
-        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(n));
+        instructions[start] = Instruction::stack_op(op::StackOp::Swap(first_depth));
+        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(second_depth));
         return true;
     }
 
