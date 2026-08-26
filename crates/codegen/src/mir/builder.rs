@@ -1,9 +1,9 @@
 //! MIR function builder.
 
 use super::{
-    AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
-    MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
+    Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -787,7 +787,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, false)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice)
     }
 
     /// ABI-encodes `args` into a freshly allocated bytes object.
@@ -797,7 +797,17 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, true)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes)
+    }
+
+    /// ABI-encodes `args` at the free-memory pointer without reserving the result.
+    pub(crate) fn abi_encode_scratch(
+        &mut self,
+        layout: crate::mir::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+    ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch)
     }
 
     fn emit_abi_encode(
@@ -805,16 +815,11 @@ impl<'a> FunctionBuilder<'a> {
         layout: crate::mir::AbiLayoutRef,
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
-        returns_object: bool,
+        mode: AbiEncodeMode,
     ) -> ValueId {
-        let result_ty = if returns_object {
-            MirType::MemoryObject(MemoryObjectKind::Bytes)
-        } else {
-            MirType::Slice(SliceLocation::Memory)
-        };
         self.emit_inst(
-            InstKind::AbiEncode { returns_object, selector, args: args.into(), layout },
-            Some(result_ty),
+            InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+            Some(mode.result_type()),
         )
     }
 

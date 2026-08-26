@@ -52,13 +52,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_bytes(layout, selector, values))
     }
 
-    pub(super) fn lower_abi_encode_slice(
+    pub(super) fn lower_abi_encode_scratch(
         &mut self,
         exprs: &[hir::Expr<'_>],
         selector: Option<ValueId>,
     ) -> Option<ValueId> {
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
-        Some(self.builder.abi_encode(layout, selector, values))
+        Some(self.builder.abi_encode_scratch(layout, selector, values))
     }
 
     fn lower_abi_encode_arguments(

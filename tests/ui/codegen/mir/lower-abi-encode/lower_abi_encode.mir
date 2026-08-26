@@ -13,6 +13,17 @@ fn @static(arg0: u256) -> memoryslice {
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
+// CHECK: + [[SCRATCH_MEMORY:v[0-9]+]] = fmp
+// CHECK: + mstore [[SCRATCH_MEMORY]], arg0
+// CHECK-NOT: alloc
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_MEMORY]], 32
+fn @scratch(arg0: u256) -> memoryslice {
+  bb0:
+    v0 = abi_encode [word], scratch, args arg0
+    ret v0
+}
+
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = fmp
 // CHECK: + mstore [[DYNAMIC_MEMORY]], {{v[0-9]+}}

@@ -335,7 +335,7 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
 
 fn @hash(arg0: u256) -> bytes32 [selector=0xb189fd4c, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [word], args arg0
+    v0 = abi_encode [word], scratch, args arg0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = keccak256 v1, v2

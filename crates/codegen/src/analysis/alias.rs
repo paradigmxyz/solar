@@ -346,12 +346,12 @@ impl PointerProvenance {
         // sites. A function without allocations gets an empty map either way,
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
-        let has_allocations = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::Alloc { .. } | InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. }
-            )
-        });
+        let is_allocation = |inst_id| match func.inst(inst_id).kind {
+            InstKind::Alloc { .. } | InstKind::AbiDecode { .. } => true,
+            InstKind::AbiEncode { mode, .. } => mode != crate::mir::AbiEncodeMode::Scratch,
+            _ => false,
+        };
+        let has_allocations = func.instructions().any(&is_allocation);
         if !has_allocations {
             return Self::default();
         }
@@ -388,12 +388,7 @@ impl PointerProvenance {
         for (block_id, block) in func.blocks.iter_enumerated() {
             let mut reset = poisoned.contains(block_id);
             for &inst_id in &block.instructions {
-                if matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::Alloc { .. }
-                        | InstKind::AbiEncode { .. }
-                        | InstKind::AbiDecode { .. }
-                ) {
+                if is_allocation(inst_id) {
                     allocations.insert(
                         inst_id,
                         AllocationProvenance {
