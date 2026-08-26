@@ -15,6 +15,7 @@ use crate::{
     pass::MirPass,
 };
 use smallvec::SmallVec;
+use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -56,6 +57,25 @@ impl MirPass for InlineTinyLeaves {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
+        inliner.run(gcx, module).inlined != 0
+    }
+}
+
+/// Module pass for specializing one constant-argument call to a shared pure leaf.
+pub(crate) struct InlineConstantLeaves;
+
+impl MirPass for InlineConstantLeaves {
+    fn name(&self) -> &'static str {
+        "inline-constant-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut inliner = MirInliner::for_constant_leaves();
         inliner.run(gcx, module).inlined != 0
     }
 }
@@ -106,8 +126,14 @@ struct MirInliner {
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
     max_module_code_size: usize,
-    /// Restrict candidates to single-block leaf helpers with at most four MIR instructions.
-    tiny_leaves_only: bool,
+    mode: InlineMode,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InlineMode {
+    Normal,
+    TinyLeaves,
+    ConstantLeaves,
 }
 
 impl Default for MirInliner {
@@ -121,7 +147,7 @@ impl Default for MirInliner {
             max_caller_inlined_instructions: 64,
             expected_executions_per_deployment: 200,
             max_module_code_size: usize::MAX,
-            tiny_leaves_only: false,
+            mode: InlineMode::Normal,
         }
     }
 }
@@ -151,8 +177,13 @@ impl MirInliner {
             max_caller_inlined_instructions: 64,
             expected_executions_per_deployment: 200,
             max_module_code_size: usize::MAX,
-            tiny_leaves_only: true,
+            mode: InlineMode::TinyLeaves,
         }
+    }
+
+    #[must_use]
+    fn for_constant_leaves() -> Self {
+        Self { inline_single_call: false, mode: InlineMode::ConstantLeaves, ..Self::default() }
     }
 }
 
@@ -192,6 +223,7 @@ struct MirInlineSummary {
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
     has_function_selector: bool,
+    is_pure: bool,
 }
 
 impl MirInliner {
@@ -280,7 +312,7 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    if self.tiny_leaves_only {
+                    if self.mode == InlineMode::TinyLeaves {
                         // Tiny-leaf candidates cannot contain internal calls, so inlining removes
                         // exactly one call to the callee and cannot introduce another call site.
                         if let Some(count) = call_counts.get_mut(&site.callee) {
@@ -328,7 +360,7 @@ impl MirInliner {
         counts
     }
 
-    /// Picks one call site for each shared callee above the ordinary block cap.
+    /// Picks one call site for each large shared callee.
     ///
     /// Prefer a call nearest the end of its block, where inlining is most
     /// likely to expose a terminal path, then the smallest caller.
@@ -339,24 +371,34 @@ impl MirInliner {
     ) -> FxHashMap<MirFunctionId, (MirFunctionId, InstId)> {
         let mut preferred = FxHashMap::<
             MirFunctionId,
-            ((usize, usize, usize, usize), (MirFunctionId, InstId)),
+            ((bool, usize, usize, usize, usize), (MirFunctionId, InstId)),
         >::default();
         for (caller, func) in module.functions.iter_enumerated() {
             let caller_size =
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind else {
+                    let InstKind::InternalCall { function, ref args, .. } = func.inst(inst_id).kind
+                    else {
                         continue;
                     };
-                    if !summaries
-                        .get(&function)
-                        .is_some_and(|summary| summary.block_count > self.max_shared_callee_blocks)
-                    {
+                    if !summaries.get(&function).is_some_and(|summary| {
+                        summary.block_count > self.max_shared_callee_blocks
+                            || (self.mode == InlineMode::ConstantLeaves
+                                && summary.instruction_count > 4)
+                    }) {
                         continue;
                     }
                     let instructions_after = block.instructions.len() - inst_index - 1;
-                    let score = (instructions_after, caller_size, caller.index(), block_index);
+                    let has_constant_argument =
+                        args.iter().any(|&arg| func.value(arg).as_immediate().is_some());
+                    let score = (
+                        self.mode == InlineMode::ConstantLeaves && !has_constant_argument,
+                        instructions_after,
+                        caller_size,
+                        caller.index(),
+                        block_index,
+                    );
                     preferred
                         .entry(function)
                         .and_modify(|current| {
@@ -394,6 +436,9 @@ impl MirInliner {
                         has_constant_function_selector: args
                             .first()
                             .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
+                        has_constant_argument: args
+                            .iter()
+                            .any(|&arg| func.value(arg).as_immediate().is_some()),
                     });
                 }
             }
@@ -429,7 +474,7 @@ impl MirInliner {
             return false;
         }
 
-        if self.tiny_leaves_only
+        if self.mode == InlineMode::TinyLeaves
             && (summary.block_count != 1
                 || summary.instruction_count
                     > if single_call {
@@ -443,6 +488,16 @@ impl MirInliner {
                 || summary.has_control_flow)
         {
             return false;
+        }
+
+        if self.mode == InlineMode::ConstantLeaves {
+            return call_count > 1
+                && preferred_large_call_site == Some((caller, site.inst))
+                && site.has_constant_argument
+                && summary.is_pure
+                && summary.block_count == 1
+                && !summary.has_internal_call
+                && !summary.has_reference_return;
         }
 
         if !single_call
@@ -528,6 +583,7 @@ struct CallSite {
     returns: usize,
     loop_depth: usize,
     has_constant_function_selector: bool,
+    has_constant_argument: bool,
 }
 
 fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
@@ -552,6 +608,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         is_transparent_forwarder: is_transparent_forwarder(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
+        is_pure: func.attributes.state_mutability == StateMutability::Pure,
         ..MirInlineSummary::default()
     };
 
