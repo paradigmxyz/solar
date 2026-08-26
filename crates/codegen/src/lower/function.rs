@@ -551,6 +551,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let previous = self.builder.replace_source_span(expr.span);
+        let result = self.lower_expr_inner(expr);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         // value = const_eval(expr)
         if int_literal_expr_contains_wide(self.cx.gcx, expr).is_some_and(|wide| wide)
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)

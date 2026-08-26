@@ -4,6 +4,13 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
+        let previous = self.builder.replace_source_span(stmt.span);
+        let result = self.lower_stmt_inner(stmt);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_stmt_inner(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;

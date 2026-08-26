@@ -9,6 +9,7 @@ use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
+use solar_interface::Span;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -92,6 +93,8 @@ pub(crate) struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
+    /// Source span attached to instructions emitted in the current lowering scope.
+    current_source_span: Span,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -111,9 +114,28 @@ impl CountedLoop {
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        Self { func, current_block: BlockId::ENTRY, revert_blocks: RevertBlocks::default() }
+        Self {
+            func,
+            current_block: BlockId::ENTRY,
+            revert_blocks: RevertBlocks::default(),
+            current_source_span: Span::DUMMY,
+        }
     }
 
+    /// Creates a builder that reuses blocks from an earlier builder for the same function.
+    pub(crate) fn with_revert_blocks(func: &'a mut Function, revert_blocks: RevertBlocks) -> Self {
+        Self { func, current_block: BlockId::ENTRY, revert_blocks, current_source_span: Span::DUMMY }
+    }
+
+    /// Returns the function-local revert block cache.
+    pub(crate) fn into_revert_blocks(self) -> RevertBlocks {
+        self.revert_blocks
+    }
+
+    /// Replaces the source span attached to newly emitted instructions.
+    pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
+        std::mem::replace(&mut self.current_source_span, span)
+    }
     /// Returns the current block.
     #[must_use]
     pub(crate) const fn current_block(&self) -> BlockId {
@@ -363,6 +385,7 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        inst.metadata.set_debug_source_span(Some(self.current_source_span));
         inst
     }
 

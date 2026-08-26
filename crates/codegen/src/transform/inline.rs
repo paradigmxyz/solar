@@ -1313,7 +1313,8 @@ impl<'a> InlineCloner<'a> {
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
-                let instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
+                let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
+                instruction.metadata.set_debug_source_span(inst.metadata.source_span());
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
