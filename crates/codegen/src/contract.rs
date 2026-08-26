@@ -308,12 +308,7 @@ fn generate_contract_bytecode(
         })
         .collect();
     let share_public_bodies = gcx.sess.opts.optimization.is_size();
-    let mut module = lower::lower_contract_with_bytecodes_and_body_sharing(
-        gcx,
-        contract_id,
-        &child_bytecodes,
-        share_public_bodies,
-    );
+    let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes, share_public_bodies);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
@@ -336,12 +331,7 @@ fn generate_contract_bytecode(
         {
             let gas_first_module = module.clone();
             let gas_first_artifact = artifact;
-            module = lower::lower_contract_with_bytecodes_and_body_sharing(
-                gcx,
-                contract_id,
-                &child_bytecodes,
-                true,
-            );
+            module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new(gcx);
             codegen.set_capture_mir(capture_mir && !capture_built);
