@@ -52,7 +52,11 @@ def run(
     timeout: int = 120,
     cwd: Optional[Path] = None,
     measure_peak_rss: bool = False,
+    input_path: Optional[Path] = None,
 ) -> CommandResult:
+    if input_text is not None and input_path is not None:
+        raise ValueError("input_text and input_path are mutually exclusive")
+
     start = time.monotonic()
     peak_rss_path = None
     run_cmd = list(cmd)
@@ -67,15 +71,28 @@ def run(
     kwargs = {}
     if os.name != "nt":
         kwargs["start_new_session"] = True
-    proc = subprocess.Popen(
-        run_cmd,
-        stdin=subprocess.PIPE if input_text is not None else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=cwd,
-        **kwargs,
-    )
+    input_file = input_path.open() if input_path is not None else None
+    stdin = input_file
+    if stdin is None and input_text is not None:
+        stdin = subprocess.PIPE
+    try:
+        try:
+            proc = subprocess.Popen(
+                run_cmd,
+                stdin=stdin,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=cwd,
+                **kwargs,
+            )
+        except OSError as exc:
+            if peak_rss_path is not None:
+                peak_rss_path.unlink(missing_ok=True)
+            return CommandResult(-1, "", f"failed to run {cmd[0]}: {exc}")
+    finally:
+        if input_file is not None:
+            input_file.close()
     try:
         stdout, stderr = proc.communicate(input=input_text, timeout=timeout)
     except subprocess.TimeoutExpired:
