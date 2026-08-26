@@ -15,7 +15,7 @@ use tracing::trace;
 pub(super) struct Peephole;
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
-pub(super) struct Cleanup(pub(super) &'static dyn EvmPass);
+pub(super) struct Cleanup<T>(pub(super) T);
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
@@ -27,7 +27,7 @@ impl EvmPass for Peephole {
     }
 }
 
-impl EvmPass for Cleanup {
+impl<T: EvmPass> EvmPass for Cleanup<T> {
     fn name(&self) -> &'static str {
         self.0.name()
     }
