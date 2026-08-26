@@ -11,19 +11,19 @@
 //@[runtime] run-call: splatHash() => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
 
 // CHECK-LABEL: data:
-// CHECK: 0: hex"
-// CHECK-NOT: 1: hex"
-// CHECK: data_copy literal_0,
-// CHECK: data_copy literal_0+64,
-// CHECK: memory_zero
-// CHECK-LABEL: fn @zeroWord{{[( ]}}
-// CHECK: mstore
-// SPLAT: mcopy
+// CHECK: literal_0: hex"
+// CHECK: literal_1: hex"
+// CHECK: literal_2: hex"
+// CHECK-NOT: literal_3:
 contract C {
+    // CHECK-LABEL: fn @data(
+    // CHECK: data_copy literal_0, {{.*}}, 288
     function data() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
     }
 
+    // CHECK-LABEL: fn @subslice(
+    // CHECK: data_copy literal_1, {{.*}}, 192
     function subslice() external pure returns (bytes memory) {
         return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";
     }
@@ -36,14 +36,25 @@ contract C {
         return keccak256("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ");
     }
 
+    // CHECK-LABEL: fn @zeroData{{[.(]}}
+    // CHECK: memory_zero {{.*}}, 160
     function zeroData() public pure returns (bytes memory) {
         return hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     }
 
+    // CHECK-LABEL: fn @zeroWord{{[.(]}}
+    // CHECK: mstore {{.*}}, 0
     function zeroWord() public pure returns (bytes memory) {
         return hex"0000000000000000000000000000000000000000000000000000000000000000";
     }
 
+    // CHECK-LABEL: fn @splatData{{[.(]}}
+    // CHECK: data_copy literal_2, {{.*}}, 160
+    // SPLAT-LABEL: fn @splatData.{{[0-9]+}}() -> memptr
+    // SPLAT: mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    // SPLAT: mcopy {{.*}}, 32
+    // SPLAT: mcopy {{.*}}, 64
+    // SPLAT: mcopy {{.*}}, 32
     function splatData() public pure returns (bytes memory) {
         return hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00";
     }

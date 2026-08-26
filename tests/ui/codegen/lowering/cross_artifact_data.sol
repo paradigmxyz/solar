@@ -9,8 +9,10 @@
 // MIR-LABEL: data:
 // MIR: literal_0: hex"aaaaaaaa
 // MIR: literal_1: hex"11111111
+// CONSTRUCTOR-LABEL: @module deployment
 // CONSTRUCTOR: @data literal_0 hex"aaaaaaaa
 // CONSTRUCTOR-NOT: @data literal_1
+// RUNTIME-LABEL: @module runtime
 // RUNTIME: @data literal_0 hex"11111111
 // RUNTIME-NOT: aaaaaaaa
 contract C {
