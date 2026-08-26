@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_return.sol:Pools ===
+@module Pools
+fn @_getPool(arg0: bytes32) -> storageptr [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    ret v0
+}
+
+fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = and 96, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v3, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v6 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v7 = shl 160, 0xffff
+    v8 = sload v6 !metadata(storage=symbolic(v6))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and 30, 0xffff
+    v12 = shl 160, v11
+    v13 = or v10, v12
+    sstore v6, v13 !metadata(storage=symbolic(v6))
+    v14 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = eq v16, 96
+    v18 = iszero v17
+    jumpi v18, bb1, bb2
+  bb2:
+    v19 = add v14, 1
+    sstore v19, 7 !metadata(storage=offset(v14, 1))
+    v20 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v24 = add v23, 1
+    v25 = sload v24 !metadata(storage=offset(v23, 1))
+    ret v22, v25
+  bb1:
+    internal_call @revert_error, 0, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

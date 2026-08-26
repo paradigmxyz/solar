@@ -8,17 +8,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if !matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::Slice(SliceLocation::Calldata))
-        ) {
+        if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata) {
             return false;
         }
         match ty {
-            AbiType::Bytes(SliceLocation::Memory)
-            | AbiType::DynamicArray { location: SliceLocation::Memory, .. } => false,
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
+            AbiType::DynamicArray { element, .. } => {
                 !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
             }
             _ => false,
@@ -273,7 +268,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
-            let access = self.storage_access_or_error(source_expr)?;
+            let Some(access) = self.storage_access(source_expr) else {
+                return report_unsupported(self.context.gcx, source_expr.span, "storage access");
+            };
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         let value = self.lower_expr(expr)?;
@@ -347,25 +344,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
+        Self::abi_type_at_location(ty, SliceLocation::Memory)
+    }
+
+    fn abi_type_at_location(ty: AbiType, location: SliceLocation) -> AbiType {
         match ty {
             AbiType::Word => AbiType::Word,
             AbiType::Function => AbiType::Function,
-            AbiType::Bytes(_) => AbiType::Bytes(SliceLocation::Memory),
+            AbiType::Bytes(_) => AbiType::Bytes(location),
             AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
-                element: Box::new(Self::memory_abi_type(*element)),
-                location: SliceLocation::Memory,
+                element: Box::new(Self::abi_type_at_location(*element, location)),
+                location,
             },
-            AbiType::FixedArray { element, len } => {
-                AbiType::FixedArray { element: Box::new(Self::memory_abi_type(*element)), len }
-            }
-            AbiType::Tuple(fields) => {
-                AbiType::Tuple(fields.into_vec().into_iter().map(Self::memory_abi_type).collect())
-            }
+            AbiType::FixedArray { element, len } => AbiType::FixedArray {
+                element: Box::new(Self::abi_type_at_location(*element, location)),
+                len,
+            },
+            AbiType::Tuple(fields) => AbiType::Tuple(
+                fields
+                    .into_vec()
+                    .into_iter()
+                    .map(|field| Self::abi_type_at_location(field, location))
+                    .collect(),
+            ),
         }
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
-        if matches!(
+        if let Some(location) = self.builder.func().value_slice_location(value) {
+            match ty {
+                AbiType::Bytes(_) => AbiType::Bytes(location),
+                AbiType::DynamicArray { element, .. } => {
+                    AbiType::DynamicArray { element, location }
+                }
+                ty => ty,
+            }
+        } else if matches!(
             self.builder.func().value_ty(value),
             Some(MirType::MemoryObject(_)) | Some(MirType::Slice(SliceLocation::Memory))
         ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })

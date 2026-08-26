@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_shifts.sol:PreConstantinopleShifts ===
+@module PreConstantinopleShifts
+fn @shift(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xe50322a2, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = shr arg1, arg0
+    ret v0, v1
+}
+
+fn @signedShift(arg0: i256, arg1: u256) -> i256 [selector=0xa579f6d8, pure, abi_params=[i256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = sar arg1, arg0
+    ret v0
+}
+
+fn @packedStorage() -> u256 [selector=0x6e5f4079, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = and 0x123456, 0xffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = and v5, 0xffffff
+    ret v6
+}
+
+fn @partialCopy() -> bytes32 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 7
+    memory_object_store_word memorybytes, v0, 0, 0xab01020304050600000000000000000000000000000000000000000000000000
+    v1 = abi_encode [memory_bytes], object, args v0
+    v2 = abi_decode [bytes], v1
+    v3 = add v2, 32
+    v4 = mload v3
+    ret v4
+}

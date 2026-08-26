@@ -1,0 +1,196 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicSink ===
+@module DynamicSink
+fn @calls() -> u256 [selector=0x305f72b7, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=[address, bytes], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller ===
+@module DynamicCaller
+fn @_anonymous(arg0: address) [constructor, abi_params=[address]] {
+  bb0:
+    internal_call @recordFirst, 0, arg0
+    internal_call @recordSecond, 0, arg0
+    stop
+}
+
+fn @recordFirst(arg0: address) {
+  bb0:
+    v0 = gas
+    v1 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 5
+    memory_object_store_word memorybytes, v2, 0, 0x6669727374000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [word, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize arg0
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = call v0, arg0, 0, v4, v5, 0, 0
+    jumpi v8, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @recordSecond(arg0: address) {
+  bb0:
+    v0 = gas
+    v1 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 6
+    memory_object_store_word memorybytes, v2, 0, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [word, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize arg0
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = call v0, arg0, 0, v4, v5, 0, 0
+    jumpi v8, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:ConstructorSharedAbiEncode ===
+@module ConstructorSharedAbiEncode
+fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 298, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760fa8060115f395ff35b5f5ffd346028575f3560e01c806301b2c698
+    v4 = add v3, 32
+    mstore v4, 0x146020578063305f72b7146024576028565b603e565b602c565b5f80fd5b5f54
+    v5 = add v3, 64
+    mstore v5, 0x6080526020608001608090036080f35b6044361015609e57609a565b5f546001
+    v6 = add v3, 96
+    mstore v6, 0x8101806080528060805281811091505015608f577f4e487b7100000000000000
+    v7 = add v3, 128
+    mstore v7, 0x5f52601160045260245ffd
+    v8 = add v3, 160
+    mstore v8, 0x5b608051806080525f55005b5f80fd5b60043560a01c1515609a576024358060
+    v9 = add v3, 192
+    mstore v9, 0xc0526004018060a0528060a0526020810167ffffffffffffffff60c051113682
+    v10 = add v3, 224
+    mstore v10, 0x1191501760ee578060a05235602060a051013603811190501560f25760f6565b
+    v11 = add v3, 256
+    mstore v11, 0x5f80fd5b604a565b5f80fd000000000000000000000000000000000000000000
+    v12 = slice_ptr v0
+    v13 = add v3, 267
+    mcopy v13, v12, 0 !metadata(memory=heap)
+    v14 = create 0, v3, 267
+    jumpi v14, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = abi_encode [word], args v15
+    v17 = not 31
+    v18 = and 878, v17
+    v19 = alloc raw, exact, uninitialized, infallible, v18
+    mstore v19, 0x61032f38038061032f60e03960e001601f017fffffffffffffffffffffffffff
+    v20 = add v19, 32
+    mstore v20, 0xffffffffffffffffffffffffffffffffffffe01660405261026d565b5a8060a0
+    v21 = add v19, 64
+    mstore v21, 0x51606001528060a0516060015273ffffffffffffffffffffffffffffffffffff
+    v22 = add v19, 96
+    mstore v22, 0xffff6001166040518060a05160c001527f01b2c6980000000000000000000000
+    v23 = add v19, 128
+    mstore v23, 0x815260048101905060408101828252
+    v24 = add v19, 160
+    mstore v24, 0x9150602081018183039052600582526020820191505f82017f66697273740000
+    v25 = add v19, 192
+    mstore v25, 0x81525060208201
+    v26 = add v19, 224
+    mstore v26, 0x915081039050600490018060a051608001528060a05160800152601f8101601f
+    v27 = add v19, 256
+    mstore v27, 0x19811690506040518060a05160a001528060a05160a001528181019150816040
+    v28 = add v19, 288
+    mstore v28, 0x52905060a051604001513b1515610134575f80fd5b5f5f83835f60a051604001
+    v29 = add v19, 320
+    mstore v29, 0x5188f192505050610152573d5f803e3d5ffd5b565b5a8060a051606001528060
+    v30 = add v19, 352
+    mstore v30, 0xa0516060015273ffffffffffffffffffffffffffffffffffffffff6002166040
+    v31 = add v19, 384
+    mstore v31, 0x518060a05160c001527f01b2c698000000000000000000000000000000000000
+    v32 = add v19, 416
+    mstore v32, 0x81526004810190506040810182825291506020810181
+    v33 = add v19, 448
+    mstore v33, 0x83039052600682526020820191505f82017f7365636f6e640000000000000000
+    v34 = add v19, 480
+    mstore v34, 0x8152506020820191508103905060
+    v35 = add v19, 512
+    mstore v35, 0x490018060a051608001528060a05160800152601f8101601f19811690506040
+    v36 = add v19, 544
+    mstore v36, 0x518060a05160a001528060a05160a00152818101915081604052905060a05160
+    v37 = add v19, 576
+    mstore v37, 0x4001513b151561024d575f80fd5b5f5f83835f60a0516040015188f192505050
+    v38 = add v19, 608
+    mstore v38, 0x61026b573d5f803e3d5ffd5b565b3461031d5760e08060c0528060c05260e061
+    v39 = add v19, 640
+    mstore v39, 0x32f380301602082011190501561030757610303565b60405160a05181602001
+    v40 = add v19, 672
+    mstore v40, 0x5260e05181604001528060a05260e0016040526102b9603b565b60a051604052
+    v41 = add v19, 704
+    mstore v41, 0x60a0516020015160a05260405160a051816020015260e05181604001528060a0
+    v42 = add v19, 736
+    mstore v42, 0x5260e0016040526102ee610154565b60a05160405260a0516020015160a05261
+    v43 = add v19, 768
+    mstore v43, 0x321565b5f80fd5b60c0518060c0525160a01c151561030357610295565b5f80
+    v44 = add v19, 800
+    mstore v44, 0xfd5b60038061032c5f395ff35f80fd0000000000000000000000000000000000
+    v45 = slice_ptr v16
+    v46 = add v19, 815
+    mcopy v46, v45, 32 !metadata(memory=heap)
+    v47 = create 0, v19, 847
+    jumpi v47, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v48 = gas
+    v49 = abi_encode [], selector 0x305f72b700000000000000000000000000000000000000000000000000000000
+    v50 = slice_ptr v49
+    v51 = slice_len v49
+    v52 = staticcall v48, v14, v50, v51, 0, 32
+    jumpi v52, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v53 = returndatasize
+    v54 = lt v53, 32
+    jumpi v54, bb7, bb8
+  bb8:
+    v55 = add 0, 0
+    v56 = mload v55
+    v57 = add 0, 0
+    v58 = mload v57
+    ret v58
+  bb7:
+    revert 0, 0
+}

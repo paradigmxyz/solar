@@ -1,8 +1,10 @@
-error: unresolved symbol `prevrandao`
+error: Yul builtin `prevrandao` requires Paris-compatible EVM
    ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris_calls.sol:LL:CC
    │
 LL │             result := prevrandao()
-   ╰╴                      ━━━━━━━━━━
+   │                       ━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version paris` or newer
 
 error: aborting due to 1 previous error
 

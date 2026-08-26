@@ -47,7 +47,7 @@
 +   bb2:
 +     v12 = slice_ptr arg0
 +     v13 = add v8, v7
-+     calldatacopy v8, v12, v4
++     calldatacopy v8, v12, v4 !metadata(memory=heap)
 +     v14 = sub v13, v1
 +     v15 = add v14, 0
 +     v16 = add v15, 31
@@ -67,42 +67,48 @@
 +     v3 = sub v2, v1
 +     mstore v1, v3
 +     v4 = memory_object_len memoryarray, arg0
-+     mstore v2, v4
-+     v5 = add v2, 32
-+     v6 = mul v4, 32
-+     v7 = add v5, v6
-+     v8 = memory_object_data memoryarray, arg0
++     v5 = iszero arg0
++     v6 = iszero v5
++     v7 = mul v4, v6
++     mstore v2, v7
++     v8 = add v2, 32
++     v9 = mul v7, 32
++     v10 = add v8, v9
++     v11 = memory_object_data memoryarray, arg0
 +     jump bb1
 +   bb1:
-+     v9 = phi [bb0: v4], [bb2: v21]
-+     v10 = phi [bb0: v7], [bb2: v20]
-+     v11 = phi [bb0: v5], [bb2: v23]
-+     v12 = phi [bb0: v8], [bb2: v22]
-+     v13 = gt v9, 0
-+     jumpi v13, bb2, bb3
++     v12 = phi [bb0: v7], [bb2: v27]
++     v13 = phi [bb0: v10], [bb2: v26]
++     v14 = phi [bb0: v8], [bb2: v29]
++     v15 = phi [bb0: v11], [bb2: v28]
++     v16 = gt v12, 0
++     jumpi v16, bb2, bb3
 +   bb3:
-+     v24 = sub v10, v1
-+     v25 = add v24, 0
-+     v26 = add v25, 31
-+     v27 = not 31
-+     v28 = and v26, v27
-+     v29 = alloc raw, exact, uninitialized, infallible, v28
-+     v30 = make_memory_slice v29, v25
-+     ret v30
++     v30 = sub v13, v1
++     v31 = add v30, 0
++     v32 = add v31, 31
++     v33 = not 31
++     v34 = and v32, v33
++     v35 = alloc raw, exact, uninitialized, infallible, v34
++     v36 = make_memory_slice v35, v31
++     ret v36
 +   bb2:
-+     v14 = mload v12
-+     v15 = sub v10, v5
-+     mstore v11, v15
-+     v16 = memory_object_len memoryarray, v14
-+     mstore v10, v16
-+     v17 = mul v16, 32
-+     v18 = add v10, 32
-+     v19 = memory_object_data memoryarray, v14
-+     v20 = add v18, v17
-+     mcopy v18, v19, v17
-+     v21 = sub v9, 1
-+     v22 = add v12, 32
-+     v23 = add v11, 32
++     v17 = mload v15
++     v18 = sub v13, v8
++     mstore v14, v18
++     v19 = memory_object_len memoryarray, v17
++     v20 = iszero v17
++     v21 = iszero v20
++     v22 = mul v19, v21
++     mstore v13, v22
++     v23 = mul v22, 32
++     v24 = add v13, 32
++     v25 = memory_object_data memoryarray, v17
++     v26 = add v24, v23
++     mcopy v24, v25, v23 !metadata(memory=heap)
++     v27 = sub v12, 1
++     v28 = add v15, 32
++     v29 = add v14, 32
 +     jump bb1
   }
   
@@ -132,7 +138,7 @@
 +   bb2:
 +     v14 = slice_ptr v1
 +     v15 = add v10, v9
-+     returndatacopy v10, 0, v0
++     returndatacopy v10, 0, v0 !metadata(memory=heap)
 +     v16 = sub v15, v3
 +     v17 = add v16, 0
 +     v18 = add v17, 31
@@ -158,7 +164,7 @@
 +     v7 = add v3, 32
 +     v8 = slice_ptr v0
 +     v9 = add v7, v6
-+     returndatacopy v7, 0, v6
++     returndatacopy v7, 0, v6 !metadata(memory=heap)
 +     v10 = sub v9, v2
 +     v11 = add v10, 0
 +     v12 = add v11, 31

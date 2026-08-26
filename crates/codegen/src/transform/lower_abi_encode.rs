@@ -507,14 +507,17 @@ fn effective_slice_location(
     value: ValueId,
     declared: SliceLocation,
 ) -> SliceLocation {
-    if declared == SliceLocation::Memory
-        && let Some(MirType::Slice(
-            location @ (SliceLocation::Calldata | SliceLocation::Returndata),
-        )) = builder.func().value_ty(value)
-    {
-        location
-    } else {
-        declared
+    match builder.func().value_ty(value) {
+        Some(MirType::Slice(location)) => location,
+        Some(MirType::MemPtr | MirType::MemoryObject(_)) => SliceLocation::Memory,
+        _ if matches!(builder.func().value(value), Value::Inst(inst) if matches!(
+            builder.func().inst(*inst).kind,
+            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
+        )) =>
+        {
+            SliceLocation::Memory
+        }
+        _ => declared,
     }
 }
 
@@ -539,7 +542,7 @@ fn encode_dynamic_array(
     value: ValueId,
     dest: ValueId,
 ) -> ValueId {
-    let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
+    let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
     builder.mstore(dest, len);
 
     let word = builder.imm_u64(32);
@@ -681,7 +684,7 @@ fn encode_word_array(
     function_elements: bool,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -752,7 +755,7 @@ fn encode_bytes(
     }
 
     let len = match location {
-        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -772,6 +775,17 @@ fn encode_bytes(
     let tail = builder.add(data_dest, padded);
     builder.copy_slice_data(location, data_dest, data_source, len);
     tail
+}
+
+fn memory_object_len(
+    builder: &mut FunctionBuilder<'_>,
+    value: ValueId,
+    kind: MemoryObjectKind,
+) -> ValueId {
+    let len = builder.memory_object_len(value, kind);
+    let non_null = builder.iszero(value);
+    let non_null = builder.iszero(non_null);
+    builder.mul(len, non_null)
 }
 
 /// Returns the bytes represented by an immutable literal object when all active

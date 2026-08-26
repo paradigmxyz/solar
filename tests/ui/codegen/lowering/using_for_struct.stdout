@@ -6,11 +6,12 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [selector=0x36245213, pur
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_object_store_field memorystruct<4>, v0, 0, arg0
-    memory_object_store_field memorystruct<4>, v0, 1, 0
+    v1 = and 0, 0xffffffff
+    memory_object_store_field memorystruct<4>, v0, 1, v1
     memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, arg1
-    v1 = internal_call @hashLib, 1, v0
-    ret v1
+    v2 = internal_call @hashLib, 1, v0
+    ret v2
 }
 
 fn @hashLib(arg0: memorystruct) -> bytes32 [pure] {

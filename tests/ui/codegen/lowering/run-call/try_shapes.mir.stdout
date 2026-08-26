@@ -58,7 +58,7 @@ fn @_anonymous() [constructor] {
     mstore v12, 0x905060209001608090036080f35b5f80fd5b60b7560000000000000000000000
     v13 = slice_ptr v0
     v14 = add v3, 309
-    mcopy v14, v13, 0
+    mcopy v14, v13, 0 !metadata(memory=heap)
     v15 = create 0, v3, 309
     jumpi v15, bb2, bb1
   bb1:
@@ -545,7 +545,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     mstore v248, 0x905060209001608090036080f35b5f80fd5b60b7560000000000000000000000
     v249 = slice_ptr v236
     v250 = add v239, 309
-    mcopy v250, v249, 0
+    mcopy v250, v249, 0 !metadata(memory=heap)
     v251 = create 0, v239, 309
     v252 = eq v251, 0
     v253 = iszero v252

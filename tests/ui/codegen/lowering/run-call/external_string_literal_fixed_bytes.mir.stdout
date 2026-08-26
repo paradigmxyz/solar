@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_string_literal_fixed_bytes.sol:ExternalStringLiteralFixedBytes ===
+@module ExternalStringLiteralFixedBytes
+fn @take(arg0: bytes32) -> bytes32 [selector=0xcc9ae693, pure, abi_params=[bytes32], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @callLiteral() -> bytes32 [selector=0x74903211, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word], selector 0xcc9ae69300000000000000000000000000000000000000000000000000000000, args 0x312e302e31000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
+  bb3:
+    revert 0, 0
+}

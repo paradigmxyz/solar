@@ -3,7 +3,9 @@
 
 contract RematerializeNullaryReads {
     // Each value is defined once and used twice. Stable two-gas reads should be
-    // re-emitted at both stores instead of being retained or spilled.
+    // re-emitted at both stores instead of being retained or spilled. `NUMBER`
+    // preserves its evaluated value because instrumented EVMs can change it
+    // across calls.
     // CHECK-COUNT-2: {{^ +}}calldatasize{{$}}
     // CHECK-COUNT-2: {{^ +}}codesize{{$}}
     // CHECK-COUNT-2: {{^ +}}caller{{$}}
@@ -13,7 +15,7 @@ contract RematerializeNullaryReads {
     // CHECK-COUNT-2: {{^ +}}gasprice{{$}}
     // CHECK-COUNT-2: {{^ +}}coinbase{{$}}
     // CHECK-COUNT-2: {{^ +}}timestamp{{$}}
-    // CHECK-COUNT-2: {{^ +}}number{{$}}
+    // CHECK-COUNT-1: {{^ +}}number{{$}}
     // CHECK-COUNT-2: {{^ +}}prevrandao{{$}}
     // CHECK-COUNT-2: {{^ +}}gaslimit{{$}}
     // CHECK-COUNT-2: {{^ +}}chainid{{$}}

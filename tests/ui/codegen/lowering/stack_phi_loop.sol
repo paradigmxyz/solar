@@ -1,5 +1,10 @@
-//@compile-flags: -Zdump=evm-ir-runtime --pretty-json
-//@ filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Zdump=evm-ir-runtime
+//@[ir] filecheck:
+//@ run-call: StackPhiLoop::loopCarried 4, true => 46
+//@ run-call: StackPhiLoop::loopCarried 4, false => 62
+//@ run-call: StackPhiLoop::sequential 3, 2 => 14
+//@ run-call: StackPhiLoop::nested 2, 3 => 15
 
 contract StackPhiLoop {
     uint256 private stored;

@@ -1,6 +1,20 @@
 {
   "errors": [
     {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 246,
+        "end": 341
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to view",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ A.sol:LL:CC\n   │\nLL │ ┏     function bump(uint256 value) external returns (uint256) {\nLL │ ┃         return Lib.bump(value);\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    },
+    {
       "sourceLocation": null,
       "secondarySourceLocations": [],
       "type": "Warning",
@@ -18,13 +32,45 @@
   },
   "contracts": {
     "A.sol": {
-      "Links": {
+      "Lib": {
         "evm": {
           "bytecode": {
             "linkReferences": {}
           },
           "deployedBytecode": {
             "linkReferences": {}
+          }
+        }
+      },
+      "Links": {
+        "evm": {
+          "bytecode": {
+            "linkReferences": {
+              "A.sol": {
+                "Lib": [
+                  {
+                    "start": 55,
+                    "length": 20
+                  },
+                  {
+                    "start": 439,
+                    "length": 20
+                  }
+                ]
+              }
+            }
+          },
+          "deployedBytecode": {
+            "linkReferences": {
+              "A.sol": {
+                "Lib": [
+                  {
+                    "start": 134,
+                    "length": 20
+                  }
+                ]
+              }
+            }
           }
         }
       }

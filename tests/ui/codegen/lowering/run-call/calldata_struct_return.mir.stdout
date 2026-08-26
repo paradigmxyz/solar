@@ -1,0 +1,200 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructDecoder ===
+@module CalldataStructDecoder
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
+@module CalldataStructReturn
+fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @decode.3, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = make_calldata_slice v3, v5
+    v7 = slice_ptr v6
+    v8 = add v7, 64
+    v9 = calldataload v8
+    ret v0, v9
+}
+
+fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+  bb0:
+    v0 = internal_call @decode.3, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = make_calldata_slice v3, v5
+    ret v0, v6
+}
+
+fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word, word, word, word, word, word, word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = shl 0, 1
+    v3 = shl 0, 2
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v4, 3
+    memory_object_store_word memorybytes, v4, 0, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v5, 4
+    memory_object_store_word memorybytes, v5, 0, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args v2, v3, 3, 4, v4, v5
+    v7 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = staticcall v1, v0, v8, v9, 0, 0
+    jumpi v10, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v11 = returndatasize
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    jumpi v13, bb3, bb4
+  bb4:
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
+    set_memory_object_len memorybytes, v16, v11
+    v17 = make_returndata_slice 0, v11
+    memory_object_copy_from_slice memorybytes, v16, v17
+    v18 = memory_object_len memorybytes, v16
+    v19 = memory_object_data memorybytes, v16
+    v20 = add v19, v18
+    v21 = lt v20, v19
+    v22 = lt v18, 64
+    v23 = or v21, v22
+    jumpi v23, bb6, bb5
+  bb5:
+    v24 = mload v19
+    v25 = lt v24, 2
+    jumpi v25, bb7, bb8
+  bb8:
+    revert 0, 0
+  bb7:
+    v26 = add v19, 32
+    v27 = mload v26
+    v28 = add v19, v27
+    v29 = sub v20, v19
+    v30 = gt v27, v29
+    jumpi v30, bb10, bb9
+  bb9:
+    v31 = sub v20, v28
+    v32 = gt 192, v31
+    jumpi v32, bb12, bb11
+  bb11:
+    v33 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    v34 = mload v28
+    memory_object_store_field memorystruct<6>, v33, 0, v34
+    v35 = add v28, 32
+    v36 = mload v35
+    memory_object_store_field memorystruct<6>, v33, 1, v36
+    v37 = add v28, 64
+    v38 = mload v37
+    memory_object_store_field memorystruct<6>, v33, 2, v38
+    v39 = add v28, 96
+    v40 = mload v39
+    memory_object_store_field memorystruct<6>, v33, 3, v40
+    v41 = add v28, 128
+    v42 = mload v41
+    v43 = add v28, v42
+    v44 = add v43, 32
+    v45 = gt v42, 0xffffffffffffffff
+    v46 = gt v44, v20
+    v47 = or v45, v46
+    jumpi v47, bb14, bb13
+  bb13:
+    v48 = mload v43
+    v49 = add v43, 32
+    v50 = add v48, 63
+    v51 = lt v50, v48
+    jumpi v51, bb15, bb16
+  bb16:
+    v52 = not 31
+    v53 = and v50, v52
+    v54 = alloc memorybytes, exact, uninitialized, panic, v53
+    set_memory_object_len memorybytes, v54, v48
+    v55 = sub v20, v49
+    v56 = gt v48, v55
+    jumpi v56, bb18, bb17
+  bb17:
+    v57 = make_memory_slice v49, v48
+    memory_object_copy_from_slice memorybytes, v54, v57
+    memory_object_store_field memorystruct<6>, v33, 4, v54
+    v58 = add v28, 160
+    v59 = mload v58
+    v60 = add v28, v59
+    v61 = add v60, 32
+    v62 = gt v59, 0xffffffffffffffff
+    v63 = gt v61, v20
+    v64 = or v62, v63
+    jumpi v64, bb20, bb19
+  bb19:
+    v65 = mload v60
+    v66 = add v60, 32
+    v67 = add v65, 63
+    v68 = lt v67, v65
+    jumpi v68, bb21, bb22
+  bb22:
+    v69 = not 31
+    v70 = and v67, v69
+    v71 = alloc memorybytes, exact, uninitialized, panic, v70
+    set_memory_object_len memorybytes, v71, v65
+    v72 = sub v20, v66
+    v73 = gt v65, v72
+    jumpi v73, bb24, bb23
+  bb23:
+    v74 = make_memory_slice v66, v65
+    memory_object_copy_from_slice memorybytes, v71, v74
+    memory_object_store_field memorystruct<6>, v33, 5, v71
+    v75 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v76 = memory_object_data memoryfixedarray, v75
+    frame_store multi_return, word, 0, v76 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v75, 1, v33
+    v77 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v78 = memory_object_load_element memoryfixedarray<2, 1>, v77, 1
+    v79 = memory_object_load_field memorystruct<6>, v78, 0
+    v80 = memory_object_load_field memorystruct<6>, v78, 1
+    v81 = memory_object_load_field memorystruct<6>, v78, 2
+    v82 = memory_object_load_field memorystruct<6>, v78, 3
+    v83 = memory_object_load_field memorystruct<6>, v78, 4
+    v84 = memory_object_len memorybytes, v83
+    v85 = memory_object_load_field memorystruct<6>, v78, 5
+    v86 = memory_object_len memorybytes, v85
+    ret v24, v79, v80, v81, v82, v84, v86
+  bb24:
+    revert 0, 0
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    revert 0, 0
+  bb18:
+    revert 0, 0
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    revert 0, 0
+  bb12:
+    revert 0, 0
+  bb10:
+    revert 0, 0
+  bb6:
+    revert 0, 0
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @decode.3(arg0: calldataslice) -> (bool, calldataslice) [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    ret 1, v0
+}

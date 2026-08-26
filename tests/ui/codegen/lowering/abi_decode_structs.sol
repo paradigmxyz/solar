@@ -2,9 +2,10 @@
 //@filecheck: --check-prefix=ADS
 
 // `abi.decode` into structs, struct arrays, and mixed tuples routes through
-// the recursive materializer that also decodes struct parameters: static
-// structs decode inline, dynamic structs and struct arrays follow their tail
-// offsets, and nested aggregates become memory pointers. Verified
+// shared type-keyed helpers from the recursive materializer that also decodes
+// struct parameters: static structs read directly from their heads, dynamic
+// structs and struct arrays follow their tail offsets, and nested aggregates
+// become memory pointers. Verified
 // behaviorally against solc, including a static sub-struct followed by
 // dynamic fields (whose head sizing previously mis-offset later fields).
 
@@ -33,7 +34,9 @@ contract AbiDecodeStructs {
     // ADS-LABEL: fn @dDynArr
     // A dynamic array of dynamic structs: elements rebuild one at a time into
     // a fresh memory array of pointers.
-    // ADS: mcopy
+    // ADS: internal_call @[[CALLDATA_HELPER:decode_calldata_type]]
+    // ADS: mload
+    // ADS: fn @[[CALLDATA_HELPER]]
     function dDynArr(bytes memory b) public pure returns (uint256 count) {
         Dyn[] memory ds = abi.decode(b, (Dyn[]));
         count = ds.length;

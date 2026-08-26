@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:DynamicWriterSpills ===
+@module DynamicWriterSpills
+fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    returndata 0, 0x600
+}
+
+fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = gas
+    v2 = gas
+    v3 = gas
+    v4 = gas
+    v5 = gas
+    v6 = gas
+    v7 = gas
+    v8 = gas
+    v9 = gas
+    v10 = gas
+    v11 = gas
+    v12 = gas
+    v13 = gas
+    v14 = gas
+    v15 = gas
+    v16 = gas
+    v17 = gas
+    v18 = gas
+    v19 = gas
+    mstore 0, 0xa878f858 !metadata(memory=scratch)
+    v20 = address
+    v21 = gas
+    v22 = staticcall v21, v20, 28, 4, 0, 0
+    v23 = iszero v22
+    v24 = eq v23, 0
+    v25 = iszero v24
+    jumpi v25, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v26 = returndatasize
+    returndatacopy 0, 0, v26 !metadata(memory=scratch)
+    v27 = and v18, v19
+    v28 = and v16, v17
+    v29 = and v28, v27
+    v30 = and v14, v15
+    v31 = and v12, v13
+    v32 = and v31, v30
+    v33 = and v10, v11
+    v34 = and v8, v9
+    v35 = and v34, v33
+    v36 = and v35, v32
+    v37 = and v36, v29
+    v38 = and v6, v7
+    v39 = and v4, v5
+    v40 = and v39, v38
+    v41 = and v2, v3
+    v42 = and v0, v1
+    v43 = and v42, v41
+    v44 = and v43, v40
+    v45 = and v44, v37
+    v46 = iszero v45
+    v47 = iszero v46
+    ret v47
+  bb1:
+    revert 0, 0
+}

@@ -207,14 +207,6 @@ impl LowerAbiCx {
             && bytes_fallback.is_none()
             && rejecting_constructor.is_none()
         {
-            let has_selectorless_entry = module.functions.iter().any(|func| {
-                func.attributes.is_constructor
-                    || func.attributes.is_receive
-                    || func.attributes.is_fallback
-            });
-            if !module.functions.is_empty() && !has_selectorless_entry {
-                return false;
-            }
             module.advance_phase(MirPhase::Abi);
             return true;
         }
@@ -320,9 +312,10 @@ impl LowerAbiCx {
                 builder.switch_to_block(block);
                 let zero = builder.imm_u256(U256::ZERO);
                 if evm_version.supports_returndata() {
-                    let size = builder.returndatasize();
-                    builder.returndatacopy(zero, zero, size);
-                    builder.revert(zero, size);
+                    let copy_size = builder.returndatasize();
+                    builder.returndatacopy_abi_return(zero, zero, copy_size);
+                    let revert_size = builder.returndatasize();
+                    builder.revert(zero, revert_size);
                 } else {
                     builder.revert(zero, zero);
                 }
@@ -1100,6 +1093,7 @@ impl LowerAbiCx {
             &self.return_cleanup_helpers,
             canonical_return_calls,
             static_bytes_return,
+            self.has_bitwise_shifting,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -3868,6 +3862,7 @@ fn encode_live_returns(
     cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
     static_bytes_return: Option<StaticBytesReturn>,
+    has_bitwise_shifting: bool,
 ) {
     let Some(mut layout) = func.abi_returns.take() else { return };
     let return_blocks = func
@@ -3927,6 +3922,16 @@ fn encode_live_returns(
                 else {
                     return value;
                 };
+                if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
+                    && matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. })
+                {
+                    return materialize_calldata_return(
+                        &mut builder,
+                        &ty,
+                        value,
+                        has_bitwise_shifting,
+                    );
+                }
                 if let Some(&helper) = cleanup_helpers.get(&ty)
                     && builder.func().value_ty(value) == Some(ty.mir_type())
                 {
@@ -3974,5 +3979,65 @@ fn encode_live_returns(
             );
             builder.ret_data(offset, size);
         }
+    }
+}
+
+fn materialize_calldata_return(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiParamType,
+    base: ValueId,
+    has_bitwise_shifting: bool,
+) -> ValueId {
+    let input_end = builder.calldatasize();
+    let mut current = builder.current_block();
+    LowerAbiCx::guard_input_range(builder, base, ty.data_head_size(), input_end, &mut current);
+    let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
+
+    match ty {
+        AbiParamType::Tuple(fields) => {
+            let (object, layout) =
+                builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
+            let mut offset = 0;
+            for (index, field) in fields.iter().enumerate() {
+                let head = builder.add_u64_offset(base, offset);
+                let value = LowerAbiCx::decode_aggregate_argument(
+                    builder,
+                    field,
+                    field.mir_type(),
+                    head,
+                    base,
+                    &mut current,
+                    options,
+                );
+                let value = LowerAbiCx::encode_memory_scalar(builder, field, value);
+                builder.memory_object_store_field(object, layout, index as u64, value);
+                offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
+            }
+            builder.switch_to_block(current);
+            object
+        }
+        AbiParamType::FixedArray { element, len } => {
+            let (object, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
+            let mut offset = 0;
+            for index in 0..*len {
+                let head = builder.add_u64_offset(base, offset);
+                let value = LowerAbiCx::decode_aggregate_argument(
+                    builder,
+                    element,
+                    element.mir_type(),
+                    head,
+                    base,
+                    &mut current,
+                    options,
+                );
+                let value = LowerAbiCx::encode_memory_scalar(builder, element, value);
+                let index = builder.imm_u64(index);
+                builder.memory_object_store_element(object, layout, index, value);
+                offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
+            }
+            builder.switch_to_block(current);
+            object
+        }
+        _ => unreachable!("calldata aggregate return must be a tuple or fixed array"),
     }
 }

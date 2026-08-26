@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_local.sol:DeleteMemoryLocal ===
+@module DeleteMemoryLocal
+fn @length(arg0: bool) -> u256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, 0, 7
+    jumpi arg0, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v4, 0
+    jump bb5
+  bb5:
+    v5 = phi [bb3: v4], [bb4: v0]
+    v6 = memory_object_len memoryarray, v5
+    ret v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @lengthAfterDirtyScratch() -> u256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = not 0
+    mstore 0, v1 !metadata(memory=scratch)
+    v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v2, 0
+    v3 = memory_object_len memoryarray, v2
+    ret v3
+}

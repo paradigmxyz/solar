@@ -79,7 +79,7 @@
 +     v4 = add v3, 32
 +     v5 = fmp
 +     v6 = memory_object_data memorybytes, arg0
-+     mcopy v5, v6, v3
++     mcopy v5, v6, v3 !metadata(memory=heap)
 +     v7 = add v5, v3
 +     mstore v7, 9
 +     v8 = keccak256 v5, v4
@@ -90,7 +90,7 @@
 +     v10 = add v9, 32
 +     v11 = fmp
 +     v12 = memory_object_data memorybytes, arg0
-+     mcopy v11, v12, v9
++     mcopy v11, v12, v9 !metadata(memory=heap)
 +     v13 = add v11, v9
 +     mstore v13, 9
 +     v14 = keccak256 v11, v10
@@ -106,7 +106,7 @@
 +     v4 = add v3, 32
 +     v5 = fmp
 +     v6 = slice_ptr arg0
-+     calldatacopy v5, v6, v3
++     calldatacopy v5, v6, v3 !metadata(memory=heap)
 +     v7 = add v5, v3
 +     mstore v7, 11
 +     v8 = keccak256 v5, v4
@@ -146,7 +146,7 @@
       v4 = add v3, 32
       v5 = fmp
       v6 = memory_object_data memorybytes, arg0
-      mcopy v5, v6, v3
+      mcopy v5, v6, v3 !metadata(memory=heap)
       v7 = add v5, v3
       mstore v7, 9
       v8 = keccak256 v5, v4
@@ -155,7 +155,7 @@
       v10 = add v9, 32
       v11 = fmp
       v12 = memory_object_data memorybytes, arg0
-      mcopy v11, v12, v9
+      mcopy v11, v12, v9 !metadata(memory=heap)
       v13 = add v11, v9
       mstore v13, 9
       v14 = keccak256 v11, v10
@@ -171,9 +171,9 @@
 +     v4 = add arg1, 32
       v5 = fmp
 -     v6 = slice_ptr arg0
--     calldatacopy v5, v6, v3
+-     calldatacopy v5, v6, v3 !metadata(memory=heap)
 -     v7 = add v5, v3
-+     calldatacopy v5, arg0, arg1
++     calldatacopy v5, arg0, arg1 !metadata(memory=heap)
 +     v7 = add v5, arg1
       mstore v7, 11
       v8 = keccak256 v5, v4

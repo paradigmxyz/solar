@@ -2020,6 +2020,9 @@ impl InstKind {
 
     /// Returns whether this is a stable, nullary environment read that is cheap
     /// enough to rematerialize at every use.
+    ///
+    /// `BlockNumber` is deliberately excluded: instrumented EVMs can update it
+    /// across a call, so its MIR value must preserve the original evaluation.
     #[must_use]
     pub(crate) const fn is_always_rematerializable(&self) -> bool {
         matches!(
@@ -2033,7 +2036,6 @@ impl InstKind {
                 | Self::GasPrice
                 | Self::Coinbase
                 | Self::Timestamp
-                | Self::BlockNumber
                 | Self::PrevRandao
                 | Self::GasLimit
                 | Self::ChainId
@@ -2072,7 +2074,7 @@ mod tests {
     #[test]
     fn stable_nullary_reads_are_always_rematerializable() {
         assert!(InstKind::CalldataSize.is_always_rematerializable());
-        assert!(InstKind::BlockNumber.is_always_rematerializable());
+        assert!(!InstKind::BlockNumber.is_always_rematerializable());
         assert!(!InstKind::ReturnDataSize.is_always_rematerializable());
         assert!(!InstKind::Gas.is_always_rematerializable());
     }

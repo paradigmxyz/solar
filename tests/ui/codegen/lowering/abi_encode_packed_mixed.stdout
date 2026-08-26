@@ -26,7 +26,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memorybytes) -> bytes32 [selector=0xde52036d
     v5 = add v4, 32
     v6 = slice_len v3
     v7 = slice_ptr v3
-    mcopy v5, v7, v6
+    mcopy v5, v7, v6 !metadata(memory=heap)
     v8 = add v5, v0
     v9 = sub v8, v4
     v10 = keccak256 v4, v9

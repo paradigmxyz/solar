@@ -308,7 +308,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => {
-                    let value = value.as_u256()?;
+                    let value = value.as_evm_word();
                     if let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
                         ty.peel_refs().kind
                     {

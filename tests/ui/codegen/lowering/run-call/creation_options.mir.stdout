@@ -11,7 +11,7 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
-    mcopy v5, v4, 0
+    mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create2 0, v3, 20, 0x78797a0000000000000000000000000000000000000000000000000000000000
     jumpi v6, bb2, bb1
   bb1:
@@ -24,7 +24,7 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v11 = slice_ptr v7
     v12 = add v10, 20
-    mcopy v12, v11, 0
+    mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create2 0, v10, 20, 0x78797a0000000000000000000000000000000000000000000000000000000000
     v14 = eq v13, 0
     v15 = iszero v14
@@ -78,7 +78,7 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
-    mcopy v5, v4, 0
+    mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create2 0, v3, 20, 0
     jumpi v6, bb2, bb1
   bb1:
@@ -91,7 +91,7 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v11 = slice_ptr v7
     v12 = add v10, 20
-    mcopy v12, v11, 0
+    mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create2 0, v10, 20, 0
     v14 = eq v13, 0
     v15 = iszero v14
@@ -145,7 +145,7 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
-    mcopy v5, v4, 0
+    mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create2 0, v3, 20, 0x3132333435363738393031323334353637383930313233343536373839303132
     jumpi v6, bb2, bb1
   bb1:
@@ -158,7 +158,7 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v11 = slice_ptr v7
     v12 = add v10, 20
-    mcopy v12, v11, 0
+    mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create2 0, v10, 20, 0x3132333435363738393031323334353637383930313233343536373839303132
     v14 = eq v13, 0
     v15 = iszero v14
@@ -212,7 +212,7 @@ fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_ret
     mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
-    mcopy v5, v4, 0
+    mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create2 0, v3, 20, 0x6162630000000000000000000000000000000000000000000000000000000000
     jumpi v6, bb2, bb1
   bb1:
@@ -225,7 +225,7 @@ fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_ret
     mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
     v11 = slice_ptr v7
     v12 = add v10, 20
-    mcopy v12, v11, 0
+    mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create2 0, v10, 20, 0x6465660000000000000000000000000000000000000000000000000000000000
     jumpi v13, bb4, bb3
   bb3:

@@ -18,7 +18,7 @@ contract NestedCalldataForward {
     // A calldata array of bytes stays in calldata while the encoder walks its
     // offsets and copies each element into the outgoing ABI payload.
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: abi_encode [calldata_array<memory_bytes>]
+    // CHECK: abi_encode [calldata_array<calldata_bytes>]
     function forward(bytes[] calldata data, BytesSink sink) external {
         sink.consume(data);
     }

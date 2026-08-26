@@ -1,0 +1,10 @@
+error: Yul builtin `prevrandao` requires Paris-compatible EVM
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
+   │
+LL │             pop(prevrandao())
+   │                 ━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version paris` or newer
+
+error: aborting due to 1 previous error
+

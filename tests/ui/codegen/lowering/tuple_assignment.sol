@@ -47,12 +47,11 @@ contract C {
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
     // The entry's free-memory initialization and the following static allocation share their
     // identical base push.
-    // CHECK: push 224
-    // CHECK-NEXT: dup 1
+    // CHECK: push 192
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push 9
-    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: push 160
     // CHECK: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 128

@@ -119,8 +119,7 @@ bb8:
   shr
   push 224
   mload
-  eq
-  iszero
+  sub
   push bb50
   jumpi
   push 192
@@ -308,8 +307,7 @@ bb24:
   shr
   push 256
   mload
-  eq
-  iszero
+  sub
   push bb50
   jumpi
   push 192

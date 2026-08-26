@@ -244,9 +244,13 @@ impl FrameSlotPromoter {
         self.stats
     }
 
+    /// `msize` observes the memory extent, which removing local-slot traffic
+    /// changes, so it stays a barrier. `gas()` is deliberately NOT one: exact
+    /// gas is never a semantic guarantee, and barring it blocked promotion in
+    /// every forwarding proxy, whose `delegatecall(gas(), ...)` is exactly the
+    /// construct that scribbles compiler locals and needs them off memory.
     fn has_global_observation_barrier(func: &Function) -> bool {
-        func.instructions()
-            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Gas | InstKind::MSize))
+        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
     }
 
     fn collect_promotable_slots(
@@ -532,10 +536,10 @@ impl FrameSlotPromoter {
         match *kind {
             InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
-                    && Self::memory_range_may_overlap(func, aa, addr, Some(32), slot_addr)
+                    && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
             InstKind::MStore8(addr, _) => {
-                Self::memory_range_may_overlap(func, aa, addr, Some(1), slot_addr)
+                Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
             }
             InstKind::Keccak256(addr, size)
             | InstKind::Log0(addr, size)
@@ -543,37 +547,95 @@ impl FrameSlotPromoter {
             | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
             | InstKind::CalldataCopy(addr, _, size) => {
-                Self::memory_range_may_overlap(func, aa, addr, func.value_u64(size), slot_addr)
+                Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
             InstKind::MCopy(dest, src, size) => {
                 let size = func.value_u64(size);
-                Self::memory_range_may_overlap(func, aa, dest, size, slot_addr)
-                    || Self::memory_range_may_overlap(func, aa, src, size, slot_addr)
+                Self::external_range_reaches_slot(func, aa, dest, size, slot_addr)
+                    || Self::external_range_reaches_slot(func, aa, src, size, slot_addr)
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
-                Self::memory_range_may_overlap(func, aa, dest, func.value_u64(size), slot_addr)
+                Self::external_range_reaches_slot(func, aa, dest, func.value_u64(size), slot_addr)
             }
             InstKind::Log1(addr, size, _)
             | InstKind::Log2(addr, size, _, _)
             | InstKind::Log3(addr, size, _, _, _)
             | InstKind::Log4(addr, size, _, _, _, _) => {
-                Self::memory_range_may_overlap(func, aa, addr, func.value_u64(size), slot_addr)
+                Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
-            InstKind::Call { .. }
-            | InstKind::CallCode { .. }
-            | InstKind::StaticCall { .. }
-            | InstKind::DelegateCall { .. }
-            | InstKind::ExtCall { .. }
-            | InstKind::ExtDelegateCall { .. }
-            | InstKind::ExtStaticCall { .. }
-            | InstKind::InternalCall { .. }
-            | InstKind::Create(_, _, _)
-            | InstKind::Create2(_, _, _, _)
-            | InstKind::MappingSlotMemory(_, _)
+            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+                Self::external_range_reaches_slot(
+                    func,
+                    aa,
+                    args_offset,
+                    func.value_u64(args_size),
+                    slot_addr,
+                ) || Self::external_range_reaches_slot(
+                    func,
+                    aa,
+                    ret_offset,
+                    func.value_u64(ret_size),
+                    slot_addr,
+                )
+            }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                Self::external_range_reaches_slot(
+                    func,
+                    aa,
+                    args_offset,
+                    func.value_u64(args_size),
+                    slot_addr,
+                )
+            }
+            InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
+                Self::external_range_reaches_slot(func, aa, offset, func.value_u64(size), slot_addr)
+            }
+            // Internal callees address their own frame through the frame
+            // pointer and stage data in scratch or heap memory; they never
+            // reference a caller's compiler-owned absolute local slots.
+            InstKind::InternalCall { .. } => false,
+            InstKind::MappingSlotMemory(_, _)
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. }
             | InstKind::MSize => true,
             _ => false,
+        }
+    }
+
+    /// Whether a memory access can reference a compiler-owned external local
+    /// slot. Locals are unaddressable from source: only lowering-emitted absolute
+    /// addresses inside the local region reference them, so a base that is
+    /// unresolvable, pointer-derived, or outside the region cannot reach the
+    /// slot. Raw user-assembly scribbles — a proxy's
+    /// `calldatacopy(0, 0, calldatasize())`, `mstore(0x40, returndatasize())`
+    /// tricks — fall in that bucket, and promoting the local out of memory is
+    /// exactly what restores solc's locals-on-stack semantics against them.
+    fn external_range_reaches_slot(
+        func: &Function,
+        aa: &AliasAnalysis,
+        addr: ValueId,
+        size: Option<u64>,
+        slot_addr: u64,
+    ) -> bool {
+        let Some(address) = aa.memory_address(func, addr) else { return false };
+        let Some(base) = address.as_absolute() else { return false };
+        let Some(local_end) = EvmMemoryLayout::HEAP_START.checked_add(func.internal_frame_size)
+        else {
+            return true;
+        };
+        if base < EvmMemoryLayout::HEAP_START || base >= local_end {
+            return false;
+        }
+        match size {
+            Some(size) => {
+                base < slot_addr.saturating_add(32) && slot_addr < base.saturating_add(size)
+            }
+            None => base < slot_addr.saturating_add(32),
         }
     }
 
@@ -585,7 +647,13 @@ impl FrameSlotPromoter {
     ) -> bool {
         match term {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                Self::memory_range_may_overlap(func, aa, *offset, func.value_u64(*size), slot_addr)
+                Self::external_range_reaches_slot(
+                    func,
+                    aa,
+                    *offset,
+                    func.value_u64(*size),
+                    slot_addr,
+                )
             }
             Terminator::Jump(_)
             | Terminator::Branch { .. }
@@ -637,24 +705,6 @@ impl FrameSlotPromoter {
                 MemoryAddress::internal_frame(slot_offset),
                 LocationSize::Const(32),
             ),
-        )
-        .may_alias()
-    }
-
-    fn memory_range_may_overlap(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        size: Option<u64>,
-        slot_addr: u64,
-    ) -> bool {
-        let Some(size) = size else { return true };
-        let Some(address) = aa.memory_address(func, addr) else {
-            return true;
-        };
-        aa.memory_alias(
-            MemoryLocation::new(address, LocationSize::Const(size)),
-            MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
         )
         .may_alias()
     }

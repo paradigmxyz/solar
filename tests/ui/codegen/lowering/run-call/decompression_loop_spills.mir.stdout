@@ -1,0 +1,210 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor ===
+@module Decompressor
+fn @_anonymous() [fallback, payable] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = not 255
+    v7 = and v5, v6
+    v8 = and 1, 255
+    v9 = or v7, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    internal_call @_decompress, 0
+    stop
+  bb1:
+    v2 = calldatasize
+    calldatacopy 0, 0, v2 !metadata(memory=scratch)
+    v3 = calldatasize
+    v4 = keccak256 0, v3 !metadata(memory=scratch)
+    mstore 0, v4 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @_decompress() {
+  bb0:
+    v0 = calldatasize
+    v1 = iszero v0
+    v2 = eq v1, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = not 3
+    jump bb4
+  bb4:
+    v7 = phi [bb3: v6], [bb8: v7], [bb14: v7]
+    v8 = phi [bb3: 0], [bb8: v18], [bb14: v26]
+    v9 = phi [bb3: 0], [bb8: v37], [bb14: v36]
+    v10 = calldatasize
+    v11 = lt v8, v10
+    v12 = eq v11, 0
+    v13 = iszero v12
+    jumpi v13, bb6, bb7
+  bb7:
+    jump bb5
+  bb5:
+    v38 = codesize
+    v39 = address
+    v40 = gas
+    v41 = delegatecall v40, v39, 0, v9, v38, 0
+    v42 = returndatasize
+    returndatacopy 0, 0, v42 !metadata(memory=scratch)
+    v43 = iszero v41
+    v44 = eq v43, 0
+    v45 = iszero v44
+    jumpi v45, bb15, bb16
+  bb16:
+    jump bb17
+  bb17:
+    v47 = returndatasize
+    returndata 0, v47
+  bb15:
+    v46 = returndatasize
+    revert 0, v46
+  bb6:
+    v14 = calldataload v8
+    v15 = add v8, v7
+    v16 = xor v15, v14
+    v17 = byte 0, v16
+    v18 = add v8, 1
+    v19 = iszero v17
+    v20 = eq v19, 0
+    v21 = iszero v20
+    jumpi v21, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    mstore8 v9, v17
+    v37 = add v9, 1
+    jump bb8
+  bb8:
+    jump bb4
+  bb9:
+    v22 = calldataload v18
+    v23 = add v18, v7
+    v24 = xor v23, v22
+    v25 = byte 0, v24
+    v26 = add v18, 1
+    v27 = not 0
+    mstore v9, v27
+    v28 = gt v25, 127
+    v29 = iszero v28
+    v30 = eq v29, 0
+    v31 = iszero v30
+    jumpi v31, bb12, bb13
+  bb13:
+    jump bb14
+  bb12:
+    v32 = add v25, 1
+    v33 = calldatasize
+    calldatacopy v9, v33, v32
+    jump bb14
+  bb14:
+    v34 = and v25, 127
+    v35 = add v34, 1
+    v36 = add v9, v35
+    jump bb4
+  bb1:
+    v4 = calldatasize
+    v5 = calldatasize
+    returndata v5, v4
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
+@module Harness
+fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 446, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e5761018d8060125f395ff35b5f5ffd6102006040525f5460ff90161560
+    v4 = add v3, 32
+    mstore v4, 0x1d57365f5f37365f205f5260205ff35b5f5460ff198116905060ff6001168117
+    v5 = add v3, 64
+    mstore v5, 0x90505f5536155f90141560e051610160516101a0516101c0516101e051949093
+    v6 = add v3, 96
+    mstore v6, 0x90919291156059573636f35b600319905090509050905090505f5f915b813681
+    v7 = add v3, 128
+    mstore v7, 0x105f901415925060c0516101a0516101c0516101e05195909290919491929392
+    v8 = add v3, 160
+    mstore v8, 0x93969395969560b85760de565b5a5f38835f3085f49150503d5f5f3e155f9014
+    v9 = add v3, 192
+    mstore v9, 0x151561018957610185565b8235838381018290189150815f1a91506001810190
+    v10 = add v3, 224
+    mstore v10, 0x50935080155f90141560f457610136565b505050905090509050609a565b5091
+    v11 = add v3, 256
+    mstore v11, 0x509150606a565b833590509550828281018790189650865f1a9650600181015f
+    v12 = add v3, 288
+    mstore v12, 0x1986818152905088607f8111155f901415965096509650965092929492939493
+    v13 = add v3, 320
+    mstore v13, 0x61015157610166565b8481815390506001810190509350955094909490919491
+    v14 = add v3, 352
+    mstore v14, 0x60eb565b84600181018481368237905093509450610167565b5b607f85169450
+    v15 = add v3, 384
+    mstore v15, 0x6001850194508483019250935091509150925091606a565b3d5ffd5b3d5ff300
+    v16 = slice_ptr v0
+    v17 = add v3, 415
+    mcopy v17, v16, 0 !metadata(memory=heap)
+    v18 = create 0, v3, 415
+    jumpi v18, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v19 = gas
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v20, 4
+    memory_object_store_word memorybytes, v20, 0, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    v21 = memory_object_data memorybytes, v20
+    v22 = memory_object_len memorybytes, v20
+    v23 = call v19, v18, 0, v21, v22, 0, 0
+    v24 = returndatasize
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    jumpi v26, bb3, bb4
+  bb4:
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    v30 = make_returndata_slice 0, v24
+    memory_object_copy_from_slice memorybytes, v29, v30
+    v31 = iszero v23
+    jumpi v31, bb5, bb6
+  bb6:
+    v32 = abi_decode [bytes32], v29
+    v33 = not 31
+    v34 = and 319, v33
+    v35 = alloc memorybytes, exact, zeroed, panic, v34
+    set_memory_object_len memorybytes, v35, 256
+    v36 = keccak256_bytes v35
+    v37 = eq v32, v36
+    v38 = iszero v37
+    jumpi v38, bb7, bb8
+  bb8:
+    ret 1
+  bb7:
+    internal_call @revert_error, 0, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    invalid
+  bb5:
+    internal_call @revert_error, 0, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    invalid
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

@@ -94,16 +94,6 @@ fn lower_dispatch(module: &mut Module, has_bitwise_shifting: bool) -> bool {
             return false;
         }
     }
-    if routes.is_empty()
-        && receive.is_none()
-        && fallback.is_none()
-        && !module.functions.is_empty()
-        && !module.functions.iter().any(|func| func.attributes.is_constructor)
-    {
-        module.advance_phase(MirPhase::Dispatch);
-        return true;
-    }
-
     // Hoist the callvalue check when every external entry rejects value.
     // When the hoist does not apply, the selector cases route unguarded:
     // `lower-abi` already injected the check into each rejecting wrapper's

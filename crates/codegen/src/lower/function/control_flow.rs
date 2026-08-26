@@ -222,13 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 hir::Visibility::Public | hir::Visibility::External
             );
             let (callee, parameter_types, parameter_names, static_call) = if is_external_library {
-                let Some(address) = self.linked_library_address(function_id) else {
-                    return report_error(
-                        self.context.gcx,
-                        try_stmt.expr.span,
-                        "library calls in try/catch require a configured library address",
-                    );
-                };
+                let address = self.library_address(function_id);
                 let attached = self
                     .context
                     .gcx
@@ -395,11 +389,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             );
                         };
                         let parameter_ty = self.context.gcx.type_of_item(parameter.into());
-                        let (value, ty) = if Self::is_storage_parameter(parameter_ty) {
-                            (self.storage_access_or_error(receiver)?.slot, AbiType::Word)
-                        } else {
-                            self.lower_abi_call_argument(receiver, parameter_ty)?
-                        };
+                        let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
                         values.push(value);
                         types.push(ty);
                     }
@@ -760,6 +750,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // break -> exit
         self.materialize_default_bindings();
         let update_stmt = match source {
+            LoopSource::For { update: Some(update) } if matches!(&update.kind, StmtKind::Block(block) if block.is_empty()) => {
+                None
+            }
             LoopSource::For { update } => update,
             LoopSource::While => None,
             LoopSource::DoWhile => {

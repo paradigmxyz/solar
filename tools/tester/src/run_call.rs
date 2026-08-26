@@ -376,13 +376,20 @@ fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
     let output: Value = match serde_json::from_slice(output) {
         Ok(output) => output,
         Err(err) => {
-            let marker = br#"{"contracts""#;
-            let Some(start) = output.windows(marker.len()).rposition(|window| window == marker)
+            let marker = br#""contracts""#;
+            let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker)
             else {
                 return Err(format!("failed to parse compiler output: {err}"));
             };
-            serde_json::from_slice(&output[start..])
+            let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
+                return Err(format!("failed to parse compiler output: {err}"));
+            };
+            serde_json::Deserializer::from_slice(&output[start..])
+                .into_iter()
+                .next()
+                .transpose()
                 .map_err(|_| format!("failed to parse compiler output: {err}"))?
+                .ok_or_else(|| format!("failed to parse compiler output: {err}"))?
         }
     };
     let contracts = output
@@ -774,6 +781,18 @@ mod tests {
         let output = br#"@module Test
 
 {"contracts":{"source.sol:Test":{"abi":[],"bin":"00"}}}"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
+    }
+
+    #[test]
+    fn parses_artifacts_before_evm_ir_dump() {
+        let output = br#"{
+  "contracts": {"source.sol:Test": {"abi": [], "bin": "00"}}
+}
+
+@module runtime"#;
         let artifacts = parse_artifacts(output).unwrap();
         assert_eq!(artifacts[0].name, "source.sol:Test");
         assert_eq!(artifacts[0].bytecode, [0]);

@@ -1,14 +1,14 @@
 //@compile-flags: --evm-version paris -Zdump=disasm-runtime
 //@filecheck:
 
-// On pre-Cancun targets there is no MCOPY; memory copy lowers to the identity
-// precompile (address 0x04), which returns its input and copies exactly the
-// requested length. Verified behaviorally against solc on paris, london, and
-// shanghai for bytes and string round-trips.
+// On pre-Cancun targets there is no MCOPY; memory copy lowers to an ascending
+// word-copy loop, like solc. The identity precompile would be smaller, but a
+// precompile call is observable by tooling that keys behavior on "the next
+// call" (Foundry's `vm.prank`/`vm.expectRevert`).
 
 contract McopyPreCancun {
     // CHECK-LABEL: McopyPreCancun (runtime)
-    // CHECK: STATICCALL
+    // CHECK-NOT: STATICCALL
     // CHECK-NOT: MCOPY
     function rt(bytes memory b) public pure returns (bytes memory) {
         return abi.decode(abi.encode(b), (bytes));
