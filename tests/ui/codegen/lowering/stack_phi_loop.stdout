@@ -74,6 +74,8 @@ bb12:
   jumpi
   dup 1
   push 192
+  jump bb57
+bb57:
   mstore
   push 128
   mstore
@@ -299,108 +301,99 @@ bb33:
   push bb6
   jumpi
   push 0
-  push 256
-  mstore
   push 0
-  push 224
-  mstore
+  swap 1
   jump bb35
 bb35:
+  dup 2
+  push 192
+  mstore
   push 4
   calldataload
-  push 224
-  mload
+  dup 3
   lt
   push bb38
   jumpi
-  push 256
-  mload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  dup 1
+  push 320
+  jump bb57
 bb38:
-  push 256
-  mload
-  push 288
+  dup 1
+  push 224
   mstore
   push 0
-  push 160
+  push 256
+  mstore
+  push 320
+  mstore
+  push 192
   mstore
   jump bb39
 bb39:
   push 36
   calldataload
-  push 160
+  push 256
   mload
   lt
   push bb41
   jumpi
   push 1
-  push 224
+  push 192
   mload
   add
-  dup 1
-  push 160
-  mstore
-  push 288
-  mload
-  push 256
-  mstore
   push 224
-  mstore
+  mload
   jump bb35
 bb40:
   push 1
-  push 160
+  push 256
   mload
   add
   dup 1
-  push 320
-  mstore
-  push 192
-  mload
   push 288
   mstore
   push 160
+  mload
+  push 224
+  mstore
+  push 256
   mstore
   jump bb39
 bb41:
-  push 160
+  push 256
   mload
-  push 224
+  push 192
   mload
   add
   dup 1
-  push 192
+  push 160
   mstore
-  push 224
+  push 192
   mload
   gt
   push bb55
   jumpi
   push 1
-  push 192
+  push 160
   mload
   add
   dup 1
-  push 320
+  push 288
   mstore
-  push 192
+  push 160
   mload
   gt
   push bb55
   jumpi
-  push 320
-  mload
   push 288
+  mload
+  push 224
   mload
   add
   dup 1
-  push 192
+  push 160
   mstore
-  push 288
+  push 224
   mload
   gt
   iszero

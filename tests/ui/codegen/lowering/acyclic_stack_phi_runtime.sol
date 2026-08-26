@@ -1,9 +1,11 @@
+//@ codegen-matrix: standard
 //@ run-call: trimLen(bytes) 0x010203 => 3
 //@ run-call: trimLen(bytes) 0x010203040506 => 2
 //@ run-call: repeatedSourceJoin(bool,uint256,uint256) true, 7, 9 => 7, 7
 //@ run-call: repeatedSourceJoin(bool,uint256,uint256) false, 7, 9 => 9, 7
 //@ run-call: loopJoin(uint256) 0 => 0
 //@ run-call: loopJoin(uint256) 4 => 12
+//@ run-call: nestedLoops(uint256,uint256) 3, 4 => 42
 
 contract AcyclicStackPhi {
     function trimLen(bytes calldata data) external pure returns (uint256) {
@@ -38,6 +40,14 @@ contract AcyclicStackPhi {
                 value = i + 2;
             }
             result += value;
+        }
+    }
+
+    function nestedLoops(uint256 outer, uint256 inner) external pure returns (uint256 result) {
+        for (uint256 i; i < outer; ++i) {
+            for (uint256 j; j < inner; ++j) {
+                result += i + j + 1;
+            }
         }
     }
 }

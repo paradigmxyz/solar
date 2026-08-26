@@ -1083,6 +1083,9 @@ impl<'a> StackPhiPlanner<'a> {
             block_id != loop_info.header
                 && matches!(self.func.blocks[block_id].terminator, Some(Terminator::Branch { .. }))
         });
+        let has_nested_loop = self.loops.iter().any(|other| {
+            other.header != loop_info.header && loop_info.blocks.contains(other.header)
+        });
         if has_branching_body && !self.can_plan_branching_loop(loop_info) {
             return;
         }
@@ -1101,7 +1104,11 @@ impl<'a> StackPhiPlanner<'a> {
 
         let mut carry_through = self.carry_through_values(loop_info);
         if has_branching_body {
-            self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+            if has_nested_loop {
+                carry_through.clear();
+            } else {
+                self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+            }
         } else {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
@@ -1145,9 +1152,6 @@ impl<'a> StackPhiPlanner<'a> {
         for other in &self.loops {
             if other.header == loop_info.header {
                 continue;
-            }
-            if loop_info.blocks.contains(other.header) {
-                return false;
             }
             nesting_depth += usize::from(other.blocks.contains(loop_info.header));
         }
