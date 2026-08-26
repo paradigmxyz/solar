@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
@@ -421,6 +422,45 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
 
 pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
+}
+
+pub(super) fn validate_evm_version(
+    dcx: &DiagCtxt,
+    module: &Module,
+    evm_version: EvmVersion,
+    allow_legacy_opcodes: bool,
+) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_legacy_opcodes);
+        }
+        if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
+            validate_opcode(dcx, block_id, *opcode, evm_version, allow_legacy_opcodes);
+        }
+    }
+}
+
+fn validate_opcode(
+    dcx: &DiagCtxt,
+    block: BlockId,
+    opcode: u8,
+    evm_version: EvmVersion,
+    allow_legacy_opcodes: bool,
+) {
+    if allow_legacy_opcodes
+        && ((!evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
+            || (!evm_version.supports_returndata() && opcode == op::REVERT))
+    {
+        return;
+    }
+    if !op::is_available(opcode, evm_version) {
+        let name = op::mnemonic(opcode).unwrap_or("unknown");
+        dcx.err(format!(
+            "EVM IR verification failed: block {}: opcode `{name}` is unavailable for `{evm_version}` EVM",
+            block.index()
+        ))
+        .emit();
+    }
 }
 
 #[cfg(test)]

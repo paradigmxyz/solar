@@ -1,0 +1,25 @@
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "invalid EVM version `Byzantium`"
+// CHECK: "severity": "error"
+// CHECK: "message": "invalid compiler stage `semantic`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "evmVersion": "Byzantium",
+    "stopAfter": "semantic",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

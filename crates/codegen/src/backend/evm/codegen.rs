@@ -3080,6 +3080,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             peak = peak.max(mask.count());
         }
+        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
+            // Legacy shift sequences can transiently grow the scheduled stack. Include their
+            // worst-case SAR reserve when propagating hidden caller prefixes; the final EVM IR
+            // verifier checks the exact expansion at each site before assembly.
+            peak = peak.saturating_add(ir::LEGACY_SHIFT_STACK_HEADROOM);
+        }
         self.function_stack_peaks.insert(func_id, peak);
         self.assign_ranked_spill_addrs(func_id);
     }

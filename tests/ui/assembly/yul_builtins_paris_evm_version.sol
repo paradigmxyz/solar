@@ -1,20 +1,15 @@
-//@ revisions: paris london
-//@[paris] compile-flags: --evm-version paris
+//@ revisions: london paris
 //@[london] compile-flags: --evm-version london
+//@[paris] compile-flags: --evm-version paris
 // ported-from: test/libsolidity/syntaxTests/inlineAssembly/prevrandao_nobuitin_pre_paris.sol
 // ported-from: test/libsolidity/syntaxTests/inlineAssembly/difficulty_nobuiltin_post_paris.sol
 
 contract C {
-    function randomness() external view returns (uint256 result) {
+    function f() external {
         assembly {
-            result := prevrandao()
+            pop(prevrandao())
             //~[london]^ ERROR: Yul builtin `prevrandao` requires Paris-compatible EVM
-        }
-    }
-
-    function difficultyValue() external view returns (uint256 result) {
-        assembly {
-            result := difficulty()
+            pop(difficulty())
             //~[paris]^ ERROR: Yul builtin `difficulty` is unavailable for Paris-compatible EVM
         }
     }
