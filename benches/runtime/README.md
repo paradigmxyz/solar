@@ -12,7 +12,7 @@ dependency on a second repository and its recursive submodules.
 
 Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
 corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
-installed solc; solc remains available as the semantic reference for cold-path runtime checks.
+installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)

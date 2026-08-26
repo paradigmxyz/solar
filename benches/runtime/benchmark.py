@@ -1081,10 +1081,6 @@ def run_test_case(
     if test_case.project_file is not None:
         entry["project"] = test_case.project
         entry["source"] = test_case.source
-    reference_solc = next(
-        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
-    )
-
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         compiled = compile_case(spec, test_case, compile_repeats, evm_version)
@@ -1178,14 +1174,14 @@ def run_test_case(
                 "value": value,
             })
         if has_cold_paths:
-            if reference_solc is None:
+            if reference_solc_path is None:
                 cold_results = [runtime_error("cold-path-setup", "reference solc is required")]
             else:
                 verbose_log(verbose, f"[{test_case.test_id}] {spec.compiler_id} cold-path differential")
                 cold_results = run_cold_path_checks(
                     test_case,
                     address,
-                    reference_solc,
+                    reference_solc_path,
                     rpc_url,
                     private_key,
                 )
@@ -1292,7 +1288,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc:
+    if not solc and not args.solar_only:
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1312,11 +1308,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("cast not found; install Foundry or omit --gas", RED), file=sys.stderr)
         return 1
 
-    solc_version, solc_version_error = binary_version(solc)
+    solc_version, solc_version_error = (
+        binary_version(solc) if solc and not args.solar_only else ("unavailable", "")
+    )
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
     if not args.solar_only:
+        assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
 
@@ -1330,7 +1329,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if not args.include_incompatible:
+    if not args.solar_only and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1354,8 +1353,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("anvil not found; install Foundry or omit --start-anvil", RED), file=sys.stderr)
         return 1
 
-    if not args.solar_only:
-        print(f"Using solc {solc_version}")
+    for spec in specs:
+        print(f"Using {spec.label}")
     if not args.solar_only and solc_version_error:
         print(
             _color(
@@ -1365,7 +1364,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ),
             file=sys.stderr,
         )
-    print(f"Using solar {solar_version}")
     if solar_version_error:
         print(_color(f"Warning: `solar --version` failed: {solar_version_error}", YELLOW), file=sys.stderr)
     if skipped:
