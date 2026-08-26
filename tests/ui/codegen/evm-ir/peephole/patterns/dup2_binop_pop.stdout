@@ -2,16 +2,16 @@
 + // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
   @module module
   bb0:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     add
 -   swap 1
 -   pop
     stop
   bb1:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     mul
 -   swap 1

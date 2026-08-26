@@ -1,6 +1,6 @@
 //! Local peephole optimization over scheduled EVM IR.
 
-use super::EvmPass;
+use super::{EvmPass, compact_pushes::immediate_materialization_cost};
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
@@ -34,11 +34,11 @@ pub(super) fn run_with_cleanup(pass: &dyn EvmPass, gcx: Gcx<'_>, module: &mut Mo
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        let mut rewrites = optimize(&mut block.instructions, &mut scratch, block.label);
+        let mut rewrites = optimize(gcx, &mut block.instructions, &mut scratch, block.label);
         // `STOP` does not observe the stack, so trailing cleanup `POP`s only spend gas.
         if matches!(
             block.terminator.as_ref().map(|term| &term.kind),
@@ -55,6 +55,7 @@ fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn optimize(
+    gcx: Gcx<'_>,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
@@ -65,14 +66,14 @@ fn optimize(
     let mut rewrites = 0;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(instructions, block) {
+        while try_peephole(gcx, instructions, block) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
+fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -122,6 +123,35 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
                 op::EXP => return rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block),
                 _ => {}
             }
+        }
+    }
+
+    // Fold adjacent literal ADD/MUL expressions only when the compact result is no worse in
+    // either encoded size or static gas.
+    if let [.., lhs, rhs, instruction] = instructions.as_slice()
+        && lhs.metadata.stack.is_none()
+        && rhs.metadata.stack.is_none()
+        && instruction.metadata.stack.is_none()
+        && let Some(lhs_value) = push_value(lhs)
+        && let Some(rhs_value) = push_value(rhs)
+        && let Some(opcode) = instruction.raw_opcode()
+        && let Some((result, opcode_gas)) = match opcode {
+            op::ADD => Some((lhs_value.wrapping_add(rhs_value), 3)),
+            op::MUL => Some((lhs_value.wrapping_mul(rhs_value), 5)),
+            _ => None,
+        }
+    {
+        let evm_version = gcx.sess.opts.evm_version;
+        let (lhs_size, lhs_gas) = immediate_materialization_cost(evm_version, lhs_value);
+        let (rhs_size, rhs_gas) = immediate_materialization_cost(evm_version, rhs_value);
+        let (result_size, result_gas) = immediate_materialization_cost(evm_version, result);
+        let input_size = lhs_size + rhs_size + 1;
+        let input_gas = lhs_gas + rhs_gas + opcode_gas;
+        if result_size <= input_size
+            && result_gas <= input_gas
+            && (result_size < input_size || result_gas < input_gas)
+        {
+            return rewrite(instructions, 3, Edit::FoldConstants(result), block);
         }
     }
 
@@ -498,6 +528,7 @@ enum Edit {
     EqIszeroJumpi,
     StackOp(op::StackOp),
     StackOps(op::StackOp, op::StackOp),
+    FoldConstants(U256),
 }
 
 impl Edit {
@@ -554,6 +585,10 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::SUB);
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
+            }
+            Self::FoldConstants(value) => {
+                instructions[start] = Instruction::push_value(value);
+                instructions.truncate(start + 1);
             }
             Self::StackOp(stack_op) => {
                 instructions[start] = Instruction::stack_op(stack_op);

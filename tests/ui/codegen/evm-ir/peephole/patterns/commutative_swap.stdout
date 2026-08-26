@@ -2,14 +2,14 @@
 + // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/commutative_swap.evmir (after peephole) ===
   @module module
   bb0:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     add
     stop
   bb1:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     mul
     stop

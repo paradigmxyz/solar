@@ -8,8 +8,8 @@
 // CHECK: - swap 1
 // CHECK: - pop
 bb0:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   add
   swap 1
@@ -22,8 +22,8 @@ bb0:
 // CHECK: - swap 1
 // CHECK: - pop
 bb1:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   mul
   swap 1

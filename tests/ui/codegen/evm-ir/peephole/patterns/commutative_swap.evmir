@@ -6,8 +6,8 @@
 // CHECK: - swap 1
 // CHECK: {{^[ +].*}}add
 bb0:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   swap 1
   add
   stop
@@ -16,8 +16,8 @@ bb0:
 // CHECK: - swap 1
 // CHECK: {{^[ +].*}}mul
 bb1:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   swap 1
   mul
   stop
