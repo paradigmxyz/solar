@@ -1,0 +1,14 @@
+warning[5574]: contract code size is <SIZE> bytes and exceeds 65536 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime-amsterdam.sol:LL:CC
+   │
+LL │ ┏ contract RuntimeAmsterdam {
+LL │ ┃     function deployTest() external returns (address) {
+LL │ ┃         return address(new test());
+   ‡ ┃
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in Amsterdam
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+

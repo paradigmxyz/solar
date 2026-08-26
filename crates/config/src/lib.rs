@@ -121,6 +121,7 @@ impl EvmVersion {
     pub fn runtime_code_size_limit(self) -> Option<usize> {
         match self {
             Self::Homestead | Self::TangerineWhistle => None,
+            Self::Amsterdam => Some(65_536),
             _ => Some(24_576),
         }
     }
@@ -138,6 +139,7 @@ impl EvmVersion {
             | Self::Berlin
             | Self::London
             | Self::Paris => None,
+            Self::Amsterdam => Some(131_072),
             _ => Some(49_152),
         }
     }

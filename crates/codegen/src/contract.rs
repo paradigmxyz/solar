@@ -4,7 +4,7 @@ use crate::{Backend, EvmCodegen, backend::evm::ir, lower, mir::Module, pass::run
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -366,6 +366,11 @@ fn generate_contract_bytecode(
     if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
         && artifact.runtime.len() > limit
     {
+        let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
+            "Amsterdam"
+        } else {
+            "Spurious Dragon"
+        };
         gcx.dcx()
             .warn(format!(
                 "contract code size is {} bytes and exceeds {} bytes",
@@ -374,7 +379,7 @@ fn generate_contract_bytecode(
             ))
             .code(error_code!(5574))
             .span(gcx.hir.contract(contract_id).span)
-            .note("the limit was introduced in Spurious Dragon")
+            .note(format!("the limit was introduced in {fork}"))
             .note("this contract may not be deployable on Mainnet")
             .help(
                 "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
@@ -384,6 +389,11 @@ fn generate_contract_bytecode(
     if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
         && artifact.deployment.len() > limit
     {
+        let fork = if gcx.sess.opts.evm_version == EvmVersion::Amsterdam {
+            "Amsterdam"
+        } else {
+            "Shanghai"
+        };
         gcx.dcx()
             .warn(format!(
                 "contract initcode size is {} bytes and exceeds {} bytes",
@@ -392,7 +402,7 @@ fn generate_contract_bytecode(
             ))
             .code(error_code!(3860))
             .span(gcx.hir.contract(contract_id).span)
-            .note("the limit was introduced in Shanghai")
+            .note(format!("the limit was introduced in {fork}"))
             .note("this contract may not be deployable on Mainnet")
             .help(
                 "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",

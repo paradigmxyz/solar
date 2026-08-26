@@ -1,7 +1,8 @@
-//@ revisions: homestead spurious spurious_allow
+//@ revisions: homestead spurious spurious_allow amsterdam
 //@[homestead] compile-flags: --emit=bin --evm-version homestead
 //@[spurious] compile-flags: --emit=bin --evm-version spuriousDragon
 //@[spurious_allow] compile-flags: --emit=bin --evm-version spuriousDragon --allow=5574
+//@[amsterdam] compile-flags: --emit=bin --evm-version amsterdam
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 // ported-from: test/libsolidity/syntaxTests/sizeLimits/bytecode_too_large.sol

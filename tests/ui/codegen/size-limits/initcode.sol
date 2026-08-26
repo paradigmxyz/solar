@@ -1,7 +1,8 @@
-//@ revisions: paris shanghai shanghai_allow
+//@ revisions: paris shanghai shanghai_allow amsterdam
 //@[paris] compile-flags: --emit=bin --evm-version paris
 //@[shanghai] compile-flags: --emit=bin --evm-version shanghai
 //@[shanghai_allow] compile-flags: --emit=bin --evm-version shanghai --allow=3860
+//@[amsterdam] compile-flags: --emit=bin --evm-version amsterdam
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 // ported-from: test/libsolidity/syntaxTests/sizeLimits/initcode_too_large_shanghai.sol
