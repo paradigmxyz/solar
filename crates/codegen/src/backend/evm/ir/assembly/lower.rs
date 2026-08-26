@@ -65,15 +65,34 @@ fn failed_preparation(ir_program: ir::Module, capture_evm_ir: bool) -> PreparedA
 fn validate_program_evm_version(assembler: &Assembler<'_>, program: &Program) {
     let evm_version = assembler.gcx.sess.opts.evm_version;
     for inst in &program.instructions {
-        if let AsmInstKind::Op(opcode) = inst.kind()
-            && !op::is_available(opcode, evm_version)
-        {
-            let name = op::mnemonic(opcode).unwrap_or("unknown");
+        let (opcode, immediate) = match inst.kind() {
+            AsmInstKind::Op(opcode) => (opcode, None),
+            AsmInstKind::OpImmediate(opcode, immediate) => (opcode, Some(immediate)),
+            _ => continue,
+        };
+        let name = op::mnemonic(opcode).unwrap_or("unknown");
+        if !op::is_available(opcode, evm_version) {
             assembler
                 .gcx
                 .dcx()
                 .err(format!(
                     "final assembly opcode `{name}` is unavailable for `{evm_version}` EVM"
+                ))
+                .emit();
+            continue;
+        }
+        let Some(immediate) = immediate else { continue };
+        let valid = match opcode {
+            op::DUPN | op::SWAPN => op::decode_stack_depth(immediate).is_some(),
+            op::EXCHANGE => op::decode_exchange(immediate).is_some(),
+            _ => false,
+        };
+        if !valid {
+            assembler
+                .gcx
+                .dcx()
+                .err(format!(
+                    "final assembly opcode `{name}` has invalid immediate `0x{immediate:02x}`"
                 ))
                 .emit();
         }

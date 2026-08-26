@@ -266,12 +266,12 @@ impl<'a> Verifier<'a> {
     fn verify_stack_ops(&self, module: &Module) {
         let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
         entry_depths[BlockId::ENTRY] = Some(0);
-        let mut pending = vec![BlockId::ENTRY];
-        while let Some(block_id) = pending.pop() {
+        let mut alternate_depths = FxHashSet::default();
+        let mut pending = vec![(BlockId::ENTRY, 0)];
+        while let Some((block_id, mut stack)) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =
                 block.terminator.as_ref().expect("terminator must exist after shape validation");
-            let mut stack = entry_depths[block_id].unwrap();
             let mut physical_targets = Vec::new();
             let mut valid = true;
             for (index, inst) in block.instructions.iter().enumerate() {
@@ -331,20 +331,17 @@ impl<'a> Verifier<'a> {
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending);
+                match entry_depths[target] {
+                    None => {
+                        entry_depths[target] = Some(depth);
+                        pending.push((target, depth));
+                    }
+                    Some(first) if first != depth && alternate_depths.insert((target, depth)) => {
+                        pending.push((target, depth));
+                    }
+                    Some(_) => {}
+                }
             }
-        }
-    }
-
-    fn propagate_depth(
-        target: BlockId,
-        depth: usize,
-        entry_depths: &mut IndexVec<BlockId, Option<usize>>,
-        pending: &mut Vec<BlockId>,
-    ) {
-        if entry_depths[target].is_none() {
-            entry_depths[target] = Some(depth);
-            pending.push(target);
         }
     }
 
