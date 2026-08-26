@@ -1035,6 +1035,10 @@ def compare_runtime_results(entry: Dict[str, object], specs: Sequence[CompilerSp
     if not labels:
         entry["runtime_status"] = "skipped"
         return
+    if len(specs) < 2:
+        entry["runtime_status"] = "failed" if failed else "skipped"
+        entry["runtime_mismatches"] = []
+        return
 
     mismatches = []
     for label in labels:

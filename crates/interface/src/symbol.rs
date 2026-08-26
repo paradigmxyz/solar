@@ -349,6 +349,7 @@ impl Symbol {
                 !evm_version.has_blob_base_fee()
             }
             kw::Clz => !evm_version.has_clz(),
+            kw::Slotnum => !evm_version.has_slot_num(),
             _ => false,
         }
     }

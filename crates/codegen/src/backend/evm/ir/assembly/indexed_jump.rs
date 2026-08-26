@@ -777,6 +777,10 @@ fn estimated_block_size(
             } else {
                 unreachable!("push must carry a value")
             }
+        } else if let Some(stack_op) = inst.as_stack_op() {
+            stack_op
+                .assembled_len(evm_version)
+                .expect("indexed jump planning only runs on target-compatible stack operations")
         } else {
             1
         };
@@ -1302,5 +1306,50 @@ mod tests {
         assert_eq!(estimated_indexed_jump_terminator_size(65, 2, EvmVersion::Osaka, true), 8);
         assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Osaka, false), 42);
         assert_eq!(estimated_indexed_jump_terminator_size(10, 3, EvmVersion::Byzantium, true), 9);
+    }
+
+    #[test]
+    fn block_size_estimate_includes_stack_immediates() {
+        let mut module = ir::Module::new(sym::module);
+        let block_id = module.add_block(Block::new(0));
+        module.blocks[block_id]
+            .instructions
+            .push(Instruction::stack_op(op::StackOp::Exchange(2, 3)));
+
+        assert_eq!(
+            estimated_block_size(
+                &module,
+                block_id,
+                &module.blocks[block_id],
+                EvmVersion::Osaka,
+                2,
+                None
+            ),
+            4
+        );
+        assert_eq!(
+            estimated_block_size(
+                &module,
+                block_id,
+                &module.blocks[block_id],
+                EvmVersion::Amsterdam,
+                2,
+                None,
+            ),
+            3
+        );
+
+        module.blocks[block_id].instructions.push(Instruction::stack_op(op::StackOp::Dup(17)));
+        assert_eq!(
+            estimated_block_size(
+                &module,
+                block_id,
+                &module.blocks[block_id],
+                EvmVersion::Amsterdam,
+                2,
+                None,
+            ),
+            5
+        );
     }
 }
