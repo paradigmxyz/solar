@@ -110,6 +110,12 @@ enum ReturnValueSource {
     Memory,
 }
 
+#[derive(Clone, Copy)]
+struct StaticBytesReturn {
+    len: u64,
+    word: U256,
+}
+
 impl DecodeOptions<'_> {
     fn new(constructor: bool, input_end: ValueId, has_bitwise_shifting: bool) -> Self {
         Self {
@@ -1047,6 +1053,7 @@ impl LowerAbiCx {
         canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
+        let static_bytes_return = static_bytes_return(&original);
         // Keep the external body in place only when several dynamic
         // aggregates can benefit from calldata aliases. A single aggregate
         // does not repay the duplicate body in the gas/size trade-off.
@@ -1086,6 +1093,7 @@ impl LowerAbiCx {
             abi_params.as_ref(),
             &self.return_cleanup_helpers,
             canonical_return_calls,
+            static_bytes_return,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -3644,6 +3652,90 @@ fn reuse_direct_calldata_returns(
     (replacements, calldata_indices)
 }
 
+fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
+    if !func.params.is_empty()
+        || func.returns.as_slice() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+        || func.abi_params.as_ref().is_none_or(|layout| !layout.types.is_empty())
+        || func
+            .abi_returns
+            .as_ref()
+            .is_none_or(|layout| layout.types.as_ref() != [AbiType::Bytes(SliceLocation::Memory)])
+        || func.blocks.len() != 1
+    {
+        return None;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    let [alloc, set_len, store_word] = block.instructions.as_slice() else { return None };
+    let Some(Terminator::Return { values }) = &block.terminator else { return None };
+    let [object] = values.as_slice() else { return None };
+    if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
+        return None;
+    }
+    let InstKind::Alloc { size, kind, semantics } = func.inst(*alloc).kind else { return None };
+    if kind != AllocationKind::Object(MemoryObjectLayout::Bytes)
+        || semantics != AllocationSemantics::INTERNAL
+        || func.value_u64(size) != Some(64)
+    {
+        return None;
+    }
+    let InstKind::SetMemoryObjectLen(len_object, len, MemoryObjectKind::Bytes) =
+        func.inst(*set_len).kind
+    else {
+        return None;
+    };
+    let InstKind::MemoryObjectStoreWord { object: word_object, offset, value } =
+        func.inst(*store_word).kind
+    else {
+        return None;
+    };
+    let len = func.value_u64(len)?;
+    if len_object != *object
+        || word_object != *object
+        || func.value_u64(offset) != Some(0)
+        || !(1..=32).contains(&len)
+    {
+        return None;
+    }
+    let word = func.value_u256(value)?;
+    let trailing_bits = (32 - len) * 8;
+    Some(StaticBytesReturn { len, word: word >> trailing_bits << trailing_bits })
+}
+
+fn encode_static_bytes_return(
+    func: &mut Function,
+    return_blocks: &[BlockId],
+    layout: &AbiLayout,
+    value: Option<StaticBytesReturn>,
+) -> bool {
+    let Some(value) = value else { return false };
+    let [return_block] = return_blocks else { return false };
+    if layout.types.as_ref() != [AbiType::Bytes(SliceLocation::Memory)] {
+        return false;
+    }
+
+    func.blocks[*return_block].instructions.clear();
+    func.blocks[*return_block].terminator = None;
+    func.external_static_return_size = 96;
+    let mut builder = FunctionBuilder::new(func);
+    builder.switch_to_block(*return_block);
+    // mstore(128, 32)
+    // mstore(160, len)
+    // mstore(192, word)
+    // returndata(128, 96)
+    let offset = builder.imm_u64(EvmMemoryLayout::HEAP_START);
+    let data_offset = builder.imm_u64(32);
+    let len_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + 32);
+    let len = builder.imm_u64(value.len);
+    let word_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + 64);
+    let word = builder.imm_u256(value.word);
+    let size = builder.imm_u64(96);
+    builder.mstore(offset, data_offset);
+    builder.mstore(len_offset, len);
+    builder.mstore(word_offset, word);
+    builder.ret_data(offset, size);
+    true
+}
+
 /// Rewrites value-carrying returns into a semantic ABI encode followed by
 /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
 fn encode_live_returns(
@@ -3652,6 +3744,7 @@ fn encode_live_returns(
     input_params: Option<&AbiParamLayout>,
     cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
+    static_bytes_return: Option<StaticBytesReturn>,
 ) {
     let Some(mut layout) = func.abi_returns.take() else { return };
     let return_blocks = func
@@ -3661,6 +3754,9 @@ fn encode_live_returns(
             matches!(func.blocks[block].terminator, Some(Terminator::Return { ref values }) if !values.is_empty())
         })
         .collect::<Vec<_>>();
+    if encode_static_bytes_return(func, &return_blocks, &layout, static_bytes_return) {
+        return;
+    }
     let calldata_returns = if let [return_block] = return_blocks.as_slice() {
         let values = match &func.blocks[*return_block].terminator {
             Some(Terminator::Return { values }) => values.to_vec(),

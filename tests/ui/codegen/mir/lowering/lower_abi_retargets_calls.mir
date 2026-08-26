@@ -15,9 +15,31 @@ fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
 }
 // CHECK: + fn @caller()
 // CHECK: + {{v[0-9]+}} = internal_call @pub.body
-// CHECK: + fn @pub.body{{[( ]}}
 fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
   bb0:
     v1 = internal_call fn0, 1, arg0
     ret v1
+}
+
+// CHECK: + fn @literal()
+// CHECK: + mstore 128, 32
+// CHECK: + mstore 160, 1
+// CHECK: + mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK: + returndata 128, 96
+fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+// CHECK: + fn @literalCaller()
+// CHECK: + {{v[0-9]+}} = internal_call @literal.body
+// CHECK: + fn @pub.body{{[( ]}}
+// CHECK: + fn @literal.body{{[( ]}}
+fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = internal_call fn2, 1
+    ret v0
 }
