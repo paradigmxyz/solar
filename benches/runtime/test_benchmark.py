@@ -84,15 +84,11 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(len(payload["sources"]), 208)
 
     def test_evm_version_override_replaces_project_pin(self) -> None:
-        original = benchmark.full_project_standard_json_input(
-            "solady-0.1.26.json.gz"
-        )
+        original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
         overridden = benchmark.with_evm_version(original, "amsterdam")
 
         self.assertEqual(json.loads(original)["settings"]["evmVersion"], "paris")
-        self.assertEqual(
-            json.loads(overridden)["settings"]["evmVersion"], "amsterdam"
-        )
+        self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
         self.assertEqual(benchmark.with_evm_version(original, None), original)
 
     def test_select_tests(self) -> None:
@@ -240,8 +236,6 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
-
-
     def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
         specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
         entry = {

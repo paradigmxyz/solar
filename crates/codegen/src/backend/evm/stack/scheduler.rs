@@ -1070,22 +1070,21 @@ impl StackScheduler {
         } else {
             (goal.len().max(1)..=max_swap).find(|&depth| stack[depth] == Some(expected_top))
         };
-        if let Some(depth) = swap_depth {
-            if stack[0] != stack[depth]
-                && (matches!(optimization, OptimizationMode::Gas)
-                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
-                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
-                    if i == 0 {
-                        stack[depth]
-                    } else if i == depth {
-                        stack[0]
-                    } else {
-                        stack[i]
-                    }
-                })
-            {
-                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
-            }
+        if let Some(depth) = swap_depth
+            && stack[0] != stack[depth]
+            && (matches!(optimization, OptimizationMode::Gas)
+                || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+            && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                if i == 0 {
+                    stack[depth]
+                } else if i == depth {
+                    stack[0]
+                } else {
+                    stack[i]
+                }
+            })
+        {
+            consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
         }
 
         let max_dup = stack.len().min(max_stack_access);
