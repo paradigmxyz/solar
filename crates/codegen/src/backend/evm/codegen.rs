@@ -4003,13 +4003,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 values.remove(value);
             }
         }
-        self.preallocate_spill_metadata(func, &values);
+        let reloaded = Self::cross_block_reload_values(func);
+        self.preallocate_spill_metadata(func, &values, &reloaded);
 
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Give loads
         // that cross a block or are directly reloaded a stable slot so a call operand can recover
         // the value even when block layout emits its use before the defining block.
         let reserve_all = matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size);
-        let reloaded = Self::cross_block_reload_values(func);
         for val in Self::fmp_load_values(func) {
             if !reachable_values.contains(val)
                 || (!reserve_all && !values.contains(val) && !reloaded.contains(val))
@@ -4038,26 +4038,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn preallocate_spill_metadata(&mut self, func: &Function, values: &DenseBitSet<ValueId>) {
-        if values.iter().any(|value| Self::is_cross_block_recomputable_inst(func, value)) {
-            let recomputable = Self::cross_block_recomputable_values_with(func, |value| {
-                !self.scheduler.is_stack_only_value(value)
-            });
-            let reloaded = values
-                .iter()
-                .any(|value| {
-                    !recomputable.contains(value)
-                        && StackScheduler::is_cheap_recomputable_value(func, value)
-                })
-                .then(|| Self::cross_block_reload_values(func));
-            for val in values {
-                if recomputable.contains(val) {
-                    self.scheduler.spills.mark_recomputable(val);
-                } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
-                    && StackScheduler::is_cheap_recomputable_value(func, val)
-                {
-                    self.scheduler.spills.require_store(val);
-                }
+    fn preallocate_spill_metadata(
+        &mut self,
+        func: &Function,
+        values: &DenseBitSet<ValueId>,
+        reloaded: &DenseBitSet<ValueId>,
+    ) {
+        let recomputable = Self::cross_block_recomputable_values_with(func, |value| {
+            !self.scheduler.is_stack_only_value(value)
+        });
+        for val in values {
+            if recomputable.contains(val) {
+                self.scheduler.spills.mark_recomputable(val);
+            } else if reloaded.contains(val)
+                && Self::can_own_spill_slot(func, val)
+                && !matches!(
+                    func.value(val),
+                    crate::mir::Value::Inst(inst_id)
+                        if matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                )
+            {
+                self.scheduler.spills.require_store(val);
             }
         }
     }

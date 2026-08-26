@@ -57,7 +57,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             "storage reference tuple",
                         );
                     }
-                    for (id, (value, access)) in ids.iter().zip(values) {
+                    for (id, (value, _, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
                         let ty = self.context.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
@@ -98,8 +98,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             }
                             continue;
                         };
-                        let value = self.lower_expr(value)?;
-                        let Some(id) = id else { continue };
+                        let Some(id) = id else {
+                            self.lower_expr(value)?;
+                            continue;
+                        };
+                        let ty = self.context.gcx.type_of_item((*id).into());
+                        if ty.is_ref_at(DataLocation::Storage) {
+                            let access = self.storage_access_or_error(value)?;
+                            self.storage_refs.insert(*id, access);
+                            continue;
+                        }
+                        let span = value.span;
+                        let value = self.lower_typed_expr(value, ty)?;
+                        let value = self.materialize_call_argument(ty, value, span)?;
                         self.values.insert(*id, value);
                     }
                     return Some(());
