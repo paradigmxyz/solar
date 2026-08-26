@@ -104,3 +104,21 @@ bb4:
   dup 1
   swap 2
   stop
+
+// Keep the following instruction when a cheaper lowering uses more logical stack operations.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}push 21
+// CHECK-NEXT: {{^[ +].*}}dup 2
+// CHECK-NEXT: -   exchange 2, 3
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK-NEXT: {{^[ +].*}}stop
+bb5:
+  push 19
+  push 20
+  push 21
+  dup 2
+  exchange 2, 3
+  add
+  stop

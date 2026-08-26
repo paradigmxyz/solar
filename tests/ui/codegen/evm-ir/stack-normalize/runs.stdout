@@ -61,4 +61,14 @@
     dup 1
     swap 2
     stop
+  bb5:
+    push 19
+    push 20
+    push 21
+    dup 2
+-   exchange 2, 3
++   swap 3
++   swap 2
+    add
+    stop
   

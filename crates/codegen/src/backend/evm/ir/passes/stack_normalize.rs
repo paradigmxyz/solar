@@ -81,16 +81,16 @@ fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) 
         while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
             instructions.push(source.next().unwrap().1);
         }
+        let mut original = source.by_ref().take(normalization.end - normalization.start);
         for op in normalization.output {
-            let (_, mut inst) = source.next().unwrap();
             let mut replacement = Instruction::stack_op(op);
-            replacement.metadata = std::mem::take(&mut inst.metadata);
-            replacement.metadata.stack = None;
+            if let Some((_, mut inst)) = original.next() {
+                replacement.metadata = std::mem::take(&mut inst.metadata);
+                replacement.metadata.stack = None;
+            }
             instructions.push(replacement);
         }
-        while source.peek().is_some_and(|&(index, _)| index < normalization.end) {
-            source.next();
-        }
+        original.for_each(drop);
     }
     instructions.extend(source.map(|(_, inst)| inst));
     true
