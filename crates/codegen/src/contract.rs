@@ -1,10 +1,16 @@
 //! Contract bytecode generation and dependency orchestration.
 
-use crate::{Backend, EvmCodegen, backend::evm::ir, lower, mir::Module, pass::run_pipeline};
+use crate::{
+    Backend, EvmCodegen,
+    backend::evm::{EIP170_RUNTIME_CODE_SIZE_LIMIT, ir},
+    lower,
+    mir::Module,
+    pass::run_pipeline,
+};
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -307,7 +313,13 @@ fn generate_contract_bytecode(
             (dependency, bytecode)
         })
         .collect();
-    let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &child_bytecodes);
+    let share_public_bodies = gcx.sess.opts.optimization.is_size();
+    let mut module = lower::lower_contract_with_bytecodes_and_body_sharing(
+        gcx,
+        contract_id,
+        &child_bytecodes,
+        share_public_bodies,
+    );
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
@@ -321,8 +333,34 @@ fn generate_contract_bytecode(
         let mut codegen = EvmCodegen::new(gcx);
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
-        let artifact = codegen.lower_module(&mut module);
+        let mut artifact = codegen.lower_module(&mut module);
         gcx.dcx().has_errors()?;
+        if gcx.sess.opts.optimization.is_gas()
+            && gcx.sess.opts.evm_version >= EvmVersion::SpuriousDragon
+            && artifact.runtime.len() > EIP170_RUNTIME_CODE_SIZE_LIMIT
+            && artifact.runtime.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT * 2
+        {
+            let gas_first_module = module.clone();
+            let gas_first_artifact = artifact;
+            module = lower::lower_contract_with_bytecodes_and_body_sharing(
+                gcx,
+                contract_id,
+                &child_bytecodes,
+                true,
+            );
+            gcx.dcx().has_errors()?;
+            let mut codegen = EvmCodegen::new(gcx);
+            codegen.set_capture_mir(capture_mir && !capture_built);
+            codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+            let size_rescue_artifact = codegen.lower_module(&mut module);
+            gcx.dcx().has_errors()?;
+            if size_rescue_artifact.runtime.len() <= EIP170_RUNTIME_CODE_SIZE_LIMIT {
+                artifact = size_rescue_artifact;
+            } else {
+                module = gas_first_module;
+                artifact = gas_first_artifact;
+            }
+        }
         artifact
     } else {
         if capture_mir && !capture_built {

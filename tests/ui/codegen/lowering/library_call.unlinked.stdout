@@ -180,11 +180,7 @@ bb4:
   dup 1
   push 288
   mstore
-  swap 1
-  dup 2
   lt
-  swap 1
-  pop
   push bb12
   jumpi
   push 288
@@ -195,8 +191,8 @@ bb4:
   push 320
   mload
   sload
-  push 255
   caller
+  push 255
   and
   dup 2
   add

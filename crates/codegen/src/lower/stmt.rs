@@ -160,12 +160,24 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => {
+                // `_` splices in the next modifier chain level (ending with
+                // the function body). Multiple placeholders re-inline it. A
+                // zero depth means no chain level is active, so there is
+                // nothing to splice.
+                if self.modifier_function.is_some() && self.modifier_depth > 0 {
+                    let depth = self.modifier_depth;
+                    self.lower_modifier_level(builder, depth);
+                }
+            }
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
             StmtKind::AssemblyBlock(block) => {
+                let prev = self.in_assembly_block;
+                self.in_assembly_block = true;
                 self.lower_block(builder, block);
+                self.in_assembly_block = prev;
             }
 
             StmtKind::Err(_) => {}
@@ -250,12 +262,15 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.var_expects_memory_bytes_value(var) {
+            if is_calldata_dynamic && let Some(slice) = self.calldata_member_slice(builder, init) {
+                slice
+            } else if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
-                self.lower_value_expr(builder, init)
+                let value = self.lower_value_expr(builder, init);
+                self.coerce_literal_for_ty(builder, init, var_ty, value)
             }
         } else {
             self.lower_default_variable_value(builder, var_id).unwrap_or_else(|| {
@@ -328,26 +343,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 ptr
             }
-            TyKind::DynArray(_) => {
-                let ptr = self.allocate_memory_object(
-                    builder,
-                    32,
-                    crate::mir::MemoryObjectKind::DynamicArray,
-                );
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.set_memory_object_len(
-                    ptr,
-                    zero,
-                    crate::mir::MemoryObjectKind::DynamicArray,
-                );
-                ptr
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                let ptr =
-                    self.allocate_memory_object(builder, 32, crate::mir::MemoryObjectKind::Bytes);
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
-                ptr
+            TyKind::DynArray(_)
+            | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                builder.imm_u64(EvmMemoryLayout::ZERO_SLOT)
             }
             TyKind::Struct(struct_id) => {
                 let ptr = self.allocate_memory_object(
@@ -364,7 +362,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn zero_initialize_memory_struct(
+    pub(super) fn zero_initialize_memory_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
@@ -438,9 +436,43 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: &hir::Expr<'_>,
     ) {
         let bound: SmallVec<[bool; 4]> = elements.iter().map(Option::is_some).collect();
-        let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
+        let values = if let hir::ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
+            if rhs_elements.len() != elements.len() {
+                self.gcx.dcx().err("tuple arity mismatch in codegen").span(rhs.span).emit();
+                return;
+            }
+            let mut values = Vec::with_capacity(elements.len());
+            for (&lhs, &rhs_element) in elements.iter().zip((*rhs_elements).iter()) {
+                let Some(rhs_element) = rhs_element else {
+                    self.gcx
+                        .dcx()
+                        .err("tuple value contains an omitted element")
+                        .span(rhs.span)
+                        .emit();
+                    return;
+                };
+                let value = match lhs {
+                    Some(lhs) => self.lower_assignment_rhs(builder, lhs, rhs_element),
+                    None => self.lower_value_expr(builder, rhs_element),
+                };
+                values.push(lhs.map(|_| value));
+            }
+            values
+        } else {
+            let Some(values) = self.lower_multi_values(builder, &bound, rhs) else { return };
+            values
+        };
+        let clean_call_result = !self.in_assembly_block && self.call_result_may_be_dirty(rhs);
         for (&element, value) in elements.iter().zip(values) {
             if let (Some(element), Some(value)) = (element, value) {
+                let value = if clean_call_result
+                    && !matches!(element.kind, hir::ExprKind::Ident(_))
+                    && let Some(ty) = self.get_expr_type(element)
+                {
+                    self.abi_clean_value(builder, value, ty)
+                } else {
+                    value
+                };
                 self.lower_assign(builder, element, value);
             }
         }
@@ -703,18 +735,11 @@ impl<'gcx> Lowerer<'gcx> {
         let loop_block = builder.create_block();
         let exit_block = builder.create_block();
 
-        // For `for` loops, we need a separate update block for `continue` to jump to.
-        // The desugared structure is: if (cond) { body; update; } else { break; }
-        // We need to handle the update separately so continue jumps to it.
-        let (continue_target, is_for_with_update) = if source == hir::LoopSource::For {
-            if self.is_for_loop_with_update(block) {
-                let update_block = builder.create_block();
-                (update_block, true)
-            } else {
-                (loop_block, false)
-            }
-        } else {
-            (loop_block, false)
+        // A `continue` in a `for` loop must execute the update block, and one
+        // in a `do while` loop must execute the trailing condition.
+        let continue_target = match source {
+            hir::LoopSource::ForWithUpdate | hir::LoopSource::DoWhile => builder.create_block(),
+            hir::LoopSource::For | hir::LoopSource::While => loop_block,
         };
 
         // Push loop context for break/continue
@@ -724,47 +749,62 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(loop_block);
 
-        // For for loops with update, lower body without the update, then emit update block
-        if is_for_with_update {
+        if source == hir::LoopSource::ForWithUpdate {
             self.lower_for_loop_body(builder, block, continue_target, loop_block);
+        } else if source == hir::LoopSource::DoWhile {
+            self.lower_do_while_body(builder, block, continue_target, loop_block, exit_block);
         } else {
             self.lower_block(builder, block);
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(loop_block);
             }
         }
-
         // Pop loop context
         self.pop_loop();
 
         builder.switch_to_block(exit_block);
     }
 
-    /// Checks if a for loop has an update expression in the expected desugared structure.
-    fn is_for_loop_with_update(&self, block: &hir::Block<'_>) -> bool {
-        let stmts = block.stmts;
-        if stmts.len() != 1 {
-            return false;
-        }
-
-        let StmtKind::If(_, then_stmt, _) = &stmts[0].kind else {
-            return false;
+    /// Lowers the user body separately from the synthetic trailing condition.
+    fn lower_do_while_body(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        block: &hir::Block<'_>,
+        check_block: crate::mir::BlockId,
+        loop_block: crate::mir::BlockId,
+        exit_block: crate::mir::BlockId,
+    ) {
+        let (cond, body_stmts) = if let Some((check, body_stmts)) = block.stmts.split_last()
+            && let StmtKind::If(cond, then_stmt, Some(else_stmt)) = &check.kind
+        {
+            debug_assert!(matches!(then_stmt.kind, StmtKind::Continue));
+            debug_assert!(matches!(else_stmt.kind, StmtKind::Break));
+            (cond, body_stmts)
+        } else {
+            debug_assert!(false, "invalid desugared do-while condition");
+            self.lower_block(builder, block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(exit_block);
+            }
+            return;
         };
 
-        let StmtKind::Block(b) = &then_stmt.kind else {
-            return false;
-        };
-
-        // Need at least 2 statements: body and update
-        if b.stmts.len() < 2 {
-            return false;
+        for stmt in body_stmts {
+            self.lower_stmt(builder, stmt);
+            if builder.func().block(builder.current_block()).is_terminated() {
+                break;
+            }
+        }
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(check_block);
         }
 
-        // Last statement should be an expression (the update)
-        matches!(b.stmts.last().map(|s| &s.kind), Some(StmtKind::Expr(_)))
+        builder.switch_to_block(check_block);
+        let cond = self.lower_value_expr(builder, cond);
+        builder.branch(cond, loop_block, exit_block);
     }
 
-    /// Lowers a for loop body with special handling for update expression.
+    /// Lowers a for loop body with special handling for its update block.
     /// Creates: loop_block -> if(cond) { body -> update_block -> loop_block } else { exit }
     fn lower_for_loop_body(
         &mut self,
@@ -775,27 +815,45 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         let stmts = block.stmts;
 
-        // Extract the if statement
-        let StmtKind::If(cond, then_stmt, else_stmt) = &stmts[0].kind else {
+        if let [stmt] = stmts
+            && let StmtKind::If(cond, then_stmt, else_stmt) = &stmt.kind
+            && let StmtKind::Block(then_body) = &then_stmt.kind
+        {
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            let cond_val = self.lower_value_expr(builder, cond);
+            builder.branch(cond_val, then_block, else_block);
+
+            builder.switch_to_block(then_block);
+            self.lower_for_body_and_update(builder, then_body, update_block, loop_block);
+
+            builder.switch_to_block(else_block);
+            if let Some(else_stmt) = else_stmt {
+                self.lower_stmt(builder, else_stmt);
+            }
+        } else if let [stmt] = stmts
+            && let StmtKind::Block(body) = &stmt.kind
+        {
+            self.lower_for_body_and_update(builder, body, update_block, loop_block);
+        } else {
+            debug_assert!(false, "invalid desugared for loop with update");
             self.lower_block(builder, block);
+        }
+    }
+
+    fn lower_for_body_and_update(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        body: &hir::Block<'_>,
+        update_block: crate::mir::BlockId,
+        loop_block: crate::mir::BlockId,
+    ) {
+        let Some((update, body_stmts)) = body.stmts.split_last() else {
+            debug_assert!(false, "missing desugared for-loop update");
+            builder.jump(loop_block);
             return;
         };
 
-        let StmtKind::Block(then_body) = &then_stmt.kind else {
-            self.lower_block(builder, block);
-            return;
-        };
-
-        // Create blocks for the if
-        let then_block = builder.create_block();
-        let else_block = builder.create_block();
-
-        let cond_val = self.lower_value_expr(builder, cond);
-        builder.branch(cond_val, then_block, else_block);
-
-        // Then branch: lower all statements except the last (update)
-        builder.switch_to_block(then_block);
-        let body_stmts = &then_body.stmts[..then_body.stmts.len() - 1];
         for stmt in body_stmts {
             self.lower_stmt(builder, stmt);
             if builder.func().block(builder.current_block()).is_terminated() {
@@ -806,21 +864,11 @@ impl<'gcx> Lowerer<'gcx> {
             builder.jump(update_block);
         }
 
-        // Update block: lower the update expression, then jump to loop
         builder.switch_to_block(update_block);
-        if let Some(last_stmt) = then_body.stmts.last() {
-            self.lower_stmt(builder, last_stmt);
-        }
+        self.lower_stmt(builder, update);
         if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(loop_block);
         }
-
-        // Else branch: should be break
-        builder.switch_to_block(else_block);
-        if let Some(else_s) = else_stmt {
-            self.lower_stmt(builder, else_s);
-        }
-        // Note: else branch with break will be terminated, no need for explicit jump
     }
 
     /// Lowers a return statement.
@@ -832,6 +880,8 @@ impl<'gcx> Lowerer<'gcx> {
             if !builder.func().block(builder.current_block()).is_terminated() {
                 if let Some(ctx) = &self.inline_returns {
                     builder.jump(ctx.exit_block);
+                } else if let Some(exit) = self.modifier_return_exit {
+                    builder.jump(exit);
                 } else if builder.func().is_public() && !self.lowering_internal_function {
                     builder.stop();
                 } else {
@@ -849,9 +899,22 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_inline_return(builder, &ctx, value);
             return;
         }
+
+        // A `return` inside an inlined modifier body leaves only that
+        // modifier: control continues after the placeholder in the enclosing
+        // level, and the declared return variables keep their current values.
+        if let Some(exit) = self.modifier_return_exit {
+            builder.jump(exit);
+            return;
+        }
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
-            let items = self.gather_return_items(builder, value);
+            let items = match value {
+                Some(_) => self.gather_return_items(builder, value),
+                // A bare `return;` (and Yul `leave`) delivers the declared
+                // return variables' current values, like the implicit epilogue.
+                None => self.gather_named_return_values(builder),
+            };
             if items.is_empty() {
                 builder.stop();
             } else {
@@ -863,8 +926,50 @@ impl<'gcx> Lowerer<'gcx> {
             let items = self.gather_return_items(builder, Some(expr));
             self.finish_return(builder, items);
         } else {
-            builder.ret([]);
+            let items = self.gather_named_return_values(builder);
+            if items.is_empty() {
+                builder.ret([]);
+            } else {
+                self.finish_return(builder, items);
+            }
         }
+    }
+
+    /// Loads the current values of the declared return variables in
+    /// declaration order, mirroring the implicit-return epilogue: a bare
+    /// `return;` and Yul's `leave` deliver whatever the body assigned so far.
+    fn gather_named_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> Vec<(ValueId, Ty<'gcx>)> {
+        let return_vars = self.current_return_vars.clone();
+        let mut items = Vec::with_capacity(return_vars.len());
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        for ret_id in return_vars {
+            let clean = external || !self.asm_assigned_vars.contains(ret_id);
+            let ty = self.gcx.type_of_item(ret_id.into());
+            let val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                if self.is_slice_slot_local(&ret_id) {
+                    self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+                } else {
+                    let addr = self.local_memory_addr(builder, offset);
+                    let val = builder.mload(addr);
+                    if clean { self.clean_asm_dirty_read(builder, ret_id, val) } else { val }
+                }
+            } else if let Some(&val) = self.locals.get(&ret_id) {
+                if clean { self.clean_asm_dirty_read(builder, ret_id, val) } else { val }
+            } else if let Some(val) = self.lower_default_variable_value(builder, ret_id) {
+                val
+            } else {
+                self.err_value(
+                    builder,
+                    self.gcx.hir.variable(ret_id).span,
+                    "codegen is missing a return variable slot",
+                )
+            };
+            items.push((val, ty));
+        }
+        items
     }
 
     /// Delivers an inlined body's `return` values to its call site: each value
@@ -879,21 +984,81 @@ impl<'gcx> Lowerer<'gcx> {
         value: Option<&hir::Expr<'_>>,
     ) {
         let n = ctx.return_vars.len();
+        let return_tys = ctx
+            .return_vars
+            .iter()
+            .map(|&ret_id| self.gcx.type_of_item(ret_id.into()))
+            .collect::<Vec<_>>();
+        // A tuple-valued ternary whose result includes a calldata slice cannot
+        // use the ordinary one-word-per-component staging buffer. Branch
+        // first, then deliver each selected tuple arm straight into the
+        // inliner's return slots, where slice returns already own two words.
+        if let Some(hir::Expr { kind: hir::ExprKind::Ternary(cond, then_expr, else_expr), .. }) =
+            value
+            && ctx.return_vars.iter().any(|&ret_id| {
+                Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some()
+            })
+        {
+            let cond = self.lower_value_expr(builder, cond);
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            builder.branch(cond, then_block, else_block);
+
+            builder.switch_to_block(then_block);
+            self.lower_inline_return(builder, ctx, Some(then_expr));
+
+            builder.switch_to_block(else_block);
+            self.lower_inline_return(builder, ctx, Some(else_expr));
+            return;
+        }
+
         let mut values = Vec::with_capacity(n);
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                for elem in elements.iter().flatten() {
-                    values.push(self.lower_value_expr(builder, elem));
+                for ((elem, &ret_id), &ty) in
+                    elements.iter().flatten().zip(&ctx.return_vars).zip(&return_tys)
+                {
+                    let value = if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id))
+                        .is_some()
+                    {
+                        self.lower_value_expr(builder, elem)
+                    } else {
+                        self.lower_return_value_for_ty(builder, elem, ty)
+                    };
+                    values.push(value);
                 }
             } else {
                 self.pending_inline_returns = None;
-                let first = self.lower_value_expr(builder, expr);
+                let first = if let Some((&ret_id, &ty)) =
+                    ctx.return_vars.first().zip(return_tys.first())
+                {
+                    if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
+                        self.lower_value_expr(builder, expr)
+                    } else {
+                        self.lower_return_value_for_ty(builder, expr, ty)
+                    }
+                } else {
+                    self.lower_value_expr(builder, expr)
+                };
                 if n > 1 {
                     // A forwarded multi-return call: an inlined slice-returning
                     // callee leaves its values pending; anything else staged
                     // the tail in the multi-return buffer.
                     if let Some(pending) = self.pending_inline_returns.take() {
-                        values = pending;
+                        values = pending
+                            .into_iter()
+                            .zip(&ctx.return_vars)
+                            .zip(&return_tys)
+                            .map(|((value, &ret_id), &ty)| {
+                                if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id))
+                                    .is_some()
+                                {
+                                    value
+                                } else {
+                                    self.materialize_forwarded_return_value(builder, value, ty)
+                                }
+                            })
+                            .collect();
                     } else {
                         values.push(first);
                         let base = self.multi_return_buffer_base(builder);
@@ -1022,10 +1187,12 @@ impl<'gcx> Lowerer<'gcx> {
                         "codegen does not support indexed event aggregate encoding yet",
                     ));
                 } else {
-                    topics.push(self.lower_return_value_for_ty(builder, arg, ty));
+                    let value = self.lower_return_value_for_ty(builder, arg, ty);
+                    topics.push(self.abi_encode_value(builder, value, ty));
                 }
             } else {
                 let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
+                let arg_val = self.abi_clean_value(builder, arg_val, ty);
                 data_items.push((arg_val, ty));
             }
         }

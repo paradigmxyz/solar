@@ -151,14 +151,10 @@ bb8:
   jump bb11
 bb10 [cold]:
   returndatasize
-  dup 1
-  push 160
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 160
-  mload
+  returndatasize
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
@@ -239,13 +235,9 @@ bb3 [cold]:
   revert
 bb8 [cold]:
   returndatasize
-  dup 1
-  push 160
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 160
-  mload
+  returndatasize
   push 0
   revert

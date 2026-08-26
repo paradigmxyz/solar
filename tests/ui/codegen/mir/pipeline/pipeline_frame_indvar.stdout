@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_frame_indvar.mir (after pipeline-default) ===
 @module PipelineFrameIndVar
-@phase optimized
+@phase evm-shaped
 fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
   bb0:
     jump bb1
@@ -16,4 +16,13 @@ fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
     v6 = add v8, 1
     v10 = add v9, 32
     jump bb1
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
 }

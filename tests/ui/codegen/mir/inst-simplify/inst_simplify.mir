@@ -24,9 +24,11 @@ fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
+// CHECK: {{^[ +].*}}[[IS_TRUE:v[0-9]+]] = eq arg0, 1
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = iszero arg0
-// CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = iszero arg0
-// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[NOT]]
+// CHECK: {{^[ +].*}}[[SELECT_TRUE:v[0-9]+]] = select arg0, 1, 0
+// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, 0, 1
+// CHECK: {{^[ +].*}}ret [[IS_TRUE]], [[IS_FALSE]], arg1, [[SELECT_TRUE]], [[SELECT_FALSE]]
 fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
   bb0:
     v3 = eq arg0, true
@@ -79,7 +81,11 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @complete_word_identities{{[( ]}}
 // CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = not arg0
-// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
+// CHECK: {{^[ +].*}}[[IS_ZERO:v[0-9]+]] = iszero arg1
+// CHECK: {{^[ +].*}}[[IS_NONZERO:v[0-9]+]] = iszero [[IS_ZERO]]
+// CHECK: {{^[ +].*}}[[LT:v[0-9]+]] = lt 0, arg1
+// CHECK: {{^[ +].*}}[[GT:v[0-9]+]] = gt arg1, 0
+// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[NOT]], [[IS_NONZERO]], [[LT]], [[GT]], 0, 0, 0, arg0
 fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
   bb0:
     v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
@@ -96,7 +102,11 @@ fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool,
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @complete_exact_identities{{[( ]}}
-// CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 1, 0, 0, 0
+// CHECK: {{^[ +].*}}[[LT_TWO:v[0-9]+]] = lt arg1, 2
+// CHECK: {{^[ +].*}}[[ONE_LT:v[0-9]+]] = lt 1, arg1
+// CHECK: {{^[ +].*}}[[TWO_GT:v[0-9]+]] = gt 2, arg1
+// CHECK: {{^[ +].*}}[[GT_ONE:v[0-9]+]] = gt arg1, 1
+// CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[LT_TWO]], [[ONE_LT]], [[TWO_GT]], [[GT_ONE]], 0, 0
 fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
   bb0:
     v2 = not arg0

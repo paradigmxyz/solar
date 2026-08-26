@@ -97,6 +97,24 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
+    // Block CSE and final placement can expose new equal tails whose addresses or predecessors
+    // differed during the first structural sweep. Repeat the structural half to a fixed point at
+    // pass granularity; each pass remains internally profitability-gated.
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &outline::Outline,
+    &cfg_simplify::CfgSimplify,
+    &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    &block_cse::BlockCseCleanup,
+    &dce::Dce,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
 ];
 
 /// Finds an EVM IR pass by command-line name.

@@ -37,11 +37,21 @@
       ret v1, v2
   }
   
-  fn @gas_observed() -> u256 {
+  fn @gas_not_a_barrier() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 42
+      v1 = gas
+-     v2 = mload v0
+-     ret v2
++     ret 42
+  }
+  
+  fn @msize_observed() -> u256 {
     bb0:
       v0 = internal_frame_addr 128
       mstore v0, 42
-      v1 = gas
+      v1 = msize
       v2 = mload v0
       ret v2
   }

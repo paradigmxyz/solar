@@ -18,25 +18,29 @@ library DataTypes {
 }
 
 library L {
+    // `total` lives at slot offset 1 after `a` and `b` pack into slot 0;
+    // the packed fields are read once and extracted with mask and shift.
     // CHECK: push 0xdef537e0
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
-    // CHECK: push 2
+    // CHECK: push 1
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: add
     // CHECK: sload
-    // CHECK-NEXT: push 36
+    // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK: sstore
     // CHECK: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: sload
-    // CHECK: jumpi
-    // CHECK-NEXT: push 1
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK: sload
+    // CHECK: not
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: shr
+    // CHECK: and
+    // CHECK: push 128
+    // CHECK-NEXT: shr
     // CHECK: return
     function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) {
         r.total += amount;

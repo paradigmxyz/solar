@@ -15,7 +15,8 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitAnonymous
-    // CHECK: log1 0, 32, arg0
+    // CHECK: [[TOPIC:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: log1 0, 32, [[TOPIC]]
     function emitAnonymous(address sender, uint256 value) external {
         emit AnonymousEvent(sender, value);
     }
@@ -28,7 +29,8 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitIndexedFixedBytes
-    // CHECK: log2 0, 0, {{[^,]+}}, 0x6162630000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[TOPIC:v[0-9]+]] = and 0x6162630000000000000000000000000000000000000000000000000000000000,
+    // CHECK: log2 0, 0, {{[^,]+}}, [[TOPIC]]
     function emitIndexedFixedBytes() external {
         emit IndexedFixedBytes("abc");
     }

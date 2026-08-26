@@ -11,7 +11,7 @@ bb0:
   dup 1
   push 0x1b8f5d50
   eq
-  push bb16
+  push bb19
   jumpi
   dup 1
   push 0x5030da75
@@ -21,14 +21,14 @@ bb0:
   dup 1
   push 0xd96073cf
   eq
-  push bb13
+  push bb16
   jumpi
   jump bb5
 bb5 [cold]:
   push 0
   dup 1
   revert
-bb12 [cold]:
+bb15 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -41,7 +41,7 @@ bb12 [cold]:
   push 0
   revert
 bb6:
-  push 384
+  push 416
   push 64
   mstore
   push 4
@@ -62,25 +62,81 @@ bb6:
   sub
   push bb5
   jumpi
-  push 0
-  push 128
+  push 36
+  dup 1
+  calldataload
+  add
+  dup 1
+  push 256
   mstore
   push 4
   push 36
   calldataload
   add
   calldataload
-  dup 1
   push 192
   mstore
-  push 31
+  push 32
   dup 2
+  lt
+  push 32
+  dup 3
+  sub
+  dup 1
+  push 224
+  mstore
+  push 4
+  dup 2
+  lt
+  swap 1
+  swap 2
+  or
+  swap 2
+  pop
+  pop
+  push bb5
+  jumpi
+  calldatasize
+  dup 1
+  push 160
+  mstore
+  push 224
+  mload
+  gt
+  push 224
+  mload
+  push 160
+  mload
+  sub
+  push 32
+  gt
+  or
+  push bb5
+  jumpi
+  push 256
+  mload
+  push 160
+  mload
+  sub
+  push 192
+  mload
+  gt
+  push bb5
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 31
+  push 192
+  mload
   add
   dup 1
   push 160
   mstore
-  lt
-  push bb12
+  push 192
+  mload
+  gt
+  push bb15
   jumpi
   push 31
   not
@@ -108,12 +164,12 @@ bb6:
   push 224
   mstore
   lt
-  push bb12
+  push bb15
   jumpi
   push 64
   mload
   dup 1
-  push 256
+  push 288
   mstore
   push 224
   mload
@@ -137,27 +193,23 @@ bb6:
   push 0
   swap 1
   mstore
-  push 36
-  dup 1
-  calldataload
-  add
   push 192
   mload
-  dup 2
-  dup 4
+  push 256
+  mload
+  dup 3
   calldatacopy
-  pop
   swap 1
   mload
   gas
   dup 1
-  push 288
-  mstore
-  dup 3
   push 320
   mstore
-  dup 2
+  dup 3
   push 352
+  mstore
+  dup 2
+  push 384
   mstore
   push 0
   push 0
@@ -177,7 +229,7 @@ bb6:
   push 32
   push 128
   return
-bb13:
+bb16:
   push 4
   calldatasize
   sub
@@ -191,28 +243,16 @@ bb13:
   mstore
   push 4
   calldataload
-  jump bb17
-bb17:
+  jump bb20
+bb20:
   push 160
   mstore
   push 64
   push 128
   return
-bb16:
-  push 224
-  dup 1
-  push 64
-  mstore
-  dup 1
-  push 192
-  mstore
-  push 32
-  add
-  push 9
-  swap 1
-  mstore
+bb19:
   push 7
   push 128
   mstore
   push 9
-  jump bb17
+  jump bb20
