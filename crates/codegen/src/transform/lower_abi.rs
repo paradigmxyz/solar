@@ -110,7 +110,6 @@ enum ReturnValueSource {
     Memory,
 }
 
-#[derive(Clone, Copy)]
 struct StaticBytesReturn {
     len: u64,
     word: U256,
@@ -3703,37 +3702,31 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
 
 fn encode_static_bytes_return(
     func: &mut Function,
-    return_blocks: &[BlockId],
-    layout: &AbiLayout,
-    value: Option<StaticBytesReturn>,
-) -> bool {
-    let Some(value) = value else { return false };
-    let [return_block] = return_blocks else { return false };
-    if layout.types.as_ref() != [AbiType::Bytes(SliceLocation::Memory)] {
-        return false;
-    }
-
-    func.blocks[*return_block].instructions.clear();
-    func.blocks[*return_block].terminator = None;
-    func.external_static_return_size = 96;
+    return_block: BlockId,
+    value: StaticBytesReturn,
+) {
+    let word_size = EvmMemoryLayout::WORD_SIZE;
+    let return_size = word_size * 3;
+    func.blocks[return_block].instructions.clear();
+    func.blocks[return_block].terminator = None;
+    func.external_static_return_size = return_size;
     let mut builder = FunctionBuilder::new(func);
-    builder.switch_to_block(*return_block);
+    builder.switch_to_block(return_block);
     // mstore(128, 32)
     // mstore(160, len)
     // mstore(192, word)
     // returndata(128, 96)
     let offset = builder.imm_u64(EvmMemoryLayout::HEAP_START);
-    let data_offset = builder.imm_u64(32);
-    let len_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + 32);
+    let data_offset = builder.imm_u64(word_size);
+    let len_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + word_size);
     let len = builder.imm_u64(value.len);
-    let word_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + 64);
+    let word_offset = builder.imm_u64(EvmMemoryLayout::HEAP_START + word_size * 2);
     let word = builder.imm_u256(value.word);
-    let size = builder.imm_u64(96);
+    let size = builder.imm_u64(return_size);
     builder.mstore(offset, data_offset);
     builder.mstore(len_offset, len);
     builder.mstore(word_offset, word);
     builder.ret_data(offset, size);
-    true
 }
 
 /// Rewrites value-carrying returns into a semantic ABI encode followed by
@@ -3754,7 +3747,11 @@ fn encode_live_returns(
             matches!(func.blocks[block].terminator, Some(Terminator::Return { ref values }) if !values.is_empty())
         })
         .collect::<Vec<_>>();
-    if encode_static_bytes_return(func, &return_blocks, &layout, static_bytes_return) {
+    if let Some(value) = static_bytes_return {
+        let [return_block] = return_blocks.as_slice() else {
+            unreachable!("static bytes return has one return block")
+        };
+        encode_static_bytes_return(func, *return_block, value);
         return;
     }
     let calldata_returns = if let [return_block] = return_blocks.as_slice() {
