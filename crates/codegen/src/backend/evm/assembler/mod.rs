@@ -406,11 +406,8 @@ impl<'gcx> Assembler<'gcx> {
             {
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
-            } else if let AsmInstKind::PushData(data) = inst.kind()
-                && let data = program.data_refs[data]
-                && let Some(&base_offset) = data_offsets.get(&data.id)
-            {
-                let target_offset = base_offset + data.offset as usize;
+            } else if let AsmInstKind::PushData(data) = inst.kind() {
+                let target_offset = resolve_data_offset(program, &data_offsets, data);
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
             }
@@ -483,11 +480,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_push_fixed_width(value, width as u8);
                 }
                 AsmInstKind::PushData(data) => {
-                    let data = program.data_refs[data];
-                    let target_offset =
-                        data_offsets.get(&data.id).copied().unwrap_or_else(|| {
-                            panic!("program data {:?} was never emitted", data.id)
-                        }) + data.offset as usize;
+                    let target_offset = resolve_data_offset(program, &data_offsets, data);
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
@@ -513,6 +506,26 @@ impl<'gcx> Assembler<'gcx> {
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
+}
+
+fn resolve_data_offset(
+    program: &AssemblyProgram,
+    data_offsets: &FxHashMap<ir::DataId, usize>,
+    data_ref: assembly::DataRefId,
+) -> usize {
+    let data = program.data_refs[data_ref];
+    let data_size = program.data[data.id].len();
+    assert!(
+        data.offset as usize <= data_size,
+        "program data offset {} exceeds data size {data_size}",
+        data.offset
+    );
+    data_offsets
+        .get(&data.id)
+        .copied()
+        .unwrap_or_else(|| panic!("program data {:?} was never emitted", data.id))
+        .checked_add(data.offset as usize)
+        .expect("program data offset overflow")
 }
 
 #[derive(Debug)]

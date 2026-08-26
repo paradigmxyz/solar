@@ -1,6 +1,6 @@
 //! Lowering from block EVM IR to its finalized layout-linear form.
 
-use super::{AsmInst, Program, indexed_jump};
+use super::{AsmInst, AsmInstKind, Program, indexed_jump};
 use crate::backend::evm::{
     assembler::{Assembler, Label, PreparedAssembly},
     ir::{self, BlockId},
@@ -120,11 +120,11 @@ fn lower_evm_ir_once(
             );
         }
     }
-    if !referenced_data.is_empty()
-        && let Some(block) = module.blocks.last()
-        && let Some(terminator) = &block.terminator
-        && matches!(&terminator.kind, ir::TerminatorKind::Op(opcode) if *opcode == op::STOP)
-    {
+    // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
+    let ends_with_terminal = program.instructions.last().is_some_and(
+        |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
+    );
+    if !referenced_data.is_empty() && !ends_with_terminal {
         program.push_op(op::STOP);
     }
     program.data = module.data.iter().map(|data| data.bytes.clone()).collect();
@@ -272,7 +272,7 @@ pub(super) fn label_for_block(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::{assembler::AsmInstKind, ir::Block};
+    use crate::backend::evm::ir::Block;
     use solar_interface::{Session, sym};
     use solar_sema::Compiler;
 
@@ -308,6 +308,43 @@ mod tests {
             assert!(program.instructions.iter().any(|inst| {
                 matches!(inst.kind(), AsmInstKind::Label(label) if label == target_label)
             }));
+        });
+    }
+
+    #[test]
+    fn program_data_is_guarded_from_fallthrough() {
+        let mut module = ir::Module::new(sym::module);
+        let data_id = module.data.push(ir::Data { bytes: vec![0xaa].into(), named: false });
+        let mut block = Block::new(0);
+        block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data_id, 0)));
+        module.add_block(block);
+
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut assembler = Assembler::new(c.gcx());
+            let program = lower_evm_ir(&mut assembler, &mut module, &mut vec![None]);
+            let [.., guard, data] = program.instructions.as_slice() else {
+                panic!("expected guarded program data")
+            };
+            assert!(matches!(guard.kind(), AsmInstKind::Op(opcode) if opcode == op::STOP));
+            assert!(matches!(data.kind(), AsmInstKind::Data(id) if id == data_id));
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "program data offset 2 exceeds data size 1")]
+    fn assembler_rejects_out_of_bounds_data_offset() {
+        let mut module = ir::Module::new(sym::module);
+        let data = module.data.push(ir::Data { bytes: vec![0xaa].into(), named: false });
+        let mut block = Block::new(0);
+        block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data, 2)));
+        block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)));
+        module.add_block(block);
+
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut assembler = Assembler::new(c.gcx());
+            lower_evm_ir(&mut assembler, &mut module, &mut vec![None]);
         });
     }
 }
