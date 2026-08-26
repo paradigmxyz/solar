@@ -572,7 +572,7 @@ fn run_forge_test(
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir);
     if config.build_only {
-        cmd.arg("build").arg("--force");
+        cmd.arg("build").arg("--force").arg("--no-lint");
     } else {
         cmd.arg("test").arg("--force").arg("--json");
         if config.traces {
