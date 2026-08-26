@@ -243,7 +243,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.peel_refs().kind {
             TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
             TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
-            _ if external_only => value,
+            _ if external_only && !self.dirty_values.contains(&value) => value,
             _ => self.normalize_abi_scalar(value, ty),
         }
     }
