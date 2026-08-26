@@ -2444,6 +2444,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
+        let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let liveness = self
             .emitting_entry
             .then(|| Liveness::compute_block_local_for_codegen(func))
@@ -2836,6 +2837,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     inst_idx,
                     result_value,
                 );
+                if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
+                    return;
+                }
                 if let Some(result) = result_value {
                     self.spill_reserved_result_if_live(func, liveness, block_id, inst_idx, result);
                     // A free-memory-pointer load cannot be rematerialized once
@@ -2877,6 +2881,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let terminator_growth =
                 block.terminator.as_ref().map_or(0, Self::terminator_transient_growth);
             self.materialize_deep_stack_args(func_id, func, terminator_growth);
+            if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
+                return;
+            }
 
             let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
@@ -4158,7 +4165,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::CalldataLoad(_)
                 | InstKind::InternalFrameAddr(_)
                 | InstKind::Timestamp
-                | InstKind::BlockNumber
         )
     }
 
@@ -4538,7 +4544,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::GasPrice => op::GASPRICE,
             InstKind::Coinbase => op::COINBASE,
             InstKind::Timestamp => op::TIMESTAMP,
-            InstKind::BlockNumber => op::NUMBER,
             InstKind::PrevRandao => op::PREVRANDAO,
             InstKind::GasLimit => op::GASLIMIT,
             InstKind::ChainId => op::CHAINID,
@@ -4635,12 +4640,33 @@ impl<'gcx> EvmCodegen<'gcx> {
                 <= consumed
             {
                 let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
+                    if self.recover_lost_internal_stack_value(operand) {
+                        return 0;
+                    }
                     panic!("resident stack argument {operand:?} was lost before its final use")
                 });
                 assert!(depth < MAX_STACK_ACCESS, "resident stack argument exceeded DUP16 reach");
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             }
         }
+    }
+
+    /// Abandons a speculative internal stack ABI after one of its values was lost.
+    ///
+    /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
+    /// next attempt excludes this function from stack-only argument and return plans, so every
+    /// value has a frame-backed reload route.
+    fn recover_lost_internal_stack_value(&mut self, value: ValueId) -> bool {
+        let Some(func_id) = self.current_internal_function else { return false };
+        self.disabled_stack_only_functions.insert(func_id);
+        self.asm.emit_push(U256::ZERO);
+        self.scheduler.stack.push(value);
+        true
+    }
+
+    fn stack_only_function_disabled(&self, func_id: FunctionId) -> bool {
+        func_id.index() < self.disabled_stack_only_functions.domain_size()
+            && self.disabled_stack_only_functions.contains(func_id)
     }
 
     /// Generates bytecode for an instruction.
@@ -4656,7 +4682,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         result_value: Option<ValueId>,
     ) {
-        if result_value.is_some_and(|value| Self::is_always_rematerializable_value(func, value)) {
+        // A resident stack ABI may carry this value by MIR identity, so it needs one tracked
+        // physical definition. Without one, retain the cheaper emit-at-use behavior.
+        if self.resident_stack_args(func_id).is_none()
+            && result_value.is_some_and(|value| Self::is_always_rematerializable_value(func, value))
+        {
             return;
         }
 
@@ -6411,17 +6441,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         loop_info.all_loops().any(|loop_info| {
             self.spill_hazard_insts.iter().any(|inst| {
                 inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
-                    && matches!(
-                        func.inst(*inst).kind,
-                        InstKind::CalldataCopy(dest, _, _)
-                            if matches!(func.value(dest), Value::Inst(definition)
-                                if matches!(&func.inst(*definition).kind, InstKind::Phi(incoming)
-                                    if incoming.iter().any(|&(_, value)| {
-                                        func.value_u64(value).is_some_and(|address| {
-                                            address < EvmMemoryLayout::HEAP_START
-                                        })
-                                    })))
-                    )
+                    && Self::dynamic_spill_write_dest(func, *inst).is_some_and(|dest| {
+                        matches!(func.value(dest), Value::Inst(definition)
+                        if matches!(&func.inst(*definition).kind, InstKind::Phi(incoming)
+                            if incoming.iter().any(|&(_, value)| {
+                                func.value_u64(value).is_some_and(|address| {
+                                    address < EvmMemoryLayout::HEAP_START
+                                })
+                            })))
+                    })
             })
         })
     }
@@ -7120,6 +7148,36 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.materialize_stack_only_value(value);
     }
 
+    /// Gives a stack-only value a memory home before a fallback drains the physical stack.
+    fn materialize_stack_only_home(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        value: ValueId,
+    ) {
+        if !self.scheduler.is_stack_only_value(value) {
+            return;
+        }
+        match func.value(value) {
+            crate::mir::Value::Arg(index) => self.materialize_stack_arg(func_id, *index, value),
+            crate::mir::Value::Inst(_) => {
+                let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
+                    panic!("stack-only value {value:?} was lost before memory materialization")
+                });
+                let slot = self.scheduler.spills.allocate(value);
+                if depth >= MAX_STACK_ACCESS {
+                    self.spill_deep_stack_value(func, value, slot, depth);
+                } else {
+                    self.spill_accessible_stack_value(func, value, slot, depth);
+                }
+                self.scheduler.materialize_stack_only_value(value);
+            }
+            crate::mir::Value::Immediate(_)
+            | crate::mir::Value::Undef(_)
+            | crate::mir::Value::Error(_) => unreachable!("unsupported stack-only value"),
+        }
+    }
+
     /// Gives resident arguments a frame fallback before an emission stage can bury their last
     /// stack copy beyond `DUP16` reach. `transient_growth` bounds the words pushed before the stage
     /// reaches a resident operand, or the one result left by an ordinary MIR instruction.
@@ -7135,17 +7193,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let materialize_depth = MAX_STACK_ACCESS.saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
-            let value = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
-                value.filter(|&value| {
-                    depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
-                })
+            let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
+                value
+                    .filter(|&value| {
+                        depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                    })
+                    .map(|value| (depth, value))
             });
-            let Some(value) = value else { break };
-            let crate::mir::Value::Arg(index) = func.value(value) else {
-                unreachable!("only arguments may use the stack-only calling convention")
-            };
-            self.materialize_stack_arg(func_id, *index, value);
-            disabled_residency = true;
+            let Some((_, value)) = entry else { break };
+            disabled_residency |= matches!(func.value(value), crate::mir::Value::Arg(_));
+            self.materialize_stack_only_home(func_id, func, value);
         }
         if disabled_residency {
             self.disabled_stack_only_functions.insert(func_id);
@@ -7518,13 +7575,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
+        let heap_prefix_returns = Self::heap_prefix_return_offsets(module);
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
             .map(|(&entry, reachable)| {
                 let guard = reachable
                     .iter()
-                    .map(|func_id| Self::heap_prefix_guard(&module.functions[func_id]))
+                    .map(|func_id| {
+                        Self::heap_prefix_guard(&module.functions[func_id], &heap_prefix_returns)
+                    })
                     .max()
                     .unwrap_or(0);
                 (entry, guard)
@@ -7688,43 +7748,119 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// `keccak256`. Reserve the largest constant backward offset for entries
     /// that reach such a builder so its temporary image cannot overlap the
     /// highest static-frame spill slots.
-    fn heap_prefix_guard(func: &Function) -> u64 {
-        let subtracted_offset = |value: ValueId| {
-            let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
-            let InstKind::Sub(base, offset) = func.inst(*inst_id).kind else { return None };
-            if !func.value_ty(base).is_some_and(MirType::is_memory_reference) {
-                return None;
-            }
-            func.value_u64(offset)
-        };
-        let consumes_prefix = func.instructions().any(|inst_id| {
-            let offset = match func.inst(inst_id).kind {
-                InstKind::Keccak256(offset, _)
-                | InstKind::Create(_, offset, _)
-                | InstKind::Create2(_, offset, _, _)
-                | InstKind::Call { args_offset: offset, .. }
-                | InstKind::CallCode { args_offset: offset, .. }
-                | InstKind::StaticCall { args_offset: offset, .. }
-                | InstKind::DelegateCall { args_offset: offset, .. } => Some(offset),
-                _ => None,
-            };
-            offset.and_then(subtracted_offset).is_some()
-        });
-        if !consumes_prefix {
-            return 0;
-        }
+    fn heap_prefix_guard(func: &Function, returned_offsets: &FxHashMap<FunctionId, u64>) -> u64 {
         func.instructions()
-            .filter_map(|inst_id| match func.inst(inst_id).kind {
-                InstKind::Sub(base, offset)
-                    if func.value_ty(base).is_some_and(MirType::is_memory_reference) =>
-                {
-                    func.value_u64(offset)
-                }
-                _ => None,
+            .filter_map(|inst_id| {
+                let offset = match func.inst(inst_id).kind {
+                    InstKind::Keccak256(offset, _)
+                    | InstKind::Create(_, offset, _)
+                    | InstKind::Create2(_, offset, _, _)
+                    | InstKind::Call { args_offset: offset, .. }
+                    | InstKind::CallCode { args_offset: offset, .. }
+                    | InstKind::StaticCall { args_offset: offset, .. }
+                    | InstKind::DelegateCall { args_offset: offset, .. } => Some(offset),
+                    _ => None,
+                }?;
+                let mut visiting = DenseBitSet::new_empty(func.num_values());
+                let mut memo = FxHashMap::default();
+                Self::heap_prefix_offset(func, offset, returned_offsets, &mut visiting, &mut memo)
             })
             .max()
             .unwrap_or(0)
             .next_multiple_of(EvmMemoryLayout::WORD_SIZE)
+    }
+
+    /// Computes the largest backward heap offset returned by each helper.
+    fn heap_prefix_return_offsets(module: &Module) -> FxHashMap<FunctionId, u64> {
+        let mut offsets = FxHashMap::default();
+        for _ in 0..module.functions.len() {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                let mut offset = offsets.get(&func_id).copied().unwrap_or(0);
+                for block in &func.blocks {
+                    let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                    for &value in values {
+                        let mut visiting = DenseBitSet::new_empty(func.num_values());
+                        let mut memo = FxHashMap::default();
+                        if let Some(returned) = Self::heap_prefix_offset(
+                            func,
+                            value,
+                            &offsets,
+                            &mut visiting,
+                            &mut memo,
+                        ) {
+                            offset = offset.max(returned);
+                        }
+                    }
+                }
+                if offset > offsets.get(&func_id).copied().unwrap_or(0) {
+                    offsets.insert(func_id, offset);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        offsets
+    }
+
+    /// Returns how far `value` can point before its underlying heap object.
+    fn heap_prefix_offset(
+        func: &Function,
+        value: ValueId,
+        returned_offsets: &FxHashMap<FunctionId, u64>,
+        visiting: &mut DenseBitSet<ValueId>,
+        memo: &mut FxHashMap<ValueId, u64>,
+    ) -> Option<u64> {
+        if let Some(&offset) = memo.get(&value) {
+            return Some(offset);
+        }
+        if !visiting.insert(value) {
+            return None;
+        }
+        let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
+            Self::heap_prefix_offset(func, value, returned_offsets, visiting, memo)
+        };
+        let offset = match func.value(value) {
+            Value::Arg(_) if func.value_ty(value).is_some_and(MirType::is_memory_reference) => {
+                Some(0)
+            }
+            Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
+                InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
+                InstKind::MLoad(address)
+                    if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    Some(0)
+                }
+                InstKind::InternalCall { function, returns: 1, .. } => {
+                    returned_offsets.get(function).copied()
+                }
+                InstKind::Sub(base, amount) => {
+                    let base = derive(*base, visiting, memo).or_else(|| {
+                        func.value_ty(*base).is_some_and(MirType::is_memory_reference).then_some(0)
+                    })?;
+                    base.checked_add(func.value_u64(*amount)?)
+                }
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .map(|&(_, incoming)| derive(incoming, visiting, memo))
+                    .collect::<Option<Vec<_>>>()?
+                    .into_iter()
+                    .max(),
+                InstKind::Select(_, then_value, else_value) => Some(
+                    derive(*then_value, visiting, memo)?.max(derive(*else_value, visiting, memo)?),
+                ),
+                _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => Some(0),
+                _ => None,
+            },
+            _ => None,
+        };
+        visiting.remove(value);
+        if let Some(offset) = offset {
+            memo.insert(value, offset);
+        }
+        offset
     }
 
     /// Returns the highest end address of any memory access in `func` whose
@@ -7836,44 +7972,104 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_free_memory_consts.insert(entry, id);
     }
 
-    /// Collects calldata-forwarding clobbers that can overwrite the spill
-    /// area. A copy with a symbolic destination or length into low, unowned
-    /// memory qualifies — for example a proxy trashing `[0, calldatasize())`.
-    /// Alias analysis is built only when the function has such a copy, and
-    /// destinations resolved to the free-memory pointer, an allocation, or the
-    /// internal frame (ordinary high memory, including hand-written
-    /// `calldatacopy(mload(0x40), …)` decode loops) are excluded, so this never
-    /// perturbs normal or assembly-heavy code that stays above the spill area.
+    /// Returns the destination of a symbolic memory write that can cover a
+    /// compiler spill slot. Constant ranges are handled by the static memory
+    /// high-water mark instead.
+    fn dynamic_spill_write_dest(func: &Function, inst_id: InstId) -> Option<ValueId> {
+        if matches!(
+            func.inst(inst_id).metadata.memory_region(),
+            Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
+        ) {
+            return None;
+        }
+        let dynamic_range = |dest, size| {
+            // Fixed-width copies have the same explicit-memory contract as
+            // `mstore`: arbitrary destinations in hand-written assembly may
+            // alias compiler memory. The forwarding-buffer protocol is for
+            // variable-length writes that can sweep over every spill slot.
+            if func.value_u64(size).is_some() {
+                return None;
+            }
+            let below_spills = func.value_u64(dest).is_some_and(|dest| {
+                let mut visiting = DenseBitSet::new_empty(func.num_values());
+                Self::value_u64_upper_bound(func, size, &mut visiting)
+                    .and_then(|size| dest.checked_add(size))
+                    .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+            });
+            (!below_spills).then_some(dest)
+        };
+        match func.inst(inst_id).kind {
+            InstKind::CalldataCopy(dest, _, size)
+            | InstKind::CodeCopy(dest, _, size)
+            | InstKind::ExtCodeCopy(_, dest, _, size)
+            | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
+            InstKind::ReturnDataCopy(dest, offset, size) => {
+                // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
+                // `n == 0` writes nothing, while every nonzero length is out
+                // of bounds and traps before memory is modified.
+                let starts_at_end = matches!(
+                    func.value(offset),
+                    Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
+                );
+                if starts_at_end { None } else { dynamic_range(dest, size) }
+            }
+            InstKind::Call { ret_offset: dest, ret_size: size, .. }
+            | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
+            | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
+            | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. }
+                if func.value_u64(size) != Some(0) =>
+            {
+                dynamic_range(dest, size)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns a conservative upper bound for a small integer expression.
+    fn value_u64_upper_bound(
+        func: &Function,
+        value: ValueId,
+        visiting: &mut DenseBitSet<ValueId>,
+    ) -> Option<u64> {
+        if let Some(value) = func.value_u64(value) {
+            return Some(value);
+        }
+        if !visiting.insert(value) {
+            return None;
+        }
+        let bound = match func.value(value) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
+                InstKind::Select(_, if_true, if_false) => Some(
+                    Self::value_u64_upper_bound(func, if_true, visiting)?
+                        .max(Self::value_u64_upper_bound(func, if_false, visiting)?),
+                ),
+                _ => None,
+            },
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => None,
+        };
+        visiting.remove(value);
+        bound
+    }
+
+    /// Collects symbolic low-memory clobbers that can overwrite the spill
+    /// area. This includes variable-length copy opcodes and call return
+    /// buffers. Alias analysis excludes destinations rooted at the free-memory
+    /// pointer, allocations, or internal frames. Single-word stores do not
+    /// need the forwarding-buffer protocol: their exact runtime address does
+    /// not create an unbounded clobber range.
     fn compute_spill_hazard_insts(&self, func: &Function) -> FxHashSet<InstId> {
         let mut hazards = FxHashSet::default();
-        let has_symbolic_calldatacopy = func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::CalldataCopy(dest, _, size)
-                if func.value_u64(dest).is_none() || func.value_u64(size).is_none())
-        });
-        // The clobber only matters when the copied low memory is then forwarded
-        // to a call. Pure calldata manipulation (a decompressor writing
-        // scratch) never reads a spilled value back from the overwritten
-        // region, so it must not be perturbed.
-        let has_forwarding_call = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::Call { .. }
-                    | InstKind::CallCode { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-            )
-        });
-        if !has_symbolic_calldatacopy || !has_forwarding_call {
+        let candidates = func
+            .instructions()
+            .filter_map(|inst_id| {
+                Self::dynamic_spill_write_dest(func, inst_id).map(|dest| (inst_id, dest))
+            })
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
             return hazards;
         }
         let aa = AliasAnalysis::new(func);
-        for inst_id in func.instructions() {
-            let InstKind::CalldataCopy(dest, _, size) = func.inst(inst_id).kind else {
-                continue;
-            };
-            if func.value_u64(dest).is_some() && func.value_u64(size).is_some() {
-                continue;
-            }
+        for (inst_id, dest) in candidates {
             if self.write_dest_may_reach_spills(func, &aa, dest) {
                 hazards.insert(inst_id);
             }
@@ -8023,6 +8219,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             .memory_address(func, value)
             .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
             .or_else(|| {
+                if matches!(func.value(value), Value::Arg(_))
+                    && func.value_ty(value).is_some_and(MirType::is_memory_reference)
+                {
+                    return Some(true);
+                }
                 let Value::Inst(inst_id) = func.value(value) else { return None };
                 match &func.inst(*inst_id).kind {
                     InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
@@ -8286,7 +8487,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // a helper and then stored, as in `tryAdd`) would otherwise be popped by
         // the arg-store loop below and then lost when the stack is cleared for
         // the call, leaving it unavailable at its later use.
-        self.spill_live_stack_values(func, liveness, block, inst_idx);
+        self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
         // are stored. Give any argument that this extra word would bury beyond `DUP16` a memory
@@ -8693,6 +8894,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         orders
     }
 
+    /// Stores the top stack word into one static-frame argument slot.
+    fn emit_static_frame_arg_store(&mut self, callee: FunctionId, index: usize) {
+        let addr = self.static_frame_addr(
+            callee,
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + (index as u64) * EvmMemoryLayout::WORD_SIZE,
+        );
+        self.asm.emit_push_deferred(addr);
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::MSTORE);
+        self.scheduler.instruction_executed(2, None);
+    }
+
     /// Call to a static-frame callee: arguments are stored at absolute
     /// addresses, the return address rides the EVM stack (same invariants as
     /// the dynamic path), and there is no frame-pointer save/update/restore
@@ -8761,6 +8975,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let mut resident_call_values = recursive_call_values.clone();
+        if recursive_reentry && let Some(mask) = &stack_mask {
+            // Stack-passed actuals are installed after the memory arguments.
+            // Snapshot them before any store can overwrite their source frame.
+            for (index, &arg) in args.iter().enumerate() {
+                if mask.contains(index) && !resident_call_values.contains(&arg) {
+                    if !self.scheduler.stack.contains(arg) {
+                        self.emit_value(func, arg);
+                    }
+                    resident_call_values.push(arg);
+                }
+            }
+        }
         if self.preserve_caller_stack
             && let Some(resident) = self.resident_stack_args(func_id)
         {
@@ -8807,6 +9033,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     <= consumed
                 {
                     let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
+                        if self.recover_lost_internal_stack_value(value) {
+                            return 0;
+                        }
                         panic!(
                             "resident argument {value:?} was lost before an internal call in `{}` \
                              at {block:?}:{inst_idx}; args={args:?}, mask={stack_mask:?}, \
@@ -8822,23 +9051,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !recursive_reentry && caller_stack_plan.is_none() {
             // The fallback drains the caller stack, so park every value needed after the call
             // before consuming arguments.
-            self.spill_live_stack_values(func, liveness, block, inst_idx);
+            self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
         }
 
-        for (i, &arg) in args.iter().enumerate() {
-            if stack_mask.as_ref().is_some_and(|mask| mask.contains(i)) {
-                continue;
+        let memory_args = args
+            .iter()
+            .enumerate()
+            .filter(|&(index, _)| stack_mask.as_ref().is_none_or(|mask| !mask.contains(index)))
+            .map(|(index, &arg)| (index, arg))
+            .collect::<Vec<_>>();
+        if recursive_reentry {
+            // The callee reuses this component's static frame. Materialize the
+            // complete memory-passed tuple before the first destination write,
+            // then consume the snapshots in reverse order. This is a parallel
+            // copy even when arguments permute the caller's frame slots.
+            for &(_, arg) in &memory_args {
+                self.emit_operand(func, arg);
             }
-            self.emit_operand(func, arg);
-            let addr = self.static_frame_addr(
-                callee,
-                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                    + (i as u64) * EvmMemoryLayout::WORD_SIZE,
-            );
-            self.asm.emit_push_deferred(addr);
-            self.scheduler.stack.push_unknown();
-            self.asm.emit_op(op::MSTORE);
-            self.scheduler.instruction_executed(2, None);
+        }
+        if recursive_reentry {
+            for (index, _) in memory_args.into_iter().rev() {
+                self.emit_static_frame_arg_store(callee, index);
+            }
+        } else {
+            for (index, arg) in memory_args {
+                self.emit_operand(func, arg);
+                self.emit_static_frame_arg_store(callee, index);
+            }
         }
 
         let mut retention_plan = (!carries_resident_stack && caller_stack_plan.is_none())
@@ -9230,6 +9469,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn spill_live_stack_values(
         &mut self,
+        func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
         block: BlockId,
@@ -9238,6 +9478,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stack_values: Vec<_> = self.scheduler.stack.iter().flatten().collect();
         for value in stack_values {
             if !liveness.is_dead_after(value, block, inst_idx) {
+                self.materialize_stack_only_home(func_id, func, value);
                 self.spill_value_if_needed(func, value);
             }
         }
@@ -9364,11 +9605,22 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
-        if Self::is_always_rematerializable_value(func, val) {
+        // Prefer the tracked definition while it is resident. Re-emitting beside that copy gives
+        // one MIR identity two physical stack positions and invalidates resident layout plans.
+        if Self::is_always_rematerializable_value(func, val)
+            && self.scheduler.stack.find(val).is_none()
+        {
             self.emit_value_fresh(func, val);
             return;
         }
 
+        if self.scheduler.is_stack_only_value(val)
+            && self.scheduler.stack.find(val).is_none()
+            && self.scheduler.reloadable_spill(val).is_none()
+            && self.recover_lost_internal_stack_value(val)
+        {
+            return;
+        }
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= MAX_STACK_ACCESS
             && self.scheduler.reloadable_spill(val).is_none()
@@ -9408,6 +9660,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
+        if self.scheduler.is_stack_only_value(val)
+            && self.scheduler.stack.find(val).is_none()
+            && self.scheduler.reloadable_spill(val).is_none()
+            && self.recover_lost_internal_stack_value(val)
+        {
+            return;
+        }
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 if let Some(u256) = imm.as_u256() {
@@ -9485,6 +9744,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                         crate::mir::InstKind::ConstructorArgsBase => {
                             self.emit_constructor_args_base();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::BlockNumber => {
+                            self.asm.emit_op(op::NUMBER);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::MLoad(offset) => {
@@ -10210,20 +10473,35 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 .filter_map(|index| mask.contains(index).then_some(args[index]))
                         })
                         .collect();
-                    for (i, &arg) in args.iter().enumerate() {
-                        if stack_mask.as_ref().is_some_and(|mask| mask.contains(i)) {
-                            continue;
+                    let recursive_reentry = self.current_internal_function.is_some_and(|caller| {
+                        self.recursive_frame_edges.contains(&(caller, *function))
+                    });
+                    let memory_args = args
+                        .iter()
+                        .enumerate()
+                        .filter(|&(index, _)| {
+                            stack_mask.as_ref().is_none_or(|mask| !mask.contains(index))
+                        })
+                        .map(|(index, &arg)| (index, arg))
+                        .collect::<Vec<_>>();
+                    if recursive_reentry {
+                        // Keep stack-passed actuals above the caller frame, and
+                        // stage all memory-passed actuals before overwriting any
+                        // reused destination slot.
+                        for &arg in &stack_args {
+                            self.emit_operand(func, arg);
                         }
-                        self.emit_operand(func, arg);
-                        let addr = self.static_frame_addr(
-                            *function,
-                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                                + (i as u64) * EvmMemoryLayout::WORD_SIZE,
-                        );
-                        self.asm.emit_push_deferred(addr);
-                        self.scheduler.stack.push_unknown();
-                        self.asm.emit_op(op::MSTORE);
-                        self.scheduler.instruction_executed(2, None);
+                        for &(_, arg) in &memory_args {
+                            self.emit_operand(func, arg);
+                        }
+                        for (index, _) in memory_args.into_iter().rev() {
+                            self.emit_static_frame_arg_store(*function, index);
+                        }
+                    } else {
+                        for (index, arg) in memory_args {
+                            self.emit_operand(func, arg);
+                            self.emit_static_frame_arg_store(*function, index);
+                        }
                     }
                     if !stack_args.is_empty() {
                         self.pop_stack_values_not_needed_by(&stack_args);
@@ -10819,7 +11097,6 @@ mod tests {
             (InstKind::GasPrice, op::GASPRICE),
             (InstKind::Coinbase, op::COINBASE),
             (InstKind::Timestamp, op::TIMESTAMP),
-            (InstKind::BlockNumber, op::NUMBER),
             (InstKind::PrevRandao, op::PREVRANDAO),
             (InstKind::GasLimit, op::GASLIMIT),
             (InstKind::ChainId, op::CHAINID),
@@ -10832,9 +11109,13 @@ mod tests {
             assert!(!EvmCodegen::can_own_spill_slot(&function, value));
         }
 
-        for kind in
-            [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
-        {
+        for kind in [
+            InstKind::BlockNumber,
+            InstKind::MSize,
+            InstKind::ReturnDataSize,
+            InstKind::SelfBalance,
+            InstKind::Gas,
+        ] {
             let (_, value) =
                 function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);

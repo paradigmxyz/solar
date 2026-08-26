@@ -17,7 +17,7 @@ fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
     jumpi v3, bb2, bb1
   bb1:
     v4 = returndatasize
-    returndatacopy 0, 0, v4 !metadata(memory=scratch)
+    returndatacopy 0, 0, v4 !metadata(memory=abi_return)
     v5 = returndatasize
     revert 0, v5
   bb2:

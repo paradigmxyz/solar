@@ -293,6 +293,26 @@ pub(crate) struct Lowerer<'gcx> {
     internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Shared ABI aggregate decoders keyed by source, type, and boundedness.
     abi_decode_helpers: FxHashMap<(bytes::AbiSource, Ty<'gcx>, bool), FunctionId>,
+    /// Size-focused decoders that resolve a nested dynamic head in their callee.
+    abi_decode_body_helpers: FxHashMap<Ty<'gcx>, FunctionId>,
+    /// Size-focused tags for static aggregate elements decoded by the shared array loop.
+    abi_static_array_decoder_tags: FxHashMap<Ty<'gcx>, u64>,
+    /// Static aggregate element decoders indexed by `tag - 1`.
+    abi_static_array_decoder_targets: Vec<FunctionId>,
+    /// Shared dynamic-array loop for static aggregate elements.
+    abi_static_array_helper: Option<FunctionId>,
+    /// Dispatcher called by the shared static-aggregate array loop.
+    abi_static_array_dispatcher: Option<FunctionId>,
+    /// Shared ABI range validator for calldata decoders.
+    abi_range_helper: Option<FunctionId>,
+    /// Shared dynamic ABI offset resolver for size-focused modules.
+    abi_offset_helper: Option<FunctionId>,
+    /// Shared dynamic-offset and aggregate-head validator for size-focused modules.
+    abi_checked_head_helper: Option<FunctionId>,
+    /// Shared dynamic-offset and array-tail validator for size-focused modules.
+    abi_checked_array_helper: Option<FunctionId>,
+    /// Shared bounds check for dynamic calldata-array heads in size-focused modules.
+    abi_calldata_array_bounds_helper: Option<FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Shared base value for constructor ABI argument accesses.
@@ -404,6 +424,16 @@ impl<'gcx> Lowerer<'gcx> {
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
             abi_decode_helpers: FxHashMap::default(),
+            abi_decode_body_helpers: FxHashMap::default(),
+            abi_static_array_decoder_tags: FxHashMap::default(),
+            abi_static_array_decoder_targets: Vec::new(),
+            abi_static_array_helper: None,
+            abi_static_array_dispatcher: None,
+            abi_range_helper: None,
+            abi_offset_helper: None,
+            abi_checked_head_helper: None,
+            abi_checked_array_helper: None,
+            abi_calldata_array_bounds_helper: None,
             lowering_constructor: false,
             constructor_args_base: None,
             lowering_internal_function: false,
@@ -1428,12 +1458,12 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let mut deferred_param_slots: Vec<(u64, ValueId)> = Vec::new();
-            let validates_nested_arrays = decodes_abi_params
-                && hir_func
-                    .parameters
-                    .iter()
-                    .any(|&param| self.memory_nested_dyn_array_param(param).is_some());
-            let abi_region_end = validates_nested_arrays.then(|| {
+            let validates_dynamic_params = decodes_abi_params
+                && hir_func.parameters.iter().any(|&param_id| {
+                    !self.param_is_storage_ref(param_id)
+                        && self.abi_is_dynamic(self.gcx.type_of_item(param_id.into()))
+                });
+            let abi_region_end = validates_dynamic_params.then(|| {
                 if self.lowering_constructor {
                     let fmp_slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
                     builder.mload(fmp_slot)
@@ -1477,13 +1507,22 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         (bytes::AbiSource::Calldata, builder.imm_u64(4))
                     };
-                    let offset = builder.add_param(MirType::uint256());
-                    let limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
-                    let out_of_range = builder.gt(offset, limit);
-                    self.emit_abi_decode_revert_if(&mut builder, out_of_range);
-                    let base = builder.add(args_base, offset);
-                    let struct_ptr =
-                        self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
+                    let head = builder.add_param(MirType::uint256());
+                    let end = abi_region_end.expect("ABI parameters have a bounded source region");
+                    let base = self.resolve_abi_param_head(
+                        &mut builder,
+                        args_base,
+                        head,
+                        abi_arg_head_size,
+                        end,
+                    );
+                    let struct_ptr = self.materialize_bounded_abi_value_at(
+                        &mut builder,
+                        source,
+                        param_ty,
+                        base,
+                        end,
+                    );
                     self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
@@ -1607,7 +1646,7 @@ impl<'gcx> Lowerer<'gcx> {
                                 builder.set_memory_object_len(ptr, len, object_layout.kind());
                                 let dst = builder.memory_object_data(ptr, object_layout.kind());
                                 let src = builder.add(pos, word);
-                                builder.calldatacopy(dst, src, byte_len);
+                                builder.calldatacopy_heap(dst, src, byte_len);
                                 ptr
                             }
                             _ => field_val,
@@ -1668,18 +1707,14 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         (bytes::AbiSource::Calldata, builder.imm_u64(4))
                     };
-                    let head_size = builder.imm_u64(abi_arg_head_size);
-                    let before_tail = builder.lt(head, head_size);
-                    self.emit_abi_decode_revert_if(&mut builder, before_tail);
-                    let len_pos = builder.add(abi_base, head);
-                    let overflow = builder.lt(len_pos, abi_base);
-                    self.emit_abi_decode_revert_if(&mut builder, overflow);
-                    let out_of_bounds = builder.gt(
-                        len_pos,
-                        abi_region_end.expect("ABI parameters have a bounded source region"),
-                    );
-                    self.emit_abi_decode_revert_if(&mut builder, out_of_bounds);
                     let end = abi_region_end.expect("ABI parameters have a bounded source region");
+                    let len_pos = self.resolve_abi_param_head(
+                        &mut builder,
+                        abi_base,
+                        head,
+                        abi_arg_head_size,
+                        end,
+                    );
                     let array_ptr = if self.lowering_constructor {
                         self.materialize_bounded_abi_value_inline_at(
                             &mut builder,
@@ -1710,28 +1745,31 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         builder.imm_u64(4)
                     };
-                    let len_pos = builder.add(abi_base, head);
-                    let len = if self.lowering_constructor {
-                        builder.mload(len_pos)
-                    } else {
-                        builder.calldataload(len_pos)
-                    };
-                    let word = builder.imm_u64(32);
-                    let data_bytes = builder.mul(len, word);
-                    let total_bytes = builder.add(data_bytes, word);
-                    let array_ptr = builder.alloc_object(
-                        total_bytes,
-                        crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 },
-                        crate::mir::AllocationSemantics::INTERNAL,
+                    let end = abi_region_end.expect("ABI parameters have a bounded source region");
+                    let len_pos = self.resolve_abi_param_head(
+                        &mut builder,
+                        abi_base,
+                        head,
+                        abi_arg_head_size,
+                        end,
                     );
-                    builder.set_memory_object_len(array_ptr, len, MemoryObjectKind::DynamicArray);
-                    let dst = builder.memory_object_data(array_ptr, MemoryObjectKind::DynamicArray);
-                    let src = builder.add(len_pos, word);
-                    if self.lowering_constructor {
-                        builder.mcopy(dst, src, data_bytes);
+                    let array_ptr = if self.lowering_constructor {
+                        self.materialize_bounded_abi_value_inline_at(
+                            &mut builder,
+                            bytes::AbiSource::Memory,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
                     } else {
-                        builder.calldatacopy(dst, src, data_bytes);
-                    }
+                        self.materialize_bounded_abi_value_at(
+                            &mut builder,
+                            bytes::AbiSource::Calldata,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
+                    };
                     self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && param.data_location == Some(solar_ast::DataLocation::Memory)
@@ -1751,37 +1789,52 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         builder.imm_u64(4)
                     };
-                    let len_pos = builder.add(abi_base, head);
-                    let len = if self.lowering_constructor {
-                        builder.mload(len_pos)
-                    } else {
-                        builder.calldataload(len_pos)
-                    };
-                    let thirty_one = builder.imm_u64(31);
-                    let rounded = builder.add(len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let padded = builder.and(rounded, mask);
-                    let word = builder.imm_u64(32);
-                    let total = builder.add(padded, word);
-                    let ptr = self.allocate_memory_object_dynamic(
+                    let end = abi_region_end.expect("ABI parameters have a bounded source region");
+                    let len_pos = self.resolve_abi_param_head(
                         &mut builder,
-                        total,
-                        MemoryObjectKind::Bytes,
+                        abi_base,
+                        head,
+                        abi_arg_head_size,
+                        end,
                     );
-                    builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-                    let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    let src = builder.add(len_pos, word);
-                    if self.lowering_constructor {
-                        builder.mcopy(data_ptr, src, len);
+                    let ptr = if self.lowering_constructor {
+                        self.materialize_bounded_abi_value_inline_at(
+                            &mut builder,
+                            bytes::AbiSource::Memory,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
                     } else {
-                        builder.calldatacopy(data_ptr, src, len);
-                    }
+                        self.materialize_bounded_abi_value_at(
+                            &mut builder,
+                            bytes::AbiSource::Calldata,
+                            param_ty,
+                            len_pos,
+                            end,
+                        )
+                    };
                     self.bind_param_value_deferred(param_id, ptr, &mut deferred_param_slots);
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
                     let mut head_or_value = builder.add_param(ty);
-                    if decodes_abi_params {
+                    if decodes_abi_params
+                        && Self::calldata_dynamic_var_kind(param).is_some()
+                        && !self.lowering_constructor
+                    {
+                        let base = builder.imm_u64(4);
+                        let end =
+                            abi_region_end.expect("ABI parameters have a bounded source region");
+                        head_or_value = self.validate_bounded_calldata_slice_param(
+                            &mut builder,
+                            param_ty,
+                            head_or_value,
+                            base,
+                            abi_arg_head_size,
+                            end,
+                        );
+                    } else if decodes_abi_params {
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
@@ -2393,6 +2446,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the completed module.
     #[must_use]
     pub(crate) fn finish(mut self) -> Module {
+        self.generate_abi_static_array_dispatcher();
         self.generate_internal_function_pointer_dispatchers();
         self.module
     }

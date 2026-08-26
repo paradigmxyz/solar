@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xed2f0bb8
   eq
   push bb4
@@ -16,7 +16,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb10 [cold]:
   push 0x4e487b71
@@ -31,9 +31,8 @@ bb10 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 96
   sgt
@@ -45,7 +44,7 @@ bb4:
   not
   push 96
   shr
-  dup2
+  dup 2
   and
   sub
   push bb3
@@ -61,15 +60,15 @@ bb4:
   push 64
   push 0
   keccak256
-  dup1
+  dup 1
   push 192
   mstore
   sload
   push 68
   calldataload
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
   lt
@@ -83,12 +82,12 @@ bb4:
   push 192
   mload
   sload
-  caller
   push 255
+  caller
   and
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
   lt
@@ -111,7 +110,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x3dd41ca6
   sub
   push bb3
@@ -119,9 +118,8 @@ bb0:
   push 224
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -133,53 +131,53 @@ bb0:
   not
   push 96
   shr
-  dup2
+  dup 2
   and
   sub
   push bb3
   jumpi
   push 64
   mload
-  dup1
+  dup 1
   push 160
   mstore
   push 0xed2f0bb8
-  dup2
+  dup 2
   shl
-  dup2
+  dup 2
   mstore
   push 4
-  dup2
+  dup 2
   add
   push 0
-  swap1
+  swap 1
   mstore
   push 36
-  dup2
+  dup 2
   add
   push 4
   calldataload
-  swap1
+  swap 1
   mstore
   push 68
-  dup2
+  dup 2
   add
   push 36
   calldataload
-  swap1
+  swap 1
   mstore
   gas
-  dup1
+  dup 1
   push 192
   mstore
   push 32
   push 0
   push 100
-  dup5
+  dup 5
   push 0x1111111111111111111111111111111111111111
-  dup6
+  dup 6
   delegatecall
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -194,12 +192,12 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb9 [cold]:
   returndatasize
   push 0
-  dup1
+  dup 1
   returndatacopy
   returndatasize
   push 0

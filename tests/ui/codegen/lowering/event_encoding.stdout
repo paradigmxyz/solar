@@ -54,20 +54,68 @@ fn @emitIndexedBytes(arg0: memorybytes) {
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = keccak256_bytes v9
-    log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v12
+    v3 = calldatasize
+    v4 = add 4, arg0
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
+  bb4:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = keccak256_bytes v6
+    log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v7
     stop
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = calldataload arg0
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
+  bb6:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    jumpi v17, bb7, bb8
+  bb8:
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
+    mstore v18, v9
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = add arg0, 32
+    calldatacopy v19, v22, v9 !metadata(memory=heap)
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
   bb1:
     revert 0, 0
 }

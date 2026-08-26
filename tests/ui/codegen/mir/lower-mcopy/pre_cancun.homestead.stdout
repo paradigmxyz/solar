@@ -7,19 +7,10 @@
 +     v0 = not 31
 +     v1 = and arg2, v0
 +     jump bb2
-+   bb1:
-      ret arg0
 +   bb2:
 +     v2 = phi [bb0: 0], [bb3: v7]
 +     v3 = lt v2, v1
 +     jumpi v3, bb3, bb4
-+   bb3:
-+     v4 = add arg1, v2
-+     v5 = mload v4
-+     v6 = add arg0, v2
-+     mstore v6, v5
-+     v7 = add v2, 32
-+     jump bb2
 +   bb4:
 +     v8 = lt v1, arg2
 +     jumpi v8, bb5, bb1
@@ -39,5 +30,14 @@
 +     v21 = or v15, v20
 +     mstore v16, v21
 +     jump bb1
++   bb1:
+      ret arg0
++   bb3:
++     v4 = add arg1, v2
++     v5 = mload v4
++     v6 = add arg0, v2
++     mstore v6, v5
++     v7 = add v2, 32
++     jump bb2
   }
   

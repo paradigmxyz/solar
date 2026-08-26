@@ -8,7 +8,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 15
   and
   indexed_jump bb2, bb19, bb19, bb19, bb19, bb3, bb4, bb5, bb19, bb19, bb6, bb19, bb19, bb7, bb19, bb19
@@ -27,7 +27,7 @@ bb77 [cold]:
   push 0
   revert
 bb2:
-  dup1
+  dup 1
   push 0xe0886f90
   eq
   push bb50
@@ -35,38 +35,38 @@ bb2:
   jump bb19
 bb19 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb3:
-  dup1
+  dup 1
   push 0x4407bb95
   eq
   push bb15
   jumpi
   jump bb19
 bb4:
-  dup1
+  dup 1
   push 0x53b8a6c6
   eq
   push bb36
   jumpi
   jump bb19
 bb5:
-  dup1
+  dup 1
   push 0x56d88e27
   eq
   push bb48
   jumpi
   jump bb19
 bb6:
-  dup1
+  dup 1
   push 0xbee6975a
   eq
   push bb56
   jumpi
   jump bb19
 bb7:
-  dup1
+  dup 1
   push 0x72bd964d
   eq
   push bb65
@@ -76,9 +76,8 @@ bb15:
   push 864
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -87,7 +86,7 @@ bb15:
   push 4
   calldataload
   push 255
-  dup2
+  dup 2
   and
   sub
   push bb19
@@ -95,7 +94,7 @@ bb15:
   push 36
   calldataload
   push 255
-  dup2
+  dup 2
   and
   sub
   push bb19
@@ -116,15 +115,15 @@ bb15:
   push 0
   push 4
   calldataload
-  swap1
+  swap 1
   jump bb20
 bb20:
-  dup1
+  dup 1
   push 448
   mstore
   push 36
   calldataload
-  dup2
+  dup 2
   lt
   push bb23
   jumpi
@@ -138,7 +137,7 @@ bb22:
   push 480
   mload
   add
-  swap1
+  swap 1
   jump bb20
 bb23:
   push bb24
@@ -146,88 +145,88 @@ bb23:
   mload
   jump bb69
 bb69:
-  dup1
+  dup 1
   sload
-  dup1
+  dup 1
   push 608
   mstore
   push 1
-  dup2
+  dup 2
   and
   push 1
   eq
   push 255
-  dup3
+  dup 3
   and
   push 1
   shr
-  dup3
+  dup 3
   push 1
   shr
-  dup3
-  dup3
-  dup3
+  dup 3
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 31
-  dup2
+  dup 2
   add
   push 31
   not
   and
-  dup1
+  dup 1
   push 640
   mstore
-  dup1
+  dup 1
   iszero
   push 32
-  dup3
-  swap2
-  dup3
-  dup3
+  dup 3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 32
   add
   push 64
   mload
-  dup1
+  dup 1
   push 672
   mstore
   push 32
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 64
   mstore
-  dup1
+  dup 1
   push 704
   mstore
-  swap2
-  dup3
+  swap 2
+  dup 3
   add
   push 64
   mstore
-  dup4
-  dup3
+  dup 4
+  dup 3
   mstore
-  swap3
+  swap 3
   pop
   push 32
-  dup2
+  dup 2
   add
   push 736
   mstore
   pop
   pop
   pop
-  swap1
+  swap 1
   pop
   push bb71
   jumpi
@@ -244,103 +243,103 @@ bb69:
 bb72:
   push 704
   mload
-  swap1
+  swap 1
   jump
 bb24:
-  dup1
+  dup 1
   push 288
   mstore
-  dup1
+  dup 1
   mload
-  dup1
+  dup 1
   push 320
   mstore
   push 1
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 192
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   lt
   push bb27
   jumpi
   push 32
-  dup3
+  dup 3
   add
   push 31
   not
   and
-  dup1
+  dup 1
   iszero
   push 32
-  swap1
-  dup3
-  dup3
+  swap 1
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 32
-  dup2
+  dup 2
   add
   push 64
   mload
-  dup1
+  dup 1
   push 224
   mstore
-  swap1
-  dup2
+  swap 1
+  dup 2
   add
   push 64
   mstore
-  dup3
-  dup2
+  dup 3
+  dup 2
   mstore
-  swap2
+  swap 2
   pop
   push 32
-  dup3
+  dup 3
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 32
-  swap1
-  swap2
+  swap 1
+  swap 2
   sub
-  dup2
+  dup 2
   add
   push 0
-  swap1
+  swap 1
   mstore
-  swap3
+  swap 3
   push 32
   add
-  dup3
-  dup1
+  dup 3
+  dup 1
   push 320
   mstore
-  dup2
-  dup6
-  dup1
+  dup 2
+  dup 6
+  dup 1
   push 192
   mstore
   mcopy
   pop
-  dup5
+  dup 5
   push 480
   mstore
   push 4
   calldataload
-  dup6
+  dup 6
   lt
   push bb28
   jumpi
   push 255
-  dup6
+  dup 6
   and
   push 248
   shl
@@ -350,42 +349,42 @@ bb24:
   and
   push 248
   shr
-  swap2
-  dup4
+  swap 2
+  dup 4
   add
-  dup3
-  swap1
+  dup 3
+  swap 1
   mstore8
-  swap1
+  swap 1
   pop
   mload
-  dup1
+  dup 1
   push 288
   mstore
   push 160
   mload
   sload
   push 1
-  dup2
+  dup 2
   and
   push 1
   eq
   push 255
-  dup3
+  dup 3
   and
   push 1
   shr
-  swap2
+  swap 2
   push 1
   shr
-  dup2
-  swap3
-  swap2
-  dup3
-  dup3
+  dup 2
+  swap 3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 31
@@ -396,18 +395,18 @@ bb24:
   push 5
   shr
   push 0
-  swap2
-  dup3
-  dup3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 320
   mstore
   push 31
-  dup2
+  dup 2
   add
   push 31
   not
@@ -415,45 +414,45 @@ bb24:
   push 5
   shr
   push 31
-  dup3
+  dup 3
   gt
-  dup1
-  swap2
+  dup 1
+  swap 2
   push 0
-  swap2
-  dup3
-  dup3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 224
   mstore
   push 64
   mload
-  dup1
+  dup 1
   push 256
   mstore
   push 32
-  dup2
+  dup 2
   add
   push 64
   mstore
   push 160
   mload
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   keccak256
   push 352
   mstore
-  dup5
+  dup 5
   push 448
   mstore
   pop
-  swap4
+  swap 4
   pop
   pop
   pop
@@ -469,7 +468,7 @@ bb24:
   shl
   push 0
   not
-  swap1
+  swap 1
   shr
   not
   and
@@ -501,16 +500,16 @@ bb34:
   push 256
   mload
   mload
-  dup1
+  dup 1
   push 352
   mload
   add
   push 0
-  swap1
+  swap 1
   sstore
   push 1
   add
-  dup1
+  dup 1
   push 416
   mstore
   push 256
@@ -545,21 +544,21 @@ bb31:
   push 256
   mload
   mload
-  dup1
+  dup 1
   push 5
   shl
   push 192
   mload
   add
   mload
-  dup2
+  dup 2
   push 352
   mload
   add
   sstore
   push 1
   add
-  dup1
+  dup 1
   push 384
   mstore
   push 256
@@ -583,19 +582,19 @@ bb36:
   keccak256
   push 1
   add
-  dup1
+  dup 1
   push 256
   mstore
   push bb37
-  dup2
+  dup 2
   jump bb69
 bb37:
-  dup1
+  dup 1
   push 192
   mstore
-  dup1
+  dup 1
   mload
-  dup1
+  dup 1
   push 128
   mstore
   iszero
@@ -612,89 +611,89 @@ bb37:
   push 31
   not
   and
-  dup1
+  dup 1
   iszero
   push 32
-  swap1
-  dup3
-  dup3
+  swap 1
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 32
-  dup2
+  dup 2
   add
   push 64
   mload
-  dup1
+  dup 1
   push 416
   mstore
-  swap1
-  dup2
+  swap 1
+  dup 2
   add
   push 64
   mstore
-  dup3
-  dup2
+  dup 3
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 128
   mstore
   push 32
-  swap1
-  swap3
+  swap 1
+  swap 3
   sub
-  dup3
+  dup 3
   add
   push 0
-  swap1
+  swap 1
   mstore
-  swap3
+  swap 3
   push 32
   add
-  dup3
-  dup2
-  dup4
-  dup1
+  dup 3
+  dup 2
+  dup 4
+  dup 1
   push 128
   mstore
   mcopy
   pop
-  swap1
+  swap 1
   pop
-  swap1
+  swap 1
   mload
-  dup1
+  dup 1
   push 192
   mstore
-  dup3
+  dup 3
   sload
   push 1
-  dup2
+  dup 2
   and
   push 1
   eq
   push 255
-  dup3
+  dup 3
   and
   push 1
   shr
-  swap2
+  swap 2
   push 1
   shr
-  dup2
-  swap3
-  swap2
-  dup3
-  dup3
+  dup 2
+  swap 3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 31
@@ -705,18 +704,18 @@ bb37:
   push 5
   shr
   push 0
-  swap2
-  dup3
-  dup3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 320
   mstore
   push 31
-  dup2
+  dup 2
   add
   push 31
   not
@@ -724,38 +723,38 @@ bb37:
   push 5
   shr
   push 31
-  dup3
+  dup 3
   gt
-  dup1
-  swap2
+  dup 1
+  swap 2
   push 0
-  swap2
-  dup3
-  dup3
+  swap 2
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 224
   mstore
   push 512
-  dup1
+  dup 1
   push 160
   mstore
-  dup5
-  dup1
+  dup 5
+  dup 1
   push 256
   mstore
-  dup2
+  dup 2
   mstore
   push 32
-  dup2
+  dup 2
   keccak256
   push 288
   mstore
   pop
-  swap3
+  swap 3
   pop
   pop
   pop
@@ -770,7 +769,7 @@ bb37:
   shl
   push 0
   not
-  swap1
+  swap 1
   shr
   not
   and
@@ -802,16 +801,16 @@ bb45:
   push 160
   mload
   mload
-  dup1
+  dup 1
   push 288
   mload
   add
   push 0
-  swap1
+  swap 1
   sstore
   push 1
   add
-  dup1
+  dup 1
   push 384
   mstore
   push 160
@@ -846,21 +845,21 @@ bb42:
   push 160
   mload
   mload
-  dup1
+  dup 1
   push 5
   shl
   push 128
   mload
   add
   mload
-  dup2
+  dup 2
   push 288
   mload
   add
   sstore
   push 1
   add
-  dup1
+  dup 1
   push 352
   mstore
   push 160
@@ -885,10 +884,10 @@ bb48:
   push 1
   add
   push bb49
-  swap1
+  swap 1
   jump bb69
 bb49:
-  dup1
+  dup 1
   push 160
   mstore
   mload
@@ -903,9 +902,8 @@ bb50:
   push 864
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -923,13 +921,13 @@ bb50:
   push 1
   add
   push bb52
-  swap1
+  swap 1
   jump bb69
 bb52:
-  dup1
+  dup 1
   push 160
   mstore
-  dup1
+  dup 1
   mload
   push 4
   calldataload
@@ -949,9 +947,8 @@ bb52:
   and
   jump bb76
 bb56:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -962,7 +959,7 @@ bb56:
   push 255
   push 248
   shl
-  dup2
+  dup 2
   and
   sub
   push bb19
@@ -978,36 +975,36 @@ bb56:
   keccak256
   push 1
   add
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   sload
-  dup1
+  dup 1
   push 192
   mstore
   push 1
-  dup2
+  dup 2
   and
   push 1
   eq
-  dup1
+  dup 1
   push 224
   mstore
   push 255
-  dup3
+  dup 3
   and
   push 1
   shr
-  dup3
+  dup 3
   push 1
   shr
-  dup3
-  dup3
-  dup3
+  dup 3
+  dup 3
+  dup 3
   sub
   mul
-  swap1
+  swap 1
   pop
   add
   push 4
@@ -1022,7 +1019,7 @@ bb56:
   shr
   push 160
   mstore
-  swap2
+  swap 2
   pop
   pop
   push bb63
@@ -1034,7 +1031,7 @@ bb56:
   push 3
   shl
   push 255
-  dup2
+  dup 2
   shl
   not
   push 192
@@ -1042,8 +1039,8 @@ bb56:
   and
   push 160
   mload
-  swap1
-  swap2
+  swap 1
+  swap 2
   shl
   or
   push 128
@@ -1065,7 +1062,7 @@ bb63:
   push 0
   keccak256
   add
-  dup1
+  dup 1
   sload
   push 31
   push 4
@@ -1076,19 +1073,19 @@ bb63:
   push 3
   shl
   push 255
-  dup2
+  dup 2
   shl
   not
-  swap1
-  swap2
+  swap 1
+  swap 2
   and
   push 160
   mload
-  swap1
-  swap2
+  swap 1
+  swap 2
   shl
   or
-  swap1
+  swap 1
   sstore
   jump bb47
 bb65:
@@ -1107,31 +1104,31 @@ bb65:
   push 1
   add
   push bb66
-  swap1
+  swap 1
   jump bb69
 bb66:
-  dup1
+  dup 1
   push 224
   mstore
   push 64
   mload
-  dup1
+  dup 1
   push 256
   mstore
   push 32
-  dup2
+  dup 2
   add
-  dup2
-  dup2
+  dup 2
+  dup 2
   sub
-  dup3
+  dup 3
   mstore
-  dup3
+  dup 3
   mload
-  dup1
+  dup 1
   push 128
   mstore
-  swap1
+  swap 1
   mstore
   push 31
   push 128
@@ -1140,15 +1137,15 @@ bb66:
   push 31
   not
   and
-  dup1
+  dup 1
   push 192
   mstore
   push 64
-  dup3
+  dup 3
   add
   push 160
   mstore
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -1162,7 +1159,7 @@ bb66:
   mload
   add
   push 0
-  swap1
+  swap 1
   mstore
   jump bb68
 bb68:
@@ -1177,33 +1174,33 @@ bb68:
   add
   push 128
   mload
-  dup2
+  dup 2
   push 160
   mload
   mcopy
   pop
   push 256
   mload
-  swap1
+  swap 1
   sub
   push 31
-  dup2
+  dup 2
   add
   push 31
   not
   and
   push 64
   mload
-  dup1
+  dup 1
   push 288
   mstore
-  swap1
-  dup2
+  swap 1
+  dup 2
   add
   push 64
   mstore
-  dup2
-  dup2
+  dup 2
+  dup 2
   return
 bb71:
   push 672
@@ -1213,32 +1210,32 @@ bb71:
   push 672
   mload
   keccak256
-  dup1
+  dup 1
   push 608
   mstore
   push 640
   mload
   push 5
   shr
-  dup1
+  dup 1
   push 640
   mstore
   push 736
   mload
-  swap2
-  swap1
+  swap 2
+  swap 1
   jump bb73
 bb73:
-  dup1
+  dup 1
   push 672
   mstore
-  dup2
+  dup 2
   push 768
   mstore
-  dup3
+  dup 3
   push 800
   mstore
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -1262,9 +1259,9 @@ bb73:
   push 672
   mload
   sub
-  swap1
-  swap2
-  swap1
+  swap 1
+  swap 2
+  swap 1
   jump bb73
 bb27 [cold]:
   push 0x4e487b71

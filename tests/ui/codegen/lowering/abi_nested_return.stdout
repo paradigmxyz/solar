@@ -6,8 +6,6 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mul 1, 32
     v4 = div v3, 32
@@ -21,10 +19,6 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
     v6 = add v3, 32
     v7 = lt v6, v3
     jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, 1
@@ -33,16 +27,6 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
     v9 = phi [bb6: 0], [bb8: v15]
     v10 = lt v9, 1
     jumpi v10, bb8, bb9
-  bb8:
-    v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v12 = memory_object_field_addr memorystruct<2>, v11, 0
-    mstore v12, 0
-    v13 = memory_object_field_addr memorystruct<2>, v11, 1
-    mstore v13, 0
-    v14 = memory_object_element_addr memoryarray<1>, v8, v9
-    mstore v14, v11
-    v15 = add v9, 1
-    jump bb7
   bb9:
     v16 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v17 = memory_object_field_addr memorystruct<2>, v16, 0
@@ -50,10 +34,6 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
     v18 = add arg0, 1
     v19 = lt v18, arg0
     jumpi v19, bb10, bb11
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb11:
     v20 = memory_object_field_addr memorystruct<2>, v16, 1
     mstore v20, v18
@@ -68,6 +48,26 @@ fn @structArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<tuple<word
     v23 = memory_object_element_addr memoryarray<1>, v8, 0
     mstore v23, v16
     ret v8
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v12 = memory_object_field_addr memorystruct<2>, v11, 0
+    mstore v12, 0
+    v13 = memory_object_field_addr memorystruct<2>, v11, 1
+    mstore v13, 0
+    v14 = memory_object_element_addr memoryarray<1>, v8, v9
+    mstore v14, v11
+    v15 = add v9, 1
+    jump bb7
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_array<word>>]] {
@@ -76,8 +76,6 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mul 1, 32
     v4 = div v3, 32
@@ -91,10 +89,6 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
     v6 = add v3, 32
     v7 = lt v6, v3
     jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, 1
@@ -103,11 +97,6 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
     v9 = phi [bb6: 0], [bb8: v12]
     v10 = lt v9, 1
     jumpi v10, bb8, bb9
-  bb8:
-    v11 = memory_object_element_addr memoryarray<1>, v8, v9
-    mstore v11, 96
-    v12 = add v9, 1
-    jump bb7
   bb9:
     v13 = mul arg0, 32
     v14 = div v13, 32
@@ -121,10 +110,6 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
     v16 = add v13, 32
     v17 = lt v16, v13
     jumpi v17, bb12, bb13
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     v18 = alloc memoryarray<1>, exact, zeroed, panic, v16
     set_memory_object_len memoryarray, v18, arg0
@@ -139,5 +124,20 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
     v21 = memory_object_element_addr memoryarray<1>, v8, 0
     mstore v21, v18
     ret v8
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v11 = memory_object_element_addr memoryarray<1>, v8, v9
+    mstore v11, 96
+    v12 = add v9, 1
+    jump bb7
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 

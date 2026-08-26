@@ -6,183 +6,225 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_returns=[
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
+    v3 = calldatasize
+    v4 = add 4, arg0
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
+  bb4:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
     mstore 128, 0
     mstore 160, 96
     mstore 192, 96
-    v12 = memory_object_len memorybytes, v9
-    v13 = memory_object_data memorybytes, v9
-    v14 = lt v12, 96
-    jumpi v14, bb3, bb4
-  bb3:
-    revert 0, 0
-  bb4:
-    v15 = add v13, v12
-    v16 = lt v15, v13
-    jumpi v16, bb5, bb6
-  bb5:
-    revert 0, 0
+    v7 = memory_object_len memorybytes, v6
+    v8 = memory_object_data memorybytes, v6
+    v9 = lt v7, 96
+    jumpi v9, bb5, bb6
   bb6:
-    v17 = mload v13
-    v18 = add v13, 32
-    v19 = mload v18
-    v20 = lt v19, 96
-    v21 = sub v15, v13
-    v22 = gt v19, v21
-    v23 = or v20, v22
-    jumpi v23, bb7, bb8
-  bb7:
-    revert 0, 0
+    v10 = add v8, v7
+    v11 = lt v10, v8
+    jumpi v11, bb7, bb8
   bb8:
-    v24 = add v13, v19
-    v25 = mload v18
-    v26 = lt v25, 96
-    jumpi v26, bb9, bb10
-  bb9:
-    revert 0, 0
+    v12 = mload v8
+    v13 = add v8, 32
+    v14 = mload v13
+    v15 = add v8, v14
+    v16 = lt v15, v8
+    jumpi v16, bb9, bb10
   bb10:
-    v27 = add v25, 32
-    v28 = lt v27, v25
-    jumpi v28, bb11, bb12
-  bb11:
-    revert 0, 0
+    v17 = mload v13
+    v18 = lt v17, 96
+    jumpi v18, bb11, bb12
   bb12:
-    v29 = gt v27, v12
-    jumpi v29, bb13, bb14
-  bb13:
-    revert 0, 0
+    v19 = add v17, 32
+    v20 = lt v19, v17
+    jumpi v20, bb13, bb14
   bb14:
-    v30 = add v13, v25
-    v31 = mload v30
-    v32 = add v27, v31
-    v33 = lt v32, v27
-    jumpi v33, bb15, bb16
-  bb15:
-    revert 0, 0
+    v21 = gt v19, v7
+    jumpi v21, bb15, bb16
   bb16:
-    v34 = gt v32, v12
-    jumpi v34, bb17, bb18
-  bb17:
-    revert 0, 0
+    v22 = add v8, v17
+    v23 = mload v22
+    v24 = add v19, v23
+    v25 = lt v24, v19
+    jumpi v25, bb17, bb18
   bb18:
-    v35 = add v31, 31
-    v36 = lt v35, v31
-    jumpi v36, bb19, bb20
-  bb19:
-    revert 0, 0
+    v26 = gt v24, v7
+    jumpi v26, bb19, bb20
   bb20:
-    v37 = not 31
-    v38 = and v35, v37
-    v39 = iszero v38
-    v40 = select v39, 32, v38
-    v41 = add 32, v40
-    v42 = lt v41, v40
-    jumpi v42, bb21, bb22
-  bb21:
+    v27 = add v23, 31
+    v28 = lt v27, v23
+    jumpi v28, bb21, bb22
+  bb22:
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = iszero v30
+    v32 = select v31, 32, v30
+    v33 = add 32, v32
+    v34 = lt v33, v32
+    jumpi v34, bb23, bb24
+  bb24:
+    v35 = alloc memorybytes, exact, uninitialized, infallible, v33
+    set_memory_object_len memorybytes, v35, v23
+    v36 = memory_object_data memorybytes, v35
+    v37 = sub v32, 32
+    v38 = add v36, v37
+    mstore v38, 0
+    v39 = add v22, 32
+    mcopy v36, v39, v23 !metadata(memory=heap)
+    v40 = add v8, 64
+    v41 = mload v40
+    v42 = add v8, v41
+    v43 = lt v42, v8
+    jumpi v43, bb25, bb26
+  bb26:
+    v44 = mload v40
+    v45 = lt v44, 96
+    jumpi v45, bb27, bb28
+  bb28:
+    v46 = add v44, 32
+    v47 = lt v46, v44
+    jumpi v47, bb29, bb30
+  bb30:
+    v48 = gt v46, v7
+    jumpi v48, bb31, bb32
+  bb32:
+    v49 = add v8, v44
+    v50 = mload v49
+    v51 = add v46, v50
+    v52 = lt v51, v46
+    jumpi v52, bb33, bb34
+  bb34:
+    v53 = gt v51, v7
+    jumpi v53, bb35, bb36
+  bb36:
+    v54 = add v50, 31
+    v55 = lt v54, v50
+    jumpi v55, bb37, bb38
+  bb38:
+    v56 = not 31
+    v57 = and v54, v56
+    v58 = iszero v57
+    v59 = select v58, 32, v57
+    v60 = add 32, v59
+    v61 = lt v60, v59
+    jumpi v61, bb39, bb40
+  bb40:
+    v62 = alloc memorybytes, exact, uninitialized, infallible, v60
+    set_memory_object_len memorybytes, v62, v50
+    v63 = memory_object_data memorybytes, v62
+    v64 = sub v59, 32
+    v65 = add v63, v64
+    mstore v65, 0
+    v66 = add v49, 32
+    mcopy v63, v66, v50 !metadata(memory=heap)
+    v67 = fmp
+    v68 = add v67, 32
+    mstore v68, v35
+    v69 = add v67, 64
+    mstore v69, v62
+    mstore 32, v67 !metadata(memory=scratch)
+    v70 = mload 32 !metadata(memory=scratch)
+    v71 = add v70, 32
+    v72 = mload v71
+    v73 = add v70, 64
+    v74 = mload v73
+    ret v12, v72, v74
+  bb39:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb22:
-    v43 = alloc memorybytes, exact, uninitialized, infallible, v41
-    set_memory_object_len memorybytes, v43, v31
-    v44 = memory_object_data memorybytes, v43
-    v45 = sub v40, 32
-    v46 = add v44, v45
-    mstore v46, 0
-    v47 = add v30, 32
-    mcopy v44, v47, v31
-    v48 = add v13, 64
-    v49 = mload v48
-    v50 = lt v49, 96
-    v51 = sub v15, v13
-    v52 = gt v49, v51
-    v53 = or v50, v52
-    jumpi v53, bb23, bb24
-  bb23:
+  bb37:
     revert 0, 0
-  bb24:
-    v54 = add v13, v49
-    v55 = mload v48
-    v56 = lt v55, 96
-    jumpi v56, bb25, bb26
-  bb25:
-    revert 0, 0
-  bb26:
-    v57 = add v55, 32
-    v58 = lt v57, v55
-    jumpi v58, bb27, bb28
-  bb27:
-    revert 0, 0
-  bb28:
-    v59 = gt v57, v12
-    jumpi v59, bb29, bb30
-  bb29:
-    revert 0, 0
-  bb30:
-    v60 = add v13, v55
-    v61 = mload v60
-    v62 = add v57, v61
-    v63 = lt v62, v57
-    jumpi v63, bb31, bb32
-  bb31:
-    revert 0, 0
-  bb32:
-    v64 = gt v62, v12
-    jumpi v64, bb33, bb34
-  bb33:
-    revert 0, 0
-  bb34:
-    v65 = add v61, 31
-    v66 = lt v65, v61
-    jumpi v66, bb35, bb36
   bb35:
     revert 0, 0
-  bb36:
-    v67 = not 31
-    v68 = and v65, v67
-    v69 = iszero v68
-    v70 = select v69, 32, v68
-    v71 = add 32, v70
-    v72 = lt v71, v70
-    jumpi v72, bb37, bb38
-  bb37:
+  bb33:
+    revert 0, 0
+  bb31:
+    revert 0, 0
+  bb29:
+    revert 0, 0
+  bb27:
+    revert 0, 0
+  bb25:
+    revert 0, 0
+  bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb38:
-    v73 = alloc memorybytes, exact, uninitialized, infallible, v71
-    set_memory_object_len memorybytes, v73, v61
-    v74 = memory_object_data memorybytes, v73
-    v75 = sub v70, 32
-    v76 = add v74, v75
-    mstore v76, 0
-    v77 = add v60, 32
-    mcopy v74, v77, v61
-    v78 = fmp
-    v79 = add v78, 32
-    mstore v79, v43
-    v80 = add v78, 64
-    mstore v80, v73
-    mstore 32, v78 !metadata(memory=scratch)
-    v81 = mload 32 !metadata(memory=scratch)
-    v82 = add v81, 32
-    v83 = mload v82
-    v84 = add v81, 64
-    v85 = mload v84
-    ret v17, v83, v85
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb17:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = calldataload arg0
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
+  bb6:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    jumpi v17, bb7, bb8
+  bb8:
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
+    mstore v18, v9
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = add arg0, 32
+    calldatacopy v19, v22, v9 !metadata(memory=heap)
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [abi_returns=[word, memory_bytes, memory_bytes]] {
@@ -191,240 +233,278 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = add 4, arg2
-    v13 = calldataload v12
-    v14 = add v13, 31
-    v15 = not 31
-    v16 = and v14, v15
-    v17 = add v16, 32
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    v19 = memory_object_data memorybytes, v18
-    v20 = add v12, 32
-    calldatacopy v19, v20, v13
-    v21 = fmp
-    v22 = memory_object_data memorybytes, v21
-    v23 = add v22, 96
-    mstore v22, arg0
-    v24 = add v22, 32
-    v25 = sub v23, v22
-    mstore v24, v25
-    v26 = memory_object_len memorybytes, v9
-    mstore v23, v26
-    v27 = not 31
-    v28 = add v26, 31
-    v29 = and v28, v27
-    v30 = add v23, 32
-    v31 = iszero v29
-    jumpi v31, bb4, bb3
-  bb3:
-    v32 = sub v29, 32
-    v33 = add v30, v32
-    mstore v33, 0
-    jump bb4
+    v3 = calldatasize
+    v4 = add 4, arg1
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
   bb4:
-    v34 = memory_object_data memorybytes, v9
-    v35 = add v30, v29
-    mcopy v30, v34, v26
-    v36 = add v22, 64
-    v37 = sub v35, v22
-    mstore v36, v37
-    v38 = memory_object_len memorybytes, v18
-    mstore v35, v38
-    v39 = not 31
-    v40 = add v38, 31
-    v41 = and v40, v39
-    v42 = add v35, 32
-    v43 = iszero v41
-    jumpi v43, bb6, bb5
-  bb5:
-    v44 = sub v41, 32
-    v45 = add v42, v44
-    mstore v45, 0
-    jump bb6
+    v6 = internal_call @__abi_decode_calldata_1, 1, v4
+    v7 = add 4, arg2
+    v8 = lt v7, 4
+    jumpi v8, bb5, bb6
   bb6:
-    v46 = memory_object_data memorybytes, v18
-    v47 = add v42, v41
-    mcopy v42, v46, v38
-    v48 = sub v47, v22
-    set_memory_object_len memorybytes, v21, v48
-    v49 = add v48, 32
-    v50 = add v21, v49
-    set_fmp v50
-    v51 = memory_object_len memorybytes, v21
-    v52 = memory_object_data memorybytes, v21
-    v53 = lt v51, 96
-    jumpi v53, bb7, bb8
+    v9 = internal_call @__abi_decode_calldata_0, 1, v7
+    v10 = fmp
+    v11 = memory_object_data memorybytes, v10
+    v12 = add v11, 96
+    mstore v11, arg0
+    v13 = add v11, 32
+    v14 = sub v12, v11
+    mstore v13, v14
+    v15 = memory_object_len memorybytes, v6
+    mstore v12, v15
+    v16 = not 31
+    v17 = add v15, 31
+    v18 = and v17, v16
+    v19 = add v12, 32
+    v20 = iszero v18
+    jumpi v20, bb8, bb7
   bb7:
-    revert 0, 0
+    v21 = sub v18, 32
+    v22 = add v19, v21
+    mstore v22, 0
+    jump bb8
   bb8:
-    v54 = add v52, v51
-    v55 = lt v54, v52
-    jumpi v55, bb9, bb10
+    v23 = memory_object_data memorybytes, v6
+    v24 = add v19, v18
+    mcopy v19, v23, v15 !metadata(memory=heap)
+    v25 = add v11, 64
+    v26 = sub v24, v11
+    mstore v25, v26
+    v27 = memory_object_len memorybytes, v9
+    mstore v24, v27
+    v28 = not 31
+    v29 = add v27, 31
+    v30 = and v29, v28
+    v31 = add v24, 32
+    v32 = iszero v30
+    jumpi v32, bb10, bb9
   bb9:
-    revert 0, 0
+    v33 = sub v30, 32
+    v34 = add v31, v33
+    mstore v34, 0
+    jump bb10
   bb10:
-    v56 = mload v52
-    v57 = add v52, 32
-    v58 = mload v57
-    v59 = lt v58, 96
-    v60 = sub v54, v52
-    v61 = gt v58, v60
-    v62 = or v59, v61
-    jumpi v62, bb11, bb12
-  bb11:
-    revert 0, 0
+    v35 = memory_object_data memorybytes, v9
+    v36 = add v31, v30
+    mcopy v31, v35, v27 !metadata(memory=heap)
+    v37 = sub v36, v11
+    set_memory_object_len memorybytes, v10, v37
+    v38 = add v37, 32
+    v39 = add v10, v38
+    set_fmp v39
+    v40 = memory_object_len memorybytes, v10
+    v41 = memory_object_data memorybytes, v10
+    v42 = lt v40, 96
+    jumpi v42, bb11, bb12
   bb12:
-    v63 = add v52, v58
-    v64 = mload v57
-    v65 = lt v64, 96
-    jumpi v65, bb13, bb14
-  bb13:
-    revert 0, 0
+    v43 = add v41, v40
+    v44 = lt v43, v41
+    jumpi v44, bb13, bb14
   bb14:
-    v66 = add v64, 32
-    v67 = lt v66, v64
-    jumpi v67, bb15, bb16
-  bb15:
-    revert 0, 0
+    v45 = mload v41
+    v46 = add v41, 32
+    v47 = mload v46
+    v48 = add v41, v47
+    v49 = lt v48, v41
+    jumpi v49, bb15, bb16
   bb16:
-    v68 = gt v66, v51
-    jumpi v68, bb17, bb18
-  bb17:
-    revert 0, 0
+    v50 = mload v46
+    v51 = lt v50, 96
+    jumpi v51, bb17, bb18
   bb18:
-    v69 = add v52, v64
-    v70 = mload v69
-    v71 = add v66, v70
-    v72 = lt v71, v66
-    jumpi v72, bb19, bb20
-  bb19:
-    revert 0, 0
+    v52 = add v50, 32
+    v53 = lt v52, v50
+    jumpi v53, bb19, bb20
   bb20:
-    v73 = gt v71, v51
-    jumpi v73, bb21, bb22
-  bb21:
-    revert 0, 0
+    v54 = gt v52, v40
+    jumpi v54, bb21, bb22
   bb22:
-    v74 = add v70, 31
-    v75 = lt v74, v70
-    jumpi v75, bb23, bb24
-  bb23:
-    revert 0, 0
+    v55 = add v41, v50
+    v56 = mload v55
+    v57 = add v52, v56
+    v58 = lt v57, v52
+    jumpi v58, bb23, bb24
   bb24:
-    v76 = not 31
-    v77 = and v74, v76
-    v78 = iszero v77
-    v79 = select v78, 32, v77
-    v80 = add 32, v79
-    v81 = lt v80, v79
-    jumpi v81, bb25, bb26
-  bb25:
+    v59 = gt v57, v40
+    jumpi v59, bb25, bb26
+  bb26:
+    v60 = add v56, 31
+    v61 = lt v60, v56
+    jumpi v61, bb27, bb28
+  bb28:
+    v62 = not 31
+    v63 = and v60, v62
+    v64 = iszero v63
+    v65 = select v64, 32, v63
+    v66 = add 32, v65
+    v67 = lt v66, v65
+    jumpi v67, bb29, bb30
+  bb30:
+    v68 = alloc memorybytes, exact, uninitialized, infallible, v66
+    set_memory_object_len memorybytes, v68, v56
+    v69 = memory_object_data memorybytes, v68
+    v70 = sub v65, 32
+    v71 = add v69, v70
+    mstore v71, 0
+    v72 = add v55, 32
+    mcopy v69, v72, v56 !metadata(memory=heap)
+    v73 = add v41, 64
+    v74 = mload v73
+    v75 = add v41, v74
+    v76 = lt v75, v41
+    jumpi v76, bb31, bb32
+  bb32:
+    v77 = mload v73
+    v78 = lt v77, 96
+    jumpi v78, bb33, bb34
+  bb34:
+    v79 = add v77, 32
+    v80 = lt v79, v77
+    jumpi v80, bb35, bb36
+  bb36:
+    v81 = gt v79, v40
+    jumpi v81, bb37, bb38
+  bb38:
+    v82 = add v41, v77
+    v83 = mload v82
+    v84 = add v79, v83
+    v85 = lt v84, v79
+    jumpi v85, bb39, bb40
+  bb40:
+    v86 = gt v84, v40
+    jumpi v86, bb41, bb42
+  bb42:
+    v87 = add v83, 31
+    v88 = lt v87, v83
+    jumpi v88, bb43, bb44
+  bb44:
+    v89 = not 31
+    v90 = and v87, v89
+    v91 = iszero v90
+    v92 = select v91, 32, v90
+    v93 = add 32, v92
+    v94 = lt v93, v92
+    jumpi v94, bb45, bb46
+  bb46:
+    v95 = alloc memorybytes, exact, uninitialized, infallible, v93
+    set_memory_object_len memorybytes, v95, v83
+    v96 = memory_object_data memorybytes, v95
+    v97 = sub v92, 32
+    v98 = add v96, v97
+    mstore v98, 0
+    v99 = add v82, 32
+    mcopy v96, v99, v83 !metadata(memory=heap)
+    v100 = fmp
+    v101 = add v100, 32
+    mstore v101, v68
+    v102 = add v100, 64
+    mstore v102, v95
+    mstore 32, v100 !metadata(memory=scratch)
+    v103 = mload 32 !metadata(memory=scratch)
+    v104 = add v103, 32
+    v105 = mload v104
+    v106 = add v103, 64
+    v107 = mload v106
+    ret v45, v105, v107
+  bb45:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb26:
-    v82 = alloc memorybytes, exact, uninitialized, infallible, v80
-    set_memory_object_len memorybytes, v82, v70
-    v83 = memory_object_data memorybytes, v82
-    v84 = sub v79, 32
-    v85 = add v83, v84
-    mstore v85, 0
-    v86 = add v69, 32
-    mcopy v83, v86, v70
-    v87 = add v52, 64
-    v88 = mload v87
-    v89 = lt v88, 96
-    v90 = sub v54, v52
-    v91 = gt v88, v90
-    v92 = or v89, v91
-    jumpi v92, bb27, bb28
-  bb27:
+  bb43:
     revert 0, 0
-  bb28:
-    v93 = add v52, v88
-    v94 = mload v87
-    v95 = lt v94, 96
-    jumpi v95, bb29, bb30
-  bb29:
+  bb41:
     revert 0, 0
-  bb30:
-    v96 = add v94, 32
-    v97 = lt v96, v94
-    jumpi v97, bb31, bb32
-  bb31:
-    revert 0, 0
-  bb32:
-    v98 = gt v96, v51
-    jumpi v98, bb33, bb34
-  bb33:
-    revert 0, 0
-  bb34:
-    v99 = add v52, v94
-    v100 = mload v99
-    v101 = add v96, v100
-    v102 = lt v101, v96
-    jumpi v102, bb35, bb36
-  bb35:
-    revert 0, 0
-  bb36:
-    v103 = gt v101, v51
-    jumpi v103, bb37, bb38
-  bb37:
-    revert 0, 0
-  bb38:
-    v104 = add v100, 31
-    v105 = lt v104, v100
-    jumpi v105, bb39, bb40
   bb39:
     revert 0, 0
-  bb40:
-    v106 = not 31
-    v107 = and v104, v106
-    v108 = iszero v107
-    v109 = select v108, 32, v107
-    v110 = add 32, v109
-    v111 = lt v110, v109
-    jumpi v111, bb41, bb42
-  bb41:
+  bb37:
+    revert 0, 0
+  bb35:
+    revert 0, 0
+  bb33:
+    revert 0, 0
+  bb31:
+    revert 0, 0
+  bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb42:
-    v112 = alloc memorybytes, exact, uninitialized, infallible, v110
-    set_memory_object_len memorybytes, v112, v100
-    v113 = memory_object_data memorybytes, v112
-    v114 = sub v109, 32
-    v115 = add v113, v114
-    mstore v115, 0
-    v116 = add v99, 32
-    mcopy v113, v116, v100
-    v117 = fmp
-    v118 = add v117, 32
-    mstore v118, v82
-    v119 = add v117, 64
-    mstore v119, v112
-    mstore 32, v117 !metadata(memory=scratch)
-    v120 = mload 32 !metadata(memory=scratch)
-    v121 = add v120, 32
-    v122 = mload v121
-    v123 = add v120, 64
-    v124 = mload v123
-    ret v56, v122, v124
+  bb27:
+    revert 0, 0
+  bb25:
+    revert 0, 0
+  bb23:
+    revert 0, 0
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb17:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = calldataload arg0
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
+  bb6:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    jumpi v17, bb7, bb8
+  bb8:
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
+    mstore v18, v9
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = add arg0, 32
+    calldatacopy v19, v22, v9 !metadata(memory=heap)
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -433,99 +513,93 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = memory_object_len memorybytes, v9
-    v13 = memory_object_data memorybytes, v9
-    v14 = lt v12, 32
-    jumpi v14, bb3, bb4
-  bb3:
-    revert 0, 0
+    v3 = calldatasize
+    v4 = add 4, arg0
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
   bb4:
-    v15 = add v13, v12
-    v16 = lt v15, v13
-    jumpi v16, bb5, bb6
-  bb5:
-    revert 0, 0
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = memory_object_len memorybytes, v6
+    v8 = memory_object_data memorybytes, v6
+    v9 = lt v7, 32
+    jumpi v9, bb5, bb6
   bb6:
-    v17 = mload v13
-    v18 = lt v17, 32
-    v19 = sub v15, v13
-    v20 = gt v17, v19
-    v21 = or v18, v20
-    jumpi v21, bb7, bb8
-  bb7:
-    revert 0, 0
+    v10 = add v8, v7
+    v11 = lt v10, v8
+    jumpi v11, bb7, bb8
   bb8:
-    v22 = add v13, v17
-    v23 = mload v13
-    v24 = lt v23, 32
-    jumpi v24, bb9, bb10
-  bb9:
-    revert 0, 0
+    v12 = mload v8
+    v13 = add v8, v12
+    v14 = lt v13, v8
+    jumpi v14, bb9, bb10
   bb10:
-    v25 = add v23, 32
-    v26 = lt v25, v23
-    jumpi v26, bb11, bb12
-  bb11:
-    revert 0, 0
+    v15 = mload v8
+    v16 = lt v15, 32
+    jumpi v16, bb11, bb12
   bb12:
-    v27 = gt v25, v12
-    jumpi v27, bb13, bb14
-  bb13:
-    revert 0, 0
+    v17 = add v15, 32
+    v18 = lt v17, v15
+    jumpi v18, bb13, bb14
   bb14:
-    v28 = add v13, v23
-    v29 = mload v28
-    v30 = add v25, v29
-    v31 = lt v30, v25
-    jumpi v31, bb15, bb16
-  bb15:
-    revert 0, 0
+    v19 = gt v17, v7
+    jumpi v19, bb15, bb16
   bb16:
-    v32 = gt v30, v12
-    jumpi v32, bb17, bb18
-  bb17:
-    revert 0, 0
+    v20 = add v8, v15
+    v21 = mload v20
+    v22 = add v17, v21
+    v23 = lt v22, v17
+    jumpi v23, bb17, bb18
   bb18:
-    v33 = add v29, 31
-    v34 = lt v33, v29
-    jumpi v34, bb19, bb20
-  bb19:
-    revert 0, 0
+    v24 = gt v22, v7
+    jumpi v24, bb19, bb20
   bb20:
-    v35 = not 31
-    v36 = and v33, v35
-    v37 = iszero v36
-    v38 = select v37, 32, v36
-    v39 = add 32, v38
-    v40 = lt v39, v38
-    jumpi v40, bb21, bb22
-  bb21:
+    v25 = add v21, 31
+    v26 = lt v25, v21
+    jumpi v26, bb21, bb22
+  bb22:
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = iszero v28
+    v30 = select v29, 32, v28
+    v31 = add 32, v30
+    v32 = lt v31, v30
+    jumpi v32, bb23, bb24
+  bb24:
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v31
+    set_memory_object_len memorybytes, v33, v21
+    v34 = memory_object_data memorybytes, v33
+    v35 = sub v30, 32
+    v36 = add v34, v35
+    mstore v36, 0
+    v37 = add v20, 32
+    mcopy v34, v37, v21 !metadata(memory=heap)
+    ret v33
+  bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb22:
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v39
-    set_memory_object_len memorybytes, v41, v29
-    v42 = memory_object_data memorybytes, v41
-    v43 = sub v38, 32
-    v44 = add v42, v43
-    mstore v44, 0
-    v45 = add v28, 32
-    mcopy v42, v45, v29
-    ret v41
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb17:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

@@ -9,6 +9,9 @@
 //@ run-call: Modifiers::clamped(uint256) 9 => 5
 //@ run-call: Modifiers::clamped(uint256) 2 => 2
 //@ run-call: Modifiers::repeated() => 212111
+//@ run-call: Modifiers::literalString() => "abc"
+//@ run-call: Modifiers::literalBytes() => 0x11223344
+//@ run-call: Modifiers::calldataBytes(bytes) 0x7061796c6f6164 => 0x7061796c6f6164
 //@ run-call: ModBase::guardedV() => 1
 //@ run-call: ModDerived::guardedV() => 100
 //@ run-call: CtorMod::v() => 50
@@ -35,6 +38,18 @@ contract Modifiers {
     // chain exit.
     function guarded(uint256 x) public pure guard(x) returns (uint256) {
         return x + 1;
+    }
+
+    function literalString() public pure guard(0) returns (string memory) {
+        return "abc";
+    }
+
+    function literalBytes() public pure guard(0) returns (bytes4) {
+        return 0x11223344;
+    }
+
+    function calldataBytes(bytes calldata value) external pure guard(0) returns (bytes memory) {
+        return value;
     }
 
     modifier mA(uint256 x) {

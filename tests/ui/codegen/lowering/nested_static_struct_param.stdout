@@ -6,8 +6,6 @@ fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [abi_re
     v1 = sub v0, 4
     v2 = slt v1, 128
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v4 = memory_object_field_addr memorystruct<3>, v3, 0
@@ -24,6 +22,8 @@ fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [abi_re
     v12 = memory_object_field_addr memorystruct<3>, v3, 2
     v13 = mload v12
     ret v11, v13
+  bb1:
+    revert 0, 0
 }
 
 fn @__abi_decode_calldata_0(arg0: u256) -> memptr {

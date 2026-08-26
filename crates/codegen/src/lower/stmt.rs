@@ -984,6 +984,11 @@ impl<'gcx> Lowerer<'gcx> {
         value: Option<&hir::Expr<'_>>,
     ) {
         let n = ctx.return_vars.len();
+        let return_tys = ctx
+            .return_vars
+            .iter()
+            .map(|&ret_id| self.gcx.type_of_item(ret_id.into()))
+            .collect::<Vec<_>>();
         // A tuple-valued ternary whose result includes a calldata slice cannot
         // use the ordinary one-word-per-component staging buffer. Branch
         // first, then deliver each selected tuple arm straight into the
@@ -1010,18 +1015,50 @@ impl<'gcx> Lowerer<'gcx> {
         let mut values = Vec::with_capacity(n);
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                for elem in elements.iter().flatten() {
-                    values.push(self.lower_value_expr(builder, elem));
+                for ((elem, &ret_id), &ty) in
+                    elements.iter().flatten().zip(&ctx.return_vars).zip(&return_tys)
+                {
+                    let value = if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id))
+                        .is_some()
+                    {
+                        self.lower_value_expr(builder, elem)
+                    } else {
+                        self.lower_return_value_for_ty(builder, elem, ty)
+                    };
+                    values.push(value);
                 }
             } else {
                 self.pending_inline_returns = None;
-                let first = self.lower_value_expr(builder, expr);
+                let first = if let Some((&ret_id, &ty)) =
+                    ctx.return_vars.first().zip(return_tys.first())
+                {
+                    if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
+                        self.lower_value_expr(builder, expr)
+                    } else {
+                        self.lower_return_value_for_ty(builder, expr, ty)
+                    }
+                } else {
+                    self.lower_value_expr(builder, expr)
+                };
                 if n > 1 {
                     // A forwarded multi-return call: an inlined slice-returning
                     // callee leaves its values pending; anything else staged
                     // the tail in the multi-return buffer.
                     if let Some(pending) = self.pending_inline_returns.take() {
-                        values = pending;
+                        values = pending
+                            .into_iter()
+                            .zip(&ctx.return_vars)
+                            .zip(&return_tys)
+                            .map(|((value, &ret_id), &ty)| {
+                                if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id))
+                                    .is_some()
+                                {
+                                    value
+                                } else {
+                                    self.materialize_forwarded_return_value(builder, value, ty)
+                                }
+                            })
+                            .collect();
                     } else {
                         values.push(first);
                         let base = self.multi_return_buffer_base(builder);

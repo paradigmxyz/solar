@@ -9,14 +9,13 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xfaf4836c
   sub
   push bb3
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -27,13 +26,13 @@ bb0:
   sload
   push 36
   calldataload
-  dup2
+  dup 2
   add
-  dup1
+  dup 1
   push 160
   mstore
-  swap1
-  dup2
+  swap 1
+  dup 2
   lt
   push bb8
   jumpi
@@ -50,7 +49,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8 [cold]:
   push 0x4e487b71
@@ -74,7 +73,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x5e0b1cef
   sub
   push bb3
@@ -82,9 +81,8 @@ bb0:
   push 224
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
@@ -104,45 +102,45 @@ bb11:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8:
   push 64
   mload
-  dup1
+  dup 1
   push 160
   mstore
   push 0xfaf4836c
   push 224
   shl
-  dup2
+  dup 2
   mstore
   push 4
-  dup2
+  dup 2
   add
   push 4
   calldataload
-  swap1
+  swap 1
   mstore
   push 36
-  dup2
+  dup 2
   add
   push 36
   calldataload
-  swap1
+  swap 1
   mstore
   gas
-  dup1
+  dup 1
   push 192
   mstore
   push 32
   push 0
   push 68
-  dup5
+  dup 5
   push 0x1000000000000000000000000000000000000001
-  dup6
+  dup 6
   delegatecall
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -154,7 +152,7 @@ bb8:
 bb10 [cold]:
   returndatasize
   push 0
-  dup1
+  dup 1
   returndatacopy
   returndatasize
   push 0
@@ -169,7 +167,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xb20e7344
   sub
   push bb3
@@ -177,9 +175,8 @@ bb0:
   push 224
   push 64
   mstore
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -187,39 +184,39 @@ bb0:
   jumpi
   push 64
   mload
-  dup1
+  dup 1
   push 160
   mstore
   push 0x5e0b1cef
-  dup2
+  dup 2
   shl
-  dup2
+  dup 2
   mstore
   push 4
-  dup2
+  dup 2
   add
   push 0
-  swap1
+  swap 1
   mstore
   push 36
-  dup2
+  dup 2
   add
   push 4
   calldataload
-  swap1
+  swap 1
   mstore
   gas
-  dup1
+  dup 1
   push 192
   mstore
   push 32
   push 0
   push 68
-  dup5
+  dup 5
   push 0x1000000000000000000000000000000000000002
-  dup6
+  dup 6
   delegatecall
-  swap2
+  swap 2
   pop
   pop
   iszero
@@ -234,12 +231,12 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8 [cold]:
   returndatasize
   push 0
-  dup1
+  dup 1
   returndatacopy
   returndatasize
   push 0

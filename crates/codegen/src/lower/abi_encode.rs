@@ -713,7 +713,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Converts an already-lowered calldata slice into the memory object
     /// required by a forwarding function's declared return type.
-    fn materialize_forwarded_return_value(
+    pub(super) fn materialize_forwarded_return_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,

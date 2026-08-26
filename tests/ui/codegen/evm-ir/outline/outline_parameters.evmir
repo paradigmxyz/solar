@@ -7,33 +7,33 @@
 // CHECK: push 2
 // CHECK: + push 1
 // CHECK: + push [[RET0:bb[0-9]+]]
-// CHECK: + swap2
-// CHECK: + swap1
+// CHECK: + swap 2
+// CHECK: + swap 1
 // CHECK: + jump [[STUB:bb[0-9]+]]
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: push 4
 // CHECK: + push 3
 // CHECK: + push [[RET1:bb[0-9]+]]
-// CHECK: + swap2
-// CHECK: + swap1
+// CHECK: + swap 2
+// CHECK: + swap 1
 // CHECK: + jump [[STUB]]
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: push 6
 // CHECK: + push 5
 // CHECK: + push [[RET2:bb[0-9]+]]
-// CHECK: + swap2
-// CHECK: + swap1
+// CHECK: + swap 2
+// CHECK: + swap 1
 // CHECK: + jump [[STUB]]
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: push 8
 // CHECK: push 7
 // CHECK: + push [[RET3:bb[0-9]+]]
-// CHECK: + swap2
-// CHECK: + swap1
+// CHECK: + swap 2
+// CHECK: + swap 1
 // CHECK: + jump [[STUB]]
 // CHECK: + [[STUB]]:
 // CHECK-COUNT-8: {{^[ +].*}}not
-// CHECK: + swap1
+// CHECK: + swap 1
 // CHECK-NEXT: {{^[ +].*}}add
 // CHECK-COUNT-7: {{^[ +].*}}not
 // CHECK-NEXT: {{^[ +].*}}pop

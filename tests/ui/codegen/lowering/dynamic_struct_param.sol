@@ -20,8 +20,14 @@ contract DynamicStructParam {
     // recursively from the tail.
     // The dynamic struct occupies one head slot and `sink` the next.
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: gt arg0, 0xffffffffffffffff
+    // CHECK: slt {{.*}}, 64
     // CHECK: add 4, arg0
+    // CHECK: lt {{.*}}, 4
+    // CHECK: internal_call @__abi_decode_calldata_
+    // CHECK-LABEL: fn @__abi_decode_calldata_
+    // CHECK: gt arg0,
+    // CHECK: sub {{.*}}, arg0
+    // CHECK: gt 128,
     // CHECK: alloc raw, exact, uninitialized, infallible, 160
     // CHECK-COUNT-2: calldatacopy
     function init(InitInput calldata input, address sink) external pure returns (uint256) {

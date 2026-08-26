@@ -113,8 +113,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if self.get_expr_type(expr).is_some_and(|ty| ty.peel_refs().is_integer())
-            && let Ok(value) = self.gcx.try_eval_const(expr)
+        // Only pre-fold leaves whose typed value is already final. Folding an
+        // operator tree here bypasses the checked-arithmetic and sub-word
+        // cleanup emitted below (notably for unchecked arithmetic and shifts).
+        if self.get_expr_type(expr).is_some_and(|ty| {
+            matches!(ty.peel_refs().kind, TyKind::IntLiteral(..))
+                || matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+                    && ty.peel_refs().is_integer()
+        }) && let Ok(value) = self.gcx.try_eval_const(expr)
             && value.bit_len() <= 256
         {
             return builder.imm_u256(value.as_evm_word());
@@ -827,7 +833,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
                 let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
                 let data_size = builder.imm_u64(data_size);
-                builder.mcopy(data, value, data_size);
+                builder.mcopy_heap(data, value, data_size);
                 return ptr;
             }
             return value;
@@ -1541,7 +1547,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(copy_data);
         let src = builder.add(ptr, head_offset);
-        builder.mcopy(data, src, len);
+        builder.mcopy_heap(data, src, len);
         let size = builder.add(data_offset, padded);
         builder.revert(buf, size);
     }
@@ -1728,7 +1734,7 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         // Copying the aligned region zero-fills the final word's tail:
         // EXTCODECOPY pads reads past the code end with zeros.
-        builder.extcodecopy(addr, data, zero, aligned);
+        builder.extcodecopy_heap(addr, data, zero, aligned);
         ptr
     }
 
@@ -3312,7 +3318,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
         let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        builder.mcopy(dst_data, payload_src, payload_bytes);
+        builder.mcopy_heap(dst_data, payload_src, payload_bytes);
 
         let needs_validation = !matches!(
             elem,
@@ -3418,7 +3424,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src = builder.add(tail_len_addr, word);
-        builder.mcopy(data_ptr, src, tail_len);
+        builder.mcopy_heap(data_ptr, src, tail_len);
         ptr
     }
 
@@ -4247,7 +4253,7 @@ impl<'gcx> Lowerer<'gcx> {
         let word_size = builder.imm_u64(32);
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let scratch = builder.fmp();
-        builder.mcopy(scratch, data_start, len);
+        builder.mcopy_heap(scratch, data_start, len);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);

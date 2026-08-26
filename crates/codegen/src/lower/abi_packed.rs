@@ -400,7 +400,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let dest = self.offset_ptr(builder, base, offset);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    builder.mcopy(dest, src, len);
+                    builder.mcopy_heap(dest, src, len);
                     base = builder.add(dest, len);
                     offset = 0;
                     is_static = false;
@@ -418,7 +418,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let word = builder.imm_u64(32);
                     let size = builder.mul(len, word);
                     if self.packed_array_element_is_canonical_word(elem) {
-                        builder.mcopy(dest, src, size);
+                        builder.mcopy_heap(dest, src, size);
                     } else {
                         self.emit_decode_elements_loop(builder, len, |this, builder, index| {
                             let five = builder.imm_u64(5);
@@ -445,7 +445,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let size = builder.mul(len, word);
                     let src = builder.slice_ptr(slice);
                     if self.packed_array_element_is_canonical_word(elem) {
-                        builder.calldatacopy(dest, src, size);
+                        builder.calldatacopy_heap(dest, src, size);
                     } else {
                         self.emit_decode_elements_loop(builder, len, |this, builder, index| {
                             let five = builder.imm_u64(5);

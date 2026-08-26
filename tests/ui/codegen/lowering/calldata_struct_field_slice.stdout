@@ -11,98 +11,127 @@ fn @factory.0() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb2:
+    v4 = add arg0, 4
+    v5 = lt v4, 4
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = internal_call @factory.3, 1, v6
+    mstore 128, v7
+    returndata 128, 32
   bb1:
     revert 0, 0
-  bb2:
-    v3 = gt arg0, 0xffffffffffffffff
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = add arg0, 4
-    v5 = internal_call @__abi_decode_calldata_0, 1, v4
-    v6 = internal_call @factory.3, 1, v5
-    mstore 128, v6
-    returndata 128, 32
 }
 
 fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v32 = add v0, 288
-    mstore 64, v32 !metadata(memory=scratch)
-    v1 = calldataload arg0
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = eq v1, v2
-    jumpi v3, bb2, bb1
-  bb1:
-    revert 0, 0
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 256, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
   bb2:
-    mstore v0, v1
-    v4 = add arg0, 32
-    v5 = calldataload v4
-    v6 = add v0, 32
-    mstore v6, v5
-    v7 = add arg0, 64
-    v8 = calldataload v7
-    v9 = add arg0, v8
-    v10 = internal_call @__abi_decode_calldata_1, 1, v9
-    v11 = add v0, 64
+    v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v40 = add v5, 288
+    mstore 64, v40 !metadata(memory=scratch)
+    v6 = calldataload arg0
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    jumpi v8, bb3, bb1
+  bb3:
+    mstore v5, v6
+    v9 = add arg0, 32
+    v10 = calldataload v9
+    v11 = add v5, 32
     mstore v11, v10
-    v12 = add arg0, 96
+    v12 = add arg0, 64
     v13 = calldataload v12
     v14 = add arg0, v13
-    v15 = internal_call @__abi_decode_calldata_1, 1, v14
-    v16 = add v0, 96
-    mstore v16, v15
-    v17 = add arg0, 128
-    v18 = calldataload v17
-    v19 = add v0, 128
-    mstore v19, v18
-    v20 = add arg0, 160
-    v21 = calldataload v20
-    v22 = add v0, 160
-    mstore v22, v21
-    v23 = add arg0, 192
-    v24 = calldataload v23
-    v25 = add v0, 192
-    mstore v25, v24
-    v26 = add arg0, 224
-    v27 = calldataload v26
-    v28 = add arg0, v27
-    v29 = internal_call @__abi_decode_calldata_1, 1, v28
-    v30 = add v0, 224
-    mstore v30, v29
-    v31 = add v0, 256
-    mstore v31, arg0
-    ret v0
+    v15 = lt v14, arg0
+    jumpi v15, bb1, bb4
+  bb4:
+    v16 = internal_call @__abi_decode_calldata_1, 1, v14
+    v17 = add v5, 64
+    mstore v17, v16
+    v18 = add arg0, 96
+    v19 = calldataload v18
+    v20 = add arg0, v19
+    v21 = lt v20, arg0
+    jumpi v21, bb1, bb5
+  bb5:
+    v22 = internal_call @__abi_decode_calldata_1, 1, v20
+    v23 = add v5, 96
+    mstore v23, v22
+    v24 = add arg0, 128
+    v25 = calldataload v24
+    v26 = add v5, 128
+    mstore v26, v25
+    v27 = add arg0, 160
+    v28 = calldataload v27
+    v29 = add v5, 160
+    mstore v29, v28
+    v30 = add arg0, 192
+    v31 = calldataload v30
+    v32 = add v5, 192
+    mstore v32, v31
+    v33 = add arg0, 224
+    v34 = calldataload v33
+    v35 = add arg0, v34
+    v36 = lt v35, arg0
+    jumpi v36, bb1, bb6
+  bb6:
+    v37 = internal_call @__abi_decode_calldata_1, 1, v35
+    v38 = add v5, 224
+    mstore v38, v37
+    v39 = add v5, 256
+    mstore v39, arg0
+    ret v5
+  bb1:
+    revert 0, 0
 }
 
 fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
   bb0:
-    v0 = calldataload arg0
-    v1 = add v0, 31
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb1:
-    tail_call @__revert_stub0
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
   bb2:
-    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v5 = iszero v4
-    v6 = select v5, 32, v4
-    v7 = add v6, 32
-    v8 = lt v7, v6
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
     jumpi v8, bb1, bb3
   bb3:
-    v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v14 = add v9, v7
-    mstore 64, v14 !metadata(memory=scratch)
-    mstore v9, v0
-    v10 = add v9, 32
-    v11 = sub v6, 32
-    v12 = add v10, v11
-    mstore v12, 0
-    v13 = add arg0, 32
-    calldatacopy v10, v13, v0
-    ret v9
+    v10 = add v5, 31
+    v11 = lt v10, v5
+    jumpi v11, bb4, bb5
+  bb5:
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add v15, 32
+    v17 = lt v16, v15
+    jumpi v17, bb4, bb6
+  bb6:
+    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v23 = add v18, v16
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v18, v5
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    calldatacopy v19, v6, v5
+    ret v18
+  bb4:
+    tail_call @__revert_stub0
+  bb1:
+    revert 0, 0
 }
 
 fn @factory.3(arg0: memptr) -> address {
@@ -112,9 +141,6 @@ fn @factory.3(arg0: memptr) -> address {
     v6 = mload v1
     v7 = lt v6, 20
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0 !metadata(memory=scratch)
-    jump bb3
   bb2:
     v9 = add arg0, 256
     v10 = mload v9
@@ -125,11 +151,6 @@ fn @factory.3(arg0: memptr) -> address {
     v14 = calldataload v13
     v19 = gt 20, v14
     jumpi v19, bb4, bb5
-  bb3:
-    v35 = mload 0 !metadata(memory=scratch)
-    ret v35
-  bb4:
-    revert 0, 0
   bb5:
     v25 = calldataload v15
     v27 = lt 20, 20
@@ -142,6 +163,14 @@ fn @factory.3(arg0: memptr) -> address {
     v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v34 !metadata(memory=scratch)
     jump bb3
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v35 = mload 0 !metadata(memory=scratch)
+    ret v35
 }
 
 fn @tailHash.4() {
@@ -150,17 +179,17 @@ fn @tailHash.4() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb2:
+    v4 = add arg0, 4
+    v5 = lt v4, 4
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = internal_call @tailHash.5, 1, v6
+    mstore 128, v7
+    returndata 128, 32
   bb1:
     revert 0, 0
-  bb2:
-    v3 = gt arg0, 0xffffffffffffffff
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = add arg0, 4
-    v5 = internal_call @__abi_decode_calldata_0, 1, v4
-    v6 = internal_call @tailHash.5, 1, v5
-    mstore 128, v6
-    returndata 128, 32
 }
 
 fn @tailHash.5(arg0: memptr) -> bytes32 {
@@ -170,9 +199,6 @@ fn @tailHash.5(arg0: memptr) -> bytes32 {
     v6 = mload v1
     v7 = lt v6, 20
     jumpi v7, bb1, bb2
-  bb1:
-    mstore 0, 0 !metadata(memory=scratch)
-    jump bb3
   bb2:
     v8 = add arg0, 256
     v9 = mload v8
@@ -183,19 +209,12 @@ fn @tailHash.5(arg0: memptr) -> bytes32 {
     v14 = add v12, 32
     v18 = lt v13, 20
     jumpi v18, bb4, bb5
-  bb3:
-    v37 = mload 0 !metadata(memory=scratch)
-    ret v37
-  bb4:
-    revert 0, 0
   bb5:
     v19 = sub v13, 20
     v20 = add v14, 20
     v23 = add v19, 31
     v24 = lt v23, v19
     jumpi v24, bb6, bb7
-  bb6:
-    tail_call @__revert_stub0
   bb7:
     v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = iszero v26
@@ -212,12 +231,22 @@ fn @tailHash.5(arg0: memptr) -> bytes32 {
     v33 = sub v28, 32
     v34 = add v32, v33
     mstore v34, 0
-    calldatacopy v32, v20, v19
+    calldatacopy v32, v20, v19 !metadata(memory=heap)
     v38 = mload v31
     v39 = add v31, 32
     v36 = keccak256 v39, v38
     mstore 0, v36 !metadata(memory=scratch)
     jump bb3
+  bb6:
+    tail_call @__revert_stub0
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    v37 = mload 0 !metadata(memory=scratch)
+    ret v37
 }
 
 fn @midWord.6() {
@@ -226,17 +255,17 @@ fn @midWord.6() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb2:
+    v4 = add arg0, 4
+    v5 = lt v4, 4
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = internal_call @midWord.7, 1, v6
+    mstore 128, v7
+    returndata 128, 32
   bb1:
     revert 0, 0
-  bb2:
-    v3 = gt arg0, 0xffffffffffffffff
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = add arg0, 4
-    v5 = internal_call @__abi_decode_calldata_0, 1, v4
-    v6 = internal_call @midWord.7, 1, v5
-    mstore 128, v6
-    returndata 128, 32
 }
 
 fn @midWord.7(arg0: memptr) -> bytes32 {
@@ -250,8 +279,6 @@ fn @midWord.7(arg0: memptr) -> bytes32 {
     v5 = calldataload v4
     v10 = gt 32, v5
     jumpi v10, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v16 = calldataload v6
     v18 = lt 32, 32
@@ -261,6 +288,8 @@ fn @midWord.7(arg0: memptr) -> bytes32 {
     v22 = shl v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v23 = and v16, v22
     ret v23
+  bb1:
+    revert 0, 0
 }
 
 fn @__revert_stub0() {
@@ -278,12 +307,12 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb5, [0x1af91295 => bb2, 0x9850c81b => bb3, 0xbb6106d2 => bb4]
-  bb2:
-    tail_call @factory.0
-  bb3:
-    tail_call @tailHash.4
   bb4:
     tail_call @midWord.6
+  bb3:
+    tail_call @tailHash.4
+  bb2:
+    tail_call @factory.0
   bb5:
     revert 0, 0
 }

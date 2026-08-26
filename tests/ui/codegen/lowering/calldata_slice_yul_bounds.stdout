@@ -43,21 +43,46 @@ fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
-    v5 = slice_ptr arg0
-    v6 = add v5, 4
-    mstore 128, v6
-    v7 = slice_len arg0
-    v8 = sub v7, 4
-    mstore 160, v8
-    v9 = mload 128
-    v10 = mload 160
-    v11 = make_calldata_slice v9, v10
-    v12 = slice_len v11
-    ret v12
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_ptr arg0
+    v17 = slice_len arg0
+    mstore 128, v16
+    mstore 160, v17
+    v18 = slice_ptr arg0
+    v19 = add v18, 4
+    mstore 128, v19
+    v20 = slice_len arg0
+    v21 = sub v20, 4
+    mstore 160, v21
+    v22 = mload 128
+    v23 = mload 160
+    v24 = make_calldata_slice v22, v23
+    v25 = slice_len v24
+    ret v25
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -69,22 +94,47 @@ fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    mstore 128, v3
-    mstore 160, v4
+    v3 = calldatasize
+    v4 = slice_ptr arg0
     v5 = slice_len arg0
-    v6 = gt v5, 32
-    jumpi v6, bb3, bb4
-  bb3:
-    mstore 160, 32
-    jump bb4
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
   bb4:
-    v7 = mload 128
-    v8 = mload 160
-    v9 = make_calldata_slice v7, v8
-    v10 = slice_len v9
-    ret v10
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_ptr arg0
+    v17 = slice_len arg0
+    mstore 128, v16
+    mstore 160, v17
+    v18 = slice_len arg0
+    v19 = gt v18, 32
+    jumpi v19, bb9, bb10
+  bb9:
+    mstore 160, 32
+    jump bb10
+  bb10:
+    v20 = mload 128
+    v21 = mload 160
+    v22 = make_calldata_slice v20, v21
+    v23 = slice_len v22
+    ret v23
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
   bb1:
     revert 0, 0
 }

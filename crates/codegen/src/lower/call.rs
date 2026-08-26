@@ -1035,7 +1035,7 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = match &encoded_args {
             Some((args_ptr, args_size)) => {
                 let args_dest = builder.add(mem_offset, bytecode_len_val);
-                builder.mcopy(args_dest, *args_ptr, *args_size);
+                builder.mcopy_heap(args_dest, *args_ptr, *args_size);
                 builder.add(bytecode_len_val, *args_size)
             }
             None => bytecode_len_val,
@@ -2659,7 +2659,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dst, len);
             let dst_data = builder.add(dst, word);
             let src_data = builder.memory_object_data(src, object_kind);
-            builder.mcopy(dst_data, src_data, byte_len);
+            builder.mcopy_heap(dst_data, src_data, byte_len);
 
             let advanced = builder.add(word, byte_len);
             tail_off = builder.add(tail_off, advanced);
@@ -3093,7 +3093,7 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         if self.gcx.sess.opts.evm_version.supports_returndata() {
             let copy_size = builder.returndatasize();
-            builder.returndatacopy(zero, zero, copy_size);
+            builder.returndatacopy_abi_return(zero, zero, copy_size);
             // The copy may overwrite every compiler-owned low-memory spill
             // slot. Query the unchanged returndata size again instead of
             // carrying it through that clobber.

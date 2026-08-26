@@ -26,6 +26,7 @@ contract Harness {
         internal
         returns (address instance)
     {
+        uint256 creationStart = _creationStart(data);
         assembly {
             let mBefore3 := mload(sub(data, 0x60))
             let mBefore2 := mload(sub(data, 0x40))
@@ -51,7 +52,7 @@ contract Harness {
             )
             mstore(dataEnd, shl(0xf0, extraLength))
 
-            instance := create2(0, sub(data, 0x4c), add(extraLength, 0x6c), salt)
+            instance := create2(0, creationStart, add(extraLength, 0x6c), salt)
             if iszero(instance) { revert(0, 0) }
 
             mstore(dataEnd, mAfter1)
@@ -59,6 +60,12 @@ contract Harness {
             mstore(sub(data, 0x20), mBefore1)
             mstore(sub(data, 0x40), mBefore2)
             mstore(sub(data, 0x60), mBefore3)
+        }
+    }
+
+    function _creationStart(bytes memory data) internal pure returns (uint256 start) {
+        assembly {
+            start := sub(data, 0x4c)
         }
     }
 }

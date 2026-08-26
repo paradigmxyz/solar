@@ -5,7 +5,7 @@ bb0:
   push 189
   codesize
   sub
-  dup1
+  dup 1
   push 189
   push 320
   codecopy
@@ -19,12 +19,12 @@ bb0:
   push 64
   mstore
   push 320
-  dup1
+  dup 1
   push 288
   mstore
   mload
   push 255
-  dup2
+  dup 2
   and
   sub
   push bb4
@@ -34,7 +34,7 @@ bb0:
   mload
   add
   mload
-  dup1
+  dup 1
   push 0
   signextend
   sub
@@ -48,7 +48,7 @@ bb0:
   push 255
   push 248
   shl
-  dup2
+  dup 2
   and
   sub
   push bb4
@@ -70,7 +70,7 @@ bb0:
   push 256
   mstore
   push 51
-  dup1
+  dup 1
   push 138
   push 0
   codecopy
@@ -92,7 +92,7 @@ bb0:
   return
 bb4 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 
 // === runtime ===
@@ -105,7 +105,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x57de26a4
   sub
   push bb3
@@ -117,10 +117,10 @@ bb0:
   push_immutable 2, 1
   push 248
   shl
-  dup3
+  dup 3
   push 128
   mstore
-  swap2
+  swap 2
   pop
   push 160
   mstore
@@ -131,5 +131,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert

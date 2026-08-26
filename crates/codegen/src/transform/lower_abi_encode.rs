@@ -658,9 +658,9 @@ fn copy_slice_data(
     size: ValueId,
 ) {
     match location {
-        SliceLocation::Memory => builder.mcopy(dest, source, size),
-        SliceLocation::Calldata => builder.calldatacopy(dest, source, size),
-        SliceLocation::Returndata => builder.returndatacopy(dest, source, size),
+        SliceLocation::Memory => builder.mcopy_heap(dest, source, size),
+        SliceLocation::Calldata => builder.calldatacopy_heap(dest, source, size),
+        SliceLocation::Returndata => builder.returndatacopy_heap(dest, source, size),
     }
 }
 

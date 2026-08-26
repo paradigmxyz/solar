@@ -6,79 +6,105 @@ fn @forward(arg0: calldataslice, arg1: address) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = calldataload 36
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = div v14, 32
+    v16 = gt v5, v15
+    jumpi v16, bb7, bb8
+  bb8:
+    v17 = calldataload 36
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = eq v17, v18
+    jumpi v19, bb10, bb9
+  bb9:
+    revert 0, 0
+  bb10:
+    v20 = slice_ptr arg0
+    v21 = slice_len arg0
+    v22 = shr 251, v21
+    jumpi v22, bb11, bb12
+  bb12:
+    v23 = mul v21, 32
+    v24 = add 32, v23
+    v25 = lt v24, v23
+    jumpi v25, bb13, bb14
+  bb14:
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
+    mstore v26, v21
+    v27 = alloc raw, exact, uninitialized, infallible, 96
+    v28 = add v27, 32
+    v29 = add v27, 64
+    v30 = add v26, 32
+    mstore v27, v21
+    mstore v28, v20
+    mstore v29, v30
+    jump bb15
+  bb15:
+    v31 = mload v27
+    v32 = gt v31, 0
+    jumpi v32, bb16, bb17
+  bb17:
+    v44 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v26
+    v45 = slice_ptr v44
+    v46 = slice_len v44
+    v47 = gas
+    v48 = call v47, arg1, 0, v45, v46, 0, 0
+    jumpi v48, bb19, bb18
+  bb18:
+    v49 = returndatasize
+    returndatacopy 0, 0, v49 !metadata(memory=abi_return)
+    v50 = returndatasize
+    revert 0, v50
+  bb19:
+    stop
+  bb16:
+    v33 = mload v28
+    v34 = calldataload v33
+    v35 = add v20, v34
+    v36 = internal_call @__abi_decode_calldata_0, 1, v35
+    v37 = mload v29
+    mstore v37, v36
+    v38 = mload v27
+    v39 = sub v38, 1
+    mstore v27, v39
+    v40 = mload v28
+    v41 = add v40, 32
+    mstore v28, v41
+    v42 = mload v29
+    v43 = add v42, 32
+    mstore v29, v43
+    jump bb15
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
   bb3:
     revert 0, 0
-  bb4:
-    v6 = slice_ptr arg0
-    v7 = slice_len arg0
-    v8 = shr 251, v7
-    jumpi v8, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v9 = mul v7, 32
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
-    mstore v12, v7
-    v13 = alloc raw, exact, uninitialized, infallible, 96
-    v14 = add v13, 32
-    v15 = add v13, 64
-    v16 = add v12, 32
-    mstore v13, v7
-    mstore v14, v6
-    mstore v15, v16
-    jump bb9
-  bb9:
-    v17 = mload v13
-    v18 = gt v17, 0
-    jumpi v18, bb10, bb11
-  bb10:
-    v19 = mload v14
-    v20 = calldataload v19
-    v21 = add v6, v20
-    v22 = internal_call @__abi_decode_calldata_0, 1, v21
-    v23 = mload v15
-    mstore v23, v22
-    v24 = mload v13
-    v25 = sub v24, 1
-    mstore v13, v25
-    v26 = mload v14
-    v27 = add v26, 32
-    mstore v14, v27
-    v28 = mload v15
-    v29 = add v28, 32
-    mstore v15, v29
-    jump bb9
-  bb11:
-    v30 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v12
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = gas
-    v34 = call v33, arg1, 0, v31, v32, 0, 0
-    jumpi v34, bb13, bb12
-  bb12:
-    v35 = returndatasize
-    returndatacopy 0, 0, v35 !metadata(memory=scratch)
-    v36 = returndatasize
-    revert 0, v36
-  bb13:
-    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
@@ -87,10 +113,6 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     v1 = add v0, 31
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = not 31
     v4 = and v1, v3
@@ -99,10 +121,6 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     v7 = add 32, v6
     v8 = lt v7, v6
     jumpi v8, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v9 = alloc memorybytes, exact, uninitialized, infallible, v7
     mstore v9, v0
@@ -111,8 +129,16 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     v12 = add v10, v11
     mstore v12, 0
     v13 = add arg0, 32
-    calldatacopy v10, v13, v0
+    calldatacopy v10, v13, v0 !metadata(memory=heap)
     ret v9
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @forwardStructs(arg0: calldataslice, arg1: address) {
@@ -121,79 +147,105 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = calldataload 36
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = div v14, 32
+    v16 = gt v5, v15
+    jumpi v16, bb7, bb8
+  bb8:
+    v17 = calldataload 36
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = eq v17, v18
+    jumpi v19, bb10, bb9
+  bb9:
+    revert 0, 0
+  bb10:
+    v20 = slice_ptr arg0
+    v21 = slice_len arg0
+    v22 = shr 251, v21
+    jumpi v22, bb11, bb12
+  bb12:
+    v23 = mul v21, 32
+    v24 = add 32, v23
+    v25 = lt v24, v23
+    jumpi v25, bb13, bb14
+  bb14:
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
+    mstore v26, v21
+    v27 = alloc raw, exact, uninitialized, infallible, 96
+    v28 = add v27, 32
+    v29 = add v27, 64
+    v30 = add v26, 32
+    mstore v27, v21
+    mstore v28, v20
+    mstore v29, v30
+    jump bb15
+  bb15:
+    v31 = mload v27
+    v32 = gt v31, 0
+    jumpi v32, bb16, bb17
+  bb17:
+    v44 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v26
+    v45 = slice_ptr v44
+    v46 = slice_len v44
+    v47 = gas
+    v48 = call v47, arg1, 0, v45, v46, 0, 0
+    jumpi v48, bb19, bb18
+  bb18:
+    v49 = returndatasize
+    returndatacopy 0, 0, v49 !metadata(memory=abi_return)
+    v50 = returndatasize
+    revert 0, v50
+  bb19:
+    stop
+  bb16:
+    v33 = mload v28
+    v34 = calldataload v33
+    v35 = add v20, v34
+    v36 = internal_call @__abi_decode_calldata_1, 1, v35
+    v37 = mload v29
+    mstore v37, v36
+    v38 = mload v27
+    v39 = sub v38, 1
+    mstore v27, v39
+    v40 = mload v28
+    v41 = add v40, 32
+    mstore v28, v41
+    v42 = mload v29
+    v43 = add v42, 32
+    mstore v29, v43
+    jump bb15
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
   bb3:
     revert 0, 0
-  bb4:
-    v6 = slice_ptr arg0
-    v7 = slice_len arg0
-    v8 = shr 251, v7
-    jumpi v8, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v9 = mul v7, 32
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
-    mstore v12, v7
-    v13 = alloc raw, exact, uninitialized, infallible, 96
-    v14 = add v13, 32
-    v15 = add v13, 64
-    v16 = add v12, 32
-    mstore v13, v7
-    mstore v14, v6
-    mstore v15, v16
-    jump bb9
-  bb9:
-    v17 = mload v13
-    v18 = gt v17, 0
-    jumpi v18, bb10, bb11
-  bb10:
-    v19 = mload v14
-    v20 = calldataload v19
-    v21 = add v6, v20
-    v22 = internal_call @__abi_decode_calldata_1, 1, v21
-    v23 = mload v15
-    mstore v23, v22
-    v24 = mload v13
-    v25 = sub v24, 1
-    mstore v13, v25
-    v26 = mload v14
-    v27 = add v26, 32
-    mstore v14, v27
-    v28 = mload v15
-    v29 = add v28, 32
-    mstore v15, v29
-    jump bb9
-  bb11:
-    v30 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = gas
-    v34 = call v33, arg1, 0, v31, v32, 0, 0
-    jumpi v34, bb13, bb12
-  bb12:
-    v35 = returndatasize
-    returndatacopy 0, 0, v35 !metadata(memory=scratch)
-    v36 = returndatasize
-    revert 0, v36
-  bb13:
-    stop
+  bb1:
+    revert 0, 0
 }
 
 fn @__abi_decode_calldata_1(arg0: u256) -> memptr {

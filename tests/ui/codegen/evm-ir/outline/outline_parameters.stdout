@@ -24,8 +24,8 @@
 -   jump bb1
 +   push 1
 +   push bb5
-+   swap2
-+   swap1
++   swap 2
++   swap 1
 +   jump bb4
   bb1:
 -   push 3
@@ -50,8 +50,8 @@
 -   jump bb2
 +   push 3
 +   push bb6
-+   swap2
-+   swap1
++   swap 2
++   swap 1
 +   jump bb4
   bb2:
 -   push 5
@@ -76,15 +76,15 @@
 -   jump bb3
 +   push 5
 +   push bb7
-+   swap2
-+   swap1
++   swap 2
++   swap 1
 +   jump bb4
   bb3:
 +   push 8
     push 7
 +   push bb8
-+   swap2
-+   swap1
++   swap 2
++   swap 1
 +   jump bb4
 + bb4:
     not
@@ -96,7 +96,7 @@
     not
     not
 -   push 8
-+   swap1
++   swap 1
     add
     not
     not
