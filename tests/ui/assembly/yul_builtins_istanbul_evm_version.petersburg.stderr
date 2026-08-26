@@ -1,4 +1,4 @@
-error: Yul builtin `chainid` requires Istanbul-compatible EVM
+error[1561]: Yul builtin `chainid` requires Istanbul-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_istanbul_evm_version.sol:LL:CC
    │
 LL │             pop(chainid())
@@ -6,7 +6,7 @@ LL │             pop(chainid())
    │
    ╰ help: compile with `--evm-version istanbul` or newer
 
-error: Yul builtin `selfbalance` requires Istanbul-compatible EVM
+error[7721]: Yul builtin `selfbalance` requires Istanbul-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_istanbul_evm_version.sol:LL:CC
    │
 LL │             pop(selfbalance())

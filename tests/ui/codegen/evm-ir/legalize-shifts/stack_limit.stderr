@@ -1,0 +1,4 @@
+error: legacy shift legalization would exceed the EVM stack limit
+
+error: aborting due to 1 previous error
+

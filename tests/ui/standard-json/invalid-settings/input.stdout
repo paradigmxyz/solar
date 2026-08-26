@@ -1,0 +1,24 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "invalid EVM version `Byzantium`",
+      "formattedMessage": "error: invalid EVM version `Byzantium`\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "invalid compiler stage `semantic`",
+      "formattedMessage": "error: invalid compiler stage `semantic`\n\n"
+    }
+  ]
+}

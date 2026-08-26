@@ -140,10 +140,14 @@ fn compile(
     }
 
     opts.import_remappings = parsed_remappings;
-    opts.evm_version = evm_version
-        .as_deref()
-        .and_then(|version| EvmVersion::from_str(version).ok())
-        .unwrap_or(opts.evm_version);
+    if let Some(version) = evm_version.as_deref() {
+        match EvmVersion::from_str(version) {
+            Ok(version) => opts.evm_version = version,
+            Err(_) => {
+                dcx.err(format!("invalid EVM version `{version}`")).emit();
+            }
+        }
+    }
     opts.language = match language.as_ref() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
@@ -152,7 +156,17 @@ fn compile(
             return;
         }
     };
-    opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+    if let Some(stage) = stop_after.as_deref() {
+        match CompilerStage::from_str(stage) {
+            Ok(stage) => opts.stop_after = Some(stage),
+            Err(_) => {
+                dcx.err(format!("invalid compiler stage `{stage}`")).emit();
+            }
+        }
+    }
+    if dcx.has_errors().is_err() {
+        return;
+    }
 
     if let Some(Optimizer { enabled, runs }) = optimizer {
         // 200 runs is the default value if unspecified in solc.

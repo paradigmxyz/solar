@@ -13,49 +13,49 @@
 -   shr
 +   push 2
 +   exp
-+   swap1
++   swap 1
 +   div
     push 7
     push 1
 -   sar
-+   dup2
-+   dup2
++   dup 2
++   dup 2
 +   push 2
 +   exp
-+   swap2
++   swap 2
 +   pop
-+   dup2
-+   dup2
++   dup 2
++   dup 2
 +   div
-+   dup3
-+   dup3
++   dup 3
++   dup 3
 +   not
 +   div
 +   not
-+   dup3
++   dup 3
 +   push 0
-+   swap1
++   swap 1
 +   slt
-+   dup1
-+   dup3
++   dup 1
++   dup 3
 +   mul
-+   dup2
++   dup 2
 +   push 1
 +   sub
-+   dup5
++   dup 5
 +   mul
 +   add
-+   swap1
++   swap 1
 +   pop
-+   swap1
++   swap 1
 +   pop
-+   swap1
++   swap 1
 +   pop
-+   swap1
++   swap 1
 +   pop
-+   swap1
++   swap 1
 +   pop
-+   swap1
++   swap 1
 +   pop
     stop
   

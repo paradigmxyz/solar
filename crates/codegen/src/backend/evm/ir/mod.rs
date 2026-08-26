@@ -27,7 +27,7 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 pub(in crate::backend::evm) use passes::{
-    compact_pushes::immediate_materialization_cost, legalize_shifts,
+    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost, legalize_shifts,
 };
 
 /// Maximum stack reserve used by parameterized machine-run outlining.
@@ -36,6 +36,24 @@ pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     verify::validate(dcx, module);
+}
+
+/// Validates that every opcode is available for the selected EVM version.
+pub(in crate::backend::evm) fn validate_evm_version(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_evm_version(dcx, module, evm_version, false);
+}
+
+/// Validates opcode availability before pre-Constantinople shifts are legalized.
+pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_evm_version(dcx, module, evm_version, true);
 }
 
 newtype_index! {

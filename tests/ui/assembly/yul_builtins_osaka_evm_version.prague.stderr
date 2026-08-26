@@ -1,4 +1,4 @@
-error: Yul builtin `clz` requires Osaka-compatible EVM
+error[4948]: Yul builtin `clz` requires Osaka-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_osaka_evm_version.sol:LL:CC
    │
 LL │             pop(clz(0))

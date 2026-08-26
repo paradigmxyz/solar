@@ -1,4 +1,4 @@
-error: Yul builtin `shl` requires Constantinople-compatible EVM
+error[6612]: Yul builtin `shl` requires Constantinople-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
    │
 LL │             pop(shl(1, 1))
@@ -6,7 +6,7 @@ LL │             pop(shl(1, 1))
    │
    ╰ help: compile with `--evm-version constantinople` or newer
 
-error: Yul builtin `shr` requires Constantinople-compatible EVM
+error[7458]: Yul builtin `shr` requires Constantinople-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
    │
 LL │             pop(shr(1, 1))
@@ -14,7 +14,7 @@ LL │             pop(shr(1, 1))
    │
    ╰ help: compile with `--evm-version constantinople` or newer
 
-error: Yul builtin `sar` requires Constantinople-compatible EVM
+error[2054]: Yul builtin `sar` requires Constantinople-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
    │
 LL │             pop(sar(1, 1))
@@ -22,7 +22,7 @@ LL │             pop(sar(1, 1))
    │
    ╰ help: compile with `--evm-version constantinople` or newer
 
-error: Yul builtin `create2` requires Constantinople-compatible EVM
+error[6166]: Yul builtin `create2` requires Constantinople-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
    │
 LL │             pop(create2(0, 0, 0, 0))
@@ -30,7 +30,7 @@ LL │             pop(create2(0, 0, 0, 0))
    │
    ╰ help: compile with `--evm-version constantinople` or newer
 
-error: Yul builtin `extcodehash` requires Constantinople-compatible EVM
+error[7110]: Yul builtin `extcodehash` requires Constantinople-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_constantinople_evm_version.sol:LL:CC
    │
 LL │             pop(extcodehash(0))

@@ -1,4 +1,4 @@
-error: Yul builtin `basefee` requires London-compatible EVM
+error[5430]: Yul builtin `basefee` requires London-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_london_evm_version.sol:LL:CC
    │
 LL │             pop(basefee())

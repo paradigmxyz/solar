@@ -19,7 +19,7 @@ mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
 
-pub(in crate::backend::evm) use legalize_shifts::legalize_shifts;
+pub(in crate::backend::evm) use legalize_shifts::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
 
 use super::Module;
 use crate::{
@@ -158,10 +158,14 @@ fn run_passes_inner(
         }
 
         if enabled {
+            let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = pass.run_pass(gcx, module);
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
+            if gcx.dcx().err_count() != errors_before {
+                return changed;
+            }
         }
 
         if let Some(before) = before {

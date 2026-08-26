@@ -1,4 +1,4 @@
-error: Yul builtin `returndatasize` requires Byzantium-compatible EVM
+error[4778]: Yul builtin `returndatasize` requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
    │
 LL │             pop(returndatasize())
@@ -6,7 +6,7 @@ LL │             pop(returndatasize())
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: Yul builtin `returndatacopy` requires Byzantium-compatible EVM
+error[7756]: Yul builtin `returndatacopy` requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
    │
 LL │             returndatacopy(0, 0, 0)
@@ -14,7 +14,7 @@ LL │             returndatacopy(0, 0, 0)
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: Yul builtin `staticcall` requires Byzantium-compatible EVM
+error[1503]: Yul builtin `staticcall` requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/assembly/yul_builtins_byzantium_evm_version.sol:LL:CC
    │
 LL │             pop(staticcall(0, 0, 0, 0, 0, 0))
