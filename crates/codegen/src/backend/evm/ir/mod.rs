@@ -391,12 +391,6 @@ impl Instruction {
         self.stack_op
     }
 
-    /// Returns the opcode when this is not an encoded push.
-    #[must_use]
-    pub(crate) const fn raw_opcode(&self) -> Option<u8> {
-        if self.is_encoded_push() { None } else { Some(self.opcode) }
-    }
-
     /// Returns metadata's stack effect override or the opcode's default effect.
     #[must_use]
     pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {

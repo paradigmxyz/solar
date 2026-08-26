@@ -170,11 +170,11 @@ bb11:
   mstore
   stop
 
-// Raw PUSH0 participates in symbolic cleanup.
+// PUSH0 participates in symbolic cleanup.
 // CHECK-LABEL: {{^[ +].*}}bb12:
-// CHECK: {{^[ +].*}}push0
+// CHECK: {{^[ +].*}}push 0
 // CHECK-NEXT: -   pop
-// CHECK-NEXT: -   push0
+// CHECK-NEXT: -   push 0
 bb12:
   calldatasize
   push0
@@ -188,7 +188,7 @@ bb12:
 // CHECK-NEXT: {{^[ +].*}}calldatasize
 // CHECK-NEXT: {{^    push_deferred 0}}
 // CHECK-NEXT: {{^    pop}}
-// CHECK-NEXT: {{^    push0}}
+// CHECK-NEXT: {{^    push 0}}
 bb13:
   calldatasize
   push_deferred 0
@@ -199,12 +199,10 @@ bb13:
 
 // Do not remove an identity that only holds with an unavailable stack prefix.
 // CHECK-LABEL: {{^[ +].*}}bb14:
-// CHECK: {{^    swap 2}}
-// CHECK-NEXT: -   swap 1
+// CHECK: +   exchange 1, 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}swap 1
 // CHECK-NEXT: -   pop
-// CHECK-NEXT: -   swap 1
-// CHECK-NEXT: -   pop
-// CHECK-NEXT: +   swap 2
 bb14:
   push 0
   push 1

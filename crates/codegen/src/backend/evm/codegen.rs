@@ -15,8 +15,8 @@ use super::{
     ir,
     layout::{RelayoutAddress, preserves_push_width},
     materialize::{
-        cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
-        rematerializable_nullary_opcode,
+        cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
+        is_rematerializable_leaf, rematerializable_nullary_opcode,
     },
     op,
     stack::{
@@ -2470,9 +2470,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
-        let hazard_recomputable = Self::cross_block_recomputable_values_with(func, |value| {
-            !existing_stack_only_values.contains(&value)
-        });
+        let hazard_recomputable =
+            cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
         let hazard_cross_block_values = self.spill_hazard_cross_block_values(
             func,
             liveness,
@@ -3815,15 +3814,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             let reloaded = values
                 .iter()
                 .any(|value| {
-                    !recomputable.contains(value)
-                        && StackScheduler::is_cheap_recomputable_value(func, value)
+                    !recomputable.contains(value) && is_cheap_recomputable_value(func, value)
                 })
                 .then(|| Self::cross_block_reload_values(func));
             for val in &values {
                 if recomputable.contains(val) {
                     self.scheduler.spills.mark_recomputable(val);
                 } else if reloaded.as_ref().is_some_and(|values| values.contains(val))
-                    && StackScheduler::is_cheap_recomputable_value(func, val)
+                    && is_cheap_recomputable_value(func, val)
                 {
                     self.scheduler.spills.require_store(val);
                 }
@@ -4474,8 +4472,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_always_rematerializable_value(func: &Function, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return false };
-        rematerializable_nullary_opcode(&func.inst(*inst_id).kind).is_some()
+        Self::always_rematerializable_op(func, value).is_some()
     }
 
     fn always_rematerializable_op(func: &Function, value: ValueId) -> Option<u8> {

@@ -428,22 +428,24 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
             _ => None,
         }
     {
-        let start = instructions.len() - 2;
-        instructions[start] = Instruction::stack_op(op::StackOp::Swap(first_depth));
-        instructions[start + 1] = Instruction::stack_op(op::StackOp::Swap(second_depth));
-        return true;
+        return rewrite(
+            instructions,
+            2,
+            Edit::StackOps(op::StackOp::Swap(first_depth), op::StackOp::Swap(second_depth)),
+            block,
+        );
     }
 
     // `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
     if let [.., first, second, third] = instructions.as_slice()
-        && let (Some(first), Some(second), Some(third)) =
-            (swap_depth(first), swap_depth(second), swap_depth(third))
+        && let (
+            Some(op::StackOp::Swap(first)),
+            Some(op::StackOp::Swap(second)),
+            Some(op::StackOp::Swap(third)),
+        ) = (first.as_stack_op(), second.as_stack_op(), third.as_stack_op())
         && let Some(exchange) = op::StackOp::from_swaps(first, second, third)
     {
-        let start = instructions.len() - 3;
-        instructions[start] = Instruction::stack_op(exchange);
-        instructions.truncate(start + 1);
-        return true;
+        return rewrite(instructions, 3, Edit::StackOp(exchange), block);
     }
 
     false
@@ -559,6 +561,8 @@ enum Edit {
     DropDoubleIszero,
     EqIszeroJumpi,
     FoldConstants(U256, EvmVersion),
+    StackOp(op::StackOp),
+    StackOps(op::StackOp, op::StackOp),
 }
 
 impl Edit {
@@ -620,6 +624,15 @@ impl Edit {
                 instructions.truncate(start);
                 materialize_immediate(instructions, evm_version, value);
             }
+            Self::StackOp(stack_op) => {
+                instructions[start] = Instruction::stack_op(stack_op);
+                instructions.truncate(start + 1);
+            }
+            Self::StackOps(first, second) => {
+                instructions[start] = Instruction::stack_op(first);
+                instructions[start + 1] = Instruction::stack_op(second);
+                instructions.truncate(start + 2);
+            }
         }
     }
 }
@@ -630,11 +643,6 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
     inst.metadata.stack = None;
-}
-
-fn swap_depth(inst: &Instruction) -> Option<u8> {
-    let op::StackOp::Swap(depth) = inst.as_stack_op()? else { return None };
-    Some(depth)
 }
 
 const fn is_commutative(opcode: u8) -> bool {

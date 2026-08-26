@@ -123,7 +123,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
-    &block_cse::BlockCseCleanup,
+    &peephole::Cleanup(block_cse::BlockCse),
     &dce::Dce,
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,

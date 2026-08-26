@@ -61,7 +61,7 @@ impl EvmPass for ReorderPushes {
 fn has_candidate(instructions: &[Instruction]) -> bool {
     instructions
         .windows(2)
-        .any(|pair| pair[0].is_encoded_push() && pair[1].raw_opcode() == Some(op::SWAP1))
+        .any(|pair| pair[0].is_encoded_push() && pair[1].as_legacy_opcode() == Some(op::SWAP1))
 }
 
 struct ReorderResult {
@@ -95,7 +95,7 @@ fn reorder(
             relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
         }
 
-        let producer = if inst.raw_opcode() == Some(op::SWAP1)
+        let producer = if inst.as_legacy_opcode() == Some(op::SWAP1)
             && let [.., producer, pushed] = expressions.as_slice()
             && sequence.last == Some(pushed.start)
             && sequence.instruction(pushed.start).is_encoded_push()
@@ -148,7 +148,7 @@ fn update_expressions(
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
         && !inst.is_physical_stack_op()
-        && inst.raw_opcode().is_none_or(op::is_unaffected_by_preceding_push)
+        && inst.as_legacy_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1
         && usize::from(effect.inputs) <= expressions.len()
     {

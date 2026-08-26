@@ -50,7 +50,7 @@ bb1:
 bb2:
   push 7
   push 8
-  swap 1 !meta(stack=2->2)
+  swap 1 !meta(stack=0->0)
   swap 1
   stop
 

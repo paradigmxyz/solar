@@ -70,12 +70,10 @@ bb4:
   push 256
   mload
   calldatasize
-  dup 1
-  dup 3
+  dup 2
   gt
-  dup 3
-  swap 1
-  swap 2
+  dup 2
+  calldatasize
   sub
   push 128
   gt
@@ -118,17 +116,14 @@ bb4:
   push 384
   mload
   calldatasize
-  dup 1
-  dup 3
+  dup 2
   gt
-  dup 3
-  dup 3
+  dup 2
+  calldatasize
   sub
   push 32
   gt
   or
-  swap 1
-  pop
   push bb26
   jumpi
   dup 1
@@ -388,17 +383,14 @@ bb22:
   push 384
   mload
   calldatasize
-  dup 1
-  dup 3
+  dup 2
   gt
-  dup 3
-  dup 3
+  dup 2
+  calldatasize
   sub
   push 32
   gt
   or
-  swap 1
-  pop
   push bb26
   jumpi
   dup 1
@@ -636,14 +628,14 @@ bb9:
   calldataload
   add
   dup 1
-  push 256
+  push 224
   mstore
   push 4
   push 36
   calldataload
   add
   calldataload
-  push 288
+  push 256
   mstore
   push 32
   dup 2
@@ -666,30 +658,25 @@ bb9:
   push bb4
   jumpi
   calldatasize
-  dup 1
-  push 192
-  mstore
   push 160
   mload
   gt
   push 160
   mload
-  push 192
-  mload
+  calldatasize
   sub
   push 32
   gt
   or
   push bb4
   jumpi
-  push 256
+  push 224
   mload
-  push 192
-  mload
+  calldatasize
   sub
   push 5
   shr
-  push 288
+  push 256
   mload
   gt
   push bb4
@@ -699,14 +686,14 @@ bb9:
   calldataload
   add
   dup 1
-  push 320
+  push 288
   mstore
   push 4
   push 68
   calldataload
   add
   calldataload
-  push 224
+  push 192
   mstore
   push 32
   dup 2
@@ -728,27 +715,24 @@ bb9:
   pop
   push bb4
   jumpi
-  push 192
-  mload
+  calldatasize
   push 160
   mload
   gt
   push 160
   mload
-  push 192
-  mload
+  calldatasize
   sub
   push 32
   gt
   or
   push bb4
   jumpi
-  push 320
+  push 288
   mload
-  push 192
-  mload
+  calldatasize
   sub
-  push 224
+  push 192
   mload
   gt
   push bb4
@@ -764,13 +748,13 @@ bb9:
   sub
   push bb4
   jumpi
-  push 288
+  push 256
   mload
   push 251
   shr
   push bb23
   jumpi
-  push 288
+  push 256
   mload
   push 5
   shl
@@ -780,14 +764,14 @@ bb9:
   push 64
   mload
   dup 1
-  push 192
+  push 320
   mstore
   swap 1
   dup 2
   add
   push 64
   mstore
-  push 288
+  push 256
   mload
   dup 2
   mstore
@@ -795,7 +779,7 @@ bb9:
   dup 2
   add
   dup 3
-  push 256
+  push 224
   mload
   dup 3
   calldatacopy
@@ -803,13 +787,13 @@ bb9:
   swap 1
   pop
   push 31
-  push 224
+  push 192
   mload
   add
   dup 1
   push 160
   mstore
-  push 224
+  push 192
   mload
   gt
   swap 1
@@ -839,7 +823,7 @@ bb9:
   dup 2
   add
   dup 1
-  push 256
+  push 224
   mstore
   lt
   push bb23
@@ -849,13 +833,13 @@ bb9:
   dup 1
   push 352
   mstore
-  push 256
+  push 224
   mload
   dup 2
   add
   push 64
   mstore
-  push 224
+  push 192
   mload
   dup 2
   mstore
@@ -871,9 +855,9 @@ bb9:
   push 0
   swap 1
   mstore
-  push 224
+  push 192
   mload
-  push 320
+  push 288
   mload
   dup 3
   calldatacopy
@@ -895,7 +879,7 @@ bb9:
   push 32
   dup 2
   add
-  push 192
+  push 320
   mload
   dup 2
   mstore

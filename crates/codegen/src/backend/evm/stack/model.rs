@@ -204,12 +204,6 @@ impl Default for StackModel {
     fn default() -> Self {
         Self::new()
     }
-
-    /// Returns the operation's static EVM gas cost.
-    #[must_use]
-    pub(crate) const fn static_gas(self) -> u32 {
-        if matches!(self, Self::Pop) { 2 } else { 3 }
-    }
 }
 
 #[cfg(test)]

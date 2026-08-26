@@ -2148,7 +2148,7 @@ impl StackScheduler {
             return true;
         }
         // Check the value type.
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
+        is_rematerializable_leaf(func.value(value))
     }
 
     /// Records that an instruction consumed its operands and produced a result.
@@ -2721,7 +2721,6 @@ mod tests {
                     &[],
                     &func,
                     optimization,
-                    EvmVersion::Shanghai,
                     OperandCostModel::DIRECT,
                 )
                 .unwrap();

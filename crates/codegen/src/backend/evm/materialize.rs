@@ -22,9 +22,10 @@ pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u
         InstKind::GasPrice => op::GASPRICE,
         InstKind::Coinbase => op::COINBASE,
         InstKind::Timestamp => op::TIMESTAMP,
-        InstKind::BlockNumber => op::NUMBER,
+        // Instrumented EVMs can change the block number across a call.
         InstKind::PrevRandao => op::PREVRANDAO,
         InstKind::GasLimit => op::GASLIMIT,
+        InstKind::SlotNum => op::SLOTNUM,
         InstKind::ChainId => op::CHAINID,
         InstKind::BaseFee => op::BASEFEE,
         InstKind::BlobBaseFee => op::BLOBBASEFEE,
@@ -67,7 +68,6 @@ pub(super) const fn is_cross_block_recomputable_kind(kind: &InstKind) -> bool {
                 | InstKind::CalldataLoad(_)
                 | InstKind::InternalFrameAddr(_)
                 | InstKind::Timestamp
-                | InstKind::BlockNumber
         )
 }
 
@@ -122,6 +122,17 @@ mod tests {
     use crate::mir::{BlockId, Immediate, ImmutableId, Instruction, MirType, Value};
     use alloy_primitives::U256;
     use solar_interface::Ident;
+
+    #[test]
+    fn rematerializes_only_stable_nullary_reads() {
+        assert_eq!(
+            rematerializable_nullary_opcode(&InstKind::CalldataSize),
+            Some(op::CALLDATASIZE)
+        );
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
+    }
 
     #[test]
     fn cross_block_recomputation_requires_stable_leaves() {

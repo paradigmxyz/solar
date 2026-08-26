@@ -55,16 +55,12 @@ bb0:
   push bb3
   jumpi
   calldatasize
-  dup 1
-  push 288
-  mstore
   push 256
   mload
   gt
   push 256
   mload
-  push 288
-  mload
+  calldatasize
   sub
   push 32
   gt
@@ -73,8 +69,7 @@ bb0:
   jumpi
   push 192
   mload
-  push 288
-  mload
+  calldatasize
   sub
   push 224
   mload
@@ -96,7 +91,7 @@ bb0:
   jump bb10
 bb10:
   dup 1
-  push 320
+  push 288
   mstore
   push 128
   mstore
