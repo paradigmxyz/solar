@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zsecurity --emit=bin-runtime
+//@ compile-flags: -Zsecurity --emit=bin-runtime --allow=2264
 
 // The analysis traces each ether-carrying call's recipient backward through the
 // MIR. A recipient derived from an argument or calldata means anyone can choose

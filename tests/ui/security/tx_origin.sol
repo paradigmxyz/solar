@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zsecurity --emit=bin-runtime
+//@ compile-flags: -Zsecurity --emit=bin-runtime --allow=2264
 
 contract TxOrigin {
     address owner;

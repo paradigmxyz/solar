@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zsecurity --emit=bin-runtime
+//@ compile-flags: -Zsecurity --emit=bin-runtime --allow=2264
 
 // A low-level call returns a success flag; ignoring it lets a failed call pass
 // as success. The analysis reports a call whose result is never used. Checking

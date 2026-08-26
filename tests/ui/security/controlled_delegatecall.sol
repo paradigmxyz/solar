@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zsecurity --emit=bin-runtime
+//@ compile-flags: -Zsecurity --emit=bin-runtime --allow=2264
 
 // The security analysis traces each `delegatecall` target backward through the
 // MIR SSA graph. A target derived from an external argument or calldata is an

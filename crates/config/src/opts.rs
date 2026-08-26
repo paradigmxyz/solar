@@ -394,9 +394,8 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen_all_functions: bool,
 
-    /// Run MIR-based security analysis and emit findings as diagnostics.
-    ///
-    /// Experimental. Analyzes the freshly lowered (`Built`-phase) MIR before the
+    /// Run experimental MIR-based security analysis and emit findings as diagnostics. Analyzes
+    /// the freshly lowered (`Built`-phase) MIR before the
     /// optimization pipeline runs, so semantic structure (external calls, storage
     /// writes, environment reads) is still intact.
     #[cfg_attr(feature = "clap", arg(long))]

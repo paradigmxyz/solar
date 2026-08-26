@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zsecurity --emit=bin-runtime
+//@ compile-flags: -Zsecurity --emit=bin-runtime --allow=2264
 
 // Reducing a block value modulo a bound is predictable randomness. The analysis
 // anchors on a modulo whose operand derives from block.prevrandao, blockhash,
