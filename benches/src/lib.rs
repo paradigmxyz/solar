@@ -48,9 +48,9 @@ pub fn get_srcs() -> &'static [Source] {
         // project's benchmark profile.
         //
         // CodSpeed runs project codegen by default. Mark projects that are too
-        // slow or unsupported under instrumentation with `no_codspeed_codegen`.
+        // slow or redundant under simulation with `no_codspeed_codegen`.
         sources.extend([
-            // Full Seaport codegen is too expensive under CodSpeed instrumentation.
+            // Full Seaport codegen is too expensive under CodSpeed simulation.
             include_source("../testdata/projects/seaport-1.6.json.gz", Capabilities::all())
                 .no_codspeed_codegen(),
             // Solar currently stops before codegen for this project.
@@ -58,7 +58,7 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/openzeppelin-5.6.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            // Full Solady codegen is too expensive under CodSpeed instrumentation.
+            // Full Solady codegen is too expensive under CodSpeed simulation.
             include_source("../testdata/projects/solady-0.1.26.json.gz", Capabilities::all())
                 .no_codspeed_codegen(),
             // Solar currently stops before codegen for this project.
@@ -66,14 +66,18 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/projects/v4-core-4.0.0.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all()),
-            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all()),
+            // The heavy runtime suite already measures these expensive full-project compiles.
+            include_source("../testdata/projects/morpho-blue-1.0.0.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
+            include_source("../testdata/projects/forge-std-1.16.1.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
             // Solar currently stops before codegen for this project.
             include_source(
                 "../testdata/projects/prb-math-4.1.1.json.gz",
                 Capabilities::no_codegen(),
             ),
-            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/solmate-6.json.gz", Capabilities::all())
+                .no_codspeed_codegen(),
             include_source("../testdata/projects/solarray-a547630.json.gz", Capabilities::all()),
             include_source("../testdata/projects/aave-l2-encoder.json.gz", Capabilities::all()),
             include_source("../testdata/projects/lilweb3-ens.json.gz", Capabilities::all()),

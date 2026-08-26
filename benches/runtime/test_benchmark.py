@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 SCRIPT = Path(__file__).with_name("benchmark.py")
 sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("codegen_benchmark", SCRIPT)
@@ -76,9 +75,7 @@ class CorpusTests(unittest.TestCase):
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
-        case = next(
-            case for case in heavy_cases if case.project == "solady-0.1.26"
-        )
+        case = next(case for case in heavy_cases if case.project == "solady-0.1.26")
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
             benchmark.full_project_standard_json_input(case.project_file)
@@ -186,18 +183,23 @@ class FailureHandlingTests(unittest.TestCase):
 
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
-        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
-            benchmark,
-            "find_binary",
-            side_effect=lambda value, _fallbacks: Path(value),
-        ), mock.patch.object(
-            benchmark,
-            "binary_version",
-            return_value=("0.8.36", ""),
-        ), mock.patch.object(
-            benchmark,
-            "run_test_case",
-            side_effect=RuntimeError("unexpected"),
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark,
+                "find_binary",
+                side_effect=lambda value, _fallbacks: Path(value),
+            ),
+            mock.patch.object(
+                benchmark,
+                "binary_version",
+                return_value=("0.8.36", ""),
+            ),
+            mock.patch.object(
+                benchmark,
+                "run_test_case",
+                side_effect=RuntimeError("unexpected"),
+            ),
         ):
             output = Path(directory) / "results.json"
             return_code = benchmark.main(
@@ -226,6 +228,125 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
+    def test_merges_matching_reference_compiler_results(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "compilers": {
+                "solar": {
+                    "input_fingerprint": "input",
+                    "runtime_status": "ok",
+                    "runtime_results": [
+                        {"label": "value", "status": "ok", "value": "1"}
+                    ],
+                }
+            },
+        }
+        references = {
+            ("runtime", "test"): {
+                "compilers": {
+                    "solc": {
+                        "input_fingerprint": "input",
+                        "runtime_status": "ok",
+                        "runtime_results": [
+                            {"label": "value", "status": "ok", "value": "1"}
+                        ],
+                    }
+                }
+            }
+        }
+
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
+        specs = (
+            benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),
+            benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
+        )
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertTrue(merged)
+        self.assertEqual(entry["runtime_status"], "ok")
+        self.assertEqual(list(entry["compilers"]), ["solc", "solar"])
+
+    def test_rejects_reference_results_for_different_inputs(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "compilers": {"solar": {"input_fingerprint": "new"}},
+        }
+        references = {
+            ("runtime", "test"): {"compilers": {"solc": {"input_fingerprint": "old"}}}
+        }
+
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
+
+        self.assertFalse(merged)
+        self.assertNotIn("solc", entry["compilers"])
+
+    def test_rejects_reference_results_for_different_workloads(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {
+                    "input_fingerprint": "input",
+                    "gas_results": [{"label": "new", "call": "new()"}],
+                }
+            },
+        }
+        references = {
+            ("runtime", "test"): {
+                "gas_profile": "hot",
+                "compilers": {
+                    "solc": {
+                        "input_fingerprint": "input",
+                        "gas_results": [{"label": "old", "call": "old()"}],
+                    }
+                },
+            }
+        }
+
+        merged = benchmark.merge_reference_compiler(entry, references, "solc")
+
+        self.assertFalse(merged)
+        self.assertNotIn("solc", entry["compilers"])
+
+    def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "ok",
+                    "runtime_results": [
+                        {"label": "value", "status": "ok", "value": "1"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "skipped")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
+    def test_single_compiler_runtime_failure_still_fails(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "failed",
+                    "runtime_results": [
+                        {"label": "value", "status": "failed", "error": "reverted"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "failed")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
     def test_reports_cross_compiler_mismatch(self) -> None:
         specs = (
             benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),

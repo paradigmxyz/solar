@@ -64,7 +64,9 @@ def main() -> int:
     written_failures = 0
     for index, source in enumerate(sources):
         if args.verbose:
-            print(f"[runtime-source {index + 1}/{len(sources)}] {source}", file=sys.stderr)
+            print(
+                f"[runtime-source {index + 1}/{len(sources)}] {source}", file=sys.stderr
+            )
         result = _check_source_with_retry(args, source)
         if result is None:
             executed_cases += args.cases_per_source
@@ -134,7 +136,9 @@ def _check_replay(
     snapshot = _snapshot(args.rpc_url, args.timeout)
     try:
         solc_runtime = evm.compile_solc(args.solc, source, args.contract, args.timeout)
-        solar_runtime = evm.compile_solar(args.solar, source, args.contract, args.timeout)
+        solar_runtime = evm.compile_solar(
+            args.solar, source, args.contract, args.timeout
+        )
         evm.set_code(args.rpc_url, evm.SOLC_ADDRESS, solc_runtime, args.timeout)
         evm.set_code(args.rpc_url, evm.SOLAR_ADDRESS, solar_runtime, args.timeout)
 
@@ -178,11 +182,15 @@ def _check_replay(
         _revert(args.rpc_url, snapshot, args.timeout)
 
 
-def _check_source(args: argparse.Namespace, source: pathlib.Path) -> dict[str, Any] | None:
+def _check_source(
+    args: argparse.Namespace, source: pathlib.Path
+) -> dict[str, Any] | None:
     snapshot = _snapshot(args.rpc_url, args.timeout)
     try:
         try:
-            solc_runtime = evm.compile_solc(args.solc, source, args.contract, args.timeout)
+            solc_runtime = evm.compile_solc(
+                args.solc, source, args.contract, args.timeout
+            )
         except subprocess.CalledProcessError as err:
             return {
                 "kind": "solc-compile-error",
@@ -192,7 +200,9 @@ def _check_source(args: argparse.Namespace, source: pathlib.Path) -> dict[str, A
             }
 
         try:
-            solar_runtime = evm.compile_solar(args.solar, source, args.contract, args.timeout)
+            solar_runtime = evm.compile_solar(
+                args.solar, source, args.contract, args.timeout
+            )
         except subprocess.CalledProcessError as err:
             return {
                 "kind": "solar-compile-error",
@@ -250,16 +260,20 @@ def _check_case(
         if failure is not None:
             return failure
 
-    failure = _compare_call(args, source, case_index, case, "observe", observe_calldata, history)
+    failure = _compare_call(
+        args, source, case_index, case, "observe", observe_calldata, history
+    )
     if failure is not None:
         return failure
 
-    history.append({
-        "case": case_index,
-        "setup": setup_calldata,
-        "run": run_calldata,
-        "observe": observe_calldata,
-    })
+    history.append(
+        {
+            "case": case_index,
+            "setup": setup_calldata,
+            "run": run_calldata,
+            "observe": observe_calldata,
+        }
+    )
     return None
 
 
@@ -274,10 +288,14 @@ def _compare_tx(
 ) -> dict[str, Any] | None:
     call_envelope = {"from": args.sender, "gas": evm.TX_GAS}
     solc_result: dict[str, Any] = {
-        "call": evm.eth_call(args.rpc_url, evm.SOLC_ADDRESS, calldata, args.timeout, call_envelope)
+        "call": evm.eth_call(
+            args.rpc_url, evm.SOLC_ADDRESS, calldata, args.timeout, call_envelope
+        )
     }
     solar_result: dict[str, Any] = {
-        "call": evm.eth_call(args.rpc_url, evm.SOLAR_ADDRESS, calldata, args.timeout, call_envelope)
+        "call": evm.eth_call(
+            args.rpc_url, evm.SOLAR_ADDRESS, calldata, args.timeout, call_envelope
+        )
     }
     solc_result["receipt"] = evm.send_tx(
         args.rpc_url, args.sender, evm.SOLC_ADDRESS, calldata, args.timeout
@@ -299,8 +317,12 @@ def _compare_call(
     calldata: str,
     history: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    solc_result = {"call": evm.eth_call(args.rpc_url, evm.SOLC_ADDRESS, calldata, args.timeout)}
-    solar_result = {"call": evm.eth_call(args.rpc_url, evm.SOLAR_ADDRESS, calldata, args.timeout)}
+    solc_result = {
+        "call": evm.eth_call(args.rpc_url, evm.SOLC_ADDRESS, calldata, args.timeout)
+    }
+    solar_result = {
+        "call": evm.eth_call(args.rpc_url, evm.SOLAR_ADDRESS, calldata, args.timeout)
+    }
     return _failure_if_different(
         source, case_index, case, label, calldata, solc_result, solar_result, history
     )
@@ -351,7 +373,7 @@ def _cases(count: int) -> list[dict[str, Any]]:
         seed = ((index + 1) * 0x45D9F3B) & U256_MAX
         a = (seed ^ (index + 1) * 17) & U64_MAX
         b = ((seed >> 3) + index * 31 + 1) & U64_MAX
-        data = bytes(((seed + j * 13) & 0xFF for j in range(index % 34)))
+        data = bytes((seed + j * 13) & 0xFF for j in range(index % 34))
         cases.append(_case(seed, a, b, data))
     return cases
 
@@ -392,7 +414,9 @@ def _revert(url: str, snapshot: str, timeout: float) -> None:
         raise RuntimeError(f"evm_revert failed: {response.get('error')}")
 
 
-def _write_failure(directory: pathlib.Path, index: int, failure: dict[str, Any]) -> None:
+def _write_failure(
+    directory: pathlib.Path, index: int, failure: dict[str, Any]
+) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     stem = pathlib.Path(failure["source"]).stem
     path = directory / f"runtime-{index}-{stem}.json"
