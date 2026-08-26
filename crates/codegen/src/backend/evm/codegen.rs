@@ -15,7 +15,8 @@ use super::{
     ir,
     layout::{RelayoutAddress, preserves_push_width},
     materialize::{
-        cross_block_values, is_cross_block_recomputable_kind, rematerializable_nullary_opcode,
+        cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
+        rematerializable_nullary_opcode,
     },
     op,
     stack::{
@@ -4469,7 +4470,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// word a spill slot. Do not make ordinary frame-backed arguments own
     /// slots without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
+        is_rematerializable_leaf(func.value(value))
     }
 
     fn is_always_rematerializable_value(func: &Function, value: ValueId) -> bool {

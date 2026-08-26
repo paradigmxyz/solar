@@ -103,7 +103,10 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    backend::evm::{materialize::rematerializable_nullary_opcode, op::StackOp},
+    backend::evm::{
+        materialize::{is_rematerializable_leaf, rematerializable_nullary_opcode},
+        op::StackOp,
+    },
     mir::{ArgIdx, BlockId, Function, ValueId},
 };
 use smallvec::SmallVec;

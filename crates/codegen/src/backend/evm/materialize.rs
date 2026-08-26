@@ -5,6 +5,11 @@ use crate::mir::{Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
+/// Returns whether a MIR value is a calling-convention-backed rematerializable leaf.
+pub(super) const fn is_rematerializable_leaf(value: &Value) -> bool {
+    matches!(value, Value::Immediate(_) | Value::Arg(_))
+}
+
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
     Some(match kind {
@@ -82,7 +87,7 @@ pub(super) fn cross_block_values(
     let mut recomputable = DenseBitSet::new_empty(func.num_values());
     let mut worklist = Vec::new();
     for value in func.live_values() {
-        if matches!(func.value(value), Value::Immediate(_) | Value::Arg(_))
+        if is_rematerializable_leaf(func.value(value))
             && leaf_is_available(value)
             && recomputable.insert(value)
         {

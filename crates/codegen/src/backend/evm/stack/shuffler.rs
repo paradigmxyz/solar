@@ -29,9 +29,59 @@ use std::collections::VecDeque;
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
+const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 16;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
 type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
+
+/// Resynthesizes a bounded physical stack operation sequence from its symbolic result.
+pub(crate) fn resynthesize_physical_ops(ops: &[StackOp]) -> Option<Vec<StackOp>> {
+    let mut source_depth = 0usize;
+    let mut available = 0usize;
+    for &stack_op in ops {
+        let required = match stack_op {
+            StackOp::Dup(depth) => usize::from(depth),
+            StackOp::Swap(depth) => usize::from(depth) + 1,
+            StackOp::Exchange(_, depth) => usize::from(depth) + 1,
+            StackOp::Pop => 1,
+        };
+        if available < required {
+            source_depth += required - available;
+            available = required;
+        }
+        match stack_op {
+            StackOp::Dup(_) => available += 1,
+            StackOp::Pop => available -= 1,
+            StackOp::Swap(_) | StackOp::Exchange(_, _) => {}
+        }
+    }
+    if source_depth.max(available) > PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT {
+        return None;
+    }
+
+    let mut source = StackModel::new();
+    for index in (0..source_depth).rev() {
+        source.push(ValueId::from_usize(index));
+    }
+    let mut target = source.clone();
+    for &stack_op in ops {
+        target.apply(stack_op);
+    }
+    let target: SmallVec<[TargetSlot; PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT]> = target
+        .iter()
+        .map(|value| TargetSlot::Value(value.expect("physical stack run values stay known")))
+        .collect();
+    if let Some(ops) = synthesize_unique_permutation(&source, &target) {
+        return Some(ops);
+    }
+    let shuffler = StackShuffler::new(&source, &target);
+    let result = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
+        shuffler.shuffle()
+    } else {
+        shuffler.shuffle_greedy()
+    };
+    result.map(|result| result.ops)
+}
 
 fn synthesize_unique_permutation(
     source: &StackModel,

@@ -403,6 +403,14 @@ impl Instruction {
         self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
     }
 
+    /// Returns whether metadata preserves the opcode's default stack effect.
+    #[must_use]
+    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
+        self.metadata
+            .stack
+            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
+    }
+
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {

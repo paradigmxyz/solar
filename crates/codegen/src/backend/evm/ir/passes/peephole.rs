@@ -129,9 +129,9 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // Fold adjacent literal ADD/MUL expressions only when the compact result is no worse in
     // either encoded size or static gas.
     if let [.., lhs, rhs, instruction] = instructions.as_slice()
-        && lhs.metadata.stack.is_none()
-        && rhs.metadata.stack.is_none()
-        && instruction.metadata.stack.is_none()
+        && lhs.has_canonical_stack_effect()
+        && rhs.has_canonical_stack_effect()
+        && instruction.has_canonical_stack_effect()
         && let Some(lhs_value) = push_value(lhs)
         && let Some(rhs_value) = push_value(rhs)
         && let Some(opcode) = instruction.raw_opcode()

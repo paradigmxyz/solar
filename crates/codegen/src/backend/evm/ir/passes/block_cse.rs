@@ -85,7 +85,7 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
     let mut const_exprs = FxHashMap::<usize, u64>::default();
 
     for inst in original {
-        let canonical_stack_effect = has_canonical_stack_effect(&inst);
+        let canonical_stack_effect = inst.has_canonical_stack_effect();
         if canonical_stack_effect && inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 append_unknown(inst, instructions, &mut stack, &mut next_expr);
@@ -337,7 +337,7 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
     let mut storage_epoch = 0u64;
 
     for (inst_idx, inst) in instructions.iter().enumerate() {
-        let canonical_stack_effect = has_canonical_stack_effect(inst);
+        let canonical_stack_effect = inst.has_canonical_stack_effect();
         if canonical_stack_effect && inst.is_encoded_push() {
             let Some(value) = inst.value else {
                 stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
@@ -443,7 +443,7 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     // An inline 256-bit set over the opcode domain, keeping the screen allocation-free.
     let mut seen = [0u64; 4];
     for inst in instructions {
-        let canonical_stack_effect = has_canonical_stack_effect(inst);
+        let canonical_stack_effect = inst.has_canonical_stack_effect();
         let candidate = if !canonical_stack_effect {
             false
         } else if inst.is_encoded_push() {
@@ -462,10 +462,6 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
         }
     }
     false
-}
-
-fn has_canonical_stack_effect(inst: &Instruction) -> bool {
-    inst.metadata.stack.is_none_or(|effect| Some(effect) == default_instruction_stack_effect(inst))
 }
 
 fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
