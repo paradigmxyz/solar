@@ -114,4 +114,36 @@
 -   swap 1
     sub
     stop
+  bb12:
+    gas
+    push 1
+    add
+    push 10
+    swap 1
+    sub
+    stop
+  bb13:
+    pc
+    push 1
+    add
+    push 10
+    swap 1
+    sub
+    stop
+  bb14:
++   push 10
+    push 0
+    mload
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb15:
++   push 10
+    push 0
+    sload
+-   push 10
+-   swap 1
+    sub
+    stop
   

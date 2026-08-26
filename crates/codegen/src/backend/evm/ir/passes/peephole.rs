@@ -6,6 +6,7 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -137,6 +138,15 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 2, Edit::Keep(0), block);
     }
 
+    // `DUPn SWAPn -> DUPn` because the swapped values are equal.
+    if let [.., dup, swap] = instructions.as_slice()
+        && let Some(dup) = dup.raw_opcode()
+        && (op::DUP1..=op::DUP16).contains(&dup)
+        && swap.raw_opcode() == Some(op::swap(dup - op::DUP1 + 1))
+    {
+        return rewrite(instructions, 2, Edit::Keep(1), block);
+    }
+
     // `ISZERO ISZERO ISZERO -> ISZERO`.
     if let [.., first, second, third] = instructions.as_slice()
         && raw_opcode(first) == Some(op::ISZERO)
@@ -208,6 +218,16 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), block);
     }
 
+    // `SWAP1 POP SWAP2 POP -> SWAP3 POP POP`.
+    if let [.., first_swap, first_pop, second_swap, second_pop] = instructions.as_slice()
+        && first_swap.raw_opcode() == Some(op::SWAP1)
+        && first_pop.raw_opcode() == Some(op::POP)
+        && second_swap.raw_opcode() == Some(op::SWAP2)
+        && second_pop.raw_opcode() == Some(op::POP)
+    {
+        return rewrite(instructions, 4, Edit::MergeSwapPop(3), block);
+    }
+
     // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
     for depth in 1..16 {
         let input_len = depth + 3;
@@ -223,6 +243,19 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         {
             let merged_depth = depth + 1;
             return rewrite(instructions, input_len, Edit::MergeSwapPop(merged_depth as u8), block);
+        }
+    }
+
+    // `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
+    for depth in 1..=16 {
+        let input_len = depth + 2;
+        let Some(start) = instructions.len().checked_sub(input_len) else {
+            break;
+        };
+        if instructions[start].raw_opcode() == Some(op::swap(depth as u8))
+            && instructions[start + 1..].iter().all(|inst| inst.raw_opcode() == Some(op::POP))
+        {
+            return rewrite(instructions, input_len, Edit::DropDiscardedSwap, block);
         }
     }
 
@@ -347,7 +380,77 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 3, Edit::StackOp(exchange), block);
     }
 
+    if let Some(len) = noop_stack_suffix_len(instructions) {
+        return rewrite(instructions, len, Edit::Keep(0), block);
+    }
+
     false
+}
+
+const MAX_STACK_PEEPHOLE_WINDOW: usize = 24;
+
+#[derive(Clone, Copy)]
+enum StackOp {
+    Push,
+    Dup(usize),
+    Swap(usize),
+    Pop,
+}
+
+fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
+    let end = instructions.len();
+    let start = instructions[..end.saturating_sub(1)]
+        .iter()
+        .rposition(|inst| stack_op(inst).is_none())
+        .map_or(0, |index| index + 1)
+        .max(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW));
+    (start..end.saturating_sub(1))
+        .find(|&start| is_noop_stack_sequence(&instructions[start..]))
+        .map(|start| end - start)
+}
+
+fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
+    let mut stack = SmallVec::<[u8; 64]>::from_iter(0..32);
+    let initial = stack.clone();
+    let mut next_push = 32;
+    for inst in instructions {
+        match stack_op(inst) {
+            Some(StackOp::Push) => {
+                stack.push(next_push);
+                next_push += 1;
+            }
+            Some(StackOp::Dup(depth)) => {
+                let Some(index) = stack.len().checked_sub(depth) else { return false };
+                stack.push(stack[index]);
+            }
+            Some(StackOp::Swap(depth)) => {
+                let Some(index) = stack.len().checked_sub(depth + 1) else { return false };
+                let top = stack.len() - 1;
+                stack.swap(index, top);
+            }
+            Some(StackOp::Pop) => {
+                stack.pop();
+            }
+            None => return false,
+        }
+    }
+    stack == initial
+}
+
+fn stack_op(inst: &Instruction) -> Option<StackOp> {
+    if is_removable_push(inst) || inst.raw_opcode() == Some(op::PUSH0) {
+        return Some(StackOp::Push);
+    }
+    let opcode = inst.raw_opcode()?;
+    if (op::DUP1..=op::DUP16).contains(&opcode) {
+        Some(StackOp::Dup(usize::from(opcode - op::DUP1 + 1)))
+    } else if (op::SWAP1..=op::SWAP16).contains(&opcode) {
+        Some(StackOp::Swap(usize::from(opcode - op::SWAP1 + 1)))
+    } else if opcode == op::POP {
+        Some(StackOp::Pop)
+    } else {
+        None
+    }
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.
@@ -379,6 +482,7 @@ enum Edit {
     OverwriteOne(u8),
     OverwriteTwo(u8),
     MergeSwapPop(u8),
+    DropDiscardedSwap,
     ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
@@ -419,6 +523,11 @@ impl Edit {
                 let end = instructions.len();
                 overwrite_raw(&mut instructions[start], op::swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
+                instructions.truncate(end - 1);
+            }
+            Self::DropDiscardedSwap => {
+                let end = instructions.len();
+                overwrite_raw(&mut instructions[start], op::POP);
                 instructions.truncate(end - 1);
             }
             Self::ReloadStoredValue => {

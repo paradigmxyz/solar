@@ -84,4 +84,39 @@
 -   pop
 -   pop
     stop
+  bb9:
+    push 1
+    dup 1
+-   swap 1
+    push 0
+    mstore
+    stop
+  bb10:
+    push 1
+    push 2
+    push 3
+    dup 3
+-   swap 3
+    push 0
+    mstore
+    stop
+  bb11:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    swap 3
+-   push 0
+-   push 1
+-   swap 1
+-   swap 2
+-   swap 1
+-   pop
+-   swap 1
+-   pop
+    swap 4
+    push 0
+    mstore
+    stop
   

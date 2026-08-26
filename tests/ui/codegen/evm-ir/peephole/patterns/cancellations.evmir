@@ -115,3 +115,57 @@ bb8:
   pop
   pop
   stop
+
+// A duplicate and the original value are equal, so swapping them is a no-op.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^[ +].*}}dup 1
+// CHECK: - swap 1
+bb9:
+  push 1
+  dup 1
+  swap 1
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK: {{^[ +].*}}dup 3
+// CHECK: - swap 3
+bb10:
+  push 1
+  push 2
+  push 3
+  dup 3
+  swap 3
+  push 0
+  mstore
+  stop
+
+// Remove a longer identity shuffle without matching its exact opcode sequence.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push 3
+// CHECK-NEXT: {{^[ +].*}}push 4
+// CHECK-NEXT: {{^[ +].*}}push 5
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK: {{^[ +].*}}swap 4
+bb11:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  swap 3
+  push 0
+  push 1
+  swap 1
+  swap 2
+  swap 1
+  pop
+  swap 1
+  pop
+  swap 4
+  push 0
+  mstore
+  stop

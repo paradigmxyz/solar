@@ -525,12 +525,12 @@ pub(crate) const fn is_pure(op: u8) -> bool {
     )
 }
 
-/// Returns whether an opcode only reads its operands or EVM state.
+/// Returns whether inserting a push immediately before this opcode preserves its behavior.
 ///
-/// Unlike [`is_pure`], this includes memory, storage, and environment reads whose result can vary
-/// without the opcode changing any state. Position and gas observations are excluded.
+/// This includes opcodes that expand memory or warm an account or storage slot because the push
+/// does not affect those changes. Position and gas observations are excluded.
 #[must_use]
-pub(crate) const fn is_read_only(op: u8) -> bool {
+pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
     is_pure(op)
         || matches!(
             op,

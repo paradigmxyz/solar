@@ -109,7 +109,7 @@ fn self_contained_producer(instructions: &[Instruction]) -> Option<(usize, usize
     let mut needed = 1usize;
     for (index, inst) in instructions.iter().enumerate().rev() {
         if inst.is_physical_stack_op()
-            || inst.raw_opcode().is_some_and(|opcode| !op::is_read_only(opcode))
+            || inst.raw_opcode().is_some_and(|opcode| !op::is_unaffected_by_preceding_push(opcode))
         {
             return None;
         }
