@@ -21,8 +21,13 @@ contract NestedStaticStructParam {
     // a +32 offset rather than the enclosing struct's base.
     // CHECK-LABEL: fn @take{{[( ]}}
     // CHECK: alloc memorystruct<3>
-    // CHECK: alloc raw, exact, uninitialized, infallible, 64
+    // CHECK: internal_call @[[INNER_HELPER:__abi_decode_calldata_[0-9]+]]
     // CHECK: mstore {{.*}}, arg3
+    // CHECK: fn @[[INNER_HELPER]]
+    // CHECK: alloc raw, exact, uninitialized, infallible, 64
+    // CHECK: calldataload
+    // CHECK: mstore
+    // CHECK: ret
     function take(Outer calldata o) external pure returns (uint256, uint256) {
         return (o.inner.b, o.y);
     }

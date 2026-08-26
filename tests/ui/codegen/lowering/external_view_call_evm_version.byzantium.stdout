@@ -22,11 +22,20 @@ fn @read(arg0: address) -> u256 [abi_returns=[word]] {
     jumpi v10, bb6, bb5
   bb5:
     v11 = returndatasize
-    returndatacopy 0, 0, v11 !metadata(memory=scratch)
-    revert 0, v11
+    returndatacopy 0, 0, v11 !metadata(memory=abi_return)
+    v12 = returndatasize
+    revert 0, v12
   bb6:
-    v12 = mload 0 !metadata(memory=scratch)
-    ret v12
+    v13 = returndatasize
+    v14 = lt v13, 32
+    jumpi v14, bb7, bb8
+  bb8:
+    v15 = add 0, 0
+    v16 = mload v15
+    mstore v15, v16
+    ret v16
+  bb7:
+    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -38,22 +47,56 @@ fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
   bb2:
-    v3 = and arg0, 0xffffffff
-    v4 = shl 224, v3
-    v5 = shr 32, arg0
-    v6 = abi_encode [], selector v4
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = gas
-    v10 = staticcall v9, v5, v7, v8, 0, 32
-    jumpi v10, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
   bb3:
-    v11 = returndatasize
-    returndatacopy 0, 0, v11 !metadata(memory=scratch)
-    revert 0, v11
+    revert 0, 0
   bb4:
-    v12 = mload 0 !metadata(memory=scratch)
-    ret v12
+    v6 = shr 64, arg0
+    v7 = and v6, 0xffffffff
+    v8 = shl 224, v7
+    v9 = shr 32, v6
+    v10 = abi_encode [], selector v8
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = gas
+    v14 = staticcall v13, v9, v11, v12, 0, 0
+    jumpi v14, bb6, bb5
+  bb5:
+    v15 = returndatasize
+    returndatacopy 0, 0, v15 !metadata(memory=abi_return)
+    v16 = returndatasize
+    revert 0, v16
+  bb6:
+    v17 = returndatasize
+    v18 = make_returndata_slice 0, v17
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = add v20, 31
+    v22 = not 31
+    v23 = and v21, v22
+    v24 = add v23, 32
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v25, v20
+    v26 = memory_object_data memorybytes, v25
+    returndatacopy v26, v19, v20 !metadata(memory=heap)
+    v27 = memory_object_len memorybytes, v25
+    v28 = memory_object_data memorybytes, v25
+    v29 = lt v27, 32
+    jumpi v29, bb7, bb8
+  bb8:
+    v30 = add v28, v27
+    v31 = lt v30, v28
+    jumpi v31, bb9, bb10
+  bb10:
+    v32 = mload v28
+    ret v32
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
   bb1:
     revert 0, 0
 }

@@ -20,29 +20,83 @@ bb0:
   sgt
   push bb3
   jumpi
-  push 4
-  dup 1
-  calldataload
-  add
-  calldataload
-  dup 1
-  push 192
-  mstore
-  push 4
-  dup 2
-  gt
-  push bb8
-  jumpi
   push 36
   push 4
   calldataload
   add
+  dup 1
+  push 192
+  mstore
+  push 4
+  dup 1
+  calldataload
+  add
+  calldataload
+  push 224
+  mstore
+  push 32
+  dup 2
+  lt
+  push 32
+  dup 3
+  sub
+  dup 1
+  push 256
+  mstore
+  push 4
+  dup 2
+  lt
+  swap 1
+  swap 2
+  or
+  swap 2
+  pop
+  pop
+  push bb3
+  jumpi
+  calldatasize
+  dup 1
+  push 288
+  mstore
+  push 256
+  mload
+  gt
+  push 256
+  mload
+  push 288
+  mload
+  sub
+  push 32
+  gt
+  or
+  push bb3
+  jumpi
+  push 192
+  mload
+  push 288
+  mload
+  sub
+  push 224
+  mload
+  gt
+  push bb3
+  jumpi
+  push 4
+  push 224
+  mload
+  gt
+  push bb11
+  jumpi
+  push 192
+  mload
   push 128
   mstore
-  jump bb7
-bb7:
-  dup 1
   push 224
+  mload
+  jump bb10
+bb10:
+  dup 1
+  push 320
   mstore
   push 128
   mstore
@@ -53,18 +107,15 @@ bb3 [cold]:
   push 0
   dup 1
   revert
-bb8:
+bb11:
   push 4
-  dup 2
+  push 224
+  mload
   sub
-  push 36
   push 4
-  calldataload
-  add
-  push 4
+  push 192
+  mload
   add
   push 128
   mstore
-  swap 1
-  pop
-  jump bb7
+  jump bb10

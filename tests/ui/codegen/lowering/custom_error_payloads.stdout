@@ -37,7 +37,7 @@ fn @revert_args() {
   bb2:
     v15 = memory_object_data memorybytes, v0
     v16 = add v11, v10
-    mcopy v11, v15, v7
+    mcopy v11, v15, v7 !metadata(memory=heap)
     v17 = sub v16, v3
     v18 = add v17, 4
     revert v2, v18
@@ -118,7 +118,7 @@ fn @require_named(arg0: bool) {
   bb8:
     v23 = memory_object_data memorybytes, v8
     v24 = add v19, v18
-    mcopy v19, v23, v15
+    mcopy v19, v23, v15 !metadata(memory=heap)
     v25 = sub v24, v11
     v26 = add v25, 4
     revert v10, v26

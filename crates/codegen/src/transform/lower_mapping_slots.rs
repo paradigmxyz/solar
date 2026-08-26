@@ -101,7 +101,7 @@ fn lower_memory_mapping_slot(
     let word_size = builder.imm_u64(32);
     let data_start = builder.add(ptr, word_size);
     let scratch = builder.fmp();
-    builder.mcopy(scratch, data_start, len);
+    builder.mcopy_heap(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
     let hash_len = builder.add(len, word_size);
@@ -117,7 +117,7 @@ fn lower_calldata_mapping_slot(
     let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
     let scratch = builder.fmp();
-    builder.calldatacopy(scratch, data_start, len);
+    builder.calldatacopy_heap(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
     let hash_len = builder.add(len, word_size);

@@ -13,7 +13,7 @@
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
+        Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
         utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
@@ -898,8 +898,20 @@ impl InstSimplifier {
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
         match func.value(value) {
             Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Arg(_) | Value::Inst(_) => func.value_ty(value) == Some(MirType::Bool),
-            Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
+            Value::Inst(inst_id) => matches!(
+                func.inst(*inst_id).kind,
+                InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+                    | InstKind::Eq(..)
+                    | InstKind::IsZero(..)
+            ),
+            // Solidity's `bool` type does not prove that the EVM word is
+            // canonical: inline assembly can assign dirty words to variables,
+            // arguments, and return values. Only values produced by an EVM
+            // comparison above are known to be exactly zero or one.
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
         }
     }
 

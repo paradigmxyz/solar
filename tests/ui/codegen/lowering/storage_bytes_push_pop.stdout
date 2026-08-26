@@ -21,7 +21,7 @@ fn @_anonymous() {
     v13 = add v11, v12
     mstore v13, 0
     v14 = memory_object_data memorybytes, v0
-    mcopy v11, v14, v1
+    mcopy v11, v14, v1 !metadata(memory=heap)
     v15 = memory_object_data memorybytes, v10
     v16 = add v15, v1
     mstore8 v16, 1
@@ -95,7 +95,7 @@ fn @_anonymous() {
     v73 = add v71, v72
     mstore v73, 0
     v74 = memory_object_data memorybytes, v60
-    mcopy v71, v74, v61
+    mcopy v71, v74, v61 !metadata(memory=heap)
     v75 = memory_object_data memorybytes, v70
     v76 = add v75, v61
     mstore8 v76, 2
@@ -274,7 +274,7 @@ fn @pushValue(arg0: bytes1) {
     v19 = add v17, v18
     mstore v19, 0
     v20 = memory_object_data memorybytes, v6
-    mcopy v17, v20, v7
+    mcopy v17, v20, v7 !metadata(memory=heap)
     v21 = shr 248, arg0
     v22 = memory_object_data memorybytes, v16
     v23 = add v22, v7
@@ -377,7 +377,7 @@ fn @pushZero() {
     v13 = add v11, v12
     mstore v13, 0
     v14 = memory_object_data memorybytes, v0
-    mcopy v11, v14, v1
+    mcopy v11, v14, v1 !metadata(memory=heap)
     v15 = memory_object_data memorybytes, v10
     v16 = add v15, v1
     mstore8 v16, 0
@@ -480,7 +480,7 @@ fn @popValue() {
     v12 = add v10, v11
     mstore v12, 0
     v13 = memory_object_data memorybytes, v0
-    mcopy v10, v13, v2
+    mcopy v10, v13, v2 !metadata(memory=heap)
     v14 = memory_object_len memorybytes, v9
     v15 = memory_object_data memorybytes, v9
     v16 = sload 0 !metadata(storage=slot(0))

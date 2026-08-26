@@ -31,41 +31,66 @@ fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
   bb2:
-    v3 = slice_len arg0
-    v4 = add v3, 31
-    v5 = lt v4, v3
-    jumpi v5, bb3, bb4
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = iszero v7
-    v9 = select v8, 32, v7
-    v10 = add 32, v9
-    v11 = lt v10, v9
-    jumpi v11, bb5, bb6
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
   bb6:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v12, v3
-    v13 = memory_object_data memorybytes, v12
-    v14 = sub v9, 32
-    v15 = add v13, v14
-    mstore v15, 0
-    v16 = slice_ptr arg0
-    calldatacopy v13, v16, v3
-    v17 = keccak256_bytes v12
-    v18 = sub v17, 1
-    mstore 0, v18 !metadata(memory=scratch)
-    v19 = keccak256 0, 32 !metadata(memory=scratch)
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v20
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_len arg0
+    v17 = add v16, 31
+    v18 = lt v17, v16
+    jumpi v18, bb9, bb10
+  bb10:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = iszero v20
+    v22 = select v21, 32, v20
+    v23 = add 32, v22
+    v24 = lt v23, v22
+    jumpi v24, bb11, bb12
+  bb12:
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v23
+    set_memory_object_len memorybytes, v25, v16
+    v26 = memory_object_data memorybytes, v25
+    v27 = sub v22, 32
+    v28 = add v26, v27
+    mstore v28, 0
+    v29 = slice_ptr arg0
+    calldatacopy v26, v29, v16 !metadata(memory=heap)
+    v30 = keccak256_bytes v25
+    v31 = sub v30, 1
+    mstore 0, v31 !metadata(memory=scratch)
+    v32 = keccak256 0, 32 !metadata(memory=scratch)
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v33
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb1:
     revert 0, 0
 }

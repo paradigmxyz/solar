@@ -20,6 +20,23 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
 
+            if test_name.as_deref() == Some("foundry-external") {
+                // Release: external projects are compile-heavy, and the runner
+                // prefers an existing release binary over a fresh debug one.
+                cmd!(sh, "cargo build --release --package=solar-compiler --bin=solar").run()?;
+                let mut cmd = cmd!(sh, "cargo nextest run");
+                cmd = cmd
+                    .args(FOUNDRY_FLAGS)
+                    .arg("foundry::tests::external")
+                    .arg("--run-ignored=only")
+                    .arg("--no-capture");
+                if let Some(project) = rest.first() {
+                    cmd = cmd.env("SOLAR_FOUNDRY_PROJECT", project);
+                }
+                cmd.run()?;
+                return Ok(());
+            }
+
             if test_name.as_deref().is_some_and(|name| matches!(name, "foundry" | "runtime")) {
                 cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
                 let mut cmd = cmd!(sh, "cargo nextest run");

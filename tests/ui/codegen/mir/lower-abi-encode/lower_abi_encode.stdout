@@ -37,7 +37,7 @@
 +   bb2:
 +     v12 = slice_ptr arg0
 +     v13 = add v8, v7
-+     calldatacopy v8, v12, v4
++     calldatacopy v8, v12, v4 !metadata(memory=heap)
 +     v14 = sub v13, v1
 +     v15 = add v14, 0
 +     v16 = add v15, 31
@@ -74,7 +74,7 @@
 +   bb2:
 +     v14 = slice_ptr v1
 +     v15 = add v10, v9
-+     returndatacopy v10, v14, v6
++     returndatacopy v10, v14, v6 !metadata(memory=heap)
 +     v16 = sub v15, v3
 +     v17 = add v16, 0
 +     v18 = add v17, 31
@@ -100,7 +100,7 @@
 +     v7 = add v3, 32
 +     v8 = slice_ptr v0
 +     v9 = add v7, v6
-+     returndatacopy v7, v8, v6
++     returndatacopy v7, v8, v6 !metadata(memory=heap)
 +     v10 = sub v9, v2
 +     v11 = add v10, 0
 +     v12 = add v11, 31

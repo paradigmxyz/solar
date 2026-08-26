@@ -943,6 +943,22 @@ impl MemoryStoreEliminator {
                         *size,
                     );
                 }
+                // A call copies only `min(ret_size, returndatasize())` bytes
+                // into its output range. In particular, a failed call with no
+                // revert data leaves the entire range untouched, so it is not
+                // a must-write and cannot make an earlier store dead. Its
+                // input range is still observed before the optional copy.
+                InstKind::Call { args_offset, args_size, .. }
+                | InstKind::CallCode { args_offset, args_size, .. }
+                | InstKind::StaticCall { args_offset, args_size, .. }
+                | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                    self.retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut scratch.overwritten,
+                        *args_offset,
+                        *args_size,
+                    );
+                }
                 // Keccak and logs only *read* memory. A read over a constant
                 // range observes only the stores that fall in it, so a later
                 // overwrite of a disjoint slot still kills its earlier store.

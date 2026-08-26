@@ -1,0 +1,128 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module OutlineParameters
+
+// Repeated computations that differ only in immediate pushes share one stack-parameterized stub.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: push 2
+// CHECK: + push 1
+// CHECK: + push [[RET0:bb[0-9]+]]
+// CHECK: + swap 2
+// CHECK: + swap 1
+// CHECK: + jump [[STUB:bb[0-9]+]]
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: push 4
+// CHECK: + push 3
+// CHECK: + push [[RET1:bb[0-9]+]]
+// CHECK: + swap 2
+// CHECK: + swap 1
+// CHECK: + jump [[STUB]]
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: push 6
+// CHECK: + push 5
+// CHECK: + push [[RET2:bb[0-9]+]]
+// CHECK: + swap 2
+// CHECK: + swap 1
+// CHECK: + jump [[STUB]]
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: push 8
+// CHECK: push 7
+// CHECK: + push [[RET3:bb[0-9]+]]
+// CHECK: + swap 2
+// CHECK: + swap 1
+// CHECK: + jump [[STUB]]
+// CHECK: + [[STUB]]:
+// CHECK-COUNT-8: {{^[ +].*}}not
+// CHECK: + swap 1
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK-COUNT-7: {{^[ +].*}}not
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: + jump
+// CHECK: + [[RET0]]:
+// CHECK: + [[RET1]]:
+// CHECK: + [[RET2]]:
+// CHECK: + [[RET3]]:
+bb0:
+  push 1
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 2
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb1
+bb1:
+  push 3
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 4
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb2
+bb2:
+  push 5
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 6
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb3
+bb3:
+  push 7
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 8
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  stop

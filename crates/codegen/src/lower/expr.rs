@@ -2,12 +2,15 @@
 
 use super::{
     Lowerer, MIN_BULK_ZERO_MEMORY_WORDS,
+    bytes::{AbiBodyBounds, AbiSource},
     call::StorageArrayMethod,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, MemoryObjectKind, TypeSize, ValueId},
+    mir::{
+        FunctionBuilder, MemoryObjectKind, MirType, PackedValue, StructField, TypeSize, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
@@ -24,6 +27,20 @@ const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 pub(super) struct MappingElementSlot {
     pub(super) slot: ValueId,
     pub(super) value_is_mapping: bool,
+}
+
+/// A storage array resolved to its base slot and element layout.
+pub(super) struct StorageArrayBase {
+    /// Runtime base slot (length slot for dynamic arrays).
+    pub(super) slot: ValueId,
+    /// Constant length, `None` for dynamic arrays.
+    pub(super) fixed_len: Option<u64>,
+    /// Storage slots occupied by one element; the element stride for
+    /// non-packed elements only.
+    pub(super) elem_slots: u64,
+    /// Packed shape when elements share slots; overrides `elem_slots`
+    /// striding.
+    pub(super) packed: Option<PackedValue>,
 }
 
 /// The base storage slot of a mapping: a compile-time constant for a state
@@ -96,6 +113,18 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
+        // Only pre-fold leaves whose typed value is already final. Folding an
+        // operator tree here bypasses the checked-arithmetic and sub-word
+        // cleanup emitted below (notably for unchecked arithmetic and shifts).
+        if self.get_expr_type(expr).is_some_and(|ty| {
+            matches!(ty.peel_refs().kind, TyKind::IntLiteral(..))
+                || matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+                    && ty.peel_refs().is_integer()
+        }) && let Ok(value) = self.gcx.try_eval_const(expr)
+            && value.bit_len() <= 256
+        {
+            return builder.imm_u256(value.as_evm_word());
+        }
         match &expr.kind {
             ExprKind::Lit(lit) => {
                 // A numeric literal typed `bytesN` uses the left-aligned word
@@ -145,8 +174,22 @@ impl<'gcx> Lowerer<'gcx> {
 
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
-                let is_signed =
-                    int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
+                // Comparison expressions themselves have type `bool`, so a
+                // literal on the left cannot determine the common integer
+                // signedness. Sema has already rejected incompatible mixed
+                // integer operands; use either signed operand here.
+                let is_comparison = matches!(
+                    op.kind,
+                    hir::BinOpKind::Lt
+                        | hir::BinOpKind::Gt
+                        | hir::BinOpKind::Le
+                        | hir::BinOpKind::Ge
+                );
+                let is_signed = if is_comparison {
+                    self.is_expr_signed(lhs) || self.is_expr_signed(rhs)
+                } else {
+                    int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed)
+                };
                 let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
 
                 // `&&`/`||` must short-circuit: the right operand may have
@@ -299,13 +342,33 @@ impl<'gcx> Lowerer<'gcx> {
                             if let Some(selector) = self.lower_resolved_function_selector(base) {
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
-                            if let ExprKind::Member(receiver, function_name) = &base.kind {
+                            if let Some(function_id) = self.gcx.resolved_function(base) {
                                 let selector =
-                                    self.compute_member_selector(receiver, *function_name);
+                                    u32::from_be_bytes(self.gcx.function_selector(function_id).0);
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
                             if let Some(selector) = self.ident_function_selector(base) {
                                 return builder.imm_u256(U256::from(selector) << 224);
+                            }
+                            if matches!(
+                                self.get_expr_type(base).map(|ty| ty.peel_refs().kind),
+                                Some(TyKind::Fn(function)) if function.is_external()
+                            ) {
+                                let value = self.lower_value_expr(builder, base);
+                                let mask = builder.imm_u64(u32::MAX as u64);
+                                let selector = builder.and(value, mask);
+                                let shift = builder.imm_u64(224);
+                                return builder.shl(shift, selector);
+                            }
+                        }
+                        Builtin::FunctionAddress => {
+                            if matches!(
+                                self.get_expr_type(base).map(|ty| ty.peel_refs().kind),
+                                Some(TyKind::Fn(function)) if function.is_external()
+                            ) {
+                                let value = self.lower_value_expr(builder, base);
+                                let shift = builder.imm_u64(32);
+                                return builder.shr(shift, value);
                             }
                         }
                         Builtin::EventSelector => {
@@ -419,7 +482,17 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
-                        return self.lower_value_expr(builder, init);
+                        if let Some(value) =
+                            self.lower_integer_constant_value(builder, var_id, init)
+                        {
+                            return value;
+                        }
+                        if self.var_expects_memory_bytes_value(var) {
+                            return self.lower_expr_as_memory_bytes(builder, init);
+                        }
+                        let value = self.lower_value_expr(builder, init);
+                        let ty = self.gcx.type_of_item(var_id.into());
+                        return self.coerce_literal_for_ty(builder, init, ty, value);
                     }
                 }
 
@@ -452,36 +525,38 @@ impl<'gcx> Lowerer<'gcx> {
 
                 // Check if this is a storage struct member access (e.g., storedPoint.x)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, placement)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
                         field_index,
                     )
                 {
-                    return builder.sload(slot);
+                    return self.load_struct_field_at(builder, &placement, slot);
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + U256::from(field_offset);
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    let slot = base_slot + U256::from(placement.slot);
                     let slot_val = builder.imm_u256(slot);
-                    return builder.sload(slot_val);
+                    return self.load_struct_field_at(builder, &placement, slot_val);
                 }
 
                 // Check if this is a nested storage struct access (e.g., storedNested.point.x)
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, placement)) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u256(slot);
-                    return builder.sload(slot_val);
+                    return self.load_struct_field_at(builder, &placement, slot_val);
                 }
 
                 // Storage struct field access where the base is itself a storage
                 // location: a storage reference (`Item storage r = items[k]; r.a`)
                 // or an indexed element (`items[k].a`, `arr[i].a`).
-                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
-                    return builder.sload(slot);
+                if let Some((slot, placement)) =
+                    self.lower_storage_struct_field_slot(builder, base, *member)
+                {
+                    return self.load_struct_field_at(builder, &placement, slot);
                 }
 
                 // Regular memory struct member access
@@ -495,7 +570,11 @@ impl<'gcx> Lowerer<'gcx> {
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
+                    let value = builder.mload(field_addr);
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.abi_clean_value(builder, value, ty);
+                    }
+                    return value;
                 }
 
                 if let Some((struct_id, field_index)) =
@@ -508,7 +587,11 @@ impl<'gcx> Lowerer<'gcx> {
                         crate::mir::MemoryObjectLayout::structure(fields),
                         field_index as u64,
                     );
-                    return builder.mload(field_addr);
+                    let value = builder.mload(field_addr);
+                    if let Some(ty) = self.get_expr_type(expr) {
+                        return self.abi_clean_value(builder, value, ty);
+                    }
+                    return value;
                 }
 
                 // Fallback: just load from base address
@@ -530,25 +613,14 @@ impl<'gcx> Lowerer<'gcx> {
                         "tuple assignment does not produce a single value",
                     );
                 }
-                let rhs_val = if op.is_none()
-                    && self
-                        .gcx
-                        .resolved_variable(lhs)
-                        .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
-                {
-                    self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
-                        self.err_value(
-                            builder,
-                            rhs.span,
-                            "unsupported storage reference assignment",
-                        )
-                    })
-                } else if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
-                    self.lower_expr_as_memory_bytes(builder, rhs)
-                } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
-                    self.lower_expr_as_memory_dyn_array(builder, rhs)
+                let rhs_val = if op.is_none() {
+                    self.lower_assignment_rhs(builder, lhs, rhs)
                 } else {
-                    self.lower_value_expr(builder, rhs)
+                    let value = self.lower_value_expr(builder, rhs);
+                    match self.get_expr_type(lhs) {
+                        Some(lhs_ty) => self.coerce_literal_for_ty(builder, rhs, lhs_ty, value),
+                        None => value,
+                    }
                 };
                 // Handle compound assignment (+=, -=, etc.)
                 let final_val = if let Some(bin_op) = op {
@@ -712,6 +784,76 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Lowers an assignment RHS in the representation required by its lvalue.
+    ///
+    /// In particular, a calldata slice assigned to a memory reference must be
+    /// materialized before it is stored or carried through control flow. A
+    /// logical slice has no one-word memory representation.
+    pub(super) fn lower_assignment_rhs(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+    ) -> ValueId {
+        if self
+            .gcx
+            .resolved_variable(lhs)
+            .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
+        {
+            return self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                self.err_value(builder, rhs.span, "unsupported storage reference assignment")
+            });
+        }
+        if self.lhs_expects_memory_bytes_value(lhs) {
+            return self.lower_expr_as_memory_bytes(builder, rhs);
+        }
+        if self
+            .get_expr_type(lhs)
+            .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::DynArray(_)))
+            && let Some(len) = self.fixed_array_len_of_expr(rhs)
+        {
+            let value = self.lower_value_expr(builder, rhs);
+            if matches!(
+                builder.func().value_ty(value),
+                Some(MirType::MemoryObject(MemoryObjectKind::FixedArray))
+            ) {
+                let Some(data_size) = len.checked_mul(32) else {
+                    return self.err_value(builder, rhs.span, "array is too large for codegen");
+                };
+                let Some(total_size) = data_size.checked_add(32) else {
+                    return self.err_value(builder, rhs.span, "array is too large for codegen");
+                };
+                let total_size = builder.imm_u64(total_size);
+                let ptr = self.allocate_memory_object_dynamic(
+                    builder,
+                    total_size,
+                    MemoryObjectKind::DynamicArray,
+                );
+                let len = builder.imm_u64(len);
+                builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+                let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+                let data_size = builder.imm_u64(data_size);
+                builder.mcopy_heap(data, value, data_size);
+                return ptr;
+            }
+            return value;
+        }
+        if self.lhs_expects_memory_dyn_array_value(lhs) {
+            return self.lower_expr_as_memory_dyn_array(builder, rhs);
+        }
+        let value = self.lower_value_expr(builder, rhs);
+        let Some(lhs_ty) = self.get_expr_type(lhs) else { return value };
+        let value = self.coerce_literal_for_ty(builder, rhs, lhs_ty, value);
+        if !self.in_assembly_block
+            && !matches!(lhs.kind, ExprKind::Ident(_))
+            && self.call_result_may_be_dirty(rhs)
+        {
+            self.abi_clean_value(builder, value, lhs_ty)
+        } else {
+            value
+        }
+    }
+
     fn expr_error_result(
         &self,
         builder: &mut FunctionBuilder<'_>,
@@ -757,10 +899,11 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn lower_delete(&mut self, builder: &mut FunctionBuilder<'_>, target: &hir::Expr<'_>) {
         if let Some(ty) = self.get_expr_type(target)
-            && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            && matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Storage))
             && let Some(slot) = self.lower_lvalue_slot(builder, target)
+            && !ty.peel_refs().is_value_type()
         {
-            self.clear_storage_struct_at(builder, struct_id, slot);
+            self.clear_storage_value_at(builder, ty, slot);
             return;
         }
 
@@ -774,27 +917,41 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(var_id);
             let ty = self.gcx.type_of_item(var_id.into()).peel_refs();
-            if matches!(var.data_location, None | Some(solar_ast::DataLocation::Memory))
-                && let TyKind::Array(element_ty, len) = ty.kind
-                && let Ok(len) = u64::try_from(len)
-            {
-                let ptr = self.lower_value_expr(builder, target);
-                if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
-                    let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
-                    builder.memory_zero(ptr, size);
+            if matches!(var.data_location, None | Some(solar_ast::DataLocation::Memory)) {
+                if let TyKind::Array(element_ty, len) = ty.kind
+                    && let Ok(len) = u64::try_from(len)
+                {
+                    let ptr = self.lower_value_expr(builder, target);
+                    if len >= MIN_BULK_ZERO_MEMORY_WORDS && element_ty.peel_refs().is_value_type() {
+                        let size = builder.imm_u64(len * EvmMemoryLayout::WORD_SIZE);
+                        builder.memory_zero(ptr, size);
+                        return;
+                    }
+                    for i in 0..len {
+                        let value =
+                            self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
+                        if i == 0 {
+                            builder.mstore(ptr, value);
+                        } else {
+                            let offset = builder.imm_u64(i * 32);
+                            let addr = builder.add(ptr, offset);
+                            builder.mstore(addr, value);
+                        }
+                    }
                     return;
                 }
-                for i in 0..len {
-                    let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
-                    if i == 0 {
-                        builder.mstore(ptr, value);
-                    } else {
-                        let offset = builder.imm_u64(i * 32);
-                        let addr = builder.add(ptr, offset);
-                        builder.mstore(addr, value);
-                    }
+
+                if let TyKind::Struct(struct_id) = ty.kind {
+                    let ptr = self.lower_value_expr(builder, target);
+                    self.zero_initialize_memory_struct(builder, struct_id, ptr, var.ty.span);
+                    return;
                 }
-                return;
+
+                if !ty.is_value_type() {
+                    let value = self.zero_memory_field_value_ty(builder, ty, var.ty.span);
+                    self.lower_assign(builder, target, value);
+                    return;
+                }
             }
         }
 
@@ -862,6 +1019,23 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Canonicalizes a Solidity-level read of a variable that inline assembly
+    /// assigns. Assembly stores raw words and assembly-level reads keep them
+    /// raw, matching solc, so cleanup happens where the value re-enters typed
+    /// Solidity code (comparisons, arithmetic, encodes, keys).
+    pub(super) fn clean_asm_dirty_read(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        value: ValueId,
+    ) -> ValueId {
+        if self.in_assembly_block || !self.asm_assigned_vars.contains(var_id) {
+            return value;
+        }
+        let ty = self.gcx.type_of_item(var_id.into());
+        self.abi_clean_value(builder, value, ty)
+    }
+
     /// Lowers an identifier reference.
     fn lower_ident(
         &mut self,
@@ -881,6 +1055,12 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // First check if it's a function parameter (SSA value)
                     if let Some(&val) = self.locals.get(var_id) {
+                        let val = self.clean_asm_dirty_read(builder, *var_id, val);
+                        if self.storage_ref_locals.contains(*var_id)
+                            && Self::is_dynamic_mapping_key(&var.ty.kind)
+                        {
+                            return self.materialize_storage_bytes(builder, val);
+                        }
                         return val;
                     }
 
@@ -894,14 +1074,31 @@ impl<'gcx> Lowerer<'gcx> {
                             );
                         }
                         let offset_val = self.local_memory_addr(builder, offset);
-                        return builder.mload(offset_val);
+                        let val = builder.mload(offset_val);
+                        let val = self.clean_asm_dirty_read(builder, *var_id, val);
+                        if self.storage_ref_locals.contains(*var_id)
+                            && Self::is_dynamic_mapping_key(&var.ty.kind)
+                        {
+                            return self.materialize_storage_bytes(builder, val);
+                        }
+                        return val;
                     }
 
                     // Check if it's a constant - inline its value
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
-                        return self.lower_value_expr(builder, init);
+                        if let Some(value) =
+                            self.lower_integer_constant_value(builder, *var_id, init)
+                        {
+                            return value;
+                        }
+                        if self.var_expects_memory_bytes_value(var) {
+                            return self.lower_expr_as_memory_bytes(builder, init);
+                        }
+                        let value = self.lower_value_expr(builder, init);
+                        let ty = self.gcx.type_of_item((*var_id).into());
+                        return self.coerce_literal_for_ty(builder, init, ty, value);
                     }
 
                     // Check if it's an immutable - load from appended runtime data.
@@ -945,6 +1142,17 @@ impl<'gcx> Lowerer<'gcx> {
                             return self.materialize_storage_bytes(builder, slot_val);
                         }
 
+                        // A storage array used as a value materializes a fresh
+                        // memory copy, like storage structs and bytes above.
+                        // `.length`, indexing, and `push`/`pop` use dedicated
+                        // storage-slot paths and do not come through here.
+                        let sema_ty = self.gcx.type_of_item((*var_id).into());
+                        if let Some(value) =
+                            self.materialize_storage_array_value(builder, sema_ty, slot_val, span)
+                        {
+                            return value;
+                        }
+
                         // For scalar storage variables, just load the value
                         return self.load_storage_location_at_slot(builder, location, slot_val);
                     }
@@ -963,8 +1171,25 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Folds an integer constant's initializer before MIR lowering. Solidity
+    /// constant expressions use mathematical intermediates, so lowering the
+    /// initializer as checked runtime arithmetic can spuriously panic for a
+    /// value such as `2**256 - 1` whose final word is valid.
+    fn lower_integer_constant_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        init: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        if !self.gcx.type_of_item(var_id.into()).peel_refs().is_integer() {
+            return None;
+        }
+        let value = self.gcx.try_eval_const(init).ok()?;
+        (value.bit_len() <= 256).then(|| builder.imm_u256(value.as_evm_word()))
+    }
+
     /// Materializes a wide default return struct with one bulk zeroing
-    /// operation while giving reference fields real empty objects.
+    /// operation while pointing empty reference fields at the zero slot.
     pub(super) fn lower_bulk_zero_return_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1003,8 +1228,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Materializes a language-defined default for an uninitialized local or
-    /// named return. Reference values get a real empty object rather than a
-    /// zero pointer.
+    /// named return. Reference values point at Solidity's permanent zero slot
+    /// rather than address zero or a fresh allocation.
     pub(super) fn lower_default_variable_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1179,14 +1404,29 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the bytes of a compile-time-constant string expression: a
     /// string literal, or an identifier/member reference to a `constant`
     /// string variable whose initializer (transitively) is a literal — e.g.
-    /// aave's `Errors.X` library constants.
-    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
+    /// aave's `Errors.X` library constants. `bytes(...)`/`string(...)` casts
+    /// are peeled: they do not change the underlying bytes.
+    pub(super) fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
         let mut expr = expr;
         for _ in 0..4 {
             match &expr.kind {
                 ExprKind::Lit(lit) => {
                     let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
                     return Some(bytes.as_byte_str().to_vec());
+                }
+                ExprKind::Call(callee, args, _) => {
+                    let ExprKind::Type(ty) = &callee.kind else { return None };
+                    if !matches!(
+                        ty.kind,
+                        hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    ) {
+                        return None;
+                    }
+                    let mut exprs = args.exprs();
+                    if exprs.len() != 1 {
+                        return None;
+                    }
+                    expr = exprs.next()?;
                 }
                 ExprKind::Ident(_) => {
                     let var = self.gcx.hir.variable(self.gcx.resolved_variable(expr)?);
@@ -1266,17 +1506,23 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
     ) {
         let selector = U256::from(0x08c3_79a0u64) << 224;
-        let zero = builder.imm_u64(0);
+        // Build the payload at the heap frontier. The dynamic message copy is
+        // lowered to a loop before Cancun, and values carried around that loop
+        // can occupy backend spill slots. A fixed `[0, size)` payload would
+        // overwrite those slots before the loop consumes them.
+        let buf = builder.fmp();
         let selector = builder.imm_u256(selector);
-        builder.mstore(zero, selector);
+        builder.mstore(buf, selector);
 
         let selector_size = builder.imm_u64(4);
         let head_offset = builder.imm_u64(32);
-        builder.mstore(selector_size, head_offset);
+        let head_pos = builder.add(buf, selector_size);
+        builder.mstore(head_pos, head_offset);
 
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let len_offset = builder.imm_u64(36);
-        builder.mstore(len_offset, len);
+        let len_pos = builder.add(buf, len_offset);
+        builder.mstore(len_pos, len);
 
         let thirty_one = builder.imm_u64(31);
         let padded = builder.add(len, thirty_one);
@@ -1284,6 +1530,7 @@ impl<'gcx> Lowerer<'gcx> {
         let padded = builder.and(padded, mask);
 
         let data_offset = builder.imm_u64(68);
+        let data = builder.add(buf, data_offset);
         let no_data = builder.iszero(padded);
         let has_data = builder.iszero(no_data);
         let zero_final_word = builder.create_block();
@@ -1293,15 +1540,16 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(zero_final_word);
         let word = builder.imm_u64(32);
         let final_word_offset = builder.sub(padded, word);
-        let final_word = builder.add(data_offset, final_word_offset);
+        let final_word = builder.add(data, final_word_offset);
+        let zero = builder.imm_u64(0);
         builder.mstore(final_word, zero);
         builder.jump(copy_data);
 
         builder.switch_to_block(copy_data);
         let src = builder.add(ptr, head_offset);
-        builder.mcopy(data_offset, src, len);
+        builder.mcopy_heap(data, src, len);
         let size = builder.add(data_offset, padded);
-        builder.revert(zero, size);
+        builder.revert(buf, size);
     }
 
     fn lower_array_length_member(
@@ -1311,10 +1559,10 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         // Storage array (state variable or storage-reference local): dynamic
         // length at the base slot, fixed length is a compile-time constant.
-        if let Some((slot_val, fixed_len, _)) = self.storage_array_slot_of_base(builder, base) {
-            return Some(match fixed_len {
+        if let Some(array) = self.storage_array_slot_of_base(builder, base) {
+            return Some(match array.fixed_len {
                 Some(len) => builder.imm_u64(len),
-                None => builder.sload(slot_val),
+                None => builder.sload(array.slot),
             });
         }
 
@@ -1486,7 +1734,7 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         // Copying the aligned region zero-fills the final word's tail:
         // EXTCODECOPY pads reads past the code end with zeros.
-        builder.extcodecopy(addr, data, zero, aligned);
+        builder.extcodecopy_heap(addr, data, zero, aligned);
         ptr
     }
 
@@ -1717,6 +1965,36 @@ impl<'gcx> Lowerer<'gcx> {
         self.stage_multi_return_values(builder, &values);
     }
 
+    /// Left-aligns a bare numeric literal lowered where `bytesN` is expected.
+    /// Sema keeps such a literal's numeric type, so plain lowering yields the
+    /// right-aligned integer word, while every `bytesN` consumer — call
+    /// parameters, return slots, locals, mapping keys — expects the content
+    /// bytes at the top.
+    pub(super) fn coerce_literal_for_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
+        if let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind {
+            if let Some(bytes) = self.constant_string_bytes(expr) {
+                let mut padded = [0u8; 32];
+                let len = bytes.len().min(usize::from(size.bytes()));
+                padded[..len].copy_from_slice(&bytes[..len]);
+                return builder.imm_u256(U256::from_be_bytes(padded));
+            }
+            if usize::from(size.bytes()) < 32
+                && let ExprKind::Lit(lit) = &expr.kind
+                && let LitKind::Number(n) = &lit.kind
+                && self.fixed_bytes_width_of_expr(expr).is_none()
+            {
+                return builder.imm_u256(*n << ((32 - usize::from(size.bytes())) * 8));
+            }
+        }
+        value
+    }
+
     /// Lowers a binary-operator operand, left-aligning a bare numeric literal
     /// when its sibling is `bytesN`. A literal like `0x11223344` in
     /// `x == 0x11223344` is typed from its sibling, so it must use the same
@@ -1735,7 +2013,15 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return builder.imm_u256(*n << (usize::from(32 - width) * 8));
         }
-        self.lower_value_expr(builder, operand)
+        let value = self.lower_value_expr(builder, operand);
+        if !self.in_assembly_block
+            && self.call_result_may_be_dirty(operand)
+            && let Some(ty) = self.get_expr_type(operand)
+        {
+            self.abi_clean_value(builder, value, ty)
+        } else {
+            value
+        }
     }
 
     /// Lowers an assignment.
@@ -1807,42 +2093,45 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_assign(builder, lhs, base, index.as_deref(), rhs);
             }
             ExprKind::Member(base, member) => {
+                let field_ty = self.get_expr_type(lhs);
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, placement)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
                         field_index,
                     )
                 {
-                    builder.sstore(slot, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot, rhs);
                     return;
                 }
 
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + U256::from(field_offset);
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    let slot = base_slot + U256::from(placement.slot);
                     let slot_val = builder.imm_u256(slot);
-                    builder.sstore(slot_val, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot_val, rhs);
                     return;
                 }
 
                 // Check if this is a nested storage struct assignment (e.g., storedNested.point.x =
                 // value)
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, placement)) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u256(slot);
-                    builder.sstore(slot_val, rhs);
+                    self.store_struct_field_at(builder, field_ty, &placement, slot_val, rhs);
                     return;
                 }
 
                 // Storage struct field assignment where the base is itself a
                 // storage location: a storage reference (`Item storage r =
                 // items[k]; r.a = v`) or an indexed element (`items[k].a = v`).
-                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
-                    builder.sstore(slot, rhs);
+                if let Some((slot, placement)) =
+                    self.lower_storage_struct_field_slot(builder, base, *member)
+                {
+                    self.store_struct_field_at(builder, field_ty, &placement, slot, rhs);
                     return;
                 }
 
@@ -1880,7 +2169,25 @@ impl<'gcx> Lowerer<'gcx> {
                 let base_val = self.lower_value_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
-            ExprKind::Call(..) => {
+            ExprKind::Call(callee, args, _) => {
+                // `arr.push() = v` with packed elements: the pushed element
+                // shares its slot, so store it packed at the old length rather
+                // than through a whole-slot lvalue. Decide from the types alone
+                // before lowering anything: resolving the array's slot lowers
+                // the base lvalue, which must happen exactly once.
+                if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
+                    && self.builtin_args::<0>(Builtin::ArrayPush0, args).is_ok()
+                    && let ExprKind::Member(array_base, _) = &callee.kind
+                    && let Some((element_ty, None)) = self.storage_array_type_of_expr(array_base)
+                    && let Some(packed) = self.packed_value_of_ty(element_ty)
+                {
+                    if let Some((slot, _, _)) = self.storage_dynamic_array_info(builder, array_base)
+                    {
+                        let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+                        self.store_packed_array_element(builder, data_slot, length, packed, rhs);
+                    }
+                    return;
+                }
                 if let Some(slot) = self.lower_lvalue_slot(builder, lhs)
                     && let Some(ty) = self.get_expr_type(lhs)
                 {
@@ -2020,12 +2327,31 @@ impl<'gcx> Lowerer<'gcx> {
             ElementaryType::UInt(size) => self.mask_to_bits(builder, value, *size),
             ElementaryType::Int(size) => self.sign_extend_to_bits(builder, value, *size),
             ElementaryType::FixedBytes(size) => {
+                if let Some(bytes) = self.constant_string_bytes(source) {
+                    let mut padded = [0u8; 32];
+                    let len = bytes.len().min(usize::from(size.bytes()));
+                    padded[..len].copy_from_slice(&bytes[..len]);
+                    return builder.imm_u256(U256::from_be_bytes(padded));
+                }
                 // `bytesN(someBytesSlice)` takes the slice's leading word,
                 // which is already left-aligned like every fixed-bytes value.
                 // Without this the slice value itself would be shifted as if it
                 // were a number, and the slice would survive to the backend.
-                if let Some(word) = self.slice_leading_word(builder, value) {
-                    return self.clean_fixed_bytes(builder, word, *size);
+                if let Some((word, len)) = self.slice_leading_word(builder, value) {
+                    return self.clean_dynamic_fixed_bytes(builder, word, len, *size);
+                }
+                // A `bytes memory` value is a `[length][data...]` object rather
+                // than a MIR slice. The conversion takes its first data word,
+                // not the object's pointer value.
+                if matches!(
+                    builder.func().value_ty(value),
+                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                ) || self.expr_yields_memory_bytes(source)
+                {
+                    let len = builder.memory_object_len(value, MemoryObjectKind::Bytes);
+                    let data = builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                    let word = builder.mload(data);
+                    return self.clean_dynamic_fixed_bytes(builder, word, len, *size);
                 }
                 if self.expr_is_fixed_bytes(source) {
                     self.clean_fixed_bytes(builder, value, *size)
@@ -2046,13 +2372,36 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, ValueId)> {
         let calldata = Self::value_is_calldata_slice(builder, value);
         if !calldata && !Self::value_is_memory_slice(builder, value) {
             return None;
         }
         let ptr = builder.slice_ptr(value);
-        Some(if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) })
+        let word = if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) };
+        Some((word, builder.slice_len(value)))
+    }
+
+    /// Converts the leading word of dynamic bytes to `bytesN`, masking at
+    /// both the target width and the runtime source length. A short source is
+    /// right-padded with zeroes rather than exposing bytes after the slice.
+    fn clean_dynamic_fixed_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        len: ValueId,
+        size: TypeSize,
+    ) -> ValueId {
+        let target_bytes = builder.imm_u64(u64::from(size.bytes()));
+        let source_is_shorter = builder.lt(len, target_bytes);
+        let used_bytes = builder.select(source_is_shorter, len, target_bytes);
+        let word_bytes = builder.imm_u64(32);
+        let unused_bytes = builder.sub(word_bytes, used_bytes);
+        let bits_per_byte = builder.imm_u64(8);
+        let unused_bits = builder.mul(unused_bytes, bits_per_byte);
+        let all_bits = builder.imm_u256(U256::MAX);
+        let mask = builder.shl(unused_bits, all_bits);
+        builder.and(word, mask)
     }
 
     fn shift_numeric_to_fixed_bytes(
@@ -2141,18 +2490,17 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Resolves an array living in storage: a state variable, storage-reference
-    /// local, mapping value, struct field, or nested array element. Returns its
-    /// runtime base slot, constant length (`None` for dynamic arrays), and the
-    /// number of storage slots occupied by one element.
+    /// local, mapping value, struct field, or nested array element.
     pub(super) fn storage_array_slot_of_base(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
-    ) -> Option<(ValueId, Option<u64>, u64)> {
+    ) -> Option<StorageArrayBase> {
         let (element, fixed_len) = self.storage_array_type_of_expr(expr)?;
         let elem_slots = self.calculate_storage_slots_for_ty(element, expr.span);
+        let packed = self.packed_value_of_ty(element);
         let slot = self.lower_lvalue_slot(builder, expr)?;
-        Some((slot, fixed_len, elem_slots))
+        Some(StorageArrayBase { slot, fixed_len, elem_slots, packed })
     }
 
     /// Resolves a dynamic array living in storage.
@@ -2170,6 +2518,33 @@ impl<'gcx> Lowerer<'gcx> {
         Some((slot, element, element_slots))
     }
 
+    /// Emits the bounds check for a storage array access and returns the base
+    /// slot of the element data: the array slot itself for fixed-size arrays,
+    /// `keccak256(slot)` for dynamic arrays.
+    pub(super) fn storage_array_data_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot_val: ValueId,
+        fixed_len: Option<u64>,
+        index_val: ValueId,
+    ) -> ValueId {
+        match fixed_len {
+            Some(len) => {
+                let len_val = builder.imm_u64(len);
+                self.emit_index_bounds_check(builder, index_val, len_val);
+                slot_val
+            }
+            None => {
+                let len = builder.sload(slot_val);
+                self.emit_index_bounds_check(builder, index_val, len);
+                let mem_0 = builder.imm_u64(0);
+                builder.mstore(mem_0, slot_val);
+                let size_32 = builder.imm_u64(32);
+                builder.keccak256(mem_0, size_32)
+            }
+        }
+    }
+
     /// Emits the bounds check for a storage array access and returns the element slot.
     /// Dynamic arrays: length at `slot`, elements at `keccak256(slot) + index * elem_slots`.
     /// Fixed-size arrays: constant length, elements at `slot + index * elem_slots`.
@@ -2181,24 +2556,9 @@ impl<'gcx> Lowerer<'gcx> {
         index_val: ValueId,
         elem_slots: u64,
     ) -> ValueId {
-        match fixed_len {
-            Some(len) => {
-                let len_val = builder.imm_u64(len);
-                self.emit_index_bounds_check(builder, index_val, len_val);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(slot_val, offset)
-            }
-            None => {
-                let len = builder.sload(slot_val);
-                self.emit_index_bounds_check(builder, index_val, len);
-                let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val);
-                let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
-                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
-                builder.add(data_slot, offset)
-            }
-        }
+        let data_slot = self.storage_array_data_slot(builder, slot_val, fixed_len, index_val);
+        let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
+        builder.add(data_slot, offset)
     }
 
     /// Scales an array index by its element's slot count; single-slot elements
@@ -2213,6 +2573,197 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let elem_slots = builder.imm_u64(elem_slots);
         builder.mul(index_val, elem_slots)
+    }
+
+    /// Materializes a storage array used as a memory value into a fresh
+    /// `[length][elements...]` copy, or `None` for non-array types. Nested
+    /// aggregates are recursively materialized at their full storage stride.
+    pub(super) fn materialize_storage_array_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        sema_ty: Ty<'gcx>,
+        slot_val: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        let ty = sema_ty.peel_refs();
+        let (elem, fixed_len) = match ty.kind {
+            TyKind::DynArray(elem) => (elem, None),
+            TyKind::Array(elem, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    return Some(builder.error_value(self.abi_head_size_overflow()));
+                };
+                (elem, Some(len))
+            }
+            _ => return None,
+        };
+        // Words copy directly; `bytes`/`string`, nested arrays, and structs
+        // materialize per element, striding by the element's slot count.
+        let elem_peeled = elem.peel_refs();
+        let elem_is_word = self.abi_is_word_element(elem);
+        let elem_is_bytes = matches!(
+            elem_peeled.kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        );
+        let elem_is_array = matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..));
+        let elem_is_struct = matches!(elem_peeled.kind, TyKind::Struct(_));
+        if !(elem_is_word || elem_is_bytes || elem_is_array || elem_is_struct) {
+            return None;
+        }
+        let elem_slots = self.calculate_storage_slots_for_ty(elem, span);
+
+        let packed_elem = self.packed_value_of_ty(elem);
+
+        if let Some(len) = fixed_len {
+            // Fixed-size array: elements live in consecutive slots from the
+            // base; unroll the copy like storage structs.
+            let ptr = self.allocate_memory_object(builder, len * 32, MemoryObjectKind::FixedArray);
+            for i in 0..len {
+                let value = if let Some(packed) = packed_elem {
+                    let per_slot = u64::from(packed.per_slot());
+                    let offset = builder.imm_u64(i / per_slot);
+                    let elem_slot = builder.add(slot_val, offset);
+                    let byte_offset = ((i % per_slot) * u64::from(packed.size)) as u8;
+                    builder.load_packed(elem_slot, byte_offset, packed)
+                } else {
+                    let offset = builder.imm_u64(i * elem_slots);
+                    let elem_slot = builder.add(slot_val, offset);
+                    self.storage_array_element_value(builder, elem, elem_slot, span)
+                };
+                let elem_index = builder.imm_u64(i);
+                let addr = builder.memory_object_element_addr(
+                    ptr,
+                    crate::mir::MemoryObjectLayout::FixedArray { element_words: 1, len },
+                    elem_index,
+                );
+                builder.mstore(addr, value);
+            }
+            return Some(ptr);
+        }
+
+        // Dynamic array: the base slot holds the length and the elements
+        // start at `keccak256(slot)`.
+        let len = builder.sload(slot_val);
+        let five = builder.imm_u64(5);
+        let byte_len = builder.shl(five, len);
+        let back = builder.shr(five, byte_len);
+        let roundtrips = builder.eq(back, len);
+        let overflowed = builder.iszero(roundtrips);
+        self.emit_panic_if(builder, overflowed, PanicCode::MemoryAllocationOverflow);
+        let word = builder.imm_u64(32);
+        let total = builder.add(word, byte_len);
+        let total_overflow = builder.lt(total, byte_len);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr =
+            self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::DynamicArray);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+
+        let zero = builder.imm_u64(0);
+        builder.mstore(zero, slot_val);
+        let elems_base = builder.keccak256(zero, word);
+
+        let entry = builder.current_block();
+        let head = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(head);
+
+        builder.switch_to_block(head);
+        let i = builder.phi(vec![(entry, zero)]);
+        let more = builder.lt(i, len);
+        builder.branch(more, body, exit);
+
+        builder.switch_to_block(body);
+        let value = if let Some(packed) = packed_elem {
+            self.load_packed_array_element(builder, elems_base, i, packed)
+        } else {
+            let elem_offset = Self::scale_index_by_slots(builder, i, elem_slots);
+            let elem_slot = builder.add(elems_base, elem_offset);
+            self.storage_array_element_value(builder, elem, elem_slot, span)
+        };
+        let data_offset = builder.shl(five, i);
+        let dst = builder.add(data, data_offset);
+        builder.mstore(dst, value);
+        let one = builder.imm_u64(1);
+        let next = builder.add(i, one);
+        // Materializing a `bytes` or nested-array element branches, so the
+        // back edge runs from the block the body ends in, not `body` itself.
+        let latch = builder.current_block();
+        builder.add_phi_incoming(i, latch, next);
+        builder.jump(head);
+
+        builder.switch_to_block(exit);
+        Some(ptr)
+    }
+
+    /// Materializes a storage-referenced value that lowered to its slot into
+    /// the fresh memory copy its by-value use expects. A value that already
+    /// carries a memory-object type — a plain state-variable ident, whose
+    /// lowering copies eagerly — passes through.
+    pub(super) fn materialize_storage_ref_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> ValueId {
+        if Self::value_is_bytes_like_object(builder, value) {
+            return value;
+        }
+        let peeled = ty.peel_refs();
+        match peeled.kind {
+            TyKind::Struct(struct_id) => {
+                let total_words = self.calculate_memory_words_for_ty(peeled);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    total_words * 32,
+                    crate::mir::MemoryObjectKind::Struct,
+                );
+                self.copy_storage_to_memory_at(builder, struct_id, value, ptr, 0);
+                ptr
+            }
+            TyKind::DynArray(_) | TyKind::Array(..) => {
+                self.materialize_storage_array_value(builder, peeled, value, span).unwrap_or(value)
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_storage_bytes(builder, value)
+            }
+            _ => value,
+        }
+    }
+
+    /// Loads or materializes one storage-array element from its slot: a word
+    /// element loads directly, `bytes`/`string` decode their packed form, and
+    /// a nested array recurses.
+    fn storage_array_element_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        elem_slot: ValueId,
+        span: Span,
+    ) -> ValueId {
+        let elem_peeled = elem.peel_refs();
+        if matches!(
+            elem_peeled.kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            return self.materialize_storage_bytes(builder, elem_slot);
+        }
+        if matches!(elem_peeled.kind, TyKind::DynArray(_) | TyKind::Array(..))
+            && let Some(value) =
+                self.materialize_storage_array_value(builder, elem, elem_slot, span)
+        {
+            return value;
+        }
+        if let TyKind::Struct(struct_id) = elem_peeled.kind {
+            let struct_size = self.calculate_memory_words_for_ty(elem_peeled) * 32;
+            let struct_ptr =
+                self.allocate_memory_object(builder, struct_size, MemoryObjectKind::Struct);
+            self.copy_storage_to_memory_at(builder, struct_id, elem_slot, struct_ptr, 0);
+            return struct_ptr;
+        }
+        builder.sload(elem_slot)
     }
 
     /// Whether an expression is `msg.data`.
@@ -2345,7 +2896,18 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, (arg, &field_ty)) in arg_exprs.into_iter().zip(&field_tys).enumerate() {
             // Memory struct fields hold memory values. Calldata reference
             // values therefore materialize recursively before storing their
-            // pointer in the field slot.
+            // pointer in the field slot. Struct member types keep their
+            // declared storage flavor, so peel it off: a storage-located
+            // argument must land as a materialized memory copy, never as its
+            // slot.
+            let field_ty = match field_ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Storage)
+                    if !matches!(inner.kind, TyKind::Mapping(..)) =>
+                {
+                    inner
+                }
+                _ => field_ty,
+            };
             let field_val = self.lower_return_value_for_ty(builder, arg, field_ty);
             let field_addr = builder.memory_object_field_addr(
                 struct_ptr,
@@ -2483,6 +3045,9 @@ impl<'gcx> Lowerer<'gcx> {
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
+        let end = builder.add(data_start, len);
+        let end_overflow = builder.lt(end, data_start);
+        self.emit_abi_decode_revert_if(builder, end_overflow);
 
         let head_size_val = builder.imm_u64(head_size);
         let mut out = Vec::with_capacity(tys.len());
@@ -2494,6 +3059,13 @@ impl<'gcx> Lowerer<'gcx> {
                 let err = builder.error_value(guar);
                 return vec![err; tys.len()];
             };
+            let pos = self.resolve_abi_body(
+                builder,
+                AbiSource::Memory,
+                ty,
+                head_pos,
+                AbiBodyBounds::new(data_start, head_size_val, end),
+            );
             let decoded = match strategy {
                 DecodeStrategy::Word(elem) => {
                     let word = builder.mload(head_pos);
@@ -2516,21 +3088,7 @@ impl<'gcx> Lowerer<'gcx> {
                     )
                 }
                 DecodeStrategy::General(ty) => {
-                    // Resolve the member's body position, then decode it with
-                    // the same recursive materializer that decodes calldata
-                    // struct-array parameters.
-                    let pos = if self.abi_is_dynamic(ty) {
-                        let offset = builder.mload(head_pos);
-                        builder.add(data_start, offset)
-                    } else {
-                        head_pos
-                    };
-                    self.materialize_calldata_value_at(
-                        builder,
-                        super::bytes::AbiSource::Memory,
-                        ty,
-                        pos,
-                    )
+                    self.materialize_bounded_abi_value_at(builder, AbiSource::Memory, ty, pos, end)
                 }
             };
             out.push(decoded);
@@ -2542,6 +3100,66 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             };
             head_offset += ty_size;
+        }
+        out
+    }
+
+    /// Decodes typed external-call returndata with solc-compatible top-level
+    /// offset handling. Solc accepts a dynamic body that aliases tuple-head
+    /// bytes, which Foundry's `expectRevert` interception relies on when it
+    /// synthesizes a successful empty return. Every accessed range remains
+    /// recursively bounded by `len`; only the canonical tail-position check
+    /// for top-level members is relaxed.
+    pub(super) fn decode_external_abi_region(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_start: ValueId,
+        len: ValueId,
+        tys: &[Ty<'gcx>],
+    ) -> Vec<ValueId> {
+        let head_size = match self.abi_head_size_sum(tys.iter().copied()) {
+            Ok(size) => size,
+            Err(guar) => {
+                let err = builder.error_value(guar);
+                return vec![err; tys.len()];
+            }
+        };
+        let required = builder.imm_u64(head_size);
+        let is_short = builder.lt(len, required);
+        self.emit_abi_decode_revert_if(builder, is_short);
+        let end = builder.add(data_start, len);
+        let end_overflow = builder.lt(end, data_start);
+        self.emit_abi_decode_revert_if(builder, end_overflow);
+
+        let mut out = Vec::with_capacity(tys.len());
+        let mut head_offset = 0u64;
+        for &ty in tys {
+            let ty = ty.peel_refs();
+            let head = self.offset_ptr(builder, data_start, head_offset);
+            let pos = if self.abi_is_dynamic(ty) {
+                let offset = builder.mload(head);
+                let pos = builder.add(data_start, offset);
+                let overflow = builder.lt(pos, data_start);
+                self.emit_abi_decode_revert_if(builder, overflow);
+                let out_of_bounds = builder.gt(pos, end);
+                self.emit_abi_decode_revert_if(builder, out_of_bounds);
+                pos
+            } else {
+                head
+            };
+            let value = if self.abi_is_dynamic(ty) {
+                self.materialize_bounded_abi_value_at(builder, AbiSource::Memory, ty, pos, end)
+            } else {
+                self.materialize_calldata_value_at(builder, AbiSource::Memory, ty, pos)
+            };
+            out.push(value);
+            head_offset += match self.abi_head_size(ty) {
+                Ok(size) => size,
+                Err(guar) => {
+                    let err = builder.error_value(guar);
+                    return vec![err; tys.len()];
+                }
+            };
         }
         out
     }
@@ -2689,7 +3307,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
         let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        builder.mcopy(dst_data, payload_src, payload_bytes);
+        builder.mcopy_heap(dst_data, payload_src, payload_bytes);
 
         let needs_validation = !matches!(
             elem,
@@ -2759,17 +3377,22 @@ impl<'gcx> Lowerer<'gcx> {
 
         let tail_len_addr = builder.add(tuple_base, head);
         let tail_len = builder.mload(tail_len_addr);
+        // Decoding only requires the actual payload bytes to be present. The
+        // trailing padding belongs to canonical ABI encoding, but solc also
+        // accepts returndata and other decode inputs that end before the next
+        // word boundary once the full payload is available.
+        let tail_end = builder.add(tail_head_end, tail_len);
+        let tail_overflow = builder.lt(tail_end, tail_head_end);
+        self.emit_abi_decode_revert_if(builder, tail_overflow);
+        let tail_oob = builder.gt(tail_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, tail_oob);
+
         let thirty_one = builder.imm_u64(31);
         let rounded = builder.add(tail_len, thirty_one);
         let rounded_overflow = builder.lt(rounded, tail_len);
         self.emit_abi_decode_revert_if(builder, rounded_overflow);
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
-        let tail_end = builder.add(tail_head_end, padded);
-        let tail_overflow = builder.lt(tail_end, tail_head_end);
-        self.emit_abi_decode_revert_if(builder, tail_overflow);
-        let tail_oob = builder.gt(tail_end, tuple_len);
-        self.emit_abi_decode_revert_if(builder, tail_oob);
 
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word, padded);
@@ -2790,7 +3413,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let src = builder.add(tail_len_addr, word);
-        builder.mcopy(data_ptr, src, tail_len);
+        builder.mcopy_heap(data_ptr, src, tail_len);
         ptr
     }
 
@@ -2969,31 +3592,33 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         struct_id: hir::StructId,
         field_index: usize,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, StructField)> {
         if self.struct_id_of_expr(base)? != struct_id {
             return None;
         }
         let base_slot = self.lower_lvalue_slot(builder, base)?;
-        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-        Some(if field_offset == 0 {
+        let placement = self.struct_field_placement(struct_id, field_index);
+        let slot = if placement.slot == 0 {
             base_slot
         } else {
-            let off = builder.imm_u64(field_offset);
+            let off = builder.imm_u64(placement.slot);
             builder.add(base_slot, off)
-        })
+        };
+        Some((slot, placement))
     }
 
     /// If `base` is a storage location of struct type and `member` is one of its
     /// fields, returns the field's storage slot (`base_slot + field_offset`) as a
-    /// runtime value. Handles storage references (`r.a`) and storage struct
-    /// fields reached through indexing (`items[k].a`, `arr[i].a`). Returns `None`
-    /// for memory/calldata bases (whose `lower_lvalue_slot` yields `None`).
+    /// runtime value with the field's placement. Handles storage references
+    /// (`r.a`) and storage struct fields reached through indexing (`items[k].a`,
+    /// `arr[i].a`). Returns `None` for memory/calldata bases (whose
+    /// `lower_lvalue_slot` yields `None`).
     fn lower_storage_struct_field_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
         member: Ident,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, StructField)> {
         let struct_id = self.struct_id_of_expr(base)?;
         let field_index = self.struct_field_index(struct_id, member)?;
         self.lower_storage_struct_field_slot_by_index(builder, base, struct_id, field_index)
@@ -3029,8 +3654,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_lvalue_slot(builder, base, index.as_deref())
             }
             ExprKind::Member(base, member) => {
+                // Lvalue slots address whole slots: a storage reference can
+                // only bind reference-type fields, which are never packed.
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
-                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                    && let Some((slot, _)) = self.lower_storage_struct_field_slot_by_index(
                         builder,
                         base,
                         struct_id,
@@ -3044,24 +3671,24 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    return Some(builder.imm_u256(base_slot + U256::from(field_offset)));
+                    let placement = self.struct_field_placement(struct_id, field_index);
+                    return Some(builder.imm_u256(base_slot + U256::from(placement.slot)));
                 }
                 // Storage-reference local struct field.
                 if let Some((var_id, struct_id, field_index)) =
                     self.get_storage_ref_struct_field_info(base, *member)
                 {
-                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    let placement = self.struct_field_placement(struct_id, field_index);
                     let base_slot = self.load_storage_ref_slot(builder, var_id)?;
-                    return Some(if field_offset == 0 {
+                    return Some(if placement.slot == 0 {
                         base_slot
                     } else {
-                        let off = builder.imm_u64(field_offset);
+                        let off = builder.imm_u64(placement.slot);
                         builder.add(base_slot, off)
                     });
                 }
                 // Nested state-variable storage struct field.
-                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                if let Some((slot, _)) = self.compute_nested_storage_slot(base, *member) {
                     return Some(builder.imm_u256(slot));
                 }
                 None
@@ -3188,8 +3815,8 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some((base_slot, struct_id, field_index)) =
                 self.get_storage_struct_field_info(base, *member)
             {
-                let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                let slot = base_slot + U256::from(field_offset);
+                let placement = self.struct_field_placement(struct_id, field_index);
+                let slot = base_slot + U256::from(placement.slot);
 
                 // Check if the field itself is a struct
                 let strukt = self.gcx.hir.strukt(struct_id);
@@ -3213,8 +3840,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(field_name) = field.name
                         && field_name.name == member.name
                     {
-                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        let slot = parent_slot + U256::from(field_offset);
+                        let placement = self.struct_field_placement(parent_struct_id, i);
+                        let slot = parent_slot + U256::from(placement.slot);
 
                         // Check if this field is also a struct
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
@@ -3230,8 +3857,13 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Computes the storage slot for a nested struct member access (scalar fields only).
-    fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<U256> {
+    /// Computes the storage slot and placement for a nested struct member
+    /// access (scalar fields only).
+    fn compute_nested_storage_slot(
+        &mut self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(U256, StructField)> {
         // Check if base is a Member expression (needed for 2+ level nesting)
         if let ExprKind::Member(inner_base, inner_member) = &base.kind {
             // Get the slot and type info for the base member expression
@@ -3245,8 +3877,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(field_name) = field.name
                         && field_name.name == member.name
                     {
-                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        return Some(parent_slot + U256::from(field_offset));
+                        let placement = self.struct_field_placement(parent_struct_id, i);
+                        return Some((parent_slot + U256::from(placement.slot), placement));
                     }
                 }
             }
@@ -3261,9 +3893,8 @@ impl<'gcx> Lowerer<'gcx> {
                     if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
                         &field_var.ty.kind
                     {
-                        let inner_field_offset =
-                            self.get_struct_field_slot_offset(struct_id, field_index);
-                        let nested_base_slot = base_slot + U256::from(inner_field_offset);
+                        let inner_placement = self.struct_field_placement(struct_id, field_index);
+                        let nested_base_slot = base_slot + U256::from(inner_placement.slot);
 
                         let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
                         for (i, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
@@ -3271,9 +3902,11 @@ impl<'gcx> Lowerer<'gcx> {
                             if let Some(field_name) = inner_field.name
                                 && field_name.name == member.name
                             {
-                                let inner_offset =
-                                    self.get_struct_field_slot_offset(*inner_struct_id, i);
-                                return Some(nested_base_slot + U256::from(inner_offset));
+                                let placement = self.struct_field_placement(*inner_struct_id, i);
+                                return Some((
+                                    nested_base_slot + U256::from(placement.slot),
+                                    placement,
+                                ));
                             }
                         }
                     }
@@ -3283,14 +3916,13 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Appends a zero-initialized element and returns its storage slot.
-    fn lower_storage_array_push_slot(
+    /// Bumps a dynamic array's length by one with an overflow check and
+    /// returns `(old_length, data_slot)`.
+    fn lower_storage_array_grow(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
-        element_ty: Ty<'gcx>,
-        element_slots: u64,
-    ) -> ValueId {
+    ) -> (ValueId, ValueId) {
         let length = builder.sload(slot);
         let one = builder.imm_u64(1);
         let new_length = builder.add(length, one);
@@ -3301,11 +3933,29 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(scratch, slot);
         let word = builder.imm_u64(32);
         let data_slot = builder.keccak256(scratch, word);
+        builder.sstore(slot, new_length);
+        (length, data_slot)
+    }
+
+    /// Appends a zero-initialized element and returns its storage slot.
+    fn lower_storage_array_push_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+        element_slots: u64,
+    ) -> ValueId {
+        let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+        if let Some(value) = self.packed_value_of_ty(element_ty) {
+            let zero = builder.imm_u64(0);
+            self.store_packed_array_element(builder, data_slot, length, value, zero);
+            // The shared slot stands in for the packed element; the caller
+            // must not store through it as a whole word.
+            return data_slot;
+        }
         let offset = Self::scale_index_by_slots(builder, length, element_slots);
         let element_slot = builder.add(data_slot, offset);
-
         self.clear_storage_value_at(builder, element_ty, element_slot);
-        builder.sstore(slot, new_length);
         element_slot
     }
 
@@ -3342,23 +3992,23 @@ impl<'gcx> Lowerer<'gcx> {
                         self.lower_expr_as_memory_bytes(builder, arg)
                     }
                     TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
-                    _ => self.lower_value_expr(builder, arg),
+                    _ => {
+                        let value = self.lower_value_expr(builder, arg);
+                        // A bare numeric literal pushed into a `bytesN` array
+                        // types from the element, so it needs the same
+                        // left-aligned representation.
+                        self.coerce_literal_for_ty(builder, arg, element_ty, value)
+                    }
                 };
 
-                let length = builder.sload(slot);
-                let one = builder.imm_u64(1);
-                let new_length = builder.add(length, one);
-                let overflow = builder.lt(new_length, length);
-                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
-
-                let scratch = builder.imm_u64(0);
-                builder.mstore(scratch, slot);
-                let word = builder.imm_u64(32);
-                let data_slot = builder.keccak256(scratch, word);
+                let (length, data_slot) = self.lower_storage_array_grow(builder, slot);
+                if let Some(packed) = self.packed_value_of_ty(element_ty) {
+                    self.store_packed_array_element(builder, data_slot, length, packed, value);
+                    return None;
+                }
                 let offset = Self::scale_index_by_slots(builder, length, element_slots);
                 let element_slot = builder.add(data_slot, offset);
                 self.store_storage_value_at(builder, element_ty, element_slot, value);
-                builder.sstore(slot, new_length);
                 None
             }
             StorageArrayMethod::Pop => {
@@ -3371,9 +4021,14 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(scratch, slot);
                 let word = builder.imm_u64(32);
                 let data_slot = builder.keccak256(scratch, word);
-                let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
-                let element_slot = builder.add(data_slot, offset);
-                self.clear_storage_value_at(builder, element_ty, element_slot);
+                if let Some(packed) = self.packed_value_of_ty(element_ty) {
+                    let zero = builder.imm_u64(0);
+                    self.store_packed_array_element(builder, data_slot, new_length, packed, zero);
+                } else {
+                    let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
+                    let element_slot = builder.add(data_slot, offset);
+                    self.clear_storage_value_at(builder, element_ty, element_slot);
+                }
                 builder.sstore(slot, new_length);
 
                 None
@@ -3391,7 +4046,7 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<MappingElementSlot> {
-        let (key_is_dynamic, value_is_mapping) = self.mapping_type_info(base)?;
+        let (key_ty, value_is_mapping) = self.mapping_type_info(base)?;
 
         // Mapping state variable: base slot is a compile-time constant.
         let base_slot = if let Some(slot) = self.get_mapping_base_slot(base) {
@@ -3411,7 +4066,7 @@ impl<'gcx> Lowerer<'gcx> {
             base.span,
             base_slot,
             index,
-            key_is_dynamic,
+            key_ty,
             value_is_mapping,
         ))
     }
@@ -3424,10 +4079,16 @@ impl<'gcx> Lowerer<'gcx> {
         base_span: Span,
         base_slot: MappingBaseSlot,
         index: Option<&hir::Expr<'_>>,
-        key_is_dynamic: bool,
+        key_ty: Ty<'gcx>,
         value_is_mapping: bool,
     ) -> MappingElementSlot {
         let index_val = self.lower_index_value(builder, base_span, index);
+        // A bare numeric literal key for a `bytesN` mapping must hash its
+        // left-aligned word, like every other representation of that key.
+        let index_val = match index {
+            Some(expr) => self.coerce_literal_for_ty(builder, expr, key_ty, index_val),
+            _ => index_val,
+        };
         // Materialize the base slot after the index so a constant state-variable
         // slot keeps its original emission order (the index is lowered first).
         let slot_val = match base_slot {
@@ -3439,7 +4100,7 @@ impl<'gcx> Lowerer<'gcx> {
             index,
             index_val,
             slot_val,
-            key_is_dynamic,
+            Self::is_dynamic_mapping_key_ty(key_ty),
         );
         MappingElementSlot { slot, value_is_mapping }
     }
@@ -3452,13 +4113,10 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the key and value shape of the mapping represented by `expr`.
-    fn mapping_type_info(&self, expr: &hir::Expr<'_>) -> Option<(bool, bool)> {
+    fn mapping_type_info(&self, expr: &hir::Expr<'_>) -> Option<(Ty<'gcx>, bool)> {
         let ty = self.get_expr_type(expr)?.peel_refs();
         let TyKind::Mapping(key, value) = ty.kind else { return None };
-        Some((
-            Self::is_dynamic_mapping_key_ty(key),
-            matches!(value.peel_refs().kind, TyKind::Mapping(..)),
-        ))
+        Some((key, matches!(value.peel_refs().kind, TyKind::Mapping(..))))
     }
 
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
@@ -3584,7 +4242,7 @@ impl<'gcx> Lowerer<'gcx> {
         let word_size = builder.imm_u64(32);
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let scratch = builder.fmp();
-        builder.mcopy(scratch, data_start, len);
+        builder.mcopy_heap(scratch, data_start, len);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);

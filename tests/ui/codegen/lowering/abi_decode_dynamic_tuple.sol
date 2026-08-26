@@ -30,10 +30,9 @@ contract AbiDecodeDynamicTuple {
     }
 
     // CHECK-LABEL: fn @decodeBytes{{[( ]}}
-    // CHECK: [[INPUT:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[INPUT]],
+    // CHECK: [[INPUT:v[0-9]+]] = internal_call @__abi_decode_calldata_
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, {{v[0-9]+}}
-    // CHECK: set_memory_object_len memorybytes, [[RESULT]],
+    // CHECK-NEXT: set_memory_object_len memorybytes, [[RESULT]],
     // CHECK: ret [[RESULT]]
     function decodeBytes(bytes memory data) external pure returns (bytes memory) {
         return abi.decode(data, (bytes));

@@ -121,6 +121,8 @@ pub struct Module {
     data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
+    /// Whether this is a library (internal-only libraries have no bytecode).
+    pub(crate) is_library: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
 }
@@ -147,6 +149,7 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             is_interface: false,
+            is_library: false,
             phase: MirPhase::Built,
         }
     }
