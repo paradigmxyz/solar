@@ -112,10 +112,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
             )
         {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, block);
+            return rewrite(instructions, 3, Edit::RemoveFirstKeep(1), block);
         }
         if value == U256::ONE && opcode == op::EXP {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, block);
+            return rewrite(instructions, 3, Edit::RemoveFirstKeep(1), block);
         }
     }
 
@@ -226,7 +226,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && let Some(opcode) = instruction.as_legacy_opcode()
         && is_commutative(opcode)
     {
-        return rewrite(instructions, 2, Edit::RemoveFirstKeepOne, block);
+        return rewrite(instructions, 2, Edit::RemoveFirstKeep(1), block);
     }
 
     // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
@@ -292,34 +292,42 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite(instructions, 4, Edit::MergeSwapPop(3), block);
     }
 
-    // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-    for depth in 1..16 {
-        let input_len = depth + 3;
-        let Some(start) = instructions.len().checked_sub(input_len) else {
-            break;
-        };
-        if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
-            && instructions[start + 1..instructions.len() - 2]
-                .iter()
-                .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
-            && instructions[instructions.len() - 2].as_legacy_opcode() == Some(op::SWAP1)
-            && instructions[instructions.len() - 1].as_legacy_opcode() == Some(op::POP)
-        {
-            let merged_depth = depth + 1;
-            return rewrite(instructions, input_len, Edit::MergeSwapPop(merged_depth as u8), block);
+    if instructions.last().and_then(Instruction::as_stack_op) == Some(PhysicalStackOp::Pop) {
+        // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
+        for depth in 1..16 {
+            let input_len = depth + 3;
+            let Some(start) = instructions.len().checked_sub(input_len) else {
+                break;
+            };
+            if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
+                && instructions[start + 1..instructions.len() - 2]
+                    .iter()
+                    .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
+                && instructions[instructions.len() - 2].as_legacy_opcode() == Some(op::SWAP1)
+            {
+                let merged_depth = depth + 1;
+                return rewrite(
+                    instructions,
+                    input_len,
+                    Edit::MergeSwapPop(merged_depth as u8),
+                    block,
+                );
+            }
         }
-    }
 
-    // `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
-    for depth in 1..=16 {
-        let input_len = depth + 2;
-        let Some(start) = instructions.len().checked_sub(input_len) else {
-            break;
-        };
-        if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
-            && instructions[start + 1..].iter().all(|inst| inst.as_legacy_opcode() == Some(op::POP))
-        {
-            return rewrite(instructions, input_len, Edit::DropDiscardedSwap, block);
+        // `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
+        for depth in 1..=16 {
+            let input_len = depth + 2;
+            let Some(start) = instructions.len().checked_sub(input_len) else {
+                break;
+            };
+            if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
+                && instructions[start + 1..]
+                    .iter()
+                    .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
+            {
+                return rewrite(instructions, input_len, Edit::DropDiscardedSwap, block);
+            }
         }
     }
 
@@ -379,7 +387,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && store.as_legacy_opcode() == Some(op::MSTORE)
         && pop.as_legacy_opcode() == Some(op::POP)
     {
-        return rewrite(instructions, 4, Edit::RemoveFirstKeepTwo, block);
+        return rewrite(instructions, 4, Edit::RemoveFirstKeep(2), block);
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
@@ -462,12 +470,7 @@ enum SymbolicStackOp {
 fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
     let end = instructions.len();
     let last = stack_op(instructions.last()?)?;
-    if end < 2
-        || matches!(
-            last,
-            SymbolicStackOp::Push | SymbolicStackOp::Physical(PhysicalStackOp::Dup(_))
-        )
-    {
+    if end < 2 || !matches!(last, SymbolicStackOp::Physical(PhysicalStackOp::Pop)) {
         return None;
     }
     let floor = end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW);
@@ -475,7 +478,9 @@ fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
         .iter()
         .rposition(|inst| stack_op(inst).is_none())
         .map_or(floor, |index| floor + index + 1);
-    (start..end - 1)
+    let last_push =
+        instructions[start..end].iter().rposition(is_removable_push).map(|index| start + index)?;
+    (start..=last_push)
         .find(|&start| is_noop_stack_sequence(&instructions[start..]))
         .map(|start| end - start)
 }
@@ -549,8 +554,7 @@ fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: 
 #[derive(Clone, Copy)]
 enum Edit {
     Keep(u8),
-    RemoveFirstKeepOne,
-    RemoveFirstKeepTwo,
+    RemoveFirstKeep(u8),
     RemoveFirstOverwrite(u8),
     SwapOverwrite(u8),
     OverwriteOne(u8),
@@ -569,13 +573,9 @@ impl Edit {
     fn apply(self, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::Keep(len) => instructions.truncate(start + usize::from(len)),
-            Self::RemoveFirstKeepOne => {
+            Self::RemoveFirstKeep(len) => {
                 instructions.remove(start);
-                instructions.truncate(start + 1);
-            }
-            Self::RemoveFirstKeepTwo => {
-                instructions.remove(start);
-                instructions.truncate(start + 2);
+                instructions.truncate(start + usize::from(len));
             }
             Self::RemoveFirstOverwrite(opcode) => {
                 instructions.remove(start);

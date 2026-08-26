@@ -5,7 +5,9 @@ use crate::backend::evm::{
     ir::{Instruction, Module},
     stack::{StackOp, lowered_stack_cost, resynthesize_physical_ops},
 };
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
 const MAX_STACK_RUN_LEN: usize = 24;
@@ -19,22 +21,31 @@ impl EvmPass for StackNormalize {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
+        let mut cache = FxHashMap::default();
         for block in &mut module.blocks {
-            changed |= normalize_runs(&mut block.instructions, gcx.sess.opts.evm_version);
+            changed |=
+                normalize_runs(&mut block.instructions, gcx.sess.opts.evm_version, &mut cache);
         }
         changed
     }
 }
 
-fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
+type StackRun = SmallVec<[StackOp; MAX_STACK_RUN_LEN]>;
+type NormalizationCache = FxHashMap<StackRun, Option<StackRun>>;
+
+fn normalize_runs(
+    instructions: &mut Vec<Instruction>,
+    evm_version: EvmVersion,
+    cache: &mut NormalizationCache,
+) -> bool {
     struct Normalization {
         start: usize,
         end: usize,
-        output: Vec<StackOp>,
+        output: StackRun,
     }
 
     let mut normalizations = Vec::new();
-    let mut input = Vec::new();
+    let mut input = StackRun::new();
     let mut cursor = 0;
     while cursor < instructions.len() {
         let start = cursor;
@@ -53,21 +64,25 @@ fn normalize_runs(instructions: &mut Vec<Instruction>, evm_version: EvmVersion) 
             continue;
         }
 
-        let Some(output) = resynthesize_physical_ops(&input, evm_version) else {
+        let Some(output) = cache
+            .entry(input.clone())
+            .or_insert_with(|| {
+                let output = StackRun::from_vec(resynthesize_physical_ops(&input, evm_version)?);
+                if relative_peak(&output) > relative_peak(&input) {
+                    return None;
+                }
+                let input_cost = lowered_stack_cost(&input, evm_version);
+                let output_cost = lowered_stack_cost(&output, evm_version);
+                (output_cost.0 <= input_cost.0
+                    && output_cost.1 <= input_cost.1
+                    && output_cost.2 <= input_cost.2
+                    && output_cost != input_cost)
+                    .then_some(output)
+            })
+            .clone()
+        else {
             continue;
         };
-        if relative_peak(&output) > relative_peak(&input) {
-            continue;
-        }
-        let input_cost = lowered_stack_cost(&input, evm_version);
-        let output_cost = lowered_stack_cost(&output, evm_version);
-        if output_cost.0 > input_cost.0
-            || output_cost.1 > input_cost.1
-            || output_cost.2 > input_cost.2
-            || output_cost == input_cost
-        {
-            continue;
-        }
         normalizations.push(Normalization { start, end: cursor, output });
     }
     if normalizations.is_empty() {

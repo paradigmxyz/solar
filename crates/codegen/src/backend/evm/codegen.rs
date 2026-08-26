@@ -9434,6 +9434,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
         {
             OperandCostModel::DYNAMIC_FRAME
+        } else if self.in_constructor {
+            OperandCostModel::CONSTRUCTOR
         } else {
             OperandCostModel::DIRECT
         }

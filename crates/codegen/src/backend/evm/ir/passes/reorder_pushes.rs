@@ -95,16 +95,12 @@ fn reorder(
             relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
         }
 
-        let producer = if inst.as_legacy_opcode() == Some(op::SWAP1)
+        if inst.as_legacy_opcode() == Some(op::SWAP1)
             && let [.., producer, pushed] = expressions.as_slice()
             && sequence.last == Some(pushed.start)
             && sequence.instruction(pushed.start).is_encoded_push()
         {
-            Some((*producer, *pushed))
-        } else {
-            None
-        };
-        if let Some((producer, pushed)) = producer {
+            let (producer, pushed) = (*producer, *pushed);
             let local_peak_fits = high_water.is_some_and(|high_water| {
                 relative_depth
                     .checked_add_unsigned(producer.peak - 1)
