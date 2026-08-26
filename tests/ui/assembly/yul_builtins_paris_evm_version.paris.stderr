@@ -1,8 +1,8 @@
 error: Yul builtin `difficulty` is unavailable for Paris-compatible EVM
-   ╭▸ ROOT/tests/ui/parser/yul/evm_version/paris_calls.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/yul_builtins_paris_evm_version.sol:LL:CC
    │
-LL │             result := difficulty()
-   │                       ━━━━━━━━━━
+LL │             pop(difficulty())
+   │                 ━━━━━━━━━━
    │
    ╰ help: use `prevrandao()` when compiling for `paris` or newer
 

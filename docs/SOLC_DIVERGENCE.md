@@ -46,20 +46,22 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
-### PARSE-002: Cancun Yul builtin names are reserved across EVM versions
+### PARSE-002: Versioned Yul builtin names remain reserved
 
 Status: intentional.
 
-Difference: `solar` reserves the Cancun-only Yul builtin names `mcopy`,
-`blobhash`, `blobbasefee`, `tload`, and `tstore` independently of the selected
-EVM version. `solc` allows these names to be declared as identifiers when
-targeting an older EVM.
+Difference: `solar` reserves target-dependent Yul builtin names independently
+of the selected EVM version. This includes `basefee`, `prevrandao`, `mcopy`,
+`blobhash`, `blobbasefee`, `tload`, `tstore`, and `clz`. `solc` allows these
+names to be declared as identifiers on targets where the corresponding builtin
+is unavailable.
 
 Rationale: `solar` keeps the Yul grammar independent of the target EVM version.
 Builtin calls are parsed uniformly and their availability is validated during
 name resolution, where the selected EVM version is available.
 
-Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol`.
+Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol` and the
+`tests/ui/assembly/yul_builtins_*_evm_version.sol` fixtures.
 
 ## AST Validation
 
