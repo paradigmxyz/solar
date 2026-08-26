@@ -177,10 +177,9 @@ If not, the  rejected word should be inserted into `typos.toml`.
 
 ### Diagnostics
 
-Give every warning a stable diagnostic code so users can silence it with
-`--allow`. When solc emits the same warning, use solc's numeric code so the
-same code works in both compilers. Use a descriptive Solar-specific code only
-for warnings that have no solc equivalent.
+When adding a warning that solc also emits, use solc's diagnostic code. This
+lets users silence the same warning with the same `--allow` code in both
+compilers.
 
 ### Tests
 

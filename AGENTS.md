@@ -294,7 +294,7 @@ Error messages should follow these conventions:
 - **No full stops**: Error messages should not end with periods
 - **Use backticks for code**: Use `` `identifier` `` instead of `"identifier"` for code references
 - **Main message is concise**: Keep the primary error message short and direct
-- **Code every warning**: Give every warning a stable diagnostic code so users can silence it with `--allow`; when solc emits the same warning, use solc's numeric code
+- **Match solc warning codes**: When adding a warning that solc also emits, use solc's diagnostic code so the same code silences it with `--allow`
 - **Propagate guarantees**: Code paths that emit diagnostics should return `Result<(), ErrorGuaranteed>` instead of `bool` where practical, and pass the emitted guarantee to `mk_ty_err` when producing an error type
 - **Avoid unchecked guarantees**: Do not use `ErrorGuaranteed::new_unchecked()` when a real emitted diagnostic guarantee can be propagated
 - **Use subdiagnostics**: Add context via `note`, `help`, and `span_note`:
