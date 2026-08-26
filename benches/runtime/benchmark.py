@@ -206,6 +206,14 @@ def full_project_standard_json_input(project_file: str) -> str:
     return project_full_standard_json_input(project_file)
 
 
+def with_evm_version(input_text: str, evm_version: Optional[str]) -> str:
+    if evm_version is None:
+        return input_text
+    payload = json.loads(input_text)
+    payload.setdefault("settings", {})["evmVersion"] = evm_version
+    return json.dumps(payload)
+
+
 def project_standard_json_input(
     project_file: str, source: str, contract_name: str, settings_profile: str = ""
 ) -> str:
@@ -241,7 +249,10 @@ LONG_COMPILE_CUTOFF_SECONDS = 10.0
 
 
 def compile_case(
-    spec: CompilerSpec, test_case: TestCase, compile_repeats: int = 1
+    spec: CompilerSpec,
+    test_case: TestCase,
+    compile_repeats: int = 1,
+    evm_version: Optional[str] = None,
 ) -> Dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
@@ -275,6 +286,7 @@ def compile_case(
     else:
         input_text = standard_json_input(test_case)
         timeout = 120
+    input_text = with_evm_version(input_text, evm_version)
 
     result["input_fingerprint"] = hashlib.sha256(input_text.encode()).hexdigest()
     cmd = [str(spec.path), "--standard-json"]
@@ -1055,6 +1067,8 @@ def run_test_case(
     private_key: str,
     verbose: bool = False,
     compile_repeats: int = 1,
+    evm_version: Optional[str] = None,
+    reference_solc_path: Optional[Path] = None,
 ) -> Dict[str, object]:
     entry: Dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1067,11 +1081,13 @@ def run_test_case(
     if test_case.project_file is not None:
         entry["project"] = test_case.project
         entry["source"] = test_case.source
-    reference_solc = next((spec for spec in specs if spec.kind == "solc"), None)
+    reference_solc = next(
+        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
+    )
 
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case, compile_repeats)
+        compiled = compile_case(spec, test_case, compile_repeats, evm_version)
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
@@ -1169,7 +1185,7 @@ def run_test_case(
                 cold_results = run_cold_path_checks(
                     test_case,
                     address,
-                    reference_solc.path,
+                    reference_solc,
                     rpc_url,
                     private_key,
                 )
@@ -1223,6 +1239,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         type=int,
         default=1,
         help="Compile each test this many times and record the median time (default: 1)",
+    )
+    parser.add_argument(
+        "--evm-version",
+        help="Override Standard JSON `evmVersion` for every benchmark case",
+    )
+    parser.add_argument(
+        "--solar-only",
+        action="store_true",
+        help="Benchmark Solar without compiling each case with solc",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument("--projects", nargs="*", help="Subset of repository project names to run")
@@ -1290,10 +1315,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     solc_version, solc_version_error = binary_version(solc)
     solar_version, solar_version_error = binary_version(solar)
 
-    specs = [
-        CompilerSpec("solc", f"solc {solc_version}", solc, "solc"),
-        CompilerSpec("solar", f"solar {solar_version}", solar, "solar"),
-    ]
+    specs = []
+    if not args.solar_only:
+        specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
 
     if args.tests:
         missing = [test_id for test_id in args.tests if test_id not in test_map]
@@ -1329,8 +1354,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_color("anvil not found; install Foundry or omit --start-anvil", RED), file=sys.stderr)
         return 1
 
-    print(f"Using {specs[0].label}")
-    if solc_version_error:
+    if not args.solar_only:
+        print(f"Using solc {solc_version}")
+    if not args.solar_only and solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -1339,12 +1365,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ),
             file=sys.stderr,
         )
-    print(f"Using {specs[1].label}")
+    print(f"Using solar {solar_version}")
     if solar_version_error:
         print(_color(f"Warning: `solar --version` failed: {solar_version_error}", YELLOW), file=sys.stderr)
     if skipped:
         skipped_ids = ", ".join(test.test_id for test in skipped)
         print(_color(f"Skipping {len(skipped)} incompatible tests for solc {solc_version}: {skipped_ids}", YELLOW))
+    if args.evm_version:
+        print(f"Forcing EVM version {args.evm_version}")
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -1373,6 +1401,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     args.private_key,
                     args.verbose,
                     args.compile_repeats,
+                    args.evm_version,
+                    solc,
                 )
             )
         if current_suite is not None and suite_started is not None:
@@ -1410,6 +1440,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     output = Path(args.output) if args.output else RESULT_ROOT / "solar_latest.json"
     document = {
         "format_version": 1,
+        "evm_version_override": args.evm_version,
         "timings": timings,
         "results": results,
     }
