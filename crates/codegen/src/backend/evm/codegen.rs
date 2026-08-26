@@ -746,8 +746,8 @@ impl GlobalStackPlan {
 }
 
 impl StackPhiPlan {
-    fn analyze(func: &Function) -> Self {
-        StackPhiPlanner::new(func).plan()
+    fn analyze(func: &Function, liveness: &Liveness) -> Self {
+        StackPhiPlanner::new(func, liveness).plan()
     }
 
     fn edge_fits(edge: &StackPhiEdge, values: &[ValueId]) -> bool {
@@ -844,13 +844,14 @@ impl StackPhiPlan {
 
 struct StackPhiPlanner<'a> {
     func: &'a Function,
+    liveness: &'a Liveness,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
     definitions: IndexVec<ValueId, Option<BlockId>>,
 }
 
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function) -> Self {
+    fn new(func: &'a Function, liveness: &'a Liveness) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -863,7 +864,8 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner = Self { func, loops, header_results: FxHashMap::default(), definitions };
+        let mut planner =
+            Self { func, liveness, loops, header_results: FxHashMap::default(), definitions };
         planner.collect_header_results();
         planner
     }
@@ -1100,7 +1102,9 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let mut carry_through = self.carry_through_values(loop_info);
-        if !has_branching_body {
+        if has_branching_body {
+            self.extend_live_across_exits(loop_info, &mut carry_through);
+        } else {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
@@ -1196,14 +1200,6 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let function_safe = self.func.blocks.iter().all(|block| {
-            block.instructions.iter().all(|&inst_id| {
-                !matches!(
-                    self.func.inst(inst_id).kind,
-                    InstKind::CalldataCopy(_, _, _) | InstKind::SLoad(_) | InstKind::SStore(_, _)
-                )
-            })
-        });
         let branch_shapes_safe = loop_info
             .blocks
             .iter()
@@ -1221,17 +1217,17 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.is_noreturn_block(*else_block))
                     || self.branch_phi_shape_is_valid(loop_info, *then_block, *else_block)
             });
-        function_safe
-            && branch_shapes_safe
-            && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
     }
 
     fn is_noreturn_block(&self, block_id: BlockId) -> bool {
-        self.func.blocks[block_id].instructions.is_empty()
-            && matches!(
-                self.func.blocks[block_id].terminator.as_ref(),
-                Some(Terminator::TailCall { args, .. }) if args.is_empty()
-            )
+        match self.func.blocks[block_id].terminator.as_ref() {
+            Some(
+                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
+            ) => true,
+            Some(Terminator::TailCall { args, .. }) => args.is_empty(),
+            _ => false,
+        }
     }
 
     fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
@@ -1337,6 +1333,21 @@ impl<'a> StackPhiPlanner<'a> {
             }
             if let Some(term) = &block.terminator {
                 for value in term.operands() {
+                    self.push_live_through_value(loop_info, value, values);
+                }
+            }
+        }
+    }
+
+    fn extend_live_across_exits(&self, loop_info: &Loop, values: &mut Vec<ValueId>) {
+        for block_id in &loop_info.blocks {
+            let Some(terminator) = &self.func.blocks[block_id].terminator else { continue };
+            for successor in terminator
+                .successors()
+                .into_iter()
+                .filter(|successor| !loop_info.blocks.contains(*successor))
+            {
+                for value in self.liveness.live_in(successor) {
                     self.push_live_through_value(loop_info, value, values);
                 }
             }
@@ -2647,7 +2658,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // plan without a phi. Avoid that analysis for the overwhelmingly
         // common phi-free function.
         let mut stack_phi_plan =
-            if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
+            if has_phis { StackPhiPlan::analyze(func, liveness) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let mut global_stack_plan = resident_stack_plan
             .clone()
@@ -6155,6 +6166,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// per candidate made the search quadratic on large functions.
     fn resident_search_context(
         func: &Function,
+        liveness: &Liveness,
         values: &[ValueId],
         has_phis: bool,
     ) -> ResidentSearchContext {
@@ -6172,7 +6184,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         ResidentSearchContext {
-            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func)),
+            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func, liveness)),
             cfg: CfgInfo::new(func),
             value_uses,
         }
@@ -6354,7 +6366,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, has_phis);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -6526,7 +6538,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, has_phis);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -6705,7 +6717,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let context = Self::resident_search_context(func, &values, has_phis);
+                let context = Self::resident_search_context(func, liveness, &values, has_phis);
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,

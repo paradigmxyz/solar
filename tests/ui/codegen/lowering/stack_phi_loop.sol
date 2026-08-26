@@ -2,6 +2,8 @@
 //@ filecheck:
 
 contract StackPhiLoop {
+    uint256 private stored;
+
     // CHECK-LABEL: @module runtime
     // CHECK: push 0x50d1f082
     // CHECK: push 0x71b76bb2
@@ -43,5 +45,14 @@ contract StackPhiLoop {
             }
         }
         return acc;
+    }
+
+    function storeAfterLoop(uint256 a, uint256 b, uint256 iterations) public {
+        uint256 result = a;
+        for (uint256 i = 0; i < iterations; ++i) {
+            result = (result * b + a) / 2;
+            result = result % 1_000_000 + 1;
+        }
+        stored = result;
     }
 }
