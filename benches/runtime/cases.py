@@ -5,12 +5,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
 
 from common import PROJECTS_ROOT, TESTDATA_ROOT
-
 
 DEFAULT_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 DEFAULT_SPENDER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
@@ -44,19 +43,19 @@ class TestCase:
     test_id: str
     description: str
     contract_name: str
-    test_calls: Sequence[Tuple[str, Sequence[str]]] = field(default_factory=tuple)
-    source_code: Optional[str] = None
+    test_calls: Sequence[tuple[str, Sequence[str]]] = field(default_factory=tuple)
+    source_code: str | None = None
     source_name: str = ""
     project: str = ""
-    project_file: Optional[str] = None
+    project_file: str | None = None
     settings_profile: str = ""
     source: str = ""
     gas_calls: Sequence[GasCall] = field(default_factory=tuple)
     constructor_args: Sequence[str] = field(default_factory=tuple)
-    constructor_sig: Optional[str] = None
+    constructor_sig: str | None = None
     runtime_checks: Sequence[RuntimeCheck] = field(default_factory=tuple)
-    min_solc: Optional[str] = None
-    max_solc: Optional[str] = None
+    min_solc: str | None = None
+    max_solc: str | None = None
     suite: str = "micro"
     # Compile every contract in the project input instead of one selected
     # contract. Compile-time only: no bytecode is extracted, so size, gas,
@@ -158,15 +157,39 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("symbol", "symbol()(string)"),
             RuntimeCheck("decimals", "decimals()(uint8)"),
             RuntimeCheck("balance", "balanceOf(address)(uint256)", (DEFAULT_SENDER,)),
-            RuntimeCheck("spender-balance", "balanceOf(address)(uint256)", (DEFAULT_SPENDER,)),
-            RuntimeCheck("third-balance", "balanceOf(address)(uint256)", (DEFAULT_THIRD,)),
-            RuntimeCheck("fourth-balance", "balanceOf(address)(uint256)", (DEFAULT_FOURTH,)),
-            RuntimeCheck("zero-balance", "balanceOf(address)(uint256)", (ZERO_ADDRESS,)),
+            RuntimeCheck(
+                "spender-balance", "balanceOf(address)(uint256)", (DEFAULT_SPENDER,)
+            ),
+            RuntimeCheck(
+                "third-balance", "balanceOf(address)(uint256)", (DEFAULT_THIRD,)
+            ),
+            RuntimeCheck(
+                "fourth-balance", "balanceOf(address)(uint256)", (DEFAULT_FOURTH,)
+            ),
+            RuntimeCheck(
+                "zero-balance", "balanceOf(address)(uint256)", (ZERO_ADDRESS,)
+            ),
             RuntimeCheck("supply", "totalSupply()(uint256)"),
-            RuntimeCheck("allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_SPENDER)),
-            RuntimeCheck("third-allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_THIRD)),
-            RuntimeCheck("fourth-allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_FOURTH)),
-            RuntimeCheck("reverse-allowance", "allowance(address,address)(uint256)", (DEFAULT_SPENDER, DEFAULT_SENDER)),
+            RuntimeCheck(
+                "allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_SPENDER),
+            ),
+            RuntimeCheck(
+                "third-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_THIRD),
+            ),
+            RuntimeCheck(
+                "fourth-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_FOURTH),
+            ),
+            RuntimeCheck(
+                "reverse-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SPENDER, DEFAULT_SENDER),
+            ),
         ),
     ),
     TestCase(
@@ -191,18 +214,32 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("duration", "duration()(uint256)"),
             RuntimeCheck("end", "end()(uint256)"),
             RuntimeCheck("released", "released()(uint256)"),
-            RuntimeCheck("released-token", "released(address)(uint256)", (DEFAULT_SPENDER,)),
+            RuntimeCheck(
+                "released-token", "released(address)(uint256)", (DEFAULT_SPENDER,)
+            ),
             RuntimeCheck("releasable", "releasable()(uint256)"),
-            RuntimeCheck("vested-before-start", "vestedAmount(uint64)(uint256)", ("999",)),
+            RuntimeCheck(
+                "vested-before-start", "vestedAmount(uint64)(uint256)", ("999",)
+            ),
             RuntimeCheck("vested-at-start", "vestedAmount(uint64)(uint256)", ("1000",)),
-            RuntimeCheck("vested-after-start", "vestedAmount(uint64)(uint256)", ("1001",)),
+            RuntimeCheck(
+                "vested-after-start", "vestedAmount(uint64)(uint256)", ("1001",)
+            ),
             RuntimeCheck("vested-quarter", "vestedAmount(uint64)(uint256)", ("1025",)),
             RuntimeCheck("vested-half", "vestedAmount(uint64)(uint256)", ("1050",)),
-            RuntimeCheck("vested-three-quarter", "vestedAmount(uint64)(uint256)", ("1075",)),
-            RuntimeCheck("vested-before-end", "vestedAmount(uint64)(uint256)", ("1099",)),
+            RuntimeCheck(
+                "vested-three-quarter", "vestedAmount(uint64)(uint256)", ("1075",)
+            ),
+            RuntimeCheck(
+                "vested-before-end", "vestedAmount(uint64)(uint256)", ("1099",)
+            ),
             RuntimeCheck("vested-end", "vestedAmount(uint64)(uint256)", ("1100",)),
-            RuntimeCheck("vested-after-end", "vestedAmount(uint64)(uint256)", ("1101",)),
-            RuntimeCheck("vested-far-future", "vestedAmount(uint64)(uint256)", ("999999",)),
+            RuntimeCheck(
+                "vested-after-end", "vestedAmount(uint64)(uint256)", ("1101",)
+            ),
+            RuntimeCheck(
+                "vested-far-future", "vestedAmount(uint64)(uint256)", ("999999",)
+            ),
         ),
     ),
     TestCase(
@@ -214,7 +251,12 @@ TEST_CASES: Sequence[TestCase] = (
         contract_name="OneStepProofEntry",
         suite="repository",
         settings_profile="runtime",
-        constructor_args=(DEFAULT_SENDER, DEFAULT_SPENDER, DEFAULT_THIRD, DEFAULT_FOURTH),
+        constructor_args=(
+            DEFAULT_SENDER,
+            DEFAULT_SPENDER,
+            DEFAULT_THIRD,
+            DEFAULT_FOURTH,
+        ),
         constructor_sig="constructor(address,address,address,address)",
         test_calls=(
             ("prover0()", ()),
@@ -285,21 +327,60 @@ TEST_CASES: Sequence[TestCase] = (
         settings_profile="runtime",
         test_calls=(
             ("POOL()", ()),
-            ("encodeSupplyParams(address,uint256,uint16)", (DEFAULT_SPENDER, "123456", "7")),
+            (
+                "encodeSupplyParams(address,uint256,uint16)",
+                (DEFAULT_SPENDER, "123456", "7"),
+            ),
             ("encodeWithdrawParams(address,uint256)", (DEFAULT_THIRD, MAX_UINT256)),
-            ("encodeBorrowParams(address,uint256,uint256,uint16)", (DEFAULT_SPENDER, "2222", "2", "9")),
-            ("encodeSetUserUseReserveAsCollateral(address,bool)", (DEFAULT_THIRD, "true")),
-            ("encodeRepayWithATokensParams(address,uint256,uint256)", (DEFAULT_FOURTH, MAX_UINT256, "2")),
+            (
+                "encodeBorrowParams(address,uint256,uint256,uint16)",
+                (DEFAULT_SPENDER, "2222", "2", "9"),
+            ),
+            (
+                "encodeSetUserUseReserveAsCollateral(address,bool)",
+                (DEFAULT_THIRD, "true"),
+            ),
+            (
+                "encodeRepayWithATokensParams(address,uint256,uint256)",
+                (DEFAULT_FOURTH, MAX_UINT256, "2"),
+            ),
             ("encodeSwapBorrowRateMode(address,uint256)", (DEFAULT_SENDER, "1")),
-            ("encodeRebalanceStableBorrowRate(address,address)", (DEFAULT_SPENDER, DEFAULT_THIRD)),
+            (
+                "encodeRebalanceStableBorrowRate(address,address)",
+                (DEFAULT_SPENDER, DEFAULT_THIRD),
+            ),
         ),
         runtime_checks=(
-            RuntimeCheck("supply", "encodeSupplyParams(address,uint256,uint16)(bytes32)", (DEFAULT_SPENDER, "123456", "7")),
-            RuntimeCheck("supply-zero", "encodeSupplyParams(address,uint256,uint16)(bytes32)", (DEFAULT_SENDER, "0", "0")),
-            RuntimeCheck("supply-max-u128", "encodeSupplyParams(address,uint256,uint16)(bytes32)", (DEFAULT_FOURTH, MAX_UINT128, "65535")),
-            RuntimeCheck("withdraw-zero", "encodeWithdrawParams(address,uint256)(bytes32)", (DEFAULT_SENDER, "0")),
-            RuntimeCheck("withdraw-small", "encodeWithdrawParams(address,uint256)(bytes32)", (DEFAULT_SENDER, "1")),
-            RuntimeCheck("withdraw-max", "encodeWithdrawParams(address,uint256)(bytes32)", (DEFAULT_THIRD, MAX_UINT256)),
+            RuntimeCheck(
+                "supply",
+                "encodeSupplyParams(address,uint256,uint16)(bytes32)",
+                (DEFAULT_SPENDER, "123456", "7"),
+            ),
+            RuntimeCheck(
+                "supply-zero",
+                "encodeSupplyParams(address,uint256,uint16)(bytes32)",
+                (DEFAULT_SENDER, "0", "0"),
+            ),
+            RuntimeCheck(
+                "supply-max-u128",
+                "encodeSupplyParams(address,uint256,uint16)(bytes32)",
+                (DEFAULT_FOURTH, MAX_UINT128, "65535"),
+            ),
+            RuntimeCheck(
+                "withdraw-zero",
+                "encodeWithdrawParams(address,uint256)(bytes32)",
+                (DEFAULT_SENDER, "0"),
+            ),
+            RuntimeCheck(
+                "withdraw-small",
+                "encodeWithdrawParams(address,uint256)(bytes32)",
+                (DEFAULT_SENDER, "1"),
+            ),
+            RuntimeCheck(
+                "withdraw-max",
+                "encodeWithdrawParams(address,uint256)(bytes32)",
+                (DEFAULT_THIRD, MAX_UINT256),
+            ),
             RuntimeCheck(
                 "borrow",
                 "encodeBorrowParams(address,uint256,uint256,uint16)(bytes32)",
@@ -435,9 +516,13 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("lookup-second", "lookup(string)(address)", ("second",)),
             RuntimeCheck("lookup-untouched", "lookup(string)(address)", ("untouched",)),
             RuntimeCheck("lookup-empty", "lookup(string)(address)", ("",)),
-            RuntimeCheck("lookup-long", "lookup(string)(address)", ("long-subdomain-name",)),
+            RuntimeCheck(
+                "lookup-long", "lookup(string)(address)", ("long-subdomain-name",)
+            ),
             RuntimeCheck("lookup-numeric", "lookup(string)(address)", ("numeric123",)),
-            RuntimeCheck("lookup-underscore", "lookup(string)(address)", ("under_score",)),
+            RuntimeCheck(
+                "lookup-underscore", "lookup(string)(address)", ("under_score",)
+            ),
             RuntimeCheck("missing", "lookup(string)(address)", ("missing",)),
         ),
     ),
@@ -464,18 +549,46 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("fee-fourth", "fees(address)(uint256)", (DEFAULT_FOURTH,)),
             RuntimeCheck("fee-sender", "fees(address)(uint256)", (DEFAULT_SENDER,)),
             RuntimeCheck("fee-missing", "fees(address)(uint256)", (ZERO_ADDRESS,)),
-            RuntimeCheck("computed-fee-zero", "getFee(address,uint256)(uint256)", (DEFAULT_SPENDER, "0")),
-            RuntimeCheck("computed-fee-spender", "getFee(address,uint256)(uint256)", (DEFAULT_SPENDER, "10000")),
-            RuntimeCheck("computed-fee-spender-small", "getFee(address,uint256)(uint256)", (DEFAULT_SPENDER, "1")),
+            RuntimeCheck(
+                "computed-fee-zero",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_SPENDER, "0"),
+            ),
+            RuntimeCheck(
+                "computed-fee-spender",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_SPENDER, "10000"),
+            ),
+            RuntimeCheck(
+                "computed-fee-spender-small",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_SPENDER, "1"),
+            ),
             RuntimeCheck(
                 "computed-fee-spender-rounded",
                 "getFee(address,uint256)(uint256)",
                 (DEFAULT_SPENDER, "33333"),
             ),
-            RuntimeCheck("computed-fee-third", "getFee(address,uint256)(uint256)", (DEFAULT_THIRD, "12345")),
-            RuntimeCheck("computed-fee-fourth", "getFee(address,uint256)(uint256)", (DEFAULT_FOURTH, "12345")),
-            RuntimeCheck("computed-fee-sender", "getFee(address,uint256)(uint256)", (DEFAULT_SENDER, "999999")),
-            RuntimeCheck("computed-fee-missing", "getFee(address,uint256)(uint256)", (ZERO_ADDRESS, "10000")),
+            RuntimeCheck(
+                "computed-fee-third",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_THIRD, "12345"),
+            ),
+            RuntimeCheck(
+                "computed-fee-fourth",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_FOURTH, "12345"),
+            ),
+            RuntimeCheck(
+                "computed-fee-sender",
+                "getFee(address,uint256)(uint256)",
+                (DEFAULT_SENDER, "999999"),
+            ),
+            RuntimeCheck(
+                "computed-fee-missing",
+                "getFee(address,uint256)(uint256)",
+                (ZERO_ADDRESS, "10000"),
+            ),
         ),
     ),
     TestCase(
@@ -501,10 +614,26 @@ TEST_CASES: Sequence[TestCase] = (
             ),
         ),
         runtime_checks=(
-            RuntimeCheck("empty-vault-zero", "getVault(uint256)(address,uint256,uint256,address)", ("0",)),
-            RuntimeCheck("empty-vault-one", "getVault(uint256)(address,uint256,uint256,address)", ("1",)),
-            RuntimeCheck("empty-vault-forty-two", "getVault(uint256)(address,uint256,uint256,address)", ("42",)),
-            RuntimeCheck("empty-vault-max", "getVault(uint256)(address,uint256,uint256,address)", (MAX_UINT256,)),
+            RuntimeCheck(
+                "empty-vault-zero",
+                "getVault(uint256)(address,uint256,uint256,address)",
+                ("0",),
+            ),
+            RuntimeCheck(
+                "empty-vault-one",
+                "getVault(uint256)(address,uint256,uint256,address)",
+                ("1",),
+            ),
+            RuntimeCheck(
+                "empty-vault-forty-two",
+                "getVault(uint256)(address,uint256,uint256,address)",
+                ("42",),
+            ),
+            RuntimeCheck(
+                "empty-vault-max",
+                "getVault(uint256)(address,uint256,uint256,address)",
+                (MAX_UINT256,),
+            ),
             RuntimeCheck(
                 "erc721-receiver-empty-data",
                 "onERC721Received(address,address,uint256,bytes)(bytes4)",
@@ -549,16 +678,48 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("decimals", "decimals()(uint8)"),
             RuntimeCheck("total-supply", "totalSupply()(uint256)"),
             RuntimeCheck("balance", "balanceOf(address)(uint256)", (DEFAULT_SENDER,)),
-            RuntimeCheck("spender-balance", "balanceOf(address)(uint256)", (DEFAULT_SPENDER,)),
-            RuntimeCheck("allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_SPENDER)),
-            RuntimeCheck("third-allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_THIRD)),
-            RuntimeCheck("fourth-allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, DEFAULT_FOURTH)),
-            RuntimeCheck("zero-allowance", "allowance(address,address)(uint256)", (DEFAULT_SENDER, ZERO_ADDRESS)),
-            RuntimeCheck("reverse-allowance", "allowance(address,address)(uint256)", (DEFAULT_SPENDER, DEFAULT_SENDER)),
-            RuntimeCheck("third-reverse-allowance", "allowance(address,address)(uint256)", (DEFAULT_THIRD, DEFAULT_SENDER)),
-            RuntimeCheck("fourth-reverse-allowance", "allowance(address,address)(uint256)", (DEFAULT_FOURTH, DEFAULT_SENDER)),
+            RuntimeCheck(
+                "spender-balance", "balanceOf(address)(uint256)", (DEFAULT_SPENDER,)
+            ),
+            RuntimeCheck(
+                "allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_SPENDER),
+            ),
+            RuntimeCheck(
+                "third-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_THIRD),
+            ),
+            RuntimeCheck(
+                "fourth-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, DEFAULT_FOURTH),
+            ),
+            RuntimeCheck(
+                "zero-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SENDER, ZERO_ADDRESS),
+            ),
+            RuntimeCheck(
+                "reverse-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_SPENDER, DEFAULT_SENDER),
+            ),
+            RuntimeCheck(
+                "third-reverse-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_THIRD, DEFAULT_SENDER),
+            ),
+            RuntimeCheck(
+                "fourth-reverse-allowance",
+                "allowance(address,address)(uint256)",
+                (DEFAULT_FOURTH, DEFAULT_SENDER),
+            ),
             RuntimeCheck("nonce", "nonces(address)(uint256)", (DEFAULT_SENDER,)),
-            RuntimeCheck("spender-nonce", "nonces(address)(uint256)", (DEFAULT_SPENDER,)),
+            RuntimeCheck(
+                "spender-nonce", "nonces(address)(uint256)", (DEFAULT_SPENDER,)
+            ),
             RuntimeCheck("zero-nonce", "nonces(address)(uint256)", (ZERO_ADDRESS,)),
             RuntimeCheck("permit-typehash", "PERMIT_TYPEHASH()(bytes32)"),
         ),
@@ -650,7 +811,9 @@ TEST_CASES: Sequence[TestCase] = (
                 ("the quick brown fox jumps over the lazy dog",),
                 repeat=3,
             ),
-            GasCall("small-string", "toSmallString(string)", ("short string",), repeat=3),
+            GasCall(
+                "small-string", "toSmallString(string)", ("short string",), repeat=3
+            ),
             GasCall("replace-medium", "testStringReplaceMedium()", repeat=3),
             GasCall("replace-long", "testStringReplaceLong()", repeat=3),
         ),
@@ -662,7 +825,9 @@ TEST_CASES: Sequence[TestCase] = (
                 "returnString(string)(string)",
                 ("the quick brown fox jumps over the lazy dog",),
             ),
-            RuntimeCheck("small-string", "toSmallString(string)(bytes32)", ("short string",)),
+            RuntimeCheck(
+                "small-string", "toSmallString(string)(bytes32)", ("short string",)
+            ),
         ),
         suite="large",
     ),
@@ -750,7 +915,7 @@ TEST_CASES: Sequence[TestCase] = (
 )
 
 
-HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
+HOT_GAS_CALLS: dict[str, Sequence[GasCall]] = {
     "factorial": (
         GasCall("factorial-5", "computeFactorial(uint256)", ("5",)),
         GasCall("factorial-10", "computeFactorial(uint256)", ("10",)),
@@ -780,12 +945,20 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
     "openzeppelin-erc20-mock": (
         GasCall("mint-sender-1000", "mint(address,uint256)", (DEFAULT_SENDER, "1000")),
         GasCall("mint-spender-250", "mint(address,uint256)", (DEFAULT_SPENDER, "250")),
-        GasCall("transfer-third-125", "transfer(address,uint256)", (DEFAULT_THIRD, "125")),
-        GasCall("transfer-fourth-25", "transfer(address,uint256)", (DEFAULT_FOURTH, "25")),
-        GasCall("approve-spender-250", "approve(address,uint256)", (DEFAULT_SPENDER, "250")),
+        GasCall(
+            "transfer-third-125", "transfer(address,uint256)", (DEFAULT_THIRD, "125")
+        ),
+        GasCall(
+            "transfer-fourth-25", "transfer(address,uint256)", (DEFAULT_FOURTH, "25")
+        ),
+        GasCall(
+            "approve-spender-250", "approve(address,uint256)", (DEFAULT_SPENDER, "250")
+        ),
         GasCall("approve-third-77", "approve(address,uint256)", (DEFAULT_THIRD, "77")),
         GasCall("burn-sender-400", "burn(address,uint256)", (DEFAULT_SENDER, "400")),
-        GasCall("transfer-spender-50", "transfer(address,uint256)", (DEFAULT_SPENDER, "50")),
+        GasCall(
+            "transfer-spender-50", "transfer(address,uint256)", (DEFAULT_SPENDER, "50")
+        ),
     ),
     "openzeppelin-vesting-wallet": (
         GasCall("vested-before-start", "vestedAmount(uint64)", ("999",), repeat=2),
@@ -823,25 +996,86 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
         GasCall(
             "start-machine-mixed",
             "getStartMachineHash(bytes32,bytes32)",
-            (MIXED_BYTES32, "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            (
+                MIXED_BYTES32,
+                "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
             repeat=2,
         ),
     ),
     "aave-l2-encoder": (
         GasCall("pool", "POOL()", repeat=2),
-        GasCall("supply", "encodeSupplyParams(address,uint256,uint16)", (DEFAULT_SPENDER, "123456", "7"), repeat=2),
-        GasCall("supply-zero", "encodeSupplyParams(address,uint256,uint16)", (DEFAULT_SENDER, "0", "0"), repeat=2),
-        GasCall("supply-max", "encodeSupplyParams(address,uint256,uint16)", (DEFAULT_FOURTH, MAX_UINT128, "65535")),
-        GasCall("withdraw-zero", "encodeWithdrawParams(address,uint256)", (DEFAULT_SENDER, "0")),
-        GasCall("withdraw-max", "encodeWithdrawParams(address,uint256)", (DEFAULT_THIRD, MAX_UINT256), repeat=2),
-        GasCall("borrow", "encodeBorrowParams(address,uint256,uint256,uint16)", (DEFAULT_SPENDER, "2222", "2", "9"), repeat=2),
-        GasCall("borrow-zero", "encodeBorrowParams(address,uint256,uint256,uint16)", (DEFAULT_THIRD, "0", "1", "0")),
-        GasCall("repay", "encodeRepayParams(address,uint256,uint256)", (DEFAULT_THIRD, "3333", "1"), repeat=2),
-        GasCall("repay-max", "encodeRepayParams(address,uint256,uint256)", (DEFAULT_FOURTH, MAX_UINT256, "2")),
-        GasCall("repay-atokens", "encodeRepayWithATokensParams(address,uint256,uint256)", (DEFAULT_FOURTH, MAX_UINT256, "2")),
-        GasCall("swap-rate", "encodeSwapBorrowRateMode(address,uint256)", (DEFAULT_SENDER, "1"), repeat=2),
-        GasCall("collateral-true", "encodeSetUserUseReserveAsCollateral(address,bool)", (DEFAULT_THIRD, "true")),
-        GasCall("collateral-false", "encodeSetUserUseReserveAsCollateral(address,bool)", (DEFAULT_THIRD, "false")),
+        GasCall(
+            "supply",
+            "encodeSupplyParams(address,uint256,uint16)",
+            (DEFAULT_SPENDER, "123456", "7"),
+            repeat=2,
+        ),
+        GasCall(
+            "supply-zero",
+            "encodeSupplyParams(address,uint256,uint16)",
+            (DEFAULT_SENDER, "0", "0"),
+            repeat=2,
+        ),
+        GasCall(
+            "supply-max",
+            "encodeSupplyParams(address,uint256,uint16)",
+            (DEFAULT_FOURTH, MAX_UINT128, "65535"),
+        ),
+        GasCall(
+            "withdraw-zero",
+            "encodeWithdrawParams(address,uint256)",
+            (DEFAULT_SENDER, "0"),
+        ),
+        GasCall(
+            "withdraw-max",
+            "encodeWithdrawParams(address,uint256)",
+            (DEFAULT_THIRD, MAX_UINT256),
+            repeat=2,
+        ),
+        GasCall(
+            "borrow",
+            "encodeBorrowParams(address,uint256,uint256,uint16)",
+            (DEFAULT_SPENDER, "2222", "2", "9"),
+            repeat=2,
+        ),
+        GasCall(
+            "borrow-zero",
+            "encodeBorrowParams(address,uint256,uint256,uint16)",
+            (DEFAULT_THIRD, "0", "1", "0"),
+        ),
+        GasCall(
+            "repay",
+            "encodeRepayParams(address,uint256,uint256)",
+            (DEFAULT_THIRD, "3333", "1"),
+            repeat=2,
+        ),
+        GasCall(
+            "repay-max",
+            "encodeRepayParams(address,uint256,uint256)",
+            (DEFAULT_FOURTH, MAX_UINT256, "2"),
+        ),
+        GasCall(
+            "repay-atokens",
+            "encodeRepayWithATokensParams(address,uint256,uint256)",
+            (DEFAULT_FOURTH, MAX_UINT256, "2"),
+        ),
+        GasCall(
+            "swap-rate",
+            "encodeSwapBorrowRateMode(address,uint256)",
+            (DEFAULT_SENDER, "1"),
+            repeat=2,
+        ),
+        GasCall(
+            "collateral-true",
+            "encodeSetUserUseReserveAsCollateral(address,bool)",
+            (DEFAULT_THIRD, "true"),
+        ),
+        GasCall(
+            "collateral-false",
+            "encodeSetUserUseReserveAsCollateral(address,bool)",
+            (DEFAULT_THIRD, "false"),
+        ),
         GasCall(
             "liquidation",
             "encodeLiquidationCall(address,address,address,uint256,bool)",
@@ -855,29 +1089,69 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
     ),
     "lilweb3-ens": (
         GasCall("register-testname", "register(string)", ("testname",)),
-        GasCall("update-testname", "update(string,address)", ("testname", DEFAULT_SPENDER)),
+        GasCall(
+            "update-testname", "update(string,address)", ("testname", DEFAULT_SPENDER)
+        ),
         GasCall("register-second", "register(string)", ("second",)),
         GasCall("update-second", "update(string,address)", ("second", DEFAULT_THIRD)),
         GasCall("register-untouched", "register(string)", ("untouched",)),
         GasCall("register-empty", "register(string)", ("",)),
         GasCall("register-long", "register(string)", ("long-subdomain-name",)),
-        GasCall("update-long", "update(string,address)", ("long-subdomain-name", DEFAULT_FOURTH)),
+        GasCall(
+            "update-long",
+            "update(string,address)",
+            ("long-subdomain-name", DEFAULT_FOURTH),
+        ),
         GasCall("register-numeric", "register(string)", ("numeric123",)),
         GasCall("register-underscore", "register(string)", ("under_score",)),
-        GasCall("update-underscore", "update(string,address)", ("under_score", DEFAULT_SPENDER)),
-        GasCall("register-very-long", "register(string)", ("very-long-subdomain-name-with-more-bytes",)),
+        GasCall(
+            "update-underscore",
+            "update(string,address)",
+            ("under_score", DEFAULT_SPENDER),
+        ),
+        GasCall(
+            "register-very-long",
+            "register(string)",
+            ("very-long-subdomain-name-with-more-bytes",),
+        ),
     ),
     "lilweb3-flashloan": (
         GasCall("manager", "manager()", repeat=2),
-        GasCall("set-fee-spender", "setFees(address,uint256)", (DEFAULT_SPENDER, "250")),
+        GasCall(
+            "set-fee-spender", "setFees(address,uint256)", (DEFAULT_SPENDER, "250")
+        ),
         GasCall("set-fee-third", "setFees(address,uint256)", (DEFAULT_THIRD, "1000")),
-        GasCall("set-fee-fourth", "setFees(address,uint256)", (DEFAULT_FOURTH, "10000")),
+        GasCall(
+            "set-fee-fourth", "setFees(address,uint256)", (DEFAULT_FOURTH, "10000")
+        ),
         GasCall("set-fee-sender", "setFees(address,uint256)", (DEFAULT_SENDER, "1")),
-        GasCall("get-fee-zero", "getFee(address,uint256)", (DEFAULT_SPENDER, "0"), repeat=2),
-        GasCall("get-fee-spender", "getFee(address,uint256)", (DEFAULT_SPENDER, "10000"), repeat=2),
-        GasCall("get-fee-rounded", "getFee(address,uint256)", (DEFAULT_SPENDER, "33333"), repeat=2),
-        GasCall("get-fee-third", "getFee(address,uint256)", (DEFAULT_THIRD, "12345"), repeat=2),
-        GasCall("get-fee-fourth", "getFee(address,uint256)", (DEFAULT_FOURTH, "12345"), repeat=2),
+        GasCall(
+            "get-fee-zero", "getFee(address,uint256)", (DEFAULT_SPENDER, "0"), repeat=2
+        ),
+        GasCall(
+            "get-fee-spender",
+            "getFee(address,uint256)",
+            (DEFAULT_SPENDER, "10000"),
+            repeat=2,
+        ),
+        GasCall(
+            "get-fee-rounded",
+            "getFee(address,uint256)",
+            (DEFAULT_SPENDER, "33333"),
+            repeat=2,
+        ),
+        GasCall(
+            "get-fee-third",
+            "getFee(address,uint256)",
+            (DEFAULT_THIRD, "12345"),
+            repeat=2,
+        ),
+        GasCall(
+            "get-fee-fourth",
+            "getFee(address,uint256)",
+            (DEFAULT_FOURTH, "12345"),
+            repeat=2,
+        ),
         GasCall("get-fee-missing", "getFee(address,uint256)", (ZERO_ADDRESS, "10000")),
     ),
     "lilweb3-fractional": (
@@ -885,23 +1159,77 @@ HOT_GAS_CALLS: Dict[str, Sequence[GasCall]] = {
         GasCall("get-vault-one", "getVault(uint256)", ("1",), repeat=2),
         GasCall("get-vault-42", "getVault(uint256)", ("42",), repeat=2),
         GasCall("get-vault-max", "getVault(uint256)", (MAX_UINT256,)),
-        GasCall("erc721-empty", "onERC721Received(address,address,uint256,bytes)", (DEFAULT_SENDER, DEFAULT_SPENDER, "7", "0x"), repeat=2),
-        GasCall("erc721-nonempty", "onERC721Received(address,address,uint256,bytes)", (DEFAULT_THIRD, DEFAULT_FOURTH, "42", "0x123456"), repeat=2),
-        GasCall("erc721-word", "onERC721Received(address,address,uint256,bytes)", (ZERO_ADDRESS, ZERO_ADDRESS, "0", "0x" + "11" * 32)),
+        GasCall(
+            "erc721-empty",
+            "onERC721Received(address,address,uint256,bytes)",
+            (DEFAULT_SENDER, DEFAULT_SPENDER, "7", "0x"),
+            repeat=2,
+        ),
+        GasCall(
+            "erc721-nonempty",
+            "onERC721Received(address,address,uint256,bytes)",
+            (DEFAULT_THIRD, DEFAULT_FOURTH, "42", "0x123456"),
+            repeat=2,
+        ),
+        GasCall(
+            "erc721-word",
+            "onERC721Received(address,address,uint256,bytes)",
+            (ZERO_ADDRESS, ZERO_ADDRESS, "0", "0x" + "11" * 32),
+        ),
     ),
     "maple-erc20": (
-        GasCall("approve-spender-100", "approve(address,uint256)", (DEFAULT_SPENDER, "100")),
-        GasCall("increase-spender-50", "increaseAllowance(address,uint256)", (DEFAULT_SPENDER, "50")),
-        GasCall("decrease-spender-20", "decreaseAllowance(address,uint256)", (DEFAULT_SPENDER, "20")),
-        GasCall("increase-spender-70", "increaseAllowance(address,uint256)", (DEFAULT_SPENDER, "70")),
-        GasCall("decrease-spender-30", "decreaseAllowance(address,uint256)", (DEFAULT_SPENDER, "30")),
+        GasCall(
+            "approve-spender-100", "approve(address,uint256)", (DEFAULT_SPENDER, "100")
+        ),
+        GasCall(
+            "increase-spender-50",
+            "increaseAllowance(address,uint256)",
+            (DEFAULT_SPENDER, "50"),
+        ),
+        GasCall(
+            "decrease-spender-20",
+            "decreaseAllowance(address,uint256)",
+            (DEFAULT_SPENDER, "20"),
+        ),
+        GasCall(
+            "increase-spender-70",
+            "increaseAllowance(address,uint256)",
+            (DEFAULT_SPENDER, "70"),
+        ),
+        GasCall(
+            "decrease-spender-30",
+            "decreaseAllowance(address,uint256)",
+            (DEFAULT_SPENDER, "30"),
+        ),
         GasCall("approve-third-77", "approve(address,uint256)", (DEFAULT_THIRD, "77")),
-        GasCall("increase-third-23", "increaseAllowance(address,uint256)", (DEFAULT_THIRD, "23")),
-        GasCall("decrease-third-20", "decreaseAllowance(address,uint256)", (DEFAULT_THIRD, "20")),
-        GasCall("approve-fourth-900", "approve(address,uint256)", (DEFAULT_FOURTH, "900")),
-        GasCall("increase-fourth-100", "increaseAllowance(address,uint256)", (DEFAULT_FOURTH, "100")),
-        GasCall("decrease-fourth-50", "decreaseAllowance(address,uint256)", (DEFAULT_FOURTH, "50")),
-        GasCall("approve-fourth-max", "approve(address,uint256)", (DEFAULT_FOURTH, MAX_UINT256)),
+        GasCall(
+            "increase-third-23",
+            "increaseAllowance(address,uint256)",
+            (DEFAULT_THIRD, "23"),
+        ),
+        GasCall(
+            "decrease-third-20",
+            "decreaseAllowance(address,uint256)",
+            (DEFAULT_THIRD, "20"),
+        ),
+        GasCall(
+            "approve-fourth-900", "approve(address,uint256)", (DEFAULT_FOURTH, "900")
+        ),
+        GasCall(
+            "increase-fourth-100",
+            "increaseAllowance(address,uint256)",
+            (DEFAULT_FOURTH, "100"),
+        ),
+        GasCall(
+            "decrease-fourth-50",
+            "decreaseAllowance(address,uint256)",
+            (DEFAULT_FOURTH, "50"),
+        ),
+        GasCall(
+            "approve-fourth-max",
+            "approve(address,uint256)",
+            (DEFAULT_FOURTH, MAX_UINT256),
+        ),
         GasCall("approve-zero-1", "approve(address,uint256)", (ZERO_ADDRESS, "1")),
     ),
 }
