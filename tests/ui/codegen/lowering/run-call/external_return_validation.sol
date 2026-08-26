@@ -6,6 +6,7 @@
 //@ run-call: ExternalReturnValidation::dirtyValue() => 0
 //@ run-call: ExternalReturnValidation::dirtyBool() => true
 //@ run-call: ExternalReturnValidation::dirtyStruct() => (0, true)
+//@ run-call-fail: ExternalReturnValidation::dirtyUnusedStructField()
 //@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) false => (0)
 //@ run-call: ExternalReturnValidation::dirtyStructBranch(bool) true => (1)
 //@ run-call: ExternalReturnValidation::distinctDynamicReturns() => 7
@@ -103,6 +104,19 @@ contract ExternalReturnValidation {
         assembly {
             mstore(pair, 0x100)
             mstore(add(pair, 0x20), 2)
+        }
+    }
+
+    function dirtyUnusedStructField() external view returns (uint8) {
+        Pair memory pair = this.dirtyUnusedStructFieldTarget();
+        return pair.value;
+    }
+
+    function dirtyUnusedStructFieldTarget() external pure returns (Pair memory) {
+        assembly {
+            mstore(0, 1)
+            mstore(0x20, 2)
+            return(0, 0x40)
         }
     }
 

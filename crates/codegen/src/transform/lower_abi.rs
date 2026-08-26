@@ -720,13 +720,12 @@ impl LowerAbiCx {
             };
             let data = builder.add_param(data_ty);
             builder.add_return(MirType::MemPtr);
-            let (base, length) = if raw_ptr {
-                (data, builder.imm_u64(layout.checked_head_size().expect("static ABI layout")))
-            } else {
-                (
+            let (base, length) = match raw_ptr {
+                true => (data, None),
+                false => (
                     builder.memory_object_data(data, MemoryObjectKind::Bytes),
-                    builder.memory_object_len(data, MemoryObjectKind::Bytes),
-                )
+                    Some(builder.memory_object_len(data, MemoryObjectKind::Bytes)),
+                ),
             };
             let mut current = builder.current_block();
             Self::validate_static_memory_tuple(
@@ -758,13 +757,15 @@ impl LowerAbiCx {
     fn validate_static_memory_tuple(
         builder: &mut FunctionBuilder<'_>,
         base: ValueId,
-        length: ValueId,
+        length: Option<ValueId>,
         layout: &AbiParamLayout,
         current: &mut BlockId,
         has_bitwise_shifting: bool,
     ) {
         let head_size = layout.checked_head_size().expect("static ABI layout");
-        Self::validate_memory_tuple_input(builder, base, length, head_size, current);
+        if let Some(length) = length {
+            Self::validate_memory_tuple_input(builder, base, length, head_size, current);
+        }
 
         let mut invalid = builder.imm_bool(false);
         let mut grouped = Vec::new();

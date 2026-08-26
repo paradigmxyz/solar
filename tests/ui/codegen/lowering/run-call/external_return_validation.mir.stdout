@@ -89,6 +89,38 @@ fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi
     ret v0
 }
 
+fn @dirtyUnusedStructField() -> u8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x38a62c0100000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = staticcall v1, v0, v3, v4, v5, 64
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 64
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = abi_decode [tuple<u8, bool>], v5
+    v10 = memory_object_load_field memorystruct<2>, v9, 0
+    v11 = and v10, 255
+    ret v11
+  bb3:
+    revert 0, 0
+}
+
+fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
 fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = internal_call @dirtyValueInternal, 1
