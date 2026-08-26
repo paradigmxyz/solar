@@ -4463,9 +4463,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// one word above them. This is a fallback, not a stack-depth limit: accessible arguments keep
     /// their ordinary stack convention and arbitrarily deep layouts spill through memory.
     fn materialize_deep_dynamic_call_args(&mut self, func: &Function, args: &[ValueId]) {
+        let stack_access_limit = self.stack_access_limit();
         for &arg in args {
             let Some(depth) = self.scheduler.stack.find(arg) else { continue };
-            if depth + 1 < MAX_STACK_ACCESS
+            if depth + 1 < stack_access_limit
                 || self.scheduler.reloadable_spill(arg).is_some()
                 || Self::is_rematerializable_value(func, arg)
             {
@@ -4473,7 +4474,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let slot = self.scheduler.spills.allocate(arg);
-            if depth >= MAX_STACK_ACCESS {
+            if depth >= stack_access_limit {
                 self.spill_deep_stack_value(func, arg, slot, depth);
             } else {
                 self.spill_accessible_stack_value(func, arg, slot, depth);
@@ -7183,7 +7184,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     panic!("stack-only value {value:?} was lost before memory materialization")
                 });
                 let slot = self.scheduler.spills.allocate(value);
-                if depth >= MAX_STACK_ACCESS {
+                if depth >= self.stack_access_limit() {
                     self.spill_deep_stack_value(func, value, slot, depth);
                 } else {
                     self.spill_accessible_stack_value(func, value, slot, depth);

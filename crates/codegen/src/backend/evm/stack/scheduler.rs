@@ -1057,41 +1057,37 @@ impl StackScheduler {
 
         let Some(&expected_top) = goal.first() else { return best };
         let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
-        for depths in [1..=max_swap.min(16), 17..=max_swap] {
-            for depth in depths.filter(|&depth| stack[depth] == Some(expected_top)) {
-                if stack[0] != stack[depth]
-                    && (matches!(optimization, OptimizationMode::Gas)
-                        || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
-                    && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
-                        if i == 0 {
-                            stack[depth]
-                        } else if i == depth {
-                            stack[0]
-                        } else {
-                            stack[i]
-                        }
-                    })
-                {
-                    consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
-                    break;
-                }
+        for depth in (1..=max_swap).filter(|&depth| stack[depth] == Some(expected_top)) {
+            if stack[0] != stack[depth]
+                && (matches!(optimization, OptimizationMode::Gas)
+                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                    if i == 0 {
+                        stack[depth]
+                    } else if i == depth {
+                        stack[0]
+                    } else {
+                        stack[i]
+                    }
+                })
+            {
+                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
+                break;
             }
         }
 
         let max_dup = stack.len().min(max_stack_access);
-        if let Some(depth) = stack[..max_dup].iter().position(|&slot| slot == Some(expected_top))
+        let duplicate = stack[..max_dup].iter().position(|&slot| slot == Some(expected_top));
+        let materialized = self.materialize_operand(expected_top, func);
+        let prepend_reaches_goal = (duplicate.is_some() || materialized.is_some())
             && Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
                 if i == 0 { Some(expected_top) } else { stack[i - 1] }
-            })
-        {
+            });
+        if prepend_reaches_goal && let Some(depth) = duplicate {
             consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
         }
 
-        if Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
-            if i == 0 { Some(expected_top) } else { stack[i - 1] }
-        }) && let Some(op @ ScheduledOp::PushImmediate(_)) =
-            self.materialize_operand(expected_top, func)
-        {
+        if prepend_reaches_goal && let Some(op @ ScheduledOp::PushImmediate(_)) = materialized {
             let accessible =
                 stack.iter().take(max_stack_access).any(|&slot| slot == Some(expected_top));
             if matches!(optimization, OptimizationMode::Gas) || !accessible {

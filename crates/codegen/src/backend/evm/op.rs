@@ -484,16 +484,6 @@ pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
     }
 }
 
-/// Returns whether a known opcode can be decoded for `evm_version`.
-#[must_use]
-pub(crate) fn is_decodable(opcode: u8, evm_version: EvmVersion) -> bool {
-    match opcode {
-        SLOTNUM => evm_version.has_slot_num(),
-        DUPN | SWAPN | EXCHANGE => evm_version.has_extended_stack_ops(),
-        _ => mnemonic(opcode).is_some(),
-    }
-}
-
 /// Returns whether an opcode's operands may be swapped without changing its result.
 #[must_use]
 pub(crate) const fn is_commutative(op: u8) -> bool {

@@ -239,9 +239,6 @@ fn find_candidate(
     let mut index = start + 1;
     while let Some(inst) = instructions.get(index) {
         let stack_op = inst.as_stack_op();
-        if stack_op.is_some_and(|stack_op| stack_op.assembled_len(evm_version).is_none()) {
-            return None;
-        }
         match stack_op {
             Some(StackOp::Pop) if slots.last().is_some_and(|slot| slot.is_ghost) => {
                 candidate.replace(index, StackOp::Pop, Vec::new(), evm_version);

@@ -12,7 +12,7 @@ use std::{
 pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
     let instructions = instructions(bytecode, evm_version).collect::<Vec<_>>();
-    let labels = reachable_jumpdest_labels(&instructions);
+    let labels = reachable_jumpdest_labels(&instructions, evm_version);
 
     for (index, instruction) in instructions.iter().enumerate() {
         if instruction.opcode == op::JUMPDEST
@@ -69,7 +69,10 @@ pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
     output
 }
 
-fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMap<usize, usize> {
+fn reachable_jumpdest_labels(
+    instructions: &[DecodedInstruction<'_>],
+    evm_version: EvmVersion,
+) -> BTreeMap<usize, usize> {
     let offsets = instructions
         .iter()
         .enumerate()
@@ -110,6 +113,7 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
                 &mut all_jumpdests_pending,
             );
         } else if !op::is_terminal(instruction.opcode)
+            && op::is_available(instruction.opcode, evm_version)
             && matches!(instruction.kind, DecodedOpcode::Opcode | DecodedOpcode::StackImmediate(_))
         {
             pending.push_back(index + 1);
@@ -267,7 +271,10 @@ fn instructions(
 
         let push_width =
             if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
-        let kind = if !op::is_decodable(opcode, evm_version) {
+        let kind = if (opcode == op::SLOTNUM && !evm_version.has_slot_num())
+            || (matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
+                && !evm_version.has_extended_stack_ops())
+        {
             DecodedOpcode::Unavailable
         } else if matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE) {
             let immediate = bytecode.get(offset).copied().unwrap_or(0);
@@ -360,6 +367,28 @@ EXCHANGE 9, 16
 UNKNOWN 0xe6
 JUMPDEST
 UNKNOWN 0x4b
+JUMPDEST
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn unavailable_opcodes_stop_cfg_reachability() {
+        let bytecode = [op::PUSH0, op::JUMPDEST];
+        assert_data_eq!(
+            disassemble(&bytecode, EvmVersion::Paris),
+            str![[r#"
+PUSH0
+JUMPDEST
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&bytecode, EvmVersion::Shanghai),
+            str![[r#"
+PUSH0
+; bb0
 JUMPDEST
 
 "#]]
