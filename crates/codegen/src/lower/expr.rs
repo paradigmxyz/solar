@@ -113,6 +113,16 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
+        builder.with_source_span(expr.span, |builder| {
+            self.lower_value_expr_unchecked_inner(builder, expr)
+        })
+    }
+
+    fn lower_value_expr_unchecked_inner(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
         // Only pre-fold leaves whose typed value is already final. Folding an
         // operator tree here bypasses the checked-arithmetic and sub-word
         // cleanup emitted below (notably for unchecked arithmetic and shifts).
@@ -865,6 +875,10 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_unit_expr(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
+        builder.with_source_span(expr.span, |builder| self.lower_unit_expr_inner(builder, expr));
+    }
+
+    fn lower_unit_expr_inner(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
         match &expr.kind {
             ExprKind::Call(callee, args, call_opts) => {
                 let result =

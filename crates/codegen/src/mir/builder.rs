@@ -8,6 +8,7 @@ use super::{
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_interface::Span;
 
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
@@ -15,12 +16,22 @@ pub(crate) struct FunctionBuilder<'a> {
     func: &'a mut Function,
     /// The current block.
     current_block: BlockId,
+    /// Source span attached to instructions emitted in the current lowering scope.
+    current_source_span: Span,
 }
 
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        Self { func, current_block: BlockId::ENTRY }
+        Self { func, current_block: BlockId::ENTRY, current_source_span: Span::DUMMY }
+    }
+
+    /// Runs `f` with `span` attached to newly emitted instructions.
+    pub(crate) fn with_source_span<T>(&mut self, span: Span, f: impl FnOnce(&mut Self) -> T) -> T {
+        let previous = std::mem::replace(&mut self.current_source_span, span);
+        let result = f(self);
+        self.current_source_span = previous;
+        result
     }
 
     /// Returns the current block.
@@ -87,6 +98,7 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        inst.metadata.set_debug_source_span(Some(self.current_source_span));
         inst
     }
 

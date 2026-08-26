@@ -66,6 +66,18 @@ impl InstructionMetadata {
     /// Sets the source span that produced this instruction.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.unwrap_or(Span::DUMMY);
+        self.flags.set_display_source_span(span.is_some());
+    }
+
+    /// Sets source debug information without adding it to canonical MIR text.
+    pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
+        self.source_span = span.unwrap_or(Span::DUMMY);
+    }
+
+    /// Returns whether canonical MIR text should include the source span.
+    #[must_use]
+    pub(crate) fn displays_source_span(&self) -> bool {
+        self.flags.displays_source_span()
     }
 
     /// Returns the proven memory region.
@@ -123,6 +135,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const DISPLAY_SOURCE_SPAN: u16 = 0b10_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -166,6 +179,18 @@ impl MetadataFlags {
 
     fn set_deferred_alloc(&mut self) {
         self.0 |= Self::DEFERRED_ALLOC;
+    }
+
+    fn displays_source_span(self) -> bool {
+        self.0 & Self::DISPLAY_SOURCE_SPAN != 0
+    }
+
+    fn set_display_source_span(&mut self, display: bool) {
+        if display {
+            self.0 |= Self::DISPLAY_SOURCE_SPAN;
+        } else {
+            self.0 &= !Self::DISPLAY_SOURCE_SPAN;
+        }
     }
 
     fn effect(self) -> Option<EffectKind> {

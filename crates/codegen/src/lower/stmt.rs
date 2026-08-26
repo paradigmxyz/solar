@@ -99,6 +99,10 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a statement to MIR.
     pub(super) fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
+        builder.with_source_span(stmt.span, |builder| self.lower_stmt_inner(builder, stmt));
+    }
+
+    fn lower_stmt_inner(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
         match &stmt.kind {
             StmtKind::DeclSingle(var_id) => {
                 self.lower_single_var_decl(builder, *var_id);
