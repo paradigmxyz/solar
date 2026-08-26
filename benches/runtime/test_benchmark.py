@@ -240,7 +240,7 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
-    
+
 
     def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
         specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
