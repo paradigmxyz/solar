@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
+@module C
+fn @parseSel(arg0: memorybytes) -> bytes4 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = mload v0
+    ret v1
+}
+
+fn @selectorCompare() -> u256 [selector=0x3c3fb316, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = abi_encode [word, word], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, v0
+    v2 = and 0xdc98354e00000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [word], object, args v2
+    v4 = internal_call @parseSel, 1, v1
+    v5 = and v4, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v6 = internal_call @parseSel, 1, v3
+    v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = eq v5, v7
+    v9 = iszero v8
+    jumpi v9, bb1, bb2
+  bb2:
+    ret 1
+  bb1:
+    internal_call @revert_error, 0, 8, 0x73656c6563746f72000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @narrowMask() -> u256 [selector=0x14c62240, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = and 0x1ffffffff, 0xffffffff
+    v1 = eq v0, 0xffffffff
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    ret 1
+  bb1:
+    internal_call @revert_error, 0, 4, 0x6d61736b00000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @boolNorm() -> u256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = iszero 7
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = eq 7, 0
+    v2 = iszero v1
+    v3 = eq v2, 1
+    v4 = iszero v3
+    jumpi v4, bb3, bb4
+  bb4:
+    ret 1
+  bb3:
+    internal_call @revert_error, 0, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    internal_call @revert_error, 0, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @signedExtend() -> u256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 2, 0x800000
+    v1 = sub 0, 0x800000
+    v2 = eq v0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = signextend 2, 0x800000
+    v5 = slt v4, 0
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb4:
+    ret 1
+  bb3:
+    internal_call @revert_error, 0, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    internal_call @revert_error, 0, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @firstShiftedByte(arg0: address) -> u256 [pure] {
+  bb0:
+    v0 = shl 96, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @rawScratchReuse() -> u256 [selector=0xbc90d10b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @firstShiftedByte, 1, 0xa9036907dccae6a1e0033479b12e837e5cf5a02f
+    v1 = eq v0, 169
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    ret 1
+  bb1:
+    internal_call @revert_error, 0, 9, 0x7261772073686966740000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = not 0
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, 1
+    v2 = memory_object_len memoryarray, v1
+    v3 = lt 0, v2
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v1, 0, v5
+    v6 = shl 160, 1
+    v7 = sub v6, 1
+    v8 = add v1, 32
+    v9 = mload v8
+    v10 = eq v9, v7
+    ret v10
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

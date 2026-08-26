@@ -467,33 +467,34 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     set_memory_object_len memorybytes, v15, 4
     memory_object_store_word memorybytes, v15, 0, 0x3132333400000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<5>, v0, 3, v15
-    memory_object_store_field memorystruct<5>, v0, 4, 1
-    v16 = address
-    v17 = gas
-    v18 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
-    v19 = memory_object_load_field memorystruct<5>, v0, 0
-    memory_object_store_field memorystruct<5>, v18, 0, v19
-    v20 = memory_object_load_field memorystruct<5>, v0, 1
-    memory_object_store_field memorystruct<5>, v18, 1, v20
-    v21 = memory_object_load_field memorystruct<5>, v0, 2
-    memory_object_store_field memorystruct<5>, v18, 2, v21
-    v22 = memory_object_load_field memorystruct<5>, v0, 3
-    memory_object_store_field memorystruct<5>, v18, 3, v22
-    v23 = memory_object_load_field memorystruct<5>, v0, 4
-    v24 = lt v23, 3
-    v25 = iszero v24
-    jumpi v25, bb7, bb8
+    v16 = and 1, 3
+    memory_object_store_field memorystruct<5>, v0, 4, v16
+    v17 = address
+    v18 = gas
+    v19 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    v20 = memory_object_load_field memorystruct<5>, v0, 0
+    memory_object_store_field memorystruct<5>, v19, 0, v20
+    v21 = memory_object_load_field memorystruct<5>, v0, 1
+    memory_object_store_field memorystruct<5>, v19, 1, v21
+    v22 = memory_object_load_field memorystruct<5>, v0, 2
+    memory_object_store_field memorystruct<5>, v19, 2, v22
+    v23 = memory_object_load_field memorystruct<5>, v0, 3
+    memory_object_store_field memorystruct<5>, v19, 3, v23
+    v24 = memory_object_load_field memorystruct<5>, v0, 4
+    v25 = lt v24, 3
+    v26 = iszero v25
+    jumpi v26, bb7, bb8
   bb8:
-    v26 = and v23, 3
-    memory_object_store_field memorystruct<5>, v18, 4, v26
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v27, 8
-    memory_object_store_word memorybytes, v27, 0, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v28 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v18, 5, v27
-    v29 = memory_object_data memorybytes, v28
-    v30 = memory_object_len memorybytes, v28
-    v31 = call v17, v16, 0, v29, v30, 0, 0
-    ret v31
+    v27 = and v24, 3
+    memory_object_store_field memorystruct<5>, v19, 4, v27
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v28, 8
+    memory_object_store_word memorybytes, v28, 0, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v29 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v19, 5, v28
+    v30 = memory_object_data memorybytes, v29
+    v31 = memory_object_len memorybytes, v29
+    v32 = call v18, v17, 0, v30, v31, 0, 0
+    ret v32
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 33 !metadata(memory=scratch)

@@ -1,59 +1,43 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase evm-shaped
-fn @unwrap(arg0: calldataptr, arg1: u256) -> memptr [pure] {
+fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
   bb0:
-    v2 = sub arg1, 32
-    v3 = add arg0, v2
+    v1 = sub arg1, 32
+    v3 = add arg0, v1
     v4 = calldataload v3
     jumpi v4, bb1, bb2
   bb1:
     jump bb2
   bb2:
-    v32 = phi [bb1: arg0], [bb0: arg0]
-    v33 = phi [bb1: v2], [bb0: arg1]
-    v15 = gt v33, 0xffffffffffffffff
-    jumpi v15, bb3, bb4
-  bb4:
-    v16 = calldatasize
-    v17 = sub v16, v33
-    v18 = sgt v32, v17
-    jumpi v18, bb3, bb5
-  bb5:
-    v20 = add v33, 63
-    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v35 = add v24, v23
-    mstore 64, v35 !metadata(memory=scratch)
-    mstore v24, v33
-    v25 = add v24, 32
-    calldatacopy v25, v32, v33
-    ret v24
-  bb3:
-    revert 0, 0
+    v17 = phi [bb1: arg0], [bb0: arg0]
+    v18 = phi [bb1: v1], [bb0: arg1]
+    ret v17, v18
 }
 
 fn @use() [selector=0x01bd03f7, pure] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 36
-    jumpi v3, bb1, bb2
+    v6 = calldatasize
+    v7 = lt v6, 36
+    jumpi v7, bb1, bb2
   bb2:
-    v4 = calldataload 4
-    v5 = add v4, 4
-    v6 = add v4, 36
-    v7 = gt v4, 0xffffffffffffffff
-    v8 = gt v6, v2
-    v9 = or v7, v8
-    v10 = calldataload v5
-    v12 = sub v2, v6
-    v13 = gt v10, v12
-    v14 = or v9, v13
-    jumpi v14, bb1, bb3
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v10 = add v8, 36
+    v11 = gt v8, 0xffffffffffffffff
+    v12 = gt v10, v6
+    v13 = or v11, v12
+    v14 = calldataload v9
+    v16 = sub v6, v10
+    v17 = gt v14, v16
+    v18 = or v13, v17
+    jumpi v18, bb1, bb3
   bb3:
-    v0 = internal_call @unwrap, 1, v6, v10
-    v1 = mload v0
-    mstore 128, v1
+    v0 = internal_call @unwrap, 2, v10, v14
+    v22 = mload 32 !metadata(memory=scratch)
+    v2 = add v22, 32
+    v3 = mload v2
+    mstore 128, v3
     returndata 128, 32
   bb1:
     revert 0, 0

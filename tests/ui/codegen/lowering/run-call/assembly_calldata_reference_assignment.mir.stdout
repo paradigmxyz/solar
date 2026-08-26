@@ -310,7 +310,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     set_memory_object_len memoryarray, v25, v6
     jump bb9
   bb9:
-    v26 = phi [bb8: 0], [bb15: v39]
+    v26 = phi [bb8: 0], [bb15: v40]
     v27 = lt v26, v6
     jumpi v27, bb10, bb11
   bb11:
@@ -331,8 +331,9 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v38 = iszero v37
     jumpi v38, bb14, bb15
   bb15:
-    memory_object_store_element memoryarray<1>, v25, v26, v35
-    v39 = add v26, 1
+    v39 = and v35, 255
+    memory_object_store_element memoryarray<1>, v25, v26, v39
+    v40 = add v26, 1
     jump bb9
   bb14:
     revert 0, 0
@@ -720,4 +721,49 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+}
+
+fn @returnedSlice(arg0: calldataslice) -> bytes4 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @slice, 1, arg0, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = make_calldata_slice v0, v3
+    v5 = slice_ptr v4
+    v6 = calldataload v5
+    v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v7
+}
+
+fn @emptyUnassignedSlice() -> u256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = make_calldata_slice v1, 0
+    v4 = internal_call @sliceLength, 1, v3
+    ret v4
+}
+
+fn @sliceLength(arg0: calldataslice) -> u256 [pure] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
+
+fn @slice(arg0: calldataslice, arg1: u256) -> calldataslice [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, arg1
+    v2 = make_calldata_slice 0, 0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = make_calldata_slice v1, v4
+    v6 = slice_len arg0
+    v7 = sub v6, arg1
+    v8 = slice_ptr v5
+    v9 = slice_len v5
+    v10 = make_calldata_slice v8, v7
+    ret v10
 }

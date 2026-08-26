@@ -14,7 +14,7 @@ contract C {
     uint[zeroPublic + 1] public oneArray;
 
     uint[bigLiteral] public big;
-    uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[bigLiteral + 1] public tooBig1; //~ ERROR: array length cannot be negative
 
     uint private stateVar = 69;
     uint public stateVarPublic = 420;

@@ -49,11 +49,6 @@ contract R {
         return x;
     }
 
-    function viaLong(uint256 x) external pure returns (uint256) {
-        require(x > 5, Errors.LONG);
-        return x;
-    }
-
     // The block layout puts the constant call sites before the literal helper.
     // CHECK: push 0x6c69746572616c206d7367
     // CHECK: jump [[LITERAL_HELPER:bb[0-9]+]]
@@ -63,6 +58,16 @@ contract R {
     // CHECK: push 11
     // CHECK: swap 1
     // CHECK: jump [[ERROR_HELPER]]
+
+    // CHECK: push 33
+    // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+    // CHECK: mstore
+    // CHECK: revert
+    function viaLong(uint256 x) external pure returns (uint256) {
+        require(x > 5, Errors.LONG);
+        return x;
+    }
+
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

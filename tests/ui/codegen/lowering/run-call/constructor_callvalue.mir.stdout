@@ -160,9 +160,9 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
 
 fn @deploy(arg0: memorybytes) -> address {
   bb0:
-    v0 = callvalue
+    v0 = mload arg0
     v1 = add arg0, 32
-    v2 = mload arg0
-    v3 = create v0, v1, v2
+    v2 = callvalue
+    v3 = create v2, v1, v0
     ret v3
 }

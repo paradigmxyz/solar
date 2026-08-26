@@ -281,6 +281,13 @@ impl<'a> FunctionBuilder<'a> {
         self.append_instruction(inst);
     }
 
+    /// Emits a void memory instruction with a proven destination region.
+    fn emit_void_inst_in_region(&mut self, kind: InstKind, region: MemoryRegion) {
+        let mut inst = self.make_inst(kind, None);
+        inst.metadata.set_memory_region(Some(region));
+        self.append_instruction(inst);
+    }
+
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
         if let InstKind::FrameLoad { mode, .. } | InstKind::FrameStore { mode, .. } = *kind {
             return Some(match mode {
@@ -842,6 +849,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MCopy(dest, src, len))
     }
 
+    /// Emits an mcopy whose destination is proven to be in the heap.
+    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
+        self.emit_void_inst_in_region(InstKind::MCopy(dest, src, len), MemoryRegion::Heap)
+    }
+
     /// Emits an sload instruction.
     pub(crate) fn sload(&mut self, slot: ValueId) -> ValueId {
         self.emit_inst(InstKind::SLoad(slot), Some(MirType::uint256()))
@@ -907,6 +919,14 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))
     }
 
+    /// Emits a calldatacopy whose destination is proven to be in the heap.
+    pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst_in_region(
+            InstKind::CalldataCopy(dest, offset, size),
+            MemoryRegion::Heap,
+        )
+    }
+
     /// Emits a codesize instruction.
     pub(crate) fn codesize(&mut self) -> ValueId {
         self.emit_inst(InstKind::CodeSize, Some(MirType::uint256()))
@@ -938,6 +958,20 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ExtCodeCopy(addr, dest, offset, size))
     }
 
+    /// Emits an extcodecopy whose destination is proven to be in the heap.
+    pub(crate) fn extcodecopy_heap(
+        &mut self,
+        addr: ValueId,
+        dest: ValueId,
+        offset: ValueId,
+        size: ValueId,
+    ) {
+        self.emit_void_inst_in_region(
+            InstKind::ExtCodeCopy(addr, dest, offset, size),
+            MemoryRegion::Heap,
+        )
+    }
+
     /// Emits an extcodehash instruction.
     pub(crate) fn extcodehash(&mut self, addr: ValueId) -> ValueId {
         self.emit_inst(InstKind::ExtCodeHash(addr), Some(MirType::uint256()))
@@ -964,10 +998,31 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
     ) {
         match location {
-            SliceLocation::Memory => self.mcopy(dest, source, size),
-            SliceLocation::Calldata => self.calldatacopy(dest, source, size),
-            SliceLocation::Returndata => self.returndatacopy(dest, source, size),
+            SliceLocation::Memory => self.mcopy_heap(dest, source, size),
+            SliceLocation::Calldata => self.calldatacopy_heap(dest, source, size),
+            SliceLocation::Returndata => self.returndatacopy_heap(dest, source, size),
         }
+    }
+
+    /// Emits a returndatacopy whose destination is proven to be in the heap.
+    pub(crate) fn returndatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst_in_region(
+            InstKind::ReturnDataCopy(dest, offset, size),
+            MemoryRegion::Heap,
+        )
+    }
+
+    /// Emits a returndata copy that feeds an external return or revert.
+    pub(crate) fn returndatacopy_abi_return(
+        &mut self,
+        dest: ValueId,
+        offset: ValueId,
+        size: ValueId,
+    ) {
+        self.emit_void_inst_in_region(
+            InstKind::ReturnDataCopy(dest, offset, size),
+            MemoryRegion::AbiReturn,
+        )
     }
 
     /// Emits an internal function call.

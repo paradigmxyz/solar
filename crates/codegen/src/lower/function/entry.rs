@@ -210,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_memory_argument(
+                values.push(self.materialize_call_argument(
                     ty,
                     value,
                     self.context.gcx.hir.variable(id).span,
@@ -239,11 +239,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         for id in ids {
             let ty = self.context.gcx.type_of_item(id.into());
-            let value = if self.default_bindings.contains(&id) {
-                self.default_binding_value(ty)
-            } else {
-                self.deferred_binding_value(ty)
-            };
+            let value = self.default_binding_value(ty);
             self.values.insert(id, value);
         }
     }

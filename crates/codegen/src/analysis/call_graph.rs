@@ -50,6 +50,25 @@ impl CallGraphInfo {
         self.recursive_functions.contains(func)
     }
 
+    /// Returns the strongly connected recursive component containing `root`.
+    #[must_use]
+    pub(crate) fn recursive_component(&self, root: FunctionId) -> DenseBitSet<FunctionId> {
+        let mut component = DenseBitSet::new_empty(self.reachable_from_entries.domain_size());
+        if !self.is_recursive(root) {
+            return component;
+        }
+
+        let reachable = self.reachable_callees_from([root]);
+        for func in self.recursive_functions.iter() {
+            if (func == root || reachable.contains(func))
+                && self.reachable_callees_from([func]).contains(root)
+            {
+                component.insert(func);
+            }
+        }
+        component
+    }
+
     /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
     pub(crate) fn reachable_callees_from(

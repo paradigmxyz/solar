@@ -1,9 +1,16 @@
 //@ filecheck:
+// CHECK-LABEL: "Links": {
 // CHECK-LABEL: "bytecode": {
-// CHECK-NEXT: "linkReferences": {}
+// CHECK-NEXT: "linkReferences": {
+// CHECK: "A.sol": {
+// CHECK: "Lib": [
+// CHECK-COUNT-2: "length": 20
 // CHECK-NOT: "object":
 // CHECK-LABEL: "deployedBytecode": {
-// CHECK-NEXT: "linkReferences": {}
+// CHECK-NEXT: "linkReferences": {
+// CHECK: "A.sol": {
+// CHECK: "Lib": [
+// CHECK-COUNT-1: "length": 20
 // CHECK-NOT: "object":
 {
   "language": "Solidity",

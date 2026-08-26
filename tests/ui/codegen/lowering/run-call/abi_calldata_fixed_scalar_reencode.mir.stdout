@@ -22,25 +22,28 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v9 = iszero v8
     jumpi v9, bb3, bb4
   bb4:
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 0, v6
-    v10 = add v0, 32
-    v11 = calldataload v10
-    v12 = and v11, 255
-    v13 = eq v11, v12
-    v14 = iszero v13
-    jumpi v14, bb5, bb6
+    v10 = and v6, 255
+    memory_object_store_element memoryfixedarray<3, 1>, v4, 0, v10
+    v11 = add v0, 32
+    v12 = calldataload v11
+    v13 = and v12, 255
+    v14 = eq v12, v13
+    v15 = iszero v14
+    jumpi v15, bb5, bb6
   bb6:
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 1, v11
-    v15 = add v0, 64
-    v16 = calldataload v15
-    v17 = and v16, 255
-    v18 = eq v16, v17
-    v19 = iszero v18
-    jumpi v19, bb7, bb8
+    v16 = and v12, 255
+    memory_object_store_element memoryfixedarray<3, 1>, v4, 1, v16
+    v17 = add v0, 64
+    v18 = calldataload v17
+    v19 = and v18, 255
+    v20 = eq v18, v19
+    v21 = iszero v20
+    jumpi v21, bb7, bb8
   bb8:
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 2, v16
-    v20 = abi_encode [array<3, word>], object, args v4
-    ret v20
+    v22 = and v18, 255
+    memory_object_store_element memoryfixedarray<3, 1>, v4, 2, v22
+    v23 = abi_encode [array<3, word>], object, args v4
+    ret v23
   bb7:
     revert 0, 0
   bb5:

@@ -26,15 +26,14 @@
   
   fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
     bb0:
--     v0 = eq arg0, 1
+      v0 = eq arg0, 1
 -     v1 = eq arg0, 0
 -     v2 = select 1, arg1, arg2
--     v3 = select arg0, 1, 0
--     v4 = select arg0, 0, 1
--     ret v0, v1, v2, v3, v4
 +     v1 = iszero arg0
-+     v4 = iszero arg0
-+     ret arg0, v1, arg1, arg0, v4
+      v3 = select arg0, 1, 0
+      v4 = select arg0, 0, 1
+-     ret v0, v1, v2, v3, v4
++     ret v0, v1, arg1, v3, v4
   }
   
   fn @remove_zero_length_copies(arg0: u256) -> u256 {
@@ -73,15 +72,15 @@
 -     v1 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     v1 = not arg0
       v2 = iszero arg1
--     v3 = iszero v2
--     v4 = lt 0, arg1
--     v5 = gt arg1, 0
+      v3 = iszero v2
+      v4 = lt 0, arg1
+      v5 = gt arg1, 0
 -     v6 = shl 256, arg0
 -     v7 = shr 300, arg0
 -     v8 = byte 32, arg0
 -     v9 = signextend 32, arg0
 -     ret v0, v1, v3, v4, v5, v6, v7, v8, v9
-+     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, arg1, arg1, arg1, 0, 0, 0, arg0
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, v3, v4, v5, 0, 0, 0, arg0
   }
   
   fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
@@ -90,14 +89,14 @@
 -     v1 = and arg0, v0
 -     v2 = or arg0, v0
 -     v3 = xor arg0, v0
--     v4 = lt arg1, 2
--     v5 = lt 1, arg1
--     v6 = gt 2, arg1
--     v7 = gt arg1, 1
+      v4 = lt arg1, 2
+      v5 = lt 1, arg1
+      v6 = gt 2, arg1
+      v7 = gt arg1, 1
 -     v8 = byte 0, 0
 -     v9 = signextend 3, 0
 -     ret v0, v1, v2, v3, v4, v5, v6, v7, v8, v9
-+     ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 1, 0, 0, 0
++     ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4, v5, v6, v7, 0, 0
   }
   
   fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {

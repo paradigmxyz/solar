@@ -227,7 +227,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.context.gcx.type_of_expr(lhs.id)?.peel_refs();
-        let access = self.storage_access_or_error(lhs)?;
+        let Some(access) = self.storage_access(lhs) else {
+            return report_unsupported(self.context.gcx, lhs.span, "storage access");
+        };
         self.store_constant_storage_value(ty, access, rhs)
     }
 
@@ -329,11 +331,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Index(receiver, Some(index)) => {
                 let base = self.storage_access(receiver)?;
                 let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
-                let index_ty = self.context.gcx.type_of_expr(index.id)?;
-                if let TyKind::Mapping(_, value) = ty.kind {
-                    let index = self.lower_expr(index)?;
-                    let index = self.normalize_abi_scalar(index, index_ty);
-                    let slot = self.mapping_slot(index, index_ty, base.slot);
+                if let TyKind::Mapping(key, value) = ty.kind {
+                    let index = self
+                        .lower_fixed_bytes_literal(key, index)
+                        .or_else(|| self.lower_expr(index))?;
+                    let index = self.normalize_abi_scalar(index, key);
+                    let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.context.storage.packed_encoding(value) {
                         let location = StorageLocation::packed_word(size, encoding);
                         return Some(StorageAccess { slot, location, offset: None });
@@ -383,15 +386,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => None,
         }
-    }
-
-    pub(super) fn storage_access_or_error(
-        &mut self,
-        expr: &hir::Expr<'_>,
-    ) -> Option<StorageAccess> {
-        self.storage_access(expr).or_else(|| {
-            report_error(self.context.gcx, expr.span, "codegen cannot resolve storage access")
-        })
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
@@ -521,7 +515,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = alloc_bytes(old.len + 1); copy(old)
         // object[old.len] = byte
         // store_storage_bytes(slot, object)
-        let access = self.storage_access_or_error(receiver)?;
+        let Some(access) = self.storage_access(receiver) else {
+            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+        };
         let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
             let shift = self.builder.imm_u64(248);
@@ -568,7 +564,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            let access = self.storage_access_or_error(receiver)?;
+            let Some(access) = self.storage_access(receiver) else {
+                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            };
             let old = self.load_storage_bytes(access.slot);
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
             let zero = self.builder.imm_u64(0);
@@ -609,15 +607,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
-        let base = self.storage_access_or_error(receiver)?;
+        let Some(base) = self.storage_access(receiver) else {
+            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+        };
         let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
     }
 
     fn mapping_slot(&mut self, key: ValueId, key_ty: Ty<'gcx>, slot: ValueId) -> ValueId {
-        let is_calldata = key_ty.data_stored_in(DataLocation::Calldata)
-            || matches!(key_ty.kind, TyKind::Slice(inner) if inner.data_stored_in(DataLocation::Calldata));
         let is_dynamic = matches!(
             key_ty.peel_refs().kind,
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
@@ -625,7 +623,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 | TyKind::StringLiteral(..)
         );
         if is_dynamic {
-            if is_calldata {
+            if self.builder.func().value_slice_location(key) == Some(SliceLocation::Calldata) {
                 self.builder.mapping_slot_calldata(key, slot)
             } else {
                 self.builder.mapping_slot_memory(key, slot)

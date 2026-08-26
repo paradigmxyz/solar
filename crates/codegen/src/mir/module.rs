@@ -24,6 +24,17 @@ pub(crate) struct Immutable {
     pub(crate) variable_id: Option<VariableId>,
 }
 
+/// An unresolved external library address referenced by a MIR module.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LibraryLink {
+    /// Source unit containing the library.
+    pub(crate) source: String,
+    /// Library contract name.
+    pub(crate) name: String,
+    /// Fixed-width address placeholder emitted into bytecode.
+    pub(crate) placeholder: [u8; 20],
+}
+
 /// The lowering phase a [`Module`] is in.
 ///
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
@@ -107,6 +118,8 @@ pub struct Module {
     pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
+    /// Unresolved external library addresses used by this module.
+    library_links: Vec<LibraryLink>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// The lowering phase this module is in.
@@ -132,6 +145,7 @@ impl Module {
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
             immutables: IndexVec::new(),
+            library_links: Vec::new(),
             is_interface: false,
             phase: MirPhase::Built,
         }
@@ -218,6 +232,18 @@ impl Module {
     #[must_use]
     pub(crate) fn immutable(&self, id: ImmutableId) -> &Immutable {
         &self.immutables[id]
+    }
+
+    /// Registers an unresolved external library address.
+    pub(crate) fn add_library_link(&mut self, link: LibraryLink) {
+        if !self.library_links.contains(&link) {
+            self.library_links.push(link);
+        }
+    }
+
+    /// Returns unresolved external library addresses used by this module.
+    pub(crate) fn library_links(&self) -> &[LibraryLink] {
+        &self.library_links
     }
 
     /// Returns an immutable declaration if the identifier is allocated.

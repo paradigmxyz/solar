@@ -32,7 +32,7 @@ bb4 [cold]:
   dup 1
   revert
 bb6:
-  push 768
+  push 832
   push 64
   mstore
   push 36
@@ -174,8 +174,7 @@ bb46:
   shr
   push 384
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 1
@@ -385,14 +384,14 @@ bb19:
   push 576
   mstore
   push bb25
-  swap 1
+  dup 2
   push 0
   sload
   push 1
   dup 2
   add
   dup 1
-  push 736
+  push 800
   mstore
   lt
   iszero
@@ -415,8 +414,7 @@ bb20:
   shr
   push 416
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 448
@@ -451,7 +449,8 @@ bb25:
   push 672
   mstore
   lt
-  swap 1
+  swap 2
+  pop
   pop
   push bb70
   jumpi
@@ -470,8 +469,7 @@ bb25:
   shr
   push 608
   mload
-  eq
-  iszero
+  sub
   push bb70
   jumpi
   push 672
@@ -505,7 +503,7 @@ bb25:
   swap 1
   jump
 bb32:
-  push 736
+  push 800
   mload
   push 0
   sstore
@@ -516,7 +514,7 @@ bb32:
   dup 2
   add
   dup 1
-  push 736
+  push 800
   mstore
   lt
   iszero
@@ -530,7 +528,7 @@ bb33:
   mod
   push 2
   add
-  push 736
+  push 800
   mload
   swap 2
   jump
@@ -562,6 +560,8 @@ bb73:
 bb72:
   add
   mload
+  jump bb75
+bb75:
   push 160
   mload
   push 128
@@ -1070,9 +1070,4 @@ bb65:
   add
   mload
   mod
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  jump
+  jump bb75

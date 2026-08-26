@@ -172,7 +172,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
-        let access = self.storage_access_or_error(self.peel_bytes_conversion(receiver))?;
+        let receiver = self.peel_bytes_conversion(receiver);
+        let Some(access) = self.storage_access(receiver) else {
+            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+        };
         let object = self.load_storage_bytes(access.slot);
         let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
@@ -185,14 +188,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
-        let is_default_binding = self.default_bindings.contains(&id);
-        if is_default_binding || self.deferred_bindings.contains(&id) {
+        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.context.gcx.type_of_item(id.into());
-            let value = if is_default_binding {
-                self.default_binding_value(ty)
-            } else {
-                self.deferred_binding_value(ty)
-            };
+            let value = self.default_binding_value(ty);
             self.values.insert(id, value);
             return Some(value);
         }

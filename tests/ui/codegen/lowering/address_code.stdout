@@ -24,7 +24,7 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[a
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, v0
     v6 = memory_object_data memorybytes, v5
-    extcodecopy arg0, v6, 0, v0
+    extcodecopy arg0, v6, 0, v0 !metadata(memory=heap)
     ret v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

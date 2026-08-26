@@ -105,7 +105,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     mstore v9, 0x655f395ff35f80fd000000000000000000000000000000000000000000000000
     v10 = slice_ptr v3
     v11 = add v6, 104
-    mcopy v11, v10, 32
+    mcopy v11, v10, 32 !metadata(memory=heap)
     v12 = create2 v0, v6, 136, v1
     jumpi v12, bb2, bb1
   bb1:

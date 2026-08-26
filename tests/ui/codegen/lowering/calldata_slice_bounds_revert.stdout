@@ -46,7 +46,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     jump bb7
   bb7:
     v41 = add v36, v35
-    calldatacopy v36, v6, v5
+    calldatacopy v36, v6, v5 !metadata(memory=heap)
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -104,7 +104,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     jump bb7
   bb7:
     v41 = add v36, v35
-    calldatacopy v36, v6, v5
+    calldatacopy v36, v6, v5 !metadata(memory=heap)
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

@@ -25,12 +25,35 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
-pub(in crate::backend::evm) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
+pub(in crate::backend::evm) use passes::{
+    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost, legalize_shifts,
+};
+
+/// Maximum stack reserve used by parameterized machine-run outlining.
+pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     verify::validate(dcx, module);
+}
+
+/// Validates that every opcode is available for the selected EVM version.
+pub(in crate::backend::evm) fn validate_evm_version(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_evm_version(dcx, module, evm_version, false);
+}
+
+/// Validates opcode availability before pre-Constantinople shifts are legalized.
+pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_evm_version(dcx, module, evm_version, true);
 }
 
 newtype_index! {
@@ -55,6 +78,10 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Bytes>,
+    /// Backend-proven growth available even across opaque physical jumps.
+    pub(crate) unknown_target_stack_headroom: usize,
+    /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
+    pub(crate) enable_size_outlining: bool,
 }
 
 impl Module {
@@ -69,7 +96,13 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new(), data: IndexVec::new() }
+        Self {
+            name,
+            blocks: IndexVec::new(),
+            data: IndexVec::new(),
+            unknown_target_stack_headroom: 0,
+            enable_size_outlining: false,
+        }
     }
 
     /// Changes the program name.

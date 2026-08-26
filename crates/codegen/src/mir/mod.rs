@@ -39,6 +39,7 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
+pub(crate) use module::LibraryLink;
 pub use module::{MirPhase, Module};
 
 mod builder;

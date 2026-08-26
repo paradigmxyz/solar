@@ -599,6 +599,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_receive: bool,
     /// Whether this is the synthesized runtime dispatch entry.
     pub(crate) is_dispatch_entry: bool,
+    /// Whether this function originated from a Yul function definition.
+    pub(crate) is_yul: bool,
     /// Whether a removed return value may still reference caller-visible memory.
     ///
     /// Dead-result elimination can erase the callable return signature, but it must not erase the
@@ -620,6 +622,7 @@ impl Default for FunctionAttributes {
             is_fallback: false,
             is_receive: false,
             is_dispatch_entry: false,
+            is_yul: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,

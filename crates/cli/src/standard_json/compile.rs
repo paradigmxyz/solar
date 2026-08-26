@@ -5,6 +5,7 @@ use super::data::{
     OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
     SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
+use alloy_primitives::keccak256;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
@@ -140,10 +141,14 @@ fn compile(
     }
 
     opts.import_remappings = parsed_remappings;
-    opts.evm_version = evm_version
-        .as_deref()
-        .and_then(|version| EvmVersion::from_str(version).ok())
-        .unwrap_or(opts.evm_version);
+    if let Some(version) = evm_version.as_deref() {
+        match EvmVersion::from_str(version) {
+            Ok(version) => opts.evm_version = version,
+            Err(_) => {
+                dcx.err(format!("invalid EVM version `{version}`")).emit();
+            }
+        }
+    }
     opts.language = match language.as_ref() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
@@ -152,7 +157,17 @@ fn compile(
             return;
         }
     };
-    opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+    if let Some(stage) = stop_after.as_deref() {
+        match CompilerStage::from_str(stage) {
+            Ok(stage) => opts.stop_after = Some(stage),
+            Err(_) => {
+                dcx.err(format!("invalid compiler stage `{stage}`")).emit();
+            }
+        }
+    }
+    if dcx.has_errors().is_err() {
+        return;
+    }
 
     if let Some(Optimizer { enabled, runs }) = optimizer {
         // 200 runs is the default value if unspecified in solc.
@@ -413,7 +428,22 @@ fn make_bytecode_output(
 
     let mut output = BytecodeOutput::default();
     if output_selection.contains(object_flag) {
-        output.object = Some(bytecode.cloned().unwrap_or_default());
+        let mut object =
+            alloy_primitives::hex::encode(bytecode.map_or(&[][..], |bytes| bytes.as_ref()));
+        if let Some(artifact) = artifact {
+            let references = if deployed {
+                &artifact.runtime_link_references
+            } else {
+                &artifact.deployment_link_references
+            };
+            for reference in references {
+                let start = reference.start * 2;
+                let hash = keccak256(format!("{}:{}", reference.source, reference.name));
+                let placeholder = format!("__${}$__", alloy_primitives::hex::encode(&hash[..17]));
+                object.replace_range(start..start + 40, &placeholder);
+            }
+        }
+        output.object = Some(object);
     }
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
@@ -422,7 +452,23 @@ fn make_bytecode_output(
         ));
     }
     if output_selection.contains(link_references_flag) {
-        output.link_references = Some(FxIndexMap::default());
+        let references = artifact.into_iter().flat_map(|artifact| {
+            if deployed {
+                artifact.runtime_link_references.iter()
+            } else {
+                artifact.deployment_link_references.iter()
+            }
+        });
+        let mut by_source = FxIndexMap::<String, FxIndexMap<String, Vec<OffsetLength>>>::default();
+        for reference in references {
+            by_source
+                .entry(reference.source.clone())
+                .or_default()
+                .entry(reference.name.clone())
+                .or_default()
+                .push(OffsetLength { start: reference.start, length: 20 });
+        }
+        output.link_references = Some(by_source);
     }
     if deployed
         && output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES)

@@ -33,7 +33,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     mstore v11, 0x14601657601a565b601e565b5f80fd5b00000000000000000000000000000000
     v12 = slice_ptr v7
     v13 = add v10, 48
-    mcopy v13, v12, 0
+    mcopy v13, v12, 0 !metadata(memory=heap)
     v14 = create 0, v10, 48
     jumpi v14, bb4, bb3
   bb3:

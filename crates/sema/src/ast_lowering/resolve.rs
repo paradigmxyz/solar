@@ -1414,6 +1414,22 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
             let target = self.lcx.sess.opts.evm_version;
+            if builtin == Builtin::YulPrevrandao && !target.has_prev_randao() {
+                return Err(self
+                    .dcx()
+                    .err("Yul builtin `prevrandao` requires Paris-compatible EVM")
+                    .span(name.span)
+                    .help("compile with `--evm-version paris` or newer")
+                    .emit());
+            }
+            if builtin == Builtin::YulDifficulty && target.has_prev_randao() {
+                return Err(self
+                    .dcx()
+                    .err("Yul builtin `difficulty` is unavailable for Paris-compatible EVM")
+                    .span(name.span)
+                    .help("use `prevrandao()` when compiling for `paris` or newer")
+                    .emit());
+            }
             if let Some(required) = builtin.required_evm_version(target) {
                 return Err(self
                     .dcx()

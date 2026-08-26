@@ -41,7 +41,6 @@ contract C {
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function direct(bool fail) external pure returns (uint256) {
         try Lib.direct({fail: fail, value: 8}) returns (uint256 value) {
-            //~[unlinked]^ ERROR: library calls in try/catch require a configured library address
             return value;
         } catch Error(string memory) {
             return 18;
@@ -53,7 +52,6 @@ contract C {
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attached(bool fail) external returns (uint256) {
         try state.attached({fail: fail, value: 9}) returns (uint256 value) {
-            //~[unlinked]^ ERROR: library calls in try/catch require a configured library address
             return value;
         } catch Error(string memory) {
             return 19;
@@ -65,7 +63,6 @@ contract C {
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attachedValue(uint256 self, bool fail) external pure returns (uint256) {
         try self.add({fail: fail, value: 10}) returns (uint256 value) {
-            //~[unlinked]^ ERROR: library calls in try/catch require a configured library address
             return value;
         } catch Error(string memory) {
             return 20;
@@ -78,7 +75,6 @@ contract C {
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function emptyCode() external pure {
         try Lib.empty() {} catch {
-            //~[unlinked]^ ERROR: library calls in try/catch require a configured library address
             revert("caught");
         }
     }

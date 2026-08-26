@@ -1,0 +1,392 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer ===
+@module ReturnProducer
+fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v2, 64
+    memory_object_store_field memorystruct<1>, v1, 0, v2
+    memory_object_store_field memorystruct<2>, v0, 0, v1
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    v3 = memory_object_load_field memorystruct<2>, v0, 0
+    v4 = memory_object_load_field memorystruct<1>, v3, 0
+    v5 = lt 0, 2
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, 11
+    v7 = memory_object_load_field memorystruct<2>, v0, 0
+    v8 = memory_object_load_field memorystruct<1>, v7, 0
+    v9 = lt 1, 2
+    v10 = iszero v9
+    jumpi v10, bb3, bb4
+  bb4:
+    memory_object_store_element memoryfixedarray<2, 1>, v8, 1, 22
+    memory_object_store_field memorystruct<2>, v0, 1, 33
+    ret v0
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    mstore 0, 32 !metadata(memory=scratch)
+    mstore 32, 256 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = not 0
+    ret v0
+}
+// === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
+@module ReturnHarness
+fn @check(arg0: memorystruct) -> u256 [pure] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = memory_object_load_field memorystruct<1>, v0, 0
+    v2 = lt 0, 2
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
+    v5 = eq v4, 11
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = memory_object_load_field memorystruct<2>, arg0, 0
+    v8 = memory_object_load_field memorystruct<1>, v7, 0
+    v9 = lt 1, 2
+    v10 = iszero v9
+    jumpi v10, bb5, bb6
+  bb6:
+    v11 = memory_object_load_element memoryfixedarray<2, 1>, v8, 1
+    v12 = eq v11, 22
+    v13 = iszero v12
+    jumpi v13, bb7, bb8
+  bb8:
+    v14 = memory_object_load_field memorystruct<2>, arg0, 1
+    v15 = eq v14, 33
+    v16 = iszero v15
+    jumpi v16, bb9, bb10
+  bb10:
+    ret 1
+  bb9:
+    internal_call @revert_error, 0, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    internal_call @revert_error, 0, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    invalid
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    internal_call @revert_error, 0, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 499, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e576101c28060125f395ff35b5f5ffd346038575f3560e01c80630a39e7
+    v4 = add v3, 32
+    mstore v4, 0xbc14602a578063986597e514602f578063af36778b146034576038565b61018a
+    v5 = add v3, 64
+    mstore v5, 0x565b610199565b603c565b5f80fd5b6101806040526040518060e0528060e052
+    v6 = add v3, 96
+    mstore v6, 0x6040810160405260405180610100526020810160405260405180610120526040
+    v7 = add v3, 128
+    mstore v7, 0x8101604052604036828061012052378061012052815280610100528152602081
+    v8 = add v3, 160
+    mstore v8, 0x15f8152508060e05251518061014052806101405260025f10151560d8577f4e
+    v9 = add v3, 192
+    mstore v9, 0x487b71000000000000000000000000000000000000000000000000000000005f
+    v10 = add v3, 224
+    mstore v10, 0x52603260045260245ffd5b600b81525060e0518060e052515180610160528061
+    v11 = add v3, 256
+    mstore v11, 0x1605260026001101515610128577f4e487b7100000000000000000000000000
+    v12 = add v3, 288
+    mstore v12, 0x5f52603260045260245ffd5b6020810190
+    v13 = add v3, 320
+    mstore v13, 0x506016815250602060e05101602181525060e0518060e0525151806101005251
+    v14 = add v3, 352
+    mstore v14, 0x6080526020608001602061010051015181526020900150604060800150604060
+    v15 = add v3, 384
+    mstore v15, 0x8001602060e0510151815260209001506060608001608090036080f35b60205f
+    v16 = add v3, 416
+    mstore v16, 0x5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffff
+    v17 = add v3, 448
+    mstore v17, 0xffffff90166080526020608001608090036080f3000000000000000000000000
+    v18 = slice_ptr v0
+    v19 = add v3, 468
+    mcopy v19, v18, 0 !metadata(memory=heap)
+    v20 = create 0, v3, 468
+    jumpi v20, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v21 = gas
+    v22 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = alloc raw, exact, uninitialized, infallible, 96
+    v26 = staticcall v21, v20, v23, v24, v25, 96
+    jumpi v26, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v27 = returndatasize
+    v28 = lt v27, 96
+    jumpi v28, bb5, bb6
+  bb6:
+    v29 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v25
+    v30 = internal_call @check, 1, v29
+    ret v30
+  bb5:
+    revert 0, 0
+}
+
+fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 499, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e576101c28060125f395ff35b5f5ffd346038575f3560e01c80630a39e7
+    v4 = add v3, 32
+    mstore v4, 0xbc14602a578063986597e514602f578063af36778b146034576038565b61018a
+    v5 = add v3, 64
+    mstore v5, 0x565b610199565b603c565b5f80fd5b6101806040526040518060e0528060e052
+    v6 = add v3, 96
+    mstore v6, 0x6040810160405260405180610100526020810160405260405180610120526040
+    v7 = add v3, 128
+    mstore v7, 0x8101604052604036828061012052378061012052815280610100528152602081
+    v8 = add v3, 160
+    mstore v8, 0x15f8152508060e05251518061014052806101405260025f10151560d8577f4e
+    v9 = add v3, 192
+    mstore v9, 0x487b71000000000000000000000000000000000000000000000000000000005f
+    v10 = add v3, 224
+    mstore v10, 0x52603260045260245ffd5b600b81525060e0518060e052515180610160528061
+    v11 = add v3, 256
+    mstore v11, 0x1605260026001101515610128577f4e487b7100000000000000000000000000
+    v12 = add v3, 288
+    mstore v12, 0x5f52603260045260245ffd5b6020810190
+    v13 = add v3, 320
+    mstore v13, 0x506016815250602060e05101602181525060e0518060e0525151806101005251
+    v14 = add v3, 352
+    mstore v14, 0x6080526020608001602061010051015181526020900150604060800150604060
+    v15 = add v3, 384
+    mstore v15, 0x8001602060e0510151815260209001506060608001608090036080f35b60205f
+    v16 = add v3, 416
+    mstore v16, 0x5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffff
+    v17 = add v3, 448
+    mstore v17, 0xffffff90166080526020608001608090036080f3000000000000000000000000
+    v18 = slice_ptr v0
+    v19 = add v3, 468
+    mcopy v19, v18, 0 !metadata(memory=heap)
+    v20 = create 0, v3, 468
+    jumpi v20, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v21 = shl 32, v20
+    v22 = or v21, 0xaf36778b
+    v23 = and v22, 0xffffffff
+    v24 = shl 224, v23
+    v25 = shr 32, v22
+    v26 = gas
+    v27 = abi_encode [], selector v24
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = alloc raw, exact, uninitialized, infallible, 96
+    v31 = staticcall v26, v25, v28, v29, v30, 96
+    jumpi v31, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v32 = returndatasize
+    v33 = lt v32, 96
+    jumpi v33, bb5, bb6
+  bb6:
+    v34 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v30
+    v35 = internal_call @check, 1, v34
+    ret v35
+  bb5:
+    revert 0, 0
+}
+
+fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 499, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e576101c28060125f395ff35b5f5ffd346038575f3560e01c80630a39e7
+    v4 = add v3, 32
+    mstore v4, 0xbc14602a578063986597e514602f578063af36778b146034576038565b61018a
+    v5 = add v3, 64
+    mstore v5, 0x565b610199565b603c565b5f80fd5b6101806040526040518060e0528060e052
+    v6 = add v3, 96
+    mstore v6, 0x6040810160405260405180610100526020810160405260405180610120526040
+    v7 = add v3, 128
+    mstore v7, 0x8101604052604036828061012052378061012052815280610100528152602081
+    v8 = add v3, 160
+    mstore v8, 0x15f8152508060e05251518061014052806101405260025f10151560d8577f4e
+    v9 = add v3, 192
+    mstore v9, 0x487b71000000000000000000000000000000000000000000000000000000005f
+    v10 = add v3, 224
+    mstore v10, 0x52603260045260245ffd5b600b81525060e0518060e052515180610160528061
+    v11 = add v3, 256
+    mstore v11, 0x1605260026001101515610128577f4e487b7100000000000000000000000000
+    v12 = add v3, 288
+    mstore v12, 0x5f52603260045260245ffd5b6020810190
+    v13 = add v3, 320
+    mstore v13, 0x506016815250602060e05101602181525060e0518060e0525151806101005251
+    v14 = add v3, 352
+    mstore v14, 0x6080526020608001602061010051015181526020900150604060800150604060
+    v15 = add v3, 384
+    mstore v15, 0x8001602060e0510151815260209001506060608001608090036080f35b60205f
+    v16 = add v3, 416
+    mstore v16, 0x5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffff
+    v17 = add v3, 448
+    mstore v17, 0xffffff90166080526020608001608090036080f3000000000000000000000000
+    v18 = slice_ptr v0
+    v19 = add v3, 468
+    mcopy v19, v18, 0 !metadata(memory=heap)
+    v20 = create 0, v3, 468
+    jumpi v20, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v21 = gas
+    v22 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v20, v23, v24, 0, 32
+    jumpi v25, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v26 = returndatasize
+    v27 = lt v26, 32
+    jumpi v27, bb5, bb6
+  bb6:
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = eq v29, v30
+    v32 = iszero v31
+    jumpi v32, bb7, bb8
+  bb8:
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = eq v34, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = iszero v35
+    jumpi v36, bb9, bb10
+  bb10:
+    ret 1
+  bb9:
+    internal_call @revert_error, 0, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+}
+
+fn @truncated() -> u256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 499, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e576101c28060125f395ff35b5f5ffd346038575f3560e01c80630a39e7
+    v4 = add v3, 32
+    mstore v4, 0xbc14602a578063986597e514602f578063af36778b146034576038565b61018a
+    v5 = add v3, 64
+    mstore v5, 0x565b610199565b603c565b5f80fd5b6101806040526040518060e0528060e052
+    v6 = add v3, 96
+    mstore v6, 0x6040810160405260405180610100526020810160405260405180610120526040
+    v7 = add v3, 128
+    mstore v7, 0x8101604052604036828061012052378061012052815280610100528152602081
+    v8 = add v3, 160
+    mstore v8, 0x15f8152508060e05251518061014052806101405260025f10151560d8577f4e
+    v9 = add v3, 192
+    mstore v9, 0x487b71000000000000000000000000000000000000000000000000000000005f
+    v10 = add v3, 224
+    mstore v10, 0x52603260045260245ffd5b600b81525060e0518060e052515180610160528061
+    v11 = add v3, 256
+    mstore v11, 0x1605260026001101515610128577f4e487b7100000000000000000000000000
+    v12 = add v3, 288
+    mstore v12, 0x5f52603260045260245ffd5b6020810190
+    v13 = add v3, 320
+    mstore v13, 0x506016815250602060e05101602181525060e0518060e0525151806101005251
+    v14 = add v3, 352
+    mstore v14, 0x6080526020608001602061010051015181526020900150604060800150604060
+    v15 = add v3, 384
+    mstore v15, 0x8001602060e0510151815260209001506060608001608090036080f35b60205f
+    v16 = add v3, 416
+    mstore v16, 0x5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffff
+    v17 = add v3, 448
+    mstore v17, 0xffffff90166080526020608001608090036080f3000000000000000000000000
+    v18 = slice_ptr v0
+    v19 = add v3, 468
+    mcopy v19, v18, 0 !metadata(memory=heap)
+    v20 = create 0, v3, 468
+    jumpi v20, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v21 = gas
+    v22 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v20, v23, v24, 0, 0
+    jumpi v25, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v26 = returndatasize
+    v27 = add v26, 63
+    v28 = lt v27, v26
+    jumpi v28, bb5, bb6
+  bb6:
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v31, v26
+    v32 = make_returndata_slice 0, v26
+    memory_object_copy_from_slice memorybytes, v31, v32
+    v33 = abi_decode [bytes], v31
+    v34 = memory_object_len memorybytes, v33
+    ret v34
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

@@ -40,10 +40,7 @@ bb4:
   push 4
   calldatasize
   sub
-  dup 2
-  gt
-  swap 1
-  pop
+  lt
   push bb3
   jumpi
   push 224
@@ -652,8 +649,7 @@ bb9:
   shr
   push 320
   mload
-  eq
-  iszero
+  sub
   push bb20
   jumpi
   push 192
@@ -775,13 +771,21 @@ bb9:
   mstore
   swap 3
   pop
+  push 0
+  not
   push 96
-  dup 3
-  add
+  shr
   push 100
   calldataload
+  and
+  push 96
+  dup 4
+  add
+  dup 2
   dup 2
   mstore
+  swap 1
+  pop
   push 64
   mload
   dup 1
@@ -893,7 +897,11 @@ bb9:
   add
   mstore
   dup 5
+  iszero
+  iszero
+  dup 6
   mload
+  mul
   dup 1
   push 448
   mstore
@@ -931,7 +939,11 @@ bb9:
   add
   mstore
   dup 3
+  iszero
+  iszero
+  dup 4
   mload
+  mul
   dup 1
   push 256
   mstore
@@ -1037,14 +1049,10 @@ bb27:
   push bb23
   jumpi
   returndatasize
-  dup 1
-  push 416
-  mstore
   push 0
   dup 1
   returndatacopy
-  push 416
-  mload
+  returndatasize
   push 0
   revert
 bb23:

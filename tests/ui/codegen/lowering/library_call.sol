@@ -4,7 +4,7 @@
 //@[linked] filecheck: --check-prefixes=COMMON,LINKED
 
 // A `public`/`external` library function called from another contract is
-// lowered to a DELEGATECALL when linked.
+// lowered to a DELEGATECALL.
 
 library Lib {
     // COMMON-LABEL: @module runtime
@@ -40,6 +40,5 @@ contract C {
     // LINKED: revert
     function inc(address k, uint256 by) external returns (uint256) {
         return Lib.bump(bal, k, by);
-        //~[unlinked]^ ERROR: codegen requires a linked address for public library calls
     }
 }

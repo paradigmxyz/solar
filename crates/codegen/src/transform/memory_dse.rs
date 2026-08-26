@@ -1660,6 +1660,11 @@ impl MemoryStoreEliminator {
                 Access::Location(Location::Memory(location)) => {
                     if let Some(offset) = location.address.as_internal_frame_offset() {
                         reads.push((offset, location.size.as_const()?));
+                    } else if matches!(
+                        location.address.region,
+                        MemoryRegion::InternalFrame | MemoryRegion::Unknown
+                    ) {
+                        return None;
                     }
                 }
                 Access::Location(Location::Storage(_))

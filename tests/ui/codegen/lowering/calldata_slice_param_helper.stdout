@@ -41,8 +41,8 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure] {
   bb0:
-    v2 = sub arg1, 32
-    v3 = add arg0, v2
+    v1 = sub arg1, 32
+    v3 = add arg0, v1
     v4 = calldataload v3
     ret v4
 }

@@ -1,1 +1,1 @@
-{"contracts":{"ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse":{"bin-runtime":"34601d575f3560e01c80630718ec94146021578063fd9e0caf14603c575b5f80fd5b60443610601d5733602435600435085b5f523360205260405ff35b60243610601d57600435333309603156"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse":{"bin-runtime":"34601d575f3560e01c80630718ec94146021578063fd9e0caf14603c575b5f80fd5b60443610601d5733602435600435085b5f523360205260405ff35b60243610601d57600435338009603156"}},"version":"VERSION"}

@@ -1,0 +1,16 @@
+//@ revisions: byzantium cancun
+//@[byzantium] compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts
+//@[cancun] compile-flags: --evm-version cancun -Zevm-ir-pipeline=legalize-shifts
+@module module
+
+bb0:
+  push 7
+  push 1
+  shl
+  push 7
+  push 1
+  shr
+  push 7
+  push 1
+  sar
+  stop

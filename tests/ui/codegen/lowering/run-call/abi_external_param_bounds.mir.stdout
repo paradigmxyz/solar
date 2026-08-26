@@ -1,0 +1,103 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_external_param_bounds.sol:Bounds ===
+@module Bounds
+fn @bytesMemory(arg0: memorybytes) -> u256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0
+}
+
+fn @wordsMemory(arg0: memoryarray) -> u256 [selector=0xb59b137f, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    ret v0
+}
+
+fn @bytesCalldata(arg0: calldataslice) -> u256 [selector=0x616c46ff, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
+
+fn @wordsCalldata(arg0: calldataslice) -> u256 [selector=0x6918e29e, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
+
+fn @dynamicStruct(arg0: memorystruct) -> u256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v1 = memory_object_len memorybytes, v0
+    ret v1
+}
+
+fn @wideDynamic(arg0: memorystruct) -> u256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 1
+    v1 = memory_object_len memorybytes, v0
+    ret v1
+}
+
+fn @staticStructs(arg0: memoryarray) -> u256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<u256, address>>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = memory_object_len memoryarray, arg0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = memory_object_load_element memoryarray<1>, arg0, 0
+    v5 = eq v4, 0
+    jumpi v5, bb3, bb4
+  bb3:
+    v6 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v6, 0, 0
+    memory_object_store_field memorystruct<2>, v6, 1, 0
+    memory_object_store_element memoryarray<1>, arg0, 0, v6
+    jump bb4
+  bb4:
+    v7 = phi [bb2: v4], [bb3: v6]
+    v8 = memory_object_load_field memorystruct<2>, v7, 0
+    v9 = add v0, v8
+    v10 = lt v9, v0
+    jumpi v10, bb5, bb6
+  bb6:
+    v11 = memory_object_len memoryarray, arg0
+    v12 = lt 1, v11
+    v13 = iszero v12
+    jumpi v13, bb7, bb8
+  bb8:
+    v14 = memory_object_load_element memoryarray<1>, arg0, 1
+    v15 = eq v14, 0
+    jumpi v15, bb9, bb10
+  bb9:
+    v16 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v16, 0, 0
+    memory_object_store_field memorystruct<2>, v16, 1, 0
+    memory_object_store_element memoryarray<1>, arg0, 1, v16
+    jump bb10
+  bb10:
+    v17 = phi [bb8: v14], [bb9: v16]
+    v18 = memory_object_load_field memorystruct<2>, v17, 0
+    v19 = add v9, v18
+    v20 = lt v19, v9
+    jumpi v20, bb11, bb12
+  bb12:
+    ret v19
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -472,7 +472,7 @@ fn @f(arg0: u256, arg1: memorybytes) -> (u256, bytes1) [selector=0xcdc9dc79, abi
     mstore v64, 0x5f52604160045260245ffd
     v65 = slice_ptr v0
     v66 = add v8, 0x720
-    mcopy v66, v65, v1
+    mcopy v66, v65, v1 !metadata(memory=heap)
     v67 = create 0, v8, v2
     jumpi v67, bb6, bb5
   bb5:

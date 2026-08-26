@@ -9,7 +9,7 @@
 // - storage dynamic arrays check against the length stored at the base slot;
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
-    // - constant indexes remain explicit in the unoptimized MIR.
+// - constant indexes remain explicit in the unoptimized MIR.
 // Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
 // in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {

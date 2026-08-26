@@ -47,20 +47,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return_types,
                 ));
             }
-            let function_pointer =
+            let function_ty =
                 self.context.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
-                    TyKind::Fn(function)
-                        if function.function_id.is_none()
-                            && (function.is_internal() || function.is_external()) =>
-                    {
-                        Some(function)
-                    }
+                    TyKind::Fn(function) => Some(function),
                     _ => None,
                 });
-            let returns = self
-                .context
-                .gcx
-                .resolved_function(callee)
+            let function_pointer = function_ty.filter(|function| function.function_id.is_none());
+            let resolved_function = self.context.gcx.resolved_function(callee);
+            let returns = resolved_function
                 .map(|function_id| self.context.gcx.hir.function(function_id).returns.len())
                 .or_else(|| function_pointer.map(|function| function.returns.len()));
             if let Some(function) = function_pointer
@@ -74,22 +68,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && returns > 1
             {
                 let first = self.lower_expr(expr)?;
-                let base = self.multi_return_buffer_base();
                 let gcx = self.context.gcx;
-                let resolved_function = gcx.resolved_function(callee);
-                let pointer_returns = function_pointer.map(|function| function.returns);
-                let return_types = (1..returns).map(move |index| {
-                    resolved_function
-                        .and_then(|function_id| {
-                            gcx.hir
-                                .function(function_id)
-                                .returns
-                                .get(index)
-                                .map(|&id| gcx.type_of_item(id.into()))
-                        })
-                        .or_else(|| pointer_returns.and_then(|returns| returns.get(index).copied()))
-                });
-                return Some(self.load_multi_return_values(first, base, returns, return_types));
+                let return_types = if let Some(function_id) = resolved_function {
+                    gcx.hir
+                        .function(function_id)
+                        .returns
+                        .iter()
+                        .map(|&id| gcx.type_of_item(id.into()))
+                        .collect::<Vec<_>>()
+                } else {
+                    function_pointer?.returns.to_vec()
+                };
+                if function_ty.is_some_and(|function| !function.is_internal()) {
+                    let base = self.multi_return_buffer_base();
+                    let gcx = self.context.gcx;
+                    let return_types = return_types
+                        .iter()
+                        .skip(1)
+                        .map(|ty| Some(ty.with_loc_if_ref(gcx, DataLocation::Memory)));
+                    return Some(self.load_multi_return_values(first, base, returns, return_types));
+                }
+                return Some(self.load_internal_return_values(first, &return_types));
             }
             let returns_empty = returns.is_some_and(|returns| returns == 0)
                 || resolved_builtin.is_some_and(|builtin| {
@@ -112,7 +111,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.context.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                return Some(vec![self.storage_access_or_error(expr)?.slot]);
+                let Some(access) = self.storage_access(expr) else {
+                    return report_unsupported(self.context.gcx, expr.span, "storage access");
+                };
+                return Some(vec![access.slot]);
             }
             return Some(vec![self.lower_typed_expr(expr, ty)?]);
         }
@@ -128,7 +130,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = (*value)?;
                     let ty = self.context.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
-                        self.storage_access_or_error(value).map(|access| access.slot)
+                        let Some(access) = self.storage_access(value) else {
+                            return report_unsupported(
+                                self.context.gcx,
+                                value.span,
+                                "storage access",
+                            );
+                        };
+                        Some(access.slot)
                     } else {
                         self.lower_typed_expr(value, ty)
                     }
@@ -215,7 +224,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if !self.is_storage_reference_binding(lhs) {
                     return report_unsupported(self.context.gcx, lhs.span, "mixed storage tuple");
                 }
-                let access = self.storage_access_or_error(rhs)?;
+                let Some(access) = self.storage_access(rhs) else {
+                    return report_unsupported(self.context.gcx, rhs.span, "storage access");
+                };
                 let Some(id) = self.context.gcx.resolved_variable(lhs) else {
                     return report_unsupported(
                         self.context.gcx,
@@ -466,15 +477,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let value = if self.is_storage_reference_binding(lhs)
                             && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
                         {
-                            TupleAssignmentRhs::StorageReference {
-                                access: self.storage_access_or_error(rhs)?,
-                            }
+                            let Some(access) = self.storage_access(rhs) else {
+                                return report_unsupported(
+                                    self.context.gcx,
+                                    rhs.span,
+                                    "storage access",
+                                );
+                            };
+                            TupleAssignmentRhs::StorageReference { access }
                         } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
                                 && self.types.memory_layout(ty).is_some()
                         }) {
+                            let Some(access) = self.storage_access(rhs) else {
+                                return report_unsupported(
+                                    self.context.gcx,
+                                    rhs.span,
+                                    "storage access",
+                                );
+                            };
                             TupleAssignmentRhs::StorageCopy {
-                                access: self.storage_access_or_error(rhs)?,
+                                access,
                                 source_ty: source_ty?,
                                 span: rhs.span,
                             }
@@ -584,7 +607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) else {
+        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
             return self.load_multi_return_value(base, index, returns);
         };
         let index = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX));
@@ -594,6 +617,53 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             index,
             kind,
         )
+    }
+
+    pub(super) fn internal_return_words(ty: Ty<'gcx>) -> usize {
+        if matches!(types::TypeLowerer::mir_return_type(ty), MirType::Slice(_)) { 2 } else { 1 }
+    }
+
+    pub(super) fn internal_returns_words(returns: impl IntoIterator<Item = Ty<'gcx>>) -> usize {
+        returns.into_iter().map(Self::internal_return_words).sum()
+    }
+
+    pub(super) fn rebuild_first_internal_return(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        returns: usize,
+    ) -> ValueId {
+        let MirType::Slice(location) = types::TypeLowerer::mir_return_type(ty) else {
+            return value;
+        };
+        let base = self.multi_return_buffer_base();
+        let length = self.load_multi_return_value(base, 1, returns);
+        self.builder.make_slice(value, length, location)
+    }
+
+    pub(super) fn load_internal_return_values(
+        &mut self,
+        first: ValueId,
+        return_types: &[Ty<'gcx>],
+    ) -> Vec<ValueId> {
+        let returns = Self::internal_returns_words(return_types.iter().copied());
+        let base = self.multi_return_buffer_base();
+        let mut index = Self::internal_return_words(return_types[0]);
+        let mut values = Vec::with_capacity(return_types.len());
+        values.push(first);
+        for &ty in &return_types[1..] {
+            let value = match types::TypeLowerer::mir_return_type(ty) {
+                MirType::Slice(location) => {
+                    let pointer = self.load_multi_return_value(base, index, returns);
+                    let length = self.load_multi_return_value(base, index + 1, returns);
+                    self.builder.make_slice(pointer, length, location)
+                }
+                _ => self.load_multi_return_value_as(base, index, returns, ty),
+            };
+            values.push(value);
+            index += Self::internal_return_words(ty);
+        }
+        values
     }
 
     pub(super) fn load_multi_return_values(

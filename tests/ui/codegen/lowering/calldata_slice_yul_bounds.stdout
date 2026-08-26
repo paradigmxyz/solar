@@ -1,47 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
-fn @_empty() -> memorybytes [pure] {
+fn @_empty() -> calldataslice [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = make_calldata_slice v1, 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = gt v5, 0xffffffffffffffff
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = calldatasize
-    v8 = sub v7, v5
-    v9 = sgt v4, v8
-    jumpi v9, bb3, bb4
-  bb4:
-    v10 = slice_len v3
-    v11 = add v10, 63
-    v12 = lt v11, v10
-    jumpi v12, bb5, bb6
-  bb6:
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    memory_object_copy_from_slice memorybytes, v15, v3
-    ret v15
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    revert 0, 0
-  bb1:
-    revert 0, 0
+    ret v3
 }
 
 fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_empty, 1
-    v1 = internal_call @_sink, 1, v0
-    ret v1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = make_calldata_slice v0, v3
+    v5 = internal_call @_sink, 1, v4
+    ret v5
 }
 
 fn @_sink(arg0: calldataslice) -> u256 [pure] {

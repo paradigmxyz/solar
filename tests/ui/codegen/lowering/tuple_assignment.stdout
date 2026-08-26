@@ -181,27 +181,13 @@ bb17:
   push 128
   return
 bb16:
-  push 224
-  dup 1
-  push 64
-  mstore
-  dup 1
   push 192
-  mstore
-  push 64
-  dup 2
-  add
   push 64
   mstore
-  push 32
-  dup 2
-  add
   push 9
-  swap 1
+  push 160
   mstore
-  dup 1
-  push 192
-  mstore
+  push 128
   dup 1
   push 32
   mstore

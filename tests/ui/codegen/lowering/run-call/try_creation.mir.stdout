@@ -49,7 +49,7 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     mstore v12, 0xc5760a3565b5f80fd5b6003806101345f395ff35f80fd000000000000000000
     v13 = slice_ptr v0
     v14 = add v3, 311
-    mcopy v14, v13, 32
+    mcopy v14, v13, 32 !metadata(memory=heap)
     v15 = create 0, v3, 343
     v16 = eq v15, 0
     v17 = iszero v16

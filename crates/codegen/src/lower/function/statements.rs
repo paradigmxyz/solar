@@ -10,7 +10,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.context.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let Some(initializer) = initializer else { return Some(()) };
-                    let access = self.storage_access_or_error(initializer)?;
+                    let Some(access) = self.storage_access(initializer) else {
+                        return report_unsupported(
+                            self.context.gcx,
+                            initializer.span,
+                            "storage access",
+                        );
+                    };
                     self.storage_refs.insert(*id, access);
                     return Some(());
                 }
@@ -104,7 +110,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         let ty = self.context.gcx.type_of_item((*id).into());
                         if ty.is_ref_at(DataLocation::Storage) {
-                            let access = self.storage_access_or_error(value)?;
+                            let Some(access) = self.storage_access(value) else {
+                                return report_unsupported(
+                                    self.context.gcx,
+                                    value.span,
+                                    "storage access",
+                                );
+                            };
                             self.storage_refs.insert(*id, access);
                             continue;
                         }
@@ -224,8 +236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.storage_refs
                                     .insert(id, StorageAccess { slot: value, ..access });
                             } else {
-                                let value =
-                                    self.materialize_memory_argument(ty, value, stmt.span)?;
+                                let value = self.materialize_call_argument(ty, value, stmt.span)?;
                                 self.values.insert(id, value);
                             }
                         }
@@ -246,7 +257,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 if ty.is_ref_at(DataLocation::Storage) {
                                     Some(value)
                                 } else {
-                                    self.materialize_memory_argument(ty, value, stmt.span)
+                                    self.materialize_call_argument(ty, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
