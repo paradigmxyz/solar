@@ -27,11 +27,15 @@ def main() -> int:
     args = parser.parse_args()
 
     solc_runtime = evm.compile_solc(args.solc, args.source, args.contract, args.timeout)
-    solar_runtime = evm.compile_solar(args.solar, args.source, args.contract, args.timeout)
+    solar_runtime = evm.compile_solar(
+        args.solar, args.source, args.contract, args.timeout
+    )
 
     with tempfile.TemporaryDirectory(prefix="solar-foundry-fuzz-") as tmp:
         project = pathlib.Path(tmp)
-        write_foundry_target.write_target(args.source, project, solc_runtime, solar_runtime)
+        write_foundry_target.write_target(
+            args.source, project, solc_runtime, solar_runtime
+        )
         foundry = _forge_test(project, args.fuzz_runs, args.timeout)
 
     summary = {
@@ -43,16 +47,18 @@ def main() -> int:
     return 0 if summary["match"] else 1
 
 
-def _forge_test(project: pathlib.Path, fuzz_runs: int, timeout: float) -> dict[str, Any]:
+def _forge_test(
+    project: pathlib.Path, fuzz_runs: int, timeout: float
+) -> dict[str, Any]:
     env = os.environ.copy()
     try:
         result = subprocess.run(
             ["forge", "test", "--fuzz-runs", str(fuzz_runs)],
+            check=False,
             cwd=project,
             env=env,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as err:

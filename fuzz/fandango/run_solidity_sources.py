@@ -61,7 +61,9 @@ def main() -> int:
                 path = tmpdir / f"source_{index}.sol"
                 path.write_text(source)
 
-                solc_result, solar_result = _check_source(args, index, len(sources), path)
+                solc_result, solar_result = _check_source(
+                    args, index, len(sources), path
+                )
                 valid, invalid = _update_counts(valid, invalid, solc_result)
                 if solc_result["status"] != solar_result["status"]:
                     failure = _failure(index, source, solc_result, solar_result)
@@ -148,32 +150,38 @@ def _iter_sources(
 
 
 def _compile_solc(solc: str, source: pathlib.Path, timeout: float) -> dict[str, Any]:
-    return _run([
-        solc,
-        "--via-ir",
-        "--optimize",
-        "--metadata-hash",
-        "none",
-        "--bin-runtime",
-        str(source),
-    ], timeout)
+    return _run(
+        [
+            solc,
+            "--via-ir",
+            "--optimize",
+            "--metadata-hash",
+            "none",
+            "--bin-runtime",
+            str(source),
+        ],
+        timeout,
+    )
 
 
 def _compile_solar(solar: str, source: pathlib.Path, timeout: float) -> dict[str, Any]:
-    return _run([
-        solar,
-        "--emit=bin-runtime",
-        str(source),
-    ], timeout)
+    return _run(
+        [
+            solar,
+            "--emit=bin-runtime",
+            str(source),
+        ],
+        timeout,
+    )
 
 
 def _run(argv: list[str], timeout: float) -> dict[str, Any]:
     try:
         result = subprocess.run(
             argv,
+            check=False,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as err:
@@ -193,7 +201,9 @@ def _run(argv: list[str], timeout: float) -> dict[str, Any]:
     }
 
 
-def _write_failure(failure_dir: pathlib.Path, index: int, failure: dict[str, Any]) -> None:
+def _write_failure(
+    failure_dir: pathlib.Path, index: int, failure: dict[str, Any]
+) -> None:
     failure_dir.mkdir(parents=True, exist_ok=True)
     (failure_dir / f"source-{index}.json").write_text(
         json.dumps(failure, indent=2, sort_keys=True)

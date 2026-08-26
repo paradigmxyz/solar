@@ -13,7 +13,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-command.yml"
 WORKFLOW = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -72,7 +71,9 @@ def run_script(step: str) -> str:
 
 def github_script(step: str) -> str:
     script = step.split("          script: |\n", 1)[1]
-    if not all(not line or line.startswith("            ") for line in script.splitlines()):
+    if not all(
+        not line or line.startswith("            ") for line in script.splitlines()
+    ):
         raise AssertionError("github-script block has unexpected indentation")
     return "\n".join(line[12:] for line in script.splitlines())
 
@@ -275,7 +276,9 @@ const context = {{ repo: {{ owner: "workflow", repo: "solar" }} }};
 class TriggerAndResolutionTests(unittest.TestCase):
     def test_only_exact_pr_conversation_commands_are_accepted(self) -> None:
         header = WORKFLOW.split("\npermissions:", 1)[0]
-        resolver = step_block(job_block("resolve"), "Validate request and freeze revisions")
+        resolver = step_block(
+            job_block("resolve"), "Validate request and freeze revisions"
+        )
 
         self.assertIn("  issue_comment:\n    types: [created]", header)
         self.assertNotIn("pull_request_target", WORKFLOW)
@@ -308,7 +311,7 @@ class TriggerAndResolutionTests(unittest.TestCase):
 
         self.assertIn("github.rest.pulls.get", resolver)
         self.assertIn('branch: "main"', resolver)
-        self.assertIn("pull.state !== \"open\"", resolver)
+        self.assertIn('pull.state !== "open"', resolver)
         self.assertIn('pull.base?.ref !== "main"', resolver)
         self.assertIn("const MERGEABLE_POLLS", resolver)
         self.assertIn("pull.mergeable === null", resolver)
@@ -344,9 +347,7 @@ class TriggerAndResolutionTests(unittest.TestCase):
         queue = job_block("queue-comment")
 
         self.assertIn("MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}", queue)
-        self.assertIn(
-            "PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}", queue
-        )
+        self.assertIn("PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}", queue)
         self.assertIn(
             "MERGE_CANDIDATE_SHA: ${{ needs.resolve.outputs.merge_candidate_sha }}",
             queue,
@@ -359,7 +360,9 @@ class TriggerAndResolutionTests(unittest.TestCase):
 
     def test_manual_dispatch_cannot_execute_untrusted_code(self) -> None:
         header = WORKFLOW.split("\npermissions:", 1)[0]
-        resolver = step_block(job_block("resolve"), "Validate request and freeze revisions")
+        resolver = step_block(
+            job_block("resolve"), "Validate request and freeze revisions"
+        )
 
         self.assertNotIn("\n  workflow_dispatch:", header)
         self.assertNotIn("inputs.", WORKFLOW)
@@ -378,10 +381,13 @@ class TriggerAndResolutionTests(unittest.TestCase):
         script = step_block(arbitrate, "Keep only the latest accepted request")
 
         self.assertIn(
-            '.update(`${target.full_name.toLowerCase()}\\0${requestedNumber}`)', resolver
+            ".update(`${target.full_name.toLowerCase()}\\0${requestedNumber}`)",
+            resolver,
         )
         self.assertIn('core.setOutput("claim_key", claimKey)', resolver)
-        self.assertIn("name: lsp-bench-claim-${{ steps.resolve.outputs.claim_key }}", upload)
+        self.assertIn(
+            "name: lsp-bench-claim-${{ steps.resolve.outputs.claim_key }}", upload
+        )
         self.assertIn("overwrite: true", upload)
         self.assertIn("needs: resolve", arbitrate)
         self.assertIn("CLAIM_KEY: ${{ needs.resolve.outputs.claim_key }}", script)
@@ -399,7 +405,9 @@ class TriggerAndResolutionTests(unittest.TestCase):
             script.index("github.rest.actions.cancelWorkflowRun"),
         )
 
-    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    @unittest.skipUnless(
+        shutil.which("node"), "Node.js is required for workflow contract tests"
+    )
     def test_resolver_freezes_exact_d_f_m_and_writes_minimal_claim(self) -> None:
         main_sha = "1" * 40
         pr_head_sha = "2" * 40
@@ -438,7 +446,9 @@ class TriggerAndResolutionTests(unittest.TestCase):
             },
         )
 
-    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    @unittest.skipUnless(
+        shutil.which("node"), "Node.js is required for workflow contract tests"
+    )
     def test_resolver_retries_the_entire_group_when_main_moves(self) -> None:
         first_main = "1" * 40
         second_main = "2" * 40
@@ -460,7 +470,12 @@ class TriggerAndResolutionTests(unittest.TestCase):
 
         result = run_resolution_script(
             main_shas=[first_main, second_main, second_main, second_main],
-            pull_requests=[pull(first_merge), pull(first_merge), pull(second_merge), pull(second_merge)],
+            pull_requests=[
+                pull(first_merge),
+                pull(first_merge),
+                pull(second_merge),
+                pull(second_merge),
+            ],
             merge_commits={
                 first_merge: {
                     "sha": first_merge,
@@ -476,7 +491,9 @@ class TriggerAndResolutionTests(unittest.TestCase):
         self.assertEqual(result["outputs"]["main_sha"], second_main)
         self.assertEqual(result["outputs"]["merge_candidate_sha"], second_merge)
 
-    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    @unittest.skipUnless(
+        shutil.which("node"), "Node.js is required for workflow contract tests"
+    )
     def test_resolver_rejects_invalid_test_merge_contracts(self) -> None:
         main_sha = "1" * 40
         pr_head_sha = "2" * 40
@@ -530,7 +547,9 @@ class TriggerAndResolutionTests(unittest.TestCase):
                 )
                 self.assertIn(message, result["error"])
 
-    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow contract tests")
+    @unittest.skipUnless(
+        shutil.which("node"), "Node.js is required for workflow contract tests"
+    )
     def test_arbitration_is_independent_of_resolver_completion_order(self) -> None:
         older = run_arbitration_script(current_number=10, other_number=11)
         newer = run_arbitration_script(current_number=11, other_number=10)
@@ -612,7 +631,9 @@ class PermissionAndCheckoutTests(unittest.TestCase):
                 "path: lsp-bench/trusted",
             ),
         }
-        self.assertEqual(WORKFLOW.count("uses: actions/checkout@"), len(checkout_contracts))
+        self.assertEqual(
+            WORKFLOW.count("uses: actions/checkout@"), len(checkout_contracts)
+        )
         for name, (job, repository, ref, path) in checkout_contracts.items():
             with self.subTest(name=name):
                 checkout = step_block(job, name)
@@ -665,7 +686,9 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             render.index("name: Validate and render benchmark"),
         )
         self.assertNotIn("cargo build", render)
-        self.assertNotIn("needs.resolve.outputs.pr_head_repository }}\n          ref:", render)
+        self.assertNotIn(
+            "needs.resolve.outputs.pr_head_repository }}\n          ref:", render
+        )
         self.assertIn("github.rest.repos.getBranch", current)
         self.assertIn("github.rest.pulls.get", current)
         self.assertIn("continue-on-error: true", current)
@@ -774,9 +797,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
             'chmod 0755 "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', prepare
         )
         self.assertIn('test -x "$RUNNER_TEMP/lsp-bench-bin/base-solar"', prepare)
-        self.assertIn(
-            'test -x "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', prepare
-        )
+        self.assertIn('test -x "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', prepare)
         self.assertLess(
             compute.index("name: Download main compiler"),
             compute.index("name: Run LSP comparison"),
@@ -790,12 +811,8 @@ class ArtifactAndStatusTests(unittest.TestCase):
             compute.index("name: Run LSP comparison"),
         )
         run = step_block(compute, "Run LSP comparison")
-        self.assertIn(
-            '--base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar"', run
-        )
-        self.assertIn(
-            '--head-binary "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', run
-        )
+        self.assertIn('--base-binary "$RUNNER_TEMP/lsp-bench-bin/base-solar"', run)
+        self.assertIn('--head-binary "$RUNNER_TEMP/lsp-bench-bin/candidate-solar"', run)
 
     def test_compute_uploads_only_the_manifest_covered_raw_tree(self) -> None:
         upload = step_block(job_block("compute"), "Upload raw benchmark artifact")
@@ -837,7 +854,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
         )
         self.assertIn('--report "$RUNNER_TEMP/lsp-bench-render/report.md"', validate)
 
-    def test_incomplete_runs_publish_versioned_inconclusive_outputs_and_fail(self) -> None:
+    def test_incomplete_runs_publish_versioned_inconclusive_outputs_and_fail(
+        self,
+    ) -> None:
         render = job_block("render")
         stage = step_block(render, "Stage trusted report")
         failure = step_block(render, "Fail incomplete benchmark")
@@ -865,7 +884,7 @@ class ArtifactAndStatusTests(unittest.TestCase):
         fallback = stage.index("python3 - <<'PY'")
         self.assertLess(success_gate, copy_report)
         self.assertLess(copy_report, fallback)
-        self.assertIn("staged_dir=\"$RUNNER_TEMP/lsp-bench-report.staged\"", stage)
+        self.assertIn('staged_dir="$RUNNER_TEMP/lsp-bench-report.staged"', stage)
         self.assertIn('mv "$staged_dir" "$report_dir"', stage)
         self.assertIn(
             "if: ${{ !cancelled() && steps.stage.outputs.conclusive != 'true' }}",
@@ -936,7 +955,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
             self.assertEqual(comparison["threshold_percent"], 10.0)
             self.assertEqual(comparison["threshold_absolute_ms"], 1.0)
             self.assertEqual(comparison["confidence_level"], 0.95)
-            self.assertIn("**Overall:** `inconclusive`", (output / "report.md").read_text())
+            self.assertIn(
+                "**Overall:** `inconclusive`", (output / "report.md").read_text()
+            )
 
     def test_any_failed_stage_discards_partial_conclusive_outputs(self) -> None:
         stage = step_block(job_block("render"), "Stage trusted report")
@@ -962,7 +983,10 @@ class ArtifactAndStatusTests(unittest.TestCase):
             "current_state",
             "render",
         ):
-            with self.subTest(failed_stage=failed_stage), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(failed_stage=failed_stage),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 root = Path(directory)
                 rendered = root / "lsp-bench-render"
                 rendered.mkdir()
@@ -1038,14 +1062,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
             root = Path(directory)
             rendered = root / "lsp-bench-render"
             rendered.mkdir()
-            (rendered / "report.md").write_text(
-                "stale but valid\n", encoding="utf-8"
-            )
+            (rendered / "report.md").write_text("stale but valid\n", encoding="utf-8")
             (rendered / "comparison.json").write_text(
-                json.dumps(
-                    {"overall": "stable", "freshness": "main-advanced"}
-                )
-                + "\n",
+                json.dumps({"overall": "stable", "freshness": "main-advanced"}) + "\n",
                 encoding="utf-8",
             )
             output_path = root / "step-output"
@@ -1079,7 +1098,9 @@ class ArtifactAndStatusTests(unittest.TestCase):
         publish = step_block(render, "Publish sticky benchmark comment")
 
         self.assertIn("needs: [resolve, arbitrate, queue-comment, compute]", render)
-        self.assertIn("!cancelled() &&\n      needs.resolve.result == 'success'", render)
+        self.assertIn(
+            "!cancelled() &&\n      needs.resolve.result == 'success'", render
+        )
         self.assertNotIn("needs.compute.result == 'success'", render)
         self.assertNotIn("if: always()", WORKFLOW)
         self.assertIn(
@@ -1121,12 +1142,10 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         compute = job_block("compute")
         upstream = json.loads((ROOT / "benches/lsp/upstream.json").read_text())
         adapter_path = ROOT / upstream["adapter"]["path"]
-        source_url = upstream["source"]["url"].replace(
-            upstream["commit"], "$commit"
-        )
+        source_url = upstream["source"]["url"].replace(upstream["commit"], "$commit")
         version = (
-            f'lsp-bench {upstream["version"]}+commit.'
-            f'{upstream["commit"][:7]}.linux.x86_64'
+            f"lsp-bench {upstream['version']}+commit."
+            f"{upstream['commit'][:7]}.linux.x86_64"
         )
 
         self.assertIn("needs: [resolve, arbitrate]", build_base)
@@ -1194,11 +1213,11 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn(upstream["adapter"]["path"], compute)
         self.assertIn(version, compute)
         self.assertIn('CARGO_HOME="$RUNNER_TEMP/lsp-bench-cargo"', compute)
-        self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/adapter"', compute)
-        self.assertIn('patch --batch --forward --directory="$source_dir"', compute)
         self.assertIn(
-            '--lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"', compute
+            'CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/adapter"', compute
         )
+        self.assertIn('patch --batch --forward --directory="$source_dir"', compute)
+        self.assertIn('--lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"', compute)
         self.assertNotIn("lsp_filter.py", WORKFLOW)
         self.assertIn("runs-on: ubuntu-latest", compute)
         self.assertNotIn("depot-ubuntu-latest", compute)
@@ -1215,7 +1234,9 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         )
 
     def test_legacy_lsp_stack_is_absent(self) -> None:
-        workflow_names = {path.name for path in (ROOT / ".github/workflows").glob("lsp-bench*.yml")}
+        workflow_names = {
+            path.name for path in (ROOT / ".github/workflows").glob("lsp-bench*.yml")
+        }
 
         self.assertEqual(workflow_names, {"lsp-bench-command.yml"})
         self.assertFalse((ROOT / "tools/lsp-bench").exists())

@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 SCRIPT = Path(__file__).with_name("benchmark.py")
 sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("codegen_benchmark", SCRIPT)
@@ -76,9 +75,7 @@ class CorpusTests(unittest.TestCase):
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
-        case = next(
-            case for case in heavy_cases if case.project == "solady-0.1.26"
-        )
+        case = next(case for case in heavy_cases if case.project == "solady-0.1.26")
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
             benchmark.full_project_standard_json_input(case.project_file)
@@ -186,18 +183,23 @@ class FailureHandlingTests(unittest.TestCase):
 
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
-        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
-            benchmark,
-            "find_binary",
-            side_effect=lambda value, _fallbacks: Path(value),
-        ), mock.patch.object(
-            benchmark,
-            "binary_version",
-            return_value=("0.8.36", ""),
-        ), mock.patch.object(
-            benchmark,
-            "run_test_case",
-            side_effect=RuntimeError("unexpected"),
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark,
+                "find_binary",
+                side_effect=lambda value, _fallbacks: Path(value),
+            ),
+            mock.patch.object(
+                benchmark,
+                "binary_version",
+                return_value=("0.8.36", ""),
+            ),
+            mock.patch.object(
+                benchmark,
+                "run_test_case",
+                side_effect=RuntimeError("unexpected"),
+            ),
         ):
             output = Path(directory) / "results.json"
             return_code = benchmark.main(
@@ -272,9 +274,7 @@ class RuntimeComparisonTests(unittest.TestCase):
             "compilers": {"solar": {"input_fingerprint": "new"}},
         }
         references = {
-            ("runtime", "test"): {
-                "compilers": {"solc": {"input_fingerprint": "old"}}
-            }
+            ("runtime", "test"): {"compilers": {"solc": {"input_fingerprint": "old"}}}
         }
 
         merged = benchmark.merge_reference_compiler(entry, references, "solc")
