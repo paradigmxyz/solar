@@ -3764,7 +3764,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         return None;
     }
     let word = func.value_u256(value)?;
-    let trailing_bits = (32 - len) * 8;
+    let trailing_bits = usize::try_from((32 - len) * 8).ok()?;
     Some(StaticBytesReturn { len, word: word >> trailing_bits << trailing_bits })
 }
 
