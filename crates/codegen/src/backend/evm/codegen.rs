@@ -1196,7 +1196,10 @@ impl<'a> StackPhiPlanner<'a> {
         }
         let Some(results) = self.phi_result_values(&phi_insts) else { return false };
         let mut carry_through = self.carry_through_values(loop_info);
-        self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+        if carry_through.is_empty() {
+            // Keep enclosing-loop phis resident; other live-outs can still spill.
+            self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
+        }
         let mut entry = carry_through.clone();
         entry.extend(results.iter().copied());
         if entry.len() > STACK_PHI_LAYOUT_LIMIT {
