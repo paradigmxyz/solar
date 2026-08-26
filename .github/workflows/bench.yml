@@ -86,47 +86,90 @@ jobs:
           "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
 
       - name: Build Solar
-        run: cargo build --release -p solar-compiler --bin solar
+        run: |
+          cargo build --release -p solar-compiler --bin solar
+          cp target/release/solar target/release/solar-head
 
-      - name: Download baseline (${{ env.BASE_BRANCH }} branch)
+      - name: Download exact baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench/baseline
 
+          base_sha="$BASE_SHA"
+          if [[ -z "$base_sha" ]]; then
+            base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          fi
+          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
+
           run_ids="$(
             gh run list \
               --workflow bench.yml \
-              --branch "$BASE_BRANCH" \
+              --commit "$base_sha" \
               --status success \
-              --limit 20 \
+              --limit 10 \
               --json databaseId \
               --jq '.[].databaseId' \
               2>/dev/null || true
           )"
           if [[ -z "$run_ids" ]]; then
-            echo "::warning::No successful $BASE_BRANCH benchmark run was found for baseline comparison"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No successful benchmark run was found for exact base $base_sha"
             exit 0
           fi
 
           for run_id in $run_ids; do
-            if gh run download "$run_id" \
-              --name codegen-runtime-baseline \
-              --dir target/codegen-bench/baseline \
-              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
-              exit 0
-            fi
-            if gh run download "$run_id" \
-              --name codegen-runtime-results \
-              --dir target/codegen-bench/baseline \
-              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
-              exit 0
-            fi
+            for artifact in codegen-runtime-baseline codegen-runtime-results; do
+              download_dir="$RUNNER_TEMP/codegen-baseline-$run_id-$artifact"
+              mkdir -p "$download_dir"
+              if gh run download "$run_id" \
+                --name "$artifact" \
+                --dir "$download_dir" \
+                2>/dev/null && [[ -f "$download_dir/results.json" ]]; then
+                cp "$download_dir/results.json" target/codegen-bench/baseline/results.json
+                echo "found=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
           done
 
-          echo "::warning::No $BASE_BRANCH baseline artifact was available for comparison"
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Exact base $base_sha has no complete baseline artifact"
+
+      - name: Build exact-base compiler
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
+        env:
+          BASE_SHA: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git checkout --detach "$BASE_SHA"
+          if ! cargo build --release -p solar-compiler --bin solar; then
+            git checkout --detach "$GITHUB_SHA"
+            exit 1
+          fi
+          cp target/release/solar target/release/solar-base
+          git checkout --detach "$GITHUB_SHA"
+
+      - name: Run exact-base benchmark
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
+        run: |
+          set -euo pipefail
+          if ! python3 benches/runtime/benchmark.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar target/release/solar-base \
+            --mode runtime compile-time \
+            --suite all \
+            --compile-repeats 5 \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output target/codegen-bench/baseline/results.json; then
+            echo "::warning::Exact-base codegen benchmark failed to complete"
+          fi
 
       - name: Run codegen benchmark
         id: codegen-bench
@@ -135,7 +178,7 @@ jobs:
           mkdir -p target/codegen-bench
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/release/solar \
+            --solar target/release/solar-head \
             --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
