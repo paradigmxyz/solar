@@ -185,7 +185,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
-    /// A one-block helper that only forwards an internal call's return value.
+    /// A one-block helper that only returns an argument or forwards an internal call's result.
     /// Such wrappers are safe to inline even when the value is memory-backed.
     is_transparent_forwarder: bool,
     is_entry_point: bool,
@@ -649,6 +649,10 @@ fn is_transparent_forwarder(func: &Function) -> bool {
         return false;
     }
 
+    if is_identity_function(func) {
+        return true;
+    }
+
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
     let InstKind::InternalCall { returns: 1, .. } = func.inst(*call).kind else { return false };
     let Some(result) = func.inst_result_value(*call) else { return false };
@@ -658,25 +662,25 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     )
 }
 
-fn is_transparent_function_pointer_cast(func: &Function) -> bool {
-    if func.params != [MirType::Function]
-        || func.returns != [MirType::Function]
-        || func.blocks.len() != 1
-    {
+fn is_identity_function(func: &Function) -> bool {
+    let [param] = func.params.raw.as_slice() else { return false };
+    let [return_ty] = func.returns.as_slice() else { return false };
+    if param != return_ty || func.blocks.len() != 1 {
         return false;
     }
 
     let block = &func.blocks[BlockId::ENTRY];
-    if !block.instructions.is_empty() {
-        return false;
-    }
+    let Some(Terminator::Return { values }) = &block.terminator else { return false };
+    let [value] = values.as_slice() else { return false };
+    block.instructions.is_empty()
+        && matches!(func.value(*value), Value::Arg(index) if index.index() == 0)
+        && func.value_ty(*value) == Some(*param)
+}
 
-    let Some(Terminator::Return { values }) = &block.terminator else {
-        return false;
-    };
-    values.len() == 1
-        && matches!(func.value(values[0]), Value::Arg(index) if index.index() == 0)
-        && func.value_ty(values[0]) == Some(MirType::Function)
+fn is_transparent_function_pointer_cast(func: &Function) -> bool {
+    func.params == [MirType::Function]
+        && func.returns == [MirType::Function]
+        && is_identity_function(func)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
