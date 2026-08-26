@@ -9,6 +9,7 @@ use crate::backend::evm::{
     op,
     stack::MAX_STACK_DEPTH,
 };
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 pub(super) struct ReorderPushes;
@@ -16,6 +17,12 @@ pub(super) struct ReorderPushes;
 impl EvmPass for ReorderPushes {
     fn name(&self) -> &'static str {
         "reorder-pushes"
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && (!matches!(gcx.sess.opts.optimization, OptimizationMode::Size)
+                || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {

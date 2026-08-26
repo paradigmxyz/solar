@@ -1,0 +1,21 @@
+//@ revisions: gas size amsterdam
+//@[gas] compile-flags: -Ogas --evm-version osaka -Zevm-ir-pipeline=reorder-pushes
+//@[gas] filecheck: --check-prefix=ENABLED
+//@[size] compile-flags: -Osize --evm-version osaka -Zevm-ir-pipeline=reorder-pushes
+//@[size] filecheck: --check-prefix=DISABLED
+//@[amsterdam] compile-flags: -Osize --evm-version amsterdam -Zevm-ir-pipeline=reorder-pushes
+//@[amsterdam] filecheck: --check-prefix=ENABLED
+@module policy
+
+// ENABLED: + push 1
+// ENABLED: {{^[ +].*}}push 0
+// ENABLED-NEXT: {{^[ +].*}}not
+// ENABLED: - swap 1
+// DISABLED: @module policy
+// DISABLED-NOT: {{^[+-]   }}
+bb0:
+  push 0
+  not
+  push 1
+  swap 1
+  stop
