@@ -569,9 +569,7 @@ bb38:
   push 288
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb38
 bb40:
   push bb41
@@ -696,9 +694,7 @@ bb45:
   push 384
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb45
 bb50:
   push 800
@@ -896,9 +892,7 @@ bb64:
   push 160
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb64
 bb67:
   push bb68
@@ -1014,9 +1008,7 @@ bb73:
   push 288
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb73
 bb77:
   push 448
@@ -1215,9 +1207,7 @@ bb86:
   push 160
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb86
 bb89:
   push 448
@@ -1437,9 +1427,7 @@ bb100:
   push 160
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb100
 bb105:
   push 800
@@ -1636,9 +1624,7 @@ bb119:
   push 160
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb119
 bb122:
   push bb123
@@ -1726,9 +1712,7 @@ bb128:
   push 224
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb128
 bb132:
   push 448
@@ -1907,9 +1891,7 @@ bb141:
   push 160
   mload
   swap 1
-  swap 2
-  swap 3
-  swap 2
+  exchange 2, 3
   jump bb141
 bb143:
   push 32

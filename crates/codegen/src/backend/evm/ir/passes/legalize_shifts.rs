@@ -74,7 +74,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
                     instructions.extend([
                         Instruction::push_value(U256::from(2)),
                         Instruction::opcode(op::EXP),
-                        Instruction::opcode(op::SWAP1),
+                        Instruction::stack_op(op::StackOp::Swap(1)),
                         Instruction::opcode(op::DIV),
                     ]);
                     changed = true;
@@ -101,7 +101,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
 
 /// Replaces `sar(shift, value)` with unsigned division of the value or its complement.
 fn append_sar(out: &mut Vec<Instruction>) {
-    let op = |opcode| Instruction::opcode(opcode);
+    let op = Instruction::opcode;
     out.extend([
         op(op::DUP2),
         op(op::DUP2),

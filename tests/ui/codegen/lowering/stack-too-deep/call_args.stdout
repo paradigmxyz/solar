@@ -298,18 +298,10 @@ bb0:
   swap 7
   pop
   swap 6
-  swap 1
-  swap 5
-  swap 1
-  swap 2
-  swap 6
-  swap 2
-  swap 3
-  swap 5
-  swap 3
-  swap 4
-  swap 6
-  swap 4
+  exchange 1, 5
+  exchange 2, 6
+  exchange 3, 5
+  exchange 4, 6
   iszero
   push bb29
   jumpi
@@ -354,18 +346,10 @@ bb29:
   push 0x5a0
   mload
   gt
-  swap 1
-  swap 5
-  swap 1
-  swap 2
-  swap 5
-  swap 2
-  swap 3
-  swap 5
-  swap 3
-  swap 4
-  swap 5
-  swap 4
+  exchange 1, 5
+  exchange 2, 5
+  exchange 3, 5
+  exchange 4, 5
   iszero
   push bb30
   jumpi
@@ -381,15 +365,9 @@ bb30:
   push 0x5c0
   mload
   gt
-  swap 1
-  swap 4
-  swap 1
-  swap 2
-  swap 4
-  swap 2
-  swap 3
-  swap 4
-  swap 3
+  exchange 1, 4
+  exchange 2, 4
+  exchange 3, 4
   iszero
   push bb31
   jumpi
@@ -431,9 +409,7 @@ bb32:
   push 0x5c0
   mload
   gt
-  swap 1
-  swap 2
-  swap 1
+  exchange 1, 2
   iszero
   push bb33
   jumpi

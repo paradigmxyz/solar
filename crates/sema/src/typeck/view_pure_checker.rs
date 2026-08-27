@@ -256,6 +256,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
                 | Builtin::BlockChainid
                 | Builtin::BlockBasefee
                 | Builtin::BlockBlobbasefee
+                | Builtin::BlockSlotnum
                 | Builtin::MsgSender
                 | Builtin::MsgGas
                 | Builtin::TxOrigin
@@ -277,7 +278,9 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall
             | YulExtstaticcall | YulChainid | YulBasefee | YulBlobbasefee | YulBlobhash
             | YulCoinbase | YulDifficulty | YulPrevrandao | YulGaslimit | YulNumber
-            | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => StateMutability::View,
+            | YulSlotnum | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => {
+                StateMutability::View
+            }
             YulCallvalue => StateMutability::View,
             _ => StateMutability::Pure,
         };

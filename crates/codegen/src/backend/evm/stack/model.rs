@@ -3,10 +3,10 @@
 //! The StackModel maps MIR ValueIds to stack positions and provides operations
 //! for manipulating the stack (DUP, SWAP, POP).
 
-use crate::mir::ValueId;
+use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
 
-/// Maximum stack depth accessible via DUP/SWAP (DUP16, SWAP16).
+/// Legacy DUP/SWAP reach used by bounded planning and calling conventions.
 #[allow(dead_code)]
 pub(crate) const MAX_STACK_ACCESS: usize = 16;
 
@@ -108,7 +108,7 @@ impl StackModel {
     /// Simulates a DUP operation.
     /// `n` is 1-indexed (DUP1 = duplicate top, DUP2 = duplicate second from top).
     pub(crate) fn dup(&mut self, n: u8) {
-        debug_assert!((1..=16).contains(&n), "DUP depth out of range: DUP{n} (valid: 1-16)");
+        debug_assert!(StackOp::Dup(n).is_valid(), "DUP depth out of range: {n}");
         let depth = (n - 1) as usize;
         debug_assert!(
             depth < self.stack.len(),
@@ -125,7 +125,7 @@ impl StackModel {
     /// Simulates a SWAP operation.
     /// `n` is 1-indexed (SWAP1 = swap top with second, SWAP2 = swap top with third).
     pub(crate) fn swap(&mut self, n: u8) {
-        debug_assert!((1..=16).contains(&n), "SWAP depth out of range: SWAP{n} (valid: 1-16)");
+        debug_assert!(StackOp::Swap(n).is_valid(), "SWAP depth out of range: {n}");
         let depth = n as usize;
         debug_assert!(
             depth < self.stack.len(),
@@ -135,6 +135,25 @@ impl StackModel {
         );
         if depth < self.stack.len() {
             self.stack.swap(0, depth);
+        }
+    }
+
+    /// Simulates swapping two non-top stack elements.
+    pub(crate) fn exchange(&mut self, n: u8, m: u8) {
+        debug_assert!(StackOp::Exchange(n, m).is_valid(), "EXCHANGE depths out of range");
+        debug_assert!(usize::from(m) < self.stack.len(), "EXCHANGE stack underflow");
+        self.stack.swap(usize::from(n), usize::from(m));
+    }
+
+    /// Applies one physical stack operation.
+    pub(crate) fn apply(&mut self, op: StackOp) {
+        match op {
+            StackOp::Dup(n) => self.dup(n),
+            StackOp::Swap(n) => self.swap(n),
+            StackOp::Exchange(n, m) => self.exchange(n, m),
+            StackOp::Pop => {
+                self.pop();
+            }
         }
     }
 
@@ -177,29 +196,6 @@ impl StackModel {
 impl Default for StackModel {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Operations to emit for stack manipulation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum StackOp {
-    /// DUP1-DUP16: Duplicate the nth stack element.
-    Dup(u8),
-    /// SWAP1-SWAP16: Swap top with the nth stack element.
-    Swap(u8),
-    /// POP: Remove top of stack.
-    Pop,
-}
-
-impl StackOp {
-    /// Returns the opcode byte for this operation.
-    #[must_use]
-    pub(crate) const fn opcode(self) -> u8 {
-        match self {
-            Self::Dup(n) => 0x80 + n - 1,  // DUP1 = 0x80
-            Self::Swap(n) => 0x90 + n - 1, // SWAP1 = 0x90
-            Self::Pop => 0x50,
-        }
     }
 }
 
