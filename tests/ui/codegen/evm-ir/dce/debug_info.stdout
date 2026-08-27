@@ -1,0 +1,9 @@
+- // === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (before dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (after dce) ===
+  @module DebugInfo
+  bb0:
+    push 7 !metadata(span=1..5)
+-   dup 1 !metadata(span=6..10)
+-   pop !metadata(span=11..15)
+    stop !metadata(span=16..20)
+  

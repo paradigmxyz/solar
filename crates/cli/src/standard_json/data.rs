@@ -335,7 +335,7 @@ pub(super) enum EthdebugEnvironment {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugProgram {
+pub(crate) struct EthdebugProgram {
     pub(super) compilation: EthdebugReference,
     pub(super) contract: EthdebugContract,
     pub(super) environment: EthdebugEnvironment,
@@ -357,14 +357,14 @@ pub(super) struct EthdebugSource {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugCompilation {
+pub(crate) struct EthdebugCompilation {
     pub(super) id: EthdebugId,
     pub(super) compiler: EthdebugCompiler,
     pub(super) sources: Vec<EthdebugSource>,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugResources {
+pub(crate) struct EthdebugResources {
     pub(super) compilation: EthdebugCompilation,
     pub(super) types: Map<String, Value>,
     pub(super) pointers: Map<String, Value>,

@@ -99,6 +99,9 @@ pub(crate) fn emit_requested(
         emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     emit_combined_json(gcx, artifacts.as_ref())?;
+    if gcx.sess.opts.debug_info {
+        emit_ethdebug(gcx, artifacts.as_ref().expect("debug information should be generated"))?;
+    }
     if let Some(contracts) = &dump_contracts
         && has_evm_ir_dump(gcx)
     {
@@ -114,6 +117,103 @@ pub(crate) fn emit_requested(
         )?;
     }
     Ok(artifacts)
+}
+
+fn emit_ethdebug(gcx: Gcx<'_>, artifacts: &FxHashMap<ContractId, ContractArtifact>) -> Result {
+    let compilation = crate::standard_json::make_ethdebug_compilation(gcx);
+    let compilation_id = crate::standard_json::ethdebug_compilation_id(&compilation).to_owned();
+    let resources = crate::standard_json::make_ethdebug_resources(compilation);
+    let programs = gcx
+        .hir
+        .contract_ids()
+        .filter_map(|id| {
+            let artifact = artifacts.get(&id)?;
+            let creation = crate::standard_json::make_ethdebug_program(
+                gcx,
+                id,
+                artifact,
+                &compilation_id,
+                false,
+            );
+            let runtime = crate::standard_json::make_ethdebug_program(
+                gcx,
+                id,
+                artifact,
+                &compilation_id,
+                true,
+            );
+            Some((id, creation, runtime))
+        })
+        .collect::<Vec<_>>();
+
+    if let Some(out_dir) = gcx.sess.opts.out_dir.as_deref() {
+        write_ethdebug_json(gcx, &out_dir.join("ethdebug_resources.json"), &resources)?;
+        for (id, creation, runtime) in programs {
+            let stem = ethdebug_file_stem(gcx, id);
+            if let Some(program) = creation {
+                write_ethdebug_json(gcx, &out_dir.join(format!("{stem}_ethdebug.json")), &program)?;
+            }
+            if let Some(program) = runtime {
+                write_ethdebug_json(
+                    gcx,
+                    &out_dir.join(format!("{stem}_ethdebug-runtime.json")),
+                    &program,
+                )?;
+            }
+        }
+        return Ok(());
+    }
+
+    let mut writer = out_writer(None)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    if !gcx.sess.opts.emit.is_empty() {
+        writeln!(writer)
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    }
+    writeln!(writer, "=== Debug Data (ethdebug/format/info/resources) ===")
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    to_json(&mut writer, &resources, gcx.sess.opts.pretty_json)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    writeln!(writer)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+
+    for (id, creation, runtime) in programs {
+        let name = gcx.contract_fully_qualified_name(id);
+        if let Some(program) = creation {
+            writeln!(writer, "=== Debug Data (ethdebug/format/program, creation): {name} ===")
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+            to_json(&mut writer, &program, gcx.sess.opts.pretty_json)
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+            writeln!(writer)
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+        }
+        if let Some(program) = runtime {
+            writeln!(writer, "=== Debug Data (ethdebug/format/program, runtime): {name} ===")
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+            to_json(&mut writer, &program, gcx.sess.opts.pretty_json)
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+            writeln!(writer)
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+        }
+    }
+    writer.flush().map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
+}
+
+fn write_ethdebug_json(gcx: Gcx<'_>, path: &Path, value: &impl serde::Serialize) -> Result {
+    let mut writer = out_writer(Some(path))
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    to_json(&mut writer, value, gcx.sess.opts.pretty_json)
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    writeln!(writer)
+        .and_then(|()| writer.flush())
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
+}
+
+fn ethdebug_file_stem(gcx: Gcx<'_>, id: ContractId) -> String {
+    contract_output_name(gcx, id)
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') { c } else { '_' })
+        .collect()
 }
 
 fn emit_ir_input(gcx: Gcx<'_>) -> Result {

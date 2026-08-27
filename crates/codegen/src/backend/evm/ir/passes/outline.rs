@@ -225,9 +225,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            stub.instructions.push(
+                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
+            );
         }
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         stubs.push(module.add_block(stub));
     }
     let mut edits = OutlineEdits::default();
@@ -426,9 +429,12 @@ fn outline_parametric_machine_runs(
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            stub.instructions.push(
+                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
+            );
         }
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         stubs.push(module.add_block(stub));
     }
     let mut edits = FxHashMap::<BlockId, SmallVec<[ParamEdit; 1]>>::default();
@@ -471,7 +477,9 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
                 return None;
             }
             for swap in 1..=depth {
-                result.push(Instruction::stack_op(op::StackOp::Swap(swap as u8)));
+                result.push(
+                    Instruction::stack_op(op::StackOp::Swap(swap as u8)).with_debug_info_dropped(),
+                );
             }
             delta += 1;
             continue;
@@ -522,13 +530,16 @@ fn split_parametric_outline_site(
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
-    module.blocks[block].instructions.push(Instruction::push_block(continuation));
+    module.blocks[block]
+        .instructions
+        .push(Instruction::push_block(continuation).with_debug_info_dropped());
     for depth in (1..=edit.inputs).rev() {
         module.blocks[block]
             .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(edit.stub)));
+    module.blocks[block].terminator =
+        Some(Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped());
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -577,9 +588,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut edits = OutlineEdits::default();
     for (value, _) in values {
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
-        stub.instructions.push(Instruction::push_value(value));
-        stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        stub.instructions.push(Instruction::push_value(value).with_debug_info_dropped());
+        stub.instructions
+            .push(Instruction::stack_op(op::StackOp::Swap(1)).with_debug_info_dropped());
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
             edits.entry(block).or_default().push((index, 1, stub, 0));
@@ -628,13 +641,16 @@ fn split_outline_site(
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.push(Instruction::push_block(continuation));
+    module.blocks[block]
+        .instructions
+        .push(Instruction::push_block(continuation).with_debug_info_dropped());
     for depth in (1..=inputs).rev() {
         module.blocks[block]
             .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
+    module.blocks[block].terminator =
+        Some(Terminator::new(TerminatorKind::Jump(stub)).with_debug_info_dropped());
 }
 
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {

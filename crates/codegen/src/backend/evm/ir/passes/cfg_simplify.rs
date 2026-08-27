@@ -99,13 +99,21 @@ fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
 fn truncate_after_terminal(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        let Some((at, opcode)) = block.instructions.iter().enumerate().find_map(|(at, inst)| {
-            (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((at, inst.opcode))
-        }) else {
+        let Some((at, opcode, metadata)) =
+            block.instructions.iter().enumerate().find_map(|(at, inst)| {
+                (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((
+                    at,
+                    inst.opcode,
+                    inst.metadata,
+                ))
+            })
+        else {
             continue;
         };
         block.instructions.truncate(at);
-        block.terminator = Some(Terminator::new(TerminatorKind::Op(opcode)));
+        let mut terminator = Terminator::new(TerminatorKind::Op(opcode));
+        terminator.metadata = metadata;
+        block.terminator = Some(terminator);
         changed = true;
     }
     changed
@@ -114,15 +122,21 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        if let Some(TerminatorKind::JumpI { then_block, else_block }) =
-            block.terminator.as_ref().map(|term| &term.kind)
+        if let Some(Terminator {
+            kind: TerminatorKind::JumpI { then_block, else_block },
+            metadata,
+            ..
+        }) = block.terminator.as_ref()
             && then_block == else_block
         {
             let target = *then_block;
-            block
-                .instructions
-                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
-            block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+            let metadata = *metadata;
+            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            pop.metadata.set_source_span(metadata.source_span());
+            block.instructions.push(pop);
+            let mut terminator = Terminator::new(TerminatorKind::Jump(target));
+            terminator.metadata = metadata;
+            block.terminator = Some(terminator);
             changed = true;
             continue;
         }
@@ -135,10 +149,11 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
         {
+            let source_span = jumpi.metadata.source_span();
             block.instructions.truncate(block.instructions.len() - 2);
-            block
-                .instructions
-                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            pop.metadata.set_source_span(source_span);
+            block.instructions.push(pop);
             changed = true;
         }
     }

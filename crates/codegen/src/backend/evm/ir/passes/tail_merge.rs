@@ -214,7 +214,11 @@ impl RunState {
                     .to_vec();
                 tail.terminator = previous_tail.map_or_else(
                     || terminator.clone(),
-                    |target| Some(Terminator::new(TerminatorKind::Jump(target))),
+                    |target| {
+                        Some(
+                            Terminator::new(TerminatorKind::Jump(target)).with_debug_info_dropped(),
+                        )
+                    },
                 );
                 let tail = module.add_block(tail);
                 tails.push((common, tail));
@@ -227,7 +231,7 @@ impl RunState {
                 .instructions
                 .truncate(instructions.len() - max_common);
             module.blocks[group.representative].terminator =
-                Some(Terminator::new(TerminatorKind::Jump(max_tail)));
+                Some(Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped());
             for &(block, common) in &group.sites {
                 let tail = tails
                     .binary_search_by_key(&common, |&(known, _)| known)
@@ -235,7 +239,8 @@ impl RunState {
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
                 module.blocks[block].instructions.truncate(len - common);
-                module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(tail)));
+                module.blocks[block].terminator =
+                    Some(Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped());
             }
         }
         debug_assert!(labels.next().is_none());

@@ -369,6 +369,7 @@ fn generate_contract_bytecode(
         && gcx.sess.opts.unstable.mir_pipeline.is_none();
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
+        module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
         let mut codegen = EvmCodegen::new(gcx);
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));

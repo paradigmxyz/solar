@@ -61,7 +61,9 @@ fn slice_param_ptr_type(location: SliceLocation) -> MirType {
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())))
+    func.alloc_value_inst(
+        Instruction::new(kind, Some(MirType::uint256())).with_debug_info_dropped(),
+    )
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -71,10 +73,13 @@ fn new_slice_inst(
     len: ValueId,
     location: SliceLocation,
 ) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(
-        InstKind::MakeSlice { ptr, len, location },
-        Some(MirType::Slice(location)),
-    ))
+    func.alloc_value_inst(
+        Instruction::new(
+            InstKind::MakeSlice { ptr, len, location },
+            Some(MirType::Slice(location)),
+        )
+        .with_debug_info_dropped(),
+    )
 }
 
 fn split_slice_phis(
