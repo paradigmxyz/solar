@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=lower
+//@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck:
 // The first lowering step absorbs external arguments, encodes returns, and
 // preserves a body only when internal callers need one.

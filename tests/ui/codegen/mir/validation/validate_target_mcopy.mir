@@ -1,12 +1,12 @@
 //@ revisions: homestead cancun
 //@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=none
-//@[cancun] compile-flags: --evm-version cancun -Zmir-pipeline=lower
+//@[cancun] compile-flags: --evm-version cancun -Zmir-pipeline=lower-evm-shaped
 //@[cancun] filecheck:
 //~[homestead]? ERROR: target-dependent memory copy instruction `mcopy` survives the `target-lowered` phase boundary
 @module ValidateTargetMcopy
 @phase target-lowered
 
-// CHECK: after lower
+// CHECK: after lower-evm-shaped
 // CHECK: @phase evm-shaped
 fn @entry() [entry] {
   bb0:

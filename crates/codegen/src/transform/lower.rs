@@ -1,4 +1,4 @@
-//! Progressive MIR lowering through one phase-driven pass.
+//! Progressive MIR lowering through one phase-driven pass implementation.
 
 use crate::{
     analysis::{CallGraphInfo, TailCallEligibility},
@@ -19,12 +19,33 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Ident, Span, Symbol, sym};
 use solar_sema::Gcx;
 
-/// Advances MIR through its next lowering phase.
-pub(crate) struct Lower;
+/// Advances MIR to one named lowering phase.
+pub(crate) struct Lower {
+    target: MirPhase,
+}
+
+pub(crate) static ABI: Lower = Lower::new(MirPhase::Abi);
+pub(crate) static DISPATCH: Lower = Lower::new(MirPhase::Dispatch);
+pub(crate) static INTRINSICS: Lower = Lower::new(MirPhase::IntrinsicsLowered);
+pub(crate) static TARGET: Lower = Lower::new(MirPhase::TargetLowered);
+pub(crate) static EVM_SHAPED: Lower = Lower::new(MirPhase::EvmShaped);
+
+impl Lower {
+    const fn new(target: MirPhase) -> Self {
+        Self { target }
+    }
+}
 
 impl MirPass for Lower {
     fn name(&self) -> &'static str {
-        "lower"
+        match self.target {
+            MirPhase::Built => panic!("cannot lower to built MIR"),
+            MirPhase::Abi => "lower-abi",
+            MirPhase::Dispatch => "lower-dispatch",
+            MirPhase::IntrinsicsLowered => "lower-intrinsics",
+            MirPhase::TargetLowered => "lower-target",
+            MirPhase::EvmShaped => "lower-evm-shaped",
+        }
     }
 
     fn is_required(&self) -> bool {
@@ -32,18 +53,25 @@ impl MirPass for Lower {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let phase = module.phase;
-        let changed = match phase {
-            MirPhase::Built => lower_abi(module),
-            MirPhase::Abi => lower_dispatch(gcx, module),
-            MirPhase::Dispatch => {
+        assert_eq!(
+            module.phase.next(),
+            Some(self.target),
+            "`{}` cannot advance MIR from `{}`",
+            self.name(),
+            module.phase.name()
+        );
+        let changed = match self.target {
+            MirPhase::Built => unreachable!(),
+            MirPhase::Abi => lower_abi(module),
+            MirPhase::Dispatch => lower_dispatch(gcx, module),
+            MirPhase::IntrinsicsLowered => {
                 let changed = lower_memory_objects(module);
                 if changed {
                     analyses.invalidate();
                 }
                 changed
             }
-            MirPhase::IntrinsicsLowered => {
+            MirPhase::TargetLowered => {
                 let mut changed = lower_alloc(module);
                 changed |= lower_memory_zero(module);
                 if !gcx.sess.opts.evm_version.has_mcopy() {
@@ -51,8 +79,7 @@ impl MirPass for Lower {
                 }
                 changed
             }
-            MirPhase::TargetLowered => lower_evm_shape(module),
-            MirPhase::EvmShaped => panic!("cannot lower final MIR phase"),
+            MirPhase::EvmShaped => lower_evm_shape(module),
         };
         module.advance_phase();
         changed

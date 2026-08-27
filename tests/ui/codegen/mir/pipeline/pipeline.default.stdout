@@ -419,7 +419,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 + @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -545,7 +545,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=2 executed=true outcome=ok ir_changed=true state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module Pipeline
 - @phase abi
 + @phase dispatch
@@ -564,7 +564,7 @@
 +     revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=dispatch round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-intrinsics) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase dispatch
 + @phase intrinsics-lowered
@@ -673,7 +673,7 @@
       revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=4 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-target) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase intrinsics-lowered
 + @phase target-lowered
@@ -710,7 +710,7 @@
       revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 invocation=5 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase target-lowered
 + @phase evm-shaped

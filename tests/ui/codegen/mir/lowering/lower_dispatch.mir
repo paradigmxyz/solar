@@ -1,10 +1,10 @@
-//@compile-flags: -Zmir-pipeline=lower
+//@compile-flags: -Zmir-pipeline=lower-dispatch
 //@filecheck:
 // The dispatch lowering step handles selector routing, receive and fallback,
 // short calldata, and one hoisted callvalue check.
 @module LowerDispatch
 @phase abi
-// CHECK-LABEL: after lower
+// CHECK-LABEL: after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
 // CHECK: + jumpi [[VALUE]]

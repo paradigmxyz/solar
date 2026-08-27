@@ -1,10 +1,10 @@
-//@compile-flags: -Zmir-pipeline=lower
+//@compile-flags: -Zmir-pipeline=lower-target
 //@filecheck:
 @module LowerTarget
 @library
 @phase intrinsics-lowered
 
-// CHECK-LABEL: after lower
+// CHECK-LABEL: after lower-target
 // CHECK: + @phase target-lowered
 // CHECK: -     {{v[0-9]+}} = alloc
 // CHECK: -     memory_zero

@@ -82,44 +82,42 @@ only when not the default). The phases, in order:
   semantic optimization and mapping expansion preserve this contract.
 - `abi`: each external function is an argument-free ABI entry. Its original
   fused body keeps lazy calldata reads; a separate raw-return body exists only
-  when internal callers need one. Produced by `lower` from `built` MIR.
+  when internal callers need one. Produced by `lower-abi` from `built` MIR.
 - `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
   the ABI wrappers through `tail_call` terminators (control transfers and does
   not return, matching the wrappers' external termination). Produced by
-  `lower` from `abi` MIR.
+  `lower-dispatch` from `abi` MIR.
 - `intrinsics-lowered`: mapping hashes, ABI encoding, aggregates, slices, and
   memory objects have been lowered to scalar, memory, storage, loop, and CFG
-  MIR. Produced by `lower` from `dispatch` MIR.
+  MIR. Produced by `lower-intrinsics` from `dispatch` MIR.
 - `target-lowered`: abstract allocation, memory initialization, immutable
   assignment, and target-dependent memory operations have been lowered.
   Deferred constant-size allocations may remain as backend placement markers;
   they no longer use the semantic free-memory-pointer model. Produced by
-  `lower` from `intrinsics-lowered` MIR.
+  `lower-target` from `intrinsics-lowered` MIR.
 - `evm-shaped`: every statically frame-eligible call to a non-returning callee
   is an explicit `tail_call` (arguments included); other calls keep the
-  backend's return protocol. Produced by `lower` from `target-lowered` MIR;
-  argument-carrying
-  tail calls are only formed for callees the backend statically frames, so
-  their arguments store at compile-time frame addresses with no return address
-  pushed.
+  backend's return protocol. Produced by `lower-evm-shaped` from
+  `target-lowered` MIR; argument-carrying tail calls are only formed for
+  callees the backend statically frames, so their arguments store at
+  compile-time frame addresses with no return address pushed.
 
 The old textual phases `optimized` and `memory-lowered` are intentionally
 unsupported. Optimization history is a checkpoint, not a representation
 contract; `intrinsics-lowered` replaces the narrower memory-object boundary.
 
-The `lower` pass performs progressive MIR-to-MIR lowering based on the current
-phase. It moves dispatch, ABI handling, semantic representations, and target
-details out of the backend. The backend only consumes an `evm-shaped` module,
-with the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump.
-`lower` assumes valid input from the canonical pipeline and advances one phase
-through `Module::advance_phase`; module validation owns representation checks.
-Pin phase changes with `.mir` UI tests under `tests/ui/codegen/mir/`.
+The five named phase passes share one `Lower` implementation in `lower.rs`.
+Each pass names its target phase, assumes valid canonical input, and advances
+once through `Module::advance_phase`; module validation owns representation
+checks. The backend only consumes an `evm-shaped` module, with the MIR `entry`
+as the runtime prologue and `tail_call` lowered to a jump. Pin phase changes
+with `.mir` UI tests under `tests/ui/codegen/mir/`.
 
 ### MIR Pipeline
 
-The canonical MIR pipeline is one flat pass list. `lower` appears once at each
-phase boundary and advances the module by one phase. The module phase supplies
-checkpoint and timing labels; the pipeline stores no separate stage names or
+The canonical MIR pipeline is one flat pass list. A named lowering pass appears
+at each phase boundary and advances the module by one phase. The target phase
+supplies the pass name; the pipeline stores no separate stage names or
 input/output phase metadata. After `mir.input`, checkpoints describe the five
 phase boundaries through `mir.evm-shaped`; use exact pass output to inspect an
 optimization point inside a phase.

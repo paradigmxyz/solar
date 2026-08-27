@@ -42,8 +42,8 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:
 /// every external entry (selector-bearing, receive, or fallback) rejects value.
 ///
-/// The built and ABI branches of `Lower` use this while scanning the module,
-/// so both must observe every function and agree.
+/// The ABI and dispatch lowering transitions use this while scanning the
+/// module, so both must observe every function and agree.
 pub(super) struct DispatchCallvalue {
     any: bool,
     all_reject: bool,
