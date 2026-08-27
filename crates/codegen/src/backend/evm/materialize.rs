@@ -59,16 +59,8 @@ pub(super) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bo
 /// Returns whether an instruction result can be rebuilt across basic blocks.
 pub(super) const fn is_cross_block_recomputable_kind(kind: &InstKind) -> bool {
     is_cheap_recomputable_kind(kind)
-        || matches!(
-            kind,
-            InstKind::CallValue
-                | InstKind::Caller
-                | InstKind::Origin
-                | InstKind::CalldataSize
-                | InstKind::CalldataLoad(_)
-                | InstKind::InternalFrameAddr(_)
-                | InstKind::Timestamp
-        )
+        || rematerializable_nullary_opcode(kind).is_some()
+        || matches!(kind, InstKind::CalldataLoad(_) | InstKind::InternalFrameAddr(_))
 }
 
 /// Computes values that can be rebuilt across blocks from leaves available under the active
