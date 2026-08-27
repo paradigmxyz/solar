@@ -18,7 +18,7 @@ mod cfg;
 pub(crate) use cfg::{CfgInfo, DominatorTree};
 
 mod call_graph;
-pub(crate) use call_graph::CallGraphInfo;
+pub(crate) use call_graph::{CallGraphInfo, TailCallEligibility};
 
 mod liveness;
 pub(crate) use liveness::Liveness;
@@ -32,5 +32,14 @@ pub(crate) use loop_analysis::{Loop, LoopAnalyzer};
 mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};
 
+mod static_alloc;
+pub(crate) use static_alloc::{
+    StaticAllocCandidate, eligible_deferred_allocations, eligible_static_allocations, has_msize,
+    is_entry as is_static_alloc_entry,
+};
+
 mod validator;
-pub(crate) use validator::validate;
+pub(crate) use validator::{
+    validate, validate_codegen_phase, validate_for_evm, validate_phase_transition_for_evm,
+    validate_structure_for_evm,
+};

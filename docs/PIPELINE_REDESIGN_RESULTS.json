@@ -9,6 +9,12 @@
   },
   "final": {
     "compiler_sha256": "ec6591559afec1ced2287417d8d199aee006031489d18eb1c0ef55393085425a",
+    "reviewed_compiler_sha256": "3f72ca14991f2c75ca916f873ccc3a4cc0f0eaf795be482bb19660e880f6f873",
+    "reviewed_runtime": {
+      "matches_measured_nonvolatile_results": true,
+      "compile_json_sha256": "4920f103bea857eb952598644e7dbc180137132a02a623309094174839284ba3",
+      "hot_json_sha256": "4c6bc1c6b21ea9420a494e6e8e2b03fe7c17d96f1490e47971b8a01c0658b89e"
+    },
     "ui_corpus_sha256": "1f52b35f03e5cab0e203d3be313620b1d3e593071fe5f48158fa39263b2c7288",
     "runtime": {
       "projects": 15,

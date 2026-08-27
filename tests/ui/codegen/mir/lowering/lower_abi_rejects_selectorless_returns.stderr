@@ -1,4 +1,0 @@
-error: MIR fallback entry must terminate externally before ABI lowering
-
-error: aborting due to 1 previous error
-

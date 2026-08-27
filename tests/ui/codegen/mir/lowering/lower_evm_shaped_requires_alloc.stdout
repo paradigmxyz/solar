@@ -1,9 +1,0 @@
-  // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_requires_alloc.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_requires_alloc.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
-  @module LowerEvmShapedRequiresAlloc
-  @phase intrinsics-lowered
-  fn @entry() [entry] {
-    bb0:
-      v0 = fmp
-      stop
-  }
-  

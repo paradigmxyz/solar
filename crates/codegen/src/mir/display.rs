@@ -253,7 +253,7 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && !func.returns.is_empty() {
+        if !func.returns.is_empty() {
             write!(f, " -> ")?;
             if func.returns.len() == 1 {
                 write!(f, "{}", func.returns[0])?;
@@ -391,10 +391,6 @@ fn write_function_attribute(
         f.write_str(", ")?;
     }
     attribute.fmt(f)
-}
-
-fn function_prints_return_values(func: &Function) -> bool {
-    func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {

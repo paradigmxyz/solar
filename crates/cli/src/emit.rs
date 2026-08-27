@@ -5,7 +5,7 @@ use solar_codegen::{
     ContractArtifact, ContractSelection,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
-    mir::{Module, validate},
+    mir::{Module, validate_for_evm},
     pass,
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
@@ -114,11 +114,10 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
     let source = &gcx.sources.first().expect("IR source should be loaded").file;
     if gcx.sess.opts.language.is_mir() {
         let mut module = Module::parse(gcx.sess, source)?;
-        validate(&gcx.sess.dcx, &module);
+        validate_for_evm(&gcx.sess.dcx, &module, gcx.sess.opts.evm_version);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
-            validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 
             let value = gcx

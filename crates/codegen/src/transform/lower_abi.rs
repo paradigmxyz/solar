@@ -21,11 +21,6 @@
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
-//! The phase transition is all-or-nothing: if any value-returning external
-//! function lacks a matching ABI return layout, the module is left untouched
-//! and does not advance, so an `abi`-phase module always means every external
-//! function is a complete wrapper.
-//!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
 //! to these argument-free wrappers, this materializes the ABI boundary before
 //! EVM codegen. Both passes must complete before the backend runs.
@@ -49,156 +44,31 @@ impl MirPass for LowerAbi {
         "lower-abi"
     }
 
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Built
-    }
-
     fn is_required(&self) -> bool {
         true
     }
 
-    fn output_phase(&self) -> Option<MirPhase> {
-        Some(MirPhase::Abi)
-    }
-
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerAbiCx::default().run(gcx, module)
+        LowerAbiCx.run(module)
     }
 }
 
-/// Statistics from ABI wrapper lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerAbiStats {
-    /// Number of external functions wrapped.
-    wrapped: usize,
-    /// Number of value-carrying returns rewritten to ABI returndata encoding.
-    encoded_returns: usize,
-    /// Number of external functions whose live returns lack a matching ABI
-    /// layout. Any non-zero count makes the whole pass bail.
-    skipped_returns: usize,
-    /// Number of internal call sites retargeted from a wrapped function to its
-    /// extracted body.
-    retargeted_calls: usize,
-    /// Number of wrappers that received a prologue callvalue check because
-    /// the dispatch entry cannot hoist one.
-    injected_checks: usize,
-}
-
-#[derive(Debug, Default)]
-struct LowerAbiCx {
-    stats: LowerAbiStats,
-}
+struct LowerAbiCx;
 
 impl LowerAbiCx {
-    fn run(&mut self, gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        self.stats = LowerAbiStats::default();
-
-        // Idempotent: only `built` modules have an implicit ABI boundary to
-        // materialize.
-        if module.phase >= MirPhase::Abi {
-            return false;
-        }
-
+    fn run(&mut self, module: &mut Module) -> bool {
         let mut targets = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
-        let mut selectors = FxHashMap::default();
-        let mut receive = None;
-        let mut fallback = None;
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
-            let entry_kinds = usize::from(func.selector.is_some())
-                + usize::from(func.attributes.is_constructor)
-                + usize::from(func.attributes.is_dispatch_entry)
-                + usize::from(func.attributes.is_receive)
-                + usize::from(func.attributes.is_fallback);
-            if entry_kinds > 1 {
-                gcx.dcx()
-                    .err(format!(
-                        "function `{}` has conflicting external entry attributes",
-                        func.name
-                    ))
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if let Some(selector) = func.selector
-                && let Some(previous) = selectors.insert(selector, id)
-            {
-                gcx.dcx()
-                    .err(format!(
-                        "external functions `{}` and `{}` have duplicate selector `0x{:08x}`",
-                        module.function(previous).name,
-                        func.name,
-                        u32::from_be_bytes(selector)
-                    ))
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if func.attributes.is_receive
-                && let Some(previous) = receive.replace(id)
-            {
-                gcx.dcx()
-                    .err(format!(
-                        "functions `{}` and `{}` are both receive entries",
-                        module.function(previous).name,
-                        func.name
-                    ))
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if func.attributes.is_fallback
-                && let Some(previous) = fallback.replace(id)
-            {
-                gcx.dcx()
-                    .err(format!(
-                        "functions `{}` and `{}` are both fallback entries",
-                        module.function(previous).name,
-                        func.name
-                    ))
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if func.attributes.is_fallback && !func.params.is_empty() {
-                gcx.dcx()
-                    .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if func.attributes.is_receive && !func.params.is_empty() {
-                gcx.dcx()
-                    .err("MIR receive entry must not take arguments")
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
-            if (func.attributes.is_receive || func.attributes.is_fallback)
-                && (!func.returns.is_empty()
-                    || func.abi_returns.is_some()
-                    || func
-                        .blocks
-                        .iter()
-                        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. }))))
-            {
-                let kind = if func.attributes.is_receive { "receive" } else { "fallback" };
-                gcx.dcx()
-                    .err(format!("MIR {kind} entry must terminate externally before ABI lowering"))
-                    .span(module.name.span)
-                    .emit();
-                return false;
-            }
             if is_wrappable_external(func) {
                 targets.push(id);
-                self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
             }
             for inst_id in func.instructions() {
                 if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
@@ -207,14 +77,6 @@ impl LowerAbiCx {
             }
         }
 
-        // All-or-nothing: `abi` means every bodied external entry is
-        // argument-free and every selector function is a wrapper. If any
-        // return lacks the semantic layout required to encode it, leave the
-        // module untouched instead of advancing to a phase the content does
-        // not satisfy.
-        if self.stats.skipped_returns != 0 {
-            return false;
-        }
         if targets.is_empty() {
             module.advance_phase(MirPhase::Abi);
             return true;
@@ -234,13 +96,11 @@ impl LowerAbiCx {
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(id)) {
+            if let Some(body_id) = Self::wrap_function(module, id, internally_called.contains(id)) {
                 body_of_wrapper.insert(id, body_id);
             }
-            self.stats.wrapped += 1;
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
                 Self::inject_callvalue_check(module.function_mut(id));
-                self.stats.injected_checks += 1;
             }
         }
 
@@ -254,7 +114,6 @@ impl LowerAbiCx {
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
-                        self.stats.retargeted_calls += 1;
                     }
                 });
             }
@@ -282,7 +141,6 @@ impl LowerAbiCx {
     /// internal callers, a pristine `.body` copy with raw returns and parameters
     /// preserved is appended and those callers are retargeted to it.
     fn wrap_function(
-        &mut self,
         module: &mut Module,
         wrapper_id: FunctionId,
         needs_body: bool,
@@ -299,7 +157,7 @@ impl LowerAbiCx {
             module.add_function(body)
         });
 
-        self.stats.encoded_returns += encode_live_returns(module.function_mut(wrapper_id));
+        encode_live_returns(module.function_mut(wrapper_id));
 
         // The wrapper takes no MIR arguments; its `Arg` values now read the
         // calldata head words directly.
@@ -340,21 +198,10 @@ fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
 }
 
-/// Whether every value-carrying return has a matching semantic ABI layout.
-fn can_encode_live_returns(func: &Function) -> bool {
-    func.blocks.iter().all(|block| {
-        let Some(Terminator::Return { values }) = &block.terminator else {
-            return true;
-        };
-        values.is_empty()
-            || func.abi_returns.as_ref().is_some_and(|layout| layout.types.len() == values.len())
-    })
-}
-
 /// Rewrites value-carrying returns into a semantic ABI encode followed by
 /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
 fn encode_live_returns(func: &mut Function) -> usize {
-    let Some(layout) = func.abi_returns.clone() else { return 0 };
+    let layout = func.abi_returns.clone();
     let block_ids: Vec<_> = func.blocks.indices().collect();
     let mut encoded_returns = 0;
     for block_id in block_ids {
@@ -368,6 +215,12 @@ fn encode_live_returns(func: &mut Function) -> usize {
             }
             None => continue,
         };
+        let layout = layout.as_ref().expect("value-returning ABI entry must have a return layout");
+        assert_eq!(
+            layout.types.len(),
+            values.len(),
+            "ABI return layout must match the returned values"
+        );
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block_id);
         if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {

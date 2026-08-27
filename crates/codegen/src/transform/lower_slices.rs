@@ -113,34 +113,33 @@ fn new_slice_inst(
 
 impl LowerSlicesCx {
     /// Computes the shifted local-frame addresses for a signature expansion.
-    ///
-    /// Parsed MIR can contain arbitrary `u64` frame offsets. Collect every replacement before
-    /// mutating the function so an offset near the address-space limit makes this transform bail
-    /// atomically instead of panicking in debug builds or wrapping in release builds.
-    fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Option<Vec<(InstId, u64)>> {
+    fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Vec<(InstId, u64)> {
         if added_slots == 0 {
-            return Some(Vec::new());
+            return Vec::new();
         }
-        let signature_slots = func.params.len().checked_add(func.returns.len())?;
-        let signature_size =
-            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-        let old_local_start =
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?;
-        let shift = u64::try_from(added_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let signature_slots = func.params.len() + func.returns.len();
+        let signature_size = u64::try_from(signature_slots)
+            .expect("MIR signature must fit in the EVM address space")
+            .checked_mul(EvmMemoryLayout::WORD_SIZE)
+            .expect("MIR signature must fit in the EVM address space");
+        let old_local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            .checked_add(signature_size)
+            .expect("MIR frame must fit in the EVM address space");
+        let shift = u64::try_from(added_slots)
+            .expect("MIR signature must fit in the EVM address space")
+            .checked_mul(EvmMemoryLayout::WORD_SIZE)
+            .expect("MIR signature must fit in the EVM address space");
 
         let mut shifted = Vec::new();
         for inst_id in func.instructions() {
             let InstKind::InternalFrameAddr(offset) = func.inst(inst_id).kind else { continue };
-            // Lowering emits this instruction only for frame locals. Parsed MIR can address the
-            // header or signature directly, but a raw signature offset does not identify which
-            // parameter or result it belongs to after a slice expands. Bail instead of silently
-            // retargeting it to a different slot.
-            if offset < old_local_start {
-                return None;
-            }
-            shifted.push((inst_id, offset.checked_add(shift)?));
+            assert!(offset >= old_local_start, "frame address must refer to a local slot");
+            shifted.push((
+                inst_id,
+                offset.checked_add(shift).expect("MIR frame must fit in the EVM address space"),
+            ));
         }
-        Some(shifted)
+        shifted
     }
 
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
@@ -338,9 +337,7 @@ impl LowerSlicesCx {
             }
         }
         let added_slots = new_params.len() - old_params.len();
-        let Some(shifted_frame_offsets) = Self::shifted_frame_offsets(func, added_slots) else {
-            return false;
-        };
+        let shifted_frame_offsets = Self::shifted_frame_offsets(func, added_slots);
 
         let argument_values: FxHashSet<_> = func
             .live_values()
@@ -650,21 +647,6 @@ impl LowerSlicesCx {
                 (id, signature)
             })
             .collect();
-        // Signature expansion rewrites call edges throughout the module. Prove every frame-address
-        // shift first so an unrepresentable parsed-MIR offset leaves the complete module untouched.
-        if module.functions.iter_enumerated().any(|(id, func)| {
-            let added_slots = if func.selector.is_none()
-                && !func.blocks.is_empty()
-                && func.params.iter().any(Self::is_slice)
-            {
-                signatures[&id].iter().filter(|&&repr| repr == ParamRepr::Pair).count()
-            } else {
-                0
-            };
-            Self::shifted_frame_offsets(func, added_slots).is_none()
-        }) {
-            return false;
-        }
         let mut changed = false;
         for func in module.functions.iter_mut() {
             // Eliminate slice-typed `select`/`phi` first, so every remaining

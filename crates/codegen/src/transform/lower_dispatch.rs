@@ -11,9 +11,8 @@
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
-//! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built` modules
-//! rather than half-dispatching argument-taking functions.
+//! It requires the `abi` phase because it routes to the argument-free wrappers
+//! that [`super::lower_abi::LowerAbi`] produces.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `evm-shaped` module.
@@ -33,16 +32,8 @@ impl MirPass for LowerDispatch {
         "lower-dispatch"
     }
 
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Abi
-    }
-
     fn is_required(&self) -> bool {
         true
-    }
-
-    fn output_phase(&self) -> Option<MirPhase> {
-        Some(MirPhase::Dispatch)
     }
 
     fn run_pass(
@@ -51,46 +42,19 @@ impl MirPass for LowerDispatch {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerDispatchCx {
-            stats: LowerDispatchStats::default(),
-            has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting(),
-        }
-        .run(module)
+        LowerDispatchCx { has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting() }
+            .run(module)
     }
-}
-
-/// Statistics from dispatch lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerDispatchStats {
-    /// Number of selector cases routed by the synthesized `entry` function.
-    routed: usize,
 }
 
 #[derive(Debug)]
 struct LowerDispatchCx {
-    stats: LowerDispatchStats,
     has_bitwise_shifting: bool,
 }
 
 impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
-        // Idempotent: only build the entry once.
-        if module.phase >= MirPhase::Dispatch {
-            return false;
-        }
-
-        // Dispatch routes to the argument-free ABI wrappers, so it requires the
-        // ABI phase. Running on `built` MIR would leave
-        // argument-taking external functions unroutable while still advancing
-        // the phase; require the precondition and bail otherwise.
-        if module.phase < MirPhase::Abi {
-            return false;
-        }
-
-        // Collect the routable external wrappers. After the ABI phase every
-        // such wrapper is argument-free; assert that rather
-        // than silently skipping, since a leftover argument-taking selector
-        // function would mean the ABI invariant was violated.
+        // Collect the routable external wrappers.
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
         let mut receive = None;
         let mut fallback = None;
@@ -104,23 +68,11 @@ impl LowerDispatchCx {
                 fallback = Some(id);
             }
             if let Some(selector) = func.selector {
-                // A claimed `abi` input may come from textual MIR. Refuse the
-                // transition in every build if its wrapper invariant is false.
-                if !func.params.is_empty() {
-                    return false;
-                }
                 routes.push((u32::from_be_bytes(selector), id));
             }
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
-        // A fallback with the `fallback(bytes) returns (bytes)` shape takes an
-        // argument this switch cannot supply; bail all-or-nothing rather than half-routing.
-        for id in [receive, fallback].into_iter().flatten() {
-            if !module.function(id).params.is_empty() {
-                return false;
-            }
-        }
         if routes.is_empty() && receive.is_none() && fallback.is_none() && module.is_library {
             module.advance_phase(MirPhase::Dispatch);
             return true;
@@ -133,7 +85,6 @@ impl LowerDispatchCx {
         let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
-        self.stats.routed = routes.len();
         module.advance_phase(MirPhase::Dispatch);
         true
     }

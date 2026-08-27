@@ -36,28 +36,61 @@
 //! ```
 
 use crate::{
-    analysis::CfgInfo,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
+    analysis::{CfgInfo, TailCallEligibility},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
 };
+use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{diagnostics::DiagCtxt, kw};
+use solar_interface::{Span, diagnostics::DiagCtxt, kw};
 use std::fmt;
 
 /// Stateful MIR verifier.
 struct Validator<'a> {
     dcx: &'a DiagCtxt,
+    evm_version: Option<EvmVersion>,
+    span: Span,
     function: Option<FunctionId>,
     error_count: usize,
+    transition_only: bool,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, function: None, error_count: 0 }
+        Self {
+            dcx,
+            evm_version: None,
+            span: Span::DUMMY,
+            function: None,
+            error_count: 0,
+            transition_only: false,
+        }
+    }
+
+    /// Creates a target-aware verifier that emits findings into `dcx`.
+    const fn for_evm(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+        Self {
+            dcx,
+            evm_version: Some(evm_version),
+            span: Span::DUMMY,
+            function: None,
+            error_count: 0,
+            transition_only: false,
+        }
+    }
+
+    const fn for_evm_transition(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+        let mut validator = Self::for_evm(dcx, evm_version);
+        validator.transition_only = true;
+        validator
+    }
+
+    fn checks_phase(&self, module: &Module, phase: crate::mir::MirPhase) -> bool {
+        module.phase >= phase && (!self.transition_only || module.phase == phase)
     }
 
     #[track_caller]
@@ -69,7 +102,12 @@ impl<'a> Validator<'a> {
             }
             write!(f, "{message}")
         });
-        self.dcx.err(message.to_string()).emit();
+        let diag = self.dcx.err(message.to_string());
+        if self.span.is_dummy() {
+            diag.emit();
+        } else {
+            diag.span(self.span).emit();
+        }
         self.error_count += 1;
     }
 
@@ -90,10 +128,14 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
+        self.validate_function_structure(module, func);
+        self.validate_function_phase(module, func);
+    }
+
+    fn validate_function_structure(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
-        self.validate_function_phase(module, func);
     }
 
     fn validate_function_body(&mut self, func: &Function) {
@@ -521,6 +563,7 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
+        self.span = module.name.span;
         self.validate_module_phase(module);
         self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
@@ -528,6 +571,36 @@ impl<'a> Validator<'a> {
             self.validate_function(module, func);
         }
         self.function = None;
+    }
+
+    fn validate_module_structure(mut self, module: &Module) {
+        self.span = module.name.span;
+        self.validate_immutable_declarations(module);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_structure(module, func);
+        }
+        self.function = None;
+    }
+
+    fn validate_phase_transition(mut self, module: &Module) {
+        self.span = module.name.span;
+        self.validate_module_phase(module);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(module, func);
+        }
+        self.function = None;
+    }
+
+    fn validate_codegen_phase(mut self, module: &Module) {
+        self.span = module.name.span;
+        if module.phase != crate::mir::MirPhase::EvmShaped {
+            self.emit(format_args!(
+                "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
+                module.phase.name()
+            ));
+        }
     }
 
     /// Checks that call targets exist and argument counts match.
@@ -618,6 +691,21 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
+        if !self.transition_only || module.phase == crate::mir::MirPhase::Built {
+            self.validate_external_entries(module);
+        }
+        if self.checks_phase(module, crate::mir::MirPhase::Dispatch) {
+            self.validate_dispatch(module);
+        }
+        if self.checks_phase(module, crate::mir::MirPhase::TargetLowered) {
+            self.validate_deferred_allocations(module);
+        }
+        if self.checks_phase(module, crate::mir::MirPhase::EvmShaped) {
+            self.validate_evm_shape(module);
+        }
+    }
+
+    fn validate_external_entries(&mut self, module: &Module) {
         let mut selectors = FxHashMap::default();
         let mut receive = None;
         let mut fallback = None;
@@ -661,20 +749,37 @@ impl<'a> Validator<'a> {
                     func.name
                 ));
             }
+            if func.attributes.is_fallback && !func.params.is_empty() {
+                self.emit("codegen does not support `fallback(bytes) returns (bytes)` yet");
+            }
+            if func.attributes.is_receive && !func.params.is_empty() {
+                self.emit("MIR receive entry must not take arguments");
+            }
+            if func.params.is_empty()
+                && (func.attributes.is_receive || func.attributes.is_fallback)
+                && (!func.returns.is_empty()
+                    || func.abi_returns.is_some()
+                    || func
+                        .blocks
+                        .iter()
+                        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. }))))
+            {
+                let kind = if func.attributes.is_receive { "receive" } else { "fallback" };
+                self.emit(format_args!(
+                    "MIR {kind} entry must terminate externally before ABI lowering"
+                ));
+            }
         }
-        if module.phase < crate::mir::MirPhase::Abi {
-            return;
-        }
+    }
 
+    fn validate_dispatch(&mut self, module: &Module) {
         // From the `dispatch` phase on, routing is materialized. Every
         // ordinary contract has an entry, including the all-revert case.
-        if module.phase < crate::mir::MirPhase::Dispatch {
-            return;
-        }
         let dispatch_entries =
             module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
-        let has_runtime_interface =
-            !selectors.is_empty() || receive.is_some() || fallback.is_some();
+        let has_runtime_interface = module.functions.iter().any(|func| {
+            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback
+        });
         let requires_dispatch =
             !module.is_interface && !(module.is_library && !has_runtime_interface);
         if dispatch_entries > 1 {
@@ -730,15 +835,69 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        if module.phase >= crate::mir::MirPhase::TargetLowered
-            && !crate::transform::static_alloc::deferred_allocations_are_valid(module)
-        {
+    }
+
+    fn validate_deferred_allocations(&mut self, module: &Module) {
+        let mut functions = Vec::new();
+        let mut marked = Vec::new();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let before = marked.len();
+            marked.extend(func.instructions().filter_map(|inst_id| {
+                func.inst(inst_id).metadata.deferred_alloc().then_some((func_id, inst_id))
+            }));
+            if marked.len() != before {
+                functions.push(func_id);
+            }
+        }
+        if marked.is_empty() {
+            return;
+        }
+
+        let eligible = crate::analysis::eligible_deferred_allocations(module, &functions);
+        if marked.into_iter().any(|(func_id, inst_id)| {
+            !matches!(
+                module.function(func_id).inst(inst_id).kind,
+                InstKind::Alloc { kind: crate::mir::AllocationKind::Raw, .. }
+            ) || !eligible.contains(&(func_id, inst_id))
+        }) {
             self.emit("module contains an invalid deferred allocation marker");
         }
-        if module.phase >= crate::mir::MirPhase::EvmShaped
-            && !crate::transform::lower_evm_shaped::evm_shape_is_lowered(module)
-        {
-            self.emit("module has an eligible non-returning call that is not a `tail_call`");
+    }
+
+    fn validate_evm_shape(&mut self, module: &Module) {
+        let function_count = module.functions.len();
+        if module.functions.iter().any(|func| {
+            func.instructions().any(|inst_id| {
+                matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. } if function.index() >= function_count)
+            }) || func.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if function.index() >= function_count)
+            })
+        }) {
+            return;
+        }
+        if !module.functions.iter().any(|func| {
+            func.instructions().any(|inst_id| {
+                let inst = func.inst(inst_id);
+                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+            })
+        }) {
+            return;
+        }
+
+        let eligibility = TailCallEligibility::new(module);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.instructions().any(|inst_id| {
+                let inst = func.inst(inst_id);
+                matches!(
+                    &inst.kind,
+                    InstKind::InternalCall { function, args, .. }
+                        if inst.result_ty.is_none()
+                            && eligibility.contains(func_id, *function)
+                )
+            }) {
+                self.emit("module has an eligible non-returning call that is not a `tail_call`");
+                return;
+            }
         }
     }
 
@@ -746,7 +905,7 @@ impl<'a> Validator<'a> {
         // From the `abi` phase on, every bodied external entry is
         // argument-free. Selector functions are self-decoding wrappers;
         // receive and fallback entries need no arguments from dispatch.
-        if module.phase >= crate::mir::MirPhase::Abi
+        if self.checks_phase(module, crate::mir::MirPhase::Abi)
             && (func.selector.is_some()
                 || func.attributes.is_receive
                 || func.attributes.is_fallback)
@@ -759,7 +918,7 @@ impl<'a> Validator<'a> {
                 module.phase.name()
             ));
         }
-        if module.phase >= crate::mir::MirPhase::Abi
+        if self.checks_phase(module, crate::mir::MirPhase::Abi)
             && (func.selector.is_some()
                 || func.attributes.is_receive
                 || func.attributes.is_fallback)
@@ -783,7 +942,7 @@ impl<'a> Validator<'a> {
         }
         // Intrinsic lowering is a strict representation boundary: no nominal
         // aggregate types, layouts, hashes, or semantic accesses may survive.
-        if module.phase >= crate::mir::MirPhase::IntrinsicsLowered {
+        if self.checks_phase(module, crate::mir::MirPhase::IntrinsicsLowered) {
             let signature_types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
@@ -864,7 +1023,7 @@ impl<'a> Validator<'a> {
         // memory operations must have been expanded before this phase. A
         // deferred constant-size allocation is a backend placement marker, not
         // a semantic free-memory-pointer allocation.
-        if module.phase >= crate::mir::MirPhase::TargetLowered {
+        if self.checks_phase(module, crate::mir::MirPhase::TargetLowered) {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let kind = &func.inst(inst_id).kind;
@@ -875,6 +1034,11 @@ impl<'a> Validator<'a> {
                         }
                         InstKind::MemoryZero(_, _) => Some("memory zero"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
+                        InstKind::MCopy(..)
+                            if self.evm_version.is_some_and(|version| !version.has_mcopy()) =>
+                        {
+                            Some("target-dependent memory copy")
+                        }
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {
@@ -896,6 +1060,26 @@ impl<'a> Validator<'a> {
 
 pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
+}
+
+pub(crate) fn validate_for_evm(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
+    Validator::for_evm(dcx, evm_version).validate_module(module);
+}
+
+pub(crate) fn validate_structure_for_evm(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
+    Validator::for_evm(dcx, evm_version).validate_module_structure(module);
+}
+
+pub(crate) fn validate_phase_transition_for_evm(
+    dcx: &DiagCtxt,
+    module: &Module,
+    evm_version: EvmVersion,
+) {
+    Validator::for_evm_transition(dcx, evm_version).validate_phase_transition(module);
+}
+
+pub(crate) fn validate_codegen_phase(dcx: &DiagCtxt, module: &Module) {
+    Validator::new(dcx).validate_codegen_phase(module);
 }
 
 // =============================================================================

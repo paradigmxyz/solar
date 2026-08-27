@@ -34,8 +34,9 @@ pub(crate) struct Immutable {
 /// Progressive lowering rewrites high-level constructs into MIR instead of
 /// leaving them as backend special cases. Optimization checkpoints are pipeline
 /// stages, not phases: each phase below defines which MIR representations are
-/// legal. The backend only consumes an `evm-shaped` module; a lowering pass that
-/// cannot complete leaves the module at an earlier phase and codegen reports it.
+/// legal. The backend only consumes an `evm-shaped` module. Lowering passes
+/// assume valid input from the prior canonical stages; module validation checks
+/// each phase contract.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Pre-ABI semantic MIR: typed values and internal calls are explicit, but

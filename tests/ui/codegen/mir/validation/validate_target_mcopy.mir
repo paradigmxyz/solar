@@ -2,7 +2,7 @@
 //@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=default -Zprint-after-stage
 //@[cancun] compile-flags: --evm-version cancun -Zmir-pipeline=default -Zprint-after-stage
 //@[cancun] filecheck:
-//~[homestead]? ERROR: MIR module claims the `target-lowered` phase but still contains target-dependent operations
+//~[homestead]? ERROR: target-dependent memory copy instruction `mcopy` survives the `target-lowered` phase boundary
 @module ValidateTargetMcopy
 @phase target-lowered
 

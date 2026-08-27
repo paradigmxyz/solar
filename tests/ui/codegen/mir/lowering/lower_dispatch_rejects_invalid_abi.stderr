@@ -1,4 +1,0 @@
-error: [fn0] external function `takesArg` still takes arguments in the `abi` phase (expected an argument-free ABI entry)
-
-error: aborting due to 1 previous error
-

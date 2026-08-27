@@ -51,6 +51,38 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     crate::analysis::validate(dcx, module);
 }
 
+/// Validates the invariants of a MIR module for an EVM target.
+pub fn validate_for_evm(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    crate::analysis::validate_for_evm(dcx, module, evm_version);
+}
+
+pub(crate) fn validate_structure_for_evm(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    crate::analysis::validate_structure_for_evm(dcx, module, evm_version);
+}
+
+pub(crate) fn validate_phase_transition_for_evm(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    crate::analysis::validate_phase_transition_for_evm(dcx, module, evm_version);
+}
+
+pub(crate) fn validate_codegen_phase(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+) {
+    crate::analysis::validate_codegen_phase(dcx, module);
+}
+
 pub(crate) mod utils;
 
 newtype_index! {
@@ -194,6 +226,14 @@ mod round_trip {
 
     fn validate_sol(path: &Path) -> Result<(), String> {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        if sess
+            .source_map()
+            .file_loader()
+            .load_file(path)
+            .is_ok_and(|source| source.contains(" ERROR:"))
+        {
+            return Ok(());
+        }
         let mut compiler = Compiler::new(sess);
 
         let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<()> {
@@ -426,6 +466,7 @@ mod round_trip {
                 || expected.attributes != actual.attributes
                 || expected.internal_frame_size != actual.internal_frame_size
                 || expected.external_static_return_size != actual.external_static_return_size
+                || expected.returns != actual.returns
                 || expected.arg_indices().count() != actual.arg_indices().count()
                 || expected.arg_indices().zip(actual.arg_indices()).any(
                     |(expected_index, actual_index)| {

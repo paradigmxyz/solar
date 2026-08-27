@@ -35,18 +35,19 @@ rejected because they did not define complete representation contracts.
 | `plan-allocations` | Proves which constant, local allocations may use backend placement. |
 | `lower-codecs` | Lowers ABI encoders and aggregates, cleans their helpers, then lowers slices. |
 | `lower-dispatch` | Materializes selector, receive, and fallback routing. |
-| `lower-intrinsics` | One coordinated representation boundary for mappings, encoders, aggregates, slices, and memory objects that remain. |
+| `lower-intrinsics` | Lowers remaining memory objects and advances the intrinsic representation boundary after the earlier mapping and codec stages. |
 | `optimize-low-level` | GVN, copy elimination, and ADCE over arithmetic and memory exposed by intrinsic lowering. |
-| `lower-target` | Lowers immutables, coalesces allocations, and coordinates allocation, zeroing, and target-version lowering. |
+| `lower-target` | Lowers immutables, coalesces allocations, then coordinates allocation, zeroing, and target-version lowering. |
 | `optimize-target-generated` | SCCP folds arithmetic and CFG introduced by target lowering. |
 | `evm-shape` | Makes the backend call protocol explicit. |
 | `final-cleanup` | Removes dead MIR after call shaping. |
 | `schedule` | Orders MIR for physical EVM stack scheduling. |
 
-`lower-intrinsics` and `lower-target` combine transforms that share one
-representation boundary. They keep internal ordering but share phase ownership,
-analysis invalidation, and one all-or-nothing output contract. Profitability
-passes, target-version choices, and diagnostics remain separate.
+The canonical table exposes each transform once. `lower-intrinsics` and
+`lower-target` own their representation boundaries after prerequisite lowerers
+have run in the same ordered pipeline. Module validation owns each boundary
+invariant; lowering passes assume valid input from the prior canonical stages.
+Profitability passes and target-version choices remain separate.
 
 ## EVM IR stages
 
@@ -73,10 +74,10 @@ identical corpus output and was removed.
 `mir.scheduled` and from `evm.scheduled-input` to `evm.final`.
 `-Zprint-after-each` and `-Zpass-diff` identify an exact invocation. Timing and
 dump headers include the IR, module, artifact, pipeline run, stage, round, pass,
-invocation, outcome, IR change, and phase-only state change. Failed lowering
-contracts report `outcome=failed` and suppress later checkpoints. Output names
-include module and artifact identity, so concurrent deployment and runtime
-pipelines do not overwrite one another.
+invocation, outcome, IR change, and phase-only state change. A pass that emits a
+diagnostic reports `outcome=failed` and suppresses later checkpoints. Output
+names include module and artifact identity, so concurrent deployment and
+runtime pipelines do not overwrite one another.
 
 ## Candidate decisions
 
@@ -103,8 +104,14 @@ working checkout.
 
 The frozen baseline compiler SHA-256 is
 `8a035c1dd2d2fe1bea92fb09e756865afa1d880affd353672ed9d7846824a090`.
-The final compiler SHA-256 is
+The measured compiler SHA-256 is
 `ec6591559afec1ced2287417d8d199aee006031489d18eb1c0ef55393085425a`.
+The reviewed compiler SHA-256 is
+`3f72ca14991f2c75ca916f873ccc3a4cc0f0eaf795be482bb19660e880f6f873`.
+A fresh compile run over all 15 projects and a hot-gas run over all 175 labels
+matched every nonvolatile result field from the measured compiler, including
+status, sizes, calls, arguments, gas, and output checks. The timing and memory
+figures below remain those of the measured compiler.
 
 The pinned runtime corpus matched all 15 ordered project IDs and all 175
 ordered gas labels, calls, and arguments. Every compile, deployment, call, and

@@ -110,12 +110,11 @@ The `lower-abi`, `lower-dispatch`, `lower-intrinsics`, `lower-target`, and
 `lower-evm-shaped` passes are progressive MIR-to-MIR lowering. They move
 dispatch, ABI handling, semantic representations, and target details out of
 the backend. The backend only consumes an `evm-shaped` module, with the MIR
-`entry` as the runtime prologue and `tail_call` lowered to a jump. A module
-where a required lowering pass bails keeps its earlier phase and codegen
-reports it as unsupported. When extending them or adding the next phase, make
-the transition a named pass that advances the phase via
-`Module::advance_phase`, keep it conservative, and pin it with `.mir` UI tests under
-`tests/ui/codegen/mir/`.
+`entry` as the runtime prologue and `tail_call` lowered to a jump. Lowering
+passes assume valid input from the prior canonical stages and advance through
+`Module::advance_phase`; module validation owns representation checks. When
+extending them or adding the next phase, make the transition a named pass and
+pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
 
 ### Pipeline Stages
 

@@ -46,6 +46,25 @@ contract InternalVoidCall {
         return revert();
     }
 
+    // CHECK-LABEL: fn @failValue{{[( ]}}) -> u256
+    // CHECK: revert 0, 0
+    function failValue() internal pure returns (uint256) {
+        revert();
+    }
+
+    function callFailValue() external pure returns (uint256) {
+        return failValue();
+    }
+
+    function recursiveAfterFail() internal pure returns (uint256) {
+        failValue();
+        return recursiveAfterFail();
+    }
+
+    function callRecursiveAfterFail() external pure returns (uint256) {
+        return recursiveAfterFail();
+    }
+
     // CHECK-LABEL: fn @unitTernary{{[( ]}}
     // CHECK: jumpi arg0,
     // CHECK: internal_call @clear, 0

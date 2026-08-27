@@ -6,7 +6,7 @@
       ret v0
   }
   
-  fn @forward() {
+  fn @forward() -> u256 {
     bb0:
       tail_call @keep
   }

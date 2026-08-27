@@ -48,3 +48,25 @@ contract ConstructorInternalCall {
         return n * 11 + helper(n - 1);
     }
 }
+
+// MIR-LABEL: @module ConstructorZeroArgFrame
+// MIR: fn @_anonymous{{[( ]}}
+// MIR: internal_call @fail, 0
+// MIR-NOT: tail_call @fail
+contract ConstructorZeroArgFrame {
+    constructor() {
+        fail();
+    }
+
+    function fail() internal pure {
+        uint256 frame;
+        assembly {
+            frame := not(0)
+        }
+        bytes memory data = new bytes(32);
+        data[0] = 0xab;
+        assembly {
+            revert(add(data, 32), 32)
+        }
+    }
+}

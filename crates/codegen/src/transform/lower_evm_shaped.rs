@@ -19,12 +19,11 @@
 //! non-recursive), so calls to any other callee are left as ordinary calls.
 
 use crate::{
-    analysis::{CallGraphInfo, CfgInfo},
-    mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
+    analysis::{CallGraphInfo, TailCallEligibility},
+    mir::{InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
 };
-use solar_data_structures::bit_set::DenseBitSet;
 
 /// EVM-shaped phase lowering pass.
 pub(crate) struct LowerEvmShaped;
@@ -34,210 +33,101 @@ impl MirPass for LowerEvmShaped {
         "lower-evm-shaped"
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::TargetLowered
-            && super::lower_intrinsics::intrinsics_are_lowered(module)
-            && super::lower_target::target_operations_are_lowered(
-                module,
-                gcx.sess.opts.evm_version.has_mcopy(),
-            )
-    }
-
     fn is_required(&self) -> bool {
         true
     }
 
-    fn output_phase(&self) -> Option<MirPhase> {
-        Some(MirPhase::EvmShaped)
-    }
-
     fn run_pass(
         &self,
-        gcx: solar_sema::Gcx<'_>,
+        _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerEvmShapedCx::default().run(gcx, module)
+        lower_evm_shape(module)
     }
 }
 
-/// Statistics from EVM-shape lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerEvmShapedStats {
-    /// Number of internal calls rewritten into tail calls.
-    tail_calls: usize,
-}
-
-#[derive(Debug, Default)]
-struct LowerEvmShapedCx {
-    stats: LowerEvmShapedStats,
-}
-
-impl LowerEvmShapedCx {
-    fn run(&mut self, gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        self.stats = LowerEvmShapedStats::default();
-        if module.phase >= MirPhase::EvmShaped {
-            return false;
-        }
-        if module.phase != MirPhase::TargetLowered {
-            return false;
-        }
-
-        // Entry routing already uses explicit tail calls. Most modules have no
-        // resultless internal call left to reshape, so avoid building a call
-        // graph and classifying every function in that common case.
-        let has_candidate = module.functions.iter().any(|func| {
-            func.instructions().any(|inst_id| {
-                let inst = func.inst(inst_id);
-                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
-            })
-        });
-        if !has_candidate {
-            let changed = module.phase != MirPhase::EvmShaped;
-            module.advance_phase(MirPhase::EvmShaped);
-            return changed;
-        }
-
-        let call_graph = CallGraphInfo::new(module);
-        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if function_cannot_return(func)
-                && func.selector.is_none()
-                && !func.attributes.is_receive
-                && !func.attributes.is_fallback
-                && !call_graph.is_recursive(func_id)
-            {
-                tail_callable.insert(func_id);
-            }
-        }
-
-        // The deployment path emits constructor-reachable bodies without static
-        // frames, so an argument-carrying tail call has no compile-time
-        // argument addresses there. Keep those calls ordinary; argument-less
-        // rewrites need no frame addressing and stay valid on both paths.
-        let mut constructor_reachable = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
-
-        let mut changed = false;
-        let function_ids: Vec<_> = module.functions.indices().collect();
-        for func_id in function_ids {
-            let func = &mut module.functions[func_id];
-            let mut function_changed = false;
-            for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
-                let insts = &func.blocks[block_id].instructions;
-                let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = func.inst(inst_id);
-                    inst.result_ty.is_none()
-                        && matches!(
-                            &inst.kind,
-                            InstKind::InternalCall { function, args, .. }
-                                if tail_callable.contains(*function)
-                                    && (args.is_empty()
-                                        || !constructor_reachable.contains(func_id))
-                        )
-                }) else {
-                    continue;
-                };
-
-                let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
-                    unreachable!("position matched an internal call");
-                };
-                let (function, args) = (*function, args.iter().copied().collect());
-
-                // Control never comes back: everything after the call is dead.
-                func.blocks[block_id].instructions.truncate(position);
-                func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
-                self.stats.tail_calls += 1;
-                function_changed = true;
-            }
-            if function_changed {
-                function_changed |= repair_reachability_phis(func);
-                function_changed |= remove_unreachable_blocks(func) != 0;
-            }
-            changed |= function_changed;
-        }
-
-        if !evm_shape_is_lowered(module) {
-            gcx.dcx().err("failed to make non-returning calls EVM-shaped").emit();
-            return changed;
-        }
-
-        let phase_changed = module.phase != MirPhase::EvmShaped;
-        module.advance_phase(MirPhase::EvmShaped);
-        changed || phase_changed
-    }
-}
-
-/// Returns whether every call eligible for static tail-call framing is explicit.
-pub(crate) fn evm_shape_is_lowered(module: &Module) -> bool {
-    let function_count = module.functions.len();
-    if module.functions.iter().any(|func| {
+fn lower_evm_shape(module: &mut Module) -> bool {
+    // Entry routing already uses explicit tail calls. Most modules have no
+    // resultless internal call left to reshape, so avoid building a call
+    // graph and classifying every function in that common case.
+    let has_candidate = module.functions.iter().any(|func| {
         func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. } if function.index() >= function_count)
-        }) || func.blocks.iter().any(|block| {
-            matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if function.index() >= function_count)
-        })
-    }) {
-        return false;
-    }
-
-    let call_graph = CallGraphInfo::new(module);
-    let mut tail_callable = DenseBitSet::new_empty(function_count);
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if function_cannot_return(func)
-            && func.selector.is_none()
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && !call_graph.is_recursive(func_id)
-        {
-            tail_callable.insert(func_id);
-        }
-    }
-    let mut constructor_reachable = call_graph.reachable_callees_from(
-        module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-    );
-    for (id, func) in module.functions.iter_enumerated() {
-        if func.attributes.is_constructor {
-            constructor_reachable.insert(id);
-        }
-    }
-
-    module.functions.iter_enumerated().all(|(func_id, func)| {
-        func.instructions().all(|inst_id| {
             let inst = func.inst(inst_id);
-            !matches!(
-                &inst.kind,
-                InstKind::InternalCall { function, args, .. }
-                    if inst.result_ty.is_none()
-                        && tail_callable.contains(*function)
-                        && (args.is_empty() || !constructor_reachable.contains(func_id))
-            )
+            inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
         })
-    })
-}
-
-/// Whether a function can never return to an internal caller: its reachable CFG
-/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
-/// function).
-fn function_cannot_return(func: &Function) -> bool {
-    if func.blocks.is_empty() {
-        return false;
+    });
+    if !has_candidate {
+        module.advance_phase(MirPhase::EvmShaped);
+        return true;
     }
-    let cfg = CfgInfo::new(func);
-    !cfg.reachable().iter().any(|block| {
-        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-    })
+
+    let mut eligibility = TailCallEligibility::new(module);
+    loop {
+        let function_ids = eligibility.callee_first().to_vec();
+        let mut round_changed = false;
+        let mut graph_changed = false;
+        for func_id in function_ids {
+            let (function_changed, function_graph_changed) = {
+                let function_count = module.functions.len();
+                let func = &mut module.functions[func_id];
+                let mut callees_before = None;
+                let mut function_changed = false;
+                for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
+                    let insts = &func.blocks[block_id].instructions;
+                    let Some(position) = insts.iter().position(|&inst_id| {
+                        let inst = func.inst(inst_id);
+                        inst.result_ty.is_none()
+                            && matches!(
+                                &inst.kind,
+                                InstKind::InternalCall { function, args, .. }
+                                    if eligibility.contains(func_id, *function)
+                            )
+                    }) else {
+                        continue;
+                    };
+                    callees_before
+                        .get_or_insert_with(|| CallGraphInfo::direct_callees(func, function_count));
+
+                    let inst_id = func.blocks[block_id].instructions[position];
+                    let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind
+                    else {
+                        unreachable!("position matched an internal call");
+                    };
+                    let (function, args) = (*function, args.iter().copied().collect());
+
+                    // Control never comes back: everything after the call is dead.
+                    func.blocks[block_id].instructions.truncate(position);
+                    func.blocks[block_id].terminator =
+                        Some(Terminator::TailCall { function, args });
+                    function_changed = true;
+                }
+                if function_changed {
+                    let _ = remove_unreachable_blocks(func);
+                    let _ = repair_reachability_phis(func);
+                }
+                let function_graph_changed = callees_before.is_some_and(|callees_before| {
+                    callees_before != CallGraphInfo::direct_callees(func, function_count)
+                });
+                (function_changed, function_graph_changed)
+            };
+            if function_changed {
+                eligibility.refresh_callee(module, func_id);
+                round_changed = true;
+                graph_changed |= function_graph_changed;
+            }
+        }
+        if !round_changed || !graph_changed {
+            break;
+        }
+
+        let next = TailCallEligibility::new(module);
+        if eligibility.same_eligible_calls(&next) {
+            break;
+        }
+        eligibility = next;
+    }
+
+    module.advance_phase(MirPhase::EvmShaped);
+    true
 }
