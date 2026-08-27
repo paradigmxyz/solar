@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.fresh] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
 @module PingPong
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0:
@@ -20,89 +20,8 @@ fn @pingpong(arg0: u256, arg1: u256) {
     jump bb6
   bb6:
     jump bb5
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 checkpoint=mir.semantic-hashes-optimized] ===
-@module PingPong
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
-  bb4:
-    v3 = add arg0, 7
-    jump bb6
-  bb3:
-    v2 = add arg0, 7
-    jump bb6
-  bb2:
-    v1 = add arg0, 7
-    jump bb5
-  bb1:
-    v0 = add arg0, 7
-    jump bb5
-  bb5:
-    v4 = add arg0, 7
-    jump bb6
-  bb6:
-    jump bb5
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=lower-mapping-hashes round=1 checkpoint=mir.mapping-lowered] ===
-@module PingPong
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
-  bb4:
-    v3 = add arg0, 7
-    jump bb6
-  bb3:
-    v2 = add arg0, 7
-    jump bb6
-  bb2:
-    v1 = add arg0, 7
-    jump bb5
-  bb1:
-    v0 = add arg0, 7
-    jump bb5
-  bb5:
-    v4 = add arg0, 7
-    jump bb6
-  bb6:
-    jump bb5
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 checkpoint=mir.source-optimized] ===
-@module PingPong
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
 }
 // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 checkpoint=mir.abi] ===
-@module PingPong
-@phase abi
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 checkpoint=mir.abi-optimized] ===
-@module PingPong
-@phase abi
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=plan-allocations round=1 checkpoint=mir.allocations-planned] ===
-@module PingPong
-@phase abi
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 checkpoint=mir.codecs-lowered] ===
 @module PingPong
 @phase abi
 fn @pingpong(arg0: u256, arg1: u256) {
@@ -147,24 +66,6 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized] ===
-@module PingPong
-@phase intrinsics-lowered
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
 @module PingPong
 @phase target-lowered
@@ -183,61 +84,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
-@module PingPong
-@phase target-lowered
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
-@module PingPong
-@phase evm-shaped
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
-@module PingPong
-@phase evm-shaped
-fn @pingpong(arg0: u256, arg1: u256) {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
 @module PingPong
 @phase evm-shaped
 fn @pingpong(arg0: u256, arg1: u256) {

@@ -144,7 +144,6 @@ struct MirStage {
     input: MirPhase,
     output: MirPhase,
     id: StageId,
-    checkpoint: &'static str,
     passes: &'static [&'static dyn MirPass],
 }
 
@@ -153,10 +152,20 @@ impl MirStage {
         input: MirPhase,
         output: MirPhase,
         name: &'static str,
-        checkpoint: &'static str,
         passes: &'static [&'static dyn MirPass],
     ) -> Self {
-        Self { input, output, id: StageId::new(name, 1), checkpoint, passes }
+        Self { input, output, id: StageId::new(name, 1), passes }
+    }
+}
+
+fn output_checkpoint(phase: MirPhase) -> &'static str {
+    match phase {
+        MirPhase::Built => unreachable!("canonical stages must advance the MIR phase"),
+        MirPhase::Abi => "mir.abi",
+        MirPhase::Dispatch => "mir.dispatch",
+        MirPhase::IntrinsicsLowered => "mir.intrinsics-lowered",
+        MirPhase::TargetLowered => "mir.target-lowered",
+        MirPhase::EvmShaped => "mir.evm-shaped",
     }
 }
 
@@ -164,9 +173,8 @@ impl MirStage {
 static DEFAULT_PIPELINE: &[MirStage] = &[
     MirStage::new(
         MirPhase::Built,
-        MirPhase::Built,
-        "optimize-semantic-hashes",
-        "mir.semantic-hashes-optimized",
+        MirPhase::Abi,
+        "lower-abi",
         &[
             &cfg_simplify::FunctionDce,
             &SizeOnly(cfg_simplify::CfgSimplify),
@@ -176,21 +184,7 @@ static DEFAULT_PIPELINE: &[MirStage] = &[
             &pure_eval::PureEval,
             &inst_simplify::InstSimplify,
             &cse::Cse,
-        ],
-    ),
-    MirStage::new(
-        MirPhase::Built,
-        MirPhase::Built,
-        "lower-mapping-hashes",
-        "mir.mapping-lowered",
-        &[&lower_mapping_slots::LowerMappingSlots],
-    ),
-    MirStage::new(
-        MirPhase::Built,
-        MirPhase::Built,
-        "optimize-source-low-level",
-        "mir.source-optimized",
-        &[
+            &lower_mapping_slots::LowerMappingSlots,
             &gvn::Gvn,
             &pre::Pre,
             &storage_load_cse::StorageLoadCse,
@@ -225,33 +219,18 @@ static DEFAULT_PIPELINE: &[MirStage] = &[
             &adce::Adce,
             &function_compaction::MergeEquivalentFunctions,
             &cfg_simplify::FunctionDce,
+            &lower_abi::LowerAbi,
         ],
     ),
-    MirStage::new(MirPhase::Built, MirPhase::Abi, "lower-abi", "mir.abi", &[&lower_abi::LowerAbi]),
     MirStage::new(
         MirPhase::Abi,
-        MirPhase::Abi,
-        "optimize-abi",
-        "mir.abi-optimized",
+        MirPhase::Dispatch,
+        "lower-dispatch",
         &[
             &function_compaction::DeadArgElim,
             &dce::Dce,
             &function_compaction::MergeEquivalentFunctions,
-        ],
-    ),
-    MirStage::new(
-        MirPhase::Abi,
-        MirPhase::Abi,
-        "plan-allocations",
-        "mir.allocations-planned",
-        &[&static_alloc::DeferAlloc],
-    ),
-    MirStage::new(
-        MirPhase::Abi,
-        MirPhase::Abi,
-        "lower-codecs",
-        "mir.codecs-lowered",
-        &[
+            &static_alloc::DeferAlloc,
             &lower_abi_encode::LowerAbiEncode,
             &frame_promotion::FrameSlotPromotion,
             &lower_aggregates::LowerAggregates,
@@ -261,67 +240,34 @@ static DEFAULT_PIPELINE: &[MirStage] = &[
             &cse::Cse,
             &dce::Dce,
             &lower_slices::LowerSlices,
+            &lower_dispatch::LowerDispatch,
         ],
-    ),
-    MirStage::new(
-        MirPhase::Abi,
-        MirPhase::Dispatch,
-        "lower-dispatch",
-        "mir.dispatch",
-        &[&lower_dispatch::LowerDispatch],
     ),
     MirStage::new(
         MirPhase::Dispatch,
         MirPhase::IntrinsicsLowered,
         "lower-intrinsics",
-        "mir.intrinsics-lowered",
         &[&lower_intrinsics::LowerIntrinsics],
-    ),
-    MirStage::new(
-        MirPhase::IntrinsicsLowered,
-        MirPhase::IntrinsicsLowered,
-        "optimize-low-level",
-        "mir.low-level-optimized",
-        &[&gvn::Gvn, &copy_elision::CopyElision, &adce::Adce],
     ),
     MirStage::new(
         MirPhase::IntrinsicsLowered,
         MirPhase::TargetLowered,
         "lower-target",
-        "mir.target-lowered",
         &[
+            &gvn::Gvn,
+            &copy_elision::CopyElision,
+            &adce::Adce,
             &lower_immutables::LowerImmutables,
             &coalesce_allocs::CoalesceAllocs,
             &lower_target::LowerTarget,
+            &sccp::Sccp,
         ],
-    ),
-    MirStage::new(
-        MirPhase::TargetLowered,
-        MirPhase::TargetLowered,
-        "optimize-target-generated",
-        "mir.target-optimized",
-        &[&sccp::Sccp],
     ),
     MirStage::new(
         MirPhase::TargetLowered,
         MirPhase::EvmShaped,
         "evm-shape",
-        "mir.evm-shaped",
-        &[&lower_evm_shaped::LowerEvmShaped],
-    ),
-    MirStage::new(
-        MirPhase::EvmShaped,
-        MirPhase::EvmShaped,
-        "final-cleanup",
-        "mir.final",
-        &[&dce::Dce],
-    ),
-    MirStage::new(
-        MirPhase::EvmShaped,
-        MirPhase::EvmShaped,
-        "schedule",
-        "mir.scheduled",
-        &[&evm_inst_schedule::EvmInstSchedule],
+        &[&lower_evm_shaped::LowerEvmShaped, &dce::Dce, &evm_inst_schedule::EvmInstSchedule],
     ),
 ];
 
@@ -358,15 +304,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         return changed;
     }
 
-    let input_checkpoint = match module.phase {
-        MirPhase::Built => "mir.fresh",
-        MirPhase::Abi => "mir.abi-input",
-        MirPhase::Dispatch => "mir.semantic-materialized-input",
-        MirPhase::IntrinsicsLowered => "mir.intrinsics-lowered-input",
-        MirPhase::TargetLowered => "mir.target-lowered-input",
-        MirPhase::EvmShaped => "mir.evm-shaped-input",
-    };
-    manager.print_checkpoint(gcx, module, StageId::new("input", 1), input_checkpoint);
+    manager.print_checkpoint(gcx, module, StageId::new("input", 1), "mir.input");
 
     for stage in DEFAULT_PIPELINE {
         if module.phase != stage.input {
@@ -390,7 +328,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
             }
         }
         if module.phase >= stage.output {
-            manager.print_checkpoint(gcx, module, stage.id, stage.checkpoint);
+            manager.print_checkpoint(gcx, module, stage.id, output_checkpoint(stage.output));
         }
     }
     manager.validate_structure(gcx, module);

@@ -1,38 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.abi-input] ===
+// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
 @module PhaseDynamicArgResume
 @phase abi
 fn @bytesLen() [selector=0x12345678, arg_types=(calldataslice)] {
   bb0:
     v0 = slice_len arg0
     mstore 128, v0
-    returndata 128, 32
-}
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 checkpoint=mir.abi-optimized] ===
-@module PhaseDynamicArgResume
-@phase abi
-fn @bytesLen() [selector=0x12345678, arg_types=(calldataslice)] {
-  bb0:
-    v0 = slice_len arg0
-    mstore 128, v0
-    returndata 128, 32
-}
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=plan-allocations round=1 checkpoint=mir.allocations-planned] ===
-@module PhaseDynamicArgResume
-@phase abi
-fn @bytesLen() [selector=0x12345678, arg_types=(calldataslice)] {
-  bb0:
-    v0 = slice_len arg0
-    mstore 128, v0
-    returndata 128, 32
-}
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 checkpoint=mir.codecs-lowered] ===
-@module PhaseDynamicArgResume
-@phase abi
-fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {
-  bb0:
-    v1 = add arg0, 4
-    v2 = calldataload v1
-    mstore 128, v2
     returndata 128, 32
 }
 // === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 checkpoint=mir.dispatch] ===
@@ -83,30 +55,6 @@ fn @entry() [entry] {
   bb3:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized] ===
-@module PhaseDynamicArgResume
-@phase intrinsics-lowered
-fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {
-  bb0:
-    v1 = add arg0, 4
-    v2 = calldataload v1
-    mstore 128, v2
-    returndata 128, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    jumpi v0, bb3, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x12345678 => bb2]
-  bb2:
-    tail_call @bytesLen
-  bb3:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
 @module PhaseDynamicArgResume
 @phase target-lowered
@@ -131,79 +79,7 @@ fn @entry() [entry] {
   bb3:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
-@module PhaseDynamicArgResume
-@phase target-lowered
-fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {
-  bb0:
-    v1 = add arg0, 4
-    v2 = calldataload v1
-    mstore 128, v2
-    returndata 128, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    jumpi v0, bb3, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x12345678 => bb2]
-  bb2:
-    tail_call @bytesLen
-  bb3:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
-@module PhaseDynamicArgResume
-@phase evm-shaped
-fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {
-  bb0:
-    v1 = add arg0, 4
-    v2 = calldataload v1
-    mstore 128, v2
-    returndata 128, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    jumpi v0, bb3, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x12345678 => bb2]
-  bb2:
-    tail_call @bytesLen
-  bb3:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
-@module PhaseDynamicArgResume
-@phase evm-shaped
-fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {
-  bb0:
-    v1 = add arg0, 4
-    v2 = calldataload v1
-    mstore 128, v2
-    returndata 128, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    jumpi v0, bb3, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x12345678 => bb2]
-  bb2:
-    tail_call @bytesLen
-  bb3:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_dynamic_arg_resume.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
 @module PhaseDynamicArgResume
 @phase evm-shaped
 fn @bytesLen() [selector=0x12345678, arg_types=(u256)] {

@@ -5,7 +5,7 @@
 // CHECK-LABEL: checkpoint=mir.intrinsics
 // CHECK: fn @bytesLen() [selector=0x12345678, arg_types=(u256)]
 // CHECK-NOT: slice_len
-// CHECK-LABEL: checkpoint=mir.scheduled
+// CHECK-LABEL: checkpoint=mir.evm-shaped
 // CHECK: @phase evm-shaped
 @module PhaseDynamicArgResume
 @phase abi

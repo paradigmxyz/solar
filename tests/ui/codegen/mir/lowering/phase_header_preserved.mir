@@ -2,7 +2,7 @@
 //@filecheck: --match-full-lines
 // Re-running the default pipeline on intrinsic-lowered input completes the progressive
 // lowering pipeline instead of rejecting the transition.
-// CHECK-LABEL: {{.*}}checkpoint=mir.scheduled{{.*}}
+// CHECK-LABEL: {{.*}}checkpoint=mir.evm-shaped{{.*}}
 // CHECK: @module PhaseHeaderPreserved
 // CHECK-NEXT: @library
 // CHECK-NEXT: @phase evm-shaped

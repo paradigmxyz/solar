@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
 //@filecheck:
 @module PipelineFrameIndVar
-// CHECK-LABEL: checkpoint=mir.scheduled
+// CHECK-LABEL: checkpoint=mir.evm-shaped
 // CHECK: fn @frame_counter_feeds_affine_address{{[( ]}}
 // CHECK-NOT: internal_frame_addr
 // CHECK-NOT: mload

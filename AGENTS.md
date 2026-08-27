@@ -118,21 +118,20 @@ pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
 
 ### Pipeline Stages
 
-The canonical MIR pipeline uses stable stages and checkpoints. It first
-optimizes semantic mapping hashes, expands them, and optimizes their exposed
-memory operations. It then materializes and cleans ABI wrappers, plans
-allocations, lowers codecs, builds dispatch, crosses the intrinsic boundary, and
-optimizes exposed scalar MIR. Target lowering follows, then a cleanup of its
-generated code, call shaping, final dead-code cleanup, and stack scheduling.
-The checkpoint names run from `mir.fresh` through `mir.scheduled` and do not
-depend on the pass order inside a stage.
+The canonical MIR pipeline has one stage per phase transition. Each stage owns
+all optimization and lowering needed to reach its output phase: `built` to
+`abi`, `abi` to `dispatch`, `dispatch` to `intrinsics-lowered`,
+`intrinsics-lowered` to `target-lowered`, and `target-lowered` to
+`evm-shaped`. After `mir.input`, checkpoints describe only the five output
+phase boundaries through `mir.evm-shaped`; use exact pass output to inspect an
+optimization point inside a phase.
 
 The EVM IR pipeline first legalizes target-version operations, then runs local
 normalization, structural sharing, stack-code regeneration, a second measured
-structural round, and final address-sensitive layout. Its checkpoints run from
-`evm.scheduled-input` through `evm.final`. Keep local profitability choices as
-separate passes. Combine transforms only when they share one contract and the
-combined pass retains truthful change reporting.
+structural round, and final address-sensitive layout. Its stable checkpoints
+are scheduled input, target-legal IR, and final IR. Keep local profitability
+choices as separate passes. Combine transforms only when they share one
+contract and the combined pass retains truthful change reporting.
 
 Use `-Zprint-after-stage` for stable checkpoints, `-Zprint-after-each` for an
 exact pass invocation, and `-Ztime-passes` for chronological structured timing.

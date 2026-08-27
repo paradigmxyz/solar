@@ -1,22 +1,12 @@
 //@ compile-flags: -Zmir-pipeline=default -Zprint-after-stage
 //@ filecheck:
 
-// CHECK: stage=input round=1 checkpoint=mir.fresh
-// CHECK: stage=optimize-semantic-hashes round=1 checkpoint=mir.semantic-hashes-optimized
-// CHECK: stage=lower-mapping-hashes round=1 checkpoint=mir.mapping-lowered
-// CHECK: stage=optimize-source-low-level round=1 checkpoint=mir.source-optimized
+// CHECK: stage=input round=1 checkpoint=mir.input
 // CHECK: stage=lower-abi round=1 checkpoint=mir.abi
-// CHECK: stage=optimize-abi round=1 checkpoint=mir.abi-optimized
-// CHECK: stage=plan-allocations round=1 checkpoint=mir.allocations-planned
-// CHECK: stage=lower-codecs round=1 checkpoint=mir.codecs-lowered
 // CHECK: stage=lower-dispatch round=1 checkpoint=mir.dispatch
 // CHECK: stage=lower-intrinsics round=1 checkpoint=mir.intrinsics-lowered
-// CHECK: stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized
 // CHECK: stage=lower-target round=1 checkpoint=mir.target-lowered
-// CHECK: stage=optimize-target-generated round=1 checkpoint=mir.target-optimized
 // CHECK: stage=evm-shape round=1 checkpoint=mir.evm-shaped
-// CHECK: stage=final-cleanup round=1 checkpoint=mir.final
-// CHECK: stage=schedule round=1 checkpoint=mir.scheduled
 @module StageCheckpoints
 
 fn @f(arg0: u256) -> u256 {

@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
 //@filecheck:
-// CHECK-LABEL: checkpoint=mir.scheduled
+// CHECK-LABEL: checkpoint=mir.evm-shaped
 // CHECK: @module PhasePipelineResume
 // CHECK-NEXT: @phase evm-shaped
 // The canonical pipeline resumes progressive lowering when the input has

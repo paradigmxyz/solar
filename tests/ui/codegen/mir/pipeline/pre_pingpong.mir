@@ -11,7 +11,7 @@
 // PRE-LABEL: {{^[ +].*}}fn @pingpong{{[( ]}}
 // PRE: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb6: [[INSERTED:v[0-9]+]]]
 // PRE: + [[INSERTED]] = add arg0, 7
-// PIPELINE-LABEL: checkpoint=mir.scheduled
+// PIPELINE-LABEL: checkpoint=mir.evm-shaped
 // PIPELINE: fn @pingpong{{[( ]}}
 // PIPELINE-NOT: add
 // PIPELINE: bb0:

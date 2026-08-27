@@ -73,21 +73,19 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 
 struct EvmStage {
     id: StageId,
-    checkpoint: &'static str,
     passes: &'static [&'static dyn EvmPass],
 }
 
 #[derive(Clone, Copy)]
 struct EvmStageRun {
     id: StageId,
-    checkpoint: &'static str,
+    checkpoint: Option<&'static str>,
     explicit: bool,
 }
 
 static DEFAULT_STAGES: &[EvmStage] = &[
     EvmStage {
         id: StageId::new("normalize", 1),
-        checkpoint: "evm.normalized",
         passes: &[
             &peephole::Peephole,
             &constant_data::ConstantData,
@@ -99,7 +97,6 @@ static DEFAULT_STAGES: &[EvmStage] = &[
     },
     EvmStage {
         id: StageId::new("share-structure", 1),
-        checkpoint: "evm.structure-shared",
         passes: &[
             &terminal_dedup::TerminalDedup,
             &cfg_simplify::CfgSimplify,
@@ -111,7 +108,6 @@ static DEFAULT_STAGES: &[EvmStage] = &[
     },
     EvmStage {
         id: StageId::new("regenerate", 1),
-        checkpoint: "evm.regenerated",
         passes: &[
             &compact_pushes::CompactPushes,
             &block_cse::BlockCse,
@@ -123,12 +119,10 @@ static DEFAULT_STAGES: &[EvmStage] = &[
     },
     EvmStage {
         id: StageId::new("share-structure", 2),
-        checkpoint: "evm.structure-reshared",
         passes: &[&tail_merge::TailMerge, &outline::Outline],
     },
     EvmStage {
         id: StageId::new("finalize", 1),
-        checkpoint: "evm.final",
         passes: &[
             &compact_pushes::CompactPushes,
             &peephole::Peephole,
@@ -291,14 +285,18 @@ fn run_default_pipeline(
     if gcx.dcx().has_errors().is_err() {
         return changed;
     }
-    for stage in DEFAULT_STAGES {
+    for (index, stage) in DEFAULT_STAGES.iter().enumerate() {
         changed |= run_stage(
             gcx,
             module,
             stage.passes.iter().copied().map(Some),
             output_name,
             artifact,
-            EvmStageRun { id: stage.id, checkpoint: stage.checkpoint, explicit: false },
+            EvmStageRun {
+                id: stage.id,
+                checkpoint: (index + 1 == DEFAULT_STAGES.len()).then_some("evm.final"),
+                explicit: false,
+            },
             state,
         );
         if gcx.dcx().has_errors().is_err() {
@@ -323,7 +321,7 @@ fn run_legalize_stage(
         artifact,
         EvmStageRun {
             id: StageId::new("legalize-target", 1),
-            checkpoint: "evm.target-legal",
+            checkpoint: Some("evm.target-legal"),
             explicit: false,
         },
         state,
@@ -349,14 +347,17 @@ fn run_stage(
         stage.id,
         state,
     );
-    if gcx.dcx().has_errors().is_ok() && gcx.sess.opts.unstable.print_after_stage {
+    if let Some(checkpoint) = stage.checkpoint
+        && gcx.dcx().has_errors().is_ok()
+        && gcx.sess.opts.unstable.print_after_stage
+    {
         print_checkpoint(
             output_name,
             "EVM-IR",
             artifact,
             state.pipeline_run(),
             stage.id,
-            stage.checkpoint,
+            checkpoint,
             module.to_text(),
         );
     }
@@ -426,7 +427,7 @@ fn run_pipeline_inner(
         passes,
         &output_name,
         artifact,
-        EvmStageRun { id: stage, checkpoint: "custom-output", explicit: true },
+        EvmStageRun { id: stage, checkpoint: Some("custom-output"), explicit: true },
         &mut state,
     );
     if gcx.dcx().has_errors().is_err() {

@@ -6,7 +6,7 @@
 @module ValidateTargetMcopy
 @phase target-lowered
 
-// CHECK: checkpoint=mir.scheduled
+// CHECK: checkpoint=mir.evm-shaped
 fn @entry() [entry] {
   bb0:
     mcopy 0, 0, 0

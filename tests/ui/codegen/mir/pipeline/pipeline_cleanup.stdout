@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.fresh] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
 @module PipelineCleanup
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {
   bb0:
@@ -17,56 +17,6 @@ fn @fold_phi_after_promotion(arg0: bool) -> u256 {
     v3 = internal_frame_addr 128
     v4 = mload v3
     ret v4
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 checkpoint=mir.semantic-hashes-optimized] ===
-@module PipelineCleanup
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 1
-    jumpi arg0, bb1, bb2
-  bb2:
-    v2 = internal_frame_addr 128
-    mstore v2, 1
-    jump bb3
-  bb1:
-    v1 = internal_frame_addr 128
-    mstore v1, 1
-    jump bb3
-  bb3:
-    v3 = internal_frame_addr 128
-    v4 = mload v3
-    ret v4
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=lower-mapping-hashes round=1 checkpoint=mir.mapping-lowered] ===
-@module PipelineCleanup
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 1
-    jumpi arg0, bb1, bb2
-  bb2:
-    v2 = internal_frame_addr 128
-    mstore v2, 1
-    jump bb3
-  bb1:
-    v1 = internal_frame_addr 128
-    mstore v1, 1
-    jump bb3
-  bb3:
-    v3 = internal_frame_addr 128
-    v4 = mload v3
-    ret v4
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 checkpoint=mir.source-optimized] ===
-@module PipelineCleanup
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    jump bb2
-  bb2:
-    ret 1
-  bb1:
-    invalid
 }
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 checkpoint=mir.abi] ===
 @module PipelineCleanup
@@ -78,35 +28,6 @@ fn @fold_phi_after_promotion(arg0: bool) -> u256 {
     ret 1
   bb1:
     invalid
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 checkpoint=mir.abi-optimized] ===
-@module PipelineCleanup
-@phase abi
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    jump bb2
-  bb2:
-    ret 1
-  bb1:
-    invalid
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=plan-allocations round=1 checkpoint=mir.allocations-planned] ===
-@module PipelineCleanup
-@phase abi
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    jump bb2
-  bb2:
-    ret 1
-  bb1:
-    invalid
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 checkpoint=mir.codecs-lowered] ===
-@module PipelineCleanup
-@phase abi
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    ret 1
 }
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 checkpoint=mir.dispatch] ===
 @module PipelineCleanup
@@ -140,22 +61,6 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized] ===
-@module PipelineCleanup
-@phase intrinsics-lowered
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    ret 1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
 @module PipelineCleanup
 @phase target-lowered
@@ -172,55 +77,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
-@module PipelineCleanup
-@phase target-lowered
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    ret 1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
-@module PipelineCleanup
-@phase evm-shaped
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    ret 1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
-@module PipelineCleanup
-@phase evm-shaped
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0:
-    ret 1
-}
-
-fn @entry() [entry] {
-  bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
-}
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
 @module PipelineCleanup
 @phase evm-shaped
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {

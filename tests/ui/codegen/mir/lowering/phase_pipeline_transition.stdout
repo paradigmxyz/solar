@@ -1,4 +1,4 @@
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -7,7 +7,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -16,7 +16,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after pure-eval) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after pure-eval) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -25,7 +25,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -34,7 +34,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -43,7 +43,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-mapping-slots) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-mapping-hashes round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-mapping-slots) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -52,7 +52,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -61,7 +61,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -70,7 +70,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -79,7 +79,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -88,7 +88,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -97,7 +97,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -106,7 +106,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -115,7 +115,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after indvar-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after indvar-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -124,7 +124,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -133,7 +133,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -142,7 +142,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -151,7 +151,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -160,7 +160,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -169,7 +169,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sroa) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sroa) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -178,7 +178,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -187,7 +187,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -196,7 +196,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -205,7 +205,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after outline-reverts) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after outline-reverts) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -214,7 +214,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -223,7 +223,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -232,7 +232,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inline-tiny-leaves) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inline-tiny-leaves) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -241,7 +241,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after specialize-function-pointers) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after specialize-function-pointers) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -250,7 +250,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -259,7 +259,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -268,7 +268,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -277,7 +277,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -286,7 +286,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -295,7 +295,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -304,7 +304,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -313,7 +313,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -322,7 +322,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -331,7 +331,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -340,7 +340,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -349,7 +349,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   fn @f(arg0: u256) {
     bb0:
@@ -368,7 +368,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -378,7 +378,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -388,7 +388,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -398,7 +398,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after defer-alloc) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=plan-allocations round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after defer-alloc) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -408,7 +408,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -418,7 +418,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -428,7 +428,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-aggregates) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-aggregates) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -438,7 +438,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -448,7 +448,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -458,7 +458,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -468,7 +468,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -478,7 +478,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -488,7 +488,7 @@
       returndata 128, 32
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase abi
   fn @f(arg0: u256) {
@@ -538,7 +538,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-target round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase intrinsics-lowered
   fn @f(arg0: u256) {
@@ -557,7 +557,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-target round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase intrinsics-lowered
   fn @f(arg0: u256) {
@@ -576,7 +576,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-target round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase intrinsics-lowered
   fn @f(arg0: u256) {
@@ -653,7 +653,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=lower-target round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase target-lowered
   fn @f(arg0: u256) {
@@ -692,7 +692,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase evm-shaped
   fn @f(arg0: u256) {
@@ -711,7 +711,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=schedule round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhasePipelineTransition
   @phase evm-shaped
   fn @f(arg0: u256) {
