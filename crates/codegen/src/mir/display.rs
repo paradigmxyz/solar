@@ -281,11 +281,93 @@ pub(crate) fn display_function_text<'a>(
 fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
+        if let Some(selector) = func.selector {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
+            )?;
+        }
+        match func.attributes.visibility {
+            hir::Visibility::Private => {
+                write_function_attribute(f, &mut first, "private")?;
+            }
+            hir::Visibility::Internal => {}
+            hir::Visibility::Public => {
+                write_function_attribute(f, &mut first, "public")?;
+            }
+            hir::Visibility::External => {
+                write_function_attribute(f, &mut first, "external")?;
+            }
+        }
+        match func.attributes.state_mutability {
+            hir::StateMutability::Pure => {
+                write_function_attribute(f, &mut first, "pure")?;
+            }
+            hir::StateMutability::View => {
+                write_function_attribute(f, &mut first, "view")?;
+            }
+            hir::StateMutability::Payable => {
+                write_function_attribute(f, &mut first, "payable")?;
+            }
+            hir::StateMutability::NonPayable => {}
+        }
+        if func.attributes.is_constructor {
+            write_function_attribute(f, &mut first, "constructor")?;
+        }
+        if func.attributes.is_fallback {
+            write_function_attribute(f, &mut first, "fallback")?;
+        }
+        if func.attributes.is_receive {
+            write_function_attribute(f, &mut first, "receive")?;
+        }
         if func.attributes.is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
+        if func.attributes.is_yul {
+            write_function_attribute(f, &mut first, "yul")?;
+        }
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
+        }
+        if func.attributes.no_inline {
+            write_function_attribute(f, &mut first, "no_inline")?;
+        }
+        if func.internal_frame_size != 0 {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("internal_frame_size={}", func.internal_frame_size),
+            )?;
+        }
+        if func.external_static_return_size != 0 {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("external_static_return_size={}", func.external_static_return_size),
+            )?;
+        }
+        if func.arg_indices().count() != func.params.len()
+            || func
+                .arg_indices()
+                .zip(&func.params)
+                .any(|(index, param)| func.arg_ty(index) != *param)
+        {
+            write_function_attribute(
+                f,
+                &mut first,
+                fmt::from_fn(|f| {
+                    write!(
+                        f,
+                        "arg_types=({})",
+                        func.arg_indices().format_with(", ", |f, index| write!(
+                            f,
+                            "{}",
+                            func.arg_ty(index)
+                        ))
+                    )
+                }),
+            )?;
         }
         if let Some(layout) = &func.abi_returns {
             write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;

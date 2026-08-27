@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/validation/basic.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/validation/basic.mir (after none) ===
+  // === ROOT/tests/ui/codegen/mir/validation/basic.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/basic.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module BasicValidation
   fn @linear(arg0: u256) -> u256 {
     bb0:

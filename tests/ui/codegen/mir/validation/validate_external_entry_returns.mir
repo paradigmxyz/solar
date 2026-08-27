@@ -1,0 +1,9 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: external function `returnsInternally` still has MIR returns in the `abi` phase
+//~? ERROR: external function `returnsInternally` has an internal `ret` terminator in the `abi` phase
+@module ValidateExternalEntryReturns
+@phase abi
+fn @returnsInternally() -> u256 [selector=0x12345678] {
+  bb0:
+    ret 1
+}

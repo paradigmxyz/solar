@@ -24,15 +24,16 @@ impl Assembler<'_> {
 
         let input_is_valid = cfg!(debug_assertions) && ir::builder::is_valid(&ir_program);
         let errors_before = self.gcx.dcx().err_count();
-        let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
+        let _changed = ir::run_pipeline_for_artifact(
+            self.gcx,
+            &mut ir_program,
+            self.output_name.as_deref(),
+            self.pipeline_artifact(),
+        );
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
         debug_assert!(!input_is_valid || ir::builder::is_valid(&ir_program));
-        let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
-        if self.gcx.dcx().err_count() != errors_before {
-            return failed_preparation(ir_program, capture_evm_ir);
-        }
         if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
             ir::validate(self.gcx.dcx(), &ir_program);
         }

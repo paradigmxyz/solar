@@ -19,6 +19,8 @@ bb0:
   sub
   push bb4
   jumpi
+  jump bb5
+bb5:
   push 4
   calldatasize
   sub

@@ -337,6 +337,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if is_codegen_test {
         config.program.args.push("--allow=2264".into());
     }
+    if matches!(cfg.mode, Mode::EvmIr)
+        && path.components().any(|component| component.as_os_str() == "disasm")
+    {
+        config.program.args.retain(|arg| arg != "-Zpass-diff");
+    }
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
         config.program.args.push("--emit=abi,bin".into());
         config.stdout_filter(r"(?s).+", "");

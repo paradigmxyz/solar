@@ -24,7 +24,11 @@
 use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
-    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
+    pass_manager::{
+        PipelineState, mir_output_name, parse_pass_pipeline, print_checkpoint, print_pass_diff,
+        print_pass_output, run_stage, run_stage_passes,
+    },
+    timing::StageId,
     transform::*,
 };
 use solar_data_structures::map::FxHashMap;
@@ -73,6 +77,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
+    &lower_intrinsics::LowerIntrinsics,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
@@ -81,6 +86,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &lower_target::LowerTarget,
+    &static_alloc::DeferAlloc,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -139,12 +146,19 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 }
 
-/// The canonical MIR pipeline used by EVM codegen.
-pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    // MIR inlining remains available as an ad-hoc pass, but static internal
-    // frames make calls cheap enough that the measured candidates regress gas.
+/// Materializes ABI wrapper functions.
+static LOWER_ABI_PASSES: &[&dyn MirPass] = &[&lower_abi::LowerAbi];
+
+/// Cleans generated ABI wrappers before helper lowering.
+static ABI_CLEANUP_PASSES: &[&dyn MirPass] =
+    &[&function_compaction::DeadArgElim, &dce::Dce, &function_compaction::MergeEquivalentFunctions];
+
+/// Selects allocations that the backend can place in static frames.
+static ALLOCATION_PLANNING_PASSES: &[&dyn MirPass] = &[&static_alloc::DeferAlloc];
+
+/// Optimizes typed source-level MIR while semantic mapping hashes remain intact.
+static SEMANTIC_HASH_OPTIMIZE_PASSES: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
-    // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly(cfg_simplify::CfgSimplify),
     &SizeOnly(frame_promotion::FrameSlotPromotion),
     &SizeOnly(sroa::Sroa),
@@ -152,9 +166,13 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
     &cse::Cse,
-    // Reuse mapping slots before their scratch-memory expansion can obscure
-    // the semantic expression from the remaining optimization passes.
-    &lower_mapping_slots::LowerMappingSlots,
+];
+
+/// Expands mapping hashes after semantic CSE has reused equal slots.
+static LOWER_MAPPING_PASSES: &[&dyn MirPass] = &[&lower_mapping_slots::LowerMappingSlots];
+
+/// Optimizes scratch-memory hashes and the remaining source-level MIR.
+static SEMANTIC_OPTIMIZE_PASSES: &[&dyn MirPass] = &[
     &gvn::Gvn,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
@@ -167,23 +185,14 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &loop_opt::Licm,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
+    &GasOnly(cfg_simplify::CfgSimplify),
     &sroa::Sroa,
     &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    &dce::Dce,
-    // MIR outlining remains profitable even though EVM IR can merge
-    // equivalent terminal blocks: lowering and stack scheduling can
-    // hide their shared semantic shape from the backend passes.
     &outline_reverts::OutlineReverts,
-    // Outlining and late control-flow rewrites expose scalar simplifications.
-    // Thread and clean the CFG first so the rest of this sequence observes the
-    // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
-    // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
-    // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
@@ -194,57 +203,58 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &gvn::Gvn,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
-    &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
-    // Progressive lowering materializes ABI wrappers, selector routing, and
-    // tail-call edges as MIR. Each pass bails without advancing the phase
-    // when the module is outside its scope.
-    &lower_abi::LowerAbi,
-    &function_compaction::DeadArgElim,
-    &dce::Dce,
-    &function_compaction::MergeEquivalentFunctions,
-    &cfg_simplify::FunctionDce,
-    &static_alloc::DeferAlloc,
+];
+
+/// Lowers ABI codecs and optimizes their generated helpers.
+static LOWER_CODECS_PASSES: &[&dyn MirPass] = &[
     &lower_abi_encode::LowerAbiEncode,
-    // Encoder helpers are synthesized after the main optimization pipeline. Promote their loop
-    // cursors before aggregate and memory lowering so they receive the same SSA treatment as
-    // source-level internal functions.
     &frame_promotion::FrameSlotPromotion,
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Aggregate and ABI-helper lowering expose repeated address calculations and loads. Run CSE
-    // for both optimized objectives; the backend's objective-aware stack scheduler decides whether
-    // retaining the resulting value is cheaper than rematerializing it.
     &cse::Cse,
     &dce::Dce,
     &lower_slices::LowerSlices,
-    &lower_dispatch::LowerDispatch,
-    &lower_memory_objects::LowerMemoryObjects,
-    &lower_immutables::LowerImmutables,
-    // Fuse straight-line constant-size allocations before their free-memory
-    // pointer traffic is materialized; pointer values are preserved exactly.
-    &coalesce_allocs::CoalesceAllocs,
-    &lower_alloc::LowerAlloc,
-    &lower_memory_zero::LowerMemoryZero,
-    &lower_mcopy::LowerMCopy,
-    &lower_evm_shaped::LowerEvmShaped,
-    // Late lowering can leave pure address and length calculations unused.
-    // Remove their complete dependency chains before selecting physical stack order.
-    &dce::Dce,
-    &evm_inst_schedule::EvmInstSchedule,
 ];
+
+/// Materializes selector dispatch after generated helper cleanup.
+static LOWER_DISPATCH_PASSES: &[&dyn MirPass] = &[&lower_dispatch::LowerDispatch];
+
+/// Completes the semantic-intrinsic representation boundary.
+static LOWER_INTRINSICS_PASSES: &[&dyn MirPass] = &[&lower_intrinsics::LowerIntrinsics];
+
+/// Cleans memory and CFG exposed by intrinsic lowering.
+static LOW_LEVEL_OPTIMIZE_PASSES: &[&dyn MirPass] =
+    &[&gvn::Gvn, &copy_elision::CopyElision, &adce::Adce];
+
+/// Folds arithmetic and CFG introduced by target-dependent lowering.
+static TARGET_CLEANUP_PASSES: &[&dyn MirPass] = &[&sccp::Sccp];
+
+/// Selects allocation placement, then applies target-dependent lowering.
+static TARGET_LOWERING_PASSES: &[&dyn MirPass] = &[
+    &lower_immutables::LowerImmutables,
+    &coalesce_allocs::CoalesceAllocs,
+    &lower_target::LowerTarget,
+];
+
+/// Makes non-returning call edges explicit for the backend.
+static EVM_SHAPING_PASSES: &[&dyn MirPass] = &[&lower_evm_shaped::LowerEvmShaped];
+
+/// Cleans target-lowered and EVM-shaped MIR before stack-oriented scheduling.
+static FINAL_CLEANUP_PASSES: &[&dyn MirPass] = &[&dce::Dce];
+
+/// Orders final MIR for the physical EVM stack scheduler.
+static SCHEDULE_PASSES: &[&dyn MirPass] = &[&evm_inst_schedule::EvmInstSchedule];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
-/// `name` overrides the module name in pass output. The canonical pipeline advances the module
-/// through optimization and lowering. Ad-hoc pass lists passed to `-Zmir-pipeline` do not advance
-/// the optimized phase.
+/// `name` overrides the module name in pass output. Named lowering passes advance representation
+/// phases in both canonical and custom pipelines.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -253,6 +263,20 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 )]
 #[must_use]
 pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    if module.phase >= MirPhase::TargetLowered
+        && !lower_target::target_operations_are_lowered(
+            module,
+            gcx.sess.opts.evm_version.has_mcopy(),
+        )
+    {
+        gcx.dcx()
+            .err(format!(
+                "MIR module claims the `{}` phase but still contains target-dependent operations",
+                module.phase.name()
+            ))
+            .emit();
+        return false;
+    }
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
         let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
@@ -261,31 +285,329 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         if let Some(passes) = pipeline {
             let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
             let mut changed = false;
+            let mut state = PipelineState::default();
+            let stage = StageId::new("custom", 1);
+            let mut none_invocation = 0;
             for pass in passes {
                 if let Some(pass) = pass {
-                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
-                } else if gcx.sess.opts.unstable.pass_diff {
+                    let expected_phase =
+                        pass.is_enabled(gcx, module).then(|| pass.output_phase()).flatten();
+                    changed |= run_stage_passes(
+                        gcx,
+                        module,
+                        &[pass],
+                        expected_phase,
+                        Some(&name),
+                        true,
+                        stage,
+                        &mut state,
+                    );
+                    if gcx.dcx().has_errors().is_err() {
+                        return changed;
+                    }
+                } else if gcx.sess.opts.unstable.pass_diff
+                    && !gcx.sess.opts.unstable.print_after_stage
+                {
+                    none_invocation += 1;
                     let text = module.to_text();
-                    print_pass_diff(&name, "none", &text, &text);
+                    print_pass_diff(
+                        &name,
+                        "MIR",
+                        None,
+                        state.pipeline_run(),
+                        stage,
+                        "none",
+                        none_invocation,
+                        false,
+                        false,
+                        false,
+                        "skipped",
+                        &text,
+                        &text,
+                    );
                 } else if gcx.sess.opts.unstable.print_after_each {
-                    println!("// === {name} (after none) ===");
-                    print!("{}", module.to_text());
+                    none_invocation += 1;
+                    print_pass_output(
+                        &name,
+                        "MIR",
+                        None,
+                        state.pipeline_run(),
+                        stage,
+                        "none",
+                        none_invocation,
+                        false,
+                        "skipped",
+                        false,
+                        false,
+                        module.to_text(),
+                    );
                 }
+            }
+            if gcx.sess.opts.unstable.print_after_stage {
+                print_checkpoint(
+                    &name,
+                    "MIR",
+                    None,
+                    state.pipeline_run(),
+                    stage,
+                    "custom-output",
+                    module.to_text(),
+                );
             }
             return changed;
         }
     }
 
-    let lowering_start = DEFAULT_PIPELINE
-        .iter()
-        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
-        .expect("default pipeline must contain `lower-abi`");
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
+    let output_name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
     let mut changed = false;
-    if module.phase <= MirPhase::Optimized {
-        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized), None);
+    let mut state = PipelineState::default();
+    if gcx.sess.opts.unstable.print_after_stage {
+        let checkpoint = match module.phase {
+            MirPhase::Built => "mir.fresh",
+            MirPhase::Abi => "mir.abi-input",
+            MirPhase::Dispatch => "mir.semantic-materialized-input",
+            MirPhase::IntrinsicsLowered => "mir.intrinsics-lowered-input",
+            MirPhase::TargetLowered => "mir.target-lowered-input",
+            MirPhase::EvmShaped => "mir.evm-shaped-input",
+        };
+        print_checkpoint(
+            &output_name,
+            "MIR",
+            None,
+            state.pipeline_run(),
+            StageId::new("input", 1),
+            checkpoint,
+            module.to_text(),
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
     }
-    changed |= run_passes(gcx, module, lowering_passes, None, None);
+
+    if module.phase == MirPhase::Built {
+        changed |= run_stage(
+            gcx,
+            module,
+            SEMANTIC_HASH_OPTIMIZE_PASSES,
+            None,
+            &output_name,
+            StageId::new("optimize-semantic-hashes", 1),
+            "mir.semantic-hashes-optimized",
+            MirPhase::Built,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            LOWER_MAPPING_PASSES,
+            None,
+            &output_name,
+            StageId::new("lower-mapping-hashes", 1),
+            "mir.mapping-lowered",
+            MirPhase::Built,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            SEMANTIC_OPTIMIZE_PASSES,
+            None,
+            &output_name,
+            StageId::new("optimize-source-low-level", 1),
+            "mir.source-optimized",
+            MirPhase::Built,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::Built {
+        changed |= run_stage(
+            gcx,
+            module,
+            LOWER_ABI_PASSES,
+            Some(MirPhase::Abi),
+            &output_name,
+            StageId::new("lower-abi", 1),
+            "mir.abi",
+            MirPhase::Abi,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::Abi {
+        changed |= run_stage(
+            gcx,
+            module,
+            ABI_CLEANUP_PASSES,
+            None,
+            &output_name,
+            StageId::new("optimize-abi", 1),
+            "mir.abi-optimized",
+            MirPhase::Abi,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            ALLOCATION_PLANNING_PASSES,
+            None,
+            &output_name,
+            StageId::new("plan-allocations", 1),
+            "mir.allocations-planned",
+            MirPhase::Abi,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            LOWER_CODECS_PASSES,
+            None,
+            &output_name,
+            StageId::new("lower-codecs", 1),
+            "mir.codecs-lowered",
+            MirPhase::Abi,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            LOWER_DISPATCH_PASSES,
+            Some(MirPhase::Dispatch),
+            &output_name,
+            StageId::new("lower-dispatch", 1),
+            "mir.dispatch",
+            MirPhase::Dispatch,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::Dispatch {
+        changed |= run_stage(
+            gcx,
+            module,
+            LOWER_INTRINSICS_PASSES,
+            Some(MirPhase::IntrinsicsLowered),
+            &output_name,
+            StageId::new("lower-intrinsics", 1),
+            "mir.intrinsics-lowered",
+            MirPhase::IntrinsicsLowered,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::IntrinsicsLowered {
+        changed |= run_stage(
+            gcx,
+            module,
+            LOW_LEVEL_OPTIMIZE_PASSES,
+            None,
+            &output_name,
+            StageId::new("optimize-low-level", 1),
+            "mir.low-level-optimized",
+            MirPhase::IntrinsicsLowered,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            TARGET_LOWERING_PASSES,
+            Some(MirPhase::TargetLowered),
+            &output_name,
+            StageId::new("lower-target", 1),
+            "mir.target-lowered",
+            MirPhase::TargetLowered,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::TargetLowered {
+        changed |= run_stage(
+            gcx,
+            module,
+            TARGET_CLEANUP_PASSES,
+            None,
+            &output_name,
+            StageId::new("optimize-target-generated", 1),
+            "mir.target-optimized",
+            MirPhase::TargetLowered,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            EVM_SHAPING_PASSES,
+            Some(MirPhase::EvmShaped),
+            &output_name,
+            StageId::new("evm-shape", 1),
+            "mir.evm-shaped",
+            MirPhase::EvmShaped,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
+    if module.phase == MirPhase::EvmShaped {
+        changed |= run_stage(
+            gcx,
+            module,
+            FINAL_CLEANUP_PASSES,
+            None,
+            &output_name,
+            StageId::new("final-cleanup", 1),
+            "mir.final",
+            MirPhase::EvmShaped,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_stage(
+            gcx,
+            module,
+            SCHEDULE_PASSES,
+            None,
+            &output_name,
+            StageId::new("schedule", 1),
+            "mir.scheduled",
+            MirPhase::EvmShaped,
+            &mut state,
+        );
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+    }
     changed
 }
 
@@ -353,6 +675,11 @@ pub struct ModuleAnalyses {
 impl ModuleAnalyses {
     pub(crate) fn begin_pass(&mut self) {
         self.preserved_by_pass = false;
+    }
+
+    pub(crate) fn invalidate(&mut self) {
+        self.preserved_by_pass = false;
+        self.invalidate_all();
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {

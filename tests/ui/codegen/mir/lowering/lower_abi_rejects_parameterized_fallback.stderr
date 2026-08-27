@@ -1,0 +1,4 @@
+error: codegen does not support `fallback(bytes) returns (bytes)` yet
+
+error: aborting due to 1 previous error
+

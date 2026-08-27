@@ -1286,6 +1286,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// instruction arena retains folded-away slices the backend never emits.
     #[must_use]
     fn emit_unsupported(&self, module: &Module) -> bool {
+        if self.gcx.dcx().has_errors().is_err() {
+            return true;
+        }
         if module
             .functions
             .iter()
@@ -1330,6 +1333,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether generated artifacts include final EVM IR.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
+    }
+
+    /// Sets the fully qualified contract name used by pipeline diagnostics.
+    pub(crate) fn set_output_name(&mut self, name: String) {
+        self.asm.set_output_name(name);
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -1873,7 +1881,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let _changed = run_pipeline(self.gcx, module, None);
+        let _changed = run_pipeline(self.gcx, module, self.asm.output_name.as_deref());
     }
 
     /// Generates runtime bytecode for a module.

@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
-fn @flag() -> bool [abi_returns=[word]] {
+fn @flag() -> bool [selector=0x890eba68, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @second() -> bool [abi_returns=[word]] {
+fn @second() -> bool [selector=0x5a8ac02d, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -15,7 +15,7 @@ fn @second() -> bool [abi_returns=[word]] {
     ret v2
 }
 
-fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
+fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) [public, constructor] {
   bb0:
     v0 = constructor_args_base
     v1 = add v0, 0

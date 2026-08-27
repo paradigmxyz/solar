@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/compound_assign.sol:CompoundAssign ===
 @module CompoundAssign
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @add_to_value(arg0: u256) {
+fn @add_to_value(arg0: u256) [selector=0x7ca7a078, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -28,7 +28,7 @@ fn @add_to_value(arg0: u256) {
     revert 0, 0
 }
 
-fn @sub_from_value(arg0: u256) {
+fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -50,7 +50,7 @@ fn @sub_from_value(arg0: u256) {
     revert 0, 0
 }
 
-fn @mul_value(arg0: u256) {
+fn @mul_value(arg0: u256) [selector=0xb91f0c8b, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -76,7 +76,7 @@ fn @mul_value(arg0: u256) {
     revert 0, 0
 }
 
-fn @bump_post() -> u256 [abi_returns=[word]] {
+fn @bump_post() -> u256 [selector=0xf05c34d1, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -91,7 +91,7 @@ fn @bump_post() -> u256 [abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @bump_pre() -> u256 [abi_returns=[word]] {
+fn @bump_pre() -> u256 [selector=0xe9063fd9, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

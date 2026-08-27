@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (before licm) ===
-+ // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (after licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LicmDescendingIv
   fn @keep_mload_descending_iv() -> u256 {
     bb0:

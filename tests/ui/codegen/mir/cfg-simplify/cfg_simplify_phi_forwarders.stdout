@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CfgSimplifyPhiForwarders
   fn @keep_conflicting_diamond(arg0: bool) -> u256 {
     bb0:

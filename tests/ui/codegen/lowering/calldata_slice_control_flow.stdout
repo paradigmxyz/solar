@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
-fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, external, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -61,7 +61,7 @@ fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @_trim(arg0: calldataslice) -> memorybytes {
+fn @_trim(arg0: calldataslice) -> memorybytes [pure, internal_frame_size=64] {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -95,7 +95,7 @@ fn @_trim(arg0: calldataslice) -> memorybytes {
     ret v18
 }
 
-fn @forward(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, external, pure, internal_frame_size=128, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -154,7 +154,7 @@ fn @forward(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
+fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
   bb0:
     v0 = slice_len arg0
     v1 = mul v0, 0x3e8
@@ -181,7 +181,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
     revert 0, 36
 }
 
-fn @explicitTrim(arg0: calldataslice) -> u256 [abi_returns=[word]] {
+fn @explicitTrim(arg0: calldataslice) -> u256 [selector=0xc127ee09, external, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -250,7 +250,7 @@ fn @explicitTrim(arg0: calldataslice) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
+fn @_explicitTrim(arg0: calldataslice) -> memorybytes [pure] {
   bb0:
     v0 = slice_len arg0
     v1 = gt v0, 4
@@ -329,7 +329,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
     revert 0, 0
 }
 
-fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
+fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, external, pure, internal_frame_size=192, external_static_return_size=64, abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -417,7 +417,7 @@ fn @headTail(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
     revert 0, 0
 }
 
-fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {
+fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) [pure, internal_frame_size=128] {
   bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)

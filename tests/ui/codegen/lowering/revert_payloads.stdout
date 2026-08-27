@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
-fn @assert_panic(arg0: bool) {
+fn @assert_panic(arg0: bool) [selector=0x727ee374, public, pure] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -27,7 +27,7 @@ fn @assert_panic(arg0: bool) {
     revert 0, 0
 }
 
-fn @require_message(arg0: bool) {
+fn @require_message(arg0: bool) [selector=0x79cfb63f, public, pure] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -53,7 +53,7 @@ fn @require_message(arg0: bool) {
     revert 0, 0
 }
 
-fn @__revert_error(arg0: u256, arg1: u256) {
+fn @__revert_error(arg0: u256, arg1: u256) [no_inline] {
   bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
@@ -62,7 +62,7 @@ fn @__revert_error(arg0: u256, arg1: u256) {
     revert 0, 100
 }
 
-fn @revert_message() {
+fn @revert_message() [selector=0x0900437f, public, pure] {
   bb0:
     internal_call @__revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid

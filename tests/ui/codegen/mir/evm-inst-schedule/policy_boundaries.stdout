@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module EvmInstSchedulePolicy
   fn @deep_dependency_tree(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256) -> u256 {
     bb0:

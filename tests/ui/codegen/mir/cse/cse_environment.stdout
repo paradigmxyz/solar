@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_environment.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CseEnvironment
   fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
     bb0:

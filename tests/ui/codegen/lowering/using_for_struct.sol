@@ -1,4 +1,6 @@
-//@compile-flags: -O none -Zdump=mir
+//@revisions: none gas
+//@[none] compile-flags: -O none -Zdump=mir
+//@[gas] compile-flags: -O gas -Zdump=mir
 //@filecheck:
 
 // `using L for S` attached calls on a struct (a reference type) must resolve to

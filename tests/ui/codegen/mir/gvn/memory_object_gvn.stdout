@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (before gvn) ===
-+ // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (after gvn) ===
++ // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryObjectGvn
   fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
     bb0:

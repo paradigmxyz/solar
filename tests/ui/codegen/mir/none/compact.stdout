@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/none/compact.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/compact.mir (after none) ===
+  // === ROOT/tests/ui/codegen/mir/none/compact.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/compact.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module Compact
   fn @compact() -> u256 {
     bb0:

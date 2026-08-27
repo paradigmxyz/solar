@@ -1,0 +1,8 @@
+error: external functions `first` and `second` have duplicate selector `0x12345678`
+
+error: functions `receiveOne` and `receiveTwo` are both receive entries
+
+error: functions `fallbackOne` and `fallbackTwo` are both fallback entries
+
+error: aborting due to 3 previous errors
+

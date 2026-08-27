@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
-fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
+fn @build.0(arg0: u256) -> memorystruct [selector=0x77fc2b19, public, pure, external_static_return_size=64, abi_returns=[tuple<word, word>]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -56,7 +56,7 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     revert 0, 0
 }
 
-fn @build.1(arg0: u256) -> memorystruct {
+fn @build.1(arg0: u256) -> memorystruct [public, pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -105,7 +105,7 @@ fn @build.1(arg0: u256) -> memorystruct {
     ret v1
 }
 
-fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
+fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, public, pure, internal_frame_size=32, abi_returns=[memory_array<word>]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -183,7 +183,7 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     revert 0, 0
 }
 
-fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
+fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray [pure] {
   bb0:
     v0 = mload arg0
     v1 = eq arg1, v0
@@ -225,7 +225,7 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
     ret arg0
 }
 
-fn @squares(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
+fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, public, pure, abi_returns=[memory_array<word>]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,0 +1,10 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+@module ModuleInterfaceAttribute
+@interface
+
+// CHECK: @interface
+fn @decl() {
+  bb0:
+    stop
+}

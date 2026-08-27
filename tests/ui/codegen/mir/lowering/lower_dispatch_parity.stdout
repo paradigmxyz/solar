@@ -1,24 +1,23 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (after lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module DispatchParity
 - @phase abi
 + @phase dispatch
-  fn @pay() {
+  fn @pay() [selector=0x00000001, payable] {
     bb0:
       stop
   }
   
-  fn @nopay() {
+  fn @nopay() [selector=0x00000002] {
     bb0:
       stop
   }
   
-  fn @recv() {
+  fn @recv() [payable, receive] {
     bb0:
       stop
   }
   
-  fn @fb() {
+  fn @fb() [payable, fallback] {
     bb0:
       stop
 + }

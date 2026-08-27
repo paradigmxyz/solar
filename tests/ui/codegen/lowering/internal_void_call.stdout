@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() -> u256 [abi_returns=[word]] {
+fn @value() -> u256 [selector=0x3fa4f245, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @set(arg0: u256) {
+fn @set(arg0: u256) [selector=0x60fe47b1, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -31,7 +31,7 @@ fn @writeIfNonZero(arg0: u256) {
     stop
 }
 
-fn @setUnlessZero(arg0: u256) {
+fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -49,7 +49,7 @@ fn @setUnlessZero(arg0: u256) {
     revert 0, 0
 }
 
-fn @returnVoidCall(arg0: u256) {
+fn @returnVoidCall(arg0: u256) [selector=0x6659499b, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -62,12 +62,12 @@ fn @returnVoidCall(arg0: u256) {
     revert 0, 0
 }
 
-fn @returnRevert() {
+fn @returnRevert() [selector=0xdcdb78bc, public, pure] {
   bb0:
     revert 0, 0
 }
 
-fn @unitTernary(arg0: bool, arg1: u256) {
+fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

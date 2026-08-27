@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
-fn @constructor() {
+fn @constructor() [public, constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
@@ -11,7 +11,7 @@ fn @constructor() {
     stop
 }
 
-fn @callVoid() -> bool [abi_returns=[word]] {
+fn @callVoid() -> bool [selector=0xd04622c6, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -19,7 +19,7 @@ fn @callVoid() -> bool [abi_returns=[word]] {
     ret v1
 }
 
-fn @__internal_dispatch_0(arg0: function) {
+fn @__internal_dispatch_0(arg0: function) [no_inline] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
@@ -32,7 +32,7 @@ fn @__internal_dispatch_0(arg0: function) {
     ret
 }
 
-fn @setFlag.3() {
+fn @setFlag.3() [selector=0x62548c7b, public] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -42,7 +42,7 @@ fn @setFlag.3() {
     stop
 }
 
-fn @callState() -> bool [abi_returns=[word]] {
+fn @callState() -> bool [selector=0xb67d6f95, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -53,7 +53,7 @@ fn @callState() -> bool [abi_returns=[word]] {
     ret v4
 }
 
-fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
+fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, public, external_static_return_size=64, abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -69,7 +69,7 @@ fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
     revert 0, 0
 }
 
-fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
+fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) [no_inline] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
@@ -85,7 +85,7 @@ fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
     ret v1, v4
 }
 
-fn @pair(arg0: u256) -> (u256, u256) {
+fn @pair(arg0: u256) -> (u256, u256) [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -98,13 +98,13 @@ fn @pair(arg0: u256) -> (u256, u256) {
     revert 0, 36
 }
 
-fn @callZero() {
+fn @callZero() [selector=0x46e2b562, public] {
   bb0:
     internal_call @__internal_dispatch_0, 0, 0
     stop
 }
 
-fn @sum(arg0: u256, arg1: u256) -> u256 {
+fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -117,13 +117,13 @@ fn @sum(arg0: u256, arg1: u256) -> u256 {
     revert 0, 36
 }
 
-fn @callTwoArgs() -> u256 [abi_returns=[word]] {
+fn @callTwoArgs() -> u256 [selector=0xc406c3a3, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = internal_call @__internal_dispatch_2, 1, 7, 5, 1
     ret v0
 }
 
-fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
+fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 [no_inline] {
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
@@ -136,7 +136,7 @@ fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
     ret v1
 }
 
-fn @setFlag.12() {
+fn @setFlag.12() [public] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00

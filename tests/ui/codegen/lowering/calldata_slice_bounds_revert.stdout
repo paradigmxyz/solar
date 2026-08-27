@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
 @phase evm-shaped
-fn @endPastLength() {
+fn @endPastLength() [selector=0x8063d43b, external, pure, arg_types=(u256, u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -73,7 +73,7 @@ fn @endPastLength() {
     revert 0, 0
 }
 
-fn @startAfterEnd() {
+fn @startAfterEnd() [selector=0x598bfb30, external, pure, arg_types=(u256, u256, u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -146,14 +146,14 @@ fn @startAfterEnd() {
     revert 0, 0
 }
 
-fn @__revert_stub0() {
+fn @__revert_stub0() [no_inline] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @__abi_encode_0(arg0: memptr, arg1: memptr) -> memptr {
+fn @__abi_encode_0(arg0: memptr, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = mload arg0
     mstore arg1, v0

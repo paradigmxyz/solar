@@ -1,1 +1,2 @@
-time: <TIME>	MIR DceUnreachable dce changed=true
+time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir" artifact=- pipeline_run=1 stage=custom round=1 pass=dce invocation=1 outcome=ok ir_changed=true state_changed=false state_only=false
+time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir" artifact=- pipeline_run=1 stage=custom round=1 pass=dce invocation=2 outcome=ok ir_changed=false state_changed=false state_only=false

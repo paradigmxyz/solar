@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (before coalesce-copies) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (after coalesce-copies) ===
+  // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (after coalesce-copies) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module ConstantWords
   bb0:
     push 128

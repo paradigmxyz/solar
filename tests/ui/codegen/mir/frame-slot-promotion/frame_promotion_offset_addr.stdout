@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (before frame-slot-promotion) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module FramePromotionOffsetAddr
   fn @offset_addr() -> u256 {
     bb0:
@@ -13,8 +12,7 @@
 +     ret 99
   }
   
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module FramePromotionOffsetAddr
   fn @offset_addr() -> u256 {
     bb0:

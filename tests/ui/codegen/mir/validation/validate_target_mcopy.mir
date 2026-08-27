@@ -1,0 +1,14 @@
+//@ revisions: homestead cancun
+//@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=default -Zprint-after-stage
+//@[cancun] compile-flags: --evm-version cancun -Zmir-pipeline=default -Zprint-after-stage
+//@[cancun] filecheck:
+//~[homestead]? ERROR: MIR module claims the `target-lowered` phase but still contains target-dependent operations
+@module ValidateTargetMcopy
+@phase target-lowered
+
+// CHECK: checkpoint=mir.scheduled
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}

@@ -31,44 +31,45 @@ impl MirPass for LowerAbiEncode {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let original_functions: Vec<_> = module.functions.indices().collect();
-        let call_graph = CallGraphInfo::new(module);
-        let mut constructor_reachable = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
-        let helper_types = collect_helper_types(module, &original_functions);
-        let mut helpers = FxHashMap::default();
-        for (index, ty) in helper_types.iter().enumerate() {
-            let name = Ident::with_dummy_span(Symbol::intern(&format!("__abi_encode_{index}")));
-            let mut helper = Function::new(name);
-            helper.attributes.no_inline = true;
-            let id = module.add_function(helper);
-            helpers.insert(ty.clone(), id);
-        }
-        for ty in &helper_types {
-            let id = helpers[ty];
-            let name = module.function(id).name.symbol;
-            *module.function_mut(id) = build_helper(name, ty, &helpers);
-        }
-
-        let mut changed = false;
-        for id in original_functions {
-            changed |= lower_function(
-                module.function_mut(id),
-                &helpers,
-                constructor_reachable.contains(id),
-            );
-        }
-        changed
+        lower_abi_encode(module)
     }
+}
+
+pub(super) fn lower_abi_encode(module: &mut Module) -> bool {
+    let original_functions: Vec<_> = module.functions.indices().collect();
+    let call_graph = CallGraphInfo::new(module);
+    let mut constructor_reachable = call_graph.reachable_callees_from(
+        module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+    );
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.attributes.is_constructor {
+            constructor_reachable.insert(id);
+        }
+    }
+    let helper_types = collect_helper_types(module, &original_functions);
+    let mut helpers = FxHashMap::default();
+    for (index, ty) in helper_types.iter().enumerate() {
+        let name = Ident::with_dummy_span(Symbol::intern(&format!("__abi_encode_{index}")));
+        let mut helper = Function::new(name);
+        helper.attributes.no_inline = true;
+        let id = module.add_function(helper);
+        helpers.insert(ty.clone(), id);
+    }
+    for ty in &helper_types {
+        let id = helpers[ty];
+        let name = module.function(id).name.symbol;
+        *module.function_mut(id) = build_helper(name, ty, &helpers);
+    }
+
+    let mut changed = false;
+    for id in original_functions {
+        changed |=
+            lower_function(module.function_mut(id), &helpers, constructor_reachable.contains(id));
+    }
+    changed
 }
 
 /// Collects repeated aggregate shapes in stable first-use order. Scalar words and one-off shapes

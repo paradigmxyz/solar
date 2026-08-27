@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase evm-shaped
-fn @asValue() {
+fn @asValue() [selector=0x440a9300, public, pure, arg_types=(address, u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -22,17 +22,12 @@ fn @asValue() {
     mstore v25, v6
     v26 = add v24, 36
     mstore v26, arg1
-    v12 = add 68, 31
-    v13 = lt v12, 68
-    jumpi v13, bb4, bb5
+    jump bb5
   bb5:
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v15, 32
-    v17 = lt v16, v15
-    jumpi v17, bb4, bb6
+    jump bb6
   bb6:
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v49 = add v18, v16
+    v49 = add v18, 128
     mstore 64, v49 !metadata(memory=scratch)
     mstore v18, 68
     v19 = add v18, 32
@@ -63,15 +58,13 @@ fn @asValue() {
     v50 = add v46, v45
     mstore 64, v50 !metadata(memory=scratch)
     returndata v46, v41
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     revert 0, 0
+  bb4:
+    invalid
 }
 
-fn @viaCall() {
+fn @viaCall() [selector=0x23d014a1, public, internal_frame_size=32, external_static_return_size=32, arg_types=(address, address, u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

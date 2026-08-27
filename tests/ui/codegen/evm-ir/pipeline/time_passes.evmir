@@ -1,0 +1,8 @@
+//@ compile-flags: -Ztime-passes -Zevm-ir-pipeline=default
+//@ normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
+@module DefaultPipelineTiming
+
+bb0:
+  push 0
+  push 0
+  revert

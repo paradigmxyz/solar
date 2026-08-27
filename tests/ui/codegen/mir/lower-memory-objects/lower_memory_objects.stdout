@@ -1,9 +1,8 @@
-- // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
++ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LowerMemoryObjects
-- @phase dispatch
+  @library
+  @phase dispatch
 - fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
-+ @phase memory-lowered
 + fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
     bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96

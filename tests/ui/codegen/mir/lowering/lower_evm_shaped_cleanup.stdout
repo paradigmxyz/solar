@@ -1,9 +1,8 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerEvmShapedCleanup
-- @phase memory-lowered
+- @phase target-lowered
 + @phase evm-shaped
-  fn @entry() {
+  fn @entry() [entry] {
     bb0:
       tail_call @caller
   }

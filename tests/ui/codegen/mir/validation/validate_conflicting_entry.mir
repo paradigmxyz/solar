@@ -1,0 +1,8 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: function `conflict` has conflicting external entry attributes
+@module ValidateConflictingEntry
+
+fn @conflict() [selector=0x12345678, fallback] {
+  bb0:
+    stop
+}

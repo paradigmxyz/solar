@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_deep_copy.sol:StorageStructDeepCopy ===
 @module StorageStructDeepCopy
 @phase evm-shaped
-fn @assign() {
+fn @assign() [selector=0x4bd0273c, public, arg_types=(address, bytes4)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -30,15 +30,11 @@ fn @assign() {
     calldatacopy v14, v58, 64
     mstore v14, 1
     v51 = add v14, 32
-    v52 = mul 0, 32
-    v17 = add v51, v52
+    v17 = add v51, 0
     mstore v17, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v57 = add v18, 64
     mstore 64, v57 !metadata(memory=scratch)
-    mstore v18, arg0
-    v20 = add v18, 32
-    mstore v20, v14
     v22 = sload 0 !metadata(storage=slot(0))
     v23 = and v22, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v24 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -81,7 +77,7 @@ fn @assign() {
     revert 0, 0
 }
 
-fn @push() {
+fn @push() [selector=0xa60249a3, public, arg_types=(address, bytes4)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -110,8 +106,7 @@ fn @push() {
     calldatacopy v14, v64, 64
     mstore v14, 1
     v57 = add v14, 32
-    v58 = mul 0, 32
-    v17 = add v57, v58
+    v17 = add v57, 0
     mstore v17, arg1
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v63 = add v18, 64
@@ -179,7 +174,7 @@ fn @push() {
     revert 0, 0
 }
 
-fn @pop() {
+fn @pop() [selector=0xa4ece52c, public] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     jumpi v0, bb2, bb1

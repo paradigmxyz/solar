@@ -37,9 +37,12 @@ impl MirPass for LowerSlices {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let mut cx = LowerSlicesCx::default();
-        cx.run(module)
+        lower_slices(module)
     }
+}
+
+pub(super) fn lower_slices(module: &mut Module) -> bool {
+    LowerSlicesCx::default().run(module)
 }
 
 /// Statistics from slice lowering.

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (after dead-arg-elim) ===
+  // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module EffectfulDependencies
   fn @read() -> u256 {
     bb0:
@@ -7,7 +6,7 @@
       ret v0
   }
   
-  fn @read_entry() {
+  fn @read_entry() [selector=0x01020304] {
     bb0:
       v0 = internal_call @read, 1
       ret
@@ -18,7 +17,7 @@
       ret
   }
   
-  fn @argument_entry() {
+  fn @argument_entry() [selector=0x05060708] {
     bb0:
       v0 = mload 0x10000
       internal_call @unused, 0, v0
@@ -31,7 +30,7 @@
       ret v0
   }
   
-  fn @mapping_entry() {
+  fn @mapping_entry() [selector=0x090a0b0c] {
     bb0:
       v0 = internal_call @mapping_slot, 1
       ret

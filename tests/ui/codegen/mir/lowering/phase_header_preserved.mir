@@ -1,12 +1,15 @@
-//@compile-flags: -Zmir-pipeline=default
+//@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
 //@filecheck: --match-full-lines
-// Re-running the default pipeline on optimized input completes the progressive
+// Re-running the default pipeline on intrinsic-lowered input completes the progressive
 // lowering pipeline instead of rejecting the transition.
+// CHECK-LABEL: {{.*}}checkpoint=mir.scheduled{{.*}}
 // CHECK: @module PhaseHeaderPreserved
+// CHECK-NEXT: @library
 // CHECK-NEXT: @phase evm-shaped
 /// Module docs.
 @module PhaseHeaderPreserved
-@phase optimized
+@library
+@phase intrinsics-lowered
 fn @f() {
   bb0:
     stop

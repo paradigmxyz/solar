@@ -1,9 +1,8 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerAbiDynamicReturn
-- fn @givesBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+- fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
 + @phase abi
-+ fn @givesBytes() {
++ fn @givesBytes() [selector=0x0dead001, arg_types=(memorybytes)] {
     bb0:
 -     ret arg0
 +     v0 = abi_encode [memory_bytes], args arg0

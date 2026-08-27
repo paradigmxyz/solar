@@ -1,0 +1,182 @@
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after peephole) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after constant-data) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after compact-pushes) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after cfg-simplify) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after block-layout) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after share-reverts) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=normalize round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after terminal-dedup) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after cfg-simplify) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after tail-merge) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after cfg-simplify) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after tail-merge) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after outline) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after compact-pushes) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after block-cse) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after dce) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after peephole) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after block-layout) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after share-reverts) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=regenerate round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after tail-merge) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=2 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after outline) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=share-structure round=2 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after compact-pushes) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after peephole) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after block-cse) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after dce) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after block-layout) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  
+  // === ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir (after share-reverts) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/time_passes.evmir" artifact=- pipeline_run=1 stage=finalize round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DefaultPipelineTiming
+  bb0:
+    push 0
+    push 0
+    revert
+  

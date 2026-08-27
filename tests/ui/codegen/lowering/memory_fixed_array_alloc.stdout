@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
-fn @guardedFix(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -28,7 +28,7 @@ fn @guardedFix(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @structArr(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -61,7 +61,7 @@ fn @structArr(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @nested(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -117,7 +117,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @fmpIntegrity() -> (u256, u256) [abi_returns=[word, word]] {
+fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, public, pure, external_static_return_size=64, abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -172,7 +172,7 @@ fn @fmpIntegrity() -> (u256, u256) [abi_returns=[word, word]] {
     revert 0, 36
 }
 
-fn @literal() -> u256 [abi_returns=[word]] {
+fn @literal() -> u256 [selector=0x1373185e, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = add v0, 0
@@ -186,7 +186,7 @@ fn @literal() -> u256 [abi_returns=[word]] {
     ret v5
 }
 
-fn @bulkDefault(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -211,7 +211,7 @@ fn @bulkDefault(arg0: u256) -> u256 [abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
-fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word]] {
+fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, public, pure, internal_frame_size=64, external_static_return_size=128, abi_returns=[array<3, word>, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -279,7 +279,7 @@ fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word
     revert 0, 36
 }
 
-fn @emptyMemoryReferences() -> u256 [abi_returns=[word]] {
+fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -321,7 +321,7 @@ fn @emptyMemoryReferences() -> u256 [abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array<word>, memory_bytes]] {
+fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, public, pure, internal_frame_size=64, abi_returns=[memory_array<word>, memory_bytes]] {
   bb0:
     mstore 128, 96
     mstore 160, 96
@@ -330,7 +330,7 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array
     ret v0, v1
 }
 
-fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_bytes, word, word>]] {
+fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, public, pure, internal_frame_size=32, abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
@@ -341,7 +341,7 @@ fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_byte
     ret v2
 }
 
-fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
+fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, public, pure, internal_frame_size=32, abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -398,7 +398,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_arr
     revert 0, 36
 }
 
-fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+fn @deleteInPlace() -> (u256, u256) [selector=0x2648826a, public, pure, internal_frame_size=32, external_static_return_size=64, abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -435,7 +435,7 @@ fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
     ret v17, v20
 }
 
-fn @bulkDeleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+fn @bulkDeleteInPlace() -> (u256, u256) [selector=0xa26c7410, public, pure, internal_frame_size=32, external_static_return_size=64, abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v0, 128

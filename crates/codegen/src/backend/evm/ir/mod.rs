@@ -27,7 +27,8 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 pub(in crate::backend::evm) use passes::{
-    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost, legalize_shifts,
+    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost,
+    run_pipeline_for_artifact,
 };
 
 /// Maximum stack reserve used by parameterized machine-run outlining.

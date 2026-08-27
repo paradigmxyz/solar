@@ -238,10 +238,11 @@ fn emit_mir_pipeline_output(
     Ok(())
 }
 
-fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
+fn should_print_pipeline_output(gcx: Gcx<'_>, _value: &str) -> bool {
     (!gcx.sess.opts.language.is_evm_ir() || !has_disasm_dump(gcx))
         && !gcx.sess.opts.unstable.print_after_each
-        && (!gcx.sess.opts.unstable.pass_diff || value == "default")
+        && !gcx.sess.opts.unstable.print_after_stage
+        && !gcx.sess.opts.unstable.pass_diff
 }
 
 fn write_pipeline_output(

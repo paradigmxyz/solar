@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
 @module MirAllocOps
-fn @fixedArray(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -21,7 +21,7 @@ fn @fixedArray(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -87,12 +87,12 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
     revert 0, 0
 }
 
-fn @frameShadow() -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
+fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, external, pure, external_static_return_size=128, abi_returns=[word, word, word, word]] {
   bb0:
     ret 1, 2, 3, 4
 }
 
-fn @rawAssembly() -> u256 [abi_returns=[word]] {
+fn @rawAssembly() -> u256 [selector=0x89eb38b4, external, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch)

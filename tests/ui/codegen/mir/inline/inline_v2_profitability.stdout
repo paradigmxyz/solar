@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) [ir=MIR module="ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module InlineV2Profitability
   fn @single_large_caller(arg0: u256) -> u256 {
     bb0:
@@ -64,7 +63,8 @@
       ret v0
   }
   
-  fn @multi_return_caller(arg0: u256) -> u256 {
+- fn @multi_return_caller(arg0: u256) -> u256 {
++ fn @multi_return_caller(arg0: u256) -> u256 [internal_frame_size=64] {
     bb0:
 -     v0 = internal_call @multi_return_callee, 2, arg0
 +     jump bb2

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/type_conversion.sol:TypeConversion ===
 @module TypeConversion
-fn @narrowAddress(arg0: address) -> u16 [abi_returns=[word]] {
+fn @narrowAddress(arg0: address) -> u16 [selector=0xaf290423, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -21,7 +21,7 @@ fn @narrowAddress(arg0: address) -> u16 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @narrowUint(arg0: u256) -> u16 [abi_returns=[word]] {
+fn @narrowUint(arg0: u256) -> u16 [selector=0xf6938387, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -34,7 +34,7 @@ fn @narrowUint(arg0: u256) -> u16 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @narrowSigned(arg0: i256) -> i8 [abi_returns=[word]] {
+fn @narrowSigned(arg0: i256) -> i8 [selector=0x195777d9, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

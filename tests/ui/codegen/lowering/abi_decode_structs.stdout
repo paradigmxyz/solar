@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
 @phase evm-shaped
-fn @dFlat() {
+fn @dFlat() [selector=0x6644232b, public, pure, external_static_return_size=96, arg_types=(memptr)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -39,7 +39,7 @@ fn @dFlat() {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
+fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -81,7 +81,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_1(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_1(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -116,7 +116,7 @@ fn @__abi_decode_memory_1(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @dNested() {
+fn @dNested() [selector=0xfc7ec666, public, pure, arg_types=(memptr)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -186,7 +186,7 @@ fn @dNested() {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_2(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_2(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -222,7 +222,7 @@ fn @__abi_decode_memory_2(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_3(arg0: u256) -> memptr {
+fn @__abi_decode_memory_3(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v13 = add v0, 96
@@ -251,7 +251,7 @@ fn @__abi_decode_memory_3(arg0: u256) -> memptr {
     ret v0
 }
 
-fn @__abi_decode_memory_4(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_4(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -287,7 +287,7 @@ fn @__abi_decode_memory_4(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_5(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_5(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -328,7 +328,7 @@ fn @__abi_decode_memory_5(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_6(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_6(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -361,7 +361,7 @@ fn @__abi_decode_memory_6(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @dDynArr() {
+fn @dDynArr() [selector=0xaca542ca, public, pure, internal_frame_size=32, external_static_return_size=32, arg_types=(memptr)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -396,7 +396,7 @@ fn @dDynArr() {
     revert 0, 0
 }
 
-fn @__abi_decode_memory_8(arg0: u256, arg1: memptr) -> memptr {
+fn @__abi_decode_memory_8(arg0: u256, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = gt arg0, arg1
     v1 = sub arg1, arg0
@@ -464,7 +464,7 @@ fn @__abi_decode_memory_8(arg0: u256, arg1: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @__revert_stub0() {
+fn @__revert_stub0() [no_inline] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

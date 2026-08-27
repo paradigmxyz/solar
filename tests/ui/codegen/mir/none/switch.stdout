@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/none/switch.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/switch.mir (after none) ===
+  // === ROOT/tests/ui/codegen/mir/none/switch.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/switch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module SwitchTest
   fn @dispatch(arg0: u256) -> u256 {
     bb0:

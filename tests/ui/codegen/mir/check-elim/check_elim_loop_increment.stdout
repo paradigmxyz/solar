@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir (before check-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir (after check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CheckElimLoopIncrement
   fn @fold_increment_check(arg0: u256) -> u256 {
     bb0:

@@ -1,0 +1,4 @@
+error: external functions `first` and `second` have duplicate selector `0x12345678`
+
+error: aborting due to 1 previous error
+

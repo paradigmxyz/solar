@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (before block-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (after block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (after block-layout) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module module
   bb0:
     push bb3

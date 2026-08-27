@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference.sol:C ===
 @module C
-fn @setDirect(arg0: u256, arg1: u256) {
+fn @setDirect(arg0: u256, arg1: u256) [selector=0xa8972d9c, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -14,7 +14,7 @@ fn @setDirect(arg0: u256, arg1: u256) {
     revert 0, 0
 }
 
-fn @getViaRef(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @getViaRef(arg0: u256) -> u256 [selector=0x292eaae6, public, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -28,7 +28,7 @@ fn @getViaRef(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @bump(arg0: u256) {
+fn @bump(arg0: u256) [selector=0xb20eb4c4, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

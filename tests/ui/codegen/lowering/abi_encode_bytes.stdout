@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_bytes.sol:AbiEncodeBytes ===
 @module AbiEncodeBytes
-fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [abi_returns=[word]] {
+fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [selector=0x2dbf86c6, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -19,7 +19,7 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) -> bytes32 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x536b260f, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -42,7 +42,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [abi_returns=[mem
     revert 0, 0
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x925bff47, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -91,7 +91,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) -> memorybytes [abi_returns=[me
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -142,7 +142,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     revert 0, 0
 }
 
-fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
+fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [selector=0xf58325b2, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -187,7 +187,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) -> bytes32 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @roundtrip(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

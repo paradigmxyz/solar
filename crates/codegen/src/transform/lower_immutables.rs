@@ -32,34 +32,38 @@ impl MirPass for LowerImmutables {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let staging_base = immutable_staging_base(module);
-        let runtime_reachable = runtime_reachable_functions(module);
-        let mut constructor_only = DenseBitSet::new_filled(module.functions.len());
-        constructor_only.subtract(&runtime_reachable);
-        let mut changed = false;
-        for func_id in constructor_only.iter() {
-            let func = module.function_mut(func_id);
-            let stores: Vec<_> = func
-                .instructions()
-                .filter_map(|inst_id| match func.inst(inst_id).kind {
-                    InstKind::StoreImmutable(id, value) => Some((inst_id, id, value)),
-                    _ => None,
-                })
-                .collect();
-
-            for &(inst_id, id, value) in &stores {
-                let addr = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-                    immutable_staging_addr(staging_base, id),
-                ))));
-                let inst = func.inst_mut(inst_id);
-                inst.kind = InstKind::MStore(addr, value);
-                inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
-                inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
-            }
-            changed |= !stores.is_empty();
-        }
-        changed
+        lower_immutables(module)
     }
+}
+
+pub(super) fn lower_immutables(module: &mut Module) -> bool {
+    let staging_base = immutable_staging_base(module);
+    let runtime_reachable = runtime_reachable_functions(module);
+    let mut constructor_only = DenseBitSet::new_filled(module.functions.len());
+    constructor_only.subtract(&runtime_reachable);
+    let mut changed = false;
+    for func_id in constructor_only.iter() {
+        let func = module.function_mut(func_id);
+        let stores: Vec<_> = func
+            .instructions()
+            .filter_map(|inst_id| match func.inst(inst_id).kind {
+                InstKind::StoreImmutable(id, value) => Some((inst_id, id, value)),
+                _ => None,
+            })
+            .collect();
+
+        for &(inst_id, id, value) in &stores {
+            let addr = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
+                immutable_staging_addr(staging_base, id),
+            ))));
+            let inst = func.inst_mut(inst_id);
+            inst.kind = InstKind::MStore(addr, value);
+            inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
+            inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
+        }
+        changed |= !stores.is_empty();
+    }
+    changed
 }
 
 fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {

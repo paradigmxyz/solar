@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (after sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module SccpBranch
   fn @const_branch() -> u256 {
     bb0:

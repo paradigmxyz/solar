@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/stack_headroom.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/stack_headroom.evmir (after outline) ===
+  // === ROOT/tests/ui/codegen/evm-ir/outline/stack_headroom.evmir (after outline) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/outline/stack_headroom.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module StackHeadroom
   bb0:
     op_0c !meta(stack=0->255)

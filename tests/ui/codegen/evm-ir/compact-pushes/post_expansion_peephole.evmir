@@ -4,7 +4,8 @@
 
 // Compacting the all-ones push produces `push 0; not`, which must feed a
 // subsequent peephole pass so the two `not` instructions cancel.
-// CHECK-LABEL: bb0:
+// CHECK-LABEL: after share-reverts{{.*}}invocation=3
+// CHECK: bb0:
 // CHECK-NEXT: push 0
 // CHECK-NEXT: stop
 bb0:

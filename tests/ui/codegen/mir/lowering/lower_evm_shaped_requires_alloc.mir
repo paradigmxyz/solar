@@ -1,9 +1,9 @@
 //@compile-flags: -Zmir-pipeline=lower-evm-shaped
 //@filecheck: --match-full-lines
-// CHECK:   @phase memory-lowered
+// CHECK:   @phase intrinsics-lowered
 // CHECK-NOT: + @phase evm-shaped
 @module LowerEvmShapedRequiresAlloc
-@phase memory-lowered
+@phase intrinsics-lowered
 
 // CHECK-LABEL:   fn @entry{{.*}}
 // CHECK:     v0 = fmp

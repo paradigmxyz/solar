@@ -566,7 +566,7 @@ impl Function {
 }
 
 /// Function attributes.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FunctionAttributes {
     /// Visibility modifier.
     pub(crate) visibility: Visibility,

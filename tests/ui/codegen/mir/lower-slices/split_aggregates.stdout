@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (before lower-slices) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (after lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module SplitAggregates
 - fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
 + fn @select_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {

@@ -618,55 +618,183 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
-        // From the `dispatch` phase on, routing is materialized: a module with
-        // a runtime interface must contain exactly one synthesized `entry`.
+        let mut selectors = FxHashMap::default();
+        let mut receive = None;
+        let mut fallback = None;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let entry_kinds = usize::from(func.selector.is_some())
+                + usize::from(func.attributes.is_constructor)
+                + usize::from(func.attributes.is_dispatch_entry)
+                + usize::from(func.attributes.is_receive)
+                + usize::from(func.attributes.is_fallback);
+            if entry_kinds > 1 {
+                self.emit(format_args!(
+                    "function `{}` has conflicting external entry attributes",
+                    func.name
+                ));
+            }
+            if let Some(selector) = func.selector
+                && let Some(previous) = selectors.insert(selector, func_id)
+            {
+                self.emit(format_args!(
+                    "external functions `{}` and `{}` have duplicate selector `0x{:08x}`",
+                    module.function(previous).name,
+                    func.name,
+                    u32::from_be_bytes(selector)
+                ));
+            }
+            if func.attributes.is_receive
+                && let Some(previous) = receive.replace(func_id)
+            {
+                self.emit(format_args!(
+                    "functions `{}` and `{}` are both receive entries",
+                    module.function(previous).name,
+                    func.name
+                ));
+            }
+            if func.attributes.is_fallback
+                && let Some(previous) = fallback.replace(func_id)
+            {
+                self.emit(format_args!(
+                    "functions `{}` and `{}` are both fallback entries",
+                    module.function(previous).name,
+                    func.name
+                ));
+            }
+        }
+        if module.phase < crate::mir::MirPhase::Abi {
+            return;
+        }
+
+        // From the `dispatch` phase on, routing is materialized. Every
+        // ordinary contract has an entry, including the all-revert case.
         if module.phase < crate::mir::MirPhase::Dispatch {
             return;
         }
         let dispatch_entries =
             module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
+        let has_runtime_interface =
+            !selectors.is_empty() || receive.is_some() || fallback.is_some();
+        let requires_dispatch =
+            !module.is_interface && !(module.is_library && !has_runtime_interface);
         if dispatch_entries > 1 {
             self.emit(format_args!(
                 "module is in the `{}` phase but has multiple `entry` routing functions",
                 module.phase.name()
             ));
-        } else if dispatch_entries == 0
-            && module.functions.iter().any(|f| {
-                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
-            })
-        {
+        } else if dispatch_entries == 0 && requires_dispatch {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
                 module.phase.name()
             ));
         }
+        if dispatch_entries == 1 {
+            let entry =
+                module.functions.iter().find(|func| func.attributes.is_dispatch_entry).unwrap();
+            if entry.selector.is_some()
+                || !entry.params.is_empty()
+                || !entry.returns.is_empty()
+                || entry.abi_returns.is_some()
+                || entry.attributes.is_constructor
+                || entry.attributes.is_receive
+                || entry.attributes.is_fallback
+            {
+                self.emit(
+                    "dispatch `entry` must be selectorless and have no parameters or returns",
+                );
+            }
+            if entry.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
+            }) {
+                self.emit("dispatch `entry` must terminate externally");
+            }
+            let mut routed = DenseBitSet::new_empty(module.functions.len());
+            for block in &entry.blocks {
+                if let Some(crate::mir::Terminator::TailCall { function, .. }) = &block.terminator
+                    && function.index() < module.functions.len()
+                {
+                    routed.insert(*function);
+                }
+            }
+            for (func_id, func) in module.functions.iter_enumerated() {
+                if !func.blocks.is_empty()
+                    && (func.selector.is_some()
+                        || func.attributes.is_receive
+                        || func.attributes.is_fallback)
+                    && !routed.contains(func_id)
+                {
+                    self.emit(format_args!(
+                        "dispatch `entry` does not route to external function `{}`",
+                        func.name
+                    ));
+                }
+            }
+        }
+        if module.phase >= crate::mir::MirPhase::TargetLowered
+            && !crate::transform::static_alloc::deferred_allocations_are_valid(module)
+        {
+            self.emit("module contains an invalid deferred allocation marker");
+        }
+        if module.phase >= crate::mir::MirPhase::EvmShaped
+            && !crate::transform::lower_evm_shaped::evm_shape_is_lowered(module)
+        {
+            self.emit("module has an eligible non-returning call that is not a `tail_call`");
+        }
     }
 
     fn validate_function_phase(&mut self, module: &Module, func: &Function) {
-        // From the `abi` phase on, every bodied external (selector-bearing)
-        // function is an argument-free self-decoding wrapper.
+        // From the `abi` phase on, every bodied external entry is
+        // argument-free. Selector functions are self-decoding wrappers;
+        // receive and fallback entries need no arguments from dispatch.
         if module.phase >= crate::mir::MirPhase::Abi
-            && func.selector.is_some()
+            && (func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback)
             && !func.params.is_empty()
         {
             self.emit(format_args!(
-                "selector function `{}` still takes arguments in the `{}` phase \
-                 (expected an argument-free ABI wrapper)",
+                "external function `{}` still takes arguments in the `{}` phase \
+                 (expected an argument-free ABI entry)",
                 func.name,
                 module.phase.name()
             ));
         }
-        // The memory-lowered phase is a strict representation boundary: no
-        // nominal object types, layouts, or semantic accesses may survive.
-        if module.phase >= crate::mir::MirPhase::MemoryLowered {
+        if module.phase >= crate::mir::MirPhase::Abi
+            && (func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback)
+        {
+            if !func.returns.is_empty() || func.abi_returns.is_some() {
+                self.emit(format_args!(
+                    "external function `{}` still has MIR returns in the `{}` phase",
+                    func.name,
+                    module.phase.name()
+                ));
+            }
+            if func.blocks.iter().any(|block| {
+                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
+            }) {
+                self.emit(format_args!(
+                    "external function `{}` has an internal `ret` terminator in the `{}` phase",
+                    func.name,
+                    module.phase.name()
+                ));
+            }
+        }
+        // Intrinsic lowering is a strict representation boundary: no nominal
+        // aggregate types, layouts, hashes, or semantic accesses may survive.
+        if module.phase >= crate::mir::MirPhase::IntrinsicsLowered {
             let signature_types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
                 .chain(func.returns.iter().copied());
             for ty in signature_types {
-                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
+                if matches!(
+                    ty,
+                    crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
+                ) {
                     self.emit(format_args!(
-                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
+                        "semantic signature type `{ty}` survives the `{}` phase boundary",
                         module.phase.name()
                     ));
                 }
@@ -679,10 +807,13 @@ impl<'a> Validator<'a> {
             }
             for value in values.iter() {
                 if let Value::Undef(ty) = func.value(value)
-                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
+                    && matches!(
+                        ty,
+                        crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
+                    )
                 {
                     self.emit(format_args!(
-                        "memory-object value type survives the `{}` phase boundary",
+                        "semantic value type survives the `{}` phase boundary",
                         module.phase.name()
                     ));
                 }
@@ -699,13 +830,26 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectFieldAddr { .. }
                             | InstKind::MemoryObjectElementAddr { .. }
                             | InstKind::Keccak256Bytes(_)
-                    ) || inst
-                        .result_ty
-                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
+                            | InstKind::MappingSlot(..)
+                            | InstKind::MappingSlotMemory(..)
+                            | InstKind::MappingSlotCalldata(..)
+                            | InstKind::AbiEncode { .. }
+                            | InstKind::StorageToMemory { .. }
+                            | InstKind::MemoryToStorage { .. }
+                            | InstKind::ClearStorage { .. }
+                            | InstKind::MakeSlice { .. }
+                            | InstKind::SlicePtr(_)
+                            | InstKind::SliceLen(_)
+                    ) || inst.result_ty.is_some_and(|ty| {
+                        matches!(
+                            ty,
+                            crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
+                        )
+                    });
                     if semantic {
                         self.emit_at_inst(
                             format_args!(
-                                "memory-object instruction `{}` survives the `{}` phase boundary",
+                                "semantic instruction `{}` survives the `{}` phase boundary",
                                 inst.kind.mnemonic(),
                                 module.phase.name()
                             ),
@@ -716,26 +860,20 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        // EVM-shaped MIR is the semantic boundary consumed by the word-based
-        // backend. High-level memory operations must have been expanded by
-        // their named lowering passes before the module enters this phase.
-        if module.phase >= crate::mir::MirPhase::EvmShaped {
+        // Target-lowered MIR is the word-based backend boundary. High-level
+        // memory operations must have been expanded before this phase. A
+        // deferred constant-size allocation is a backend placement marker, not
+        // a semantic free-memory-pointer allocation.
+        if module.phase >= crate::mir::MirPhase::TargetLowered {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let kind = &func.inst(inst_id).kind;
                     let semantic_op = match kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => Some("slice"),
                         InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
                         InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
                             Some("abstract allocation")
                         }
                         InstKind::MemoryZero(_, _) => Some("memory zero"),
-                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
-                        InstKind::StorageToMemory { .. }
-                        | InstKind::MemoryToStorage { .. }
-                        | InstKind::ClearStorage { .. } => Some("aggregate"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
                         _ => None,
                     };

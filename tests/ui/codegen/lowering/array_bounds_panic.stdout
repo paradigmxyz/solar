@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/array_bounds_panic.sol:ArrayBoundsPanic ===
 @module ArrayBoundsPanic
-fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @memFix(arg0: u256) -> u256 [selector=0x0f1886fa, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -30,7 +30,7 @@ fn @memFix(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @memFixConst() -> u256 [abi_returns=[word]] {
+fn @memFixConst() -> u256 [selector=0x50d13ed0, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -46,7 +46,7 @@ fn @memFixConst() -> u256 [abi_returns=[word]] {
     ret v6
 }
 
-fn @memFixConstOob() -> u256 [abi_returns=[word]] {
+fn @memFixConstOob() -> u256 [selector=0xba496133, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -66,7 +66,7 @@ fn @memFixConstOob() -> u256 [abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @memDyn(arg0: u256, arg1: u256) -> u256 [selector=0x24828414, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -107,7 +107,7 @@ fn @memDyn(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @stDyn(arg0: u256) -> u256 [selector=0x392580ee, public, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -131,7 +131,7 @@ fn @stDyn(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @stDynWrite(arg0: u256, arg1: u256) {
+fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -155,7 +155,7 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     revert 0, 0
 }
 
-fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @stFix(arg0: u256) -> u256 [selector=0xd0c9a47e, public, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -176,7 +176,7 @@ fn @stFix(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [selector=0x1406a581, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -226,7 +226,7 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[word]] {
+fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0xe21341a4, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -254,7 +254,7 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [abi_returns=[
     revert 0, 0
 }
 
-fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
+fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,11 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:ERC4337Utils ===
 @module ERC4337Utils
-@phase optimized
+@library
+@phase evm-shaped
 
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase evm-shaped
-fn @factory.0() {
+fn @factory.0() [selector=0x1af91295, external, pure, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -24,7 +25,7 @@ fn @factory.0() {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
+fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -92,7 +93,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
+fn @__abi_decode_calldata_1(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -134,7 +135,7 @@ fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
     revert 0, 0
 }
 
-fn @factory.3(arg0: memptr) -> address {
+fn @factory.3(arg0: memptr) -> address [pure] {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -153,12 +154,7 @@ fn @factory.3(arg0: memptr) -> address {
     jumpi v19, bb4, bb5
   bb5:
     v25 = calldataload v15
-    v27 = lt 20, 20
-    v28 = select v27, 20, 20
-    v29 = sub 32, v28
-    v30 = shl 3, v29
-    v31 = shl v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v32 = and v25, v31
+    v32 = and v25, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v33 = shr 96, v32
     v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v34 !metadata(memory=scratch)
@@ -173,7 +169,7 @@ fn @factory.3(arg0: memptr) -> address {
     ret v35
 }
 
-fn @tailHash.4() {
+fn @tailHash.4() [selector=0x9850c81b, external, pure, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -192,7 +188,7 @@ fn @tailHash.4() {
     revert 0, 0
 }
 
-fn @tailHash.5(arg0: memptr) -> bytes32 {
+fn @tailHash.5(arg0: memptr) -> bytes32 [pure] {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -249,7 +245,7 @@ fn @tailHash.5(arg0: memptr) -> bytes32 {
     ret v37
 }
 
-fn @midWord.6() {
+fn @midWord.6() [selector=0xbb6106d2, external, pure, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -268,7 +264,7 @@ fn @midWord.6() {
     revert 0, 0
 }
 
-fn @midWord.7(arg0: memptr) -> bytes32 {
+fn @midWord.7(arg0: memptr) -> bytes32 [pure] {
   bb0:
     v0 = add arg0, 256
     v1 = mload v0
@@ -281,18 +277,13 @@ fn @midWord.7(arg0: memptr) -> bytes32 {
     jumpi v10, bb1, bb2
   bb2:
     v16 = calldataload v6
-    v18 = lt 32, 32
-    v19 = select v18, 32, 32
-    v20 = sub 32, v19
-    v21 = shl 3, v20
-    v22 = shl v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v23 = and v16, v22
+    v23 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v23
   bb1:
     revert 0, 0
 }
 
-fn @__revert_stub0() {
+fn @__revert_stub0() [no_inline] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

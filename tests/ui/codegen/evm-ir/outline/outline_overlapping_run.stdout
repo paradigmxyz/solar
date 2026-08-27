@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (after outline) ===
+  // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (after outline) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module OutlineOverlappingRun
   bb0:
     push 1

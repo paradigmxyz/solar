@@ -381,7 +381,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_after_each: bool,
 
-    /// Print a before-and-after diff for each pass explicitly selected by an IR pipeline.
+    /// Print MIR or EVM IR at stable pipeline checkpoints. Takes precedence over pass diffs.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub print_after_stage: bool,
+
+    /// Print a before-and-after diff for each scheduled IR pass.
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 

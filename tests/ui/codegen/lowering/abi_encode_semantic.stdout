@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
+fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

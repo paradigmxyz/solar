@@ -1,6 +1,6 @@
 //! ABI phase lowering: materialize calldata decode / returndata encode as MIR.
 //!
-//! In `built`/`optimized` MIR an external function takes typed MIR arguments and
+//! In `built` MIR an external function takes typed MIR arguments and
 //! returns typed values; the calldata decode and returndata encode happen
 //! implicitly in the backend. This pass makes that explicit, moving the ABI
 //! boundary into MIR itself (the ABI phase of the sketch in [`MirPhase`]).
@@ -50,20 +50,24 @@ impl MirPass for LowerAbi {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase <= MirPhase::Optimized
+        module.phase == MirPhase::Built
     }
 
     fn is_required(&self) -> bool {
         true
     }
 
+    fn output_phase(&self) -> Option<MirPhase> {
+        Some(MirPhase::Abi)
+    }
+
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerAbiCx::default().run(module)
+        LowerAbiCx::default().run(gcx, module)
     }
 }
 
@@ -91,11 +95,11 @@ struct LowerAbiCx {
 }
 
 impl LowerAbiCx {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         self.stats = LowerAbiStats::default();
 
-        // Idempotent: only `built`/`optimized` modules have an implicit ABI
-        // boundary to materialize.
+        // Idempotent: only `built` modules have an implicit ABI boundary to
+        // materialize.
         if module.phase >= MirPhase::Abi {
             return false;
         }
@@ -103,8 +107,95 @@ impl LowerAbiCx {
         let mut targets = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::utils::DispatchCallvalue::default();
+        let mut selectors = FxHashMap::default();
+        let mut receive = None;
+        let mut fallback = None;
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
+            let entry_kinds = usize::from(func.selector.is_some())
+                + usize::from(func.attributes.is_constructor)
+                + usize::from(func.attributes.is_dispatch_entry)
+                + usize::from(func.attributes.is_receive)
+                + usize::from(func.attributes.is_fallback);
+            if entry_kinds > 1 {
+                gcx.dcx()
+                    .err(format!(
+                        "function `{}` has conflicting external entry attributes",
+                        func.name
+                    ))
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if let Some(selector) = func.selector
+                && let Some(previous) = selectors.insert(selector, id)
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "external functions `{}` and `{}` have duplicate selector `0x{:08x}`",
+                        module.function(previous).name,
+                        func.name,
+                        u32::from_be_bytes(selector)
+                    ))
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if func.attributes.is_receive
+                && let Some(previous) = receive.replace(id)
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "functions `{}` and `{}` are both receive entries",
+                        module.function(previous).name,
+                        func.name
+                    ))
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if func.attributes.is_fallback
+                && let Some(previous) = fallback.replace(id)
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "functions `{}` and `{}` are both fallback entries",
+                        module.function(previous).name,
+                        func.name
+                    ))
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if func.attributes.is_fallback && !func.params.is_empty() {
+                gcx.dcx()
+                    .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if func.attributes.is_receive && !func.params.is_empty() {
+                gcx.dcx()
+                    .err("MIR receive entry must not take arguments")
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
+            if (func.attributes.is_receive || func.attributes.is_fallback)
+                && (!func.returns.is_empty()
+                    || func.abi_returns.is_some()
+                    || func
+                        .blocks
+                        .iter()
+                        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. }))))
+            {
+                let kind = if func.attributes.is_receive { "receive" } else { "fallback" };
+                gcx.dcx()
+                    .err(format!("MIR {kind} entry must terminate externally before ABI lowering"))
+                    .span(module.name.span)
+                    .emit();
+                return false;
+            }
             if is_wrappable_external(func) {
                 targets.push(id);
                 self.stats.skipped_returns += usize::from(!can_encode_live_returns(func));
@@ -116,22 +207,15 @@ impl LowerAbiCx {
             }
         }
 
-        // All-or-nothing: `abi` means *every* bodied external function is a
-        // wrapper. If any return lacks the semantic layout required to encode
-        // it, leave the module untouched instead of advancing to a phase the
-        // content does not satisfy.
+        // All-or-nothing: `abi` means every bodied external entry is
+        // argument-free and every selector function is a wrapper. If any
+        // return lacks the semantic layout required to encode it, leave the
+        // module untouched instead of advancing to a phase the content does
+        // not satisfy.
         if self.stats.skipped_returns != 0 {
             return false;
         }
         if targets.is_empty() {
-            let has_selectorless_entry = module.functions.iter().any(|func| {
-                func.attributes.is_constructor
-                    || func.attributes.is_receive
-                    || func.attributes.is_fallback
-            });
-            if !has_selectorless_entry && module.is_library {
-                return false;
-            }
             module.advance_phase(MirPhase::Abi);
             return true;
         }

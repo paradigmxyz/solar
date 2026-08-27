@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (before legalize-shifts) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (after legalize-shifts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (after legalize-shifts) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module module
   bb0:
     push 7
@@ -57,5 +56,62 @@
 +   pop
 +   swap 1
 +   pop
+    stop
+  
+  // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir (after legalize-shifts) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/legalize-shifts/legalize_shifts.evmir" artifact=- pipeline_run=1 stage=legalize-target round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module module
+  bb0:
+    push 7
+    push 1
+    push 2
+    exp
+    mul
+    push 7
+    push 1
+    push 2
+    exp
+    swap 1
+    div
+    push 7
+    push 1
+    dup 2
+    dup 2
+    push 2
+    exp
+    swap 2
+    pop
+    dup 2
+    dup 2
+    div
+    dup 3
+    dup 3
+    not
+    div
+    not
+    dup 3
+    push 0
+    swap 1
+    slt
+    dup 1
+    dup 3
+    mul
+    dup 2
+    push 1
+    sub
+    dup 5
+    mul
+    add
+    swap 1
+    pop
+    swap 1
+    pop
+    swap 1
+    pop
+    swap 1
+    pop
+    swap 1
+    pop
+    swap 1
+    pop
     stop
   

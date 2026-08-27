@@ -151,6 +151,7 @@ pub fn generate_contract_bytecodes(
     // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
     let parallel = gcx.sess.is_parallel()
         && !gcx.sess.opts.unstable.print_after_each
+        && !gcx.sess.opts.unstable.print_after_stage
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
     sync::scope(parallel, |scope| {
@@ -308,6 +309,7 @@ fn generate_contract_bytecode(
         })
         .collect();
     let share_public_bodies = gcx.sess.opts.optimization.is_size();
+    let output_name = gcx.contract_fully_qualified_name(contract_id).to_string();
     let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes, share_public_bodies);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
@@ -320,6 +322,7 @@ fn generate_contract_bytecode(
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
         let mut codegen = EvmCodegen::new(gcx);
+        codegen.set_output_name(output_name.clone());
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         let mut artifact = codegen.lower_module(&mut module);
@@ -334,6 +337,7 @@ fn generate_contract_bytecode(
             module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new(gcx);
+            codegen.set_output_name(output_name.clone());
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             let size_rescue_artifact = codegen.lower_module(&mut module);
@@ -348,7 +352,7 @@ fn generate_contract_bytecode(
         artifact
     } else {
         if capture_mir && !capture_built {
-            let _changed = run_pipeline(gcx, &mut module, None);
+            let _changed = run_pipeline(gcx, &mut module, Some(&output_name));
             gcx.dcx().has_errors()?;
         }
         Default::default()

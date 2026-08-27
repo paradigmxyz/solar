@@ -1,0 +1,12 @@
+//@ compile-flags: -Zmir-pipeline=default
+//~^ ERROR: codegen does not support `fallback(bytes) returns (bytes)` yet
+//@ filecheck:
+@module LowerAbiRejectsParameterizedFallback
+
+// CHECK: after lower-abi
+// CHECK-SAME: outcome=failed
+// CHECK-NOT: checkpoint=mir.abi
+fn @fallback(arg0: calldataslice) [fallback] {
+  bb0:
+    stop
+}

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_forwarder.mir (before jump-threading) ===
-+ // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_forwarder.mir (after jump-threading) ===
+  // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_forwarder.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_forwarder.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module JumpThreadingPhiForwarder
   fn @keep_phi_only_block(arg0: bool) -> u256 {
     bb0:

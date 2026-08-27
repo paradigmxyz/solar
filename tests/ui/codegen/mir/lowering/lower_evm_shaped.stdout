@@ -1,7 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerEvmShaped
-- @phase memory-lowered
+- @phase target-lowered
 + @phase evm-shaped
   fn @entry() [entry] {
     bb0:
@@ -14,7 +13,7 @@
       revert 0, 0
   }
   
-  fn @caller() {
+  fn @caller() [selector=0x00000007] {
     bb0:
       v0 = calldataload 4
 -     internal_call @fused, 0, v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/while_loop.sol:WhileLoop ===
 @module WhileLoop
-fn @count_down(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @count_down(arg0: u256) -> u256 [selector=0x454297e4, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -36,7 +36,7 @@ fn @count_down(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @do_at_least_once(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @do_at_least_once(arg0: u256) -> u256 [selector=0x0cf92500, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -68,7 +68,7 @@ fn @do_at_least_once(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @break_when_found(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @break_when_found(arg0: u256, arg1: u256) -> u256 [selector=0x4e11eeda, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memorybytes) -> u256 {
     bb0:
@@ -17,8 +16,7 @@
       ret v0
   }
   
-- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
+  // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memorybytes) -> u256 {
     bb0:

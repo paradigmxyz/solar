@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/pre/pre_join_shapes.mir (before pre) ===
-+ // === ROOT/tests/ui/codegen/mir/pre/pre_join_shapes.mir (after pre) ===
++ // === ROOT/tests/ui/codegen/mir/pre/pre_join_shapes.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pre/pre_join_shapes.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module JoinShapes
   fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     bb0:

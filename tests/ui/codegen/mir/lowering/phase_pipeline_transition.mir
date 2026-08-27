@@ -1,5 +1,6 @@
 //@compile-flags: -Zmir-pipeline=default
 //@filecheck:
+// CHECK-LABEL: after evm-inst-schedule
 // CHECK: @module PhasePipelineTransition
 // CHECK-NEXT: @phase evm-shaped
 // The canonical pipeline is a phase transition: the module completes

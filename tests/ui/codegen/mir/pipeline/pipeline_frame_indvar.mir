@@ -1,7 +1,10 @@
-//@compile-flags: -Zmir-pipeline=default
-//@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
+//@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
+//@filecheck:
 @module PipelineFrameIndVar
-// CHECK-LABEL: fn @frame_counter_feeds_affine_address{{[( ]}}
+// CHECK-LABEL: checkpoint=mir.scheduled
+// CHECK: fn @frame_counter_feeds_affine_address{{[( ]}}
+// CHECK-NOT: internal_frame_addr
+// CHECK-NOT: mload
 // CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_INDEX:v[0-9]+]]]
 // CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: arg1], [bb2: [[NEXT_ADDRESS:v[0-9]+]]]
 // CHECK: mstore [[ADDRESS]], [[INDEX]]

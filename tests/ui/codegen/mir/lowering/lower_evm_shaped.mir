@@ -6,9 +6,9 @@
 // included — and drops the dead remainder of the block. The rewrite only
 // applies to callees the backend statically frames: `@spin` cannot return
 // either, but it is recursive, so its call stays an ordinary `internal_call`.
-// `@entry` is present so the module satisfies the memory-lowered phase contract.
+// `@entry` is present so the module satisfies the target-lowered phase contract.
 @module LowerEvmShaped
-@phase memory-lowered
+@phase target-lowered
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0

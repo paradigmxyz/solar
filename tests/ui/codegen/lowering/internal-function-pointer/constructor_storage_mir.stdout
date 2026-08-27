@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/constructor_storage_mir.sol:ConstructorStoredFunctionPointer ===
 @module ConstructorStoredFunctionPointer
-fn @_anonymous() {
+fn @_anonymous() [public, constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
@@ -10,12 +10,12 @@ fn @_anonymous() {
     stop
 }
 
-fn @onlyStored() -> u256 {
+fn @onlyStored() -> u256 [pure] {
   bb0:
     ret 7
 }
 
-fn @callStoredOnly() -> u256 [abi_returns=[word]] {
+fn @callStoredOnly() -> u256 [selector=0x11cfff8f, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
@@ -23,7 +23,7 @@ fn @callStoredOnly() -> u256 [abi_returns=[word]] {
     ret v2
 }
 
-fn @__internal_dispatch_0(arg0: function) -> u256 {
+fn @__internal_dispatch_0(arg0: function) -> u256 [no_inline] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

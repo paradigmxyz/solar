@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_local_phi.sol:YulLocalPhi ===
 @module YulLocalPhi
-fn @branchLocal(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @branchLocal(arg0: u256) -> u256 [selector=0xd9935fb1, public, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
-fn @arrayA.0(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayA.0(arg0: u256) -> u256 [selector=0xad3149a4, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -20,7 +20,7 @@ fn @arrayA.0(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @arrayB.1(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayB.1(arg0: u256) -> u256 [selector=0x9b889676, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -40,7 +40,7 @@ fn @arrayB.1(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @arrayC.2(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayC.2(arg0: u256) -> u256 [selector=0x794b7d08, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -60,7 +60,7 @@ fn @arrayC.2(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @arrayD.3(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayD.3(arg0: u256) -> u256 [selector=0xd82c9b10, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -80,7 +80,7 @@ fn @arrayD.3(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @arrayE.4(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @arrayE.4(arg0: u256) -> u256 [selector=0x866ce1e6, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -100,7 +100,7 @@ fn @arrayE.4(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @callArray(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, public, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -192,7 +192,7 @@ fn @callArray(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
+fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 [no_inline] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -229,7 +229,7 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     ret v1
 }
 
-fn @arrayA.7(arg0: u256) -> u256 {
+fn @arrayA.7(arg0: u256) -> u256 [public, pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -242,7 +242,7 @@ fn @arrayA.7(arg0: u256) -> u256 {
     revert 0, 36
 }
 
-fn @arrayB.8(arg0: u256) -> u256 {
+fn @arrayB.8(arg0: u256) -> u256 [public, pure] {
   bb0:
     v0 = add arg0, 2
     v1 = lt v0, arg0
@@ -255,7 +255,7 @@ fn @arrayB.8(arg0: u256) -> u256 {
     revert 0, 36
 }
 
-fn @arrayC.9(arg0: u256) -> u256 {
+fn @arrayC.9(arg0: u256) -> u256 [public, pure] {
   bb0:
     v0 = add arg0, 3
     v1 = lt v0, arg0
@@ -268,7 +268,7 @@ fn @arrayC.9(arg0: u256) -> u256 {
     revert 0, 36
 }
 
-fn @arrayD.10(arg0: u256) -> u256 {
+fn @arrayD.10(arg0: u256) -> u256 [public, pure] {
   bb0:
     v0 = add arg0, 5
     v1 = lt v0, arg0
@@ -281,7 +281,7 @@ fn @arrayD.10(arg0: u256) -> u256 {
     revert 0, 36
 }
 
-fn @arrayE.11(arg0: u256) -> u256 {
+fn @arrayE.11(arg0: u256) -> u256 [public, pure] {
   bb0:
     v0 = add arg0, 8
     v1 = lt v0, arg0

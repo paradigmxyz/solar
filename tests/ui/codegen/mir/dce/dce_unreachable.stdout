@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module DceUnreachable
   fn @skip(arg0: u256) -> u256 {
     bb0:
@@ -11,5 +10,16 @@
 -     v1 = mul v0, v0
 -     ret v1
 +     invalid
+  }
+  
+  // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  @module DceUnreachable
+  fn @skip(arg0: u256) -> u256 {
+    bb0:
+      jump bb2
+    bb2:
+      ret arg0
+    bb1:
+      invalid
   }
   

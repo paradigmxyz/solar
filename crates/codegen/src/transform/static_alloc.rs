@@ -22,7 +22,10 @@ use crate::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::sync::Arc;
 
 /// Pass that places provably local allocations statically.
@@ -102,6 +105,25 @@ impl MirPass for DeferAlloc {
         }
         changed
     }
+}
+
+/// Returns whether every deferred allocation still satisfies the proof used
+/// to select it and has the raw form consumed by the backend.
+pub(crate) fn deferred_allocations_are_valid(module: &Module) -> bool {
+    let summaries = Arc::new(MemoryCallSummaries::new(module));
+    module.functions.iter().all(|func| {
+        let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
+        let eligible: FxHashSet<_> =
+            eligible_static_allocations(func, &aa).into_iter().map(|item| item.alloc).collect();
+        func.instructions().all(|inst_id| {
+            let inst = func.inst(inst_id);
+            !inst.metadata.deferred_alloc()
+                || matches!(
+                    inst.kind,
+                    InstKind::Alloc { kind: crate::mir::AllocationKind::Raw, .. }
+                ) && eligible.contains(&inst_id)
+        })
+    })
 }
 
 fn is_entry(func: &Function) -> bool {

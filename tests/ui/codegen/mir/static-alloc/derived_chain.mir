@@ -4,8 +4,8 @@
 
 // The CFG visits bb5 through bb1, opposite the block storage order. Discovering
 // the full derived-address chain therefore requires more than four scans.
-// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
-// CHECK:   fn @derived_chain{{.*}}
+// CHECK-LABEL: + // === {{.*}} (after static-alloc) {{.*}} ===
+// CHECK: {{[-+]}} fn @derived_chain{{.*}}
 // CHECK: -     {{v[0-9]+}} = alloc raw, exact, uninitialized, infallible, 32
 // CHECK: +     {{v[0-9]+}} = add 128, 0
 // CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}

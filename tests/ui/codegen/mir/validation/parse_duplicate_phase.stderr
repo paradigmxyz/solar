@@ -1,0 +1,8 @@
+error: duplicate MIR phase
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_duplicate_phase.mir:LL:CC
+   │
+LL │ @phase abi
+   ╰╴       ━━━
+
+error: aborting due to 1 previous error
+

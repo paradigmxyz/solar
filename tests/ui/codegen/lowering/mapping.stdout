@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping.sol:Mapping ===
 @module Mapping
-fn @balances(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @balances(arg0: u256) -> u256 [selector=0x4903b0d1, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -14,7 +14,7 @@ fn @balances(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
+fn @allowances(arg0: address, arg1: address) -> u256 [selector=0x55b6ed5c, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -43,7 +43,7 @@ fn @allowances(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @set_balance(arg0: u256, arg1: u256) {
+fn @set_balance(arg0: u256, arg1: u256) [selector=0xb41d1f5c, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -57,7 +57,7 @@ fn @set_balance(arg0: u256, arg1: u256) {
     revert 0, 0
 }
 
-fn @add_balance(arg0: u256, arg1: u256) {
+fn @add_balance(arg0: u256, arg1: u256) [selector=0xe72cc64e, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -81,7 +81,7 @@ fn @add_balance(arg0: u256, arg1: u256) {
     revert 0, 0
 }
 
-fn @approve(arg0: address, arg1: address, arg2: u256) {
+fn @approve(arg0: address, arg1: address, arg2: u256) [selector=0xe1f21c67, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -110,7 +110,7 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
     revert 0, 0
 }
 
-fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
+fn @get_allowance(arg0: address, arg1: address) -> u256 [selector=0x18836994, public, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

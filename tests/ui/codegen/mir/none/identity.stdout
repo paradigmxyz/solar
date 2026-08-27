@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/none/identity.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/identity.mir (after none) ===
+  // === ROOT/tests/ui/codegen/mir/none/identity.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/identity.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module Identity
   fn @add(arg0: u256, arg1: u256) -> u256 {
     bb0:

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_commutative.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_commutative.mir (after cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_commutative.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_commutative.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CseCommutative
   fn @commutative(arg0: u256, arg1: u256) -> u256 {
     bb0:

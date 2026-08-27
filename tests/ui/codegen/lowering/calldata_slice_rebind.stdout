@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
-fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
+fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08, external, internal_frame_size=64] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

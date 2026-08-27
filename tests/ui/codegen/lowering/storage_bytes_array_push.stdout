@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase evm-shaped
-fn @pushStr() {
+fn @pushStr() [selector=0xe6e6accc, public, arg_types=(memptr)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -95,7 +95,7 @@ fn @pushStr() {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
+fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -137,7 +137,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
     revert 0, 0
 }
 
-fn @popStr() {
+fn @popStr() [selector=0x5d7696c3, public] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi v0, bb2, bb1
@@ -152,7 +152,6 @@ fn @popStr() {
     v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v50 = add v4, 32
     mstore 64, v50 !metadata(memory=scratch)
-    mstore v4, 0
     v7 = sload v3 !metadata(storage=symbolic(v3))
     v8 = and v7, 1
     v9 = eq v8, 1
@@ -186,7 +185,7 @@ fn @popStr() {
     jump bb3
 }
 
-fn @blobAt() {
+fn @blobAt() [selector=0x8f236983, public, view, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -234,7 +233,7 @@ fn @blobAt() {
     revert 0, 0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memptr {
+fn @__load_storage_bytes(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -282,7 +281,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     jump bb4
 }
 
-fn @pushEmpty() {
+fn @pushEmpty() [selector=0x19d30117, public] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = add v0, 1
@@ -295,7 +294,6 @@ fn @pushEmpty() {
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v51 = add v5, 32
     mstore 64, v51 !metadata(memory=scratch)
-    mstore v5, 0
     v8 = sload v4 !metadata(storage=symbolic(v4))
     v9 = and v8, 1
     v10 = eq v9, 1
@@ -330,7 +328,7 @@ fn @pushEmpty() {
     tail_call @__revert_stub0
 }
 
-fn @__revert_stub0() {
+fn @__revert_stub0() [no_inline] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

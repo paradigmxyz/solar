@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
 @module Caller
-fn @read(arg0: address) -> u256 [abi_returns=[word]] {
+fn @read(arg0: address) -> u256 [selector=0xa087a87e, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -37,7 +37,7 @@ fn @read(arg0: address) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
+fn @readPointer(arg0: function) -> u256 [selector=0x92528617, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

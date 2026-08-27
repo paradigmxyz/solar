@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 971
+  push 0x423
   dup 1
   push 10
   push 0
@@ -261,9 +261,53 @@ bb0:
   push bb49
   jumpi
   push 384
-  dup 1
+  mload
   push 0x420
-  mcopy
+  mstore
+  push 416
+  mload
+  push 0x440
+  mstore
+  push 448
+  mload
+  push 0x460
+  mstore
+  push 480
+  mload
+  push 0x480
+  mstore
+  push 512
+  mload
+  push 0x4a0
+  mstore
+  push 544
+  mload
+  push 0x4c0
+  mstore
+  push 576
+  mload
+  push 0x4e0
+  mstore
+  push 608
+  mload
+  push 0x500
+  mstore
+  push 640
+  mload
+  push 0x520
+  mstore
+  push 672
+  mload
+  push 0x540
+  mstore
+  push 704
+  mload
+  push 0x560
+  mstore
+  push 736
+  mload
+  push 0x580
+  mstore
   push bb25
   push 4
   calldataload

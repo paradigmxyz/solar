@@ -1,0 +1,8 @@
+  // === ROOT/tests/ui/codegen/mir/none/module_interface_attribute.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/module_interface_attribute.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
+  @module ModuleInterfaceAttribute
+  @interface
+  fn @decl() {
+    bb0:
+      stop
+  }
+  

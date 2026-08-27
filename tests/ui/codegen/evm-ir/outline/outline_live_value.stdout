@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (after outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (after outline) [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module OutlineLiveValue
   bb0:
     push 1

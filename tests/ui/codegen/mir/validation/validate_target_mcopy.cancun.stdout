@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.target-lowered-input] ===
+@module ValidateTargetMcopy
+@phase target-lowered
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
+@module ValidateTargetMcopy
+@phase target-lowered
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+@module ValidateTargetMcopy
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
+@module ValidateTargetMcopy
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
+@module ValidateTargetMcopy
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    mcopy 0, 0, 0
+    stop
+}

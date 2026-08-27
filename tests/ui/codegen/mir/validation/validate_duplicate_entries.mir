@@ -1,0 +1,30 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: external functions `first` and `second` have duplicate selector `0x12345678`
+//~? ERROR: functions `receiveOne` and `receiveTwo` are both receive entries
+//~? ERROR: functions `fallbackOne` and `fallbackTwo` are both fallback entries
+@module ValidateDuplicateEntries
+@phase abi
+fn @first() [selector=0x12345678] {
+  bb0:
+    stop
+}
+fn @second() [selector=0x12345678] {
+  bb0:
+    stop
+}
+fn @receiveOne() [receive] {
+  bb0:
+    stop
+}
+fn @receiveTwo() [receive] {
+  bb0:
+    stop
+}
+fn @fallbackOne() [fallback] {
+  bb0:
+    stop
+}
+fn @fallbackTwo() [fallback] {
+  bb0:
+    stop
+}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_nested_forward.sol:NestedCalldataForward ===
 @module NestedCalldataForward
-fn @forward(arg0: calldataslice, arg1: address) {
+fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -107,7 +107,7 @@ fn @forward(arg0: calldataslice, arg1: address) {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
   bb0:
     v0 = calldataload arg0
     v1 = add v0, 31
@@ -141,7 +141,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     revert 0, 36
 }
 
-fn @forwardStructs(arg0: calldataslice, arg1: address) {
+fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -248,7 +248,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
+fn @__abi_decode_calldata_1(arg0: u256) -> memptr [no_inline] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 96
     v1 = calldataload arg0

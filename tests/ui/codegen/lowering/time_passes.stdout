@@ -1,1 +1,1 @@
-{"contracts":{"ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses":{"bin":"601f8060095f395ff334601a575f3560e01c806326121ff014601657601a565b601e565b5f80fd5b"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses":{"bin":"603e80600b6000396000f3346038576000357c01000000000000000000000000000000000000000000000000000000009004806326121ff0146034576038565b603d565b600080fd5b"}},"version":"VERSION"}

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before copy-elision) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) ===
++ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CopyElision
   fn @unread(arg0: u256) -> u256 {
     bb0:
@@ -18,8 +17,7 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
++ // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CopyElision
   fn @unread(arg0: u256) -> u256 {
     bb0:

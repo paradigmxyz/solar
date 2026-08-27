@@ -45,7 +45,7 @@ fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
 // CHECK: +     [[CONSTANT:v[0-9]+]] = sload [[CONSTANT_SLOT]]
 // CHECK:       [[CONSTANT_UPDATED:v[0-9]+]] = add [[CONSTANT]], 3
 // CHECK: +     sstore [[CONSTANT_SLOT]], [[CONSTANT_UPDATED]]
-fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
+fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020305] {
   bb0:
     sstore arg0, 1
     sstore 7, 2
@@ -88,7 +88,7 @@ fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
 // CHECK:       [[ONE_UPDATED:v[0-9]+]] = add [[ONE_VALUE]], 3
 // CHECK: -     sstore [[ONE_SLOT]], [[ONE_UPDATED]]
 // CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
-fn @promote_two_constant_slots() [selector=0x01020304] {
+fn @promote_two_constant_slots() [selector=0x01020306] {
   bb0:
     sstore 0, 1
     sstore 1, 2
@@ -137,7 +137,7 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
 // CHECK:       [[STORE_TWO_SLOT:v[0-9]+]] = add arg0, 2
 // CHECK: -     sstore [[STORE_TWO_SLOT]], [[TWO_UPDATED]]
 // CHECK:       mstore [[TWO_ADDR]], [[TWO_UPDATED]]
-fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
+fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020307] {
   bb0:
     v1 = add arg0, 1
     sstore v1, 1

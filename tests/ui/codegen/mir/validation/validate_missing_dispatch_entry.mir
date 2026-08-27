@@ -1,0 +1,8 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: module is in the `dispatch` phase but has no `entry` routing function
+@module ValidateMissingDispatchEntry
+@phase dispatch
+fn @helper() {
+  bb0:
+    stop
+}

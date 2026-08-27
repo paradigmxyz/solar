@@ -9,9 +9,9 @@
 //! This pass rewrites a resultless `internal_call` to a callee that cannot
 //! return (no reachable `ret` or `stop` terminator) into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
-//! module comes out in the `evm-shaped` phase: every call edge either returns
-//! or is an explicit tail call, which is the control-flow shape the backend
-//! consumes.
+//! module comes out in the `evm-shaped` phase: every statically frame-eligible
+//! call to a non-returning callee is an explicit tail call. Other calls retain
+//! the backend's return protocol.
 //!
 //! Arguments ride along: the backend stores them at the callee's compile-time
 //! frame addresses and jumps, pushing no return address. That addressing only
@@ -34,36 +34,30 @@ impl MirPass for LowerEvmShaped {
         "lower-evm-shaped"
     }
 
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::MemoryLowered
-            && module.functions.iter().all(|func| {
-                func.instructions().all(|inst_id| {
-                    let inst = func.inst(inst_id);
-                    match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_)
-                        | InstKind::Fmp
-                        | InstKind::SetFmp(_)
-                        | InstKind::StoreImmutable(..) => false,
-                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                        _ => true,
-                    }
-                })
-            })
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::TargetLowered
+            && super::lower_intrinsics::intrinsics_are_lowered(module)
+            && super::lower_target::target_operations_are_lowered(
+                module,
+                gcx.sess.opts.evm_version.has_mcopy(),
+            )
     }
 
     fn is_required(&self) -> bool {
         true
     }
 
+    fn output_phase(&self) -> Option<MirPhase> {
+        Some(MirPhase::EvmShaped)
+    }
+
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerEvmShapedCx::default().run(module)
+        LowerEvmShapedCx::default().run(gcx, module)
     }
 }
 
@@ -80,12 +74,12 @@ struct LowerEvmShapedCx {
 }
 
 impl LowerEvmShapedCx {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
             return false;
         }
-        if module.phase != MirPhase::MemoryLowered {
+        if module.phase != MirPhase::TargetLowered {
             return false;
         }
 
@@ -173,10 +167,66 @@ impl LowerEvmShapedCx {
             changed |= function_changed;
         }
 
+        if !evm_shape_is_lowered(module) {
+            gcx.dcx().err("failed to make non-returning calls EVM-shaped").emit();
+            return changed;
+        }
+
         let phase_changed = module.phase != MirPhase::EvmShaped;
         module.advance_phase(MirPhase::EvmShaped);
         changed || phase_changed
     }
+}
+
+/// Returns whether every call eligible for static tail-call framing is explicit.
+pub(crate) fn evm_shape_is_lowered(module: &Module) -> bool {
+    let function_count = module.functions.len();
+    if module.functions.iter().any(|func| {
+        func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. } if function.index() >= function_count)
+        }) || func.blocks.iter().any(|block| {
+            matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if function.index() >= function_count)
+        })
+    }) {
+        return false;
+    }
+
+    let call_graph = CallGraphInfo::new(module);
+    let mut tail_callable = DenseBitSet::new_empty(function_count);
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if function_cannot_return(func)
+            && func.selector.is_none()
+            && !func.attributes.is_receive
+            && !func.attributes.is_fallback
+            && !call_graph.is_recursive(func_id)
+        {
+            tail_callable.insert(func_id);
+        }
+    }
+    let mut constructor_reachable = call_graph.reachable_callees_from(
+        module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+    );
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.attributes.is_constructor {
+            constructor_reachable.insert(id);
+        }
+    }
+
+    module.functions.iter_enumerated().all(|(func_id, func)| {
+        func.instructions().all(|inst_id| {
+            let inst = func.inst(inst_id);
+            !matches!(
+                &inst.kind,
+                InstKind::InternalCall { function, args, .. }
+                    if inst.result_ty.is_none()
+                        && tail_callable.contains(*function)
+                        && (args.is_empty() || !constructor_reachable.contains(func_id))
+            )
+        })
+    })
 }
 
 /// Whether a function can never return to an internal caller: its reachable CFG

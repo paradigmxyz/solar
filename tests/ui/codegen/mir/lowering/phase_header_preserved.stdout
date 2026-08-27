@@ -1,16 +1,56 @@
-// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after pipeline-default) ===
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.intrinsics-lowered-input] ===
 @module PhaseHeaderPreserved
+@library
+@phase intrinsics-lowered
+fn @f() {
+  bb0:
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized] ===
+@module PhaseHeaderPreserved
+@library
+@phase intrinsics-lowered
+fn @f() {
+  bb0:
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
+@module PhaseHeaderPreserved
+@library
+@phase target-lowered
+fn @f() {
+  bb0:
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
+@module PhaseHeaderPreserved
+@library
+@phase target-lowered
+fn @f() {
+  bb0:
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+@module PhaseHeaderPreserved
+@library
 @phase evm-shaped
 fn @f() {
   bb0:
     stop
 }
-
-fn @entry() [entry] {
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
+@module PhaseHeaderPreserved
+@library
+@phase evm-shaped
+fn @f() {
   bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
-    revert 0, 0
+    stop
+}
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
+@module PhaseHeaderPreserved
+@library
+@phase evm-shaped
+fn @f() {
+  bb0:
+    stop
 }

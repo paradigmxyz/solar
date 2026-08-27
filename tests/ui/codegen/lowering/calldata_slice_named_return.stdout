@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase evm-shaped
-fn @use() {
+fn @use() [selector=0x01bd03f7, external, pure, internal_frame_size=64, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

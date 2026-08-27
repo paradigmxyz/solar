@@ -1,14 +1,13 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module DispatchHoisted
 - @phase abi
 + @phase dispatch
-  fn @a() {
+  fn @a() [selector=0x00000001] {
     bb0:
       stop
   }
   
-  fn @b() {
+  fn @b() [selector=0x00000002] {
     bb0:
       stop
 + }

@@ -1,4 +1,512 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir (after pipeline-default) ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.fresh] ===
+@module CheckElimPipelineRequireSub
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = gt arg1, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    v4 = lt arg0, arg1
+    jumpi v4, bb3, bb4
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=optimize-semantic-hashes round=1 checkpoint=mir.semantic-hashes-optimized] ===
+@module CheckElimPipelineRequireSub
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = gt arg1, arg0
+    v1 = iszero v0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    jumpi v0, bb3, bb4
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-mapping-hashes round=1 checkpoint=mir.mapping-lowered] ===
+@module CheckElimPipelineRequireSub
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = gt arg1, arg0
+    v1 = iszero v0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    jumpi v0, bb3, bb4
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 128, 0
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=optimize-source-low-level round=1 checkpoint=mir.source-optimized] ===
+@module CheckElimPipelineRequireSub
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 checkpoint=mir.abi] ===
+@module CheckElimPipelineRequireSub
+@phase abi
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=optimize-abi round=1 checkpoint=mir.abi-optimized] ===
+@module CheckElimPipelineRequireSub
+@phase abi
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=plan-allocations round=1 checkpoint=mir.allocations-planned] ===
+@module CheckElimPipelineRequireSub
+@phase abi
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-codecs round=1 checkpoint=mir.codecs-lowered] ===
+@module CheckElimPipelineRequireSub
+@phase abi
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 checkpoint=mir.dispatch] ===
+@module CheckElimPipelineRequireSub
+@phase dispatch
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-intrinsics round=1 checkpoint=mir.intrinsics-lowered] ===
+@module CheckElimPipelineRequireSub
+@phase intrinsics-lowered
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=optimize-low-level round=1 checkpoint=mir.low-level-optimized] ===
+@module CheckElimPipelineRequireSub
+@phase intrinsics-lowered
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
+@module CheckElimPipelineRequireSub
+@phase target-lowered
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=optimize-target-generated round=1 checkpoint=mir.target-optimized] ===
+@module CheckElimPipelineRequireSub
+@phase target-lowered
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+@module CheckElimPipelineRequireSub
+@phase evm-shaped
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=final-cleanup round=1 checkpoint=mir.final] ===
+@module CheckElimPipelineRequireSub
+@phase evm-shaped
+fn @guarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = gt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg0, arg1
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @unguarded(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = lt arg0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=schedule round=1 checkpoint=mir.scheduled] ===
 @module CheckElimPipelineRequireSub
 @phase evm-shaped
 fn @guarded(arg0: u256, arg1: u256) {

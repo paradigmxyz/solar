@@ -29,12 +29,16 @@ impl MirPass for LowerAggregates {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
-        }
-        changed
+        lower_aggregates(module)
     }
+}
+
+pub(super) fn lower_aggregates(module: &mut Module) -> bool {
+    let mut changed = false;
+    for func in module.functions.iter_mut() {
+        changed |= lower_function(func);
+    }
+    changed
 }
 
 enum AggregateOp {

@@ -1,6 +1,6 @@
 //! Dispatch phase lowering: materialize the selector switch as MIR.
 //!
-//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
+//! In `built` MIR, selector routing is still implicit. This pass
 //! makes it an ordinary MIR function named `entry` (the dispatch phase of the
 //! sketch in [`MirPhase`]).
 //!
@@ -12,7 +12,7 @@
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
 //! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
+//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built` modules
 //! rather than half-dispatching argument-taking functions.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
@@ -39,6 +39,10 @@ impl MirPass for LowerDispatch {
 
     fn is_required(&self) -> bool {
         true
+    }
+
+    fn output_phase(&self) -> Option<MirPhase> {
+        Some(MirPhase::Dispatch)
     }
 
     fn run_pass(
@@ -76,7 +80,7 @@ impl LowerDispatchCx {
         }
 
         // Dispatch routes to the argument-free ABI wrappers, so it requires the
-        // ABI phase. Running on `built`/`optimized` MIR would leave
+        // ABI phase. Running on `built` MIR would leave
         // argument-taking external functions unroutable while still advancing
         // the phase; require the precondition and bail otherwise.
         if module.phase < MirPhase::Abi {
@@ -100,11 +104,11 @@ impl LowerDispatchCx {
                 fallback = Some(id);
             }
             if let Some(selector) = func.selector {
-                debug_assert!(
-                    func.params.is_empty(),
-                    "dispatch after abi phase: selector function `{}` still takes arguments",
-                    func.name
-                );
+                // A claimed `abi` input may come from textual MIR. Refuse the
+                // transition in every build if its wrapper invariant is false.
+                if !func.params.is_empty() {
+                    return false;
+                }
                 routes.push((u32::from_be_bytes(selector), id));
             }
         }

@@ -1,1 +1,1 @@
-time: <TIME>	EVM IR module block-layout changed=true
+time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/block-layout/time_passes.evmir" artifact=- pipeline_run=1 stage=custom round=1 pass=block-layout invocation=1 outcome=ok ir_changed=true state_changed=false state_only=false

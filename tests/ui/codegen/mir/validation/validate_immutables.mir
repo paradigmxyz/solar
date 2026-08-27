@@ -1,11 +1,13 @@
 //@compile-flags: -Zmir-pipeline=dce
 @module ValidateImmutables
+@library
 @phase evm-shaped
 immutables:
   invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
   narrow: u8
 
 fn @invalid_store(arg0: memoryslice) {
+  //~? ERROR: [fn0] semantic signature type `memoryslice` survives the `evm-shaped` phase boundary
   bb0:
     storeimmutable narrow, arg0
     //~? ERROR: [fn0] inst0 stores `memoryslice` value into immutable `narrow` of type `u8`

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (after dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module TailCallReturnContract
   fn @keep() -> u256 {
     bb0:
@@ -21,7 +20,7 @@
 +     ret
   }
   
-  fn @entry() {
+  fn @entry() [selector=0x01020304] {
     bb0:
       v0 = internal_call @forward, 1
 -     v1 = internal_call @user, 1

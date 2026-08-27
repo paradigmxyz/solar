@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
-fn @storage_sub(arg0: address, arg1: u256) {
+fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -31,7 +31,7 @@ fn @storage_sub(arg0: address, arg1: u256) {
     revert 0, 0
 }
 
-fn @storage_binary_sub(arg0: address, arg1: u256) {
+fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -62,7 +62,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
     revert 0, 0
 }
 
-fn @storage_struct_add(arg0: address, arg1: u128) {
+fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -105,7 +105,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
     revert 0, 0
 }
 
-fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
+fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, public] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

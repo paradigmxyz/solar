@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_param_helper.sol:CalldataSliceParamHelper ===
 @module CalldataSliceParamHelper
 @phase evm-shaped
-fn @lastWord() {
+fn @lastWord() [selector=0x3955f902, external, pure, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -28,17 +28,14 @@ fn @lastWord() {
     v15 = gt v21, v14
     jumpi v15, bb1, bb5
   bb5:
-    v23 = add arg0, 4
-    v24 = calldataload v23
-    v22 = add arg0, 36
-    v16 = internal_call @_last, 1, v22, v24
+    v16 = internal_call @_last, 1, v19, v21
     mstore 128, v16
     returndata 128, 32
   bb1:
     revert 0, 0
 }
 
-fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
+fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure, internal_frame_size=32] {
   bb0:
     v2 = sub arg1, 32
     v4 = add arg0, v2
@@ -46,7 +43,7 @@ fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
     ret v5
 }
 
-fn @lastWord2() {
+fn @lastWord2() [selector=0x97f495a8, external, pure, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -73,10 +70,7 @@ fn @lastWord2() {
     v15 = gt v31, v14
     jumpi v15, bb1, bb5
   bb5:
-    v33 = add arg0, 4
-    v34 = calldataload v33
-    v32 = add arg0, 36
-    v16 = internal_call @_last, 1, v32, v34
+    v16 = internal_call @_last, 1, v29, v31
     jumpi v31, bb6, bb1
   bb6:
     v20 = sub v31, 1

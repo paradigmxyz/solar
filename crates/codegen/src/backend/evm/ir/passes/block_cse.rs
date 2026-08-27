@@ -1,6 +1,6 @@
 //! Block-local common-subexpression regeneration over scheduled EVM IR.
 
-use super::{EvmPass, peephole::Peephole};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
     op,
@@ -12,9 +12,6 @@ use std::hash::{Hash, Hasher};
 
 pub(super) struct BlockCse;
 
-/// Default-pipeline adapter that cleans up only when regeneration changed the module.
-pub(super) struct BlockCseCleanup;
-
 impl EvmPass for BlockCse {
     fn name(&self) -> &'static str {
         "block-cse"
@@ -25,20 +22,6 @@ impl EvmPass for BlockCse {
         let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
         for block in &mut module.blocks {
             changed |= regenerate_block(&mut block.instructions, stack_access_limit);
-        }
-        changed
-    }
-}
-
-impl EvmPass for BlockCseCleanup {
-    fn name(&self) -> &'static str {
-        "block-cse"
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let changed = BlockCse.run_pass(gcx, module);
-        if changed {
-            let _ = Peephole.run_pass(gcx, module);
         }
         changed
     }

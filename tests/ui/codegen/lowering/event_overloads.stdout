@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_overloads.sol:EventOverloads ===
 @module EventOverloads
-fn @emitBoth(arg0: address, arg1: u256) {
+fn @emitBoth(arg0: address, arg1: u256) [selector=0xf80bb516, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -37,7 +37,7 @@ fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 // CHECK: + sstore 0, [[FLUSH]]
 // CHECK: + {{v[0-9]+}} = mload 128
 // CHECK: + {{v[0-9]+}} = mload 128
-fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
+fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020305] {
   bb0:
     sstore 0, 1
     jump bb1
@@ -63,7 +63,7 @@ fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
 // CHECK: + sstore 0, 1
 // CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
+fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020306] {
   bb0:
     sstore 0, 1
     jump bb1

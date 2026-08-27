@@ -1,0 +1,7 @@
+  // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_incomplete_custom.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_incomplete_custom.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=failed ir_changed=false state_changed=false] ===
+  @module LowerAbiIncompleteCustom
+  fn @value() -> u256 [selector=0x12345678] {
+    bb0:
+      ret 1
+  }
+  

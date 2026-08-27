@@ -3,13 +3,13 @@
 immutables:
   owner: address
 
-fn @owner() -> address [abi_returns=[word]] {
+fn @owner() -> address [selector=0x8da5cb5b, external, view, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable owner
     ret v0
 }
 
-fn @_anonymous(arg0: address) {
+fn @_anonymous(arg0: address) [public, constructor] {
   bb0:
     v0 = constructor_args_base
     v1 = add v0, 0

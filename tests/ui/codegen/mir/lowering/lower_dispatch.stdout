@@ -1,14 +1,13 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (after lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerDispatch
 - @phase abi
 + @phase dispatch
-  fn @ping() {
+  fn @ping() [selector=0x12000000] {
     bb0:
       stop
   }
   
-  fn @pong() {
+  fn @pong() [selector=0x8d3a3e57] {
     bb0:
       stop
 + }

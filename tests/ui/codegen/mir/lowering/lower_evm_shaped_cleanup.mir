@@ -6,8 +6,8 @@
 // CHECK: tail_call @fused
 // CHECK-NOT: bb1:
 @module LowerEvmShapedCleanup
-@phase memory-lowered
-fn @entry() {
+@phase target-lowered
+fn @entry() [entry] {
   bb0:
     tail_call fn1
 }

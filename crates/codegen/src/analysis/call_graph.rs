@@ -109,6 +109,7 @@ impl CallGraphInfo {
 
     fn is_entry_function(func: &Function) -> bool {
         func.selector.is_some()
+            || func.attributes.is_dispatch_entry
             || func.attributes.is_constructor
             || func.attributes.is_fallback
             || func.attributes.is_receive

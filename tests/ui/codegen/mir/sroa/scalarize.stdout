@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before sroa) ===
-+ // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa) ===
++ // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa) [ir=MIR module="ROOT/tests/ui/codegen/mir/sroa/scalarize.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module Sroa
   fn @local_struct(arg0: u256, arg1: u256) -> u256 {
     bb0:
@@ -29,8 +28,7 @@
 +     ret 0
   }
   
-- // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) ===
+  // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/sroa/scalarize.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Sroa
   fn @local_struct(arg0: u256, arg1: u256) -> u256 {
     bb0:

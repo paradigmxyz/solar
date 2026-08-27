@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
-fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
+fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -22,7 +22,7 @@ fn @sadd(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
+fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -44,7 +44,7 @@ fn @ssub(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @smul(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
+fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -72,7 +72,7 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
+fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -100,7 +100,7 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @smod(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
+fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -119,7 +119,7 @@ fn @smod(arg0: i256, arg1: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @neg(arg0: i256) -> i256 [abi_returns=[word]] {
+fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -139,7 +139,7 @@ fn @neg(arg0: i256) -> i256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @inc(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @inc(arg0: u256) -> u256 [selector=0x812600df, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -162,7 +162,7 @@ fn @inc(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @dec(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -185,7 +185,7 @@ fn @dec(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
+fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -219,7 +219,7 @@ fn @uadd128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
+fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -253,7 +253,7 @@ fn @umul128(arg0: u128, arg1: u128) -> u128 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_returns=[word]] {
+fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -289,7 +289,7 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
+fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, public, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -329,7 +329,7 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @leftU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
+fn @leftU8(arg0: u8, arg1: u8) -> u8 [selector=0xb0f599fc, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -357,7 +357,7 @@ fn @leftU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @leftU16(arg0: u16, arg1: u8) -> u16 [abi_returns=[word]] {
+fn @leftU16(arg0: u16, arg1: u8) -> u16 [selector=0x091a4010, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -385,7 +385,7 @@ fn @leftU16(arg0: u16, arg1: u8) -> u16 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @leftI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
+fn @leftI8(arg0: i8, arg1: u8) -> i8 [selector=0xf8edc0fc, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -414,7 +414,7 @@ fn @leftI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @leftI16(arg0: i16, arg1: u8) -> i16 [abi_returns=[word]] {
+fn @leftI16(arg0: i16, arg1: u8) -> i16 [selector=0xde5140b9, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -443,7 +443,7 @@ fn @leftI16(arg0: i16, arg1: u8) -> i16 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @leftU256(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @leftU256(arg0: u256, arg1: u256) -> u256 [selector=0xb89f4ea2, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -456,7 +456,7 @@ fn @leftU256(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @rightU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
+fn @rightU8(arg0: u8, arg1: u8) -> u8 [selector=0xf8942fcd, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -483,7 +483,7 @@ fn @rightU8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @rightI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
+fn @rightI8(arg0: i8, arg1: u8) -> i8 [selector=0x06a33d87, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (before licm) ===
-+ // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LicmMultiLatch
   fn @multi_latch_mixed_step() -> u256 {
     bb0:

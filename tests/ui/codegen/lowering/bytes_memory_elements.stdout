@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/bytes_memory_elements.sol:BytesMemoryElements ===
 @module BytesMemoryElements
-fn @alloc() -> bytes32 [abi_returns=[word]] {
+fn @alloc() -> bytes32 [selector=0xbbc001c3, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = add 96, 31
     v1 = lt v0, 96
@@ -48,7 +48,7 @@ fn @alloc() -> bytes32 [abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @literal() -> bytes32 [abi_returns=[word]] {
+fn @literal() -> bytes32 [selector=0x1373185e, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
@@ -70,7 +70,7 @@ fn @literal() -> bytes32 [abi_returns=[word]] {
     ret v7
 }
 
-fn @allocDynamic(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -103,7 +103,7 @@ fn @allocDynamic(arg0: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_returns=[word]] {
+fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0x4b25a5a7, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -154,7 +154,7 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [abi_return
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0

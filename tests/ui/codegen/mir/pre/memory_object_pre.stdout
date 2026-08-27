@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (before pre) ===
-+ // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (after pre) ===
++ // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryObjectPre
   fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
     bb0:

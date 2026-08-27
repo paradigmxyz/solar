@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
 @module TryCatchFull
 @phase evm-shaped
-fn @full() {
+fn @full() [selector=0xd17b272f, public, view, internal_frame_size=64, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -242,7 +242,7 @@ fn @full() {
     revert 0, 0
 }
 
-fn @rethrows() {
+fn @rethrows() [selector=0x0d7fadfb, public, view, internal_frame_size=32, external_static_return_size=32, arg_types=(u256)] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -397,14 +397,14 @@ fn @rethrows() {
     revert 0, 0
 }
 
-fn @__revert_stub0() {
+fn @__revert_stub0() [no_inline] {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @__abi_encode_0(arg0: memptr, arg1: memptr) -> memptr {
+fn @__abi_encode_0(arg0: memptr, arg1: memptr) -> memptr [no_inline] {
   bb0:
     v0 = mload arg0
     mstore arg1, v0

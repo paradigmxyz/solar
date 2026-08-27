@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_dynamic_data.sol:EventDynamicData ===
 @module EventDynamicData
-fn @text(arg0: memorybytes) {
+fn @text(arg0: memorybytes) [selector=0x174e6c98, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -50,7 +50,7 @@ fn @text(arg0: memorybytes) {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -101,7 +101,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
     revert 0, 0
 }
 
-fn @literal() {
+fn @literal() [selector=0x1373185e, external] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
@@ -141,7 +141,7 @@ fn @literal() {
     stop
 }
 
-fn @blob(arg0: memorybytes) {
+fn @blob(arg0: memorybytes) [selector=0x03cd5167, external] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -189,7 +189,7 @@ fn @blob(arg0: memorybytes) {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes {
+fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes [no_inline] {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0

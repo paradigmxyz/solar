@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
-fn @len() -> u256 [abi_returns=[word]] {
+fn @len() -> u256 [selector=0x56d88e27, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -8,7 +8,7 @@ fn @len() -> u256 [abi_returns=[word]] {
     ret v2
 }
 
-fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @copy() -> memorybytes [selector=0x60726abb, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -44,7 +44,7 @@ fn @copy() -> memorybytes [abi_returns=[memory_bytes]] {
     revert 0, 36
 }
 
-fn @environment() -> u256 [abi_returns=[word]] {
+fn @environment() -> u256 [selector=0x74e2b63c, external, view, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = coinbase
@@ -106,7 +106,7 @@ fn @environment() -> u256 [abi_returns=[word]] {
     ret v43
 }
 
-fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @tail(arg0: u256, arg1: u256) -> memorybytes [selector=0xb62868c3, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

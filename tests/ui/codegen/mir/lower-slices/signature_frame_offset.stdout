@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir (before lower-slices) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir (after lower-slices) ===
+  // === ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module SignatureFrameOffset
   fn @signature_slot(arg0: memoryslice, arg1: u256) {
     bb0:

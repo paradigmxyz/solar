@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (after sccp) ===
+  // === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module SccpNoFold
   fn @with_arg(arg0: u256) -> u256 {
     bb0:

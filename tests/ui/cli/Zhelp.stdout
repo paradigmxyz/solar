@@ -51,8 +51,11 @@ Options:
       -Zprint-after-each
           Print MIR or EVM IR after every optimization pass
 
+      -Zprint-after-stage
+          Print MIR or EVM IR at stable pipeline checkpoints. Takes precedence over pass diffs
+
       -Zpass-diff
-          Print a before-and-after diff for each pass explicitly selected by an IR pipeline
+          Print a before-and-after diff for each scheduled IR pass
 
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass

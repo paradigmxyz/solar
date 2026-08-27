@@ -3,13 +3,13 @@
 immutables:
   value: u256
 
-fn @constructor() {
+fn @constructor() [public, constructor] {
   bb0:
     storeimmutable value, 1
     stop
 }
 
-fn @baseValue() -> u256 [abi_returns=[word]] {
+fn @baseValue() -> u256 [selector=0x61bb9c52, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value
     ret v0
@@ -22,7 +22,7 @@ immutables:
   value1: u256
   value0: u256
 
-fn @constructor() {
+fn @constructor() [public, constructor] {
   bb0:
     storeimmutable value0_, 1
     storeimmutable value1, 2
@@ -30,19 +30,19 @@ fn @constructor() {
     stop
 }
 
-fn @derivedValue() -> u256 [abi_returns=[word]] {
+fn @derivedValue() -> u256 [selector=0x13f1a030, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value1
     ret v0
 }
 
-fn @numberedValue() -> u256 [abi_returns=[word]] {
+fn @numberedValue() -> u256 [selector=0x4abe616f, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0
     ret v0
 }
 
-fn @baseValue() -> u256 [abi_returns=[word]] {
+fn @baseValue() -> u256 [selector=0x61bb9c52, external, pure, external_static_return_size=32, abi_returns=[word]] {
   bb0:
     v0 = loadimmutable value0_
     ret v0

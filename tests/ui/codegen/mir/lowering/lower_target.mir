@@ -1,0 +1,17 @@
+//@compile-flags: -Zmir-pipeline=lower-target
+//@filecheck:
+@module LowerTarget
+@library
+@phase intrinsics-lowered
+
+// CHECK-LABEL: after lower-target
+// CHECK: + @phase target-lowered
+// CHECK: -     {{v[0-9]+}} = alloc
+// CHECK: -     memory_zero
+// CHECK: +     calldatacopy
+fn @combined() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    memory_zero v0, 32
+    ret v0
+}

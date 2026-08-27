@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
 @module CalldataSliceEncode
-fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
+fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0xa8c06a13, external, pure, abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -74,7 +74,7 @@ fn @encode(arg0: calldataslice, arg1: u256) -> memorybytes [abi_returns=[memory_
     revert 0, 0
 }
 
-fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
+fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08, external, internal_frame_size=64] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

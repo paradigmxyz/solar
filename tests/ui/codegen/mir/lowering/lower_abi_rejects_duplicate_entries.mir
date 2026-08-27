@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=default
+//~? ERROR: external functions `first` and `second` have duplicate selector `0x12345678`
+//@ filecheck:
+@module LowerAbiRejectsDuplicateEntries
+
+// CHECK: after lower-abi
+// CHECK-SAME: outcome=failed
+// CHECK-NOT: checkpoint=mir.abi
+fn @first() [selector=0x12345678] {
+  bb0:
+    stop
+}
+
+fn @second() [selector=0x12345678] {
+  bb0:
+    stop
+}

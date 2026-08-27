@@ -1,29 +1,26 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
+  // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module LowerAbiDispatch
-  fn @get(arg0: u256) {
+  fn @get(arg0: u256) [selector=0x9507d39a] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerAbiDispatch
-- fn @get(arg0: u256) {
+- fn @get(arg0: u256) [selector=0x9507d39a] {
 + @phase abi
-+ fn @get() {
++ fn @get() [selector=0x9507d39a, arg_types=(u256)] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=2 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerAbiDispatch
 - @phase abi
 + @phase dispatch
-  fn @get() {
+  fn @get() [selector=0x9507d39a, arg_types=(u256)] {
     bb0:
       mstore 128, arg0
       returndata 128, 32
@@ -43,11 +40,10 @@
 +     revert 0, 0
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after dce) ===
+  // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module LowerAbiDispatch
   @phase dispatch
-  fn @get() {
+  fn @get() [selector=0x9507d39a, arg_types=(u256)] {
     bb0:
       mstore 128, arg0
       returndata 128, 32

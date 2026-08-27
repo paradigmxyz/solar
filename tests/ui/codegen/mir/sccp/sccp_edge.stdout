@@ -1,5 +1,4 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_edge.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_edge.mir (after sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_edge.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/sccp/sccp_edge.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module SccpEdge
   fn @phi_ignores_unreachable_predecessor() -> u256 {
     bb0:

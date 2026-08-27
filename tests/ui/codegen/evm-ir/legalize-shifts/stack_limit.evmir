@@ -1,4 +1,11 @@
-//@ compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts
+//@ revisions: stage diff
+//@[stage] compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts -Zprint-after-stage
+//@[diff] compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts -Ztime-passes
+//@ normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
+//@[stage] filecheck:
+// CHECK: checkpoint=evm.scheduled-input
+// CHECK-NOT: checkpoint=custom-output
+// CHECK-NOT: checkpoint=evm.target-legal
 //~? ERROR: legacy shift legalization would exceed the EVM stack limit
 @module module
 
