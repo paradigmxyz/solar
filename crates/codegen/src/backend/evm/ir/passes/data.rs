@@ -310,7 +310,7 @@ fn find_run(
 ) -> Option<(Bytes, Rewrite)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = value.concrete_immediate()?;
-    if raw_opcode(dup) != Some(op::DUP2) || raw_opcode(store) != Some(op::MSTORE) {
+    if dup.as_legacy_opcode() != Some(op::DUP2) || store.as_legacy_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -319,10 +319,10 @@ fn find_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if offset.concrete_immediate() != Some(U256::from(words * 32))
-            || raw_opcode(dup) != Some(op::DUP2)
-            || raw_opcode(add) != Some(op::ADD)
-            || raw_opcode(swap) != Some(op::SWAP1)
-            || raw_opcode(store) != Some(op::MSTORE)
+            || dup.as_legacy_opcode() != Some(op::DUP2)
+            || add.as_legacy_opcode() != Some(op::ADD)
+            || swap.as_legacy_opcode() != Some(op::SWAP1)
+            || store.as_legacy_opcode() != Some(op::MSTORE)
         {
             break;
         }
@@ -549,58 +549,61 @@ fn track_data_reference(
         stack.push(DataStackValue::Unknown);
         return;
     }
-
-    match inst.opcode {
-        opcode if (op::DUP1..=op::DUP16).contains(&opcode) => {
-            let depth = usize::from(opcode - op::DUP1) + 1;
-            let value = stack
-                .len()
-                .checked_sub(depth)
-                .map_or(DataStackValue::Unknown, |index| stack[index]);
-            stack.push(value);
-        }
-        opcode if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
-            let depth = usize::from(opcode - op::SWAP1) + 1;
-            ensure_stack_depth(stack, depth + 1);
-            let top = stack.len() - 1;
-            stack.swap(top, top - depth);
-        }
-        op::DUPN => {
-            mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-            stack.push(DataStackValue::Unknown);
-        }
-        op::SWAPN | op::EXCHANGE => {
-            mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-            stack.fill(DataStackValue::Unknown);
-        }
-        _ => {
-            let Some(effect) =
-                inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-            else {
-                mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-                stack.clear();
-                return;
-            };
-            let inputs = usize::from(effect.inputs);
-            ensure_stack_depth(stack, inputs);
-            let first_input = stack.len() - inputs;
-            for (index, value) in stack[first_input..].iter().rev().enumerate() {
-                let DataStackValue::Data(data) = value else { continue };
-                let bounded = inst.opcode == op::CODECOPY
-                    && index == 1
-                    && matches!(
-                        stack.get(stack.len() - 3),
-                        Some(DataStackValue::Immediate(size))
-                            if data_copy_is_bounded(module, *data, *size)
-                    );
-                if !bounded {
-                    references.subslice_safe[data.id] = false;
-                }
+    if let Some(stack_op) = inst.as_stack_op() {
+        match stack_op {
+            op::StackOp::Dup(depth) => {
+                let depth = usize::from(depth);
+                let value = stack
+                    .len()
+                    .checked_sub(depth)
+                    .map_or(DataStackValue::Unknown, |index| stack[index]);
+                stack.push(value);
             }
-            stack.truncate(first_input);
-            stack.extend(std::iter::repeat_n(DataStackValue::Unknown, usize::from(effect.outputs)));
+            op::StackOp::Swap(depth) => {
+                let depth = usize::from(depth);
+                ensure_stack_depth(stack, depth + 1);
+                let top = stack.len() - 1;
+                stack.swap(top, top - depth);
+            }
+            op::StackOp::Exchange(first, second) => {
+                let first = usize::from(first);
+                let second = usize::from(second);
+                ensure_stack_depth(stack, second + 1);
+                let top = stack.len() - 1;
+                stack.swap(top - first, top - second);
+            }
+            op::StackOp::Pop => {
+                ensure_stack_depth(stack, 1);
+                stack.pop();
+            }
+        }
+        return;
+    }
+
+    let Some(effect) = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
+    else {
+        mark_stack_data_unsafe(stack, &mut references.subslice_safe);
+        stack.clear();
+        return;
+    };
+    let inputs = usize::from(effect.inputs);
+    ensure_stack_depth(stack, inputs);
+    let first_input = stack.len() - inputs;
+    for (index, value) in stack[first_input..].iter().rev().enumerate() {
+        let DataStackValue::Data(data) = value else { continue };
+        let bounded = inst.opcode == op::CODECOPY
+            && index == 1
+            && matches!(
+                stack.get(stack.len() - 3),
+                Some(DataStackValue::Immediate(size))
+                    if data_copy_is_bounded(module, *data, *size)
+            );
+        if !bounded {
+            references.subslice_safe[data.id] = false;
         }
     }
+    stack.truncate(first_input);
+    stack.extend(std::iter::repeat_n(DataStackValue::Unknown, usize::from(effect.outputs)));
 }
 
 fn mark_stack_data_unsafe(stack: &[DataStackValue], subslice_safe: &mut IndexVec<DataId, bool>) {
@@ -644,8 +647,4 @@ fn data_copy_gas(size: usize) -> usize {
 fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     inst.concrete_immediate()
         .map_or(3, |value| immediate_materialization_cost(gcx.sess.opts.evm_version, value).1)
-}
-
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    (!inst.is_encoded_push()).then_some(inst.opcode)
 }
