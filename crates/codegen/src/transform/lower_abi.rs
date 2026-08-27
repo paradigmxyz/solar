@@ -79,7 +79,7 @@ impl LowerAbiCx {
 
         if targets.is_empty() {
             module.advance_phase(MirPhase::Abi);
-            return true;
+            return false;
         }
 
         // Most external functions are never called internally. Only those
@@ -94,13 +94,18 @@ impl LowerAbiCx {
         // unguarded.
         let hoist_callvalue = callvalue.hoists();
 
+        let mut changed = false;
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if let Some(body_id) = Self::wrap_function(module, id, internally_called.contains(id)) {
+            let (body_id, wrapper_changed) =
+                Self::wrap_function(module, id, internally_called.contains(id));
+            changed |= wrapper_changed;
+            if let Some(body_id) = body_id {
                 body_of_wrapper.insert(id, body_id);
             }
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
                 Self::inject_callvalue_check(module.function_mut(id));
+                changed = true;
             }
         }
 
@@ -120,7 +125,7 @@ impl LowerAbiCx {
         }
 
         module.advance_phase(MirPhase::Abi);
-        true
+        changed
     }
 
     /// Rewrites one external function into a self-decoding form, keeping a
@@ -144,7 +149,13 @@ impl LowerAbiCx {
         module: &mut Module,
         wrapper_id: FunctionId,
         needs_body: bool,
-    ) -> Option<FunctionId> {
+    ) -> (Option<FunctionId>, bool) {
+        let wrapper = module.function(wrapper_id);
+        let changed = needs_body
+            || !wrapper.params.is_empty()
+            || !wrapper.returns.is_empty()
+            || wrapper.abi_returns.is_some();
+
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| {
@@ -165,7 +176,7 @@ impl LowerAbiCx {
         wrapper.params.clear();
         wrapper.returns.clear();
         wrapper.abi_returns = None;
-        body_id
+        (body_id, changed)
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.

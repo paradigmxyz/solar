@@ -80,6 +80,19 @@ impl MirPhase {
         }
     }
 
+    /// Returns the next phase in the canonical lowering order.
+    #[must_use]
+    pub(crate) const fn next(self) -> Option<Self> {
+        match self {
+            Self::Built => Some(Self::Abi),
+            Self::Abi => Some(Self::Dispatch),
+            Self::Dispatch => Some(Self::IntrinsicsLowered),
+            Self::IntrinsicsLowered => Some(Self::TargetLowered),
+            Self::TargetLowered => Some(Self::EvmShaped),
+            Self::EvmShaped => None,
+        }
+    }
+
     /// Looks up a phase by its textual name.
     #[must_use]
     pub(crate) fn by_name(name: Symbol) -> Option<Self> {

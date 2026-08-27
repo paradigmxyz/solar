@@ -5,7 +5,7 @@ fn @f(arg0: u256) -> u256 {
     v0 = add arg0, 1
     ret v0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=lower-abi round=1 checkpoint=mir.abi] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=abi round=1 checkpoint=mir.abi] ===
 @module StageCheckpoints
 @phase abi
 fn @f(arg0: u256) -> u256 {
@@ -13,7 +13,7 @@ fn @f(arg0: u256) -> u256 {
     v0 = add arg0, 1
     ret v0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=lower-dispatch round=1 checkpoint=mir.dispatch] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=dispatch round=1 checkpoint=mir.dispatch] ===
 @module StageCheckpoints
 @phase dispatch
 fn @f(arg0: u256) -> u256 {
@@ -30,7 +30,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=lower-intrinsics round=1 checkpoint=mir.intrinsics-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 checkpoint=mir.intrinsics-lowered] ===
 @module StageCheckpoints
 @phase intrinsics-lowered
 fn @f(arg0: u256) -> u256 {
@@ -47,7 +47,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 checkpoint=mir.target-lowered] ===
 @module StageCheckpoints
 @phase target-lowered
 fn @f(arg0: u256) -> u256 {
@@ -64,7 +64,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/stage_checkpoints.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
 @module StageCheckpoints
 @phase evm-shaped
 fn @f(arg0: u256) -> u256 {

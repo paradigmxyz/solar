@@ -75,7 +75,7 @@ impl LowerDispatchCx {
 
         if routes.is_empty() && receive.is_none() && fallback.is_none() && module.is_library {
             module.advance_phase(MirPhase::Dispatch);
-            return true;
+            return false;
         }
 
         // Hoist the callvalue check when every external entry rejects value.

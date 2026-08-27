@@ -59,10 +59,11 @@ fn lower_evm_shape(module: &mut Module) -> bool {
     });
     if !has_candidate {
         module.advance_phase(MirPhase::EvmShaped);
-        return true;
+        return false;
     }
 
     let mut eligibility = TailCallEligibility::new(module);
+    let mut changed = false;
     loop {
         let function_ids = eligibility.callee_first().to_vec();
         let mut round_changed = false;
@@ -118,8 +119,10 @@ fn lower_evm_shape(module: &mut Module) -> bool {
             }
         }
         if !round_changed || !graph_changed {
+            changed |= round_changed;
             break;
         }
+        changed = true;
 
         let next = TailCallEligibility::new(module);
         if eligibility.same_eligible_calls(&next) {
@@ -129,5 +132,5 @@ fn lower_evm_shape(module: &mut Module) -> bool {
     }
 
     module.advance_phase(MirPhase::EvmShaped);
-    true
+    changed
 }

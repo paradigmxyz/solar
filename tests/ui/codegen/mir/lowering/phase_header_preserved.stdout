@@ -6,7 +6,7 @@ fn @f() {
   bb0:
     stop
 }
-// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=lower-target round=1 checkpoint=mir.target-lowered] ===
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 checkpoint=mir.target-lowered] ===
 @module PhaseHeaderPreserved
 @library
 @phase target-lowered
@@ -14,7 +14,7 @@ fn @f() {
   bb0:
     stop
 }
-// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
 @module PhaseHeaderPreserved
 @library
 @phase evm-shaped

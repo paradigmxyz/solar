@@ -184,9 +184,7 @@ fn run_passes_inner<'a>(
         let invocation = state.next_invocation(pass_name);
         let pass_diff =
             gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage;
-        let inspect_change = pass_diff
-            || gcx.sess.opts.unstable.print_after_each
-            || (enabled && gcx.sess.opts.unstable.time_passes);
+        let inspect_change = pass_diff || gcx.sess.opts.unstable.print_after_each;
         let before = inspect_change.then(|| module.to_text().to_string());
         let mut pass_changed = false;
         let mut failed = false;

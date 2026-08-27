@@ -6,7 +6,7 @@ fn @entry() [entry] {
     mcopy 0, 0, 0
     stop
 }
-// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=evm-shape round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
 @module ValidateTargetMcopy
 @phase evm-shaped
 fn @entry() [entry] {

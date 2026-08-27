@@ -20,10 +20,11 @@ impl MirPass for LowerIntrinsics {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        if lower_memory_objects(module) {
+        let changed = lower_memory_objects(module);
+        if changed {
             analyses.invalidate();
         }
         module.advance_phase(MirPhase::IntrinsicsLowered);
-        true
+        changed
     }
 }

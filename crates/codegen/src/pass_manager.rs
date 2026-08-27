@@ -143,7 +143,7 @@ pub trait MirPass: Sync {
         false
     }
 
-    /// Runs the pass and returns whether it changed MIR.
+    /// Runs the pass and returns whether it changed the MIR body.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
@@ -186,9 +186,7 @@ impl MirPassManager {
             let invocation = self.state.next_invocation(pass_name);
             let pass_diff =
                 gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage;
-            let inspect_change = pass_diff
-                || gcx.sess.opts.unstable.print_after_each
-                || (enabled && gcx.sess.opts.unstable.time_passes);
+            let inspect_change = pass_diff || gcx.sess.opts.unstable.print_after_each;
             let before = inspect_change.then(|| module.to_text().to_string());
             let phase_before = module.phase;
             let mut ir_changed = false;
@@ -207,7 +205,7 @@ impl MirPassManager {
                 after = inspect_change.then(|| module.to_text().to_string());
                 ir_changed = match (&before, &after) {
                     (Some(before), Some(after)) => !mir_body(before).eq(mir_body(after)),
-                    _ => pass_changed && !state_changed,
+                    _ => pass_changed,
                 };
                 timer.finish(
                     "MIR",
@@ -297,7 +295,7 @@ impl MirPassManager {
         gcx: Gcx<'_>,
         module: &Module,
         stage: StageId,
-        checkpoint: &str,
+        checkpoint: impl Display,
     ) {
         if gcx.sess.opts.unstable.print_after_stage {
             print_checkpoint(
@@ -381,7 +379,7 @@ pub(crate) fn print_checkpoint(
     artifact: Option<&str>,
     pipeline_run: usize,
     stage: StageId,
-    checkpoint: &str,
+    checkpoint: impl Display,
     text: impl Display,
 ) {
     let name = name.to_string();

@@ -122,9 +122,10 @@ The canonical MIR pipeline has one stage per phase transition. Each stage owns
 all optimization and lowering needed to reach its output phase: `built` to
 `abi`, `abi` to `dispatch`, `dispatch` to `intrinsics-lowered`,
 `intrinsics-lowered` to `target-lowered`, and `target-lowered` to
-`evm-shaped`. After `mir.input`, checkpoints describe only the five output
-phase boundaries through `mir.evm-shaped`; use exact pass output to inspect an
-optimization point inside a phase.
+`evm-shaped`. The phase order infers each stage's input, output, and name; the
+pipeline table contains only pass slices. After `mir.input`, checkpoints
+describe only the five output phase boundaries through `mir.evm-shaped`; use
+exact pass output to inspect an optimization point inside a phase.
 
 The EVM IR pipeline first legalizes target-version operations, then runs local
 normalization, structural sharing, stack-code regeneration, a second measured

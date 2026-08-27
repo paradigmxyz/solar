@@ -23,12 +23,12 @@ impl MirPass for LowerTarget {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
-        let _ = lower_alloc(module);
-        let _ = lower_memory_zero(module);
+        let mut changed = lower_alloc(module);
+        changed |= lower_memory_zero(module);
         if !gcx.sess.opts.evm_version.has_mcopy() {
-            let _ = lower_mcopy_module(module);
+            changed |= lower_mcopy_module(module);
         }
         module.advance_phase(MirPhase::TargetLowered);
-        true
+        changed
     }
 }
