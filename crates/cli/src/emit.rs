@@ -636,13 +636,13 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
                 .map_or(code.len(), |i| token_start + i);
             let token = &code[token_start..token_end];
             let style = if token.ends_with(':') { LABEL_STYLE } else { OPCODE_STYLE };
-            writer.write_all(&code.as_bytes()[..token_start])?;
+            write_operands(writer, &code[..token_start])?;
             if token.starts_with(|c: char| c.is_ascii_alphanumeric() || matches!(c, '@' | '_')) {
                 write!(writer, "{style}{token}{style:#}")?;
             } else {
                 writer.write_all(token.as_bytes())?;
             }
-            writer.write_all(&code.as_bytes()[token_end..])?;
+            write_operands(writer, &code[token_end..])?;
             if !comment.is_empty() {
                 write!(writer, "{COMMENT_STYLE}{comment}{COMMENT_STYLE:#}")?;
             }
@@ -653,11 +653,63 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
     }
 }
 
+fn write_operands(writer: &mut ConsoleWriter, text: &str) -> io::Result<()> {
+    for chunk in text.split_inclusive(|c| !is_operand_char(c)) {
+        let token_end = chunk.find(|c| !is_operand_char(c)).unwrap_or(chunk.len());
+        let (token, punctuation) = chunk.split_at(token_end);
+        if !token.is_empty() {
+            write_operand(writer, token)?;
+        }
+        writer.write_all(punctuation.as_bytes())?;
+    }
+    Ok(())
+}
+
+fn is_operand_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '@' | '_')
+}
+
+fn write_operand(writer: &mut ConsoleWriter, token: &str) -> io::Result<()> {
+    let style = if is_indexed(token, "bb") {
+        Some(LABEL_STYLE)
+    } else if token.starts_with('@')
+        || ["v", "arg", "fn"].into_iter().any(|prefix| is_indexed(token, prefix))
+    {
+        Some(VALUE_STYLE)
+    } else if token == "true"
+        || token == "false"
+        || token == "undef"
+        || token.chars().all(|c| c.is_ascii_digit())
+        || token
+            .strip_prefix("0x")
+            .is_some_and(|value| value.chars().all(|c| c.is_ascii_hexdigit()))
+    {
+        Some(LITERAL_STYLE)
+    } else {
+        None
+    };
+    if let Some(style) = style {
+        write!(writer, "{style}{token}{style:#}")
+    } else {
+        writer.write_all(token.as_bytes())
+    }
+}
+
+fn is_indexed(token: &str, prefix: &str) -> bool {
+    token
+        .strip_prefix(prefix)
+        .is_some_and(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()))
+}
+
 type ConsoleWriter = io::BufWriter<anstream::AutoStream<io::Stdout>>;
 
-const OPCODE_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlue))).bold();
+const BLUE: Color =
+    Color::Ansi(if cfg!(windows) { AnsiColor::BrightCyan } else { AnsiColor::BrightBlue });
+const OPCODE_STYLE: Style = Style::new().fg_color(Some(BLUE)).bold();
 const LABEL_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightCyan))).bold();
 const COMMENT_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlack)));
+const VALUE_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::Magenta))).bold();
+const LITERAL_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightGreen)));
 
 fn console_writer(color: solar_config::ColorChoice) -> ConsoleWriter {
     io::BufWriter::new(anstream::AutoStream::new(io::stdout(), color))
