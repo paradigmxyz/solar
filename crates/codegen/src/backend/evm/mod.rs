@@ -39,6 +39,8 @@ pub fn generate_evm_ir_bytecode(
     gcx: solar_sema::Gcx<'_>,
     module: ir::Module,
 ) -> solar_interface::Result<Vec<u8>> {
+    ir::validate_for_evm_version(gcx.dcx(), &module, gcx.sess.opts.evm_version);
+    gcx.dcx().has_errors()?;
     ir::validate_evm_version_before_legalization(gcx.dcx(), &module, gcx.sess.opts.evm_version);
     gcx.dcx().has_errors()?;
     let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;

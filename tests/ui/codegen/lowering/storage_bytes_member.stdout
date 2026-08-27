@@ -1259,9 +1259,7 @@ bb73:
   push 672
   mload
   sub
-  swap 1
-  swap 2
-  swap 1
+  exchange 1, 2
   jump bb73
 bb27 [cold]:
   push 0x4e487b71

@@ -1544,6 +1544,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Number => unit!(BlockNumber => MirType::uint256()),
             kw::Prevrandao => unit!(PrevRandao => MirType::uint256()),
             kw::Gaslimit => unit!(GasLimit => MirType::uint256()),
+            kw::Slotnum => unit!(SlotNum => MirType::uint256()),
             kw::Chainid => unit!(ChainId => MirType::uint256()),
             kw::Address => unit!(Address => MirType::Address),
             kw::Selfbalance => unit!(SelfBalance => MirType::uint256()),

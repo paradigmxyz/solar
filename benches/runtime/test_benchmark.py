@@ -83,6 +83,14 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(payload, archive)
         self.assertEqual(len(payload["sources"]), 208)
 
+    def test_evm_version_override_replaces_project_pin(self) -> None:
+        original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
+        overridden = benchmark.with_evm_version(original, "amsterdam")
+
+        self.assertEqual(json.loads(original)["settings"]["evmVersion"], "paris")
+        self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
+        self.assertEqual(benchmark.with_evm_version(original, None), original)
+
     def test_select_tests(self) -> None:
         heavy = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         micro = [case for case in benchmark.TEST_CASES if case.suite == "micro"]
@@ -228,6 +236,42 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
+    def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "ok",
+                    "runtime_results": [
+                        {"label": "value", "status": "ok", "value": "1"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "skipped")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
+    def test_single_compiler_runtime_failure_still_fails(self) -> None:
+        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
+        entry = {
+            "compilers": {
+                "solar": {
+                    "runtime_status": "failed",
+                    "runtime_results": [
+                        {"label": "value", "status": "failed", "error": "reverted"}
+                    ],
+                }
+            }
+        }
+
+        benchmark.compare_runtime_results(entry, specs)
+
+        self.assertEqual(entry["runtime_status"], "failed")
+        self.assertEqual(entry["runtime_mismatches"], [])
+
     def test_merges_matching_reference_compiler_results(self) -> None:
         entry = {
             "test_id": "test",
@@ -310,42 +354,6 @@ class RuntimeComparisonTests(unittest.TestCase):
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])
-
-    def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
-        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
-        entry = {
-            "compilers": {
-                "solar": {
-                    "runtime_status": "ok",
-                    "runtime_results": [
-                        {"label": "value", "status": "ok", "value": "1"}
-                    ],
-                }
-            }
-        }
-
-        benchmark.compare_runtime_results(entry, specs)
-
-        self.assertEqual(entry["runtime_status"], "skipped")
-        self.assertEqual(entry["runtime_mismatches"], [])
-
-    def test_single_compiler_runtime_failure_still_fails(self) -> None:
-        specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
-        entry = {
-            "compilers": {
-                "solar": {
-                    "runtime_status": "failed",
-                    "runtime_results": [
-                        {"label": "value", "status": "failed", "error": "reverted"}
-                    ],
-                }
-            }
-        }
-
-        benchmark.compare_runtime_results(entry, specs)
-
-        self.assertEqual(entry["runtime_status"], "failed")
-        self.assertEqual(entry["runtime_mismatches"], [])
 
     def test_reports_cross_compiler_mismatch(self) -> None:
         specs = (

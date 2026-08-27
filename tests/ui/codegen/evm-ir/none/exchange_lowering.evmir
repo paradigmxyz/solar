@@ -1,0 +1,21 @@
+//@ revisions: osaka amsterdam
+//@[osaka] compile-flags: --evm-version osaka -Zdump=disasm-deploy
+//@[osaka] filecheck: --check-prefix=OSAKA
+//@[amsterdam] compile-flags: --evm-version amsterdam -Zdump=disasm-deploy
+//@[amsterdam] filecheck: --check-prefix=AMSTERDAM
+
+// OSAKA: // === exchange_lowering (deployment) ===
+// OSAKA: SWAP1
+// OSAKA-NEXT: SWAP2
+// OSAKA-NEXT: SWAP1
+// AMSTERDAM: // === exchange_lowering (deployment) ===
+// AMSTERDAM: EXCHANGE 1, 2
+
+@module exchange_lowering
+
+bb0:
+  push 0
+  push 1
+  push 2
+  exchange 1, 2
+  stop

@@ -202,6 +202,36 @@ def full_project_standard_json_input(project_file: str) -> str:
     return project_full_standard_json_input(project_file)
 
 
+def with_evm_version(input_text: str, evm_version: str | None) -> str:
+    if evm_version is None:
+        return input_text
+    payload = json.loads(input_text)
+    payload.setdefault("settings", {})["evmVersion"] = evm_version
+    return json.dumps(payload)
+
+
+def compiler_input(
+    test_case: TestCase, evm_version: str | None
+) -> tuple[str, int, str]:
+    if test_case.project_file is not None:
+        if test_case.whole_project:
+            input_text = project_full_standard_json_input(test_case.project_file)
+            timeout = 900
+        else:
+            input_text = project_standard_json_input(
+                test_case.project_file,
+                test_case.source,
+                test_case.contract_name,
+                test_case.settings_profile,
+            )
+            timeout = 180
+    else:
+        input_text = standard_json_input(test_case)
+        timeout = 120
+    input_text = with_evm_version(input_text, evm_version)
+    return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
 def project_standard_json_input(
     project_file: str, source: str, contract_name: str, settings_profile: str = ""
 ) -> str:
@@ -237,7 +267,10 @@ LONG_COMPILE_CUTOFF_SECONDS = 10.0
 
 
 def compile_case(
-    spec: CompilerSpec, test_case: TestCase, compile_repeats: int = 1
+    spec: CompilerSpec,
+    test_case: TestCase,
+    prepared_input: tuple[str, int, str] | None,
+    compile_repeats: int = 1,
 ) -> dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
@@ -257,22 +290,11 @@ def compile_case(
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
             return result
-        if test_case.whole_project:
-            input_text = project_full_standard_json_input(test_case.project_file)
-            timeout = 900
-        else:
-            input_text = project_standard_json_input(
-                test_case.project_file,
-                test_case.source,
-                test_case.contract_name,
-                test_case.settings_profile,
-            )
-            timeout = 180
-    else:
-        input_text = standard_json_input(test_case)
-        timeout = 120
+    if prepared_input is None:
+        raise ValueError("compiler input is unavailable")
+    input_text, timeout, input_fingerprint = prepared_input
 
-    result["input_fingerprint"] = hashlib.sha256(input_text.encode()).hexdigest()
+    result["input_fingerprint"] = input_fingerprint
     cmd = [str(spec.path), "--standard-json"]
     samples = []
     proc = None
@@ -1303,6 +1325,7 @@ def run_test_case(
     private_key: str,
     verbose: bool = False,
     compile_repeats: int = 1,
+    evm_version: str | None = None,
     reference_solc_path: Path | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
@@ -1319,10 +1342,14 @@ def run_test_case(
     reference_solc = next(
         (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
     )
-
+    prepared_input = (
+        None
+        if test_case.project_file is not None and not test_case.project_path.exists()
+        else compiler_input(test_case, evm_version)
+    )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case, compile_repeats)
+        compiled = compile_case(spec, test_case, prepared_input, compile_repeats)
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
@@ -1502,6 +1529,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         default=1,
         help="Compile each test this many times and record the median time (default: 1)",
+    )
+    parser.add_argument(
+        "--evm-version",
+        help="Override Standard JSON `evmVersion` for every benchmark case",
     )
     parser.add_argument(
         "--solar-only",
@@ -1710,6 +1741,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 YELLOW,
             )
         )
+    if args.evm_version:
+        print(f"Forcing EVM version {args.evm_version}")
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -1750,6 +1783,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.private_key,
                     args.verbose,
                     args.compile_repeats,
+                    args.evm_version,
                     solc,
                 )
             except Exception as exc:
@@ -1817,6 +1851,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     output = Path(args.output) if args.output else RESULT_ROOT / "solar_latest.json"
     document = {
         "format_version": 1,
+        "evm_version_override": args.evm_version,
         "timings": timings,
         "results": results,
     }

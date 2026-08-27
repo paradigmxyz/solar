@@ -1619,6 +1619,7 @@ difficulty Function
 gaslimit Function
 number Function
 prevrandao Function
+slotnum Function
 timestamp Function
 
 "#]],

@@ -113,7 +113,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         }
 
         let target = *then_block;
-        block.instructions.push(crate::backend::evm::ir::Instruction::opcode(op::POP));
+        block.instructions.push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
         block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
         changed = true;
     }

@@ -1,6 +1,6 @@
 //! Spill-slot management for values preserved in memory.
 //!
-//! Values that are inaccessible through DUP16/SWAP16 or need a stable
+//! Values outside the target's DUP/SWAP reach or needing a stable
 //! cross-block home can be spilled to memory. Slots are logical word offsets:
 //! lowering places them after the external function's static memory, inside an
 //! internal function's frame, or in the constructor's reserved spill region.
