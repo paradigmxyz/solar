@@ -20,11 +20,7 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v9 = add v3, 1
     v10 = make_calldata_slice v9, v8
     v11 = internal_call @peel, 1, v10
-    v12 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v13 = add v12, 32
-    v14 = mload v13
-    v15 = make_calldata_slice v11, v14
-    ret v15
+    ret v11
   bb4:
     revert 0, 0
   bb1:
@@ -34,10 +30,6 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
 fn @use(arg0: calldataslice) -> u256 [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = internal_call @peel, 1, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = make_calldata_slice v0, v3
-    v5 = slice_len v4
-    ret v5
+    v1 = slice_len v0
+    ret v1
 }

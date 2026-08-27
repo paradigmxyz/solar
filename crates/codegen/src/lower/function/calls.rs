@@ -420,10 +420,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        let returns = Self::internal_returns_words(function.returns.iter().copied());
-        let result =
-            self.builder.internal_call(dispatcher, values, result_ty, function.returns.len());
-        Some(self.rebuild_first_internal_return(result, first_ty, returns))
+        Some(self.builder.internal_call(dispatcher, values, result_ty, function.returns.len()))
     }
 
     pub(super) fn lower_internal_function_value(
@@ -779,11 +776,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        let returns = Self::internal_returns_words(
-            function.returns.iter().map(|&id| self.context.gcx.type_of_item(id.into())),
-        );
         let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
-        let result = self.rebuild_first_internal_return(result, first_ty, returns);
         self.dirty_values.insert(result);
         Some(result)
     }
