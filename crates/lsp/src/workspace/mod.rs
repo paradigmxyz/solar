@@ -10,7 +10,7 @@
 //! overall LSP config.
 
 use crate::{
-    FoundryWorkspaceConfig,
+    FoundryWorkspaceConfig, FoundryWorkspaceConfigLoader, FoundryWorkspaceConfigSource,
     workspace::{
         foundry::FoundryDocument,
         index_policy::{IndexingCancellation, WorkspaceIndexMetrics, WorkspaceIndexPolicy},
@@ -18,7 +18,10 @@ use crate::{
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
-use solar_interface::{data_structures::smallvec::SmallVec, source_map::SourceMap};
+use solar_interface::{
+    data_structures::{map::FxHashMap, smallvec::SmallVec},
+    source_map::SourceMap,
+};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -28,11 +31,17 @@ mod foundry;
 pub(crate) mod index_policy;
 pub(crate) mod manifest;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub(crate) struct FoundryConfigContext<'a> {
     selected_profile: Option<&'a str>,
-    workspace_configs: &'a [FoundryWorkspaceConfig],
-    workspace_config_errors: &'a [(PathBuf, String)],
+    source: FoundryConfigSourceRef<'a>,
+    loaded: FxHashMap<PathBuf, Result<FoundryWorkspaceConfig, String>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum FoundryConfigSourceRef<'a> {
+    Static(&'a [FoundryWorkspaceConfig]),
+    Loader(&'a FoundryWorkspaceConfigLoader),
 }
 
 impl<'a> FoundryConfigContext<'a> {
@@ -40,31 +49,61 @@ impl<'a> FoundryConfigContext<'a> {
         selected_profile: Option<&'a str>,
         workspace_configs: &'a [FoundryWorkspaceConfig],
     ) -> Self {
-        Self::with_errors(selected_profile, workspace_configs, &[])
+        Self {
+            selected_profile,
+            source: FoundryConfigSourceRef::Static(workspace_configs),
+            loaded: FxHashMap::default(),
+        }
     }
 
-    pub(crate) fn with_errors(
+    pub(crate) fn from_source(
         selected_profile: Option<&'a str>,
-        workspace_configs: &'a [FoundryWorkspaceConfig],
-        workspace_config_errors: &'a [(PathBuf, String)],
+        source: &'a FoundryWorkspaceConfigSource,
     ) -> Self {
-        Self { selected_profile, workspace_configs, workspace_config_errors }
+        let source = match source {
+            FoundryWorkspaceConfigSource::Static(configs) => {
+                FoundryConfigSourceRef::Static(configs)
+            }
+            FoundryWorkspaceConfigSource::Loader(loader) => FoundryConfigSourceRef::Loader(loader),
+        };
+        Self { selected_profile, source, loaded: FxHashMap::default() }
     }
 
-    pub(crate) fn selected_profile(self) -> Option<&'a str> {
+    pub(crate) fn selected_profile(&self) -> Option<&'a str> {
         self.selected_profile
     }
 
-    pub(crate) fn workspace_config(self, root: &Path) -> Option<&'a FoundryWorkspaceConfig> {
+    pub(crate) fn workspace_config(
+        &mut self,
+        root: &Path,
+    ) -> Result<Option<&FoundryWorkspaceConfig>, String> {
         let root = root.normalize();
-        self.workspace_configs.iter().find(|config| config.workspace_root() == root)
-    }
-
-    pub(crate) fn workspace_config_error(self, root: &Path) -> Option<&'a str> {
-        let root = root.normalize();
-        self.workspace_config_errors
-            .iter()
-            .find_map(|(candidate, error)| (*candidate == root).then_some(error.as_str()))
+        match self.source {
+            FoundryConfigSourceRef::Static(configs) => {
+                Ok(configs.iter().find(|config| config.workspace_root() == root))
+            }
+            FoundryConfigSourceRef::Loader(loader) => {
+                if !self.loaded.contains_key(&root) {
+                    let loaded = loader.load(&root).and_then(|config| {
+                        let config = config.try_into_normalized()?;
+                        if config.workspace_root() == root {
+                            Ok(config)
+                        } else {
+                            Err(format!(
+                                "host returned Foundry configuration for `{}` while loading `{}`",
+                                config.workspace_root().display(),
+                                root.display()
+                            ))
+                        }
+                    });
+                    self.loaded.insert(root.clone(), loaded);
+                }
+                match self.loaded.get(&root).expect("loaded Foundry configuration is cached") {
+                    Ok(config) => Ok(Some(config)),
+                    Err(error) => Err(error.clone()),
+                }
+            }
+        }
     }
 }
 
@@ -526,13 +565,13 @@ impl Workspace {
 
     #[cfg(any(test, feature = "bench"))]
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
-        Self::load_foundry_inner(path, None, FoundryConfigContext::default())
+        Self::load_foundry_inner(path, None, &mut FoundryConfigContext::default())
     }
 
     pub(crate) fn load_foundry_bounded(
         path: PathBuf,
         workspace_roots: &[PathBuf],
-        foundry_config: FoundryConfigContext<'_>,
+        foundry_config: &mut FoundryConfigContext<'_>,
     ) -> Result<Self, WorkspaceError> {
         Self::load_foundry_inner(path, Some(workspace_roots), foundry_config)
     }
@@ -540,18 +579,18 @@ impl Workspace {
     fn load_foundry_inner(
         path: PathBuf,
         workspace_roots: Option<&[PathBuf]>,
-        foundry_config: FoundryConfigContext<'_>,
+        foundry_config: &mut FoundryConfigContext<'_>,
     ) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?.normalize();
-        if let Some(error) = foundry_config.workspace_config_error(&root) {
-            return Err(WorkspaceError::HostConfig { root, error: error.to_owned() });
-        }
         let approved = |path: &Path| {
             workspace_roots
                 .is_none_or(|workspace_roots| is_approved_index_root(path, &root, workspace_roots))
         };
+        let host_config = foundry_config
+            .workspace_config(&root)
+            .map_err(|error| WorkspaceError::HostConfig { root: root.clone(), error })?;
         let (source_roots, flycheck_source_roots, include_paths, import_remappings, evm_version) =
-            if let Some(config) = foundry_config.workspace_config(&root) {
+            if let Some(config) = host_config {
                 (
                     config.source_roots().to_vec(),
                     config.flycheck_source_roots().to_vec(),
@@ -1155,7 +1194,7 @@ mod tests {
         let workspace = Workspace::load_foundry_bounded(
             project.path("/foundry.toml"),
             &[project.root().to_path_buf()],
-            FoundryConfigContext::new(Some("custom"), &[]),
+            &mut FoundryConfigContext::new(Some("custom"), &[]),
         )
         .unwrap();
 
@@ -1178,19 +1217,21 @@ mod tests {
         let outer = FoundryWorkspaceConfig::new(project.path("/outer"));
         let nested = FoundryWorkspaceConfig::new(project.path("/outer/nested"));
         let configs = [outer, nested];
-        let foundry_config = FoundryConfigContext::new(None, &configs);
+        let mut foundry_config = FoundryConfigContext::new(None, &configs);
 
-        assert!(
+        let mut root_matches = |root: &Path, expected: &Path| {
             foundry_config
-                .workspace_config(&project.path("/outer"))
-                .is_some_and(|config| config.workspace_root() == project.path("/outer"))
-        );
-        assert!(
-            foundry_config
-                .workspace_config(&project.path("/outer/./nested/../nested"))
-                .is_some_and(|config| config.workspace_root() == project.path("/outer/nested"))
-        );
-        assert!(foundry_config.workspace_config(&project.path("/outer/other")).is_none());
+                .workspace_config(root)
+                .unwrap()
+                .is_some_and(|config| config.workspace_root() == expected)
+        };
+        assert!(root_matches(&project.path("/outer"), &project.path("/outer")));
+        assert!(root_matches(
+            &project.path("/outer/./nested/../nested"),
+            &project.path("/outer/nested")
+        ));
+        drop(root_matches);
+        assert!(foundry_config.workspace_config(&project.path("/outer/other")).unwrap().is_none());
     }
 
     #[test]
@@ -1215,7 +1256,7 @@ mod tests {
         let workspace = Workspace::load_foundry_bounded(
             project.path("/workspace/foundry.toml"),
             &[project.path("/workspace")],
-            FoundryConfigContext::new(None, &configs),
+            &mut FoundryConfigContext::new(None, &configs),
         )
         .unwrap();
 
@@ -1242,7 +1283,7 @@ mod tests {
         let workspace = Workspace::load_foundry_bounded(
             project.path("/workspace/foundry.toml"),
             &[project.path("/workspace")],
-            FoundryConfigContext::default(),
+            &mut FoundryConfigContext::default(),
         )
         .unwrap();
         let opts = workspace.compile_opts();

@@ -31,7 +31,7 @@ impl ProjectManifest {
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
-        foundry_config: FoundryConfigContext<'_>,
+        foundry_config: &mut FoundryConfigContext<'_>,
     ) -> io::Result<Option<ManifestDiscoveryResult>> {
         // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
         let mut manifests = Vec::new();
@@ -124,7 +124,7 @@ impl ProjectManifest {
             policy,
             cancellation,
             metrics,
-            FoundryConfigContext::default(),
+            &mut FoundryConfigContext::default(),
         )
         .map(|(manifests, _, _)| manifests)
     }
@@ -135,7 +135,7 @@ impl ProjectManifest {
         policy: &WorkspaceIndexPolicy,
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
-        foundry_config: FoundryConfigContext<'_>,
+        foundry_config: &mut FoundryConfigContext<'_>,
     ) -> Option<ManifestDiscoveryResult> {
         let mut discovered = FxHashSet::default();
         let mut watch_roots = Vec::new();
@@ -236,7 +236,7 @@ fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
     None
 }
 
-struct ManifestDiscovery<'a> {
+struct ManifestDiscovery<'a, 'config> {
     manifests: &'a mut Vec<PathBuf>,
     approved_roots: &'a [PathBuf],
     watch_roots: &'a mut Vec<SourceWatchRoot>,
@@ -244,7 +244,7 @@ struct ManifestDiscovery<'a> {
     policy: &'a WorkspaceIndexPolicy,
     cancellation: &'a IndexingCancellation,
     metrics: &'a mut WorkspaceIndexMetrics,
-    foundry_config: FoundryConfigContext<'a>,
+    foundry_config: &'a mut FoundryConfigContext<'config>,
 }
 
 #[derive(Clone, Copy)]
@@ -265,7 +265,7 @@ enum ManifestTreeState {
     Cancelled,
 }
 
-impl ManifestDiscovery<'_> {
+impl ManifestDiscovery<'_, '_> {
     fn find_in_child_dirs(
         &mut self,
         entities: ReadDir,
@@ -391,23 +391,22 @@ impl ManifestDiscovery<'_> {
 fn foundry_index_roots(
     manifest: &Path,
     approved_roots: &[PathBuf],
-    foundry_config: FoundryConfigContext<'_>,
+    foundry_config: &mut FoundryConfigContext<'_>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let Some(root) = manifest.parent() else { return Default::default() };
-    if foundry_config.workspace_config_error(root).is_some() {
+    let Ok(host_config) = foundry_config.workspace_config(root) else {
         return Default::default();
-    }
-    let (source_roots, import_only_roots) =
-        if let Some(config) = foundry_config.workspace_config(root) {
-            (config.source_roots().to_vec(), config.include_paths().to_vec())
-        } else {
-            let Ok(document) = load_foundry_document(manifest) else { return Default::default() };
-            let profile = document.profile_for(foundry_config.selected_profile());
-            let source_roots = profile.source_roots(root);
-            let import_only_roots =
-                profile.include_paths(root).into_iter().map(|path| path.normalize()).collect();
-            (source_roots, import_only_roots)
-        };
+    };
+    let (source_roots, import_only_roots) = if let Some(config) = host_config {
+        (config.source_roots().to_vec(), config.include_paths().to_vec())
+    } else {
+        let Ok(document) = load_foundry_document(manifest) else { return Default::default() };
+        let profile = document.profile_for(foundry_config.selected_profile());
+        let source_roots = profile.source_roots(root);
+        let import_only_roots =
+            profile.include_paths(root).into_iter().map(|path| path.normalize()).collect();
+        (source_roots, import_only_roots)
+    };
     (
         source_roots
             .into_iter()
@@ -635,7 +634,7 @@ mod tests {
             foundry_index_roots(
                 &project.path("/foundry.toml"),
                 &[project.root().to_path_buf()],
-                FoundryConfigContext::new(Some("custom"), &[]),
+                &mut FoundryConfigContext::new(Some("custom"), &[]),
             )
             .0,
             [project.path("/.hidden/custom-src")]
@@ -650,7 +649,7 @@ mod tests {
             &WorkspaceIndexPolicy::default(),
             &IndexingCancellation::default(),
             &mut WorkspaceIndexMetrics::default(),
-            FoundryConfigContext::new(Some("custom"), &[]),
+            &mut FoundryConfigContext::new(Some("custom"), &[]),
         )
         .unwrap()
         .0;
@@ -695,7 +694,7 @@ mod tests {
             foundry_index_roots(
                 &project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
-                FoundryConfigContext::new(None, &configs),
+                &mut FoundryConfigContext::new(None, &configs),
             ),
             (vec![project.path("/workspace/host-src")], vec![project.path("/workspace/host-lib")],)
         );
