@@ -107,7 +107,7 @@ The frozen baseline compiler SHA-256 is
 The measured compiler SHA-256 is
 `ec6591559afec1ced2287417d8d199aee006031489d18eb1c0ef55393085425a`.
 The reviewed compiler SHA-256 is
-`3f72ca14991f2c75ca916f873ccc3a4cc0f0eaf795be482bb19660e880f6f873`.
+`f95d7b77fb7ee5befb4eaaac60369b7323e75d66a0d758823164462f39084282`.
 A fresh compile run over all 15 projects and a hot-gas run over all 175 labels
 matched every nonvolatile result field from the measured compiler, including
 status, sizes, calls, arguments, gas, and output checks. The timing and memory
