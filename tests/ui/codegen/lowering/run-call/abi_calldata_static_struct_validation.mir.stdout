@@ -9,3 +9,46 @@ fn @f(arg0: memorystruct) -> (u256, u256, u256) [selector=0x9a869a74, pure, abi_
     v4 = mload v3
     ret v0, v2, v4
 }
+
+fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = internal_call @makeStruct, 1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = make_calldata_slice v0, v3
+    v5 = slice_ptr v4
+    v6 = add v5, 64
+    v7 = lt v6, v5
+    v8 = calldatasize
+    v9 = gt v6, v8
+    v10 = or v7, v9
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = calldataload v5
+    v12 = and v11, 255
+    v13 = eq v11, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = add v5, 32
+    v16 = calldataload v15
+    v17 = and v16, 255
+    v18 = eq v16, v17
+    v19 = iszero v18
+    jumpi v19, bb5, bb6
+  bb6:
+    v20 = abi_encode [tuple<word, word>], object, args v4
+    ret v20
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @makeStruct() -> calldataslice [pure] {
+  bb0:
+    ret 4
+}
