@@ -120,11 +120,23 @@ fn display_metadata(
     default_stack: Option<StackEffect>,
 ) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        if let Some(stack) = metadata.stack
-            && Some(stack) != default_stack
-        {
-            write!(f, " !meta(stack={}->{})", stack.inputs, stack.outputs)?;
+        let stack = metadata.stack.filter(|&stack| Some(stack) != default_stack);
+        let span = metadata.source_span();
+        if stack.is_none() && span.is_none() {
+            return Ok(());
         }
+
+        write!(f, " !metadata(")?;
+        if let Some(stack) = stack {
+            write!(f, "stack={}->{}", stack.inputs, stack.outputs)?;
+        }
+        if let Some(span) = span {
+            if stack.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
+        }
+        write!(f, ")")?;
         Ok(())
     })
 }

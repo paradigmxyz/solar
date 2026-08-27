@@ -132,6 +132,46 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(bytes.into())
     }
 
+    /// Parses the canonical `lo..hi` source-span bounds syntax.
+    pub(crate) fn parse_span_bounds(&mut self) -> Result<(u32, u32), PErr<'sess>> {
+        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind
+            && let Some(lo) = symbol.as_str().strip_suffix('.')
+        {
+            let lo = lo.parse().map_err(|err| self.error(format!("invalid integer: {err}")))?;
+            let lo = self.u256_to_u32(lo)?;
+            self.bump();
+            let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind else {
+                return Err(self.error("expected span end"));
+            };
+            let Some(hi) = symbol.as_str().strip_prefix('.') else {
+                return Err(self.error("expected span end"));
+            };
+            let hi = hi.parse().map_err(|err| self.error(format!("invalid integer: {err}")))?;
+            let hi = self.u256_to_u32(hi)?;
+            self.bump();
+            return Ok((lo, hi));
+        }
+
+        let lo = self.parse_uint()?;
+        let lo = self.u256_to_u32(lo)?;
+        self.expect(TokenKind::Dot)?;
+        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind
+            && let Some(hi) = symbol.as_str().strip_prefix('.')
+        {
+            let hi = hi.parse().map_err(|err| self.error(format!("invalid integer: {err}")))?;
+            let hi = self.u256_to_u32(hi)?;
+            self.bump();
+            return Ok((lo, hi));
+        }
+        self.expect(TokenKind::Dot)?;
+        let hi = self.parse_uint()?;
+        Ok((lo, self.u256_to_u32(hi)?))
+    }
+
+    fn u256_to_u32(&self, value: U256) -> Result<u32, PErr<'sess>> {
+        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u32")))
+    }
+
     pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {
         self.error_at(self.token().span, message)
     }

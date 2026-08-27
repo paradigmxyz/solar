@@ -7,7 +7,7 @@ use solar_ast::{
     token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
+use solar_interface::{BytePos, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
@@ -392,7 +392,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
         }
-        self.parser.expect_keyword(sym::meta)?;
+        let name = self.parser.parse_ident()?;
+        if !matches!(name, sym::meta | sym::metadata) {
+            return Err(self.parser.error(format!("expected `metadata`, found `{name}`")));
+        }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             return Ok(metadata);
@@ -406,6 +409,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Arrow)?;
                 let outputs = self.parse_u8()?;
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
+            } else if key == sym::span {
+                self.parser.expect(TokenKind::Eq)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }
