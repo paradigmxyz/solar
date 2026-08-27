@@ -32,7 +32,7 @@
 [
  (true)
  (false)
-] @constant.builtin
+] @boolean
 
 (comment) @comment
 
@@ -93,13 +93,13 @@
 (call_expression . (expression(identifier)) @function)
 
 ; Function parameters
-(call_struct_argument name: (_) @field)
-(event_parameter name: (identifier) @parameter)
+(call_struct_argument name: (_) @function.kwargs)
+(event_parameter name: (identifier) @variable.parameter)
 (parameter name: (identifier) @variable.parameter)
 
 ; Yul functions
 (yul_function_call function: (yul_identifier) @function)
-(yul_function_definition . (yul_identifier) @function (yul_identifier) @parameter)
+(yul_function_definition . (yul_identifier) @function (yul_identifier) @variable.parameter)
 
 
 ; Structs and members
@@ -161,32 +161,24 @@
  "do"
  "break"
  "continue"
-] @repeat
-
-[
  "if"
  "else"
  "switch"
  "case"
  "default"
-] @conditional
-
-[
  "try"
  "catch"
  "revert"
-] @exception
+] @keyword.control
 
-[
- "return"
- "returns"
-] @keyword.return
+"return" @keyword.control
+"returns" @keyword
 
-"function" @keyword.function
+"function" @keyword.declaration
 
-"import" @include
-(import_directive "as" @include)
-(import_directive "from" @include)
+"import" @keyword.import
+(import_directive "as" @keyword.import)
+(import_directive "from" @keyword.import)
 (using_alias "as" @keyword)
 
 (event_parameter "indexed" @keyword)
