@@ -46,7 +46,7 @@ bb5:
   sgt
   push bb4
   jumpi
-  push bb31
+  push bb33
   jump bb28
 bb28:
   push 36
@@ -94,9 +94,9 @@ bb16:
   sgt
   push bb4
   jumpi
-  push bb33
+  push bb36
   jump bb28
-bb30:
+bb31:
   push bb26
   jumpi
   push 64
@@ -162,24 +162,7 @@ bb27:
   push 32
   push 128
   return
-bb31:
-  push bb4
-  jumpi
-  calldatasize
-  dup 1
-  push 192
-  mstore
-  push 224
-  mload
-  gt
-  push 224
-  mload
-  push 192
-  mload
-  sub
-  push 32
-  gt
-  or
+bb32:
   push bb4
   jumpi
   push 160
@@ -230,7 +213,7 @@ bb31:
   lt
   push bb26
   jumpi
-  push bb30
+  push bb31
   jump bb29
 bb29:
   push 31
@@ -261,7 +244,30 @@ bb29:
   lt
   swap 1
   jump
-bb32:
+bb33:
+  push bb4
+  jumpi
+  push bb32
+  jump bb30
+bb30:
+  calldatasize
+  dup 1
+  push 192
+  mstore
+  push 224
+  mload
+  gt
+  push 224
+  mload
+  push 192
+  mload
+  sub
+  push 32
+  gt
+  or
+  swap 1
+  jump
+bb34:
   push bb26
   jumpi
   push 64
@@ -329,24 +335,7 @@ bb32:
   mstore
   push 32
   jump bb27
-bb33:
-  push bb4
-  jumpi
-  calldatasize
-  dup 1
-  push 192
-  mstore
-  push 224
-  mload
-  gt
-  push 224
-  mload
-  push 192
-  mload
-  sub
-  push 32
-  gt
-  or
+bb35:
   push bb4
   jumpi
   push 160
@@ -390,5 +379,10 @@ bb33:
   lt
   push bb26
   jumpi
-  push bb32
+  push bb34
   jump bb29
+bb36:
+  push bb4
+  jumpi
+  push bb35
+  jump bb30

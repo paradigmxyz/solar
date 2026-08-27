@@ -1,0 +1,55 @@
+- // === ROOT/tests/ui/codegen/evm-ir/none/extended_stack.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/extended_stack.evmir (after none) ===
+  @module extended_stack
+  bb0:
+    push 0
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+    dup 1
+    swap 1
+    pop
+    dup 17
+    swap 17
+    exchange 1, 16
+    exchange 1, 17
+    stop
+  
+// === extended_stack (deployment) ===
+PUSH0
+PUSH1 0x01
+PUSH1 0x02
+PUSH1 0x03
+PUSH1 0x04
+PUSH1 0x05
+PUSH1 0x06
+PUSH1 0x07
+PUSH1 0x08
+PUSH1 0x09
+PUSH1 0x0a
+PUSH1 0x0b
+PUSH1 0x0c
+PUSH1 0x0d
+PUSH1 0x0e
+PUSH1 0x0f
+PUSH1 0x10
+DUP1
+SWAP1
+POP
+DUPN 17
+SWAPN 17
+EXCHANGE 1, 16
+EXCHANGE 1, 17

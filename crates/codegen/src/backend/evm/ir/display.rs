@@ -51,7 +51,13 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
 
 fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        write!(f, "{}", inst.mnemonic())?;
+        match inst.as_stack_op() {
+            Some(op::StackOp::Dup(n)) => write!(f, "dup {n}")?,
+            Some(op::StackOp::Swap(n)) => write!(f, "swap {n}")?,
+            Some(op::StackOp::Exchange(n, m)) => write!(f, "exchange {n}, {m}")?,
+            Some(op::StackOp::Pop) => f.write_str("pop")?,
+            None => write!(f, "{}", inst.mnemonic())?,
+        }
         if let Some(value) = &inst.value {
             write!(f, " {}", display_push_value(module, value))?;
         }

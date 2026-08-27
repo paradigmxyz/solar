@@ -350,6 +350,7 @@ impl Symbol {
                 !evm_version.has_blob_base_fee()
             }
             kw::Clz => !evm_version.has_clz(),
+            kw::Slotnum => !evm_version.has_slot_num(),
             _ => false,
         }
     }
@@ -900,6 +901,7 @@ symbols! {
         Extcodesize:    "extcodesize",
         Gas:            "gas",
         Gaslimit:       "gaslimit",
+        Slotnum:        "slotnum",
         Gasprice:       "gasprice",
         Gt:             "gt",
         Invalid:        "invalid",
@@ -1040,6 +1042,7 @@ symbols! {
         dispatch,
         display_test,
         dup,
+        dupn,
         ecrecover,
         effect,
         encode,
@@ -1055,6 +1058,7 @@ symbols! {
         evm_dash_shaped: "evm-shaped",
         evmasm,
         exact,
+        exchange,
         experimental,
         external_call,
         external_function,
@@ -1158,6 +1162,7 @@ symbols! {
         storeimmutable,
         super_: "super",
         swap,
+        swapn,
         symbolic,
         tail_call,
         terminal,

@@ -22,6 +22,16 @@ use solar_sema::Gcx;
 
 type LabelSet = SmallVec<[BlockId; 1]>;
 
+/// The machine-level identity shared by transforms that compare instructions.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
+
+impl MachineInstKey {
+    pub(super) fn new(inst: &Instruction) -> Self {
+        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
+    }
+}
+
 #[derive(Clone, Default)]
 struct AbstractValue {
     labels: LabelSet,
@@ -75,7 +85,11 @@ impl FreshLabels {
 /// Returns a conservative lower bound for one instruction's assembled byte length.
 pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     if !inst.is_encoded_push() {
-        return 1;
+        return inst.as_stack_op().map_or(1, |stack_op| {
+            stack_op
+                .assembled_len(gcx.sess.opts.evm_version)
+                .expect("EVM IR passes only run on target-compatible stack operations")
+        });
     }
     if let Some(type_size) = inst.immutable_type_size() {
         return usize::from(type_size.bytes()) + 1;
@@ -354,29 +368,37 @@ fn apply_instruction(stack: &mut AbstractStack, inst: &Instruction) -> Option<()
             stack.push_unknown()
         };
     }
-    match inst.opcode {
-        opcode if (op::DUP1..=op::DUP16).contains(&opcode) => {
-            let reach = usize::from(opcode - op::DUP1) + 1;
-            let value = stack.slots.get(reach - 1)?.clone();
-            (stack.depth() < MAX_STACK_DEPTH).then(|| stack.slots.insert(0, value))
-        }
-        opcode if (op::SWAP1..=op::SWAP16).contains(&opcode) => {
-            let reach = usize::from(opcode - op::SWAP1) + 2;
-            if stack.depth() < reach {
-                None
-            } else {
-                stack.slots.swap(0, reach - 1);
-                Some(())
+    if let Some(stack_op) = inst.as_stack_op() {
+        return match stack_op {
+            op::StackOp::Dup(depth) => {
+                let value = stack.slots.get(usize::from(depth) - 1)?.clone();
+                (stack.depth() < MAX_STACK_DEPTH).then(|| stack.slots.insert(0, value))
             }
-        }
+            op::StackOp::Swap(depth) => {
+                let depth = usize::from(depth);
+                if stack.depth() <= depth {
+                    None
+                } else {
+                    stack.slots.swap(0, depth);
+                    Some(())
+                }
+            }
+            op::StackOp::Exchange(n, m) => {
+                if stack.depth() <= usize::from(m) {
+                    None
+                } else {
+                    stack.slots.swap(usize::from(n), usize::from(m));
+                    Some(())
+                }
+            }
+            op::StackOp::Pop => stack.pop().map(drop),
+        };
+    }
+    match inst.opcode {
         op::SWAPN | op::EXCHANGE => {
-            // Their immediate-selected permutation is not represented in EVM IR. Preserve the
-            // known physical depth, but invalidate every value and label identity so a later
-            // dynamic jump makes headroom-sensitive transforms bail conservatively.
             stack.slots.fill_with(AbstractValue::unknown);
             Some(())
         }
-        op::POP => stack.pop().map(drop),
         _ => {
             let effect = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
             stack.apply_effect(effect)

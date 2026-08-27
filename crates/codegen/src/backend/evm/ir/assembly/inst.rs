@@ -86,6 +86,7 @@ impl AsmInst {
     const INLINE_PUSH_MAX: u32 = 0x7fff_ffff;
     const TAG_MASK: u32 = 0xf000_0000;
     const TAG_OP: u32 = 0x8000_0000;
+    const OP_IMMEDIATE_FLAG: u32 = 0x0001_0000;
     const TAG_PUSH: u32 = 0x9000_0000;
     const TAG_PUSH_LABEL: u32 = 0xa000_0000;
     const TAG_PUSH_DEFERRED: u32 = 0xb000_0000;
@@ -103,6 +104,15 @@ impl AsmInst {
 
     pub(in crate::backend::evm) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
+    }
+
+    pub(in crate::backend::evm) fn op_immediate(opcode: u8, immediate: u8) -> Self {
+        Self(
+            Self::TAG_OP
+                | Self::OP_IMMEDIATE_FLAG
+                | u32::from(opcode)
+                | (u32::from(immediate) << 8),
+        )
     }
 
     pub(in crate::backend::evm) fn push_inline(value: u32) -> Option<Self> {
@@ -166,7 +176,15 @@ impl AsmInst {
 
         let payload = self.0 & Self::PAYLOAD_MASK;
         match self.0 & Self::TAG_MASK {
-            Self::TAG_OP => AsmInstKind::Op(payload as u8),
+            Self::TAG_OP => {
+                let opcode = payload as u8;
+                let immediate = (payload >> 8) as u8;
+                if payload & Self::OP_IMMEDIATE_FLAG != 0 {
+                    AsmInstKind::OpImmediate(opcode, immediate)
+                } else {
+                    AsmInstKind::Op(opcode)
+                }
+            }
             Self::TAG_PUSH => AsmInstKind::Push(PushValueId::from_inst_payload(payload)),
             Self::TAG_PUSH_LABEL => AsmInstKind::PushLabel(Label::from_inst_payload(payload)),
             Self::TAG_PUSH_DEFERRED => {
@@ -202,6 +220,7 @@ impl AsmInst {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::backend::evm) enum AsmInstKind {
     Op(u8),
+    OpImmediate(u8, u8),
     PushInline(u32),
     Push(PushValueId),
     PushLabel(Label),

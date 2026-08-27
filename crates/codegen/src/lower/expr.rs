@@ -425,6 +425,7 @@ impl<'gcx> Lowerer<'gcx> {
                         | Builtin::BlockChainid
                         | Builtin::BlockBasefee
                         | Builtin::BlockBlobbasefee
+                        | Builtin::BlockSlotnum
                         | Builtin::MsgSender
                         | Builtin::MsgGas
                         | Builtin::MsgValue
@@ -1287,6 +1288,7 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::BlockChainid => builder.chainid(),
             Builtin::BlockBasefee => builder.basefee(),
             Builtin::BlockBlobbasefee => builder.blobbasefee(),
+            Builtin::BlockSlotnum => builder.slotnum(),
             Builtin::TxOrigin => builder.origin(),
             Builtin::TxGasPrice => builder.gasprice(),
             Builtin::Gasleft | Builtin::MsgGas => builder.gas(),
