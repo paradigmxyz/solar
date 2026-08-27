@@ -84,6 +84,8 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
+    /// Whether passes must account for every operation's source debug information.
+    debug_info_tracked: bool,
 }
 
 impl Module {
@@ -106,7 +108,13 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), enable_size_outlining: false }
+        Self {
+            name,
+            blocks: IndexVec::new(),
+            data: IndexVec::new(),
+            enable_size_outlining: false,
+            debug_info_tracked: false,
+        }
     }
 
     /// Clears the module while retaining its outer allocations.
@@ -114,6 +122,18 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;
+        self.debug_info_tracked = false;
+    }
+
+    /// Enables source debug information auditing for optimization passes.
+    pub(crate) fn track_debug_info(&mut self) {
+        self.debug_info_tracked = true;
+    }
+
+    /// Returns whether optimization passes must account for source debug information.
+    #[must_use]
+    pub(crate) const fn debug_info_is_tracked(&self) -> bool {
+        self.debug_info_tracked
     }
 
     /// Changes the program name without clearing emitted IR.
@@ -324,6 +344,13 @@ impl Instruction {
         }
     }
 
+    /// Marks this synthetic instruction as intentionally having no source location.
+    #[must_use]
+    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+        self.metadata.mark_debug_info_dropped();
+        self
+    }
+
     /// Returns the immediate carried by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) const fn pushed_value(&self) -> Option<U256> {
@@ -483,6 +510,13 @@ impl Terminator {
     pub(in crate::backend::evm) const fn implicit_stop() -> Self {
         Self { kind: TerminatorKind::Op(op::STOP), metadata: Metadata::EMPTY, implicit_stop: true }
     }
+
+    /// Marks this synthetic terminator as intentionally having no source location.
+    #[must_use]
+    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+        self.metadata.mark_debug_info_dropped();
+        self
+    }
 }
 
 /// Control-flow terminators in EVM IR.
@@ -600,11 +634,14 @@ pub(crate) struct Metadata {
     pub(crate) stack: Option<StackEffect>,
     /// Solidity source span associated with this machine operation.
     source_span: Span,
+    /// Whether the source location was preserved or intentionally dropped.
+    debug_info_handled: bool,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None, source_span: Span::DUMMY };
+    pub(crate) const EMPTY: Self =
+        Self { stack: None, source_span: Span::DUMMY, debug_info_handled: false };
 
     /// Returns the source span associated with this operation.
     #[must_use]
@@ -614,7 +651,19 @@ impl Metadata {
 
     /// Sets the source span associated with this operation.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
-        self.source_span = span.unwrap_or(Span::DUMMY);
+        self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
+        self.debug_info_handled = true;
+    }
+
+    /// Marks this operation as intentionally having no source location.
+    pub(crate) fn mark_debug_info_dropped(&mut self) {
+        self.set_source_span(None);
+    }
+
+    /// Returns whether source debug information was preserved or intentionally dropped.
+    #[must_use]
+    pub(crate) const fn debug_info_is_handled(self) -> bool {
+        self.debug_info_handled
     }
 }
 

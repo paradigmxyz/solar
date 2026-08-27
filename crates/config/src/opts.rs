@@ -120,6 +120,9 @@ pub struct CompileOpts {
     /// Comma separated list of types of output for the compiler to emit.
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
+    /// Emit Ethdebug resources and creation/runtime program information.
+    #[cfg_attr(feature = "clap", arg(short = 'g', long = "debug-info"))]
+    pub debug_info: bool,
 
     /// Switch to Standard JSON input/output mode.
     #[cfg_attr(feature = "clap", arg(long))]
@@ -207,6 +210,13 @@ impl CompileOpts {
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
         if self.standard_json {
+            if self.debug_info {
+                return Err(make_clap_error(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "The `-g`/`--debug-info` option is not accepted in Standard JSON mode\n\
+                     Request Ethdebug artifacts under `settings.outputSelection` instead",
+                ));
+            }
             if self.input.iter().any(|s| s.contains('=')) {
                 return Err(make_clap_error(
                     clap::error::ErrorKind::InvalidValue,
@@ -471,6 +481,13 @@ mod tests {
     }
 
     #[test]
+    fn debug_info() {
+        let mut opts = CompileOpts::try_parse_from(["solar", "-g", "a.sol"]).unwrap();
+        opts.finish().unwrap();
+        assert!(opts.debug_info);
+    }
+
+    #[test]
     fn standard_json_input() {
         let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json"]).unwrap();
         opts.finish().unwrap();
@@ -493,6 +510,13 @@ mod tests {
                 .unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
         assert!(error.contains("Too many input files for --standard-json."));
+    }
+
+    #[test]
+    fn standard_json_rejects_debug_info() {
+        let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json", "-g"]).unwrap();
+        let error = opts.finish().unwrap_err().render().ansi().to_string();
+        assert!(error.contains("Request Ethdebug artifacts under `settings.outputSelection`"));
     }
 
     #[test]

@@ -11,8 +11,9 @@ pub(super) fn run(opts: CompileOpts) -> ExitCode {
     }
 }
 
-pub fn run_compiler_args(opts: CompileOpts) -> Result {
+pub fn run_compiler_args(mut opts: CompileOpts) -> Result {
     if opts.standard_json {
+        opts.debug_info = false;
         crate::standard_json::run(opts)
             .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
         return Ok(());
@@ -61,7 +62,11 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         } else {
             ContractSelection::empty(compiler.gcx())
         };
-    let capture_debug_info = ContractSelection::empty(compiler.gcx());
+    let capture_debug_info = if compiler.gcx().sess.opts.debug_info {
+        ContractSelection::All
+    } else {
+        ContractSelection::empty(compiler.gcx())
+    };
     crate::emit::emit_requested(compiler, bytecode_contracts, None, capture_debug_info)?;
     Ok(())
 }
@@ -98,6 +103,7 @@ pub(crate) fn run_pipeline(
     };
 
     let needs_codegen = sess.opts.emit.iter().any(|e| e.is_codegen())
+        || sess.opts.debug_info
         || sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.needs_codegen());
     warn_experimental_codegen(sess, needs_codegen);
 

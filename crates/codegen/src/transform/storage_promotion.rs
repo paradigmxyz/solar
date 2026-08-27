@@ -776,12 +776,14 @@ impl StorageScalarPromoter {
         slot_value: ValueId,
         temp_addr: ValueId,
     ) {
-        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
-            InstKind::MLoad(temp_addr),
-            Some(MirType::uint256()),
-        ));
-        let store_inst =
-            func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
+        let (load_inst, load_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
+        let store_inst = func.alloc_inst(
+            Instruction::new(InstKind::SStore(slot_value, load_value), None)
+                .with_debug_info_dropped(),
+        );
 
         let insert_pos = func.blocks[exit]
             .instructions
@@ -816,8 +818,10 @@ impl StorageScalarPromoter {
         let mut exit_instructions = old_instructions[..split_pos].to_vec();
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
-        let (dirty_load_inst, dirty_value) = func
-            .alloc_value_inst(Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool)));
+        let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool))
+                .with_debug_info_dropped(),
+        );
         exit_instructions.push(dirty_load_inst);
 
         func.blocks[exit].instructions = exit_instructions;
@@ -827,12 +831,14 @@ impl StorageScalarPromoter {
             else_block: continuation,
         });
 
-        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
-            InstKind::MLoad(temp_addr),
-            Some(MirType::uint256()),
-        ));
-        let store_inst =
-            func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
+        let (load_inst, load_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
+        let store_inst = func.alloc_inst(
+            Instruction::new(InstKind::SStore(slot_value, load_value), None)
+                .with_debug_info_dropped(),
+        );
 
         func.blocks[store_block].predecessors.push(exit);
         func.blocks[store_block].instructions.push(load_inst);
@@ -896,13 +902,13 @@ impl StorageScalarPromoter {
         kind: InstKind,
         ty: MirType,
     ) -> (InstId, ValueId) {
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)))
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
     }
 
     /// Allocates an instruction that produces no value, so no result [`Value`]
     /// entry is created for it.
     fn alloc_void_inst(&self, func: &mut Function, kind: InstKind) -> InstId {
-        func.alloc_inst(Instruction::new(kind, None))
+        func.alloc_inst(Instruction::new(kind, None).with_debug_info_dropped())
     }
 
     fn storage_alias_for_loop_value(

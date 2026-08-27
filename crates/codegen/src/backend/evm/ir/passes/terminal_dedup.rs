@@ -50,7 +50,9 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
             module.blocks[target].metadata.hotness = Hotness::Hot;
         }
         module.blocks[block].instructions.clear();
-        module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+        let mut terminator = Terminator::new(TerminatorKind::Jump(target));
+        terminator.metadata.mark_debug_info_dropped();
+        module.blocks[block].terminator = Some(terminator);
     }
     changed
 }

@@ -1050,10 +1050,10 @@ impl<'a> SlotSsaBuilder<'a> {
             return pending.value;
         }
 
-        let (inst, value) = func.alloc_value_inst(Instruction::new(
-            InstKind::Phi(Vec::new()),
-            Some(MirType::uint256()),
-        ));
+        let (inst, value) = func.alloc_value_inst(
+            Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
         self.phis.insert(
             block,
             PendingPhi {

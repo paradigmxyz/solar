@@ -229,6 +229,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
+        if module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|inst| func.inst(inst).metadata.source_span().is_some())
+        }) {
+            module.set_debug_info_tracked(true);
+        }
         Ok(module)
     }
 

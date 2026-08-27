@@ -52,6 +52,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
+        if module.blocks.iter().any(|block| {
+            block.instructions.iter().any(|inst| inst.metadata.source_span().is_some())
+                || block
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.metadata.source_span().is_some())
+        }) {
+            module.track_debug_info();
+        }
         Ok(module)
     }
 
@@ -390,6 +399,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
+            metadata.mark_debug_info_dropped();
             return Ok(metadata);
         }
         let name = self.parser.parse_ident()?;
@@ -398,6 +408,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+            metadata.mark_debug_info_dropped();
             return Ok(metadata);
         }
 
@@ -422,6 +433,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
+        }
+        if !metadata.debug_info_is_handled() {
+            metadata.mark_debug_info_dropped();
         }
         Ok(metadata)
     }

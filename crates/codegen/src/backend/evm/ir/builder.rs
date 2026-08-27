@@ -73,6 +73,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Sets the source span attached to subsequently emitted operations.
     pub(crate) fn set_source_span(&mut self, span: Option<solar_interface::Span>) {
+        self.program.track_debug_info();
         self.current_source_span = span.unwrap_or(solar_interface::Span::DUMMY);
     }
 

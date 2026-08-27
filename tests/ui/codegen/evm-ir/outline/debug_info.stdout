@@ -1,0 +1,49 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (after outline) ===
+  @module DebugInfo
+  bb0:
++   push bb3
++   jump bb2
++ bb1:
++   push bb4
++   jump bb2
++ bb2:
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
+    push 1 !metadata(span=1..5)
+    pop !metadata(span=6..10)
++   jump
++ bb3:
+    jump bb1 !metadata(span=11..15)
+- bb1:
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
++ bb4:
+    stop !metadata(span=31..35)
+  

@@ -1463,8 +1463,9 @@ fn build_return_values(
             .iter()
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
-        let (phi, value) =
-            caller.alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        let (phi, value) = caller.alloc_value_inst(
+            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_info_dropped(),
+        );
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(value);
     }
