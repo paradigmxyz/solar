@@ -298,13 +298,7 @@ impl<'a> Verifier<'a> {
                 }
             }
             if valid {
-                let next = Self::next_block(module, block_id);
-                let lowering_growth = match &term.kind {
-                    TerminatorKind::IndexedJump(_) => 3,
-                    TerminatorKind::Jump(target) => usize::from(Some(*target) != next),
-                    TerminatorKind::JumpI { .. } => 1,
-                    TerminatorKind::Op(_) => 0,
-                };
+                let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
                 if lowering_growth != 0
                     && self
                         .ensure_stack_limit(
@@ -431,11 +425,6 @@ impl<'a> Verifier<'a> {
 
     fn block_exists(&self, module: &Module, block: BlockId) -> bool {
         block.index() < module.blocks.len()
-    }
-
-    fn next_block(module: &Module, block: BlockId) -> Option<BlockId> {
-        let next = block.index() + 1;
-        (next < module.blocks.len()).then(|| BlockId::from_usize(next))
     }
 }
 

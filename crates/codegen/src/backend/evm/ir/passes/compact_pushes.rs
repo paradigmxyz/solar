@@ -3,7 +3,7 @@
 use super::EvmPass;
 use crate::backend::evm::{
     EVM_WORD_BYTES,
-    ir::{Instruction, Module, PushValue},
+    ir::{Instruction, Module},
     op,
 };
 use alloy_primitives::U256;
@@ -57,14 +57,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
-    {
-        return None;
-    }
-    match &inst.value {
-        Some(PushValue::Immediate(value)) => Some(*value),
-        _ => None,
-    }
+    inst.concrete_immediate()
 }
 
 fn push(value: U256) -> Instruction {

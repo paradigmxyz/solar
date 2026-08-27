@@ -789,7 +789,7 @@ fn estimated_block_size(
     if let Some(term) = &block.terminator {
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
-            lower::next_block(module, block_id),
+            module.next_block(block_id),
             block_target_width,
             packed_table,
             evm_version,

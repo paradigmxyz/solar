@@ -206,7 +206,7 @@ fn allocate_referenced_labels(
             }
         }
         if let Some(terminator) = &block.terminator {
-            let next = next_block(module, block_id);
+            let next = module.next_block(block_id);
             terminator.kind.visit_label_targets(next, |target| {
                 referenced.insert(target);
             });
@@ -291,7 +291,7 @@ fn lower_terminator(
                 program.push_op(op::JUMP);
                 return;
             }
-            if next_block(module, block_id) == Some(*target) {
+            if module.next_block(block_id) == Some(*target) {
                 return;
             }
             let label = label_for_block(assembler, module, *target, labels);
@@ -299,7 +299,7 @@ fn lower_terminator(
             program.push_op(op::JUMP);
         }
         ir::TerminatorKind::JumpI { then_block, else_block } => {
-            let next = next_block(module, block_id);
+            let next = module.next_block(block_id);
             if next == Some(*else_block) {
                 let label = label_for_block(assembler, module, *then_block, labels);
                 program.push_label(label);
@@ -322,16 +322,11 @@ fn lower_terminator(
             indexed_jump::lower(assembler, program, targets, module, labels, indexed_jump);
         }
         ir::TerminatorKind::Op(opcode) => {
-            if *opcode != op::STOP || next_block(module, block_id).is_some() {
+            if *opcode != op::STOP || module.next_block(block_id).is_some() {
                 program.push_op(*opcode);
             }
         }
     }
-}
-
-pub(super) fn next_block(module: &ir::Module, block: BlockId) -> Option<BlockId> {
-    let next = block.index() + 1;
-    (next < module.blocks.len()).then(|| BlockId::from_usize(next))
 }
 
 pub(super) fn label_for_block(

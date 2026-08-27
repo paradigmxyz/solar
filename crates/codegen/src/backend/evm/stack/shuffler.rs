@@ -57,21 +57,12 @@ pub(crate) fn resynthesize_physical_ops(
     let mut available = 0usize;
     for &stack_op in ops {
         stack_op.lowering(evm_version)?;
-        let required = match stack_op {
-            StackOp::Dup(depth) => usize::from(depth),
-            StackOp::Swap(depth) => usize::from(depth) + 1,
-            StackOp::Exchange(_, depth) => usize::from(depth) + 1,
-            StackOp::Pop => 1,
-        };
+        let required = stack_op.required_depth();
         if available < required {
             source_depth += required - available;
             available = required;
         }
-        match stack_op {
-            StackOp::Dup(_) => available += 1,
-            StackOp::Pop => available -= 1,
-            StackOp::Swap(_) | StackOp::Exchange(_, _) => {}
-        }
+        available = available.checked_add_signed(stack_op.net_growth())?;
     }
     if source_depth.max(available) > PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT {
         return None;

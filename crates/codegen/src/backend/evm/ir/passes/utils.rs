@@ -364,17 +364,7 @@ fn analyze_block(
 
 pub(super) fn terminator_lowering_growth(module: &Module, block_id: BlockId) -> Option<usize> {
     let block = &module.blocks[block_id];
-    let next = block_id
-        .index()
-        .checked_add(1)
-        .filter(|&index| index < module.blocks.len())
-        .map(BlockId::from_usize);
-    match &block.terminator.as_ref()?.kind {
-        TerminatorKind::IndexedJump(_) => Some(3),
-        TerminatorKind::Jump(target) => Some(usize::from(Some(*target) != next)),
-        TerminatorKind::JumpI { .. } => Some(1),
-        TerminatorKind::Op(_) => Some(0),
-    }
+    Some(block.terminator.as_ref()?.kind.lowering_stack_growth(module.next_block(block_id)))
 }
 
 fn apply_instruction(stack: &mut AbstractStack, inst: &Instruction) -> Option<()> {

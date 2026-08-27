@@ -668,95 +668,86 @@ impl StackScheduler {
         let evm_version = self.evm_version;
 
         let goal = operands.iter().rev().copied().collect::<SmallVec<[_; 8]>>();
+        let validate = |plan: Option<OperandPlan>| {
+            plan.and_then(|plan| {
+                self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
+            })
+        };
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
             let plan =
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
-            return self.validate_operand_plan(plan, &goal, preserved, func, cost_model);
+            return validate(Some(plan));
         }
-        if let Some(plan) = self.try_single_resident_operand_plan(
+        if let Some(plan) = validate(self.try_single_resident_operand_plan(
             operands,
             preserved,
             func,
             evm_version,
             cost_model,
-        ) && let Some(plan) =
-            self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        )) {
             return Some(plan);
         }
-        if let Some(plan) = self.try_direct_materialization_operand_plan(
+        if let Some(plan) = validate(self.try_direct_materialization_operand_plan(
             operands,
             preserved,
             func,
             evm_version,
             cost_model,
-        ) && let Some(plan) =
-            self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        )) {
             return Some(plan);
         }
-        if let Some(plan) = self.try_preserved_operand_copy_plan(
+        if let Some(plan) = validate(self.try_preserved_operand_copy_plan(
             operands,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) && let Some(plan) =
-            self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        )) {
             return Some(plan);
         }
-        if let Some(plan) = self.try_resident_nary_plan(
+        if let Some(plan) = validate(self.try_resident_nary_plan(
             &goal,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) && let Some(plan) =
-            self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        )) {
             return Some(plan);
         }
-        if let Some(plan) = self.try_preserved_resident_binary_plan(
+        if let Some(plan) = validate(self.try_preserved_resident_binary_plan(
             operands,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) && let Some(plan) =
-            self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        )) {
             return Some(plan);
         }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
         if matches!(optimization, OptimizationMode::Gas) {
-            if let Some(plan) = self.try_single_action_operand_plan(
+            if let Some(plan) = validate(self.try_single_action_operand_plan(
                 &goal,
                 preserved,
                 func,
                 optimization,
                 evm_version,
                 cost_model,
-            ) && let Some(plan) =
-                self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-            {
+            )) {
                 return Some(plan);
             }
             if let [value] = operands
-                && let Some(plan) = self.try_unary_operand_plan(
+                && let Some(plan) = validate(self.try_unary_operand_plan(
                     *value,
                     preserved.contains(value),
                     func,
                     optimization,
                     evm_version,
                     cost_model,
-                )
-                && let Some(plan) =
-                    self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
+                ))
             {
                 return Some(plan);
             }
@@ -817,10 +808,12 @@ impl StackScheduler {
             evm_version,
             cost_model,
         };
-        if let Some(plan) =
-            self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
-            && let Some(plan) = self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-        {
+        if let Some(plan) = validate(self.try_goal_directed_operand_plan(
+            start.clone(),
+            &goal,
+            &preserve_counts,
+            context,
+        )) {
             return Some(plan);
         }
 
@@ -884,9 +877,7 @@ impl StackScheduler {
                     limit_hit,
                     skipped_by_function_budget: false,
                 });
-                if let Some(plan) =
-                    self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
-                {
+                if let Some(plan) = validate(Some(plan)) {
                     self.finish_operand_search(expansions, false);
                     return Some(plan);
                 }

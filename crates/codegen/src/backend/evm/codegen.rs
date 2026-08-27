@@ -2470,14 +2470,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
-        let hazard_recomputable =
-            cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
-        let hazard_cross_block_values = self.spill_hazard_cross_block_values(
-            func,
-            liveness,
-            &cross_block_live,
-            &hazard_recomputable,
-        );
+        let hazard_cross_block_values = if self.spill_hazard_insts.is_empty() {
+            Vec::new()
+        } else {
+            let recomputable =
+                cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
+            self.spill_hazard_cross_block_values(func, liveness, &cross_block_live, &recomputable)
+        };
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
         });

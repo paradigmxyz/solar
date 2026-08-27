@@ -10,7 +10,6 @@ use crate::backend::evm::{
     stack::StackOp as PhysicalStackOp,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_sema::Gcx;
 use std::fmt;
@@ -103,7 +102,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
         && is_removable_push(lhs)
-        && let Some(value) = push_value(pushed)
+        && let Some(value) = pushed.concrete_immediate()
         && let Some(opcode) = instruction.as_legacy_opcode()
     {
         if value.is_zero()
@@ -125,7 +124,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `PUSH 1 MUL -> ∅`.
     // `PUSH 1 EXP -> POP PUSH 1`.
     if let [.., pushed, instruction] = instructions.as_slice()
-        && let Some(value) = push_value(pushed)
+        && let Some(value) = pushed.concrete_immediate()
         && let Some(opcode) = instruction.as_legacy_opcode()
     {
         if value.is_zero() {
@@ -157,8 +156,8 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && lhs.has_canonical_stack_effect()
         && rhs.has_canonical_stack_effect()
         && instruction.has_canonical_stack_effect()
-        && let Some(lhs_value) = push_value(lhs)
-        && let Some(rhs_value) = push_value(rhs)
+        && let Some(lhs_value) = lhs.concrete_immediate()
+        && let Some(rhs_value) = rhs.concrete_immediate()
         && let Some(opcode) = instruction.as_legacy_opcode()
         && let Some((result, opcode_gas)) = match opcode {
             op::ADD => Some((lhs_value.wrapping_add(rhs_value), 3)),
@@ -334,10 +333,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
     if let [.., dup_a, push_a, store_a, dup_b, push_b, store_b] = instructions.as_slice()
         && dup_a.as_legacy_opcode() == Some(op::DUP1)
-        && let Some(a) = push_value(push_a)
+        && let Some(a) = push_a.concrete_immediate()
         && store_a.as_legacy_opcode() == Some(op::MSTORE)
         && dup_b.as_legacy_opcode() == Some(op::DUP1)
-        && let Some(b) = push_value(push_b)
+        && let Some(b) = push_b.concrete_immediate()
         && store_b.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
@@ -346,10 +345,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `PUSH x MLOAD DUP1 PUSH x MSTORE -> PUSH x MLOAD`.
     if let [.., load_addr, load, dup, store_addr, store] = instructions.as_slice()
-        && let Some(a) = push_value(load_addr)
+        && let Some(a) = load_addr.concrete_immediate()
         && load.as_legacy_opcode() == Some(op::MLOAD)
         && dup.as_legacy_opcode() == Some(op::DUP1)
-        && let Some(b) = push_value(store_addr)
+        && let Some(b) = store_addr.concrete_immediate()
         && store.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
@@ -359,10 +358,10 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop, loaded, load] = instructions.as_slice()
         && dup.as_legacy_opcode() == Some(op::DUP1)
-        && let Some(a) = push_value(pushed)
+        && let Some(a) = pushed.concrete_immediate()
         && store.as_legacy_opcode() == Some(op::MSTORE)
         && pop.as_legacy_opcode() == Some(op::POP)
-        && let Some(b) = push_value(loaded)
+        && let Some(b) = loaded.concrete_immediate()
         && load.as_legacy_opcode() == Some(op::MLOAD)
         && a == b
     {
@@ -371,9 +370,9 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
 
     // `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
-        && let Some(a) = push_value(store_addr)
+        && let Some(a) = store_addr.concrete_immediate()
         && store.as_legacy_opcode() == Some(op::MSTORE)
-        && let Some(b) = push_value(load_addr)
+        && let Some(b) = load_addr.concrete_immediate()
         && load.as_legacy_opcode() == Some(op::MLOAD)
         && a == b
     {
@@ -486,43 +485,21 @@ fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
 }
 
 fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
-    let mut stack = SmallVec::<[u8; MAX_STACK_PEEPHOLE_WINDOW]>::new();
-    let mut next_push = 0;
+    let mut depth = 0usize;
     for inst in instructions {
         match stack_op(inst) {
-            Some(SymbolicStackOp::Push) => {
-                stack.push(next_push);
-                next_push += 1;
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Dup(depth))) => {
-                let Some(index) = stack.len().checked_sub(usize::from(depth)) else { return false };
-                stack.push(stack[index]);
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Swap(depth))) => {
-                let Some(index) = stack.len().checked_sub(usize::from(depth) + 1) else {
-                    return false;
-                };
-                let top = stack.len() - 1;
-                stack.swap(index, top);
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Exchange(first, second))) => {
-                let (Some(first), Some(second)) = (
-                    stack.len().checked_sub(usize::from(first) + 1),
-                    stack.len().checked_sub(usize::from(second) + 1),
-                ) else {
-                    return false;
-                };
-                stack.swap(first, second);
-            }
-            Some(SymbolicStackOp::Physical(PhysicalStackOp::Pop)) => {
-                if stack.pop().is_none() {
+            Some(SymbolicStackOp::Push) => depth += 1,
+            Some(SymbolicStackOp::Physical(op)) => {
+                if depth < op.required_depth() {
                     return false;
                 }
+                let Some(next) = depth.checked_add_signed(op.net_growth()) else { return false };
+                depth = next;
             }
             None => return false,
         }
     }
-    stack.is_empty()
+    depth == 0
 }
 
 fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
@@ -659,17 +636,6 @@ const fn flipped_comparison(opcode: u8) -> Option<u8> {
     }
 }
 
-fn push_value(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
-    {
-        return None;
-    }
-    match &inst.value {
-        Some(PushValue::Immediate(value)) => Some(*value),
-        _ => None,
-    }
-}
-
 fn is_block_push(inst: &Instruction) -> bool {
     inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
 }
@@ -690,7 +656,7 @@ impl fmt::Display for InstructionSequence<'_> {
                 f.write_str("push_deferred")?;
             } else if inst.immutable_push().is_some() {
                 f.write_str("push_immutable")?;
-            } else if let Some(value) = push_value(inst) {
+            } else if let Some(value) = inst.concrete_immediate() {
                 write!(f, "push {value:#x}")?;
             } else if inst.is_encoded_push() {
                 f.write_str("push_ref")?;

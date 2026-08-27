@@ -120,11 +120,7 @@ fn relative_peak(ops: &[StackOp]) -> isize {
     let mut depth = 0isize;
     let mut peak = 0isize;
     for op in ops {
-        match op {
-            StackOp::Dup(_) => depth += 1,
-            StackOp::Pop => depth -= 1,
-            StackOp::Swap(_) | StackOp::Exchange(_, _) => {}
-        }
+        depth += op.net_growth();
         peak = peak.max(depth);
     }
     peak

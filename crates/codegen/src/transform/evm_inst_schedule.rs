@@ -303,16 +303,30 @@ impl EvmInstSchedule {
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
         let mut user_counts = index_vec![0u32; func.num_values()];
+        let mut seen = index_vec![0usize; func.num_values()];
+        let mut generation = 0usize;
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
         // look shared and disable scheduling for its whole segment. Repeated operands in one
         // consumer count as one user.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                count_distinct_users(func.inst(inst_id).kind.operands(), &mut user_counts);
+                generation += 1;
+                count_distinct_users(
+                    func.inst(inst_id).kind.operands(),
+                    &mut user_counts,
+                    &mut seen,
+                    generation,
+                );
             }
             if let Some(terminator) = &block.terminator {
-                count_distinct_users(terminator.operands(), &mut user_counts);
+                generation += 1;
+                count_distinct_users(
+                    terminator.operands(),
+                    &mut user_counts,
+                    &mut seen,
+                    generation,
+                );
             }
         }
 
@@ -363,12 +377,14 @@ impl EvmInstSchedule {
 fn count_distinct_users(
     operands: impl IntoIterator<Item = ValueId>,
     counts: &mut IndexVec<ValueId, u32>,
+    seen: &mut IndexVec<ValueId, usize>,
+    generation: usize,
 ) {
-    let mut operands = operands.into_iter().collect::<SmallVec<[ValueId; 8]>>();
-    operands.sort_unstable();
-    operands.dedup();
     for operand in operands {
-        counts[operand] += 1;
+        if seen[operand] != generation {
+            seen[operand] = generation;
+            counts[operand] += 1;
+        }
     }
 }
 

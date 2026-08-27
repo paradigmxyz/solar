@@ -26,18 +26,11 @@ impl EvmPass for ReorderPushes {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let candidates = module
-            .blocks
-            .indices()
-            .filter(|&block_id| has_candidate(&module.blocks[block_id].instructions))
-            .map(|block_id| (block_id, relative_high_water(module, block_id)))
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            return false;
-        }
         let mut changed = false;
         let mut pending = Vec::new();
-        for &(block_id, high_water) in &candidates {
+        for index in 0..module.blocks.len() {
+            let block_id = BlockId::from_usize(index);
+            let Some(high_water) = candidate_high_water(module, block_id) else { continue };
             let instructions = &mut module.blocks[block_id].instructions;
             let result = reorder(instructions, None, high_water);
             changed |= result.changed;
@@ -56,12 +49,6 @@ impl EvmPass for ReorderPushes {
         }
         changed
     }
-}
-
-fn has_candidate(instructions: &[Instruction]) -> bool {
-    instructions
-        .windows(2)
-        .any(|pair| pair[0].is_encoded_push() && pair[1].as_legacy_opcode() == Some(op::SWAP1))
 }
 
 struct ReorderResult {
@@ -170,17 +157,32 @@ fn update_expressions(
     expressions.push(Expression { start: first, peak });
 }
 
-fn relative_high_water(module: &Module, block_id: BlockId) -> Option<isize> {
+fn candidate_high_water(module: &Module, block_id: BlockId) -> Option<Option<isize>> {
     let block = &module.blocks[block_id];
-    let mut depth = 0isize;
-    let mut high_water = 0isize;
+    let mut depth = Some(0isize);
+    let mut high_water = Some(0isize);
+    let mut previous_was_push = false;
+    let mut found = false;
     for inst in &block.instructions {
-        let effect = inst.effective_stack_effect()?;
-        depth += isize::from(effect.outputs) - isize::from(effect.inputs);
-        high_water = high_water.max(depth);
+        found |= previous_was_push && inst.as_legacy_opcode() == Some(op::SWAP1);
+        previous_was_push = inst.is_encoded_push();
+        if let Some(effect) = inst.effective_stack_effect()
+            && let Some(current) = depth
+        {
+            let current = current + isize::from(effect.outputs) - isize::from(effect.inputs);
+            depth = Some(current);
+            high_water = high_water.map(|high_water| high_water.max(current));
+        } else {
+            depth = None;
+            high_water = None;
+        }
     }
-    let growth = terminator_lowering_growth(module, block_id)?;
-    Some(high_water.max(depth + growth as isize))
+    found.then(|| {
+        high_water.zip(depth).and_then(|(high_water, depth)| {
+            terminator_lowering_growth(module, block_id)
+                .map(|growth| high_water.max(depth + growth as isize))
+        })
+    })
 }
 
 struct InstructionNode {

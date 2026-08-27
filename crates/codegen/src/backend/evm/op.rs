@@ -320,6 +320,33 @@ pub(crate) struct StackOpMetrics {
 }
 
 impl StackOp {
+    /// Returns the stack depth required to execute this operation.
+    #[must_use]
+    pub(crate) const fn required_depth(self) -> usize {
+        match self {
+            Self::Dup(depth) => depth as usize,
+            Self::Swap(depth) => depth as usize + 1,
+            Self::Exchange(first, second) => {
+                if first > second {
+                    first as usize + 1
+                } else {
+                    second as usize + 1
+                }
+            }
+            Self::Pop => 1,
+        }
+    }
+
+    /// Returns this operation's net stack growth.
+    #[must_use]
+    pub(crate) const fn net_growth(self) -> isize {
+        match self {
+            Self::Dup(_) => 1,
+            Self::Pop => -1,
+            Self::Swap(_) | Self::Exchange(_, _) => 0,
+        }
+    }
+
     /// Decodes a legacy one-byte stack opcode.
     #[must_use]
     pub(crate) const fn from_legacy_opcode(opcode: u8) -> Option<Self> {

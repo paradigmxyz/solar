@@ -130,6 +130,13 @@ impl Module {
         self.blocks.push(block)
     }
 
+    /// Returns the block after `block` in layout order.
+    #[must_use]
+    pub(crate) fn next_block(&self, block: BlockId) -> Option<BlockId> {
+        let next = block.index() + 1;
+        (next < self.blocks.len()).then(|| BlockId::from_usize(next))
+    }
+
     /// Interns a constant byte string and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Bytes) -> DataId {
         if let Some((id, _)) = self.data.iter_enumerated().find(|(_, known)| *known == &data) {
@@ -484,6 +491,17 @@ pub(crate) enum TerminatorKind {
 }
 
 impl TerminatorKind {
+    /// Returns the temporary stack growth introduced when lowering this terminator.
+    #[must_use]
+    pub(crate) fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
+        match self {
+            Self::IndexedJump(_) => 3,
+            Self::Jump(target) => usize::from(Some(*target) != next),
+            Self::JumpI { .. } => 1,
+            Self::Op(_) => 0,
+        }
+    }
+
     /// Visits every basic block target.
     pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
         match self {
