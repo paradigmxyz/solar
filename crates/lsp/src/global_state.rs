@@ -15,7 +15,7 @@ use crate::{
     protocol_trace::ProtocolTrace,
     symbols::{SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
-    workspace::{WorkspacePathIndex, index_policy::IndexingCancellation},
+    workspace::{WorkspaceError, WorkspacePathIndex, index_policy::IndexingCancellation},
 };
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
@@ -51,7 +51,7 @@ use std::{
 };
 use tokio::{
     sync::{Mutex as AsyncMutex, Semaphore, oneshot, watch},
-    task::{AbortHandle, JoinError, JoinHandle},
+    task::{AbortHandle, JoinHandle},
 };
 
 #[derive(Clone, Copy)]
@@ -187,9 +187,12 @@ struct WorkspaceDiscoveryMonitor {
 }
 
 impl WorkspaceDiscoveryMonitor {
-    async fn finish(self, worker: JoinHandle<Option<WorkspaceDiscoveryResult>>) {
+    async fn finish(
+        self,
+        worker: JoinHandle<Result<Option<WorkspaceDiscoveryResult>, WorkspaceError>>,
+    ) {
         match worker.await {
-            Ok(Some(result))
+            Ok(Ok(Some(result)))
                 if !self.cancellation.is_cancelled()
                     && self.analysis_version.load(Ordering::Acquire) == self.version =>
             {
@@ -200,6 +203,24 @@ impl WorkspaceDiscoveryMonitor {
                     progress: self.progress,
                     cancellation: self.cancellation,
                 });
+            }
+            Ok(Err(error)) if !self.cancellation.is_cancelled() => {
+                if let Some(refresh_requests) = handle_analysis_failure(
+                    self.version,
+                    error,
+                    &self.analysis_version,
+                    &self.published_analysis_version,
+                    &self.analysis_commit,
+                ) {
+                    finish_analysis_progress_if_current(
+                        self.version,
+                        &self.analysis_version,
+                        &self.analysis_commit,
+                        &self.progress,
+                        "Workspace indexing failed",
+                    );
+                    request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
+                }
             }
             Ok(_) => {}
             Err(error) => {
@@ -938,7 +959,7 @@ impl GlobalState {
             let discovery_config = config.clone();
             let worker = tokio::task::spawn_blocking(move || {
                 let _permit = permit;
-                discovery_config.discover_workspaces(&worker_cancellation)
+                discovery_config.try_discover_workspaces(&worker_cancellation)
             });
             task_scheduler.tasks.lock().worker = Some((task_key, worker.abort_handle()));
             WorkspaceDiscoveryMonitor {
@@ -1629,7 +1650,7 @@ fn finish_analysis_progress_if_current(
 
 fn handle_analysis_failure(
     version: usize,
-    error: JoinError,
+    error: impl std::fmt::Display,
     analysis_version: &Arc<AtomicUsize>,
     published_analysis_version: &watch::Sender<usize>,
     analysis_commit: &Arc<Mutex<AnalysisCommitState>>,

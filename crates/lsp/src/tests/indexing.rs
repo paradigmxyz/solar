@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::atomic::AtomicBool;
 
 #[test]
 fn analysis_tracks_excluded_transitive_dependencies_and_normalized_missing_candidates() {
@@ -595,9 +596,11 @@ async fn failed_current_workspace_discovery_terminates_the_analysis_epoch() {
         client: state.client.clone(),
         config: state.config.clone(),
     };
-    let worker = tokio::task::spawn_blocking(|| -> Option<WorkspaceDiscoveryResult> {
-        panic!("test workspace discovery failure")
-    });
+    let worker = tokio::task::spawn_blocking(
+        || -> Result<Option<WorkspaceDiscoveryResult>, WorkspaceError> {
+            panic!("test workspace discovery failure")
+        },
+    );
 
     monitor.finish(worker).await;
 
@@ -605,6 +608,70 @@ async fn failed_current_workspace_discovery_terminates_the_analysis_epoch() {
         .await
         .expect("failed discovery should publish its terminal version")
         .unwrap();
+    let commit = state.analysis_commit.lock();
+    assert!(commit.cache_invalidated);
+    assert!(!commit.discovery_pending);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_loader_failure_terminates_background_discovery_with_last_good_config() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let fail = Arc::new(AtomicBool::new(false));
+    let loader_fail = fail.clone();
+    let launch_config =
+        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
+            if loader_fail.load(Ordering::Relaxed) {
+                return Err("host config unavailable");
+            }
+            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
+        });
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        project.initialize_params(),
+        false,
+        &launch_config,
+    );
+    config.rediscover_workspaces();
+    assert_eq!(config.workspaces()[0].source_roots(), &[project.path("/src")]);
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    fail.store(true, Ordering::Relaxed);
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    let cancellation = IndexingCancellation::default();
+    let monitor = WorkspaceDiscoveryMonitor {
+        version,
+        disk_paths: Vec::new(),
+        progress,
+        cancellation: cancellation.clone(),
+        analysis_version: state.analysis_version.clone(),
+        published_analysis_version: state.published_analysis_version.clone(),
+        analysis_commit: state.analysis_commit.clone(),
+        client: state.client.clone(),
+        config: state.config.clone(),
+    };
+    let discovery_config = state.config.clone();
+    let worker = tokio::task::spawn_blocking(move || {
+        discovery_config.try_discover_workspaces(&cancellation)
+    });
+
+    monitor.finish(worker).await;
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("host loader failure should publish its terminal version")
+        .unwrap();
+    assert_eq!(state.config.workspaces()[0].source_roots(), &[project.path("/src")]);
     let commit = state.analysis_commit.lock();
     assert!(commit.cache_invalidated);
     assert!(!commit.discovery_pending);

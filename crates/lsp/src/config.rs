@@ -681,6 +681,13 @@ impl Config {
         &self,
         cancellation: &IndexingCancellation,
     ) -> Option<WorkspaceDiscoveryResult> {
+        self.try_discover_workspaces(cancellation).ok().flatten()
+    }
+
+    pub(crate) fn try_discover_workspaces(
+        &self,
+        cancellation: &IndexingCancellation,
+    ) -> Result<Option<WorkspaceDiscoveryResult>, WorkspaceError> {
         let start = std::time::Instant::now();
         let mut metrics = WorkspaceIndexMetrics::default();
         let mut workspaces = Vec::new();
@@ -693,9 +700,9 @@ impl Config {
         );
         for root in &self.workspace_roots {
             if cancellation.is_cancelled() {
-                return None;
+                return Ok(None);
             }
-            let (discovered, discovered_watch_roots, discovered_marker_watch_roots) =
+            let Some((discovered, discovered_watch_roots, discovered_marker_watch_roots)) =
                 ProjectManifest::discover_all_with_watch_roots(
                     std::slice::from_ref(root),
                     &self.workspace_roots,
@@ -703,7 +710,10 @@ impl Config {
                     cancellation,
                     &mut metrics,
                     &mut foundry_config,
-                )?;
+                )
+            else {
+                return Ok(None);
+            };
             manifest_watch_roots.extend(discovered_watch_roots);
             git_marker_watch_roots.extend(discovered_marker_watch_roots);
             info!(?root, ?discovered, "discovered projects");
@@ -713,21 +723,17 @@ impl Config {
                 continue;
             }
 
-            if load_discovered_workspaces(
+            load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
                 &mut foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
-            )
-            .is_err()
-            {
-                return None;
-            }
+            )?;
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         if cancellation.is_cancelled() {
-            return None;
+            return Ok(None);
         }
         loop {
             if !Workspace::refresh_all_source_files(
@@ -736,7 +742,7 @@ impl Config {
                 cancellation,
                 &mut metrics,
             ) {
-                return None;
+                return Ok(None);
             }
             let mut roots = workspaces
                 .iter()
@@ -748,11 +754,11 @@ impl Config {
                 .collect::<Vec<_>>();
             roots.sort_unstable();
             roots.dedup();
-            let discovered = ProjectManifest::discover_in_source_watch_roots(
-                &roots,
-                cancellation,
-                &mut metrics,
-            )?;
+            let Some(discovered) =
+                ProjectManifest::discover_in_source_watch_roots(&roots, cancellation, &mut metrics)
+            else {
+                return Ok(None);
+            };
             match load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
@@ -762,7 +768,7 @@ impl Config {
             ) {
                 Ok(0) => break,
                 Ok(_) => {}
-                Err(_) => return None,
+                Err(error) => return Err(error),
             }
         }
         WorkspacePathIndex::reconcile_source_files(
@@ -784,12 +790,12 @@ impl Config {
         manifest_watch_roots.dedup();
         git_marker_watch_roots.sort_unstable();
         git_marker_watch_roots.dedup();
-        Some(WorkspaceDiscoveryResult {
+        Ok(Some(WorkspaceDiscoveryResult {
             workspaces,
             manifest_watch_roots,
             git_marker_watch_roots,
             metrics,
-        })
+        }))
     }
 
     pub(crate) fn apply_workspace_discovery(
