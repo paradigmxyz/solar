@@ -17,8 +17,10 @@ use normalize_path::NormalizePath;
 use serde_json as _;
 use solar_config::{EvmVersion, ImportRemapping, LspArgs};
 use std::{
+    fmt,
     ops::ControlFlow,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tower::ServiceBuilder;
 
@@ -30,6 +32,27 @@ pub struct LaunchConfig {
     selected_profile: Option<String>,
     /// Effective Foundry workspace configurations supplied by the embedding host.
     foundry_workspace_configs: Vec<FoundryWorkspaceConfig>,
+    /// Host callback used to refresh supplied Foundry workspace configurations.
+    foundry_workspace_config_loader: Option<FoundryWorkspaceConfigLoader>,
+}
+
+type FoundryWorkspaceConfigLoadResult = Result<FoundryWorkspaceConfig, String>;
+
+#[derive(Clone)]
+struct FoundryWorkspaceConfigLoader(
+    Arc<dyn Fn(&Path) -> FoundryWorkspaceConfigLoadResult + Send + Sync>,
+);
+
+impl FoundryWorkspaceConfigLoader {
+    fn load(&self, workspace_root: &Path) -> FoundryWorkspaceConfigLoadResult {
+        (self.0)(workspace_root)
+    }
+}
+
+impl fmt::Debug for FoundryWorkspaceConfigLoader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("FoundryWorkspaceConfigLoader(..)")
+    }
 }
 
 /// Effective Foundry configuration for one workspace supplied by an embedding host.
@@ -41,9 +64,10 @@ pub struct LaunchConfig {
 /// [`ImportRemapping`] values and are passed through unchanged. These values are already resolved
 /// by the host, including any inherited profiles and remappings. When this configuration matches a
 /// workspace, the language server uses these values as-is: it does not parse the local profile,
-/// read `remappings.txt`, or autodetect library remappings. The snapshot is captured when
-/// [`LaunchConfig`] is built and is reused for rediscovery during that LSP session; rebuild the
-/// launch configuration when Foundry configuration changes.
+/// read `remappings.txt`, or autodetect library remappings. By default, the snapshot is captured
+/// when [`LaunchConfig`] is built and reused for rediscovery during that LSP session. Embedding
+/// hosts that support configuration reloads can supply a fresh snapshot through
+/// [`LaunchConfig::with_foundry_workspace_config_loader`].
 #[derive(Clone, Debug)]
 pub struct FoundryWorkspaceConfig {
     /// Absolute directory containing the workspace manifest.
@@ -215,6 +239,25 @@ impl LaunchConfig {
         self
     }
 
+    /// Sets a callback that refreshes host-resolved Foundry workspace configurations.
+    ///
+    /// The callback runs once for every configuration supplied through
+    /// [`Self::with_foundry_workspace_config`] or [`Self::with_foundry_workspace_configs`] at the
+    /// start of initial workspace discovery and each later rediscovery. It receives the exact
+    /// normalized workspace root and must return an updated configuration for that same root.
+    /// Returning an error prevents that workspace from loading instead of reusing stale values.
+    pub fn with_foundry_workspace_config_loader<F, E>(mut self, loader: F) -> Self
+    where
+        F: Fn(&Path) -> Result<FoundryWorkspaceConfig, E> + Send + Sync + 'static,
+        E: fmt::Display,
+    {
+        self.foundry_workspace_config_loader =
+            Some(FoundryWorkspaceConfigLoader(Arc::new(move |workspace_root| {
+                loader(workspace_root).map_err(|error| error.to_string())
+            })));
+        self
+    }
+
     pub(crate) fn default_forge_path(&self) -> Option<&Path> {
         self.default_forge_path.as_deref()
     }
@@ -225,6 +268,10 @@ impl LaunchConfig {
 
     pub(crate) fn foundry_workspace_configs(&self) -> &[FoundryWorkspaceConfig] {
         &self.foundry_workspace_configs
+    }
+
+    pub(crate) fn foundry_workspace_config_loader(&self) -> Option<&FoundryWorkspaceConfigLoader> {
+        self.foundry_workspace_config_loader.as_ref()
     }
 }
 

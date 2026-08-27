@@ -32,6 +32,7 @@ pub(crate) mod manifest;
 pub(crate) struct FoundryConfigContext<'a> {
     selected_profile: Option<&'a str>,
     workspace_configs: &'a [FoundryWorkspaceConfig],
+    workspace_config_errors: &'a [(PathBuf, String)],
 }
 
 impl<'a> FoundryConfigContext<'a> {
@@ -39,7 +40,15 @@ impl<'a> FoundryConfigContext<'a> {
         selected_profile: Option<&'a str>,
         workspace_configs: &'a [FoundryWorkspaceConfig],
     ) -> Self {
-        Self { selected_profile, workspace_configs }
+        Self::with_errors(selected_profile, workspace_configs, &[])
+    }
+
+    pub(crate) fn with_errors(
+        selected_profile: Option<&'a str>,
+        workspace_configs: &'a [FoundryWorkspaceConfig],
+        workspace_config_errors: &'a [(PathBuf, String)],
+    ) -> Self {
+        Self { selected_profile, workspace_configs, workspace_config_errors }
     }
 
     pub(crate) fn selected_profile(self) -> Option<&'a str> {
@@ -49,6 +58,13 @@ impl<'a> FoundryConfigContext<'a> {
     pub(crate) fn workspace_config(self, root: &Path) -> Option<&'a FoundryWorkspaceConfig> {
         let root = root.normalize();
         self.workspace_configs.iter().find(|config| config.workspace_root() == root)
+    }
+
+    pub(crate) fn workspace_config_error(self, root: &Path) -> Option<&'a str> {
+        let root = root.normalize();
+        self.workspace_config_errors
+            .iter()
+            .find_map(|(candidate, error)| (*candidate == root).then_some(error.as_str()))
     }
 }
 
@@ -527,6 +543,9 @@ impl Workspace {
         foundry_config: FoundryConfigContext<'_>,
     ) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?.normalize();
+        if let Some(error) = foundry_config.workspace_config_error(&root) {
+            return Err(WorkspaceError::HostConfig { root, error: error.to_owned() });
+        }
         let approved = |path: &Path| {
             workspace_roots
                 .is_none_or(|workspace_roots| is_approved_index_root(path, &root, workspace_roots))
@@ -1005,6 +1024,8 @@ pub(crate) enum WorkspaceError {
         #[source]
         source: toml_edit::de::Error,
     },
+    #[error("failed to load host configuration for workspace `{}`: {error}", root.display())]
+    HostConfig { root: PathBuf, error: String },
 }
 
 fn manifest_root(path: &Path) -> Result<PathBuf, WorkspaceError> {

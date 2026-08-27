@@ -394,6 +394,9 @@ fn foundry_index_roots(
     foundry_config: FoundryConfigContext<'_>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let Some(root) = manifest.parent() else { return Default::default() };
+    if foundry_config.workspace_config_error(root).is_some() {
+        return Default::default();
+    }
     let (source_roots, import_only_roots) =
         if let Some(config) = foundry_config.workspace_config(root) {
             (config.source_roots().to_vec(), config.include_paths().to_vec())

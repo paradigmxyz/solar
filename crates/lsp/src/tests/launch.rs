@@ -6,6 +6,7 @@ use async_lsp::{AnyRequest, ClientSocket, router::Router};
 use lsp_types::InitializeParams;
 use solar_config::{EvmVersion, LspArgs};
 use std::{
+    io::Read,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -274,6 +275,64 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
     assert_eq!(source_roots("/one"), [project.path("/one/host-one")]);
     assert_eq!(source_roots("/two"), [project.path("/two/host-two")]);
     assert_eq!(source_roots("/three"), [project.path("/three/local-three")]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_foundry_workspace_config_loader_refreshes_after_manifest_change() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /old-src/Old.sol
+        contract OldContract {}
+
+        //- /new-src/New.sol
+        contract NewContract {}
+
+        //- /foundry.toml
+        [profile.default]
+        src = "old-src"
+        "#,
+    );
+    let snapshot = FoundryWorkspaceConfig::new(project.root())
+        .with_source_roots(["old-src"])
+        .with_flycheck_source_roots(["old-src"]);
+    let config = LaunchConfig::default()
+        .with_foundry_workspace_config(snapshot)
+        .with_foundry_workspace_config_loader(|root| {
+            let mut manifest = String::new();
+            std::fs::File::open(root.join("foundry.toml"))?.read_to_string(&mut manifest)?;
+            let source = if manifest.contains("new-src") { "new-src" } else { "old-src" };
+            Ok::<_, std::io::Error>(
+                FoundryWorkspaceConfig::new(root)
+                    .with_source_roots([source])
+                    .with_flycheck_source_roots([source]),
+            )
+        });
+    let mut state = GlobalState::new(ClientSocket::new_closed()).with_launch_config(config);
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({ "flychecks": [] }));
+
+    state.on_initialize(params).await.unwrap();
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let workspace = state
+        .config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
+        .unwrap();
+    assert_eq!(workspace.source_roots(), &[project.path("/old-src")]);
+    assert_eq!(workspace.source_files(), &[project.path("/old-src/Old.sol")]);
+
+    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"new-src\"\n");
+    let _ = Arc::make_mut(&mut state.config).rediscover_workspaces();
+
+    let workspace = state
+        .config
+        .workspaces()
+        .iter()
+        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
+        .unwrap();
+    assert_eq!(workspace.source_roots(), &[project.path("/new-src")]);
+    assert_eq!(workspace.source_files(), &[project.path("/new-src/New.sol")]);
 }
 
 #[tokio::test(flavor = "current_thread")]
