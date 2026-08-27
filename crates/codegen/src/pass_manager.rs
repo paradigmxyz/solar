@@ -109,6 +109,10 @@ impl PipelineState {
         self.pipeline_run
     }
 
+    pub(crate) fn observed(&self) -> bool {
+        self.observed
+    }
+
     pub(crate) fn next_invocation(&mut self, pass: &'static str) -> usize {
         if !self.observed {
             return 0;
@@ -150,19 +154,22 @@ pub trait MirPass: Sync {
 
 /// Executes every MIR pass through one shared path.
 pub(crate) struct MirPassManager {
-    output_name: String,
+    output_name: Option<String>,
     state: PipelineState,
     analyses: ModuleAnalyses,
+    failed: bool,
 }
 
 impl MirPassManager {
     pub(crate) fn new(gcx: Gcx<'_>, module: &Module, name: Option<&str>) -> Self {
+        let state = PipelineState::new(observes_pipeline(gcx));
         Self {
-            output_name: name
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| mir_output_name(gcx, module)),
-            state: PipelineState::new(observes_pipeline(gcx)),
+            output_name: state.observed().then(|| {
+                name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
+            }),
+            state,
             analyses: ModuleAnalyses::default(),
+            failed: false,
         }
     }
 
@@ -192,16 +199,21 @@ impl MirPassManager {
             let mut ir_changed = false;
             let mut state_changed = false;
             let mut failed = false;
+            let mut has_errors = false;
             let mut after = None;
 
             if let Some(pass) = pass.filter(|_| enabled) {
-                let errors_before = gcx.dcx().err_count();
+                let errors_before = self.state.observed().then(|| gcx.dcx().err_count());
                 self.analyses.begin_pass();
                 let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
                 let pass_changed = pass.run_pass(gcx, module, &mut self.analyses);
                 let timer = timer.stop();
                 state_changed = phase_before != module.phase;
-                failed = gcx.dcx().err_count() != errors_before;
+                if let Some(errors_before) = errors_before {
+                    let errors_after = gcx.dcx().err_count();
+                    failed = errors_after != errors_before;
+                    has_errors = errors_after != 0;
+                }
                 after = inspect_change.then(|| module.to_text().to_string());
                 ir_changed = match (&before, &after) {
                     (Some(before), Some(after)) => !mir_body(before).eq(mir_body(after)),
@@ -209,7 +221,7 @@ impl MirPassManager {
                 };
                 timer.finish(
                     "MIR",
-                    &self.output_name,
+                    self.output_name.as_deref().unwrap_or_default(),
                     None,
                     self.state.pipeline_run(),
                     stage,
@@ -229,7 +241,7 @@ impl MirPassManager {
 
             if pass_diff {
                 print_pass_diff(
-                    &self.output_name,
+                    self.output_name.as_deref().unwrap_or_default(),
                     "MIR",
                     None,
                     self.state.pipeline_run(),
@@ -251,7 +263,7 @@ impl MirPassManager {
                 );
             } else if gcx.sess.opts.unstable.print_after_each {
                 print_pass_output(
-                    &self.output_name,
+                    self.output_name.as_deref().unwrap_or_default(),
                     "MIR",
                     None,
                     self.state.pipeline_run(),
@@ -271,11 +283,16 @@ impl MirPassManager {
                     after.as_deref().unwrap_or_default(),
                 );
             }
-            if gcx.dcx().has_errors().is_err() {
+            if has_errors {
+                self.failed = true;
                 break;
             }
         }
         changed
+    }
+
+    pub(crate) fn failed(&self) -> bool {
+        self.failed
     }
 
     pub(crate) fn validate(&self, gcx: Gcx<'_>, module: &Module) {
@@ -299,7 +316,7 @@ impl MirPassManager {
     ) {
         if gcx.sess.opts.unstable.print_after_stage {
             print_checkpoint(
-                &self.output_name,
+                self.output_name.as_deref().unwrap_or_default(),
                 "MIR",
                 None,
                 self.state.pipeline_run(),

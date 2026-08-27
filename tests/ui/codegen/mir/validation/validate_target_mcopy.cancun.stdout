@@ -1,16 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
-@module ValidateTargetMcopy
-@phase target-lowered
-fn @entry() [entry] {
-  bb0:
-    mcopy 0, 0, 0
-    stop
-}
-// === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
-@module ValidateTargetMcopy
-@phase evm-shaped
-fn @entry() [entry] {
-  bb0:
-    mcopy 0, 0, 0
-    stop
-}
++ // === ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/validation/validate_target_mcopy.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
+  @module ValidateTargetMcopy
+- @phase target-lowered
++ @phase evm-shaped
+  fn @entry() [entry] {
+    bb0:
+      mcopy 0, 0, 0
+      stop
+  }
+  

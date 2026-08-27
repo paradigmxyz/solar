@@ -29,7 +29,7 @@ pub(crate) struct Function {
     pub(crate) params: IndexVec<ArgIdx, MirType>,
     /// Return types.
     pub(crate) returns: Vec<MirType>,
-    /// ABI layout of values returned by an external entry before `lower-abi`
+    /// ABI layout of values returned by an external entry before ABI lowering
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
     /// Bytes reserved for lowered local memory slots.

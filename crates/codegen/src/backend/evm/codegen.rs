@@ -7397,8 +7397,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }) || func.blocks.iter().any(|block| {
                     // Dispatch and external-fusion tail calls never touch internal
                     // frames; only a selector-less callee outside the static set
-                    // could imply dynamic frames (a shape `lower-evm-shaped` does
-                    // not currently form).
+                    // could imply dynamic frames (a shape lowering does not
+                    // currently form).
                     matches!(
                         &block.terminator,
                         Some(Terminator::TailCall { function, .. })
@@ -10421,8 +10421,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // it; otherwise arguments retain their compile-time frame homes. Fused external
                 // bodies terminate directly and therefore need no hidden label.
                 if !args.is_empty() {
-                    // `lower-evm-shaped` only forms argument-carrying tail
-                    // calls to callees the backend statically frames.
+                    // Shape lowering only forms argument-carrying tail calls
+                    // to callees the backend statically frames.
                     assert!(
                         self.static_frame_functions.contains(*function),
                         "argument-carrying tail call to a non-static-frame callee"

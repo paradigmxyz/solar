@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=lower-abi,lower-slices
+//@compile-flags: -Zmir-pipeline=lower,lower-slices
 //@filecheck:
 @module LowerSlices
 // CHECK: + fn @entry()

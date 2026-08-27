@@ -82,22 +82,23 @@ only when not the default). The phases, in order:
   semantic optimization and mapping expansion preserve this contract.
 - `abi`: each external function is an argument-free ABI entry. Its original
   fused body keeps lazy calldata reads; a separate raw-return body exists only
-  when internal callers need one. Produced by the `lower-abi` pass.
+  when internal callers need one. Produced by `lower` from `built` MIR.
 - `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
   the ABI wrappers through `tail_call` terminators (control transfers and does
-  not return, matching the wrappers' external termination). Produced by the
-  `lower-dispatch` pass, which requires the `abi` phase.
+  not return, matching the wrappers' external termination). Produced by
+  `lower` from `abi` MIR.
 - `intrinsics-lowered`: mapping hashes, ABI encoding, aggregates, slices, and
   memory objects have been lowered to scalar, memory, storage, loop, and CFG
-  MIR. Produced by the `lower-intrinsics` pass, which requires `dispatch`.
+  MIR. Produced by `lower` from `dispatch` MIR.
 - `target-lowered`: abstract allocation, memory initialization, immutable
   assignment, and target-dependent memory operations have been lowered.
   Deferred constant-size allocations may remain as backend placement markers;
-  they no longer use the semantic free-memory-pointer model. Produced by the
-  `lower-target` pass.
+  they no longer use the semantic free-memory-pointer model. Produced by
+  `lower` from `intrinsics-lowered` MIR.
 - `evm-shaped`: every statically frame-eligible call to a non-returning callee
   is an explicit `tail_call` (arguments included); other calls keep the
-  backend's return protocol. Produced by `lower-evm-shaped`; argument-carrying
+  backend's return protocol. Produced by `lower` from `target-lowered` MIR;
+  argument-carrying
   tail calls are only formed for callees the backend statically frames, so
   their arguments store at compile-time frame addresses with no return address
   pushed.
@@ -106,33 +107,29 @@ The old textual phases `optimized` and `memory-lowered` are intentionally
 unsupported. Optimization history is a checkpoint, not a representation
 contract; `intrinsics-lowered` replaces the narrower memory-object boundary.
 
-The `lower-abi`, `lower-dispatch`, `lower-intrinsics`, `lower-target`, and
-`lower-evm-shaped` passes are progressive MIR-to-MIR lowering. They move
-dispatch, ABI handling, semantic representations, and target details out of
-the backend. The backend only consumes an `evm-shaped` module, with the MIR
-`entry` as the runtime prologue and `tail_call` lowered to a jump. Lowering
-passes assume valid input from the prior canonical stages and advance through
-`Module::advance_phase`; module validation owns representation checks. When
-extending them or adding the next phase, make the transition a named pass and
-pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
+The `lower` pass performs progressive MIR-to-MIR lowering based on the current
+phase. It moves dispatch, ABI handling, semantic representations, and target
+details out of the backend. The backend only consumes an `evm-shaped` module,
+with the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump.
+`lower` assumes valid input from the canonical pipeline and advances one phase
+through `Module::advance_phase`; module validation owns representation checks.
+Pin phase changes with `.mir` UI tests under `tests/ui/codegen/mir/`.
 
-### Pipeline Stages
+### MIR Pipeline
 
-The canonical MIR pipeline has one stage per phase transition. Each stage owns
-all optimization and lowering needed to reach its output phase: `built` to
-`abi`, `abi` to `dispatch`, `dispatch` to `intrinsics-lowered`,
-`intrinsics-lowered` to `target-lowered`, and `target-lowered` to
-`evm-shaped`. The phase order infers each stage's input, output, and name; the
-pipeline table contains only pass slices. After `mir.input`, checkpoints
-describe only the five output phase boundaries through `mir.evm-shaped`; use
-exact pass output to inspect an optimization point inside a phase.
+The canonical MIR pipeline is one flat pass list. `lower` appears once at each
+phase boundary and advances the module by one phase. The module phase supplies
+checkpoint and timing labels; the pipeline stores no separate stage names or
+input/output phase metadata. After `mir.input`, checkpoints describe the five
+phase boundaries through `mir.evm-shaped`; use exact pass output to inspect an
+optimization point inside a phase.
 
-The EVM IR pipeline first legalizes target-version operations, then runs local
-normalization, structural sharing, stack-code regeneration, a second measured
-structural round, and final address-sensitive layout. Its stable checkpoints
-are scheduled input, target-legal IR, and final IR. Keep local profitability
-choices as separate passes. Combine transforms only when they share one
-contract and the combined pass retains truthful change reporting.
+The EVM IR pipeline is also one flat pass list. It first legalizes
+target-version operations, then runs local normalization, structural sharing,
+stack-code regeneration, and final address-sensitive layout. Its stable
+checkpoints are scheduled input, target-legal IR, and final IR. Keep local
+profitability choices as separate passes. Combine transforms only when they
+share one contract and the combined pass retains truthful change reporting.
 
 Use `-Zprint-after-stage` for stable checkpoints, `-Zprint-after-each` for an
 exact pass invocation, and `-Ztime-passes` for chronological structured timing.
@@ -174,8 +171,8 @@ programs or purposes.
   - Solidity-to-IR lowering tests go under `tests/ui/codegen/lowering/`.
   - MIR optimization tests go under `tests/ui/codegen/mir/<pass-name>/`, using
     the pass's command-line name for the directory.
-  - Progressive MIR lowering pass tests (`lower-abi`, `lower-dispatch`, and
-    `lower-evm-shaped`) go together under `tests/ui/codegen/mir/lowering/`.
+  - Progressive `lower` pass tests go under
+    `tests/ui/codegen/mir/lowering/`.
   - EVM IR optimization tests go under `tests/ui/codegen/evm-ir/<pass-name>/`,
     using the `-Zevm-ir-pipeline` pass name for the directory.
   - Pass-free round-trip fixtures, pipeline tests, and validation tests belong

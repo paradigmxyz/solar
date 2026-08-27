@@ -71,67 +71,34 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
 ];
 
-struct EvmStage {
-    id: StageId,
-    passes: &'static [&'static dyn EvmPass],
-}
-
-#[derive(Clone, Copy)]
-struct EvmStageRun {
-    id: StageId,
-    checkpoint: Option<&'static str>,
-    explicit: bool,
-}
-
-static DEFAULT_STAGES: &[EvmStage] = &[
-    EvmStage {
-        id: StageId::new("normalize", 1),
-        passes: &[
-            &peephole::Peephole,
-            &constant_data::ConstantData,
-            &compact_pushes::CompactPushes,
-            &cfg_simplify::CfgSimplify,
-            &block_layout::BlockLayout,
-            &share_reverts::ShareReverts,
-        ],
-    },
-    EvmStage {
-        id: StageId::new("share-structure", 1),
-        passes: &[
-            &terminal_dedup::TerminalDedup,
-            &cfg_simplify::CfgSimplify,
-            &tail_merge::TailMerge,
-            &cfg_simplify::CfgSimplify,
-            &tail_merge::TailMerge,
-            &outline::Outline,
-        ],
-    },
-    EvmStage {
-        id: StageId::new("regenerate", 1),
-        passes: &[
-            &compact_pushes::CompactPushes,
-            &block_cse::BlockCse,
-            &dce::Dce,
-            &peephole::Peephole,
-            &block_layout::BlockLayout,
-            &share_reverts::ShareReverts,
-        ],
-    },
-    EvmStage {
-        id: StageId::new("share-structure", 2),
-        passes: &[&tail_merge::TailMerge, &outline::Outline],
-    },
-    EvmStage {
-        id: StageId::new("finalize", 1),
-        passes: &[
-            &compact_pushes::CompactPushes,
-            &peephole::Peephole,
-            &block_cse::BlockCse,
-            &dce::Dce,
-            &block_layout::BlockLayout,
-            &share_reverts::ShareReverts,
-        ],
-    },
+static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
+    &legalize_shifts::LegalizeShifts,
+    &peephole::Peephole,
+    &constant_data::ConstantData,
+    &compact_pushes::CompactPushes,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &outline::Outline,
+    &compact_pushes::CompactPushes,
+    &block_cse::BlockCse,
+    &dce::Dce,
+    &peephole::Peephole,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &tail_merge::TailMerge,
+    &outline::Outline,
+    &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    &block_cse::BlockCse,
+    &dce::Dce,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
 ];
 
 /// Finds an EVM IR pass by command-line name.
@@ -147,19 +114,26 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    let output_name =
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let mut state = PipelineState::new(observes_pipeline(gcx));
+    let output_name = state.observed().then(|| {
+        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()))
+    });
     run_passes_inner(
         gcx,
         module,
         passes.iter().copied().map(Some),
-        &output_name,
+        output_name.as_deref().unwrap_or_default(),
         None,
         true,
         StageId::new("custom", 1),
         &mut state,
     )
+    .changed
+}
+
+struct PassRun {
+    changed: bool,
+    failed: bool,
 }
 
 #[must_use]
@@ -173,8 +147,9 @@ fn run_passes_inner<'a>(
     explicit: bool,
     stage: StageId,
     state: &mut PipelineState,
-) -> bool {
+) -> PassRun {
     let mut changed = false;
+    let mut pipeline_failed = false;
     for pass in passes {
         let pass_name = pass.map_or("none", EvmPass::name);
         let enabled = pass.is_some_and(|pass| pass.is_enabled(gcx, module));
@@ -188,14 +163,21 @@ fn run_passes_inner<'a>(
         let before = inspect_change.then(|| module.to_text().to_string());
         let mut pass_changed = false;
         let mut failed = false;
+        let mut has_errors = false;
         let mut after = None;
 
         if let Some(pass) = pass.filter(|_| enabled) {
-            let errors_before = gcx.dcx().err_count();
+            let errors_before = state.observed().then(|| gcx.dcx().err_count());
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             pass_changed = pass.run_pass(gcx, module);
             let timer = timer.stop();
-            failed = gcx.dcx().err_count() != errors_before;
+            if let Some(errors_before) = errors_before {
+                let errors_after = gcx.dcx().err_count();
+                failed = errors_after != errors_before;
+                has_errors = errors_after != 0;
+            } else {
+                has_errors = gcx.dcx().has_errors().is_err();
+            }
             after = inspect_change.then(|| module.to_text().to_string());
             let ir_changed = match (&before, &after) {
                 (Some(before), Some(after)) => before != after,
@@ -264,11 +246,12 @@ fn run_passes_inner<'a>(
                 after.as_deref().unwrap_or_default(),
             );
         }
-        if gcx.dcx().has_errors().is_err() {
+        if has_errors {
+            pipeline_failed = true;
             break;
         }
     }
-    changed
+    PassRun { changed, failed: pipeline_failed }
 }
 
 fn run_default_pipeline(
@@ -279,87 +262,82 @@ fn run_default_pipeline(
     state: &mut PipelineState,
 ) -> bool {
     let mut changed = false;
-    changed |= run_legalize_stage(gcx, module, output_name, artifact, state);
-    if gcx.dcx().has_errors().is_err() {
-        return changed;
-    }
-    for (index, stage) in DEFAULT_STAGES.iter().enumerate() {
-        changed |= run_stage(
+    let stage = StageId::new("pipeline", 1);
+    for (index, &pass) in DEFAULT_PIPELINE.iter().enumerate() {
+        let run = run_passes_inner(
             gcx,
             module,
-            stage.passes.iter().copied().map(Some),
+            std::iter::once(Some(pass)),
             output_name,
             artifact,
-            EvmStageRun {
-                id: stage.id,
-                checkpoint: (index + 1 == DEFAULT_STAGES.len()).then_some("evm.final"),
-                explicit: false,
-            },
+            false,
+            stage,
             state,
         );
-        if gcx.dcx().has_errors().is_err() {
+        changed |= run.changed;
+        if run.failed {
             return changed;
         }
+        if index == 0 {
+            print_evm_checkpoint(
+                gcx,
+                module,
+                output_name,
+                artifact,
+                state,
+                stage,
+                "evm.target-legal",
+            );
+        }
     }
+    print_evm_checkpoint(gcx, module, output_name, artifact, state, stage, "evm.final");
     changed
 }
 
-fn run_legalize_stage(
+fn run_legalize(
     gcx: Gcx<'_>,
     module: &mut Module,
     output_name: &str,
     artifact: Option<&str>,
     state: &mut PipelineState,
-) -> bool {
-    run_stage(
+) -> PassRun {
+    let stage = StageId::new("custom", 1);
+    let run = run_passes_inner(
         gcx,
         module,
         std::iter::once(Some(&legalize_shifts::LegalizeShifts as &dyn EvmPass)),
         output_name,
         artifact,
-        EvmStageRun {
-            id: StageId::new("legalize-target", 1),
-            checkpoint: Some("evm.target-legal"),
-            explicit: false,
-        },
-        state,
-    )
-}
-
-fn run_stage(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: impl IntoIterator<Item = Option<&'static dyn EvmPass>>,
-    output_name: &str,
-    artifact: Option<&str>,
-    stage: EvmStageRun,
-    state: &mut PipelineState,
-) -> bool {
-    let changed = run_passes_inner(
-        gcx,
-        module,
-        passes,
-        output_name,
-        artifact,
-        stage.explicit,
-        stage.id,
+        false,
+        stage,
         state,
     );
-    if let Some(checkpoint) = stage.checkpoint
-        && gcx.dcx().has_errors().is_ok()
-        && gcx.sess.opts.unstable.print_after_stage
-    {
+    if !run.failed {
+        print_evm_checkpoint(gcx, module, output_name, artifact, state, stage, "evm.target-legal");
+    }
+    run
+}
+
+fn print_evm_checkpoint(
+    gcx: Gcx<'_>,
+    module: &Module,
+    output_name: &str,
+    artifact: Option<&str>,
+    state: &PipelineState,
+    stage: StageId,
+    checkpoint: &str,
+) {
+    if gcx.sess.opts.unstable.print_after_stage && gcx.dcx().has_errors().is_ok() {
         print_checkpoint(
             output_name,
             "EVM-IR",
             artifact,
             state.pipeline_run(),
-            stage.id,
+            stage,
             checkpoint,
             module.to_text(),
         );
     }
-    changed
 }
 
 /// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
@@ -392,12 +370,14 @@ fn run_pipeline_inner(
         return false;
     }
 
-    let output_name =
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let mut state = PipelineState::new(observes_pipeline(gcx));
+    let output_name = state.observed().then(|| {
+        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()))
+    });
+    let output_name = output_name.as_deref().unwrap_or_default();
     if gcx.sess.opts.unstable.print_after_stage {
         print_checkpoint(
-            &output_name,
+            output_name,
             "EVM-IR",
             artifact,
             state.pipeline_run(),
@@ -408,31 +388,26 @@ fn run_pipeline_inner(
     }
 
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_default_pipeline(gcx, module, &output_name, artifact, &mut state);
+        return run_default_pipeline(gcx, module, output_name, artifact, &mut state);
     };
     let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
     let Some(passes) = pipeline else {
-        return run_default_pipeline(gcx, module, &output_name, artifact, &mut state);
+        return run_default_pipeline(gcx, module, output_name, artifact, &mut state);
     };
 
     let stage = StageId::new("custom", 1);
-    let mut changed = run_stage(
-        gcx,
-        module,
-        passes,
-        &output_name,
-        artifact,
-        EvmStageRun { id: stage, checkpoint: Some("custom-output"), explicit: true },
-        &mut state,
-    );
-    if gcx.dcx().has_errors().is_err() {
+    let run = run_passes_inner(gcx, module, passes, output_name, artifact, true, stage, &mut state);
+    let mut changed = run.changed;
+    if run.failed {
         return changed;
     }
-    changed |= run_legalize_stage(gcx, module, &output_name, artifact, &mut state);
-    if gcx.dcx().has_errors().is_err() {
+    print_evm_checkpoint(gcx, module, output_name, artifact, &state, stage, "custom-output");
+    let run = run_legalize(gcx, module, output_name, artifact, &mut state);
+    changed |= run.changed;
+    if run.failed {
         return changed;
     }
     changed

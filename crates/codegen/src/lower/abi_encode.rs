@@ -957,7 +957,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Terminates the current function with the raw values gathered for its
-    /// declared returns. `lower-abi` turns returns from external entries into
+    /// declared returns. ABI lowering turns returns from external entries into
     /// ABI-encoded returndata; internal functions keep this convention.
     pub(super) fn finish_return(
         &mut self,

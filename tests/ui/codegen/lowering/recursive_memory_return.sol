@@ -7,7 +7,7 @@
 // public function is lowered both as its external ABI entry and an internal
 // copy; the internal copy returns the struct pointer (it must NOT expand to
 // fields like the external entry). A public function returning a dynamic array
-// of word elements is passed to the lower-abi phase as a semantic return value.
+// of word elements reaches ABI lowering as a semantic return value.
 // Runtime-verified against solc: build(3) == (6,3); squares(4) == [0,1,4,9];
 // mkArr(3) == [0,10,20].
 contract C {

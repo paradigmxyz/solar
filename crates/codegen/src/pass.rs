@@ -1,7 +1,7 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
-//! implement [`MirPass`], and one ordered stage table defines the canonical
+//! implement [`MirPass`], and one ordered pass list defines the canonical
 //! pipeline.
 //! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
 //! produce results cached in an `AnalysisManager`.
@@ -66,11 +66,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &copy_elision::CopyElision,
     &dce::Dce,
     &adce::Adce,
-    &lower_abi::LowerAbi,
-    &lower_dispatch::LowerDispatch,
-    &lower_evm_shaped::LowerEvmShaped,
+    &lower::Lower,
     &lower_immutables::LowerImmutables,
-    &lower_intrinsics::LowerIntrinsics,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
@@ -79,7 +76,6 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
-    &lower_target::LowerTarget,
     &static_alloc::DeferAlloc,
     &evm_inst_schedule::EvmInstSchedule,
 ];
@@ -140,80 +136,76 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 }
 
 /// The canonical MIR pipeline, in execution order.
-static DEFAULT_PIPELINE: &[&[&dyn MirPass]] = &[
-    &[
-        &cfg_simplify::FunctionDce,
-        &SizeOnly(cfg_simplify::CfgSimplify),
-        &SizeOnly(frame_promotion::FrameSlotPromotion),
-        &SizeOnly(sroa::Sroa),
-        &sccp::Sccp,
-        &pure_eval::PureEval,
-        &inst_simplify::InstSimplify,
-        &cse::Cse,
-        &lower_mapping_slots::LowerMappingSlots,
-        &gvn::Gvn,
-        &pre::Pre,
-        &storage_load_cse::StorageLoadCse,
-        &storage_dse::StorageDse,
-        &load_pre::LoadPre,
-        &frame_promotion::FrameSlotPromotion,
-        &loop_canonicalize::LoopCanonicalize,
-        &indvar_simplify::IndVarSimplify,
-        &storage_promotion::StorageScalarPromotion,
-        &loop_opt::Licm,
-        &check_elim::CheckElim,
-        &jump_threading::JumpThreading,
-        &GasOnly(cfg_simplify::CfgSimplify),
-        &sroa::Sroa,
-        &copy_elision::CopyElision,
-        &memory_dse::MemoryDse,
-        &adce::Adce,
-        &outline_reverts::OutlineReverts,
-        &jump_threading::JumpThreading,
-        &cfg_simplify::CfgSimplify,
-        &GasOnly(inline::InlineTinyLeaves),
-        &inline::SpecializeFunctionPointers,
-        &function_compaction::DeadArgElim,
-        &cfg_simplify::FunctionDce,
-        &sccp::Sccp,
-        &inst_simplify::InstSimplify,
-        &cse::Cse,
-        &gvn::Gvn,
-        &check_elim::CheckElim,
-        &jump_threading::JumpThreading,
-        &memory_dse::MemoryDse,
-        &adce::Adce,
-        &function_compaction::MergeEquivalentFunctions,
-        &cfg_simplify::FunctionDce,
-        &lower_abi::LowerAbi,
-    ],
-    &[
-        &function_compaction::DeadArgElim,
-        &dce::Dce,
-        &function_compaction::MergeEquivalentFunctions,
-        &static_alloc::DeferAlloc,
-        &lower_abi_encode::LowerAbiEncode,
-        &frame_promotion::FrameSlotPromotion,
-        &lower_aggregates::LowerAggregates,
-        &inst_simplify::InstSimplify,
-        &cfg_simplify::CfgSimplify,
-        &memory_dse::MemoryDse,
-        &cse::Cse,
-        &dce::Dce,
-        &lower_slices::LowerSlices,
-        &lower_dispatch::LowerDispatch,
-    ],
-    &[&lower_intrinsics::LowerIntrinsics],
-    &[
-        &gvn::Gvn,
-        &copy_elision::CopyElision,
-        &adce::Adce,
-        &lower_immutables::LowerImmutables,
-        &coalesce_allocs::CoalesceAllocs,
-        &lower_target::LowerTarget,
-        &sccp::Sccp,
-    ],
-    &[&lower_evm_shaped::LowerEvmShaped, &dce::Dce, &evm_inst_schedule::EvmInstSchedule],
+static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+    &cfg_simplify::FunctionDce,
+    &SizeOnly(cfg_simplify::CfgSimplify),
+    &SizeOnly(frame_promotion::FrameSlotPromotion),
+    &SizeOnly(sroa::Sroa),
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &lower_mapping_slots::LowerMappingSlots,
+    &gvn::Gvn,
+    &pre::Pre,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &frame_promotion::FrameSlotPromotion,
+    &loop_canonicalize::LoopCanonicalize,
+    &indvar_simplify::IndVarSimplify,
+    &storage_promotion::StorageScalarPromotion,
+    &loop_opt::Licm,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &GasOnly(cfg_simplify::CfgSimplify),
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    &outline_reverts::OutlineReverts,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &GasOnly(inline::InlineTinyLeaves),
+    &inline::SpecializeFunctionPointers,
+    &function_compaction::DeadArgElim,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
+    &lower::Lower,
+    &function_compaction::DeadArgElim,
+    &dce::Dce,
+    &function_compaction::MergeEquivalentFunctions,
+    &static_alloc::DeferAlloc,
+    &lower_abi_encode::LowerAbiEncode,
+    &frame_promotion::FrameSlotPromotion,
+    &lower_aggregates::LowerAggregates,
+    &inst_simplify::InstSimplify,
+    &cfg_simplify::CfgSimplify,
+    &memory_dse::MemoryDse,
+    &cse::Cse,
+    &dce::Dce,
+    &lower_slices::LowerSlices,
+    &lower::Lower,
+    &lower::Lower,
+    &gvn::Gvn,
+    &copy_elision::CopyElision,
+    &adce::Adce,
+    &lower_immutables::LowerImmutables,
+    &coalesce_allocs::CoalesceAllocs,
+    &lower::Lower,
+    &sccp::Sccp,
+    &lower::Lower,
+    &dce::Dce,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
@@ -240,39 +232,47 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
     if let Some(passes) = custom {
         let stage = StageId::new("custom", 1);
         changed |= manager.run_passes(gcx, module, passes, true, stage);
-        if cfg!(debug_assertions) && gcx.dcx().has_errors().is_ok() {
+        if manager.failed() {
+            return changed;
+        }
+        if cfg!(debug_assertions) {
             manager.validate(gcx, module);
+            if gcx.dcx().has_errors().is_err() {
+                return changed;
+            }
         }
-        if gcx.dcx().has_errors().is_ok() {
-            manager.print_checkpoint(gcx, module, stage, "custom-output");
-        }
+        manager.print_checkpoint(gcx, module, stage, "custom-output");
         return changed;
     }
 
     manager.print_checkpoint(gcx, module, StageId::new("input", 1), "mir.input");
 
-    let mut phase = MirPhase::default();
-    for passes in DEFAULT_PIPELINE {
-        let next_phase = phase.next().expect("pipeline must end at the final MIR phase");
-        if module.phase == phase {
-            let stage = StageId::new(next_phase.name(), 1);
-            changed |=
-                manager.run_passes(gcx, module, passes.iter().copied().map(Some), false, stage);
-            if gcx.dcx().has_errors().is_err() {
-                return changed;
-            }
-            assert_eq!(module.phase, next_phase, "canonical MIR stage advanced to the wrong phase");
+    assert_eq!(module.phase, MirPhase::default(), "canonical MIR pipeline requires built MIR");
+    for &pass in DEFAULT_PIPELINE {
+        let phase = module.phase;
+        let stage = StageId::new(phase.name(), 1);
+        changed |= manager.run_passes(gcx, module, std::iter::once(Some(pass)), false, stage);
+        if manager.failed() {
+            return changed;
+        }
+        if module.phase != phase {
+            assert_eq!(module.phase, phase.next().expect("cannot advance the final MIR phase"));
             if cfg!(debug_assertions) {
                 manager.validate_phase_transition(gcx, module);
                 if gcx.dcx().has_errors().is_err() {
                     return changed;
                 }
             }
-            manager.print_checkpoint(gcx, module, stage, format_args!("mir.{}", next_phase.name()));
+            let stage = StageId::new(module.phase.name(), 1);
+            manager.print_checkpoint(
+                gcx,
+                module,
+                stage,
+                format_args!("mir.{}", module.phase.name()),
+            );
         }
-        phase = next_phase;
     }
-    assert!(phase.next().is_none(), "canonical MIR pipeline does not reach the final phase");
+    assert!(module.phase.next().is_none(), "canonical MIR pipeline does not reach the final phase");
     if cfg!(debug_assertions) {
         manager.validate_structure(gcx, module);
     }

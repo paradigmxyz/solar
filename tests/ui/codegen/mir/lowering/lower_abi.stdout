@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerAbi
 - fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
 + @phase abi
@@ -14,5 +14,59 @@
     bb0:
       mstore 128, arg0
       returndata 128, 32
+  }
+  
+- fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
++ fn @takesBytes() [selector=0x0dead002, arg_types=(memptr, u256)] {
+    bb0:
+      v0 = mload arg0
+      v1 = add v0, arg1
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+- fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
++ fn @givesBytes() [selector=0x0dead001, arg_types=(memorybytes)] {
+    bb0:
+-     ret arg0
++     v0 = abi_encode [memory_bytes], args arg0
++     v1 = slice_ptr v0
++     v2 = slice_len v0
++     returndata v1, v2
+  }
+  
+- fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
++ fn @pair() [selector=0x1f6a26ff, arg_types=(u256)] {
+    bb0:
+      v0 = add arg0, 1
+-     ret arg0, v0
++     mstore 128, arg0
++     v1 = add 128, 32
++     mstore v1, v0
++     returndata 128, 64
+  }
+  
+- fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
++ fn @pub() [selector=0x0a0a0a01, arg_types=(u256)] {
+    bb0:
+      v0 = add arg0, 1
+-     ret v0
++     mstore 128, v0
++     returndata 128, 32
+  }
+  
+- fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
++ fn @caller() [selector=0x0a0a0a02, arg_types=(u256)] {
+    bb0:
+-     v0 = internal_call @pub, 1, arg0
++     v0 = internal_call @pub.body, 1, arg0
++     mstore 128, v0
++     returndata 128, 32
++ }
++ 
++ fn @pub.body(arg0: u256) -> u256 {
++   bb0:
++     v0 = add arg0, 1
+      ret v0
   }
   

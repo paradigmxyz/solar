@@ -27,16 +27,15 @@ pub(crate) struct Immutable {
 /// The lowering phase a [`Module`] is in.
 ///
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
-/// well-defined phases, and passes declare what phase they expect and produce.
-/// Phases only move forward. The enum order is the lowering order, so
-/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
+/// well-defined phases. Phases only move forward. The enum order is the
+/// lowering order, so [`MirPhase`] derives `Ord` and `Module::advance_phase`
+/// can assert monotonicity.
 ///
 /// Progressive lowering rewrites high-level constructs into MIR instead of
-/// leaving them as backend special cases. Optimization checkpoints are pipeline
-/// stages, not phases: each phase below defines which MIR representations are
-/// legal. The backend only consumes an `evm-shaped` module. Lowering passes
-/// assume valid input from the prior canonical stages; module validation checks
-/// each phase contract.
+/// leaving them as backend special cases. Each phase below defines which MIR
+/// representations are legal. The backend only consumes an `evm-shaped`
+/// module. The `lower` pass assumes valid canonical input; module validation
+/// checks each phase contract.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Pre-ABI semantic MIR: typed values and internal calls are explicit, but
@@ -62,7 +61,7 @@ pub enum MirPhase {
     /// Functions take the shape the backend expects: every statically
     /// frame-eligible call to a callee that cannot return is an explicit
     /// `tail_call`, arguments included. Other calls retain the backend's return
-    /// protocol. Produced by `lower-evm-shaped` after representation lowering.
+    /// protocol. Produced by the final `lower` step.
     EvmShaped,
 }
 
@@ -152,22 +151,13 @@ impl Module {
             immutables: IndexVec::new(),
             is_interface: false,
             is_library: false,
-            phase: MirPhase::Built,
+            phase: MirPhase::default(),
         }
     }
 
-    /// Advances this module to a later phase.
-    ///
-    /// Phases only move forward; a pipeline that would regress the phase is a
-    /// bug in pass scheduling.
-    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
-        assert!(
-            phase >= self.phase,
-            "MIR phase cannot regress: {} -> {}",
-            self.phase.name(),
-            phase.name()
-        );
-        self.phase = phase;
+    /// Advances this module to the next phase.
+    pub(crate) fn advance_phase(&mut self) {
+        self.phase = self.phase.next().expect("cannot advance the final MIR phase");
     }
 
     /// Adds a function to the module.

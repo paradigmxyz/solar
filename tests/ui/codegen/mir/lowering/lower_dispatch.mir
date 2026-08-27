@@ -1,25 +1,40 @@
-//@compile-flags: -Zmir-pipeline=lower-dispatch
+//@compile-flags: -Zmir-pipeline=lower
 //@filecheck:
-// The dispatch phase synthesizes an `entry` function that reads the selector
-// (calldataload(0) >> 224) and switches to one argument-free internal call per
-// external wrapper, defaulting to a revert. It requires the `abi` phase, whose
-// wrappers are already argument-free.
+// The dispatch lowering step handles selector routing, receive and fallback,
+// short calldata, and one hoisted callvalue check.
 @module LowerDispatch
 @phase abi
-// CHECK-LABEL: after lower-dispatch
+// CHECK-LABEL: after lower
 // CHECK: + fn @entry{{[( ]}}
+// CHECK: + [[VALUE:v[0-9]+]] = callvalue
+// CHECK: + jumpi [[VALUE]]
 // CHECK: + [[SIZE:v[0-9]+]] = calldatasize
+// CHECK: + tail_call @receive
 // CHECK: + [[SHORT:v[0-9]+]] = lt {{v[0-9]+}}, 4
 // CHECK: + jumpi [[SHORT]]
 // CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
-// CHECK: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
-// CHECK: + tail_call @pong
-// CHECK: + tail_call @ping
-fn @ping() [selector=0x12000000] {
+// CHECK: + switch [[SELECTOR]], default {{.*}}[1 => {{.*}}2 => {{.*}}0x12000000 =>
+// CHECK: + tail_call @zero_suffix
+// CHECK: + tail_call @b
+// CHECK: + tail_call @a
+// CHECK: + tail_call @fallback
+fn @a() [selector=0x00000001] {
   bb0:
     stop
 }
-fn @pong() [selector=0x8d3a3e57] {
+fn @b() [selector=0x00000002] {
+  bb0:
+    stop
+}
+fn @zero_suffix() [selector=0x12000000] {
+  bb0:
+    stop
+}
+fn @receive() [receive] {
+  bb0:
+    stop
+}
+fn @fallback() [fallback] {
   bb0:
     stop
 }
