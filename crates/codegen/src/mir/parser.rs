@@ -1241,7 +1241,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let (lo, hi) = self.parse_span_bounds()?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
@@ -1255,39 +1255,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         Ok(metadata)
-    }
-
-    fn parse_span_bounds(&mut self) -> PResult<'sess, (u32, u32)> {
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(lo) = symbol.as_str().strip_suffix('.')
-        {
-            let lo = lo.parse().map_err(|_| self.parser.error("invalid span start"))?;
-            self.parser.bump();
-            let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let Some(hi) = symbol.as_str().strip_prefix('.') else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-
-        let lo = self.parser.parse_uint()?;
-        let lo = self.u256_to_u32(lo)?;
-        self.parser.expect(TokenKind::Dot)?;
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(hi) = symbol.as_str().strip_prefix('.')
-        {
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-        self.parser.expect(TokenKind::Dot)?;
-        let hi = self.parser.parse_uint()?;
-        Ok((lo, self.u256_to_u32(hi)?))
     }
 
     fn parse_storage_alias(

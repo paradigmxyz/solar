@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/debug_spans.evmir (before legalize-shifts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/debug_spans.evmir (after legalize-shifts) ===
+  @module LegalizeShiftDebugSpans
+  bb0:
+    push 7
+    push 1
+-   shl !metadata(span=30..40)
++   push 2 !metadata(span=30..40)
++   exp !metadata(span=30..40)
++   mul !metadata(span=30..40)
+    stop
+  
