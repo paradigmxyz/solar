@@ -620,6 +620,7 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
             let comment_start =
                 if matches!(syntax, Syntax::Disasm) { line.find(';') } else { line.find("//") };
             let (code, comment) = comment_start.map_or((line, ""), |i| line.split_at(i));
+            let (code, metadata) = code.find(" !").map_or((code, ""), |i| code.split_at(i + 1));
             let start = code.len() - code.trim_start().len();
             let trimmed = &code[start..];
             let token_start = if trimmed.starts_with('@')
@@ -643,8 +644,11 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
                 writer.write_all(token.as_bytes())?;
             }
             write_operands(writer, &code[token_end..])?;
+            if !metadata.is_empty() {
+                write!(writer, "{MUTED_STYLE}{metadata}{MUTED_STYLE:#}")?;
+            }
             if !comment.is_empty() {
-                write!(writer, "{COMMENT_STYLE}{comment}{COMMENT_STYLE:#}")?;
+                write!(writer, "{MUTED_STYLE}{comment}{MUTED_STYLE:#}")?;
             }
         }
         Ok(())
@@ -707,7 +711,7 @@ const BLUE: Color =
     Color::Ansi(if cfg!(windows) { AnsiColor::BrightCyan } else { AnsiColor::BrightBlue });
 const OPCODE_STYLE: Style = Style::new().fg_color(Some(BLUE)).bold();
 const LABEL_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightCyan))).bold();
-const COMMENT_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlack)));
+const MUTED_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightBlack)));
 const VALUE_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::Magenta))).bold();
 const LITERAL_STYLE: Style = Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightGreen)));
 
