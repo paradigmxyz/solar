@@ -1437,6 +1437,7 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulNumber => lower!(number()),
             Builtin::YulDifficulty | Builtin::YulPrevrandao => lower!(prevrandao()),
             Builtin::YulGaslimit => lower!(gaslimit()),
+            Builtin::YulSlotnum => lower!(slotnum()),
             Builtin::YulChainid => lower!(chainid()),
             Builtin::YulGas => lower!(gas()),
             Builtin::YulBasefee => lower!(basefee()),

@@ -1,0 +1,14 @@
+error: expected identifier, found Yul EVM builtin keyword `slotnum`
+   ╭▸ ROOT/tests/ui/parser/yul/amsterdam_builtin_identifiers.sol:LL:CC
+   │
+LL │             function slotnum() {}
+   ╰╴                     ━━━━━━━
+
+error: expected identifier, found Yul EVM builtin keyword `slotnum`
+   ╭▸ ROOT/tests/ui/parser/yul/amsterdam_builtin_identifiers.sol:LL:CC
+   │
+LL │             let slotnum := 1
+   ╰╴                ━━━━━━━
+
+error: aborting due to 2 previous errors
+

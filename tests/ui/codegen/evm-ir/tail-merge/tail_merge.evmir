@@ -1,4 +1,4 @@
-//@compile-flags: -Zevm-ir-pipeline=tail-merge
+//@compile-flags: -Zevm-ir-pipeline=tail-merge --evm-version amsterdam
 //@filecheck:
 @module module
 
@@ -72,54 +72,80 @@ bb4294967295:
 // CHECK-LABEL: {{^[ +].*}}bb4294967293:
 // CHECK: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}stop
 bb4294967293:
   push 0
   pop
-  push0
+  push 0
   pop
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb4294967294:
 // CHECK: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}push0
+// CHECK-NEXT: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}stop
 bb4294967294:
   push 0
   pop
-  push0
+  push 0
   pop
   stop
 
 // The second copy falls through to bb10, so its jump currently emits no bytes. Counting a
 // conservative PUSH+JUMP would make this three-byte suffix appear profitable to share.
 // CHECK-LABEL: {{^[ +].*}}bb8:
-// CHECK: {{^[ +].*}}push0
+// CHECK: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}dup 1
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}jump bb10
 bb8:
-  push0
+  push 0
   dup 1
   pop
   jump bb10
 
 // CHECK-LABEL: {{^[ +].*}}bb9:
-// CHECK: {{^[ +].*}}push0
+// CHECK: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}dup 1
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}jump bb10
 bb9:
-  push0
+  push 0
   dup 1
   pop
   jump bb10
 
 bb10:
+  stop
+
+// EXCHANGE lowers to two bytes on Amsterdam. Generic EVM IR keeps the three-swap size when deciding
+// whether to merge tails, which keeps the merge independent of target lowering.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}push 1
+// CHECK: + jump [[TAIL_D:bb[0-9]+]]
+bb11:
+  push 1
+  push 2
+  push 3
+  exchange 1, 2
+  pop
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push 4
+// CHECK: + jump [[TAIL_D]]
+bb12:
+  push 4
+  push 5
+  push 6
+  exchange 1, 2
+  pop
+  pop
   stop
 
 // CHECK: + [[TAIL_B]]:

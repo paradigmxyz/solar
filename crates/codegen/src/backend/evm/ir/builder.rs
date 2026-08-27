@@ -57,6 +57,11 @@ impl<'gcx> Assembler<'gcx> {
         self.push_ir_instruction(ir::Instruction::opcode(opcode));
     }
 
+    /// Emits a logical stack operation.
+    pub(crate) fn emit_stack_op(&mut self, stack_op: op::StackOp) {
+        self.push_ir_instruction(ir::Instruction::stack_op(stack_op));
+    }
+
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push_value(value));
@@ -185,7 +190,12 @@ impl<'gcx> Assembler<'gcx> {
             let size = usize::from(type_size.bytes()) + 1;
             (size, size)
         } else if !inst.is_encoded_push() {
-            (1, 1)
+            let size = inst.as_stack_op().map_or(1, |stack_op| {
+                stack_op
+                    .assembled_len(self.gcx.sess.opts.evm_version)
+                    .expect("stack operation must support the target EVM version")
+            });
+            (size, size)
         } else if let Some(value) = inst.pushed_value() {
             let size = push_len(self.gcx.sess.opts.evm_version, value);
             (size, size)
@@ -361,7 +371,7 @@ impl<'gcx> Assembler<'gcx> {
                 DeferredAllocResolution::Dynamic(size) => vec![
                     push(U256::from(EvmMemoryLayout::FMP_SLOT)),
                     ir::Instruction::opcode(op::MLOAD),
-                    ir::Instruction::opcode(op::DUP1),
+                    ir::Instruction::stack_op(op::StackOp::Dup(1)),
                     push(size),
                     ir::Instruction::opcode(op::ADD),
                     push(U256::from(EvmMemoryLayout::FMP_SLOT)),

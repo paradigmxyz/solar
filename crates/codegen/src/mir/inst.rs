@@ -742,6 +742,8 @@ pub(crate) enum InstKind {
     PrevRandao,
     /// Get gas limit: `gaslimit()`
     GasLimit,
+    /// Get beacon chain slot number: `slotnum()`
+    SlotNum,
     /// Get chain ID: `chainid()`
     ChainId,
     /// Get this contract's address: `address()`
@@ -1065,6 +1067,7 @@ impl InstKind {
             | Self::BlockNumber
             | Self::PrevRandao
             | Self::GasLimit
+            | Self::SlotNum
             | Self::ChainId
             | Self::Address
             | Self::SelfBalance
@@ -1257,6 +1260,7 @@ impl InstKind {
             | Self::BlockNumber
             | Self::PrevRandao
             | Self::GasLimit
+            | Self::SlotNum
             | Self::ChainId
             | Self::Address
             | Self::SelfBalance
@@ -1346,6 +1350,7 @@ impl InstKind {
             Self::BlockNumber => "number",
             Self::PrevRandao => "prevrandao",
             Self::GasLimit => "gaslimit",
+            Self::SlotNum => "slotnum",
             Self::ChainId => "chainid",
             Self::Address => "address",
             Self::Balance(_) => "balance",
@@ -1484,6 +1489,7 @@ impl InstKind {
             | Self::BlockNumber
             | Self::PrevRandao
             | Self::GasLimit
+            | Self::SlotNum
             | Self::ChainId
             | Self::Address
             | Self::Balance(_)
@@ -1551,6 +1557,7 @@ impl InstKind {
                 | Self::Timestamp
                 | Self::PrevRandao
                 | Self::GasLimit
+                | Self::SlotNum
                 | Self::ChainId
                 | Self::BaseFee
                 | Self::BlobBaseFee
@@ -1587,6 +1594,7 @@ mod tests {
     #[test]
     fn stable_nullary_reads_are_always_rematerializable() {
         assert!(InstKind::CalldataSize.is_always_rematerializable());
+        assert!(InstKind::SlotNum.is_always_rematerializable());
         assert!(!InstKind::BlockNumber.is_always_rematerializable());
         assert!(!InstKind::ReturnDataSize.is_always_rematerializable());
         assert!(!InstKind::Gas.is_always_rematerializable());

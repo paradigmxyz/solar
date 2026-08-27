@@ -180,14 +180,22 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
             .and_then(|()| {
-                write_highlighted(&mut writer, evm::disassemble(&bytecode), Syntax::Disasm)
+                write_highlighted(
+                    &mut writer,
+                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    Syntax::Disasm,
+                )
             })
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
         writeln!(writer, "// === {name} (runtime) ===")
             .and_then(|()| {
-                write_highlighted(&mut writer, evm::disassemble(&bytecode), Syntax::Disasm)
+                write_highlighted(
+                    &mut writer,
+                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    Syntax::Disasm,
+                )
             })
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
@@ -557,14 +565,22 @@ fn write_disassembly_dump_contract(
             .deployment
             .strip_suffix(artifact.runtime.as_ref())
             .expect("deployment bytecode should end with runtime bytecode");
-        write_highlighted(writer, evm::disassemble(deployment_prefix), Syntax::Disasm)
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        write_highlighted(
+            writer,
+            evm::disassemble(deployment_prefix, gcx.sess.opts.evm_version),
+            Syntax::Disasm,
+        )
+        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
         writeln!(writer, "// === {name} (runtime) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        write_highlighted(writer, evm::disassemble(&artifact.runtime), Syntax::Disasm)
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        write_highlighted(
+            writer,
+            evm::disassemble(&artifact.runtime, gcx.sess.opts.evm_version),
+            Syntax::Disasm,
+        )
+        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
 }
