@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LowerAbiEncode
   fn @static(arg0: u256) -> memoryslice {
     bb0:

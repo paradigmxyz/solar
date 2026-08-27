@@ -1,0 +1,18 @@
+//@ compile-flags: -Zmir-pipeline=lower-intrinsics
+//@ filecheck:
+@module LowerIntrinsics
+@library
+@phase dispatch
+
+// CHECK-LABEL: after lower-intrinsics
+// CHECK: + @phase intrinsics-lowered
+// CHECK: -     {{v[0-9]+}} = alloc memorybytes
+// CHECK: -     set_memory_object_len
+// CHECK: +     {{v[0-9]+}} = alloc raw
+// CHECK: +     mstore
+fn @objects() {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 96
+    set_memory_object_len memorybytes, v0, 3
+    stop
+}

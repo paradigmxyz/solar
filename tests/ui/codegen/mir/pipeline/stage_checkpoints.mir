@@ -1,12 +1,12 @@
 //@ compile-flags: -Zmir-pipeline=default -Zprint-after-stage
 //@ filecheck:
 
-// CHECK: stage=input round=1 checkpoint=mir.input
-// CHECK: stage=abi round=1 checkpoint=mir.abi
-// CHECK: stage=dispatch round=1 checkpoint=mir.dispatch
-// CHECK: stage=intrinsics-lowered round=1 checkpoint=mir.intrinsics-lowered
-// CHECK: stage=target-lowered round=1 checkpoint=mir.target-lowered
-// CHECK: stage=evm-shaped round=1 checkpoint=mir.evm-shaped
+// CHECK: stage=input checkpoint=mir.input
+// CHECK: stage=abi checkpoint=mir.abi
+// CHECK: stage=dispatch checkpoint=mir.dispatch
+// CHECK: stage=intrinsics-lowered checkpoint=mir.intrinsics-lowered
+// CHECK: stage=target-lowered checkpoint=mir.target-lowered
+// CHECK: stage=evm-shaped checkpoint=mir.evm-shaped
 @module StageCheckpoints
 
 fn @f(arg0: u256) -> u256 {

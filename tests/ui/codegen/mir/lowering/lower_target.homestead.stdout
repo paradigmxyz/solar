@@ -1,0 +1,52 @@
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_target.mir (after lower-target) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_target.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
+  @module LowerTarget
+  @library
+- @phase intrinsics-lowered
++ @phase target-lowered
+  fn @combined() -> memptr {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 32
+-     memory_zero v0, 32
+-     mcopy 0, 0, 0
++     v0 = mload 64 !metadata(memory=scratch)
++     v1 = add v0, 32
++     mstore 64, v1 !metadata(memory=scratch)
++     v2 = calldatasize
++     calldatacopy v0, v2, 32
++     v3 = not 31
++     v4 = and 0, v3
++     jump bb2
++   bb2:
++     v5 = phi [bb0: 0], [bb3: v10]
++     v6 = lt v5, v4
++     jumpi v6, bb3, bb4
++   bb4:
++     v11 = lt v4, 0
++     jumpi v11, bb5, bb1
++   bb5:
++     v12 = and 0, 31
++     v13 = sub 32, v12
++     v14 = shl 3, v13
++     v15 = add 0, v4
++     v16 = mload v15
++     v17 = shr v14, v16
++     v18 = shl v14, v17
++     v19 = add 0, v4
++     v20 = mload v19
++     v21 = shl v14, 1
++     v22 = sub v21, 1
++     v23 = and v20, v22
++     v24 = or v18, v23
++     mstore v19, v24
++     jump bb1
++   bb1:
+      ret v0
++   bb3:
++     v7 = add 0, v5
++     v8 = mload v7
++     v9 = add 0, v5
++     mstore v9, v8
++     v10 = add v5, 32
++     jump bb2
+  }
+  

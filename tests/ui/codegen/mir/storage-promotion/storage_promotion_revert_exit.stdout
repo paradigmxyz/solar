@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module StoragePromotionRevertExit
 - fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 + fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304, internal_frame_size=64] {

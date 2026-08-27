@@ -1,11 +1,22 @@
-//@ compile-flags: -Zevm-ir-pipeline=default -Zprint-after-stage
+//@ compile-flags: --evm-version byzantium -Zevm-ir-pipeline=default -Zprint-after-stage
 //@ filecheck:
 @module StageCheckpoints
 
-// CHECK: stage=input round=1 checkpoint=evm.scheduled-input
-// CHECK: stage=pipeline round=1 checkpoint=evm.target-legal
-// CHECK: stage=pipeline round=1 checkpoint=evm.final
+// CHECK: stage=input checkpoint=evm.scheduled-input
+// CHECK: shl
+// CHECK: stage=pipeline checkpoint=evm.target-legal
+// CHECK-NOT: shl
+// CHECK: exp
+// CHECK: pop
+// CHECK: stage=pipeline checkpoint=evm.final
+// CHECK-NOT: pop
+// CHECK: exp
+// CHECK: stop
 bb0:
-  push 0
-  push 0
-  revert
+  push 7
+  push 1
+  shl
+  pop
+  push 1
+  pop
+  stop

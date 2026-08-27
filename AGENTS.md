@@ -106,12 +106,12 @@ The old textual phases `optimized` and `memory-lowered` are intentionally
 unsupported. Optimization history is a checkpoint, not a representation
 contract; `intrinsics-lowered` replaces the narrower memory-object boundary.
 
-The five named phase passes share one `Lower` implementation in `lower.rs`.
-Each pass names its target phase, assumes valid canonical input, and advances
-once through `Module::advance_phase`; module validation owns representation
-checks. The backend only consumes an `evm-shaped` module, with the MIR `entry`
-as the runtime prologue and `tail_call` lowered to a jump. Pin phase changes
-with `.mir` UI tests under `tests/ui/codegen/mir/`.
+Each phase transition has a named pass type in its own file. The passes assume
+valid canonical input and advance once through `Module::advance_phase`; module
+validation owns representation checks. The backend only consumes an
+`evm-shaped` module, with the MIR `entry` as the runtime prologue and
+`tail_call` lowered to a jump. Pin phase changes with `.mir` UI tests under
+`tests/ui/codegen/mir/`.
 
 ### MIR Pipeline
 
@@ -122,16 +122,18 @@ input/output phase metadata. After `mir.input`, checkpoints describe the five
 phase boundaries through `mir.evm-shaped`; use exact pass output to inspect an
 optimization point inside a phase.
 
-The EVM IR pipeline is also one flat pass list. It first legalizes
+The canonical EVM IR pipeline is also one flat pass list. It first legalizes
 target-version operations, then runs local normalization, structural sharing,
 stack-code regeneration, and final address-sensitive layout. Its stable
 checkpoints are scheduled input, target-legal IR, and final IR. Keep local
 profitability choices as separate passes. Combine transforms only when they
 share one contract and the combined pass retains truthful change reporting.
+Custom pass lists report scheduled input, custom output, and the mandatory
+target-legal output.
 
 Use `-Zprint-after-stage` for stable checkpoints, `-Zprint-after-each` for an
 exact pass invocation, and `-Ztime-passes` for chronological structured timing.
-Timing rows identify the IR, fully qualified module and artifact, stage, round,
+Timing rows identify the IR, fully qualified module and artifact, stage,
 canonical pass, invocation, IR change, and phase-only state change.
 
 ### Visitor Pattern

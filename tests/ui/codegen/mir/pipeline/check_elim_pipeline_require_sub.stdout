@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=input checkpoint=mir.input] ===
 @module CheckElimPipelineRequireSub
 fn @guarded(arg0: u256, arg1: u256) {
   bb0:
@@ -36,7 +36,7 @@ fn @unguarded(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=abi round=1 checkpoint=mir.abi] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=abi checkpoint=mir.abi] ===
 @module CheckElimPipelineRequireSub
 @phase abi
 fn @guarded(arg0: u256, arg1: u256) {
@@ -64,7 +64,7 @@ fn @unguarded(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=dispatch round=1 checkpoint=mir.dispatch] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=dispatch checkpoint=mir.dispatch] ===
 @module CheckElimPipelineRequireSub
 @phase dispatch
 fn @guarded(arg0: u256, arg1: u256) {
@@ -101,7 +101,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 checkpoint=mir.intrinsics-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered checkpoint=mir.intrinsics-lowered] ===
 @module CheckElimPipelineRequireSub
 @phase intrinsics-lowered
 fn @guarded(arg0: u256, arg1: u256) {
@@ -138,7 +138,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 checkpoint=mir.target-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=target-lowered checkpoint=mir.target-lowered] ===
 @module CheckElimPipelineRequireSub
 @phase target-lowered
 fn @guarded(arg0: u256, arg1: u256) {
@@ -175,7 +175,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_require_sub.mir" artifact=- pipeline_run=1 stage=evm-shaped checkpoint=mir.evm-shaped] ===
 @module CheckElimPipelineRequireSub
 @phase evm-shaped
 fn @guarded(arg0: u256, arg1: u256) {

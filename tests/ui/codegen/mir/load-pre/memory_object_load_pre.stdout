@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryObjectLoadPre
   fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u256 {
     bb0:

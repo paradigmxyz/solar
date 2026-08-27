@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_copy_ranges.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_copy_ranges.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_copy_ranges.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_copy_ranges.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryDseCopyRanges
   fn @remove_store_overwritten_by_codecopy() -> u256 {
     bb0:

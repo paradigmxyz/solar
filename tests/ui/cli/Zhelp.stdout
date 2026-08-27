@@ -49,7 +49,7 @@ Options:
           Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
 
       -Zprint-after-each
-          Print MIR or EVM IR after every optimization pass
+          Print MIR or EVM IR after every pass
 
       -Zprint-after-stage
           Print MIR or EVM IR at stable pipeline checkpoints. Takes precedence over pass diffs

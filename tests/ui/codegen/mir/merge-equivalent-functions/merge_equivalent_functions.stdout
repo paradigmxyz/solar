@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MergeEquivalentFunctions
   fn @leaf_a(arg0: u256) -> u256 {
     bb0:

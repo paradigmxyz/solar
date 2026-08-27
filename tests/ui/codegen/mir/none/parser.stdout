@@ -1,4 +1,4 @@
-  // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/parser.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) [ir=MIR module="ROOT/tests/ui/codegen/mir/none/parser.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=false outcome=skipped ir_changed=false state_changed=false] ===
   @module Parser
   immutables:
     fn: u8

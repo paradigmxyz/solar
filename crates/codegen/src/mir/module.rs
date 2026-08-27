@@ -34,7 +34,7 @@ pub(crate) struct Immutable {
 /// Progressive lowering rewrites high-level constructs into MIR instead of
 /// leaving them as backend special cases. Each phase below defines which MIR
 /// representations are legal. The backend only consumes an `evm-shaped`
-/// module. The `lower` pass assumes valid canonical input; module validation
+/// module. The lowering passes assume valid canonical input; module validation
 /// checks each phase contract.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
@@ -61,7 +61,7 @@ pub enum MirPhase {
     /// Functions take the shape the backend expects: every statically
     /// frame-eligible call to a callee that cannot return is an explicit
     /// `tail_call`, arguments included. Other calls retain the backend's return
-    /// protocol. Produced by the final `lower` step.
+    /// protocol. Produced by `lower-evm-shaped`.
     EvmShaped,
 }
 

@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module StorageLoadCse
   fn @reuse_across_disjoint_constant_store() -> u256 {
     bb0:

@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module PingPong
   fn @pingpong(arg0: u256, arg1: u256) {
     bb0:

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/stack_limit.evmir [ir=EVM-IR stage=input round=1 checkpoint=evm.scheduled-input] ===
+// === ROOT/tests/ui/codegen/evm-ir/legalize-shifts/stack_limit.evmir [ir=EVM-IR stage=input checkpoint=evm.scheduled-input] ===
 @module module
 bb0:
   push 0

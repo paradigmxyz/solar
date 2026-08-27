@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
     bb0:
@@ -76,7 +76,7 @@
       stop
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
     bb0:
@@ -150,7 +150,7 @@
       stop
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
     bb0:
@@ -231,7 +231,7 @@
       stop
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
     bb0:
@@ -304,7 +304,7 @@
       stop
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
     bb0:

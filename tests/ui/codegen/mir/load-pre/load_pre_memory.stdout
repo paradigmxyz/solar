@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LoadPreMemory
   fn @mload_full_diamond(arg0: bool) -> u256 {
     bb0:

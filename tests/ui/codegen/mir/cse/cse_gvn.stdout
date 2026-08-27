@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_gvn.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_gvn.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_gvn.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_gvn.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CseGvn
   fn @nested_offsets_across_dominator(arg0: u256, arg1: bool) -> u256 {
     bb0:

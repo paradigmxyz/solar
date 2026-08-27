@@ -24,10 +24,10 @@ pub(in crate::backend::evm) use legalize_shifts::LEGACY_SHIFT_STACK_HEADROOM;
 use super::Module;
 use crate::{
     pass_manager::{
-        PipelineState, observes_pipeline, parse_pass_pipeline, pipeline_output_name,
-        print_checkpoint, print_pass_diff, print_pass_output,
+        PipelineState, observes_passes, observes_pipeline, parse_pass_pipeline,
+        pipeline_output_name, print_checkpoint, print_pass_diff, print_pass_output,
     },
-    timing::{PassTimer, StageId},
+    timing::{PassInfo, PassOutcome, PassTimer},
 };
 use solar_config::OptimizationMode;
 use solar_sema::Gcx;
@@ -106,6 +106,26 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
+struct EvmPassManager<'a> {
+    output_name: Option<String>,
+    artifact: Option<&'a str>,
+    state: PipelineState,
+}
+
+impl<'a> EvmPassManager<'a> {
+    fn new(gcx: Gcx<'_>, module: &Module, name: Option<&str>, artifact: Option<&'a str>) -> Self {
+        let state = PipelineState::new(observes_pipeline(gcx), observes_passes(gcx));
+        let output_name = state.observed().then(|| {
+            name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()))
+        });
+        Self { output_name, artifact, state }
+    }
+
+    fn output_name(&self) -> &str {
+        self.output_name.as_deref().unwrap_or_default()
+    }
+}
+
 /// Runs an EVM IR pass pipeline.
 #[must_use]
 pub fn run_passes(
@@ -114,21 +134,8 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    let mut state = PipelineState::new(observes_pipeline(gcx));
-    let output_name = state.observed().then(|| {
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()))
-    });
-    run_passes_inner(
-        gcx,
-        module,
-        passes.iter().copied().map(Some),
-        output_name.as_deref().unwrap_or_default(),
-        None,
-        true,
-        StageId::new("custom", 1),
-        &mut state,
-    )
-    .changed
+    let mut manager = EvmPassManager::new(gcx, module, name, None);
+    manager.run_passes(gcx, module, passes.iter().copied().map(Some), true, "custom").changed
 }
 
 struct PassRun {
@@ -136,207 +143,149 @@ struct PassRun {
     failed: bool,
 }
 
-#[must_use]
-#[allow(clippy::too_many_arguments)]
-fn run_passes_inner<'a>(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: impl IntoIterator<Item = Option<&'a dyn EvmPass>>,
-    output_name: &str,
-    artifact: Option<&str>,
-    explicit: bool,
-    stage: StageId,
-    state: &mut PipelineState,
-) -> PassRun {
-    let mut changed = false;
-    let mut pipeline_failed = false;
-    for pass in passes {
-        let pass_name = pass.map_or("none", EvmPass::name);
-        let enabled = pass.is_some_and(|pass| pass.is_enabled(gcx, module));
-        if !enabled && !explicit {
-            continue;
-        }
-        let invocation = state.next_invocation(pass_name);
-        let pass_diff =
-            gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage;
-        let inspect_change = pass_diff || gcx.sess.opts.unstable.print_after_each;
-        let before = inspect_change.then(|| module.to_text().to_string());
-        let mut pass_changed = false;
-        let mut failed = false;
-        let mut has_errors = false;
-        let mut after = None;
-
-        if let Some(pass) = pass.filter(|_| enabled) {
-            let errors_before = state.observed().then(|| gcx.dcx().err_count());
-            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            pass_changed = pass.run_pass(gcx, module);
-            let timer = timer.stop();
-            if let Some(errors_before) = errors_before {
-                let errors_after = gcx.dcx().err_count();
-                failed = errors_after != errors_before;
-                has_errors = errors_after != 0;
-            } else {
-                has_errors = gcx.dcx().has_errors().is_err();
+impl EvmPassManager<'_> {
+    #[must_use]
+    fn run_passes<'a>(
+        &mut self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        passes: impl IntoIterator<Item = Option<&'a dyn EvmPass>>,
+        explicit: bool,
+        stage: &'static str,
+    ) -> PassRun {
+        let mut changed = false;
+        let mut pipeline_failed = false;
+        for pass in passes {
+            let pass_name = pass.map_or("none", EvmPass::name);
+            let enabled = pass.is_some_and(|pass| pass.is_enabled(gcx, module));
+            if !enabled && !explicit {
+                continue;
             }
-            after = inspect_change.then(|| module.to_text().to_string());
-            let ir_changed = match (&before, &after) {
-                (Some(before), Some(after)) => before != after,
-                _ => pass_changed,
-            };
-            timer.finish(
-                "EVM-IR",
-                output_name,
-                artifact,
-                state.pipeline_run(),
-                stage,
-                pass_name,
-                invocation,
-                ir_changed,
-                false,
-                if failed { "failed" } else { "ok" },
-            );
-            pass_changed = ir_changed;
-            changed |= ir_changed;
-        }
-        if after.is_none() && (pass_diff || gcx.sess.opts.unstable.print_after_each) {
-            after = Some(module.to_text().to_string());
-        }
+            let invocation = self.state.next_invocation(pass_name);
+            let pass_diff =
+                gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage;
+            let print_after = pass_diff || gcx.sess.opts.unstable.print_after_each;
+            let before = pass_diff.then(|| module.to_text().to_string());
+            let mut pass_changed = false;
+            let mut failed = false;
+            let mut has_errors = false;
+            let mut after = None;
+            let mut timer = None;
 
-        if pass_diff {
-            print_pass_diff(
-                output_name,
-                "EVM-IR",
-                artifact,
-                state.pipeline_run(),
-                stage,
-                pass_name,
-                invocation,
-                pass_changed,
-                false,
-                enabled,
-                if failed {
-                    "failed"
-                } else if enabled {
-                    "ok"
+            if let Some(pass) = pass.filter(|_| enabled) {
+                let errors_before = self.state.observes_passes().then(|| gcx.dcx().err_count());
+                let pass_timer = gcx.sess.opts.unstable.time_passes.then(PassTimer::new);
+                pass_changed = pass.run_pass(gcx, module);
+                timer = pass_timer.map(PassTimer::stop);
+                if let Some(errors_before) = errors_before {
+                    let errors_after = gcx.dcx().err_count();
+                    failed = errors_after != errors_before;
+                    has_errors = errors_after != 0;
                 } else {
-                    "skipped"
-                },
-                before.as_deref().unwrap_or_default(),
-                after.as_deref().unwrap_or_default(),
-            );
-        } else if gcx.sess.opts.unstable.print_after_each {
-            print_pass_output(
-                output_name,
-                "EVM-IR",
-                artifact,
-                state.pipeline_run(),
-                stage,
-                pass_name,
-                invocation,
-                enabled,
-                if failed {
-                    "failed"
-                } else if enabled {
-                    "ok"
-                } else {
-                    "skipped"
-                },
-                pass_changed,
-                false,
-                after.as_deref().unwrap_or_default(),
-            );
+                    has_errors = gcx.dcx().has_errors().is_err();
+                }
+                after = print_after.then(|| module.to_text().to_string());
+                let ir_changed = match (&before, &after) {
+                    (Some(before), Some(after)) => before != after,
+                    _ => pass_changed,
+                };
+                pass_changed = ir_changed;
+                changed |= ir_changed;
+            }
+            if after.is_none() && print_after {
+                after = Some(module.to_text().to_string());
+            }
+
+            if timer.is_some() || pass_diff || gcx.sess.opts.unstable.print_after_each {
+                let info = PassInfo {
+                    ir: "EVM-IR",
+                    module: self.output_name(),
+                    artifact: self.artifact,
+                    pipeline_run: self.state.pipeline_run(),
+                    stage,
+                    pass: pass_name,
+                    invocation,
+                    outcome: PassOutcome::new(enabled, failed),
+                    ir_changed: pass_changed,
+                    state_changed: false,
+                };
+                if let Some(timer) = timer {
+                    timer.finish(info);
+                }
+                if pass_diff {
+                    print_pass_diff(
+                        info,
+                        before.as_deref().unwrap_or_default(),
+                        after.as_deref().unwrap_or_default(),
+                    );
+                } else if gcx.sess.opts.unstable.print_after_each {
+                    print_pass_output(info, after.as_deref().unwrap_or_default());
+                }
+            }
+            if has_errors {
+                pipeline_failed = true;
+                break;
+            }
         }
-        if has_errors {
-            pipeline_failed = true;
-            break;
-        }
+        PassRun { changed, failed: pipeline_failed }
     }
-    PassRun { changed, failed: pipeline_failed }
 }
 
 fn run_default_pipeline(
     gcx: Gcx<'_>,
     module: &mut Module,
-    output_name: &str,
-    artifact: Option<&str>,
-    state: &mut PipelineState,
+    manager: &mut EvmPassManager<'_>,
 ) -> bool {
     let mut changed = false;
-    let stage = StageId::new("pipeline", 1);
+    let stage = "pipeline";
     for (index, &pass) in DEFAULT_PIPELINE.iter().enumerate() {
-        let run = run_passes_inner(
-            gcx,
-            module,
-            std::iter::once(Some(pass)),
-            output_name,
-            artifact,
-            false,
-            stage,
-            state,
-        );
+        let run = manager.run_passes(gcx, module, std::iter::once(Some(pass)), false, stage);
         changed |= run.changed;
         if run.failed {
             return changed;
         }
         if index == 0 {
-            print_evm_checkpoint(
-                gcx,
-                module,
-                output_name,
-                artifact,
-                state,
-                stage,
-                "evm.target-legal",
-            );
+            manager.print_checkpoint(gcx, module, stage, "evm.target-legal");
         }
     }
-    print_evm_checkpoint(gcx, module, output_name, artifact, state, stage, "evm.final");
+    manager.print_checkpoint(gcx, module, stage, "evm.final");
     changed
 }
 
-fn run_legalize(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    output_name: &str,
-    artifact: Option<&str>,
-    state: &mut PipelineState,
-) -> PassRun {
-    let stage = StageId::new("custom", 1);
-    let run = run_passes_inner(
+fn run_legalize(gcx: Gcx<'_>, module: &mut Module, manager: &mut EvmPassManager<'_>) -> PassRun {
+    let stage = "custom";
+    let run = manager.run_passes(
         gcx,
         module,
         std::iter::once(Some(&legalize_shifts::LegalizeShifts as &dyn EvmPass)),
-        output_name,
-        artifact,
         false,
         stage,
-        state,
     );
     if !run.failed {
-        print_evm_checkpoint(gcx, module, output_name, artifact, state, stage, "evm.target-legal");
+        manager.print_checkpoint(gcx, module, stage, "evm.target-legal");
     }
     run
 }
 
-fn print_evm_checkpoint(
-    gcx: Gcx<'_>,
-    module: &Module,
-    output_name: &str,
-    artifact: Option<&str>,
-    state: &PipelineState,
-    stage: StageId,
-    checkpoint: &str,
-) {
-    if gcx.sess.opts.unstable.print_after_stage && gcx.dcx().has_errors().is_ok() {
-        print_checkpoint(
-            output_name,
-            "EVM-IR",
-            artifact,
-            state.pipeline_run(),
-            stage,
-            checkpoint,
-            module.to_text(),
-        );
+impl EvmPassManager<'_> {
+    fn print_checkpoint(
+        &self,
+        gcx: Gcx<'_>,
+        module: &Module,
+        stage: &'static str,
+        checkpoint: &str,
+    ) {
+        if gcx.sess.opts.unstable.print_after_stage && gcx.dcx().has_errors().is_ok() {
+            print_checkpoint(
+                self.output_name(),
+                "EVM-IR",
+                self.artifact,
+                self.state.pipeline_run(),
+                stage,
+                checkpoint,
+                module.to_text(),
+            );
+        }
     }
 }
 
@@ -370,42 +319,28 @@ fn run_pipeline_inner(
         return false;
     }
 
-    let mut state = PipelineState::new(observes_pipeline(gcx));
-    let output_name = state.observed().then(|| {
-        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()))
-    });
-    let output_name = output_name.as_deref().unwrap_or_default();
-    if gcx.sess.opts.unstable.print_after_stage {
-        print_checkpoint(
-            output_name,
-            "EVM-IR",
-            artifact,
-            state.pipeline_run(),
-            StageId::new("input", 1),
-            "evm.scheduled-input",
-            module.to_text(),
-        );
-    }
+    let mut manager = EvmPassManager::new(gcx, module, name, artifact);
+    manager.print_checkpoint(gcx, module, "input", "evm.scheduled-input");
 
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_default_pipeline(gcx, module, output_name, artifact, &mut state);
+        return run_default_pipeline(gcx, module, &mut manager);
     };
     let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
     let Some(passes) = pipeline else {
-        return run_default_pipeline(gcx, module, output_name, artifact, &mut state);
+        return run_default_pipeline(gcx, module, &mut manager);
     };
 
-    let stage = StageId::new("custom", 1);
-    let run = run_passes_inner(gcx, module, passes, output_name, artifact, true, stage, &mut state);
+    let stage = "custom";
+    let run = manager.run_passes(gcx, module, passes, true, stage);
     let mut changed = run.changed;
     if run.failed {
         return changed;
     }
-    print_evm_checkpoint(gcx, module, output_name, artifact, &state, stage, "custom-output");
-    let run = run_legalize(gcx, module, output_name, artifact, &mut state);
+    manager.print_checkpoint(gcx, module, stage, "custom-output");
+    let run = run_legalize(gcx, module, &mut manager);
     changed |= run.changed;
     if run.failed {
         return changed;

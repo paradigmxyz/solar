@@ -377,7 +377,7 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
     pub evm_ir_pipeline: Option<String>,
 
-    /// Print MIR or EVM IR after every optimization pass.
+    /// Print MIR or EVM IR after every pass.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_after_each: bool,
 

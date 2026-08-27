@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module FramePromotionSameBlock
   fn @same_block() -> u256 {
     bb0:
@@ -16,7 +16,7 @@
 +     ret v3
   }
   
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module FramePromotionSameBlock
   fn @same_block() -> u256 {
     bb0:

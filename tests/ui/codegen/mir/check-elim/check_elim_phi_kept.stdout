@@ -1,4 +1,4 @@
-  // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module CheckElimPhiKept
   fn @keep_check_on_loop_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:

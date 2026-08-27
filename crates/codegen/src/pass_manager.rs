@@ -5,7 +5,7 @@ use crate::{
         Module, validate_for_evm, validate_phase_transition_for_evm, validate_structure_for_evm,
     },
     pass::ModuleAnalyses,
-    timing::{PassTimer, StageId},
+    timing::{PassInfo, PassOutcome, PassTimer},
 };
 use solar_config::OptimizationMode;
 use solar_data_structures::{fmt::line_diff, map::FxHashMap};
@@ -88,12 +88,13 @@ pub(crate) struct PipelineState {
     pipeline_run: usize,
     invocations: FxHashMap<&'static str, usize>,
     observed: bool,
+    observes_passes: bool,
 }
 
 static NEXT_PIPELINE_RUN: AtomicUsize = AtomicUsize::new(1);
 
 impl PipelineState {
-    pub(crate) fn new(observed: bool) -> Self {
+    pub(crate) fn new(observed: bool, observes_passes: bool) -> Self {
         Self {
             pipeline_run: if observed {
                 NEXT_PIPELINE_RUN.fetch_add(1, Ordering::Relaxed)
@@ -102,6 +103,7 @@ impl PipelineState {
             },
             invocations: FxHashMap::default(),
             observed,
+            observes_passes,
         }
     }
 
@@ -113,8 +115,12 @@ impl PipelineState {
         self.observed
     }
 
+    pub(crate) fn observes_passes(&self) -> bool {
+        self.observes_passes
+    }
+
     pub(crate) fn next_invocation(&mut self, pass: &'static str) -> usize {
-        if !self.observed {
+        if !self.observes_passes {
             return 0;
         }
         let invocation = self.invocations.entry(pass).or_default();
@@ -124,10 +130,13 @@ impl PipelineState {
 }
 
 pub(crate) fn observes_pipeline(gcx: Gcx<'_>) -> bool {
+    observes_passes(gcx) || gcx.sess.opts.unstable.print_after_stage
+}
+
+pub(crate) fn observes_passes(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.time_passes
-        || gcx.sess.opts.unstable.pass_diff
+        || (gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage)
         || gcx.sess.opts.unstable.print_after_each
-        || gcx.sess.opts.unstable.print_after_stage
 }
 
 /// A streamlined trait for a MIR transformation pass.
@@ -162,7 +171,7 @@ pub(crate) struct MirPassManager {
 
 impl MirPassManager {
     pub(crate) fn new(gcx: Gcx<'_>, module: &Module, name: Option<&str>) -> Self {
-        let state = PipelineState::new(observes_pipeline(gcx));
+        let state = PipelineState::new(observes_pipeline(gcx), observes_passes(gcx));
         Self {
             output_name: state.observed().then(|| {
                 name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
@@ -181,7 +190,7 @@ impl MirPassManager {
         module: &mut Module,
         passes: impl IntoIterator<Item = Option<&'a dyn MirPass>>,
         explicit: bool,
-        stage: StageId,
+        stage: &'static str,
     ) -> bool {
         let mut changed = false;
         for pass in passes {
@@ -193,95 +202,66 @@ impl MirPassManager {
             let invocation = self.state.next_invocation(pass_name);
             let pass_diff =
                 gcx.sess.opts.unstable.pass_diff && !gcx.sess.opts.unstable.print_after_stage;
-            let inspect_change = pass_diff || gcx.sess.opts.unstable.print_after_each;
-            let before = inspect_change.then(|| module.to_text().to_string());
+            let print_after = pass_diff || gcx.sess.opts.unstable.print_after_each;
+            let before = pass_diff.then(|| module.to_text().to_string());
             let phase_before = module.phase;
             let mut ir_changed = false;
             let mut state_changed = false;
             let mut failed = false;
             let mut has_errors = false;
             let mut after = None;
+            let mut timer = None;
 
             if let Some(pass) = pass.filter(|_| enabled) {
-                let errors_before = self.state.observed().then(|| gcx.dcx().err_count());
+                let errors_before = self.state.observes_passes().then(|| gcx.dcx().err_count());
                 self.analyses.begin_pass();
-                let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+                let pass_timer = gcx.sess.opts.unstable.time_passes.then(PassTimer::new);
                 let pass_changed = pass.run_pass(gcx, module, &mut self.analyses);
-                let timer = timer.stop();
+                timer = pass_timer.map(PassTimer::stop);
                 state_changed = phase_before != module.phase;
                 if let Some(errors_before) = errors_before {
                     let errors_after = gcx.dcx().err_count();
                     failed = errors_after != errors_before;
                     has_errors = errors_after != 0;
                 }
-                after = inspect_change.then(|| module.to_text().to_string());
+                after = print_after.then(|| module.to_text().to_string());
                 ir_changed = match (&before, &after) {
                     (Some(before), Some(after)) => !mir_body(before).eq(mir_body(after)),
                     _ => pass_changed,
                 };
-                timer.finish(
-                    "MIR",
-                    self.output_name.as_deref().unwrap_or_default(),
-                    None,
-                    self.state.pipeline_run(),
-                    stage,
-                    pass_name,
-                    invocation,
-                    ir_changed,
-                    state_changed,
-                    if failed { "failed" } else { "ok" },
-                );
                 self.analyses.finish_pass(pass_changed);
                 changed |= ir_changed || state_changed;
             }
 
-            if after.is_none() && (pass_diff || gcx.sess.opts.unstable.print_after_each) {
+            if after.is_none() && print_after {
                 after = Some(module.to_text().to_string());
             }
 
-            if pass_diff {
-                print_pass_diff(
-                    self.output_name.as_deref().unwrap_or_default(),
-                    "MIR",
-                    None,
-                    self.state.pipeline_run(),
+            if timer.is_some() || pass_diff || gcx.sess.opts.unstable.print_after_each {
+                let info = PassInfo {
+                    ir: "MIR",
+                    module: self.output_name.as_deref().unwrap_or_default(),
+                    artifact: None,
+                    pipeline_run: self.state.pipeline_run(),
                     stage,
-                    pass_name,
+                    pass: pass_name,
                     invocation,
+                    outcome: PassOutcome::new(enabled, failed),
                     ir_changed,
                     state_changed,
-                    enabled,
-                    if failed {
-                        "failed"
-                    } else if enabled {
-                        "ok"
-                    } else {
-                        "skipped"
-                    },
-                    before.as_deref().unwrap_or_default(),
-                    after.as_deref().unwrap_or_default(),
-                );
-            } else if gcx.sess.opts.unstable.print_after_each {
-                print_pass_output(
-                    self.output_name.as_deref().unwrap_or_default(),
-                    "MIR",
-                    None,
-                    self.state.pipeline_run(),
-                    stage,
-                    pass_name,
-                    invocation,
-                    enabled,
-                    if failed {
-                        "failed"
-                    } else if enabled {
-                        "ok"
-                    } else {
-                        "skipped"
-                    },
-                    ir_changed,
-                    state_changed,
-                    after.as_deref().unwrap_or_default(),
-                );
+                };
+                if let Some(timer) = timer {
+                    timer.finish(info);
+                }
+                if pass_diff {
+                    print_pass_diff(
+                        info,
+                        before.as_deref().unwrap_or_default(),
+                        after.as_deref().unwrap_or_default(),
+                    );
+                } else if gcx.sess.opts.unstable.print_after_each {
+                    print_pass_output(info, after.as_deref().unwrap_or_default());
+                }
             }
             if has_errors {
                 self.failed = true;
@@ -311,7 +291,7 @@ impl MirPassManager {
         &self,
         gcx: Gcx<'_>,
         module: &Module,
-        stage: StageId,
+        stage: &'static str,
         checkpoint: impl Display,
     ) {
         if gcx.sess.opts.unstable.print_after_stage {
@@ -332,62 +312,37 @@ fn mir_body(text: &str) -> impl Iterator<Item = &str> {
     text.lines().filter(|line| !line.trim_start().starts_with("@phase "))
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn print_pass_diff(
-    name: impl Display,
-    ir: &str,
-    artifact: Option<&str>,
-    pipeline_run: usize,
-    stage: StageId,
-    pass: impl Display,
-    invocation: usize,
-    ir_changed: bool,
-    state_changed: bool,
-    executed: bool,
-    outcome: &str,
-    before: impl Display,
-    after: impl Display,
-) {
-    let marker = if ir_changed || state_changed { '+' } else { ' ' };
-    let name = name.to_string();
-    let artifact = artifact.unwrap_or("-");
-    println!(
-        "{marker} // === {name} (after {pass}) [ir={ir} module={name:?} artifact={artifact} \
-         pipeline_run={pipeline_run} stage={} round={} invocation={invocation} \
-         executed={executed} outcome={outcome} ir_changed={ir_changed} \
-         state_changed={state_changed}] ===",
-        stage.name, stage.round
-    );
-    let before = before.to_string();
-    let after = after.to_string();
-    print!("{}", line_diff(&before, &after));
+pub(crate) fn print_pass_diff(info: PassInfo<'_>, before: &str, after: &str) {
+    let marker = if info.ir_changed || info.state_changed { '+' } else { ' ' };
+    print_pass_header(info, Some(marker));
+    print!("{}", line_diff(before, after));
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn print_pass_output(
-    name: impl Display,
-    ir: &str,
-    artifact: Option<&str>,
-    pipeline_run: usize,
-    stage: StageId,
-    pass: impl Display,
-    invocation: usize,
-    executed: bool,
-    outcome: &str,
-    ir_changed: bool,
-    state_changed: bool,
-    text: impl Display,
-) {
-    let name = name.to_string();
-    let artifact = artifact.unwrap_or("-");
-    println!(
-        "// === {name} (after {pass}) [ir={ir} module={name:?} artifact={artifact} \
-         pipeline_run={pipeline_run} stage={} round={} invocation={invocation} \
-         executed={executed} outcome={outcome} ir_changed={ir_changed} \
-         state_changed={state_changed}] ===",
-        stage.name, stage.round
-    );
+pub(crate) fn print_pass_output(info: PassInfo<'_>, text: impl Display) {
+    print_pass_header(info, None);
     print!("{text}");
+}
+
+fn print_pass_header(info: PassInfo<'_>, marker: Option<char>) {
+    if let Some(marker) = marker {
+        print!("{marker} ");
+    }
+    let artifact = info.artifact.unwrap_or("-");
+    println!(
+        "// === {} (after {}) [ir={} module={:?} artifact={artifact} pipeline_run={} stage={} \
+         invocation={} executed={} outcome={} ir_changed={} state_changed={}] ===",
+        info.module,
+        info.pass,
+        info.ir,
+        info.module,
+        info.pipeline_run,
+        info.stage,
+        info.invocation,
+        info.outcome.executed(),
+        info.outcome,
+        info.ir_changed,
+        info.state_changed,
+    );
 }
 
 pub(crate) fn print_checkpoint(
@@ -395,7 +350,7 @@ pub(crate) fn print_checkpoint(
     ir: &str,
     artifact: Option<&str>,
     pipeline_run: usize,
-    stage: StageId,
+    stage: &'static str,
     checkpoint: impl Display,
     text: impl Display,
 ) {
@@ -403,8 +358,7 @@ pub(crate) fn print_checkpoint(
     let artifact = artifact.unwrap_or("-");
     println!(
         "// === {name} [ir={ir} module={name:?} artifact={artifact} \
-         pipeline_run={pipeline_run} stage={} round={} checkpoint={checkpoint}] ===",
-        stage.name, stage.round
+         pipeline_run={pipeline_run} stage={stage} checkpoint={checkpoint}] ==="
     );
     print!("{text}");
 }
@@ -415,8 +369,8 @@ mod tests {
 
     #[test]
     fn pipeline_runs_have_distinct_ids() {
-        let first = PipelineState::new(true);
-        let retry = PipelineState::new(true);
+        let first = PipelineState::new(true, true);
+        let retry = PipelineState::new(true, true);
         assert_ne!(first.pipeline_run(), retry.pipeline_run());
     }
 }

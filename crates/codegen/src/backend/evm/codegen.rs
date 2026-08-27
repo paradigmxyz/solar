@@ -1818,15 +1818,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        if cfg!(debug_assertions) {
-            validate_phase_transition_for_evm(
-                self.gcx.dcx(),
-                module,
-                self.gcx.sess.opts.evm_version,
-            );
-            if self.gcx.dcx().has_errors().is_err() {
-                return;
-            }
+        validate_phase_transition_for_evm(self.gcx.dcx(), module, self.gcx.sess.opts.evm_version);
+        if self.gcx.dcx().has_errors().is_err() {
+            return;
         }
         let _changed = run_pipeline(self.gcx, module, self.asm.output_name.as_deref());
         validate_codegen_phase(self.gcx.dcx(), module);

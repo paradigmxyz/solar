@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module DeadArgElimFrame
 - fn @framed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 + fn @framed(arg0: u256, arg1: u256) -> u256 {

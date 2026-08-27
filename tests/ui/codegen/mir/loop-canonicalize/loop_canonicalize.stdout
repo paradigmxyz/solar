@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LoopCanonicalize
   fn @insert_preheader(arg0: bool) -> u256 {
     bb0:

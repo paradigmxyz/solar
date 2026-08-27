@@ -1,0 +1,14 @@
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_intrinsics.mir (after lower-intrinsics) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_intrinsics.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
+  @module LowerIntrinsics
+  @library
+- @phase dispatch
++ @phase intrinsics-lowered
+  fn @objects() {
+    bb0:
+-     v0 = alloc memorybytes, exact, zeroed, panic, 96
+-     set_memory_object_len memorybytes, v0, 3
++     v0 = alloc raw, exact, zeroed, panic, 96
++     mstore v0, 3
+      stop
+  }
+  

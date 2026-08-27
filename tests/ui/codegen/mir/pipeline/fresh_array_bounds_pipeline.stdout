@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=input checkpoint=mir.input] ===
 @module FreshArrayBoundsPipeline
 fn @constant_index() -> u256 {
   bb0:
@@ -35,7 +35,7 @@ fn @runtime_index(arg0: u256) -> u256 {
   bb2:
     ret 7
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 checkpoint=mir.abi] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=abi checkpoint=mir.abi] ===
 @module FreshArrayBoundsPipeline
 @phase abi
 fn @constant_index() -> u256 {
@@ -71,7 +71,7 @@ fn @runtime_index(arg0: u256) -> u256 {
   bb2:
     ret 7
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=dispatch round=1 checkpoint=mir.dispatch] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=dispatch checkpoint=mir.dispatch] ===
 @module FreshArrayBoundsPipeline
 @phase dispatch
 fn @constant_index() -> u256 {
@@ -112,7 +112,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 checkpoint=mir.intrinsics-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered checkpoint=mir.intrinsics-lowered] ===
 @module FreshArrayBoundsPipeline
 @phase intrinsics-lowered
 fn @constant_index() -> u256 {
@@ -153,7 +153,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 checkpoint=mir.target-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered checkpoint=mir.target-lowered] ===
 @module FreshArrayBoundsPipeline
 @phase target-lowered
 fn @constant_index() -> u256 {
@@ -194,7 +194,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped checkpoint=mir.evm-shaped] ===
 @module FreshArrayBoundsPipeline
 @phase evm-shaped
 fn @constant_index() -> u256 {

@@ -1,4 +1,4 @@
-  // === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module PhaseExplicitBuilt
   fn @f() {
     bb0:

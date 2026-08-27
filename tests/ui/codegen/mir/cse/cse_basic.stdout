@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_basic.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_basic.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CseBasic
   fn @redundant_add(arg0: u256, arg1: u256) -> u256 {
     bb0:

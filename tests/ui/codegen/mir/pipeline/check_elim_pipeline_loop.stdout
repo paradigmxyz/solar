@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=mir.input] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=input checkpoint=mir.input] ===
 @module CheckElimPipelineLoop
 fn @sum(arg0: u256) {
   bb0:
@@ -37,7 +37,7 @@ fn @sum(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=abi round=1 checkpoint=mir.abi] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=abi checkpoint=mir.abi] ===
 @module CheckElimPipelineLoop
 @phase abi
 fn @sum(arg0: u256) {
@@ -66,7 +66,7 @@ fn @sum(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=dispatch round=1 checkpoint=mir.dispatch] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=dispatch checkpoint=mir.dispatch] ===
 @module CheckElimPipelineLoop
 @phase dispatch
 fn @sum(arg0: u256) {
@@ -104,7 +104,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 checkpoint=mir.intrinsics-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered checkpoint=mir.intrinsics-lowered] ===
 @module CheckElimPipelineLoop
 @phase intrinsics-lowered
 fn @sum(arg0: u256) {
@@ -142,7 +142,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 checkpoint=mir.target-lowered] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=target-lowered checkpoint=mir.target-lowered] ===
 @module CheckElimPipelineLoop
 @phase target-lowered
 fn @sum(arg0: u256) {
@@ -180,7 +180,7 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
-// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 checkpoint=mir.evm-shaped] ===
+// === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir" artifact=- pipeline_run=1 stage=evm-shaped checkpoint=mir.evm-shaped] ===
 @module CheckElimPipelineLoop
 @phase evm-shaped
 fn @sum(arg0: u256) {

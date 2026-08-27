@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module LowerSlices
 - fn @entry(arg0: calldataslice) [selector=0x12345678] {
 + @phase abi
@@ -41,7 +41,7 @@
       ret v3
   }
   
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LowerSlices
   @phase abi
 - fn @entry() [selector=0x12345678, arg_types=(calldataslice)] {

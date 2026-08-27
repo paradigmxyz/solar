@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module MemoryDseKeccakFold
   fn @fold_constant_scratch_keccak() -> bytes32 {
     bb0:

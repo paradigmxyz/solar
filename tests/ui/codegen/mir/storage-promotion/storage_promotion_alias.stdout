@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module StoragePromotionAlias
   fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
     bb0:

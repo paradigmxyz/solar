@@ -1,18 +1,31 @@
-// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=input round=1 checkpoint=evm.scheduled-input] ===
+// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=input checkpoint=evm.scheduled-input] ===
 @module StageCheckpoints
 bb0:
-  push 0
-  push 0
-  revert
-// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=pipeline round=1 checkpoint=evm.target-legal] ===
+  push 7
+  push 1
+  shl
+  pop
+  push 1
+  pop
+  stop
+// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=pipeline checkpoint=evm.target-legal] ===
 @module StageCheckpoints
 bb0:
-  push 0
-  push 0
-  revert
-// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=pipeline round=1 checkpoint=evm.final] ===
+  push 7
+  push 1
+  push 2
+  exp
+  mul
+  pop
+  push 1
+  pop
+  stop
+// === ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir [ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/pipeline/stage_checkpoints.evmir" artifact=- pipeline_run=1 stage=pipeline checkpoint=evm.final] ===
 @module StageCheckpoints
 bb0:
-  push 0
-  push 0
-  revert
+  push 7
+  push 1
+  push 2
+  exp
+  mul
+  stop

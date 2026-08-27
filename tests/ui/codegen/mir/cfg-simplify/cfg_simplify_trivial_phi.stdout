@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module CfgSimplifyTrivialPhi
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:
@@ -29,7 +29,7 @@
       jump bb1
   }
   
-  // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module CfgSimplifyTrivialPhi
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:

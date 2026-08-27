@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module LowerMemoryObjects
   @library
   @phase dispatch

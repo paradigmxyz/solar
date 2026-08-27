@@ -1,4 +1,4 @@
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir" artifact=- pipeline_run=1 stage=custom round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module SccpFoldEvmOps
   fn @sdiv_min_by_neg_one() -> bool {
     bb0:

@@ -1,4 +1,4 @@
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -11,7 +11,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -24,7 +24,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pure-eval) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pure-eval) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -37,7 +37,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -50,7 +50,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -63,7 +63,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-mapping-slots) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-mapping-slots) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -76,7 +76,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -89,7 +89,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -102,7 +102,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-load-cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -115,7 +115,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -128,7 +128,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -141,7 +141,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -154,7 +154,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after loop-canonicalize) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -167,7 +167,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after indvar-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after indvar-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -180,7 +180,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -193,7 +193,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -206,7 +206,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -219,7 +219,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -234,7 +234,7 @@
 +     jump bb2
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -247,7 +247,7 @@
 -     jump bb2
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sroa) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sroa) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -256,7 +256,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -265,7 +265,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -274,7 +274,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -283,7 +283,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after outline-reverts) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after outline-reverts) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -291,7 +291,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -299,7 +299,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -307,7 +307,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inline-tiny-leaves) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inline-tiny-leaves) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -315,7 +315,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after specialize-function-pointers) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after specialize-function-pointers) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -323,7 +323,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -331,7 +331,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -339,7 +339,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -347,7 +347,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -355,7 +355,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -363,7 +363,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -371,7 +371,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -379,7 +379,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -387,7 +387,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -395,7 +395,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -403,7 +403,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -411,7 +411,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
     bb0:
@@ -419,7 +419,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=built invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 + @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -428,7 +428,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dead-arg-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -437,7 +437,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -446,7 +446,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -455,7 +455,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after defer-alloc) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after defer-alloc) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -464,7 +464,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-abi-encode) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -473,7 +473,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -482,7 +482,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-aggregates) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-aggregates) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -491,7 +491,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -500,7 +500,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -509,7 +509,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after memory-dse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -518,7 +518,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -527,7 +527,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -536,7 +536,7 @@
       ret v0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase abi
   fn @noisy(arg0: u256) -> u256 {
@@ -545,7 +545,7 @@
       ret v0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi round=1 invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-dispatch) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=abi invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
   @module Pipeline
 - @phase abi
 + @phase dispatch
@@ -564,7 +564,7 @@
 +     revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-intrinsics) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=dispatch round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-intrinsics) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=dispatch invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase dispatch
 + @phase intrinsics-lowered
@@ -583,7 +583,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase intrinsics-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -601,7 +601,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after copy-elision) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase intrinsics-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -619,7 +619,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after adce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase intrinsics-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -637,7 +637,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-immutables) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-immutables) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase intrinsics-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -655,7 +655,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after coalesce-allocs) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after coalesce-allocs) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase intrinsics-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -673,7 +673,7 @@
       revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-target) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-target) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=intrinsics-lowered invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase intrinsics-lowered
 + @phase target-lowered
@@ -692,7 +692,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after sccp) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase target-lowered
   fn @noisy(arg0: u256) -> u256 {
@@ -710,7 +710,7 @@
       revert 0, 0
   }
   
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after lower-evm-shaped) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=target-lowered invocation=1 executed=true outcome=ok ir_changed=false state_changed=true] ===
   @module Pipeline
 - @phase target-lowered
 + @phase evm-shaped
@@ -729,7 +729,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped invocation=3 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase evm-shaped
   fn @noisy(arg0: u256) -> u256 {
@@ -747,7 +747,7 @@
       revert 0, 0
   }
   
-  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped round=1 invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+  // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir" artifact=- pipeline_run=1 stage=evm-shaped invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
   @module Pipeline
   @phase evm-shaped
   fn @noisy(arg0: u256) -> u256 {

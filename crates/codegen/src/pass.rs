@@ -21,7 +21,6 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
     pass_manager::{MirPassManager, parse_pass_pipeline},
-    timing::StageId,
     transform::*,
 };
 use solar_data_structures::map::FxHashMap;
@@ -66,11 +65,11 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &copy_elision::CopyElision,
     &dce::Dce,
     &adce::Adce,
-    &lower::ABI,
-    &lower::DISPATCH,
-    &lower::INTRINSICS,
-    &lower::TARGET,
-    &lower::EVM_SHAPED,
+    &lower_abi::LowerAbi,
+    &lower_dispatch::LowerDispatch,
+    &lower_intrinsics::LowerIntrinsics,
+    &lower_target::LowerTarget,
+    &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
@@ -184,7 +183,7 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &adce::Adce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
-    &lower::ABI,
+    &lower_abi::LowerAbi,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
@@ -198,16 +197,16 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cse::Cse,
     &dce::Dce,
     &lower_slices::LowerSlices,
-    &lower::DISPATCH,
-    &lower::INTRINSICS,
+    &lower_dispatch::LowerDispatch,
+    &lower_intrinsics::LowerIntrinsics,
     &gvn::Gvn,
     &copy_elision::CopyElision,
     &adce::Adce,
     &lower_immutables::LowerImmutables,
     &coalesce_allocs::CoalesceAllocs,
-    &lower::TARGET,
+    &lower_target::LowerTarget,
     &sccp::Sccp,
-    &lower::EVM_SHAPED,
+    &lower_evm_shaped::LowerEvmShaped,
     &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];
@@ -234,7 +233,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
     let mut manager = MirPassManager::new(gcx, module, name);
     let mut changed = false;
     if let Some(passes) = custom {
-        let stage = StageId::new("custom", 1);
+        let stage = "custom";
         changed |= manager.run_passes(gcx, module, passes, true, stage);
         if manager.failed() {
             return changed;
@@ -249,12 +248,12 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         return changed;
     }
 
-    manager.print_checkpoint(gcx, module, StageId::new("input", 1), "mir.input");
+    manager.print_checkpoint(gcx, module, "input", "mir.input");
 
     assert_eq!(module.phase, MirPhase::default(), "canonical MIR pipeline requires built MIR");
     for &pass in DEFAULT_PIPELINE {
         let phase = module.phase;
-        let stage = StageId::new(phase.name(), 1);
+        let stage = phase.name();
         changed |= manager.run_passes(gcx, module, std::iter::once(Some(pass)), false, stage);
         if manager.failed() {
             return changed;
@@ -267,7 +266,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
                     return changed;
                 }
             }
-            let stage = StageId::new(module.phase.name(), 1);
+            let stage = module.phase.name();
             manager.print_checkpoint(
                 gcx,
                 module,
