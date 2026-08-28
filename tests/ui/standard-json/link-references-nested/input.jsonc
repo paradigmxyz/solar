@@ -1,0 +1,25 @@
+//@ filecheck:
+// `Parent` embeds `Child`'s creation code, which carries `Lib`'s placeholder.
+// The embedded placeholder is reported as the parent's own link reference and
+// printed in solc's textual form, never as a silently linked zero address.
+// CHECK-LABEL: "Parent": {
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "linkReferences": {
+// CHECK-NEXT: "A.sol": {
+// CHECK-NEXT: "Lib": [
+// CHECK: "length": 20
+// CHECK: "object": "{{[0-9a-f]*}}__${{[0-9a-f]{34}}}$__{{[0-9a-f]*}}"
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "Parent": [
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

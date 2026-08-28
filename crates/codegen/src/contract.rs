@@ -7,7 +7,7 @@ use crate::{
     mir::{LibraryLink, Module},
     pass::run_pipeline,
 };
-use alloy_primitives::Bytes;
+use alloy_primitives::{Bytes, keccak256};
 use either::Either;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -40,6 +40,9 @@ pub struct ContractArtifact {
     pub deployment_link_references: Vec<LibraryReference>,
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
+    /// Library placeholders this artifact may contain, including those of every contract
+    /// whose creation or runtime code it embeds.
+    pub(crate) library_links: Vec<LibraryLink>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -69,6 +72,28 @@ pub struct LibraryReference {
     pub name: String,
     /// Byte offset where the address begins.
     pub start: usize,
+}
+
+impl LibraryReference {
+    /// Returns solc's textual placeholder for this reference, `__$<hash>$__`, where the hash is
+    /// the first 34 hex digits of `keccak256("<source>:<name>")`.
+    #[must_use]
+    pub fn placeholder(&self) -> String {
+        let hash = keccak256(format!("{}:{}", self.source, self.name));
+        format!("__${}$__", alloy_primitives::hex::encode(&hash[..17]))
+    }
+}
+
+/// Hex-encodes bytecode with every unresolved library address printed as solc's textual
+/// `__$<hash>$__` placeholder, so an unlinked artifact is never mistaken for deployable code.
+#[must_use]
+pub fn linkable_hex(bytecode: &[u8], references: &[LibraryReference]) -> String {
+    let mut object = alloy_primitives::hex::encode(bytecode);
+    for reference in references {
+        let start = reference.start * 2;
+        object.replace_range(start..start + 40, &reference.placeholder());
+    }
+    object
 }
 
 /// A contract selection.
@@ -428,26 +453,42 @@ fn generate_contract_bytecode(
             }
         })
         .collect();
-    let mut deployment = artifact.deployment;
-    let mut runtime = artifact.runtime;
+    // Embedded creation and runtime code carries the dependencies' placeholders verbatim, so
+    // their links are part of this artifact's link surface too.
+    let mut library_links = module.library_links().to_vec();
+    for dependency in graph.dependencies[contract_id].iter() {
+        let dependency =
+            artifacts[dependency].get().expect("dependency artifact should have been generated");
+        for link in &dependency.library_links {
+            if !library_links.contains(link) {
+                library_links.push(link.clone());
+            }
+        }
+    }
     let deployment_link_references =
-        collect_library_references(&mut deployment, module.library_links());
-    let runtime_link_references = collect_library_references(&mut runtime, module.library_links());
+        collect_library_references(&artifact.deployment, &library_links);
+    let runtime_link_references = collect_library_references(&artifact.runtime, &library_links);
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
-        deployment: deployment.into(),
-        runtime: runtime.into(),
+        deployment: artifact.deployment.into(),
+        runtime: artifact.runtime.into(),
         immutable_references,
         deployment_link_references,
         runtime_link_references,
+        library_links,
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
     })
 }
 
-fn collect_library_references(bytecode: &mut [u8], links: &[LibraryLink]) -> Vec<LibraryReference> {
+/// Locates every `PUSH20 <placeholder>` in the bytecode.
+///
+/// The placeholders stay in the artifact bytes: a dependent contract embeds this artifact
+/// verbatim and must find them again in its own scan, and outputs print them in solc's textual
+/// form rather than as a silently linked zero address.
+fn collect_library_references(bytecode: &[u8], links: &[LibraryLink]) -> Vec<LibraryReference> {
     let mut references = Vec::new();
     for link in links {
         let offsets = bytecode
@@ -459,7 +500,6 @@ fn collect_library_references(bytecode: &mut [u8], links: &[LibraryLink]) -> Vec
             })
             .collect::<Vec<_>>();
         for start in offsets {
-            bytecode[start..start + 20].fill(0);
             references.push(LibraryReference {
                 source: link.source.clone(),
                 name: link.name.clone(),
