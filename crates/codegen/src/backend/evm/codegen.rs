@@ -242,7 +242,8 @@ struct StackPhiBranch {
 struct BranchPhiShape {
     then_results: Vec<ValueId>,
     else_results: Vec<ValueId>,
-    edges: Vec<(BlockId, Vec<ValueId>, Vec<ValueId>)>,
+    /// Per predecessor, its `then` and `else` edges in its own arm orientation.
+    edges: Vec<(BlockId, StackPhiEdge, StackPhiEdge)>,
 }
 
 fn union_values(first: &[ValueId], second: &[ValueId]) -> Vec<ValueId> {
@@ -936,17 +937,11 @@ impl<'a> StackPhiPlanner<'a> {
 
             plan.entries.insert(*then_block, shape.then_results.clone());
             plan.entries.insert(*else_block, shape.else_results.clone());
-            for (pred, then_sources, else_sources) in shape.edges {
+            for (pred, then_edge, else_edge) in shape.edges {
                 let branch = StackPhiBranch {
-                    union: union_values(&then_sources, &else_sources),
-                    then_edge: StackPhiEdge {
-                        sources: then_sources,
-                        results: shape.then_results.clone(),
-                    },
-                    else_edge: StackPhiEdge {
-                        sources: else_sources,
-                        results: shape.else_results.clone(),
-                    },
+                    union: union_values(&then_edge.sources, &else_edge.sources),
+                    then_edge,
+                    else_edge,
                 };
                 plan.branch_edges.insert(pred, branch);
             }
@@ -999,22 +994,35 @@ impl<'a> StackPhiPlanner<'a> {
         }
         let mut edges = Vec::with_capacity(predecessors.len());
         for pred in predecessors {
+            let Some(Terminator::Branch { then_block: pred_then, else_block: pred_else, .. }) =
+                self.func.blocks[pred].terminator.as_ref()
+            else {
+                return None;
+            };
             if !loop_info.blocks.contains(pred)
-                || !matches!(
-                    self.func.blocks[pred].terminator,
-                    Some(Terminator::Branch { then_block: t, else_block: e, .. })
-                        if (t == then_block && e == else_block)
-                            || (t == else_block && e == then_block)
-                )
+                || !((*pred_then == then_block && *pred_else == else_block)
+                    || (*pred_then == else_block && *pred_else == then_block))
             {
                 return None;
             }
-            let then_sources = self.phi_sources_for_block_pred(then_block, pred)?;
-            let else_sources = self.phi_sources_for_block_pred(else_block, pred)?;
+            // Emission applies `then_edge` to the predecessor's own `then_block`, so a
+            // predecessor whose arms are reversed relative to the first branch carries its
+            // layouts in its own orientation.
+            let (pred_then_results, pred_else_results) = if *pred_then == then_block {
+                (then_results.clone(), else_results.clone())
+            } else {
+                (else_results.clone(), then_results.clone())
+            };
+            let then_sources = self.phi_sources_for_block_pred(*pred_then, pred)?;
+            let else_sources = self.phi_sources_for_block_pred(*pred_else, pred)?;
             if then_sources.len() > MAX_STACK_ACCESS || else_sources.len() > MAX_STACK_ACCESS {
                 return None;
             }
-            edges.push((pred, then_sources, else_sources));
+            edges.push((
+                pred,
+                StackPhiEdge { sources: then_sources, results: pred_then_results },
+                StackPhiEdge { sources: else_sources, results: pred_else_results },
+            ));
         }
         Some(BranchPhiShape { then_results, else_results, edges })
     }
