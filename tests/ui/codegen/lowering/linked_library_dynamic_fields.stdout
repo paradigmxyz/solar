@@ -652,13 +652,13 @@ bb9:
   sub
   push bb20
   jumpi
-  push 192
-  mload
   push 288
   mload
-  add
   calldatasize
-  lt
+  sub
+  push 192
+  mload
+  sgt
   push bb4
   jumpi
   push 32

@@ -152,9 +152,9 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     v9 = iszero v8
     jumpi v9, bb1, bb2
   bb2:
-    v10 = add v3, v4
-    v11 = calldatasize
-    v12 = gt v10, v11
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = slt v11, v4
     jumpi v12, bb3, bb4
   bb4:
     v13 = mul v2, 32

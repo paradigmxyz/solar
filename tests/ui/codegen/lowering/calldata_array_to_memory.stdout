@@ -122,13 +122,13 @@ bb8:
   sub
   push bb50
   jumpi
-  push 192
-  mload
   push 256
   mload
-  add
   calldatasize
-  lt
+  sub
+  push 192
+  mload
+  sgt
   push bb6
   jumpi
   push 32
@@ -310,13 +310,13 @@ bb24:
   sub
   push bb50
   jumpi
-  push 192
-  mload
   push 160
   mload
-  add
   calldatasize
-  lt
+  sub
+  push 192
+  mload
+  sgt
   push bb6
   jumpi
   push 32
@@ -472,13 +472,13 @@ bb33:
   iszero
   push bb50
   jumpi
-  push 160
-  mload
   push 256
   mload
-  add
   calldatasize
-  lt
+  sub
+  push 160
+  mload
+  sgt
   push bb6
   jumpi
   push 32

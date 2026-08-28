@@ -623,16 +623,26 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
+    // Mirror solc's calldata tail access: the offset bound is signed, so a negative
+    // offset that wraps to a valid load is accepted and the tail checks decide whether
+    // the element is valid. Bytes past `calldatasize` read as zero.
     let offset = builder.calldataload(source_head);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);
-    let invalid_offset = builder.gt(offset, available);
+    let thirty_one = builder.imm_u64(31);
+    let bound = builder.sub(available, thirty_one);
+    let valid_offset = builder.slt(offset, bound);
+    let invalid_offset = builder.iszero(valid_offset);
     revert_if_calldata_invalid(builder, invalid_offset);
     let element_base = builder.add(source_base, offset);
-    check_calldata_range(builder, element_base, word);
     let length = builder.calldataload(element_base);
+    let max_length = builder.imm_u64(u64::MAX);
+    let invalid_length = builder.gt(length, max_length);
+    revert_if_calldata_invalid(builder, invalid_length);
     let data = builder.add(element_base, word);
-    check_calldata_range(builder, data, length);
+    let limit = builder.sub(calldata_size, length);
+    let short_tail = builder.sgt(data, limit);
+    revert_if_calldata_invalid(builder, short_tail);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,
@@ -665,15 +675,6 @@ fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: Valu
     let zero = builder.imm_u64(0);
     builder.revert(zero, zero);
     builder.switch_to_block(continue_block);
-}
-
-fn check_calldata_range(builder: &mut FunctionBuilder<'_>, start: ValueId, size: ValueId) {
-    let end = builder.add(start, size);
-    let overflow = builder.lt(end, start);
-    let calldata_size = builder.calldatasize();
-    let out_of_bounds = builder.gt(end, calldata_size);
-    let invalid = builder.or(overflow, out_of_bounds);
-    revert_if_calldata_invalid(builder, invalid);
 }
 
 fn encode_word_array(

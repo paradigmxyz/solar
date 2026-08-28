@@ -9,9 +9,9 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_params
 fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = add v0, 96
-    v2 = calldatasize
-    v3 = gt v1, v2
+    v1 = calldatasize
+    v2 = sub v1, v0
+    v3 = slt v2, 96
     jumpi v3, bb1, bb2
   bb2:
     v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96

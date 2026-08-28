@@ -287,10 +287,18 @@ impl AbiType {
         if self.is_dynamic() {
             return 32;
         }
+        self.tail_size()
+    }
+
+    /// Returns the size of the value's own encoding where a tail offset points: the length
+    /// word of a dynamically sized value, or the whole head area of a statically sized one.
+    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    #[must_use]
+    pub(crate) fn tail_size(&self) -> u64 {
         match self {
+            Self::Word | Self::Function | Self::Bytes(_) | Self::DynamicArray { .. } => 32,
             Self::FixedArray { element, len } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
-            _ => 32,
         }
     }
 }
