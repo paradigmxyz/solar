@@ -1743,6 +1743,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.runtime_entry_funcs.clear();
             self.current_internal_function = None;
             self.stack_phi_sources.clear();
+            self.function_stack_peaks.clear();
+            self.internal_call_stack_edges.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 if !func.attributes.may_return_memory
@@ -1834,6 +1836,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             self.resolve_pending_frame_size_consts(module);
 
+            if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
+                self.report_stack_limit_error();
+            }
+
             // Reset constructor context
             self.in_constructor = false;
             self.constructor_args_base_const = None;
@@ -1913,9 +1919,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
                     continue;
                 }
-                if !self.internal_call_stack_edges.is_empty()
-                    && !self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH)
-                {
+                let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
+                if !stack_fits && !self.internal_call_stack_edges.is_empty() {
                     if preserve_caller_stack {
                         preserve_caller_stack = false;
                         continue;
@@ -1928,6 +1933,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.stack_returns_enabled = false;
                         continue;
                     }
+                }
+                if !stack_fits {
+                    self.report_stack_limit_error();
                 }
                 break;
             }
@@ -2011,16 +2019,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// optimization before emission because their incoming prefix is
     /// intentionally unbounded.
     fn caller_stack_prefixes_fit(&self, module: &Module, max_stack_depth: usize) -> bool {
-        if self.function_stack_peaks.values().any(|&peak| peak > max_stack_depth) {
-            return false;
-        }
         let Some(entry_id) = module
             .functions
             .iter_enumerated()
             .find_map(|(func_id, func)| func.attributes.is_dispatch_entry.then_some(func_id))
         else {
-            return true;
+            return self.function_stack_peaks.values().all(|&peak| peak <= max_stack_depth);
         };
+
+        self.stack_prefixes_fit_from(module, entry_id, max_stack_depth)
+    }
+
+    fn report_stack_limit_error(&self) {
+        self.gcx
+            .dcx()
+            .err(format!(
+                "codegen cannot keep the generated EVM stack within {MAX_STACK_DEPTH} words"
+            ))
+            .emit();
+    }
+
+    fn stack_prefixes_fit_from(
+        &self,
+        module: &Module,
+        entry_id: FunctionId,
+        max_stack_depth: usize,
+    ) -> bool {
+        if self.function_stack_peaks.values().any(|&peak| peak > max_stack_depth) {
+            return false;
+        }
 
         let mut incoming: IndexVec<FunctionId, Option<usize>> =
             index_vec![None; module.functions.len()];
@@ -4374,13 +4401,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(top) = self.scheduler.stack.top() else {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
-            let top_slot = self.scheduler.spills.allocate(top);
-            if self.scheduler.reloadable_spill(top).is_some() {
+            let restore = if let Some(op) = Self::always_rematerializable_op(func, top) {
                 self.emit_stack_op(StackOp::Pop);
+                ScheduledOp::RematerializeNullary(op)
             } else {
-                self.store_stack_top_to_spill(func, top, top_slot);
-            }
-            saved_above.push((top, top_slot));
+                let top_slot = self.scheduler.spills.allocate(top);
+                if self.scheduler.reloadable_spill(top).is_some() {
+                    self.emit_stack_op(StackOp::Pop);
+                } else {
+                    self.store_stack_top_to_spill(func, top, top_slot);
+                }
+                ScheduledOp::LoadSpill(top_slot)
+            };
+            saved_above.push((top, restore));
         }
 
         let Some(accessible_depth) = self.scheduler.stack.find(val) else {
@@ -4388,9 +4421,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         self.spill_accessible_stack_value(func, val, slot, accessible_depth);
 
-        for (saved, saved_slot) in saved_above.into_iter().rev() {
-            self.emit_spill_slot_addr(func, saved_slot);
-            self.asm.emit_op(op::MLOAD);
+        for (saved, restore) in saved_above.into_iter().rev() {
+            let stack_depth = self.scheduler.depth();
+            self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));
+            self.emit_scheduled_ops(func, [restore]);
             self.scheduler.stack.push(saved);
         }
     }
@@ -5544,10 +5578,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         for op in dead_ops {
             self.asm.emit_stack_op(op);
         }
-        #[cfg(debug_assertions)]
-        {
-            debug_assert!(self.scheduler.depth() <= 1024);
-        }
     }
 
     /// Bounds how many words an instruction can place above a stack-only operand before reaching
@@ -5615,6 +5645,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// CURRENT function's own frame, use [`Self::emit_own_frame_addr`], which
     /// resolves to an absolute address when the function has a static frame.
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
+        self.emit_current_internal_frame_addr_impl(offset, true);
+    }
+
+    fn emit_current_internal_frame_addr_impl(&mut self, offset: u64, record_peak: bool) {
+        if record_peak {
+            let growth = if offset == 0 { 1 } else { 2 };
+            self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(growth));
+        }
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
@@ -5644,6 +5682,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// absolute push for static-frame functions, the frame-pointer indirection
     /// otherwise.
     fn emit_own_frame_addr(&mut self, offset: u64) {
+        self.emit_own_frame_addr_impl(offset, true);
+    }
+
+    fn emit_own_frame_addr_impl(&mut self, offset: u64, record_peak: bool) {
         if let Some(func_id) = self.current_internal_function
             && self.static_frame_functions.contains(func_id)
         {
@@ -5655,7 +5697,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START + offset));
             return;
         }
-        self.emit_current_internal_frame_addr(offset);
+        self.emit_current_internal_frame_addr_impl(offset, record_peak);
     }
 
     /// Removes the unused dynamic-frame header and single stack-return word from a static frame.
@@ -8286,12 +8328,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
+        self.emit_spill_slot_addr_impl(func, slot, true);
+    }
+
+    fn emit_spill_slot_addr_impl(&mut self, func: &Function, slot: SpillSlot, record_peak: bool) {
         if self.in_internal_function {
             let spill_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                 + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
                 + (func.returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            self.emit_own_frame_addr(
+            self.emit_own_frame_addr_impl(
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
+                record_peak,
             );
         } else if self.in_constructor {
             let spill_addr = self.constructor_spill_base(self.immutable_encodings.len())
@@ -8331,9 +8378,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_internal_arg_load(&mut self, index: ArgIdx) {
-        self.emit_own_frame_addr(
+        self.emit_own_frame_addr_impl(
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                 + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
+            false,
         );
         self.asm.emit_op(op::MLOAD);
     }
@@ -9502,11 +9550,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_operand_plan(&mut self, func: &Function, plan: OperandPlan) {
+        let stack_depth = self.scheduler.depth();
         let ops = self.scheduler.apply_operand_plan(plan);
+        self.record_scheduled_ops_peak(stack_depth, &ops);
         self.emit_scheduled_ops(func, ops);
     }
 
-    fn emit_scheduled_ops(&mut self, func: &Function, ops: Vec<ScheduledOp>) {
+    fn record_scheduled_ops_peak(&mut self, stack_depth: usize, ops: &[ScheduledOp]) {
+        self.scheduler.observe_scheduled_ops_peak(stack_depth, ops, self.operand_cost_model());
+    }
+
+    fn emit_scheduled_ops(&mut self, func: &Function, ops: impl IntoIterator<Item = ScheduledOp>) {
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
@@ -9520,7 +9574,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
-                    self.emit_spill_slot_addr(func, slot);
+                    self.emit_spill_slot_addr_impl(func, slot, false);
                     self.asm.emit_op(op::MLOAD);
                 }
                 ScheduledOp::LoadArg(index) => {
@@ -9578,12 +9632,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
+        let stack_depth = self.scheduler.depth();
         let ops = if claim_top {
             self.scheduler.ensure_on_top(val, func)
         } else {
             self.scheduler.ensure_operand_on_top(val, func)
         }
         .to_vec();
+        self.record_scheduled_ops_peak(stack_depth, &ops);
         self.emit_scheduled_ops(func, ops);
     }
 
@@ -9592,6 +9648,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// regardless of scheduler stack tracking state.
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
+            let scheduled = ScheduledOp::RematerializeNullary(op);
+            self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
             self.asm.emit_op(op);
             self.scheduler.stack.push(val);
             return;
@@ -9607,6 +9665,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 if let Some(u256) = imm.as_u256() {
+                    let scheduled = ScheduledOp::PushImmediate(u256);
+                    self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
                     self.asm.emit_push(u256);
                     self.scheduler.stack.push(val);
                 }
@@ -9632,6 +9692,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
                 }
+                let scheduled = ScheduledOp::LoadArg(*index);
+                self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
@@ -9661,6 +9723,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
                     // executes before any use at runtime.
+                    let scheduled = ScheduledOp::LoadSpill(slot);
+                    self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
                     self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(op::MLOAD);
                     self.scheduler.stack.push(val);
@@ -9699,6 +9763,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // that still executes first at runtime.
                             if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
                                 if let Some(slot) = self.scheduler.reloadable_spill(val) {
+                                    let scheduled = ScheduledOp::LoadSpill(slot);
+                                    self.record_scheduled_ops_peak(
+                                        self.scheduler.depth(),
+                                        &[scheduled],
+                                    );
                                     self.emit_spill_slot_addr(func, slot);
                                     self.asm.emit_op(op::MLOAD);
                                     self.scheduler.stack.push(val);
@@ -9813,6 +9882,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 } else {
                                     let slot = self.scheduler.spills.allocate(val);
                                     self.spill_deep_stack_value(func, val, slot, depth);
+                                    let scheduled = ScheduledOp::LoadSpill(slot);
+                                    self.record_scheduled_ops_peak(
+                                        self.scheduler.depth(),
+                                        &[scheduled],
+                                    );
                                     self.emit_spill_slot_addr(func, slot);
                                     self.asm.emit_op(op::MLOAD);
                                     self.scheduler.stack.push(val);
@@ -9820,6 +9894,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                             } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
                                 // A defining block emitted later still stores
                                 // this slot before the load executes at runtime.
+                                let scheduled = ScheduledOp::LoadSpill(slot);
+                                self.record_scheduled_ops_peak(
+                                    self.scheduler.depth(),
+                                    &[scheduled],
+                                );
                                 self.emit_spill_slot_addr(func, slot);
                                 self.asm.emit_op(op::MLOAD);
                                 self.scheduler.stack.push(val);
@@ -10707,6 +10786,9 @@ mod tests {
             entry.attributes.is_dispatch_entry = true;
             let entry = module.add_function(entry);
             let callee = module.add_function(Function::new(Ident::with_dummy_span(sym::Test)));
+            let mut constructor = Function::new(Ident::DUMMY);
+            constructor.attributes.is_constructor = true;
+            let constructor = module.add_function(constructor);
 
             codegen.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.function_stack_peaks.insert(entry, 1);
@@ -10733,6 +10815,15 @@ mod tests {
             codegen.internal_call_stack_edges[0].argument_words = MAX_STACK_DEPTH;
             codegen.function_stack_peaks.insert(callee, 0);
             assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
+
+            codegen.internal_call_stack_edges[0] = InternalCallStackEdge {
+                caller: constructor,
+                callee,
+                preserved_words: 1,
+                argument_words: 0,
+            };
+            codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 1);
+            assert!(!codegen.stack_prefixes_fit_from(&module, constructor, MAX_STACK_DEPTH));
         });
     }
 

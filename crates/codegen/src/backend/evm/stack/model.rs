@@ -62,6 +62,11 @@ impl StackModel {
         self.max_depth = self.max_depth.max(max_depth);
     }
 
+    /// Records a transient physical stack peak that is not represented by logical values.
+    pub(crate) fn observe_peak(&mut self, depth: usize) {
+        self.max_depth = self.max_depth.max(depth);
+    }
+
     /// Pushes a value onto the stack.
     pub(crate) fn push(&mut self, value: ValueId) {
         self.stack.insert(0, Some(value));

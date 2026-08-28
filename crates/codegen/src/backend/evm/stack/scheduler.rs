@@ -182,6 +182,16 @@ impl ScheduledOp {
             Self::Stack(_) => 0,
         }
     }
+
+    fn net_stack_growth(&self) -> isize {
+        match self {
+            Self::Stack(op) => op.net_growth(),
+            Self::PushImmediate(_)
+            | Self::RematerializeNullary(_)
+            | Self::LoadSpill(_)
+            | Self::LoadArg(_) => 1,
+        }
+    }
 }
 
 /// Cost of materializing a spill or argument under the active frame convention.
@@ -585,6 +595,22 @@ impl Ord for QueueEntry {
 }
 
 impl StackScheduler {
+    /// Records the physical high-water mark of scheduled macro operations.
+    pub(crate) fn observe_scheduled_ops_peak(
+        &mut self,
+        mut depth: usize,
+        ops: &[ScheduledOp],
+        cost_model: OperandCostModel,
+    ) -> usize {
+        let mut peak = depth;
+        for op in ops {
+            peak = peak.max(depth.saturating_add(op.stack_peak_growth(cost_model)));
+            depth = depth.saturating_add_signed(op.net_stack_growth());
+        }
+        self.stack.observe_peak(peak);
+        peak
+    }
+
     /// Creates a new stack scheduler.
     #[cfg(test)]
     #[must_use]
@@ -2100,6 +2126,9 @@ impl StackScheduler {
         if self.is_stack_only_value(value) {
             return None;
         }
+        if let Some(op) = Self::rematerialize_nullary(value, func) {
+            return Some(op);
+        }
         if let Some(slot) = self.reloadable_spill(value) {
             return Some(ScheduledOp::LoadSpill(slot));
         }
@@ -2107,12 +2136,15 @@ impl StackScheduler {
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().map(ScheduledOp::PushImmediate),
             crate::mir::Value::Arg(index) => Some(ScheduledOp::LoadArg(*index)),
-            crate::mir::Value::Inst(inst_id) => {
-                rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
-                    .map(ScheduledOp::RematerializeNullary)
-            }
+            crate::mir::Value::Inst(_) => None,
             _ => None,
         }
+    }
+
+    fn rematerialize_nullary(value: ValueId, func: &Function) -> Option<ScheduledOp> {
+        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
+        rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+            .map(ScheduledOp::RematerializeNullary)
     }
 
     /// Ensures a value is on top of the stack.
@@ -2151,16 +2183,25 @@ impl StackScheduler {
             return &self.ops;
         }
 
-        if let Some(depth) = self.stack.find(value) {
-            if depth < self.max_stack_access() {
-                // The value is accessible via DUP.
-                let dup_n = (depth + 1) as u8;
-                self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
-                self.stack.dup(dup_n);
-                return &self.ops;
-            }
-            // Value is too deep for DUP. It must either be reloadable from a spill slot or
-            // re-emittable below.
+        let resident_depth = self.stack.find(value);
+        if let Some(depth) = resident_depth
+            && depth < self.max_stack_access()
+        {
+            // The value is accessible via DUP.
+            let dup_n = (depth + 1) as u8;
+            self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
+            self.stack.dup(dup_n);
+            return &self.ops;
+        }
+
+        if let Some(op) = Self::rematerialize_nullary(value, func) {
+            self.ops.push(op);
+            self.stack.push(value);
+            return &self.ops;
+        }
+
+        if resident_depth.is_some() {
+            // The value is too deep for DUP. It must be reloadable from a spill slot.
             if let Some(slot) = self.reloadable_spill(value) {
                 self.ops.push(ScheduledOp::LoadSpill(slot));
                 self.stack.push(value);
@@ -2965,6 +3006,48 @@ mod tests {
                 )
                 .is_some()
         );
+    }
+
+    #[test]
+    fn fallback_materialization_accounts_for_load_peak() {
+        let mut func = Function::new(Ident::DUMMY);
+        let argument = func.alloc_param(MirType::uint256());
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let mut scheduler = StackScheduler::new();
+        for _ in 0..MAX_STACK_DEPTH - 1 {
+            scheduler.stack.push(filler);
+        }
+
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
+        let peak = scheduler.observe_scheduled_ops_peak(
+            start_depth,
+            &ops,
+            OperandCostModel::DYNAMIC_FRAME,
+        );
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
+        assert_eq!(scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+
+        scheduler.stack.pop();
+        scheduler.spills.allocate(argument);
+        scheduler.spills.mark_stored(argument);
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
+        let peak = scheduler.observe_scheduled_ops_peak(
+            start_depth,
+            &ops,
+            OperandCostModel::DYNAMIC_FRAME,
+        );
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
+
+        let immediate =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(immediate, &func).to_vec();
+        let peak =
+            scheduler.observe_scheduled_ops_peak(start_depth, &ops, OperandCostModel::DIRECT);
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
     }
 
     #[test]
@@ -4006,6 +4089,35 @@ mod tests {
             .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+    }
+
+    #[test]
+    fn operand_plan_prefers_stable_nullary_rematerialization() {
+        let mut func = make_test_func();
+        let (_, value) =
+            func.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.spills.allocate(value);
+        scheduler.spills.mark_stored(value);
+
+        let plan = scheduler
+            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
+            .unwrap();
+
+        assert_eq!(
+            plan.actions[0].op,
+            ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)
+        );
+
+        scheduler.stack.push(value);
+        for index in 0..MAX_STACK_ACCESS {
+            scheduler.stack.push(ValueId::from_usize(100 + index));
+        }
+        assert_eq!(scheduler.stack.find(value), Some(MAX_STACK_ACCESS));
+        assert_eq!(
+            scheduler.ensure_on_top(value, &func),
+            [ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)]
+        );
     }
 
     #[test]
