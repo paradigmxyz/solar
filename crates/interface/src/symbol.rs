@@ -1193,6 +1193,7 @@ symbols! {
         storage_write,
         storageptr,
         store_recursive_storage,
+        store_storage_bytes,
         storeimmutable,
         super_: "super",
         swap,
