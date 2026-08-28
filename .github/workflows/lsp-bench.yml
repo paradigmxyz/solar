@@ -1,0 +1,221 @@
+name: Cross-server Solidity LSP benchmark
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  pr-smoke:
+    name: cross-server PR smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    continue-on-error: true
+    permissions:
+      contents: read
+    concurrency:
+      group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Check runner prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$(uname -m)" = x86_64
+          for command in cargo curl git lscpu node npm rustc sha256sum tar; do
+            command -v "$command"
+          done
+
+      - name: Build candidate and harness
+        run: |
+          cargo build --locked --release -p solar-lsp-bench
+          cargo build --locked --release -p solar-compiler --bin solar
+
+      - name: Prepare core4 and synthetic fixture
+        run: >-
+          target/release/solar-lsp-bench prepare --fixture synthetic --server solar --server asyncswap --server nomic-foundation --server solc
+
+      - name: Record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/provenance
+          {
+            echo "repository=$(git rev-parse HEAD)"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS-}"
+            echo "image_version=${ImageVersion-}"
+            uname -a
+            lscpu
+            rustc --version --verbose
+            cargo --version --verbose
+            node --version
+            npm --version
+            sha256sum \
+              tools/lsp-bench/benchmark.yaml \
+              tools/lsp-bench/servers.lock.yaml \
+              tools/lsp-bench/fixtures.lock.yaml
+          } > target/lsp-bench/provenance/environment.txt
+          npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
+            > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
+
+      - name: Run PR smoke comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          target/release/solar-lsp-bench run \
+            --profile pr-smoke \
+            --server solar --server asyncswap --server nomic-foundation --server solc \
+            --output target/lsp-bench/pr-smoke \
+            --allow-failures \
+            --solar-binary target/release/solar \
+            --solar-revision "$(git rev-parse HEAD)"
+
+      - name: Publish PR smoke summary
+        if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''
+        run: cat target/lsp-bench/pr-smoke/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload PR smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-lsp-pr-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/lsp-bench/pr-smoke/summary.md
+            target/lsp-bench/pr-smoke/summary.json
+            target/lsp-bench/pr-smoke/samples.json
+            target/lsp-bench/pr-smoke/samples.jsonl
+            target/lsp-bench/provenance/
+            tools/lsp-bench/benchmark.yaml
+            tools/lsp-bench/servers.lock.yaml
+            tools/lsp-bench/fixtures.lock.yaml
+            tools/lsp-bench/install/
+          retention-days: 30
+          if-no-files-found: warn
+
+  full:
+    name: full cross-server comparison
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    concurrency:
+      group: ${{ github.workflow }}-full-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Check runner prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$(uname -m)" = x86_64
+          for command in cargo curl git lscpu node npm rustc sha256sum tar; do
+            command -v "$command"
+          done
+
+      - name: Build main and harness
+        run: |
+          cargo build --locked --release -p solar-lsp-bench
+          cargo build --locked --release -p solar-compiler --bin solar
+
+      - name: Prepare core4 and all fixtures
+        run: >-
+          target/release/solar-lsp-bench prepare --server solar --server asyncswap --server nomic-foundation --server solc
+
+      - name: Record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/provenance
+          {
+            echo "repository=$(git rev-parse HEAD)"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS-}"
+            echo "image_version=${ImageVersion-}"
+            uname -a
+            lscpu
+            rustc --version --verbose
+            cargo --version --verbose
+            node --version
+            npm --version
+            sha256sum \
+              tools/lsp-bench/benchmark.yaml \
+              tools/lsp-bench/servers.lock.yaml \
+              tools/lsp-bench/fixtures.lock.yaml
+          } > target/lsp-bench/provenance/environment.txt
+          npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
+            > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
+
+      - name: Audit prepared inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          target/release/solar-lsp-bench doctor --server solar --server asyncswap --server nomic-foundation --server solc \
+            | tee target/lsp-bench/doctor.txt
+
+      - name: Run full comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          target/release/solar-lsp-bench run \
+            --profile full \
+            --server solar --server asyncswap --server nomic-foundation --server solc \
+            --output target/lsp-bench/full \
+            --solar-binary target/release/solar \
+            --solar-revision "$(git rev-parse HEAD)"
+
+      - name: Publish full summary
+        if: always() && hashFiles('target/lsp-bench/full/summary.md') != ''
+        run: cat target/lsp-bench/full/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-lsp-full-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/lsp-bench/full/summary.md
+            target/lsp-bench/full/summary.json
+            target/lsp-bench/full/samples.json
+            target/lsp-bench/full/samples.jsonl
+            target/lsp-bench/doctor.txt
+            target/lsp-bench/provenance/
+            tools/lsp-bench/benchmark.yaml
+            tools/lsp-bench/servers.lock.yaml
+            tools/lsp-bench/fixtures.lock.yaml
+            tools/lsp-bench/install/
+          retention-days: 90
+          if-no-files-found: warn

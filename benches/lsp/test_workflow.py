@@ -1233,13 +1233,15 @@ class ExecutionAndRemovalTests(unittest.TestCase):
             BENCH_WORKFLOW,
         )
 
-    def test_legacy_lsp_stack_is_absent(self) -> None:
+    def test_cross_server_stack_coexists_with_command_gate(self) -> None:
         workflow_names = {
             path.name for path in (ROOT / ".github/workflows").glob("lsp-bench*.yml")
         }
 
-        self.assertEqual(workflow_names, {"lsp-bench-command.yml"})
-        self.assertFalse((ROOT / "tools/lsp-bench").exists())
+        self.assertEqual(
+            workflow_names, {"lsp-bench-command.yml", "lsp-bench.yml"}
+        )
+        self.assertTrue((ROOT / "tools/lsp-bench/Cargo.toml").is_file())
         self.assertFalse((ROOT / "LspBenchRunnerProbe.md").exists())
         for name in (
             "lsp-bench-authoritative-validate.jq",

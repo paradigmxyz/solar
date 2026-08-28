@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+
+"""Contract tests for the manifest-driven cross-server benchmark workflow."""
+
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench.yml"
+CHECKOUT_ACTION = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+RUST_ACTION = "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772"
+UPLOAD_ACTION = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+SERVER_ARGS = "--server solar --server asyncswap --server nomic-foundation --server solc"
+
+
+def workflow() -> str:
+    if not WORKFLOW_PATH.is_file():
+        raise AssertionError(f"workflow is missing: {WORKFLOW_PATH}")
+    return WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def job_block(name: str) -> str:
+    jobs = workflow().split("\njobs:\n", 1)[1]
+    match = re.search(
+        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        jobs,
+        re.MULTILINE | re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(f"job {name!r} is missing")
+    return match.group(0)
+
+
+def step_block(job: str, name: str) -> str:
+    marker = f"      - name: {name}\n"
+    if marker not in job:
+        raise AssertionError(f"step {name!r} is missing")
+    remainder = job.split(marker, 1)[1]
+    next_step = remainder.find("\n      - ")
+    if next_step >= 0:
+        remainder = remainder[:next_step]
+    return marker + remainder
+
+
+class CrossServerWorkflowTests(unittest.TestCase):
+    def test_triggers_permissions_and_runtime_bounds_are_preserved(self) -> None:
+        text = workflow()
+        header = text.split("\njobs:\n", 1)[0]
+        pr = job_block("pr-smoke")
+        full = job_block("full")
+
+        self.assertIn("\n  pull_request:\n", header)
+        self.assertIn("\n  workflow_dispatch:\n", header)
+        self.assertNotIn("pull_request_target", header)
+        self.assertNotIn("issue_comment", header)
+        self.assertNotIn("schedule:", header)
+        self.assertIn("\npermissions: {}\n", header)
+
+        self.assertIn("if: github.event_name == 'pull_request'", pr)
+        self.assertIn("continue-on-error: true", pr)
+        self.assertIn("runs-on: ubuntu-24.04", pr)
+        self.assertIn("contents: read", pr)
+        self.assertIn("cancel-in-progress: true", pr)
+        self.assertIn(
+            "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+            full,
+        )
+        self.assertIn("runs-on: ubuntu-24.04", full)
+        self.assertIn("timeout-minutes: 360", full)
+        self.assertIn("contents: read", full)
+        self.assertIn("cancel-in-progress: false", full)
+        self.assertNotIn("continue-on-error: true", full)
+
+    def test_jobs_use_pinned_checkouts_and_release_builds(self) -> None:
+        text = workflow()
+
+        self.assertEqual(text.count(f"uses: {CHECKOUT_ACTION}"), 2)
+        self.assertEqual(text.count(f"uses: {RUST_ACTION}"), 2)
+        self.assertEqual(text.count("persist-credentials: false"), 2)
+        self.assertEqual(text.count('toolchain: "1.96"'), 2)
+        self.assertEqual(
+            text.count("cargo build --locked --release -p solar-lsp-bench"), 2
+        )
+        self.assertEqual(
+            text.count("cargo build --locked --release -p solar-compiler --bin solar"),
+            2,
+        )
+        self.assertNotIn("github-script", text)
+
+    def test_pr_smoke_runs_core4_synthetic_with_failure_tolerance(self) -> None:
+        pr = job_block("pr-smoke")
+        run = step_block(pr, "Run PR smoke comparison")
+
+        self.assertIn(f"prepare --fixture synthetic {SERVER_ARGS}", pr)
+        self.assertIn("run \\\n            --profile pr-smoke", run)
+        self.assertIn(SERVER_ARGS, run)
+        self.assertIn("--allow-failures", run)
+        self.assertIn("--solar-binary target/release/solar", run)
+        self.assertIn('--solar-revision "$(git rev-parse HEAD)"', run)
+        self.assertNotIn("--require-authoritative", pr)
+
+    def test_manual_full_runs_strict_core4_matrix(self) -> None:
+        full = job_block("full")
+        run = step_block(full, "Run full comparison")
+
+        self.assertIn(f"prepare {SERVER_ARGS}", full)
+        self.assertIn(f"doctor {SERVER_ARGS}", full)
+        self.assertIn("run \\\n            --profile full", run)
+        self.assertIn(SERVER_ARGS, run)
+        self.assertNotIn("--allow-failures", run)
+        self.assertIn("--solar-binary target/release/solar", run)
+        self.assertIn('--solar-revision "$(git rev-parse HEAD)"', run)
+        self.assertNotIn("--require-authoritative", full)
+
+    def test_run_publishes_summary_without_validation_or_rerender(self) -> None:
+        text = workflow()
+
+        # A run is self-contained: no same-job validation or report command is
+        # needed before publishing the summary generated by the runner.
+        self.assertNotIn("validate-results", text)
+        self.assertNotIn("steps.validate", text)
+        self.assertNotIn("COMPARISON.md", text)
+        self.assertNotRegex(text, r"solar-lsp-bench report(?:\s|\\)")
+
+        for job_name, output, retention in (
+            ("pr-smoke", "target/lsp-bench/pr-smoke", 30),
+            ("full", "target/lsp-bench/full", 90),
+        ):
+            job = job_block(job_name)
+            publish_name = (
+                "Publish PR smoke summary"
+                if job_name == "pr-smoke"
+                else "Publish full summary"
+            )
+            publish = step_block(job, publish_name)
+            self.assertIn(
+                f"if: always() && hashFiles('{output}/summary.md') != ''", publish
+            )
+            self.assertIn(
+                f"cat {output}/summary.md >> \"$GITHUB_STEP_SUMMARY\"", publish
+            )
+
+            upload_name = (
+                "Upload PR smoke evidence"
+                if job_name == "pr-smoke"
+                else "Upload full evidence"
+            )
+            upload = step_block(job, upload_name)
+            self.assertIn("if: always()", upload)
+            for name in (
+                "summary.md",
+                "summary.json",
+                "samples.json",
+                "samples.jsonl",
+            ):
+                self.assertIn(f"{output}/{name}", upload)
+            self.assertIn("tools/lsp-bench/benchmark.yaml", upload)
+            self.assertIn("tools/lsp-bench/servers.lock.yaml", upload)
+            self.assertIn("tools/lsp-bench/fixtures.lock.yaml", upload)
+            self.assertIn("tools/lsp-bench/install/", upload)
+            self.assertIn("target/lsp-bench/provenance/", upload)
+            self.assertIn(f"retention-days: {retention}", upload)
+            self.assertIn("if-no-files-found: warn", upload)
+
+        self.assertEqual(text.count(f"uses: {UPLOAD_ACTION}"), 2)
+        self.assertIn("${{ github.run_id }}-${{ github.run_attempt }}", text)
+
+
+if __name__ == "__main__":
+    unittest.main()
