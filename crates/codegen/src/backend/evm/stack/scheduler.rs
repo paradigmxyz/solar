@@ -2259,6 +2259,9 @@ impl StackScheduler {
         if self.is_stack_only_value(value) {
             return false;
         }
+        if Self::rematerialize_nullary(value, func).is_some() {
+            return true;
+        }
         if self.should_recompute_unstored_spill(value) {
             return true;
         }
@@ -4099,6 +4102,8 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(value);
         scheduler.spills.mark_stored(value);
+
+        assert!(scheduler.can_emit_value(value, &func));
 
         let plan = scheduler
             .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
