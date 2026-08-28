@@ -6,6 +6,8 @@
 // CHECK: sub
 // CHECK-NEXT: push bb3
 // CHECK-NEXT: jumpi
+// The first block CSE makes bb1 and bb2 identical. The second structural sweep
+// then joins them, so only the final DCE exposes the checked peephole.
 bb0:
   push 320
   dup 1
