@@ -8,7 +8,7 @@ use solar_codegen::{
     mir::{Module, validate},
     pass,
 };
-use solar_config::{CompilerOutput, Dump, DumpKind};
+use solar_config::{CompilerOutput, DebugInfoFormat, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
@@ -25,6 +25,8 @@ type Hashes = BTreeMap<String, String>;
 struct CombinedJson<'a> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     contracts: BTreeMap<String, CombinedJsonContract<'a>>,
+    #[serde(rename = "sourceList", skip_serializing_if = "Option::is_none")]
+    source_list: Option<Vec<String>>,
     version: &'static str,
 }
 
@@ -40,6 +42,10 @@ struct CombinedJsonContract<'a> {
     bin_runtime: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap_runtime: Option<String>,
 }
 
 pub(crate) fn emit_requested(
@@ -99,7 +105,7 @@ pub(crate) fn emit_requested(
         emit_mir_pipeline_output(gcx, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     emit_combined_json(gcx, artifacts.as_ref())?;
-    if gcx.sess.opts.debug_info {
+    if gcx.sess.opts.debug_info == Some(DebugInfoFormat::Ethdebug) {
         emit_ethdebug(gcx, artifacts.as_ref().expect("debug information should be generated"))?;
     }
     if let Some(contracts) = &dump_contracts
@@ -368,6 +374,9 @@ fn emit_combined_json(
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> Result {
     let sess = gcx.sess;
+    let emit_source_maps = sess.opts.debug_info == Some(DebugInfoFormat::SourceMaps);
+    let source_map_encoder =
+        emit_source_maps.then(|| crate::source_map::SourceMapEncoder::new(gcx));
     let (mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime) =
         (false, false, false, false);
     for output in &sess.opts.emit {
@@ -380,12 +389,20 @@ fn emit_combined_json(
         }
     }
 
-    if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime {
+    if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime && !emit_source_maps {
         return Ok(());
     }
 
     let mut output = CombinedJson {
         contracts: BTreeMap::default(),
+        source_list: emit_source_maps.then(|| {
+            gcx.hir
+                .source_ids()
+                .map(|id| {
+                    crate::standard_json::standard_json_source_name(&gcx.hir.source(id).file.name)
+                })
+                .collect()
+        }),
         version: solar_config::version::SEMVER_VERSION,
     };
 
@@ -413,10 +430,25 @@ fn emit_combined_json(
                     &artifact.runtime_link_references,
                 ));
             }
+            if emit_source_maps {
+                let encoder = source_map_encoder.as_ref().expect("source map encoder should exist");
+                contract_output.srcmap = Some(
+                    bytecode
+                        .deployment_debug_info
+                        .as_deref()
+                        .map_or_else(String::new, |info| encoder.encode(gcx, info)),
+                );
+                contract_output.srcmap_runtime = Some(
+                    bytecode
+                        .runtime_debug_info
+                        .as_deref()
+                        .map_or_else(String::new, |info| encoder.encode(gcx, info)),
+                );
+            }
         }
     }
 
-    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
+    write_output_json(gcx, &output, emit_bin || emit_bin_runtime || emit_source_maps)
 }
 
 fn write_output_json<T: serde::Serialize>(

@@ -263,9 +263,8 @@ pub(super) struct BytecodeOutput {
     // function_debug_data: Option<CowValue<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) opcodes: Option<String>,
-    // Source map output is not supported yet.
-    // #[serde(default, skip_serializing_if = "String::is_empty")]
-    // source_map: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) source_map: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
     #[serde(skip_serializing_if = "Option::is_none")]

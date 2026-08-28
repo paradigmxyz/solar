@@ -278,6 +278,11 @@ fn compile(
                     || metadata.append_cbor && !bytecode_contracts.is_empty();
                 let contract_metadata = needs_metadata.then(|| Metadata::new(gcx, &settings));
 
+                let source_map_outputs = OutputSelectionFlags::BYTECODE_SOURCE_MAP
+                    | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
+                let source_map_encoder =
+                    contract_output_requested(gcx, &output_selection, source_map_outputs)
+                        .then(|| crate::source_map::SourceMapEncoder::new(gcx));
                 crate::commands::compile::warn_experimental_codegen(
                     gcx.sess,
                     !bytecode_contracts.is_empty(),
@@ -296,13 +301,10 @@ fn compile(
                 gcx.dcx().has_errors()?;
 
                 let global_ethdebug = output_selection.global();
+                let ethdebug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
+                    | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
                 let compilation = (!global_ethdebug.is_empty()
-                    || bytecodes.as_ref().is_some_and(|artifacts| {
-                        artifacts.values().any(|artifact| {
-                            artifact.deployment_debug_info.is_some()
-                                || artifact.runtime_debug_info.is_some()
-                        })
-                    }))
+                    || contract_output_requested(gcx, &output_selection, ethdebug_outputs))
                 .then(|| make_ethdebug_compilation(gcx));
                 let compilation_id = compilation.as_ref().map(ethdebug_compilation_id);
 
@@ -318,6 +320,7 @@ fn compile(
                         bytecodes.as_ref(),
                         contract_metadata.as_ref(),
                         compilation_id,
+                        source_map_encoder.as_ref(),
                     );
                     if !contract_output.is_empty() {
                         output
@@ -430,7 +433,7 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
-pub(super) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
+pub(crate) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
     name.display().to_string().replace('\\', "/")
 }
 
@@ -461,6 +464,7 @@ fn make_contract_output<'gcx>(
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
     metadata: Option<&Metadata<'_, '_, 'gcx>>,
     compilation_id: Option<&str>,
+    source_map_encoder: Option<&crate::source_map::SourceMapEncoder>,
 ) -> ContractOutput<'gcx> {
     let mut output = ContractOutput::default();
 
@@ -500,6 +504,7 @@ fn make_contract_output<'gcx>(
     let artifact = bytecodes.and_then(|bytecodes| bytecodes.get(&contract_id));
     let bytecode_outputs = OutputSelectionFlags::BYTECODE_OBJECT
         | OutputSelectionFlags::BYTECODE_OPCODES
+        | OutputSelectionFlags::BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::BYTECODE_ETHDEBUG;
     if output_selection.intersects(bytecode_outputs) {
@@ -509,11 +514,13 @@ fn make_contract_output<'gcx>(
             artifact,
             output_selection,
             compilation_id,
+            source_map_encoder,
             false,
         ));
     }
     let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
         | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
         | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
@@ -524,6 +531,7 @@ fn make_contract_output<'gcx>(
             artifact,
             output_selection,
             compilation_id,
+            source_map_encoder,
             true,
         ));
     }
@@ -540,6 +548,7 @@ fn make_bytecode_output(
     artifact: Option<&ContractArtifact>,
     output_selection: OutputSelectionFlags,
     compilation_id: Option<&str>,
+    source_map_encoder: Option<&crate::source_map::SourceMapEncoder>,
     deployed: bool,
 ) -> BytecodeOutput {
     let object_flag = if deployed {
@@ -556,6 +565,11 @@ fn make_bytecode_output(
         OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
     } else {
         OutputSelectionFlags::BYTECODE_LINK_REFERENCES
+    };
+    let source_map_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
+    } else {
+        OutputSelectionFlags::BYTECODE_SOURCE_MAP
     };
     let ethdebug_flag = if deployed {
         OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
@@ -582,6 +596,19 @@ fn make_bytecode_output(
             bytecode.map_or(&[], |bytecode| bytecode.as_ref()),
             gcx.sess.opts.evm_version,
         ));
+    }
+    if output_selection.contains(source_map_flag) {
+        let debug_info = artifact.and_then(|artifact| {
+            if deployed {
+                artifact.runtime_debug_info.as_deref()
+            } else {
+                artifact.deployment_debug_info.as_deref()
+            }
+        });
+        output.source_map = Some(match (source_map_encoder, debug_info) {
+            (Some(encoder), Some(info)) => encoder.encode(gcx, info),
+            _ => String::new(),
+        });
     }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {
@@ -846,8 +873,10 @@ fn requested_debug_info_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
-    let debug_outputs =
-        OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+    let debug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::BYTECODE_SOURCE_MAP
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
     if output_selection.all().intersects(debug_outputs) {
         return ContractSelection::All;
     }
@@ -866,4 +895,17 @@ fn requested_debug_info_contracts(
         }
     }
     contracts
+}
+
+fn contract_output_requested(
+    gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
+    outputs: OutputSelectionFlags,
+) -> bool {
+    output_selection.all().intersects(outputs)
+        || gcx.hir.contracts().any(|contract| {
+            let source = gcx.hir.source(contract.source);
+            let source_name = standard_json_source_name(&source.file.name);
+            output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
+        })
 }
