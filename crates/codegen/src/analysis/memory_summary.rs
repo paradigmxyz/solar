@@ -9,7 +9,6 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
 };
-use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use std::collections::VecDeque;
 
@@ -29,8 +28,9 @@ pub(crate) struct FunctionMemorySummary {
     may_observe_msize: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
-    /// Parameters whose numeric pointer value the function may observe: used anywhere other
-    /// than as a memory address or in a pointer-preserving derivation.
+    /// Parameters whose pointer value the function may relate to the heap: a value derived
+    /// from the parameter meets one derived from the free-memory pointer or `msize` in a
+    /// single instruction.
     observes: DenseBitSet<ArgIdx>,
 }
 
@@ -101,8 +101,11 @@ impl FunctionMemorySummary {
         self.may_observe_msize
     }
 
-    /// Returns whether a parameter's numeric pointer value may be observed by the function,
-    /// rather than only dereferenced.
+    /// Returns whether the function may relate a parameter's pointer value to the heap.
+    ///
+    /// Dereferencing the pointer, or comparing it with values derived from itself, is
+    /// placement-agnostic; only an instruction that also consumes a value derived from the
+    /// free-memory pointer or `msize` can observe where the object lies relative to the heap.
     #[must_use]
     pub(crate) fn observes_param(&self, index: ArgIdx) -> bool {
         index.index() >= self.observes.domain_size() || self.observes.contains(index)
@@ -269,6 +272,7 @@ fn local_summary(
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let aa = AliasAnalysis::new(func);
+    let heap_derived = heap_derived_values(func);
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
@@ -297,15 +301,13 @@ fn local_summary(
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
             summary.may_observe_msize |= matches!(kind, InstKind::MSize);
-            // A pointer-derived operand in any position other than a memory address is an
-            // observation of the pointer's numeric value: compared, hashed, used as a size, a
-            // calldata offset, or a call target.
-            if !is_pointer_derivation(kind) {
-                let addresses = address_operands(kind);
-                for operand in kind.operands() {
-                    if !addresses.contains(&operand) {
-                        observe_sources(&mut summary, func, sources, operand);
-                    }
+            // An instruction that consumes both a pointer-derived value and a heap-derived one
+            // can relate the object to the heap, whatever the positions: comparisons, pointer
+            // arithmetic against the free-memory pointer, or storing one through the other.
+            let operands = kind.operands();
+            if operands.iter().any(|operand| heap_derived.contains(*operand)) {
+                for operand in operands {
+                    observe_sources(&mut summary, func, sources, operand);
                 }
             }
 
@@ -340,14 +342,13 @@ fn local_summary(
                     capture_sources(&mut summary, func, sources, value);
                 }
             }
-            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
-                let _ = offset;
-                observe_sources(&mut summary, func, sources, *size);
-            }
             Some(Terminator::TailCall { .. }) | None => {}
             Some(term) => {
-                for operand in term.operands() {
-                    observe_sources(&mut summary, func, sources, operand);
+                let operands = term.operands();
+                if operands.iter().any(|operand| heap_derived.contains(*operand)) {
+                    for operand in operands {
+                        observe_sources(&mut summary, func, sources, operand);
+                    }
                 }
             }
         }
@@ -355,72 +356,55 @@ fn local_summary(
     summary
 }
 
-/// Returns whether an instruction only forwards pointers through pointer-preserving
-/// arithmetic, so its operands are neither observed nor dereferenced by it.
-fn is_pointer_derivation(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::Add(_, _)
-            | InstKind::Sub(_, _)
-            | InstKind::Select(_, _, _)
-            | InstKind::Phi(_)
-            | InstKind::MakeSlice { .. }
-            | InstKind::SlicePtr(_)
-            | InstKind::SliceLen(_)
-            | InstKind::MemoryObjectData(_, _)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
-    )
-}
-
-/// Returns the operands an instruction uses purely as memory addresses.
-fn address_operands(kind: &InstKind) -> SmallVec<[ValueId; 2]> {
-    let mut out = SmallVec::new();
-    match kind {
-        InstKind::MLoad(address)
-        | InstKind::MStore(address, _)
-        | InstKind::MStore8(address, _)
-        | InstKind::Keccak256(address, _)
-        | InstKind::Log0(address, _)
-        | InstKind::Log1(address, _, _)
-        | InstKind::Log2(address, _, _, _)
-        | InstKind::Log3(address, _, _, _, _)
-        | InstKind::Log4(address, _, _, _, _, _)
-        | InstKind::MemoryZero(address, _)
-        | InstKind::CalldataCopy(address, _, _)
-        | InstKind::CodeCopy(address, _, _)
-        | InstKind::ReturnDataCopy(address, _, _)
-        | InstKind::ExtCodeCopy(_, address, _, _) => out.push(*address),
-        InstKind::MCopy(destination, source, _) => {
-            out.push(*destination);
-            out.push(*source);
+/// Values derived from the free-memory pointer or `msize`, through any computation except a
+/// load: a word read through such an address is data, not a heap position. Internal call
+/// results count as heap-derived, since a callee may return a heap position.
+fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
+    let mut derived = DenseBitSet::new_empty(func.num_values());
+    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    let mut worklist = Vec::new();
+    for inst_id in func.instructions() {
+        let Some(result) = func.inst_result_value(inst_id) else { continue };
+        let kind = &func.inst(inst_id).kind;
+        let root = match kind {
+            InstKind::Fmp | InstKind::MSize | InstKind::InternalCall { .. } => true,
+            InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
+            _ => false,
+        };
+        if root {
+            derived.insert(result);
+            worklist.push(result);
+            continue;
         }
-        InstKind::Call { args_offset, ret_offset, .. }
-        | InstKind::CallCode { args_offset, ret_offset, .. }
-        | InstKind::StaticCall { args_offset, ret_offset, .. }
-        | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
-            out.push(*args_offset);
-            out.push(*ret_offset);
+        if matches!(
+            kind,
+            InstKind::MLoad(_)
+                | InstKind::CalldataLoad(_)
+                | InstKind::SLoad(_)
+                | InstKind::TLoad(_)
+                | InstKind::Keccak256(_, _)
+                | InstKind::MemoryObjectLoadField { .. }
+                | InstKind::MemoryObjectLoadElement { .. }
+                | InstKind::MemoryObjectLoadByte { .. }
+                | InstKind::MemoryObjectLen(_, _)
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::CalldataSliceLoadWord { .. }
+                | InstKind::SliceLen(_)
+        ) {
+            continue;
         }
-        InstKind::MemoryObjectLen(object, _)
-        | InstKind::SetMemoryObjectLen(object, _, _)
-        | InstKind::MemoryObjectLoadField { object, .. }
-        | InstKind::MemoryObjectStoreField { object, .. }
-        | InstKind::MemoryObjectLoadElement { object, .. }
-        | InstKind::MemoryObjectStoreElement { object, .. }
-        | InstKind::MemoryObjectLoadByte { object, .. }
-        | InstKind::MemoryObjectStoreByte { object, .. }
-        | InstKind::MemoryObjectStoreWord { object, .. }
-        | InstKind::MemoryObjectCopyFromSlice { object, .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { object, .. } => out.push(*object),
-        InstKind::MemoryObjectCopy { destination, source, .. } => {
-            out.push(*destination);
-            out.push(*source);
+        for operand in kind.operands() {
+            users[operand].push(result);
         }
-        InstKind::MemorySliceLoadWord { slice, .. } => out.push(*slice),
-        _ => {}
     }
-    out
+    while let Some(value) = worklist.pop() {
+        for &user in &users[value] {
+            if derived.insert(user) {
+                worklist.push(user);
+            }
+        }
+    }
+    derived
 }
 
 fn observe_sources(

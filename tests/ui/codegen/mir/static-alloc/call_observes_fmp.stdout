@@ -84,6 +84,25 @@
       jump bb1
   }
   
+  fn @iterating_caller() -> u256 [selector=0x01020309] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 7
+      v1 = internal_call @iterates, 1, v0
+      ret v1
+  }
+  
+  fn @iterates(arg0: memptr) -> u256 {
+    bb0:
+      v0 = mload 64
+      mstore v0, 1
+      v1 = add arg0, 32
+      v2 = lt arg0, v1
+      v3 = mload arg0
+      v4 = add v2, v3
+      ret v4
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (before static-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (after static-alloc) ===
   @module StaticAllocCallObservesFmp
@@ -167,5 +186,26 @@
       jump bb3
     bb3:
       jump bb1
+  }
+  
+  fn @iterating_caller() -> u256 [selector=0x01020309] {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 32
+-     mstore v0, 7
+-     v1 = internal_call @iterates, 1, v0
++     mstore 128, 7
++     v1 = internal_call @iterates, 1, 128
+      ret v1
+  }
+  
+  fn @iterates(arg0: memptr) -> u256 {
+    bb0:
+      v0 = mload 64
+      mstore v0, 1
+      v1 = add arg0, 32
+      v2 = lt arg0, v1
+      v3 = mload arg0
+      v4 = add v2, v3
+      ret v4
   }
   
