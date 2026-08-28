@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (after lower-immutables) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (before lower-immutables) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (after lower-immutables) ===
   @module LowerImmutables
   immutables:
     first: u8
@@ -14,7 +15,7 @@
       ret v0
   }
   
-  fn @runtime() [selector=0x00000001] {
+  fn @runtime() {
     bb0:
       storeimmutable first, 1
       stop

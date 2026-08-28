@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleIdempotence
   fn @idempotent(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:
@@ -9,7 +10,8 @@
       ret v2
   }
   
-  // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir" artifact=- pipeline_run=1 stage=custom invocation=2 executed=true outcome=ok ir_changed=false state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleIdempotence
   fn @idempotent(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:

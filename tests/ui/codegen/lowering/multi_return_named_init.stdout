@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
-fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure, internal_frame_size=96] {
+fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
   bb0:
     v0 = internal_frame_addr 192
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -81,7 +81,7 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure, internal_fram
     revert 0, 36
 }
 
-fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, external, pure, internal_frame_size=64, external_static_return_size=64, abi_returns=[word, word]] {
+fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

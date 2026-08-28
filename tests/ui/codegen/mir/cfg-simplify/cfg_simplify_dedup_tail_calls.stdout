@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir (after cfg-simplify) ===
   @module CfgDedupTailCalls
   fn @target_a() {
     bb0:

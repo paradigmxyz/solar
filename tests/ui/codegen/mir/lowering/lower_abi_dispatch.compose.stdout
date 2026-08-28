@@ -1,0 +1,36 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
+  @module LowerAbiDispatch
+- fn @get(arg0: u256) {
++ @phase abi
++ fn @get() {
+    bb0:
+      mstore 128, arg0
+      returndata 128, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
+  @module LowerAbiDispatch
+- @phase abi
++ @phase dispatch
+  fn @get() {
+    bb0:
+      mstore 128, arg0
+      returndata 128, 32
++ }
++ 
++ fn @entry() [entry] {
++   bb0:
++     v0 = callvalue
++     jumpi v0, bb3, bb1
++   bb1:
++     v1 = calldataload 0
++     v2 = shr 224, v1
++     switch v2, default bb3, [0x9507d39a => bb2]
++   bb2:
++     tail_call @get
++   bb3:
++     revert 0, 0
+  }
+  

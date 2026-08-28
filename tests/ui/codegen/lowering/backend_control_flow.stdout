@@ -1,30 +1,30 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() -> u256 [selector=0x3fa4f245, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @value() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @totalSupply() -> u256 [selector=0x18160ddd, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @totalSupply() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @reserve0() -> u256 [selector=0x443cb4bc, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @reserve0() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @reserve1() -> u256 [selector=0x5a76f25e, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @reserve1() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0
 }
 
-fn @localVarInConditional() [selector=0xf2ca9be5, public] {
+fn @localVarInConditional() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -45,7 +45,7 @@ fn @localVarInConditional() [selector=0xf2ca9be5, public] {
     revert 0, 36
 }
 
-fn @directStorageInConditional() [selector=0xf5a03547, public] {
+fn @directStorageInConditional() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -67,7 +67,7 @@ fn @directStorageInConditional() [selector=0xf5a03547, public] {
     revert 0, 36
 }
 
-fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, external, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
+fn @phiAfterBranch() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -95,7 +95,7 @@ fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, external, internal_frame_size
     revert 0, 36
 }
 
-fn @phiUsedMultipleTimes() -> u256 [selector=0x4e3a23dd, external, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
+fn @phiUsedMultipleTimes() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -147,7 +147,7 @@ fn @phiUsedMultipleTimes() -> u256 [selector=0x4e3a23dd, external, internal_fram
     revert 0, 36
 }
 
-fn @phiWithTernary() -> u256 [selector=0x2318217a, external, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
+fn @phiWithTernary() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))

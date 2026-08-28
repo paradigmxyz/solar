@@ -1,4 +1,4 @@
-//@ compile-flags: -Ztime-passes -O none --emit=bin --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts
+//@ compile-flags: -Ztime-passes -O none --emit=bin
 //@ normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
 
 contract TimePasses {

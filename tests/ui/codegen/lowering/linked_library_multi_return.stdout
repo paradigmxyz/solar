@@ -1,14 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:Lib ===
 @module Lib
-@library
-fn @pair() -> (u256, u256) [selector=0xa8aa1b31, public, pure, external_static_return_size=64, abi_returns=[word, word]] {
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     ret 4, 5
 }
 
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
 @module C
-fn @pair() -> (u256, u256) [selector=0xa8aa1b31, external, pure, external_static_return_size=64, abi_returns=[word, word]] {
+fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = fmp
     mstore v0, 0xa8aa1b3100000000000000000000000000000000000000000000000000000000

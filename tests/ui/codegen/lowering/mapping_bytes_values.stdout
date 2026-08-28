@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
-fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, external] {
+fn @set(arg0: u256, arg1: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -89,7 +89,7 @@ fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, external] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -140,7 +140,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, external] {
+fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -230,7 +230,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, e
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -281,7 +281,7 @@ fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, external, view, abi_returns=[memory_bytes]] {
+fn @get(arg0: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -295,7 +295,7 @@ fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, external, view, abi_ret
     revert 0, 0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -341,7 +341,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, external, view, abi_returns=[memory_bytes]] {
+fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

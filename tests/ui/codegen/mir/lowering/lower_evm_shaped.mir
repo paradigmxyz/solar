@@ -6,10 +6,9 @@
 // included — and drops the dead remainder of the block. The rewrite only
 // applies to callees the backend statically frames: `@spin` cannot return
 // either, but it is recursive, so its call stays an ordinary `internal_call`.
-// The old continuation must become unreachable in the same step.
-// `@entry` is present so the module satisfies the target-lowered phase contract.
+// `@entry` is present so the module satisfies the memory-lowered phase contract.
 @module LowerEvmShaped
-@phase target-lowered
+@phase memory-lowered
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
@@ -42,20 +41,4 @@ fn @spin(arg0: u256) {
   bb0:
     internal_call fn3, 0, arg0
     revert 0, 0
-}
-// CHECK-LABEL: fn @cleanup_caller
-// CHECK: tail_call @cleanup_fused
-// CHECK-NOT: bb1:
-fn @cleanup_caller() {
-  bb0:
-    internal_call fn5, 0
-    jump bb1
-  bb1:
-    v0 = add 1, 2
-    mstore 128, v0
-    returndata 128, 32
-}
-fn @cleanup_fused() {
-  bb0:
-    returndata 0, 0
 }

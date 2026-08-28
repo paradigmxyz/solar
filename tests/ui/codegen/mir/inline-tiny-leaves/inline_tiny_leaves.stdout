@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir (after inline-tiny-leaves) [ir=MIR module="ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir (before inline-tiny-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/inline_tiny_leaves.mir (after inline-tiny-leaves) ===
   @module InlineTinyLeaves
   fn @tiny_caller(arg0: u256) -> u256 {
     bb0:

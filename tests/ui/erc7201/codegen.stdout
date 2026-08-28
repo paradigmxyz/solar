@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/erc7201/codegen.sol:Erc7201Builtin ===
 @module Erc7201Builtin
-fn @literal() -> u256 [selector=0x1373185e, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @literal() -> u256 [abi_returns=[word]] {
   bb0:
     ret 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
 }
 
-fn @zeroLastByteLiteral() -> u256 [selector=0xe2eaca9d, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @zeroLastByteLiteral() -> u256 [abi_returns=[word]] {
   bb0:
     ret 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
 }
 
-fn @memoryParam() -> u256 [selector=0x21aa88e0, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @memoryParam() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 12
@@ -25,7 +25,7 @@ fn @memoryParam() -> u256 [selector=0x21aa88e0, public, pure, external_static_re
     ret v6
 }
 
-fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @calldataParam(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -96,7 +96,7 @@ fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, public, pur
     revert 0, 0
 }
 
-fn @storageValue() -> u256 [selector=0xa977a973, public, view, external_static_return_size=32, abi_returns=[word]] {
+fn @storageValue() -> u256 [abi_returns=[word]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = keccak256_bytes v0
@@ -107,7 +107,7 @@ fn @storageValue() -> u256 [selector=0xa977a973, public, view, external_static_r
     ret v4
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1

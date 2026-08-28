@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall ===
 @module FunctionCall
-fn @double(arg0: u256) -> u256 [pure] {
+fn @double(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, arg0
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @double(arg0: u256) -> u256 [pure] {
     revert 0, 36
 }
 
-fn @quadruple(arg0: u256) -> u256 [selector=0x7fdb7587, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @quadruple(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -27,7 +27,7 @@ fn @quadruple(arg0: u256) -> u256 [selector=0x7fdb7587, public, pure, external_s
     revert 0, 0
 }
 
-fn @sum_then_double(arg0: u256, arg1: u256) -> u256 [selector=0xd386d5a2, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @sum_then_double(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

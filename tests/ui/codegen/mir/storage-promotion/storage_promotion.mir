@@ -43,7 +43,7 @@ fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
 // CHECK: +     [[LOAD:v[0-9]+]] = sload [[SLOT]]
 // CHECK:       [[VALUE:v[0-9]+]] = add [[LOAD]], 2
 // CHECK: +     sstore [[SLOT]], [[VALUE]]
-fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020305] {
+fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb1
   bb1:
@@ -70,7 +70,7 @@ fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020305] {
 // CHECK: -     sstore [[SLOT]], 7
 // CHECK:       mstore [[VALUE_ADDR]], 7
 // CHECK:       mstore [[DIRTY_ADDR]], 1
-fn @promote_store_only_without_initial_load() [selector=0x01020306] {
+fn @promote_store_only_without_initial_load() [selector=0x01020304] {
   bb0:
     jump bb1
   bb1:
@@ -106,7 +106,7 @@ fn @promote_store_only_without_initial_load() [selector=0x01020306] {
 // CHECK:       [[ONE_UPDATED:v[0-9]+]] = add [[ONE_VALUE]], 3
 // CHECK: -     sstore [[ONE_SLOT]], [[ONE_UPDATED]]
 // CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
-fn @promote_two_initialized_slots() [selector=0x01020307] {
+fn @promote_two_initialized_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1
     sstore 1, 2
@@ -153,7 +153,7 @@ fn @promote_two_initialized_slots() [selector=0x01020307] {
 // CHECK:       mstore [[DIRTY_ADDR]], 1
 // CHECK:       [[OTHER]]:
 // CHECK:       jump [[MERGE]]
-fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020308] {
+fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
   bb0:
     jump bb1
   bb1:

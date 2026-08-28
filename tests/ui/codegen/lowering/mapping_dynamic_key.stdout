@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
 @module MappingDynamicKey
-fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @lookup(arg0: calldataslice) -> address [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -40,7 +40,7 @@ fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, external, view,
     revert 0, 0
 }
 
-fn @set(arg0: memorybytes, arg1: address) [selector=0xa815ff15, public] {
+fn @set(arg0: memorybytes, arg1: address) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -70,7 +70,7 @@ fn @set(arg0: memorybytes, arg1: address) [selector=0xa815ff15, public] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -121,7 +121,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, public, view, external_static_return_size=32, abi_returns=[word]] {
+fn @get(arg0: memorybytes) -> address [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -146,7 +146,7 @@ fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, public, view, extern
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
-fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -185,7 +185,7 @@ fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, external, view, exte
     revert 0, 0
 }
 
-fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -232,7 +232,7 @@ fn @nestedFirst(arg0: calldataslice, arg1: address) -> u256 [selector=0xe8f9d84d
     revert 0, 0
 }
 
-fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb9, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -279,13 +279,13 @@ fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb
     revert 0, 0
 }
 
-fn @skey() -> memorybytes [selector=0x8cd2a1c2, external, view, abi_returns=[memory_bytes]] {
+fn @skey() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 3
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -331,7 +331,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @setLit(arg0: u256) [selector=0x3fffd95e, public] {
+fn @setLit(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -351,7 +351,7 @@ fn @setLit(arg0: u256) [selector=0x3fffd95e, public] {
     revert 0, 0
 }
 
-fn @setLitLong(arg0: u256) [selector=0x7490efc0, public] {
+fn @setLitLong(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -373,7 +373,7 @@ fn @setLitLong(arg0: u256) [selector=0x7490efc0, public] {
     revert 0, 0
 }
 
-fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) [selector=0xf7d7b4f3, public] {
+fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -403,7 +403,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) [selector=0xf7d
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -454,7 +454,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [selector=0x95cfa550, public, view, external_static_return_size=32, abi_returns=[word]] {
+fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -484,7 +484,7 @@ fn @getNestedFirst(arg0: memorybytes, arg1: address) -> u256 [selector=0x95cfa55
     revert 0, 0
 }
 
-fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) [selector=0xf589e254, public] {
+fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -514,7 +514,7 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) [selector=0xf5
     revert 0, 0
 }
 
-fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, public] {
+fn @setSkey(arg0: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -602,7 +602,7 @@ fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, public] {
     revert 0, 0
 }
 
-fn @setViaStorageKey(arg0: u256) [selector=0x2bd4b749, public] {
+fn @setViaStorageKey(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -617,7 +617,7 @@ fn @setViaStorageKey(arg0: u256) [selector=0x2bd4b749, public] {
     revert 0, 0
 }
 
-fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8fc72899, public, external_static_return_size=32, abi_returns=[word]] {
+fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

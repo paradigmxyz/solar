@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_keccak.mir (after load-pre) [ir=MIR module="ROOT/tests/ui/codegen/mir/load-pre/load_pre_keccak.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_keccak.mir (before load-pre) ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_keccak.mir (after load-pre) ===
   @module LoadPreKeccak
   fn @keccak_same_dynamic_size(arg0: bool, arg1: u256) -> u256 {
     bb0:

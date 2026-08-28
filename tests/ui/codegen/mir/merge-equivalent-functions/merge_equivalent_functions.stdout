@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (after merge-equivalent-functions) [ir=MIR module="ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (before merge-equivalent-functions) ===
++ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (after merge-equivalent-functions) ===
   @module MergeEquivalentFunctions
   fn @leaf_a(arg0: u256) -> u256 {
     bb0:
@@ -31,7 +32,7 @@
       ret v0
   }
   
-  fn @entry() -> u256 [selector=0x01020304] {
+  fn @entry() -> u256 {
     bb0:
       v0 = internal_call @wrap_a, 1, 1
 -     v1 = internal_call @wrap_b, 1, 2
@@ -63,7 +64,7 @@
       ret v0
   }
   
-  fn @recursive_entry() [selector=0x01020306] {
+  fn @recursive_entry() {
     bb0:
       v0 = internal_call @recursive_a, 1, 1, 1
 -     v1 = internal_call @recursive_b, 1, 1, 2

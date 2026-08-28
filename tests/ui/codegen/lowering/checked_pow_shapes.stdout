@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_pow_shapes.sol:CheckedPowShapes ===
 @module CheckedPowShapes
-fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @upow(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -81,7 +81,7 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, public, pure, ext
     revert 0, 0
 }
 
-fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @spow(arg0: i256, arg1: u256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -205,7 +205,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, public, pure, ext
     revert 0, 0
 }
 
-fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @upow8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -314,7 +314,7 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, public, pure, external
     revert 0, 0
 }
 
-fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @spow8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -452,7 +452,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, public, pure, external
     revert 0, 0
 }
 
-fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @const2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -472,7 +472,7 @@ fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, public, pure, external_stat
     revert 0, 0
 }
 
-fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @const10(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -492,7 +492,7 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, public, pure, external_sta
     revert 0, 0
 }
 
-fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @const_neg2(arg0: u256) -> i256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -512,7 +512,7 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, public, pure, external_
     revert 0, 0
 }
 
-fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [selector=0xa376b2ef, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

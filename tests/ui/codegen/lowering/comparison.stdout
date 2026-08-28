@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/comparison.sol:Comparison ===
 @module Comparison
-fn @eq(arg0: u256, arg1: u256) -> bool [selector=0x32148d73, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @eq(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -13,7 +13,7 @@ fn @eq(arg0: u256, arg1: u256) -> bool [selector=0x32148d73, public, pure, exter
     revert 0, 0
 }
 
-fn @lt(arg0: u256, arg1: u256) -> bool [selector=0x118fc88c, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @lt(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -26,7 +26,7 @@ fn @lt(arg0: u256, arg1: u256) -> bool [selector=0x118fc88c, public, pure, exter
     revert 0, 0
 }
 
-fn @is_zero(arg0: u256) -> bool [selector=0xe9b4cfc4, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @is_zero(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

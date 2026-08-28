@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:ERC4337Utils ===
 @module ERC4337Utils
-@library
-@phase evm-shaped
+@phase optimized
 
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase evm-shaped
-fn @factory.0() [selector=0x1af91295, external, pure, external_static_return_size=32, arg_types=(u256)] {
+fn @factory.0() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -25,7 +24,7 @@ fn @factory.0() [selector=0x1af91295, external, pure, external_static_return_siz
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -93,7 +92,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memptr [no_inline] {
+fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -135,7 +134,7 @@ fn @__abi_decode_calldata_1(arg0: u256) -> memptr [no_inline] {
     revert 0, 0
 }
 
-fn @factory.3(arg0: memptr) -> address [pure] {
+fn @factory.3(arg0: memptr) -> address {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -169,7 +168,7 @@ fn @factory.3(arg0: memptr) -> address [pure] {
     ret v35
 }
 
-fn @tailHash.4() [selector=0x9850c81b, external, pure, external_static_return_size=32, arg_types=(u256)] {
+fn @tailHash.4() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -188,7 +187,7 @@ fn @tailHash.4() [selector=0x9850c81b, external, pure, external_static_return_si
     revert 0, 0
 }
 
-fn @tailHash.5(arg0: memptr) -> bytes32 [pure] {
+fn @tailHash.5(arg0: memptr) -> bytes32 {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -245,7 +244,7 @@ fn @tailHash.5(arg0: memptr) -> bytes32 [pure] {
     ret v37
 }
 
-fn @midWord.6() [selector=0xbb6106d2, external, pure, external_static_return_size=32, arg_types=(u256)] {
+fn @midWord.6() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -264,7 +263,7 @@ fn @midWord.6() [selector=0xbb6106d2, external, pure, external_static_return_siz
     revert 0, 0
 }
 
-fn @midWord.7(arg0: memptr) -> bytes32 [pure] {
+fn @midWord.7(arg0: memptr) -> bytes32 {
   bb0:
     v0 = add arg0, 256
     v1 = mload v0
@@ -283,7 +282,7 @@ fn @midWord.7(arg0: memptr) -> bytes32 [pure] {
     revert 0, 0
 }
 
-fn @__revert_stub0() [no_inline] {
+fn @__revert_stub0() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

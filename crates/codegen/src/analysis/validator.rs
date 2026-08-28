@@ -36,61 +36,28 @@
 //! ```
 
 use crate::{
-    analysis::{CfgInfo, TailCallEligibility},
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
+    analysis::CfgInfo,
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
 };
-use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Span, diagnostics::DiagCtxt, kw};
+use solar_interface::{diagnostics::DiagCtxt, kw};
 use std::fmt;
 
 /// Stateful MIR verifier.
 struct Validator<'a> {
     dcx: &'a DiagCtxt,
-    evm_version: Option<EvmVersion>,
-    span: Span,
     function: Option<FunctionId>,
     error_count: usize,
-    transition_only: bool,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self {
-            dcx,
-            evm_version: None,
-            span: Span::DUMMY,
-            function: None,
-            error_count: 0,
-            transition_only: false,
-        }
-    }
-
-    /// Creates a target-aware verifier that emits findings into `dcx`.
-    const fn for_evm(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
-        Self {
-            dcx,
-            evm_version: Some(evm_version),
-            span: Span::DUMMY,
-            function: None,
-            error_count: 0,
-            transition_only: false,
-        }
-    }
-
-    const fn for_evm_transition(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
-        let mut validator = Self::for_evm(dcx, evm_version);
-        validator.transition_only = true;
-        validator
-    }
-
-    fn checks_phase(&self, module: &Module, phase: crate::mir::MirPhase) -> bool {
-        module.phase >= phase && (!self.transition_only || module.phase == phase)
+        Self { dcx, function: None, error_count: 0 }
     }
 
     #[track_caller]
@@ -102,12 +69,7 @@ impl<'a> Validator<'a> {
             }
             write!(f, "{message}")
         });
-        let diag = self.dcx.err(message.to_string());
-        if self.span.is_dummy() {
-            diag.emit();
-        } else {
-            diag.span(self.span).emit();
-        }
+        self.dcx.err(message.to_string()).emit();
         self.error_count += 1;
     }
 
@@ -128,14 +90,10 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
-        self.validate_function_structure(module, func);
-        self.validate_function_phase(module, func);
-    }
-
-    fn validate_function_structure(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
+        self.validate_function_phase(module, func);
     }
 
     fn validate_function_body(&mut self, func: &Function) {
@@ -563,7 +521,6 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.span = module.name.span;
         self.validate_module_phase(module);
         self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
@@ -571,36 +528,6 @@ impl<'a> Validator<'a> {
             self.validate_function(module, func);
         }
         self.function = None;
-    }
-
-    fn validate_module_structure(mut self, module: &Module) {
-        self.span = module.name.span;
-        self.validate_immutable_declarations(module);
-        for (id, func) in module.iter_functions() {
-            self.function = Some(id);
-            self.validate_function_structure(module, func);
-        }
-        self.function = None;
-    }
-
-    fn validate_phase_transition(mut self, module: &Module) {
-        self.span = module.name.span;
-        self.validate_module_phase(module);
-        for (id, func) in module.iter_functions() {
-            self.function = Some(id);
-            self.validate_function_phase(module, func);
-        }
-        self.function = None;
-    }
-
-    fn validate_codegen_phase(mut self, module: &Module) {
-        self.span = module.name.span;
-        if module.phase != crate::mir::MirPhase::EvmShaped {
-            self.emit(format_args!(
-                "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
-                module.phase.name()
-            ));
-        }
     }
 
     /// Checks that call targets exist and argument counts match.
@@ -691,269 +618,55 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
-        if !self.transition_only || module.phase == crate::mir::MirPhase::Built {
-            self.validate_external_entries(module);
+        // From the `dispatch` phase on, routing is materialized: a module with
+        // a runtime interface must contain exactly one synthesized `entry`.
+        if module.phase < crate::mir::MirPhase::Dispatch {
+            return;
         }
-        if self.checks_phase(module, crate::mir::MirPhase::Dispatch) {
-            self.validate_dispatch(module);
-        }
-        if self.checks_phase(module, crate::mir::MirPhase::TargetLowered) {
-            self.validate_deferred_allocations(module);
-        }
-        if self.checks_phase(module, crate::mir::MirPhase::EvmShaped) {
-            self.validate_evm_shape(module);
-        }
-    }
-
-    fn validate_external_entries(&mut self, module: &Module) {
-        let mut selectors = FxHashMap::default();
-        let mut receive = None;
-        let mut fallback = None;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let entry_kinds = usize::from(func.selector.is_some())
-                + usize::from(func.attributes.is_constructor)
-                + usize::from(func.attributes.is_dispatch_entry)
-                + usize::from(func.attributes.is_receive)
-                + usize::from(func.attributes.is_fallback);
-            if entry_kinds > 1 {
-                self.emit(format_args!(
-                    "function `{}` has conflicting external entry attributes",
-                    func.name
-                ));
-            }
-            if let Some(selector) = func.selector
-                && let Some(previous) = selectors.insert(selector, func_id)
-            {
-                self.emit(format_args!(
-                    "external functions `{}` and `{}` have duplicate selector `0x{:08x}`",
-                    module.function(previous).name,
-                    func.name,
-                    u32::from_be_bytes(selector)
-                ));
-            }
-            if func.attributes.is_receive
-                && let Some(previous) = receive.replace(func_id)
-            {
-                self.emit(format_args!(
-                    "functions `{}` and `{}` are both receive entries",
-                    module.function(previous).name,
-                    func.name
-                ));
-            }
-            if func.attributes.is_fallback
-                && let Some(previous) = fallback.replace(func_id)
-            {
-                self.emit(format_args!(
-                    "functions `{}` and `{}` are both fallback entries",
-                    module.function(previous).name,
-                    func.name
-                ));
-            }
-            if func.attributes.is_fallback && !func.params.is_empty() {
-                self.emit("codegen does not support `fallback(bytes) returns (bytes)` yet");
-            }
-            if func.attributes.is_receive && !func.params.is_empty() {
-                self.emit("MIR receive entry must not take arguments");
-            }
-            if func.params.is_empty()
-                && (func.attributes.is_receive || func.attributes.is_fallback)
-                && (!func.returns.is_empty()
-                    || func.abi_returns.is_some()
-                    || func
-                        .blocks
-                        .iter()
-                        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. }))))
-            {
-                let kind = if func.attributes.is_receive { "receive" } else { "fallback" };
-                self.emit(format_args!(
-                    "MIR {kind} entry must terminate externally before ABI lowering"
-                ));
-            }
-        }
-    }
-
-    fn validate_dispatch(&mut self, module: &Module) {
-        // From the `dispatch` phase on, routing is materialized. Every
-        // ordinary contract has an entry, including the all-revert case.
         let dispatch_entries =
             module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
-        let has_runtime_interface = module.functions.iter().any(|func| {
-            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback
-        });
-        let requires_dispatch =
-            !module.is_interface && !(module.is_library && !has_runtime_interface);
         if dispatch_entries > 1 {
             self.emit(format_args!(
                 "module is in the `{}` phase but has multiple `entry` routing functions",
                 module.phase.name()
             ));
-        } else if dispatch_entries == 0 && requires_dispatch {
+        } else if dispatch_entries == 0
+            && module.functions.iter().any(|f| {
+                f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
+            })
+        {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
                 module.phase.name()
             ));
         }
-        if dispatch_entries == 1 {
-            let entry =
-                module.functions.iter().find(|func| func.attributes.is_dispatch_entry).unwrap();
-            if entry.selector.is_some()
-                || !entry.params.is_empty()
-                || !entry.returns.is_empty()
-                || entry.abi_returns.is_some()
-                || entry.attributes.is_constructor
-                || entry.attributes.is_receive
-                || entry.attributes.is_fallback
-            {
-                self.emit(
-                    "dispatch `entry` must be selectorless and have no parameters or returns",
-                );
-            }
-            if entry.blocks.iter().any(|block| {
-                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
-            }) {
-                self.emit("dispatch `entry` must terminate externally");
-            }
-            let mut routed = DenseBitSet::new_empty(module.functions.len());
-            for block in &entry.blocks {
-                if let Some(crate::mir::Terminator::TailCall { function, .. }) = &block.terminator
-                    && function.index() < module.functions.len()
-                {
-                    routed.insert(*function);
-                }
-            }
-            for (func_id, func) in module.functions.iter_enumerated() {
-                if !func.blocks.is_empty()
-                    && (func.selector.is_some()
-                        || func.attributes.is_receive
-                        || func.attributes.is_fallback)
-                    && !routed.contains(func_id)
-                {
-                    self.emit(format_args!(
-                        "dispatch `entry` does not route to external function `{}`",
-                        func.name
-                    ));
-                }
-            }
-        }
-    }
-
-    fn validate_deferred_allocations(&mut self, module: &Module) {
-        let mut functions = Vec::new();
-        let mut marked = Vec::new();
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let before = marked.len();
-            marked.extend(func.instructions().filter_map(|inst_id| {
-                func.inst(inst_id).metadata.deferred_alloc().then_some((func_id, inst_id))
-            }));
-            if marked.len() != before {
-                functions.push(func_id);
-            }
-        }
-        if marked.is_empty() {
-            return;
-        }
-
-        let eligible = crate::analysis::eligible_deferred_allocations(module, &functions);
-        if marked.into_iter().any(|(func_id, inst_id)| {
-            !matches!(
-                module.function(func_id).inst(inst_id).kind,
-                InstKind::Alloc { kind: crate::mir::AllocationKind::Raw, .. }
-            ) || !eligible.contains(&(func_id, inst_id))
-        }) {
-            self.emit("module contains an invalid deferred allocation marker");
-        }
-    }
-
-    fn validate_evm_shape(&mut self, module: &Module) {
-        let function_count = module.functions.len();
-        if module.functions.iter().any(|func| {
-            func.instructions().any(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. } if function.index() >= function_count)
-            }) || func.blocks.iter().any(|block| {
-                matches!(block.terminator, Some(Terminator::TailCall { function, .. }) if function.index() >= function_count)
-            })
-        }) {
-            return;
-        }
-        if !module.functions.iter().any(|func| {
-            func.instructions().any(|inst_id| {
-                let inst = func.inst(inst_id);
-                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
-            })
-        }) {
-            return;
-        }
-
-        let eligibility = TailCallEligibility::new(module);
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst_id| {
-                let inst = func.inst(inst_id);
-                matches!(
-                    &inst.kind,
-                    InstKind::InternalCall { function, args, .. }
-                        if inst.result_ty.is_none()
-                            && eligibility.contains(func_id, *function)
-                )
-            }) {
-                self.emit("module has an eligible non-returning call that is not a `tail_call`");
-                return;
-            }
-        }
     }
 
     fn validate_function_phase(&mut self, module: &Module, func: &Function) {
-        // From the `abi` phase on, every bodied external entry is
-        // argument-free. Selector functions are self-decoding wrappers;
-        // receive and fallback entries need no arguments from dispatch.
-        if self.checks_phase(module, crate::mir::MirPhase::Abi)
-            && (func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback)
+        // From the `abi` phase on, every bodied external (selector-bearing)
+        // function is an argument-free self-decoding wrapper.
+        if module.phase >= crate::mir::MirPhase::Abi
+            && func.selector.is_some()
             && !func.params.is_empty()
         {
             self.emit(format_args!(
-                "external function `{}` still takes arguments in the `{}` phase \
-                 (expected an argument-free ABI entry)",
+                "selector function `{}` still takes arguments in the `{}` phase \
+                 (expected an argument-free ABI wrapper)",
                 func.name,
                 module.phase.name()
             ));
         }
-        if self.checks_phase(module, crate::mir::MirPhase::Abi)
-            && (func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback)
-        {
-            if !func.returns.is_empty() || func.abi_returns.is_some() {
-                self.emit(format_args!(
-                    "external function `{}` still has MIR returns in the `{}` phase",
-                    func.name,
-                    module.phase.name()
-                ));
-            }
-            if func.blocks.iter().any(|block| {
-                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
-            }) {
-                self.emit(format_args!(
-                    "external function `{}` has an internal `ret` terminator in the `{}` phase",
-                    func.name,
-                    module.phase.name()
-                ));
-            }
-        }
-        // Intrinsic lowering is a strict representation boundary: no nominal
-        // aggregate types, layouts, hashes, or semantic accesses may survive.
-        if self.checks_phase(module, crate::mir::MirPhase::IntrinsicsLowered) {
+        // The memory-lowered phase is a strict representation boundary: no
+        // nominal object types, layouts, or semantic accesses may survive.
+        if module.phase >= crate::mir::MirPhase::MemoryLowered {
             let signature_types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
                 .chain(func.returns.iter().copied());
             for ty in signature_types {
-                if matches!(
-                    ty,
-                    crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
-                ) {
+                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
                     self.emit(format_args!(
-                        "semantic signature type `{ty}` survives the `{}` phase boundary",
+                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
                         module.phase.name()
                     ));
                 }
@@ -966,13 +679,10 @@ impl<'a> Validator<'a> {
             }
             for value in values.iter() {
                 if let Value::Undef(ty) = func.value(value)
-                    && matches!(
-                        ty,
-                        crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
-                    )
+                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
                     self.emit(format_args!(
-                        "semantic value type survives the `{}` phase boundary",
+                        "memory-object value type survives the `{}` phase boundary",
                         module.phase.name()
                     ));
                 }
@@ -989,26 +699,13 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectFieldAddr { .. }
                             | InstKind::MemoryObjectElementAddr { .. }
                             | InstKind::Keccak256Bytes(_)
-                            | InstKind::MappingSlot(..)
-                            | InstKind::MappingSlotMemory(..)
-                            | InstKind::MappingSlotCalldata(..)
-                            | InstKind::AbiEncode { .. }
-                            | InstKind::StorageToMemory { .. }
-                            | InstKind::MemoryToStorage { .. }
-                            | InstKind::ClearStorage { .. }
-                            | InstKind::MakeSlice { .. }
-                            | InstKind::SlicePtr(_)
-                            | InstKind::SliceLen(_)
-                    ) || inst.result_ty.is_some_and(|ty| {
-                        matches!(
-                            ty,
-                            crate::mir::MirType::MemoryObject(_) | crate::mir::MirType::Slice(_)
-                        )
-                    });
+                    ) || inst
+                        .result_ty
+                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
                     if semantic {
                         self.emit_at_inst(
                             format_args!(
-                                "semantic instruction `{}` survives the `{}` phase boundary",
+                                "memory-object instruction `{}` survives the `{}` phase boundary",
                                 inst.kind.mnemonic(),
                                 module.phase.name()
                             ),
@@ -1019,26 +716,27 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        // Target-lowered MIR is the word-based backend boundary. High-level
-        // memory operations must have been expanded before this phase. A
-        // deferred constant-size allocation is a backend placement marker, not
-        // a semantic free-memory-pointer allocation.
-        if self.checks_phase(module, crate::mir::MirPhase::TargetLowered) {
+        // EVM-shaped MIR is the semantic boundary consumed by the word-based
+        // backend. High-level memory operations must have been expanded by
+        // their named lowering passes before the module enters this phase.
+        if module.phase >= crate::mir::MirPhase::EvmShaped {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let kind = &func.inst(inst_id).kind;
                     let semantic_op = match kind {
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_) => Some("slice"),
                         InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
                         InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
                             Some("abstract allocation")
                         }
                         InstKind::MemoryZero(_, _) => Some("memory zero"),
+                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
+                        InstKind::StorageToMemory { .. }
+                        | InstKind::MemoryToStorage { .. }
+                        | InstKind::ClearStorage { .. } => Some("aggregate"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
-                        InstKind::MCopy(..)
-                            if self.evm_version.is_some_and(|version| !version.has_mcopy()) =>
-                        {
-                            Some("target-dependent memory copy")
-                        }
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {
@@ -1060,26 +758,6 @@ impl<'a> Validator<'a> {
 
 pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
-}
-
-pub(crate) fn validate_for_evm(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
-    Validator::for_evm(dcx, evm_version).validate_module(module);
-}
-
-pub(crate) fn validate_structure_for_evm(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
-    Validator::for_evm(dcx, evm_version).validate_module_structure(module);
-}
-
-pub(crate) fn validate_phase_transition_for_evm(
-    dcx: &DiagCtxt,
-    module: &Module,
-    evm_version: EvmVersion,
-) {
-    Validator::for_evm_transition(dcx, evm_version).validate_phase_transition(module);
-}
-
-pub(crate) fn validate_codegen_phase(dcx: &DiagCtxt, module: &Module) {
-    Validator::new(dcx).validate_codegen_phase(module);
 }
 
 // =============================================================================

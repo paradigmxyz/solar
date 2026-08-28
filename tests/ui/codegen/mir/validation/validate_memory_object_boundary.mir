@@ -1,12 +1,11 @@
 //@compile-flags: -Zmir-pipeline=dce
-//~? ERROR: [fn0] semantic signature type `memorybytes` survives the `intrinsics-lowered` phase boundary
-//~? ERROR: [fn0] semantic signature type `memorystruct` survives the `intrinsics-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst0] semantic instruction `alloc` survives the `intrinsics-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] semantic instruction `memory_object_len` survives the `intrinsics-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst2] semantic instruction `set_memory_object_len` survives the `intrinsics-lowered` phase boundary
+//~? ERROR: [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
 @module ValidateMemoryObjectBoundary
-@library
-@phase intrinsics-lowered
+@phase memory-lowered
 
 fn @object(arg0: memorybytes) -> memorystruct {
   bb0:

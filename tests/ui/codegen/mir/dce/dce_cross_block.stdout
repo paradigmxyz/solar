@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (after dce) ===
   @module DceCrossBlock
   fn @cross(arg0: u256, arg1: bool) -> u256 {
     bb0:

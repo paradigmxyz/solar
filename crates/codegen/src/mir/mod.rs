@@ -51,38 +51,6 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     crate::analysis::validate(dcx, module);
 }
 
-/// Validates the invariants of a MIR module for an EVM target.
-pub fn validate_for_evm(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    crate::analysis::validate_for_evm(dcx, module, evm_version);
-}
-
-pub(crate) fn validate_structure_for_evm(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    crate::analysis::validate_structure_for_evm(dcx, module, evm_version);
-}
-
-pub(crate) fn validate_phase_transition_for_evm(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    crate::analysis::validate_phase_transition_for_evm(dcx, module, evm_version);
-}
-
-pub(crate) fn validate_codegen_phase(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-) {
-    crate::analysis::validate_codegen_phase(dcx, module);
-}
-
 pub(crate) mod utils;
 
 newtype_index! {
@@ -226,14 +194,6 @@ mod round_trip {
 
     fn validate_sol(path: &Path) -> Result<(), String> {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        if sess
-            .source_map()
-            .file_loader()
-            .load_file(path)
-            .is_ok_and(|source| source.contains(" ERROR:"))
-        {
-            return Ok(());
-        }
         let mut compiler = Compiler::new(sess);
 
         let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<()> {
@@ -383,10 +343,6 @@ mod round_trip {
                     return;
                 }
             };
-            if let Err(e) = check_round_trip_state(&parsed1, &parsed2) {
-                result = Err(e);
-                return;
-            }
             let print2 = parsed2.to_text().to_string();
             let parsed3 = match parse_module(&sess, &print2) {
                 Ok(m) => m,
@@ -417,7 +373,6 @@ mod round_trip {
                 sess.emitted_diagnostics().unwrap()
             )
         })?;
-        check_round_trip_state(module, &parsed1)?;
         let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(sess, &print2).map_err(|_| {
             format!(
@@ -434,51 +389,6 @@ mod round_trip {
             return Err(format!(
                 "not idempotent: {diff}\n--- print2 ---\n{print2}\n--- print3 ---\n{print3}"
             ));
-        }
-        Ok(())
-    }
-
-    fn check_round_trip_state(expected: &Module, actual: &Module) -> Result<(), String> {
-        if expected.phase != actual.phase {
-            return Err(format!(
-                "phase changed from `{}` to `{}` during round-trip",
-                expected.phase.name(),
-                actual.phase.name()
-            ));
-        }
-        if expected.is_library != actual.is_library || expected.is_interface != actual.is_interface
-        {
-            return Err(format!(
-                "module kind changed during round-trip: library={} interface={} -> library={} interface={}",
-                expected.is_library, expected.is_interface, actual.is_library, actual.is_interface
-            ));
-        }
-        if expected.functions.len() != actual.functions.len() {
-            return Err(format!(
-                "function count changed from {} to {} during round-trip",
-                expected.functions.len(),
-                actual.functions.len()
-            ));
-        }
-        for (expected, actual) in expected.functions.iter().zip(&actual.functions) {
-            if expected.selector != actual.selector
-                || expected.abi_returns != actual.abi_returns
-                || expected.attributes != actual.attributes
-                || expected.internal_frame_size != actual.internal_frame_size
-                || expected.external_static_return_size != actual.external_static_return_size
-                || expected.returns != actual.returns
-                || expected.arg_indices().count() != actual.arg_indices().count()
-                || expected.arg_indices().zip(actual.arg_indices()).any(
-                    |(expected_index, actual_index)| {
-                        expected.arg_ty(expected_index) != actual.arg_ty(actual_index)
-                    },
-                )
-            {
-                return Err(format!(
-                    "function `{}` attributes changed during round-trip: {:?} -> {:?}",
-                    expected.name, expected.attributes, actual.attributes
-                ));
-            }
         }
         Ok(())
     }

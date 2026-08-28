@@ -1,112 +1,19 @@
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) [ir=MIR module="ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=true] ===
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) ===
   @module LowerAbi
-- fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
+- fn @add(arg0: u256, arg1: u256) {
 + @phase abi
-+ fn @add() [selector=0x771602f7, arg_types=(u256, u256)] {
++ fn @add() {
     bb0:
-+     v1 = callvalue
-+     jumpi v1, bb2, bb1
-+   bb1:
       v0 = add arg0, arg1
       mstore 128, v0
       returndata 128, 32
-+   bb2:
-+     revert 0, 0
   }
   
-- fn @flag(arg0: bool) [selector=0x0d2020dd] {
-+ fn @flag() [selector=0x0d2020dd, arg_types=(bool)] {
+- fn @flag(arg0: bool) {
++ fn @flag() {
     bb0:
-+     v0 = callvalue
-+     jumpi v0, bb2, bb1
-+   bb1:
       mstore 128, arg0
       returndata 128, 32
-+   bb2:
-+     revert 0, 0
-  }
-  
-- fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
-+ fn @takesBytes() [selector=0x0dead002, arg_types=(memptr, u256)] {
-    bb0:
-+     v2 = callvalue
-+     jumpi v2, bb2, bb1
-+   bb1:
-      v0 = mload arg0
-      v1 = add v0, arg1
-      mstore 128, v1
-      returndata 128, 32
-+   bb2:
-+     revert 0, 0
-  }
-  
-- fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
-+ fn @givesBytes() [selector=0x0dead001, arg_types=(memorybytes)] {
-    bb0:
--     ret arg0
-+     v3 = callvalue
-+     jumpi v3, bb2, bb1
-+   bb1:
-+     v0 = abi_encode [memory_bytes], args arg0
-+     v1 = slice_ptr v0
-+     v2 = slice_len v0
-+     returndata v1, v2
-+   bb2:
-+     revert 0, 0
-  }
-  
-- fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
-+ fn @pair() [selector=0x1f6a26ff, arg_types=(u256)] {
-    bb0:
-+     v2 = callvalue
-+     jumpi v2, bb2, bb1
-+   bb1:
-      v0 = add arg0, 1
--     ret arg0, v0
-+     mstore 128, arg0
-+     v1 = add 128, 32
-+     mstore v1, v0
-+     returndata 128, 64
-+   bb2:
-+     revert 0, 0
-  }
-  
-  fn @payable() [selector=0x0a0a0a03, payable] {
-    bb0:
-      stop
-  }
-  
-- fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
-+ fn @pub() [selector=0x0a0a0a01, arg_types=(u256)] {
-    bb0:
-+     v1 = callvalue
-+     jumpi v1, bb2, bb1
-+   bb1:
-      v0 = add arg0, 1
--     ret v0
-+     mstore 128, v0
-+     returndata 128, 32
-+   bb2:
-+     revert 0, 0
-  }
-  
-- fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
-+ fn @caller() [selector=0x0a0a0a02, arg_types=(u256)] {
-    bb0:
--     v0 = internal_call @pub, 1, arg0
-+     v1 = callvalue
-+     jumpi v1, bb2, bb1
-+   bb1:
-+     v0 = internal_call @pub.body, 1, arg0
-+     mstore 128, v0
-+     returndata 128, 32
-+   bb2:
-+     revert 0, 0
-+ }
-+ 
-+ fn @pub.body(arg0: u256) -> u256 {
-+   bb0:
-+     v0 = add arg0, 1
-      ret v0
   }
   

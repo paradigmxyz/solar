@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase evm-shaped
-fn @pushStr() [selector=0xe6e6accc, public, arg_types=(memptr)] {
+fn @pushStr() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -95,7 +95,7 @@ fn @pushStr() [selector=0xe6e6accc, public, arg_types=(memptr)] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -137,7 +137,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memptr [no_inline] {
     revert 0, 0
 }
 
-fn @popStr() [selector=0x5d7696c3, public] {
+fn @popStr() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi v0, bb2, bb1
@@ -185,7 +185,7 @@ fn @popStr() [selector=0x5d7696c3, public] {
     jump bb3
 }
 
-fn @blobAt() [selector=0x8f236983, public, view, arg_types=(u256)] {
+fn @blobAt() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -233,7 +233,7 @@ fn @blobAt() [selector=0x8f236983, public, view, arg_types=(u256)] {
     revert 0, 0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memptr [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memptr {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -281,7 +281,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr [no_inline] {
     jump bb4
 }
 
-fn @pushEmpty() [selector=0x19d30117, public] {
+fn @pushEmpty() {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = add v0, 1
@@ -328,7 +328,7 @@ fn @pushEmpty() [selector=0x19d30117, public] {
     tail_call @__revert_stub0
 }
 
-fn @__revert_stub0() [no_inline] {
+fn @__revert_stub0() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

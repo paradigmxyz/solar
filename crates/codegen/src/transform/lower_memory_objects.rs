@@ -2,7 +2,7 @@
 
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirType, Module, Value},
+    mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Value},
     pass::MirPass,
 };
 use solar_data_structures::{
@@ -29,17 +29,20 @@ impl MirPass for LowerMemoryObjects {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        lower_memory_objects(module)
+        if module.phase >= MirPhase::MemoryLowered {
+            return false;
+        }
+        let mut stats = LowerMemoryObjectsStats::default();
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            changed |= lower_function::<EvmMemoryLayout>(func, &mut stats);
+        }
+        if module.phase == MirPhase::Dispatch {
+            module.advance_phase(MirPhase::MemoryLowered);
+            changed = true;
+        }
+        changed
     }
-}
-
-pub(super) fn lower_memory_objects(module: &mut Module) -> bool {
-    let mut stats = LowerMemoryObjectsStats::default();
-    let mut changed = false;
-    for func in module.functions.iter_mut() {
-        changed |= lower_function::<EvmMemoryLayout>(func, &mut stats);
-    }
-    changed
 }
 
 /// Statistics from semantic memory-object lowering.

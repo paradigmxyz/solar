@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_encoding.sol:EventEncoding ===
 @module EventEncoding
-fn @emitArray(arg0: u256, arg1: u256) [selector=0x86cb3475, external] {
+fn @emitArray(arg0: u256, arg1: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -25,7 +25,7 @@ fn @emitArray(arg0: u256, arg1: u256) [selector=0x86cb3475, external] {
     revert 0, 0
 }
 
-fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, external] {
+fn @emitAnonymous(arg0: address, arg1: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -47,7 +47,7 @@ fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, external] {
     revert 0, 0
 }
 
-fn @emitIndexedBytes(arg0: memorybytes) [selector=0xcc07e605, external] {
+fn @emitIndexedBytes(arg0: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -69,7 +69,7 @@ fn @emitIndexedBytes(arg0: memorybytes) [selector=0xcc07e605, external] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -120,14 +120,14 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @emitIndexedFixedBytes() [selector=0x25daad67, external] {
+fn @emitIndexedFixedBytes() {
   bb0:
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
     log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, v0
     stop
 }
 
-fn @emitNamed() [selector=0x4135d839, external] {
+fn @emitNamed() {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)

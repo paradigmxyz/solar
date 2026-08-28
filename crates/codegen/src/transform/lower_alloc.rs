@@ -39,7 +39,7 @@ impl MirPass for LowerAlloc {
     }
 }
 
-pub(super) fn lower_alloc(module: &mut Module) -> bool {
+fn lower_alloc(module: &mut Module) -> bool {
     let mut changed = false;
     for func in module.functions.iter_mut() {
         if !func.blocks.is_empty() {

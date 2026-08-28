@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading.mir (after jump-threading) [ir=MIR module="ROOT/tests/ui/codegen/mir/jump-threading/jump_threading.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading.mir (before jump-threading) ===
++ // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading.mir (after jump-threading) ===
   @module Threading
   fn @forwarder_chain(arg0: u256) -> u256 {
     bb0:

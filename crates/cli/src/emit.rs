@@ -5,7 +5,7 @@ use solar_codegen::{
     ContractArtifact, ContractSelection,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
-    mir::{Module, validate_for_evm},
+    mir::{Module, validate},
     pass,
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
@@ -114,10 +114,11 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
     let source = &gcx.sources.first().expect("IR source should be loaded").file;
     if gcx.sess.opts.language.is_mir() {
         let mut module = Module::parse(gcx.sess, source)?;
-        validate_for_evm(&gcx.sess.dcx, &module, gcx.sess.opts.evm_version);
+        validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
+            validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 
             let value = gcx
@@ -237,11 +238,10 @@ fn emit_mir_pipeline_output(
     Ok(())
 }
 
-fn should_print_pipeline_output(gcx: Gcx<'_>, _value: &str) -> bool {
+fn should_print_pipeline_output(gcx: Gcx<'_>, value: &str) -> bool {
     (!gcx.sess.opts.language.is_evm_ir() || !has_disasm_dump(gcx))
         && !gcx.sess.opts.unstable.print_after_each
-        && !gcx.sess.opts.unstable.print_after_stage
-        && !gcx.sess.opts.unstable.pass_diff
+        && (!gcx.sess.opts.unstable.pass_diff || value == "default")
 }
 
 fn write_pipeline_output(

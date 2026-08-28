@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/dce/dce.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/dce/dce.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/dce/dce.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dce.mir (after dce) ===
   @module Dce
   fn @with_dead_code(arg0: u256) -> u256 {
     bb0:

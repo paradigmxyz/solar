@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
 @phase evm-shaped
-fn @doAdd() [selector=0xe9148a2a, public, pure, external_static_return_size=32, arg_types=(i256, i256)] {
+fn @doAdd() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @doAdd() [selector=0xe9148a2a, public, pure, external_static_return_size=32, 
     revert 0, 0
 }
 
-fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @add(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = slt arg0, 0
@@ -28,7 +28,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
     tail_call @__revert_stub0
 }
 
-fn @doNeg() [selector=0x8fa81b4e, public, pure, external_static_return_size=32, arg_types=(i256)] {
+fn @doNeg() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -42,7 +42,7 @@ fn @doNeg() [selector=0x8fa81b4e, public, pure, external_static_return_size=32, 
     revert 0, 0
 }
 
-fn @neg(arg0: i256) -> i256 [pure] {
+fn @neg(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
@@ -53,7 +53,7 @@ fn @neg(arg0: i256) -> i256 [pure] {
     tail_call @__revert_stub0
 }
 
-fn @__revert_stub0() [no_inline] {
+fn @__revert_stub0() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

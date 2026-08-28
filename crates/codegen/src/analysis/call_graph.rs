@@ -1,6 +1,5 @@
 //! Module-level call graph facts for MIR.
 
-use super::CfgInfo;
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::collections::VecDeque;
@@ -11,71 +10,6 @@ pub(crate) struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     reachable_from_entries: DenseBitSet<FunctionId>,
     recursive_functions: DenseBitSet<FunctionId>,
-    callee_first: Vec<FunctionId>,
-}
-
-/// Call edges that the backend can frame as non-returning tail calls.
-pub(crate) struct TailCallEligibility {
-    callees: DenseBitSet<FunctionId>,
-    constructor_reachable: DenseBitSet<FunctionId>,
-    recursive: DenseBitSet<FunctionId>,
-    callee_first: Vec<FunctionId>,
-}
-
-impl TailCallEligibility {
-    pub(crate) fn new(module: &Module) -> Self {
-        let call_graph = CallGraphInfo::new(module);
-        let mut callees = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.selector.is_none()
-                && !func.attributes.is_receive
-                && !func.attributes.is_fallback
-                && !call_graph.is_recursive(func_id)
-                && function_cannot_return(func)
-            {
-                callees.insert(func_id);
-            }
-        }
-
-        let mut constructor_reachable = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
-        let recursive = call_graph.recursive_functions;
-        let callee_first = call_graph.callee_first;
-        Self { callees, constructor_reachable, recursive, callee_first }
-    }
-
-    pub(crate) fn contains(&self, caller: FunctionId, callee: FunctionId) -> bool {
-        self.callees.contains(callee) && !self.constructor_reachable.contains(caller)
-    }
-
-    pub(crate) fn callee_first(&self) -> &[FunctionId] {
-        &self.callee_first
-    }
-
-    pub(crate) fn refresh_callee(&mut self, module: &Module, func_id: FunctionId) {
-        let func = module.function(func_id);
-        if func.selector.is_none()
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && !self.recursive.contains(func_id)
-            && function_cannot_return(func)
-        {
-            self.callees.insert(func_id);
-        }
-    }
-
-    pub(crate) fn same_eligible_calls(&self, other: &Self) -> bool {
-        self.callees == other.callees && self.constructor_reachable == other.constructor_reachable
-    }
 }
 
 impl CallGraphInfo {
@@ -91,7 +25,7 @@ impl CallGraphInfo {
                 entry_functions.insert(func_id);
             }
 
-            let direct_callees = Self::direct_callees(func, function_count);
+            let direct_callees = Self::collect_internal_callees(func, function_count);
             if !direct_callees.is_empty() {
                 callees.insert(func_id, direct_callees);
             }
@@ -99,10 +33,9 @@ impl CallGraphInfo {
 
         let reachable_from_entries =
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
-        let (recursive_functions, callee_first) =
-            Self::recursive_functions_in_graph(&callees, function_count);
+        let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
 
-        Self { callees, reachable_from_entries, recursive_functions, callee_first }
+        Self { callees, reachable_from_entries, recursive_functions }
     }
 
     /// Returns all functions reachable from entry functions.
@@ -157,10 +90,7 @@ impl CallGraphInfo {
         reachable
     }
 
-    pub(crate) fn direct_callees(
-        func: &Function,
-        function_count: usize,
-    ) -> DenseBitSet<FunctionId> {
+    fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
             if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
@@ -179,7 +109,6 @@ impl CallGraphInfo {
 
     fn is_entry_function(func: &Function) -> bool {
         func.selector.is_some()
-            || func.attributes.is_dispatch_entry
             || func.attributes.is_constructor
             || func.attributes.is_fallback
             || func.attributes.is_receive
@@ -211,7 +140,7 @@ impl CallGraphInfo {
     fn recursive_functions_in_graph(
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
         function_count: usize,
-    ) -> (DenseBitSet<FunctionId>, Vec<FunctionId>) {
+    ) -> DenseBitSet<FunctionId> {
         // Find strongly connected components with Kosaraju's algorithm. The previous search
         // started a fresh DFS at every function, making repeated call-graph analyses quadratic on
         // large modules even when their call graph was sparse.
@@ -255,7 +184,7 @@ impl CallGraphInfo {
 
         let mut assigned = DenseBitSet::new_empty(function_count);
         let mut recursive = DenseBitSet::new_empty(function_count);
-        for root in finish_order.iter().rev().copied() {
+        for root in finish_order.into_iter().rev() {
             if !assigned.insert(root) {
                 continue;
             }
@@ -276,19 +205,8 @@ impl CallGraphInfo {
                 }
             }
         }
-        (recursive, finish_order)
+        recursive
     }
-}
-
-/// Whether a function can never return to an internal caller.
-fn function_cannot_return(func: &Function) -> bool {
-    if func.blocks.is_empty() {
-        return false;
-    }
-    let cfg = CfgInfo::new(func);
-    !cfg.reachable().iter().any(|block| {
-        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-    })
 }
 
 #[cfg(test)]
@@ -305,7 +223,7 @@ mod tests {
                 .insert(FunctionId::from_usize(callee));
         }
 
-        let (recursive, _) = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
+        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
         assert!(!recursive.contains(FunctionId::from_usize(0)));
         assert!(recursive.contains(FunctionId::from_usize(1)));
         assert!(recursive.contains(FunctionId::from_usize(2)));
@@ -321,7 +239,7 @@ mod tests {
                 .insert(FunctionId::from_usize(callee));
         }
 
-        let (recursive, _) = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
+        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
         assert!(recursive.is_empty());
     }
 }

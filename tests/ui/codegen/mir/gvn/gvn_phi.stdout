@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/gvn/gvn_phi.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/gvn/gvn_phi.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/gvn/gvn_phi.mir (before gvn) ===
++ // === ROOT/tests/ui/codegen/mir/gvn/gvn_phi.mir (after gvn) ===
   @module GvnPhi
   fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
     bb0:

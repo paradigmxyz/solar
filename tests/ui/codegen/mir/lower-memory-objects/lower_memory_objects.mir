@@ -1,7 +1,6 @@
 //@compile-flags: -Zmir-pipeline=lower-memory-objects
 //@filecheck:
 @module LowerMemoryObjects
-@library
 @phase dispatch
 
 // CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, external, pure, abi_returns=[memory_bytes]] {
+fn @bytesChain(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -86,7 +86,7 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, externa
     revert 0, 0
 }
 
-fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @arrChain(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -160,7 +160,7 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, external, pure, 
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memoryarray [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memoryarray {
   bb0:
     v0 = calldataload arg0
     v1 = add arg0, 32

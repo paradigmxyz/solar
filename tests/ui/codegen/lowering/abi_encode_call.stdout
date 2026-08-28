@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase evm-shaped
-fn @asValue() [selector=0x440a9300, public, pure, arg_types=(address, u256)] {
+fn @asValue() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -64,7 +64,7 @@ fn @asValue() [selector=0x440a9300, public, pure, arg_types=(address, u256)] {
     invalid
 }
 
-fn @viaCall() [selector=0x23d014a1, public, internal_frame_size=32, external_static_return_size=32, arg_types=(address, address, u256)] {
+fn @viaCall() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

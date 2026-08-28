@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/nested_loops.sol:NestedLoops ===
 @module NestedLoops
-fn @sum_grid(arg0: u256, arg1: u256) -> u256 [selector=0xa801641f, public, pure, internal_frame_size=96, external_static_return_size=32, abi_returns=[word]] {
+fn @sum_grid(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -84,7 +84,7 @@ fn @sum_grid(arg0: u256, arg1: u256) -> u256 [selector=0xa801641f, public, pure,
     revert 0, 0
 }
 
-fn @find_first(arg0: u256, arg1: u256) -> u256 [selector=0x01609651, public, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
+fn @find_first(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

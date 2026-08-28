@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/narrow_bitwise_not.sol:NarrowBitwiseNot ===
 @module NarrowBitwiseNot
-fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notUint8(arg0: u8) -> u8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -21,7 +21,7 @@ fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, external, pure, external_stat
     revert 0, 0
 }
 
-fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -42,7 +42,7 @@ fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, external, pure, external_s
     revert 0, 0
 }
 
-fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notUint256(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -55,7 +55,7 @@ fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, external, pure, externa
     revert 0, 0
 }
 
-fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -75,7 +75,7 @@ fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, external, pure, external_stati
     revert 0, 0
 }
 
-fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -96,7 +96,7 @@ fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, external, pure, exte
     revert 0, 0
 }
 
-fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -117,7 +117,7 @@ fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, external, pure, exte
     revert 0, 0
 }
 
-fn @notBytes32(arg0: bytes32) -> bytes32 [selector=0xb683cb30, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @notBytes32(arg0: bytes32) -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

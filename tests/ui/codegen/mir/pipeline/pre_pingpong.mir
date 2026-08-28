@@ -1,8 +1,8 @@
 //@ revisions: pre pipeline
 //@[pre] compile-flags: -Zmir-pipeline=pre
 //@[pre] filecheck: --check-prefix=PRE
-//@[pipeline] compile-flags: -Zmir-pipeline=default -Zprint-after-stage
-//@[pipeline] filecheck: --check-prefix=PIPELINE
+//@[pipeline] compile-flags: -Zmir-pipeline=default
+//@[pipeline] filecheck: --check-prefix=PIPELINE --implicit-check-not=add
 // Two join blocks that are mutual predecessors: eliminating the expression
 // from one join inserts it into the other, which used to ping-pong forever.
 // The direct pass must terminate after the single profitable rewrite in bb5,
@@ -11,9 +11,7 @@
 // PRE-LABEL: {{^[ +].*}}fn @pingpong{{[( ]}}
 // PRE: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb6: [[INSERTED:v[0-9]+]]]
 // PRE: + [[INSERTED]] = add arg0, 7
-// PIPELINE-LABEL: checkpoint=mir.evm-shaped
-// PIPELINE: fn @pingpong{{[( ]}}
-// PIPELINE-NOT: add
+// PIPELINE-LABEL: fn @pingpong{{[( ]}}
 // PIPELINE: bb0:
 // PIPELINE-NEXT: jump [[LOOP:bb[0-9]+]]
 // PIPELINE: [[LOOP]]:

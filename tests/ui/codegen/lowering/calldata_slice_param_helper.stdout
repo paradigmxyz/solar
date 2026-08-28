@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_param_helper.sol:CalldataSliceParamHelper ===
 @module CalldataSliceParamHelper
 @phase evm-shaped
-fn @lastWord() [selector=0x3955f902, external, pure, external_static_return_size=32, arg_types=(u256)] {
+fn @lastWord() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -35,7 +35,7 @@ fn @lastWord() [selector=0x3955f902, external, pure, external_static_return_size
     revert 0, 0
 }
 
-fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure, internal_frame_size=32] {
+fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
   bb0:
     v2 = sub arg1, 32
     v4 = add arg0, v2
@@ -43,7 +43,7 @@ fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure, internal_frame_size=32] 
     ret v5
 }
 
-fn @lastWord2() [selector=0x97f495a8, external, pure, external_static_return_size=32, arg_types=(u256)] {
+fn @lastWord2() {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

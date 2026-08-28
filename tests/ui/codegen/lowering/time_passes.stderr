@@ -1,14 +1,12 @@
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=built pass=lower-mapping-slots invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=built pass=lower-abi invocation=1 outcome=ok ir_changed=false state_changed=true state_only=true
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=abi pass=lower-abi-encode invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=abi pass=lower-aggregates invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=abi pass=lower-slices invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=abi pass=lower-dispatch invocation=1 outcome=ok ir_changed=true state_changed=true state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=dispatch pass=lower-intrinsics invocation=1 outcome=ok ir_changed=false state_changed=true state_only=true
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=intrinsics-lowered pass=lower-immutables invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=intrinsics-lowered pass=lower-target invocation=1 outcome=ok ir_changed=false state_changed=true state_only=true
-time: <TIME>	ir=MIR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=- pipeline_run=1 stage=target-lowered pass=lower-evm-shaped invocation=1 outcome=ok ir_changed=false state_changed=true state_only=true
-time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=runtime pipeline_run=2 stage=custom pass=legalize-shifts invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=runtime pipeline_run=2 stage=custom pass=legalize-shifts invocation=2 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=deployment pipeline_run=3 stage=custom pass=legalize-shifts invocation=1 outcome=ok ir_changed=false state_changed=false state_only=false
-time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses" artifact=deployment pipeline_run=3 stage=custom pass=legalize-shifts invocation=2 outcome=ok ir_changed=false state_changed=false state_only=false
+time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
+time: <TIME>	MIR TimePasses lower-abi changed=true
+time: <TIME>	MIR TimePasses lower-abi-encode changed=false
+time: <TIME>	MIR TimePasses lower-aggregates changed=false
+time: <TIME>	MIR TimePasses lower-slices changed=false
+time: <TIME>	MIR TimePasses lower-dispatch changed=true
+time: <TIME>	MIR TimePasses lower-memory-objects changed=true
+time: <TIME>	MIR TimePasses lower-immutables changed=false
+time: <TIME>	MIR TimePasses lower-alloc changed=false
+time: <TIME>	MIR TimePasses lower-memory-zero changed=false
+time: <TIME>	MIR TimePasses lower-mcopy changed=false
+time: <TIME>	MIR TimePasses lower-evm-shaped changed=true

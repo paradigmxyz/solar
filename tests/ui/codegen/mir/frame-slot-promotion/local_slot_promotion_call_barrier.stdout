@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after frame-slot-promotion) ===
   @module LocalSlotPromotionCallBarrier
   fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
     bb0:
@@ -38,7 +39,8 @@
       ret v6
   }
   
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after dce) ===
   @module LocalSlotPromotionCallBarrier
   fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
     bb0:

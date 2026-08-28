@@ -1,4 +1,5 @@
-  // === ROOT/tests/ui/codegen/mir/inst-simplify/self_balance_evm_version.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/inst-simplify/self_balance_evm_version.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/self_balance_evm_version.mir (before inst-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/self_balance_evm_version.mir (after inst-simplify) ===
   @module InstSimplifySelfBalance
   fn @own_balance() -> u256 {
     bb0:

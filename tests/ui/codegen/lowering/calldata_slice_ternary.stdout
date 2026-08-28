@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_ternary.sol:CalldataSliceTernary ===
 @module CalldataSliceTernary
-fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [selector=0x159bd6de, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -87,7 +87,7 @@ fn @pick(arg0: bool, arg1: calldataslice, arg2: calldataslice) -> u256 [selector
     revert 0, 0
 }
 
-fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, external, pure, abi_returns=[memory_bytes]] {
+fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

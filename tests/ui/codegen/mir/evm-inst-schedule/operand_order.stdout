@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/operand_order.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/operand_order.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/operand_order.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/operand_order.mir (after evm-inst-schedule) ===
   @module EvmInstSchedule
   fn @binary_push_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:

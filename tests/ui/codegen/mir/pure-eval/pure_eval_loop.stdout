@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) [ir=MIR module="ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (before pure-eval) ===
++ // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) ===
   @module PureEvalLoop
   fn @bounded_loop() -> u256 {
     bb0:

@@ -1,9 +1,8 @@
-//@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
+//@compile-flags: -Zmir-pipeline=default
 //@filecheck:
 @module PipelineCleanup
 
-// CHECK-LABEL: checkpoint=mir.evm-shaped
-// CHECK: fn @fold_phi_after_promotion{{[( ]}}
+// CHECK-LABEL: fn @fold_phi_after_promotion{{[( ]}}
 // CHECK: bb0:
 // CHECK-NEXT: ret 1
 // CHECK-NOT: invalid

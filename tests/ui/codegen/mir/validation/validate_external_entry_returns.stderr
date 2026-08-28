@@ -1,6 +1,0 @@
-error: [fn0] external function `returnsInternally` still has MIR returns in the `abi` phase
-
-error: [fn0] external function `returnsInternally` has an internal `ret` terminator in the `abi` phase
-
-error: aborting due to 2 previous errors
-

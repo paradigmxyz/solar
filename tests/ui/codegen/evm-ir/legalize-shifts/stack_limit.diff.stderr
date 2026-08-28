@@ -1,5 +1,0 @@
-error: legacy shift legalization would exceed the EVM stack limit
-
-time: <TIME>	ir=EVM-IR module="ROOT/tests/ui/codegen/evm-ir/legalize-shifts/stack_limit.evmir" artifact=- pipeline_run=1 stage=custom pass=legalize-shifts invocation=1 outcome=failed ir_changed=false state_changed=false state_only=false
-error: aborting due to 1 previous error
-

@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
-fn @s() -> memorybytes [selector=0x86b714e2, external, view, abi_returns=[memory_bytes]] {
+fn @s() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -52,13 +52,13 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @b() -> memorybytes [selector=0x4df7e3d0, external, view, abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @_anonymous() [public, constructor] {
+fn @_anonymous() {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
@@ -73,13 +73,13 @@ fn @_anonymous() [public, constructor] {
     stop
 }
 
-fn @getS() -> memorybytes [selector=0xe93314ab, public, view, abi_returns=[memory_bytes]] {
+fn @getS() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @getB() -> memorybytes [selector=0xa1c51915, public, view, abi_returns=[memory_bytes]] {
+fn @getB() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact.0(arg0: u256) -> u256 [selector=0x0b95d228, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @fact.0(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -39,7 +39,7 @@ fn @fact.0(arg0: u256) -> u256 [selector=0x0b95d228, public, pure, external_stat
     revert 0, 0
 }
 
-fn @fact.1(arg0: u256) -> u256 [public, pure] {
+fn @fact.1(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -71,7 +71,7 @@ fn @fact.1(arg0: u256) -> u256 [public, pure] {
     ret 1
 }
 
-fn @fib.2(arg0: u256) -> u256 [selector=0xc6c2ea17, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @fib.2(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -115,7 +115,7 @@ fn @fib.2(arg0: u256) -> u256 [selector=0xc6c2ea17, public, pure, external_stati
     revert 0, 0
 }
 
-fn @fib.3(arg0: u256) -> u256 [public, pure] {
+fn @fib.3(arg0: u256) -> u256 {
   bb0:
     v0 = gt arg0, 1
     v1 = iszero v0
@@ -152,7 +152,7 @@ fn @fib.3(arg0: u256) -> u256 [public, pure] {
     ret arg0
 }
 
-fn @isEven.4(arg0: u256) -> bool [selector=0x2a2e1320, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @isEven.4(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -178,7 +178,7 @@ fn @isEven.4(arg0: u256) -> bool [selector=0x2a2e1320, public, pure, external_st
     revert 0, 0
 }
 
-fn @isOdd.5(arg0: u256) -> bool [public, pure] {
+fn @isOdd.5(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -197,7 +197,7 @@ fn @isOdd.5(arg0: u256) -> bool [public, pure] {
     ret 0
 }
 
-fn @isEven.6(arg0: u256) -> bool [public, pure] {
+fn @isEven.6(arg0: u256) -> bool {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -216,7 +216,7 @@ fn @isEven.6(arg0: u256) -> bool [public, pure] {
     ret 1
 }
 
-fn @isOdd.7(arg0: u256) -> bool [selector=0xd8b3a2eb, public, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @isOdd.7(arg0: u256) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,6 +1,7 @@
-+ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (after storage-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (before storage-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (after storage-promotion) ===
   @module StoragePromotionAlias
-  fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
+  fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) {
     bb0:
 -     sstore arg0, 1
 -     sstore arg1, 2
@@ -27,7 +28,7 @@
       jump bb1
   }
   
-  fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020305] {
+  fn @reject_symbolic_and_constant_slots(arg0: u256) {
     bb0:
 -     sstore arg0, 1
 -     sstore 7, 2
@@ -54,8 +55,7 @@
       jump bb1
   }
   
-- fn @promote_two_constant_slots() [selector=0x01020306] {
-+ fn @promote_two_constant_slots() [selector=0x01020306, internal_frame_size=64] {
+  fn @promote_two_constant_slots() {
     bb0:
 -     sstore 0, 1
 -     sstore 1, 2
@@ -86,8 +86,7 @@
       jump bb1
   }
   
-- fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020307] {
-+ fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020307, internal_frame_size=64] {
+  fn @promote_same_base_distinct_offsets(arg0: u256) {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1

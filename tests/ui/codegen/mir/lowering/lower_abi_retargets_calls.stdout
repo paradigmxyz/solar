@@ -1,0 +1,28 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (after lower-abi) ===
+  @module LowerAbiRetargets
+- fn @pub(arg0: u256) -> u256 [abi_returns=[word]] {
++ @phase abi
++ fn @pub() {
+    bb0:
+      v0 = add arg0, 1
+-     ret v0
++     mstore 128, v0
++     returndata 128, 32
+  }
+  
+- fn @caller(arg0: u256) -> u256 [abi_returns=[word]] {
++ fn @caller() {
+    bb0:
+-     v0 = internal_call @pub, 1, arg0
++     v0 = internal_call @pub.body, 1, arg0
++     mstore 128, v0
++     returndata 128, 32
++ }
++ 
++ fn @pub.body(arg0: u256) -> u256 {
++   bb0:
++     v0 = add arg0, 1
+      ret v0
+  }
+  

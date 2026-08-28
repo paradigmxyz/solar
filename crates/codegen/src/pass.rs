@@ -1,8 +1,7 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
-//! implement [`MirPass`], and one ordered pass list defines the canonical
-//! pipeline.
+//! implement [`MirPass`] and pipelines are slices of trait-object references.
 //! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
 //! produce results cached in an `AnalysisManager`.
 //!
@@ -13,14 +12,19 @@
 //! let mut am = AnalysisManager::new();
 //! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
 //!
-//! // MIR transforms use the configured canonical pipeline:
-//! let changed = run_pipeline(gcx, &mut module, None);
+//! let changed = run_passes(
+//!     gcx,
+//!     &mut module,
+//!     &[&dce::Dce],
+//!     None,
+//!     None,
+//! );
 //! ```
 
 use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
-    pass_manager::{MirPassManager, parse_pass_pipeline},
+    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::*,
 };
 use solar_data_structures::map::FxHashMap;
@@ -30,7 +34,7 @@ use std::{
     sync::Arc,
 };
 
-pub use crate::pass_manager::{MirPass, pipeline_label};
+pub use crate::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
@@ -67,8 +71,6 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
-    &lower_intrinsics::LowerIntrinsics,
-    &lower_target::LowerTarget,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
     &lower_mapping_slots::LowerMappingSlots,
@@ -79,7 +81,6 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
-    &static_alloc::DeferAlloc,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -138,9 +139,12 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 }
 
-/// The canonical MIR pipeline, in execution order.
-static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+/// The canonical MIR pipeline used by EVM codegen.
+pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
+    // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly(cfg_simplify::CfgSimplify),
     &SizeOnly(frame_promotion::FrameSlotPromotion),
     &SizeOnly(sroa::Sroa),
@@ -148,6 +152,8 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
     &cse::Cse,
+    // Reuse mapping slots before their scratch-memory expansion can obscure
+    // the semantic expression from the remaining optimization passes.
     &lower_mapping_slots::LowerMappingSlots,
     &gvn::Gvn,
     &pre::Pre,
@@ -166,9 +172,17 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
+    // MIR outlining remains profitable even though EVM IR can merge
+    // equivalent terminal blocks: lowering and stack scheduling can
+    // hide their shared semantic shape from the backend passes.
     &outline_reverts::OutlineReverts,
+    // Outlining and late control-flow rewrites expose scalar simplifications.
+    // Thread and clean the CFG first so the rest of this sequence observes the
+    // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
+    // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
@@ -183,38 +197,55 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &adce::Adce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
+    // Progressive lowering materializes ABI wrappers, selector routing, and
+    // tail-call edges as MIR. Each pass bails without advancing the phase
+    // when the module is outside its scope.
     &lower_abi::LowerAbi,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
+    // Encoder helpers are synthesized after the main optimization pipeline. Promote their loop
+    // cursors before aggregate and memory lowering so they receive the same SSA treatment as
+    // source-level internal functions.
     &frame_promotion::FrameSlotPromotion,
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
+    // Aggregate and ABI-helper lowering expose repeated address calculations and loads. Run CSE
+    // for both optimized objectives; the backend's objective-aware stack scheduler decides whether
+    // retaining the resulting value is cheaper than rematerializing it.
     &cse::Cse,
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
-    &lower_intrinsics::LowerIntrinsics,
+    &lower_memory_objects::LowerMemoryObjects,
     &gvn::Gvn,
     &copy_elision::CopyElision,
     &adce::Adce,
     &lower_immutables::LowerImmutables,
+    // Fuse straight-line constant-size allocations before their free-memory
+    // pointer traffic is materialized; pointer values are preserved exactly.
     &coalesce_allocs::CoalesceAllocs,
-    &lower_target::LowerTarget,
+    &lower_alloc::LowerAlloc,
+    &lower_memory_zero::LowerMemoryZero,
+    &lower_mcopy::LowerMCopy,
     &sccp::Sccp,
     &lower_evm_shaped::LowerEvmShaped,
+    // Late lowering can leave pure address and length calculations unused.
+    // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
-/// `name` overrides the module name in pass output. Named lowering passes advance representation
-/// phases in both canonical and custom pipelines.
+/// `name` overrides the module name in pass output. The canonical pipeline advances the module
+/// through optimization and lowering. Ad-hoc pass lists passed to `-Zmir-pipeline` do not advance
+/// the optimized phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -223,62 +254,39 @@ static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 )]
 #[must_use]
 pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    let custom = match gcx.sess.opts.unstable.mir_pipeline.as_deref() {
-        Some(value) => match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
+    if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
+        let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
             Err(_) => return false,
-        },
-        None => None,
-    };
-    let mut manager = MirPassManager::new(gcx, module, name);
-    let mut changed = false;
-    if let Some(passes) = custom {
-        let stage = "custom";
-        changed |= manager.run_passes(gcx, module, passes, true, stage);
-        if manager.failed() {
-            return changed;
-        }
-        if cfg!(debug_assertions) {
-            manager.validate(gcx, module);
-            if gcx.dcx().has_errors().is_err() {
-                return changed;
-            }
-        }
-        manager.print_checkpoint(gcx, module, stage, "custom-output");
-        return changed;
-    }
-
-    manager.print_checkpoint(gcx, module, "input", "mir.input");
-
-    assert_eq!(module.phase, MirPhase::default(), "canonical MIR pipeline requires built MIR");
-    for &pass in DEFAULT_PIPELINE {
-        let phase = module.phase;
-        let stage = phase.name();
-        changed |= manager.run_passes(gcx, module, std::iter::once(Some(pass)), false, stage);
-        if manager.failed() {
-            return changed;
-        }
-        if module.phase != phase {
-            assert_eq!(module.phase, phase.next().expect("cannot advance the final MIR phase"));
-            if cfg!(debug_assertions) {
-                manager.validate_phase_transition(gcx, module);
-                if gcx.dcx().has_errors().is_err() {
-                    return changed;
+        };
+        if let Some(passes) = pipeline {
+            let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+            let mut changed = false;
+            for pass in passes {
+                if let Some(pass) = pass {
+                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
+                } else if gcx.sess.opts.unstable.pass_diff {
+                    let text = module.to_text();
+                    print_pass_diff(&name, "none", &text, &text);
+                } else if gcx.sess.opts.unstable.print_after_each {
+                    println!("// === {name} (after none) ===");
+                    print!("{}", module.to_text());
                 }
             }
-            let stage = module.phase.name();
-            manager.print_checkpoint(
-                gcx,
-                module,
-                stage,
-                format_args!("mir.{}", module.phase.name()),
-            );
+            return changed;
         }
     }
-    assert!(module.phase.next().is_none(), "canonical MIR pipeline does not reach the final phase");
-    if cfg!(debug_assertions) {
-        manager.validate_structure(gcx, module);
+
+    let lowering_start = DEFAULT_PIPELINE
+        .iter()
+        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
+        .expect("default pipeline must contain `lower-abi`");
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
+    let mut changed = false;
+    if module.phase <= MirPhase::Optimized {
+        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized), None);
     }
+    changed |= run_passes(gcx, module, lowering_passes, None, None);
     changed
 }
 
@@ -346,11 +354,6 @@ pub struct ModuleAnalyses {
 impl ModuleAnalyses {
     pub(crate) fn begin_pass(&mut self) {
         self.preserved_by_pass = false;
-    }
-
-    pub(crate) fn invalidate(&mut self) {
-        self.preserved_by_pass = false;
-        self.invalidate_all();
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {

@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
+  @module LowerAbiMultiReturn
+- fn @pair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
++ @phase abi
++ fn @pair() {
+    bb0:
+      v0 = add arg0, 1
+-     ret arg0, v0
++     mstore 128, arg0
++     v1 = add 128, 32
++     mstore v1, v0
++     returndata 128, 64
+  }
+  

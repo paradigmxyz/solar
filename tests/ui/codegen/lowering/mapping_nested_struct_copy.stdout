@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
-fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0xeccd65dc, external] {
+fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -26,7 +26,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0x
     revert 0, 0
 }
 
-fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, external, view, internal_frame_size=128, external_static_return_size=128, abi_returns=[word, word, word, word]] {
+fn @get(arg0: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -57,7 +57,7 @@ fn @get(arg0: u256) -> (u256, u256, u256, u256) [selector=0x9507d39a, external, 
     revert 0, 0
 }
 
-fn @clear(arg0: u256) [selector=0xc0fe1af8, external] {
+fn @clear(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=default -Zprint-after-stage
+//@compile-flags: -Zmir-pipeline=default
 //@filecheck:
 @module FreshArrayBoundsPipeline
 
@@ -6,8 +6,7 @@
 // the length store is separated from the length load by an FMP update and a
 // zeroing calldatacopy over the data area. The default pipeline should forward
 // the stored length, fold `1 < 3`, and delete the panic branch.
-// CHECK-LABEL: checkpoint=mir.evm-shaped
-// CHECK: fn @constant_index{{[( ]}}
+// CHECK-LABEL: fn @constant_index{{[( ]}}
 // CHECK-NOT: {{jumpi|revert}}
 // CHECK: calldatacopy {{v[0-9]+}}, 0, 96
 // CHECK-NOT: {{jumpi|revert}}

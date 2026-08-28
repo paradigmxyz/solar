@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
-fn @b() -> memorybytes [selector=0x4df7e3d0, external, view, abi_returns=[memory_bytes]] {
+fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -52,7 +52,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @init(arg0: memorybytes) [selector=0x4ddf47d4, public] {
+fn @init(arg0: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -140,7 +140,7 @@ fn @init(arg0: memorybytes) [selector=0x4ddf47d4, public] {
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -191,7 +191,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @poke() [selector=0x18178358, public] {
+fn @poke() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -238,7 +238,7 @@ fn @poke() [selector=0x18178358, public] {
     stop
 }
 
-fn @hashB() -> bytes32 [selector=0xdf45d88e, public, view, external_static_return_size=32, abi_returns=[word]] {
+fn @hashB() -> bytes32 [abi_returns=[word]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = keccak256_bytes v0
@@ -247,13 +247,13 @@ fn @hashB() -> bytes32 [selector=0xdf45d88e, public, view, external_static_retur
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
-fn @name() -> memorybytes [selector=0x06fdde03, external, view, abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -299,13 +299,13 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, external, view, abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [public, constructor] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = constructor_args_base
@@ -552,13 +552,13 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [public, constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
-fn @name() -> memorybytes [selector=0x06fdde03, external, view, abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -604,13 +604,13 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, external, view, abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [public, constructor] {
+fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = constructor_args_base
@@ -857,7 +857,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [public, constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
-fn @_anonymous() [public, constructor] {
+fn @_anonymous() {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 9
@@ -1010,13 +1010,13 @@ fn @_anonymous() [public, constructor] {
     jump bb4
 }
 
-fn @name() -> memorybytes [selector=0x06fdde03, external, view, abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -1062,7 +1062,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, external, view, abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
@@ -1070,7 +1070,7 @@ fn @symbol() -> memorybytes [selector=0x95d89b41, external, view, abi_returns=[m
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
-fn @constructor() [public, constructor] {
+fn @constructor() {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 17
@@ -1223,13 +1223,13 @@ fn @constructor() [public, constructor] {
     jump bb4
 }
 
-fn @name() -> memorybytes [selector=0x06fdde03, external, view, abi_returns=[memory_bytes]] {
+fn @name() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -1275,7 +1275,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes [no_inline] {
     jump bb4
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, external, view, abi_returns=[memory_bytes]] {
+fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0

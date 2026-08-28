@@ -11,8 +11,6 @@
 // PASSES: - jump bb2
 // PASSES: {{^[ +].*}}ret {{v[0-9]+}}
 // PASSES: - {{v[0-9]+}} = mul arg0, arg0
-// DEFAULT-LABEL: after evm-inst-schedule
-// DEFAULT: @phase evm-shaped
 // DEFAULT-LABEL: fn @noisy{{[( ]}}
 // DEFAULT: bb0:
 // DEFAULT: [[RESULT:v[0-9]+]] = add arg0, 1

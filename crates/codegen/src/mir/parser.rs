@@ -177,9 +177,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
-        let mut phase_declared = false;
-        let mut is_library = false;
-        let mut is_interface = false;
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
         let module_name = self.parser.parse_ident()?;
@@ -187,10 +184,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let attr = self.parser.parse_ident()?;
             match attr {
                 sym::phase => {
-                    if phase_declared {
-                        return Err(self.parser.error("duplicate MIR phase"));
-                    }
-                    phase_declared = true;
                     let phase_span = self.parser.token().span;
                     let phase_name = self.parse_phase_name()?;
                     phase = super::MirPhase::by_name(phase_name).ok_or_else(|| {
@@ -198,8 +191,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             .error_at(phase_span, format!("unknown MIR phase `{phase_name}`"))
                     })?;
                 }
-                kw::Library => is_library = true,
-                kw::Interface => is_interface = true,
                 _ => return Err(self.parser.error(format!("unknown module attribute `@{attr}`"))),
             }
         }
@@ -207,8 +198,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let module_ident = Ident::with_dummy_span(module_name);
         let mut module = Module::new(module_ident);
         module.phase = phase;
-        module.is_library = is_library;
-        module.is_interface = is_interface;
         let mut function_refs = Vec::new();
 
         if self.parser.check_keyword(sym::immutables) {
@@ -465,71 +454,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
                 }
-                sym::arg_types => {
-                    self.parser.expect(TokenKind::Eq)?;
-                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-                    let mut types = Vec::new();
-                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-                        loop {
-                            types.push(self.parse_type()?);
-                            if self.parser.eat(TokenKind::Comma) {
-                                continue;
-                            }
-                            self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-                            break;
-                        }
-                    }
-                    if types.len() < builder.func().params.len()
-                        || types.iter().zip(&builder.func().params).any(|(arg, param)| arg != param)
-                    {
-                        return Err(self.parser.error(
-                            "retained argument types must start with the function parameters",
-                        ));
-                    }
-                    if self.arg_values.len() != builder.func().params.len() {
-                        return Err(self.parser.error("duplicate `arg_types` attribute"));
-                    }
-                    for &ty in &types[builder.func().params.len()..] {
-                        self.arg_values.push(builder.func_mut().alloc_implicit_arg(ty));
-                    }
-                }
                 sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }
-                sym::no_inline => builder.func_mut().attributes.no_inline = true,
-                sym::yul => builder.func_mut().attributes.is_yul = true,
-                sym::internal_frame_size => {
-                    self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_uint()?;
-                    builder.func_mut().internal_frame_size = self.u256_to_u64(value)?;
-                }
-                sym::external_static_return_size => {
-                    self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_uint()?;
-                    builder.func_mut().external_static_return_size = self.u256_to_u64(value)?;
-                }
-                kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
-                kw::Private => {
-                    builder.func_mut().attributes.visibility = hir::Visibility::Private;
-                }
-                kw::Internal => {
-                    builder.func_mut().attributes.visibility = hir::Visibility::Internal;
-                }
-                kw::Public => {
-                    builder.func_mut().attributes.visibility = hir::Visibility::Public;
-                }
-                kw::External => {
-                    builder.func_mut().attributes.visibility = hir::Visibility::External;
-                }
-                kw::Pure => {
-                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Pure;
-                }
-                kw::View => {
-                    builder.func_mut().attributes.state_mutability = hir::StateMutability::View;
-                }
                 kw::Payable => {
                     builder.func_mut().attributes.state_mutability = hir::StateMutability::Payable;
                 }
@@ -618,6 +548,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
+            // ABI wrappers reference `argN` with an empty parameter list:
+            // those denote calldata head words. Allocate them on demand so
+            // printed `abi`-phase modules round-trip. A function that does
+            // declare parameters keeps strict bounds checking.
+            if idx >= self.arg_values.len() && builder.func().params.is_empty() {
+                for _ in self.arg_values.len()..=idx {
+                    let val = builder.func_mut().alloc_implicit_arg(MirType::uint256());
+                    self.arg_values.push(val);
+                }
+            }
             return self
                 .arg_values
                 .get(idx)
@@ -1303,12 +1243,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         value
             .try_into()
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
-    }
-
-    fn u256_to_u64(&self, value: U256) -> PResult<'sess, u64> {
-        value
-            .try_into()
-            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u64")))
     }
 
     fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, MirType)> {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
-fn @stored(arg0: u256) -> u256 [selector=0x8c396222, external, view, external_static_return_size=32, abi_returns=[word]] {
+fn @stored(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -14,7 +14,7 @@ fn @stored(arg0: u256) -> u256 [selector=0x8c396222, external, view, external_st
     revert 0, 0
 }
 
-fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
+fn @triple(arg0: u256) -> (u256, u256, u256) {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -40,7 +40,7 @@ fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
     ret 1, 2, 3
 }
 
-fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0xf09915d4, external, internal_frame_size=128, external_static_return_size=128, abi_returns=[word, word, word, word]] {
+fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_returns=[word, word, word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

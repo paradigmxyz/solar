@@ -27,18 +27,14 @@ impl MirPass for LowerMemoryZero {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        lower_memory_zero(module)
-    }
-}
-
-pub(super) fn lower_memory_zero(module: &mut Module) -> bool {
-    let mut changed = false;
-    for func in module.functions.iter_mut() {
-        if !func.blocks.is_empty() {
-            changed |= lower_function(func);
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            if !func.blocks.is_empty() {
+                changed |= lower_function(func);
+            }
         }
+        changed
     }
-    changed
 }
 
 fn lower_function(func: &mut Function) -> bool {

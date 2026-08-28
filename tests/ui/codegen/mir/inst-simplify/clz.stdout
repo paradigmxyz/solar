@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (before inst-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (after inst-simplify) ===
   @module ClzInstSimplify
   fn @simplify_clz_predicates(arg0: u256) -> (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
     bb0:

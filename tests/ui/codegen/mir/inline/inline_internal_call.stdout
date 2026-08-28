@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) [ir=MIR module="ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) ===
   @module InlineInternalCall
   fn @caller(arg0: u256) -> u256 {
     bb0:

@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (after check-elim) [ir=MIR module="ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (after check-elim) ===
   @module CheckElimMulDiv
   fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
     bb0:

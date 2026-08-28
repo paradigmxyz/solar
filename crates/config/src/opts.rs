@@ -377,15 +377,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
     pub evm_ir_pipeline: Option<String>,
 
-    /// Print MIR or EVM IR after every pass.
+    /// Print MIR or EVM IR after every optimization pass.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_after_each: bool,
 
-    /// Print MIR or EVM IR at stable pipeline checkpoints. Takes precedence over pass diffs.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub print_after_stage: bool,
-
-    /// Print a before-and-after diff for each scheduled IR pass.
+    /// Print a before-and-after diff for each pass explicitly selected by an IR pipeline.
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 

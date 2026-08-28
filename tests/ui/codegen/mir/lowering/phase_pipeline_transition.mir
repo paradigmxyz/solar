@@ -1,0 +1,13 @@
+//@compile-flags: -Zmir-pipeline=default
+//@filecheck:
+// CHECK: @module PhasePipelineTransition
+// CHECK-NEXT: @phase evm-shaped
+// The canonical pipeline is a phase transition: the module completes
+// progressive lowering and the header records the backend-ready phase.
+@module PhasePipelineTransition
+fn @f(arg0: u256) {
+  bb0:
+    v1 = add arg0, 1
+    mstore 128, v1
+    returndata 128, 32
+}

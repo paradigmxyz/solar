@@ -1,4 +1,0 @@
-error: module is in the `dispatch` phase but has no `entry` routing function
-
-error: aborting due to 1 previous error
-

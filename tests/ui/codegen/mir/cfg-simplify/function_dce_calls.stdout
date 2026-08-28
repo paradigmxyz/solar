@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir (after function-dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir (before function-dce) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir (after function-dce) ===
   @module FunctionDceCalls
 - fn @dead_helper() -> u256 {
 -   bb0:
@@ -10,13 +11,13 @@
       ret 1
   }
   
-  fn @entry() -> u256 [selector=0x00000001] {
+  fn @entry() -> u256 {
     bb0:
       v0 = internal_call @live_helper, 1
       ret v0
   }
   
-  fn @tail_entry() [selector=0x00000002] {
+  fn @tail_entry() {
     bb0:
       tail_call @live_helper
   }

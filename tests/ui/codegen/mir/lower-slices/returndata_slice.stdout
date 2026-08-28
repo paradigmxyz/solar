@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
   @module ReturndataSlice
   fn @copy_returndata() -> memptr {
     bb0:

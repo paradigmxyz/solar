@@ -86,8 +86,6 @@ pub(in crate::backend::evm) struct PreparedAssembly {
 #[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) gcx: Gcx<'gcx>,
-    /// Fully qualified contract name used by pipeline diagnostics.
-    pub(in crate::backend::evm) output_name: Option<String>,
     /// Artifact whose labels are being laid out.
     pub(in crate::backend::evm) artifact_kind: ArtifactKind,
     /// EVM IR emitted directly by MIR lowering.
@@ -140,7 +138,6 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
             gcx,
-            output_name: None,
             artifact_kind: ArtifactKind::Runtime,
             program: Self::new_ir_module(),
             program_is_finalized: false,
@@ -187,19 +184,6 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the artifact context used by conservative layout estimates.
     pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
         self.artifact_kind = kind;
-    }
-
-    /// Sets the fully qualified contract name used by pipeline diagnostics.
-    pub(crate) fn set_output_name(&mut self, name: String) {
-        self.output_name = Some(name);
-    }
-
-    /// Returns the stable pipeline artifact name for the active bytecode.
-    pub(in crate::backend::evm) fn pipeline_artifact(&self) -> &'static str {
-        match self.artifact_kind {
-            ArtifactKind::Runtime => "runtime",
-            ArtifactKind::Constructor => "deployment",
-        }
     }
 
     /// Records stack growth proven safe by the MIR backend.

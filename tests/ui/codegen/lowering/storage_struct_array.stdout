@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
 @module StorageStructArray
-fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, public] {
+fn @setS(arg0: u256, arg1: u256, arg2: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -33,7 +33,7 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, public] {
     revert 0, 0
 }
 
-fn @getS(arg0: u256) -> (u256, u256) [selector=0xd40d7b60, public, view, external_static_return_size=64, abi_returns=[word, word]] {
+fn @getS(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

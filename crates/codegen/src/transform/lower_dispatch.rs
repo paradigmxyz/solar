@@ -1,24 +1,25 @@
 //! Dispatch phase lowering: materialize the selector switch as MIR.
 //!
-//! In `built` MIR, selector routing is still implicit. This pass
+//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
 //! makes it an ordinary MIR function named `entry` (the dispatch phase of the
-//! sketch in [`crate::mir::MirPhase`]).
+//! sketch in [`MirPhase`]).
 //!
 //! The synthesized `entry` function loads the 4-byte selector from
-//! `calldataload(0)` and switches on it to one argument-free `tail_call`
+//! `calldataload(0)` and switches on it to one argument-free `internal_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
-//! It requires the `abi` phase because it routes to the argument-free wrappers
-//! that [`super::lower_abi::LowerAbi`] produces.
+//! It requires the `abi` phase: it routes to the argument-free wrappers that
+//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
+//! rather than half-dispatching argument-taking functions.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, Module, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
     pass::MirPass,
 };
 use alloy_primitives::U256;
@@ -32,6 +33,10 @@ impl MirPass for LowerDispatch {
         "lower-dispatch"
     }
 
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::Abi
+    }
+
     fn is_required(&self) -> bool {
         true
     }
@@ -42,23 +47,46 @@ impl MirPass for LowerDispatch {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let changed = LowerDispatchCx {
+        LowerDispatchCx {
+            stats: LowerDispatchStats::default(),
             has_bitwise_shifting: gcx.sess.opts.evm_version.has_bitwise_shifting(),
         }
-        .run(module);
-        module.advance_phase();
-        changed
+        .run(module)
     }
+}
+
+/// Statistics from dispatch lowering.
+#[derive(Clone, Debug, Default)]
+struct LowerDispatchStats {
+    /// Number of selector cases routed by the synthesized `entry` function.
+    routed: usize,
 }
 
 #[derive(Debug)]
 struct LowerDispatchCx {
+    stats: LowerDispatchStats,
     has_bitwise_shifting: bool,
 }
 
 impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
-        // Collect the routable external wrappers.
+        // Idempotent: only build the entry once.
+        if module.phase >= MirPhase::Dispatch {
+            return false;
+        }
+
+        // Dispatch routes to the argument-free ABI wrappers, so it requires the
+        // ABI phase. Running on `built`/`optimized` MIR would leave
+        // argument-taking external functions unroutable while still advancing
+        // the phase; require the precondition and bail otherwise.
+        if module.phase < MirPhase::Abi {
+            return false;
+        }
+
+        // Collect the routable external wrappers. After the ABI phase every
+        // such wrapper is argument-free; assert that rather
+        // than silently skipping, since a leftover argument-taking selector
+        // function would mean the ABI invariant was violated.
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
         let mut receive = None;
         let mut fallback = None;
@@ -72,13 +100,26 @@ impl LowerDispatchCx {
                 fallback = Some(id);
             }
             if let Some(selector) = func.selector {
+                debug_assert!(
+                    func.params.is_empty(),
+                    "dispatch after abi phase: selector function `{}` still takes arguments",
+                    func.name
+                );
                 routes.push((u32::from_be_bytes(selector), id));
             }
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
+        // A fallback with the `fallback(bytes) returns (bytes)` shape takes an
+        // argument this switch cannot supply; bail all-or-nothing rather than half-routing.
+        for id in [receive, fallback].into_iter().flatten() {
+            if !module.function(id).params.is_empty() {
+                return false;
+            }
+        }
         if routes.is_empty() && receive.is_none() && fallback.is_none() && module.is_library {
-            return false;
+            module.advance_phase(MirPhase::Dispatch);
+            return true;
         }
 
         // Hoist the callvalue check when every external entry rejects value.
@@ -88,6 +129,8 @@ impl LowerDispatchCx {
         let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
+        self.stats.routed = routes.len();
+        module.advance_phase(MirPhase::Dispatch);
         true
     }
 

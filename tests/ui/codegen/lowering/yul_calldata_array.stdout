@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_calldata_array.sol:C ===
 @module C
-fn @probe(arg0: calldataslice) -> (u256, u256) [selector=0xaf74ef39, external, pure, internal_frame_size=64, external_static_return_size=64, abi_returns=[word, word]] {
+fn @probe(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

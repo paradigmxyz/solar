@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
     bb0:
@@ -62,7 +63,8 @@
       jump bb1
   }
   
-  // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after cfg-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after cfg-simplify) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
     bb0:
@@ -105,7 +107,8 @@
       jump bb1
   }
   
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after dce) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
     bb0:

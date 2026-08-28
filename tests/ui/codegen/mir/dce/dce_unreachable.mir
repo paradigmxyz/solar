@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=dce,dce -Ztime-passes
+//@compile-flags: -Zmir-pipeline=dce -Ztime-passes
 //@filecheck:
 //@normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
 // bb1 is unreachable (entry jumps straight to bb2).

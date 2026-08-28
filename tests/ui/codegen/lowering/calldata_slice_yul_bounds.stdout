@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
-fn @_empty() -> memorybytes [pure, internal_frame_size=64] {
+fn @_empty() -> memorybytes {
   bb0:
     v0 = internal_frame_addr 96
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -16,7 +16,7 @@ fn @_empty() -> memorybytes [pure, internal_frame_size=64] {
     ret v7
 }
 
-fn @emptyLen() -> u256 [selector=0x24046374, external, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
+fn @emptyLen() -> u256 [abi_returns=[word]] {
   bb0:
     mstore 128, 0
     mstore 160, 0
@@ -30,13 +30,13 @@ fn @emptyLen() -> u256 [selector=0x24046374, external, pure, internal_frame_size
     ret v3
 }
 
-fn @_sink(arg0: calldataslice) -> u256 [pure] {
+fn @_sink(arg0: calldataslice) -> u256 {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, external, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -87,7 +87,7 @@ fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, external, pure, i
     revert 0, 0
 }
 
-fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, external, pure, internal_frame_size=64, external_static_return_size=32, abi_returns=[word]] {
+fn @conditional(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

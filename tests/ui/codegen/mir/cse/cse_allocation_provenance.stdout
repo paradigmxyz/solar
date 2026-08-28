@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
   @module CseAllocationProvenance
   fn @fresh(arg0: u256, arg1: u256) -> u256 {
     bb0:

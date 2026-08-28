@@ -27,41 +27,39 @@ pub(crate) struct Immutable {
 /// The lowering phase a [`Module`] is in.
 ///
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
-/// well-defined phases. Phases only move forward. The enum order is the
-/// lowering order, so [`MirPhase`] derives `Ord` and `Module::advance_phase`
-/// can assert monotonicity.
+/// well-defined phases, and passes declare what phase they expect and produce.
+/// Phases only move forward. The enum order is the lowering order, so
+/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
 ///
-/// Progressive lowering rewrites high-level constructs into MIR instead of
-/// leaving them as backend special cases. Each phase below defines which MIR
-/// representations are legal. The backend only consumes an `evm-shaped`
-/// module. The lowering passes assume valid canonical input; module validation
-/// checks each phase contract.
+/// Optimization runs on the compact high-level form first; the progressive
+/// lowering phases then rewrite high-level constructs into MIR itself instead
+/// of leaving them as backend special cases. The codegen pipeline runs ABI,
+/// dispatch, memory-object, allocation, and EVM-shape lowering by default. The
+/// backend only consumes an `evm-shaped` module; a lowering pass that cannot
+/// complete leaves the module at an earlier phase and codegen reports it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
-    /// Pre-ABI semantic MIR: typed values and internal calls are explicit, but
-    /// dispatch and ABI handling are not. Fresh HIR lowering starts here;
-    /// semantic optimization and mapping expansion preserve this contract.
+    /// Fresh from HIR lowering: typed values, internal calls by function id,
+    /// dispatch and ABI handling not yet materialized as MIR.
     #[default]
     Built,
-    /// Every external function is an argument-free ABI entry. Its original
-    /// fused body keeps lazy `Value::Arg` calldata reads; a separate raw-return
-    /// body exists only when internal callers need one.
+    /// The canonical optimization pipeline has run.
+    Optimized,
+    /// Every external function has been rewritten into a self-decoding wrapper:
+    /// it decodes calldata into typed arguments and calls the original body as
+    /// an internal function; the body keeps its fused external termination.
+    /// The wrapper keeps its selector but takes no MIR arguments.
     Abi,
     /// The selector switch has been materialized as an ordinary MIR `entry`
     /// function that routes to the ABI wrappers.
     Dispatch,
-    /// Semantic hashes, mappings, ABI encoding, aggregates, slices, and memory
-    /// objects have been lowered to scalar, memory, storage, loop, and CFG MIR.
-    IntrinsicsLowered,
-    /// Abstract allocation, memory initialization, immutable assignment, and
-    /// target-dependent memory operations have been lowered. Deferred
-    /// constant-size allocations may remain as backend placement markers; they
-    /// no longer use the semantic free-memory-pointer model.
-    TargetLowered,
-    /// Functions take the shape the backend expects: every statically
-    /// frame-eligible call to a callee that cannot return is an explicit
-    /// `tail_call`, arguments included. Other calls retain the backend's return
-    /// protocol. Produced by `lower-evm-shaped`.
+    /// Semantic memory objects have been lowered to physical pointer and word
+    /// operations. Produced by the `lower-memory-objects` pass.
+    MemoryLowered,
+    /// Functions take the shape the backend expects: every call edge either
+    /// returns or is an explicit `tail_call` (a call to a callee that cannot
+    /// return is rewritten into one, arguments included). Produced by the
+    /// `lower-evm-shaped` pass after all required representation lowering.
     EvmShaped,
 }
 
@@ -71,24 +69,11 @@ impl MirPhase {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Built => "built",
+            Self::Optimized => "optimized",
             Self::Abi => "abi",
             Self::Dispatch => "dispatch",
-            Self::IntrinsicsLowered => "intrinsics-lowered",
-            Self::TargetLowered => "target-lowered",
+            Self::MemoryLowered => "memory-lowered",
             Self::EvmShaped => "evm-shaped",
-        }
-    }
-
-    /// Returns the next phase in the canonical lowering order.
-    #[must_use]
-    pub(crate) const fn next(self) -> Option<Self> {
-        match self {
-            Self::Built => Some(Self::Abi),
-            Self::Abi => Some(Self::Dispatch),
-            Self::Dispatch => Some(Self::IntrinsicsLowered),
-            Self::IntrinsicsLowered => Some(Self::TargetLowered),
-            Self::TargetLowered => Some(Self::EvmShaped),
-            Self::EvmShaped => None,
         }
     }
 
@@ -97,10 +82,10 @@ impl MirPhase {
     pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::built => Self::Built,
+            sym::optimized => Self::Optimized,
             sym::abi => Self::Abi,
             sym::dispatch => Self::Dispatch,
-            sym::intrinsics_dash_lowered => Self::IntrinsicsLowered,
-            sym::target_dash_lowered => Self::TargetLowered,
+            sym::memory_dash_lowered => Self::MemoryLowered,
             sym::evm_dash_shaped => Self::EvmShaped,
             _ => return None,
         })
@@ -151,13 +136,22 @@ impl Module {
             immutables: IndexVec::new(),
             is_interface: false,
             is_library: false,
-            phase: MirPhase::default(),
+            phase: MirPhase::Built,
         }
     }
 
-    /// Advances this module to the next phase.
-    pub(crate) fn advance_phase(&mut self) {
-        self.phase = self.phase.next().expect("cannot advance the final MIR phase");
+    /// Advances this module to a later phase.
+    ///
+    /// Phases only move forward; a pipeline that would regress the phase is a
+    /// bug in pass scheduling.
+    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
+        debug_assert!(
+            phase >= self.phase,
+            "MIR phase cannot regress: {} -> {}",
+            self.phase.name(),
+            phase.name()
+        );
+        self.phase = phase;
     }
 
     /// Adds a function to the module.
@@ -267,12 +261,6 @@ impl Module {
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
-            if self.is_library {
-                writeln!(f, "@library")?;
-            }
-            if self.is_interface {
-                writeln!(f, "@interface")?;
-            }
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
             }

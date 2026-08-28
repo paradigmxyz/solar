@@ -1,11 +1,14 @@
 //@compile-flags: -Zmir-pipeline=lower-abi
-//@filecheck:
-// The first lowering step absorbs external arguments, encodes returns, and
-// preserves a body only when internal callers need one.
+//@filecheck: --implicit-check-not=.body
+// The ABI phase absorbs each external function's arguments: the wrapper
+// loses its parameter list while its `argN` values stay and denote calldata
+// head words (rematerialized per use by the backend), the function keeps its
+// selector and fused encode. Since neither function has an internal caller,
+// no redundant `.body` copy is appended. Advances the module to the `abi`
+// phase.
 @module LowerAbi
 // CHECK: + @phase abi
 // CHECK: + fn @add()
-// CHECK: + {{v[0-9]+}} = callvalue
 fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
   bb0:
     v2 = add arg0, arg1
@@ -17,47 +20,4 @@ fn @flag(arg0: bool) [selector=0x0d2020dd] {
   bb0:
     mstore 128, arg0
     returndata 128, 32
-}
-// CHECK: + fn @takesBytes()
-fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
-  bb0:
-    v2 = mload arg0
-    v3 = add v2, arg1
-    mstore 128, v3
-    returndata 128, 32
-}
-fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
-  bb0:
-    ret arg0
-}
-// CHECK-LABEL: {{^[ +].*}}fn @pair{{[( ]}}
-// CHECK: + mstore 128, arg0
-// CHECK: + [[SECOND:v[0-9]+]] = add 128, 32
-// CHECK: + mstore [[SECOND]], {{v[0-9]+}}
-// CHECK: + returndata 128, 64
-fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
-  bb0:
-    v1 = add arg0, 1
-    ret arg0, v1
-}
-// CHECK-LABEL: {{^[ +].*}}fn @payable{{[( ]}}
-// CHECK-NOT: callvalue
-// CHECK: stop
-fn @payable() [selector=0x0a0a0a03, payable] {
-  bb0:
-    stop
-}
-// CHECK: + fn @pub()
-fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
-  bb0:
-    v1 = add arg0, 1
-    ret v1
-}
-// CHECK: + fn @caller()
-// CHECK: + {{v[0-9]+}} = internal_call @pub.body
-// CHECK: + fn @pub.body{{[( ]}}
-fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
-  bb0:
-    v1 = internal_call fn6, 1, arg0
-    ret v1
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
-fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, public, pure, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
+fn @leadingZeros(arg0: u256) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -16,7 +16,7 @@ fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, public, pure, interna
     revert 0, 0
 }
 
-fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, public, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
+fn @callCode(arg0: address) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -40,7 +40,7 @@ fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, public, internal_frame
     revert 0, 0
 }
 
-fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, public, internal_frame_size=32, external_static_return_size=32, abi_returns=[word]] {
+fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -38,18 +38,15 @@ impl MirPass for LowerMCopy {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
-        lower_mcopy_module(module)
-    }
-}
 
-pub(super) fn lower_mcopy_module(module: &mut Module) -> bool {
-    let mut changed = false;
-    for func in module.functions.iter_mut() {
-        if !func.blocks.is_empty() {
-            changed |= lower_function(func);
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            if !func.blocks.is_empty() {
+                changed |= lower_function(func);
+            }
         }
+        changed
     }
-    changed
 }
 
 fn lower_function(func: &mut Function) -> bool {

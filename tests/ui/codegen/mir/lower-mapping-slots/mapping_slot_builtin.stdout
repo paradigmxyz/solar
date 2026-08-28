@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after cse) ===
   @module MappingSlotBuiltin
   fn @word(arg0: u256) -> u256 {
     bb0:
@@ -41,7 +42,8 @@
       ret v2
   }
   
-+ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-mapping-slots) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before lower-mapping-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-mapping-slots) ===
   @module MappingSlotBuiltin
   fn @word(arg0: u256) -> u256 {
     bb0:
@@ -112,7 +114,8 @@
       ret v2
   }
   
-+ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-slices) [ir=MIR module="ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-slices) ===
   @module MappingSlotBuiltin
   fn @word(arg0: u256) -> u256 {
     bb0:

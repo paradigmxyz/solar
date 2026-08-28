@@ -1,0 +1,13 @@
+//@ compile-flags: -Zmir-pipeline=lower-slices
+//@ filecheck:
+
+@module SignatureFrameOffset
+
+// CHECK-LABEL: fn @signature_slot(arg0: memoryslice, arg1: u256)
+// CHECK: v0 = internal_frame_addr 96
+// CHECK: stop
+fn @signature_slot(arg0: memoryslice, arg1: u256) {
+  bb0:
+    v0 = internal_frame_addr 96
+    stop
+}

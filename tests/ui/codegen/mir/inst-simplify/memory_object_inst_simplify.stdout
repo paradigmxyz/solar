@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (before inst-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after inst-simplify) ===
   @module MemoryObjectInstSimplify
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
     bb0:
@@ -13,7 +14,8 @@
       ret v5
   }
   
-  // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=false state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after dce) ===
   @module MemoryObjectInstSimplify
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
     bb0:

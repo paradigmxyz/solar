@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @fromUint(arg0: u8) -> bytes1 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -21,12 +21,12 @@ fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, external, pure, external_
     revert 0, 0
 }
 
-fn @fromHex() -> bytes1 [selector=0x7b05e034, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @fromHex() -> bytes1 [abi_returns=[word]] {
   bb0:
     ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @compareElement(arg0: memorybytes) -> bool [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -62,7 +62,7 @@ fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, external, pu
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -113,7 +113,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, external, pure, external_static_return_size=32, abi_returns=[word]] {
+fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

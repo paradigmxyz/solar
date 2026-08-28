@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
-fn @revert_empty() [selector=0xc8567119, public, pure] {
+fn @revert_empty() {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 4
     mstore v0, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     revert v0, 4
 }
 
-fn @revert_args() [selector=0x3a185347, public, pure] {
+fn @revert_args() {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
@@ -44,7 +44,7 @@ fn @revert_args() [selector=0x3a185347, public, pure] {
     revert v3, v19
 }
 
-fn @require_empty(arg0: bool) [selector=0xfa8d4a29, public, pure] {
+fn @require_empty(arg0: bool) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -71,7 +71,7 @@ fn @require_empty(arg0: bool) [selector=0xfa8d4a29, public, pure] {
     revert 0, 0
 }
 
-fn @require_named(arg0: bool) [selector=0x868ff2e0, public, pure] {
+fn @require_named(arg0: bool) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

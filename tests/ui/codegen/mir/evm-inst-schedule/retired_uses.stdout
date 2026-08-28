@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after dce) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after dce) ===
   @module EvmInstScheduleRetiredUses
   fn @retired_use_does_not_block_scheduling(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:
@@ -9,7 +10,8 @@
       ret v3
   }
   
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after evm-inst-schedule) [ir=MIR module="ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleRetiredUses
   fn @retired_use_does_not_block_scheduling(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     bb0:

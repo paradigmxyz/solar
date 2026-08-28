@@ -44,7 +44,7 @@ fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
 // CHECK-LABEL: {{^[ +].*}}fn @reject_outer_when_inner_flush_may_alias{{[( ]}}
 // CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0
-fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020305] {
+fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb6
   bb1:

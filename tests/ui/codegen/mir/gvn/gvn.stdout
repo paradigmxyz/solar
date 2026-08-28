@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/gvn/gvn.mir (after gvn) [ir=MIR module="ROOT/tests/ui/codegen/mir/gvn/gvn.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/gvn/gvn.mir (before gvn) ===
++ // === ROOT/tests/ui/codegen/mir/gvn/gvn.mir (after gvn) ===
   @module Gvn
   fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
     bb0:

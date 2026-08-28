@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/licm/licm_env_reads.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/licm/licm_env_reads.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/licm/licm_env_reads.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_env_reads.mir (after licm) ===
   @module LicmEnvReads
   fn @keep_balance_with_call() -> u256 {
     bb0:

@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir (after cse) [ir=MIR module="ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir (after cse) ===
   @module CseInternalCallSummaries
   fn @keep_load_across_reader(arg0: memptr) -> u256 {
     bb0:

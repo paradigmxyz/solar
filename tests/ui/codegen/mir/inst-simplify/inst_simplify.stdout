@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/inst_simplify.mir (after inst-simplify) [ir=MIR module="ROOT/tests/ui/codegen/mir/inst-simplify/inst_simplify.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/inst_simplify.mir (before inst-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/inst_simplify.mir (after inst-simplify) ===
   @module InstSimplify
   fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
     bb0:
@@ -44,7 +45,7 @@
       ret arg0
   }
   
-  fn @stop_zero_length_external_return(arg0: u256) [selector=0x01020304] {
+  fn @stop_zero_length_external_return(arg0: u256) {
     bb0:
 -     v0 = xor arg0, arg0
 -     returndata arg0, v0

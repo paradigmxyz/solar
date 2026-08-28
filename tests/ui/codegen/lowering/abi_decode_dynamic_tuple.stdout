@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
 @module AbiDecodeDynamicTuple
-fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5c5e9a3, external, pure, internal_frame_size=96, abi_returns=[word, memory_bytes, memory_bytes]] {
+fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -176,7 +176,7 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -227,7 +227,7 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0x7403d1b5, external, pure, abi_returns=[word, memory_bytes, memory_bytes]] {
+fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memorybytes, memorybytes) [abi_returns=[word, memory_bytes, memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -456,7 +456,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     revert 0, 0
 }
 
-fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes [no_inline] {
+fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes {
   bb0:
     v0 = calldatasize
     v1 = gt arg0, v0
@@ -507,7 +507,7 @@ fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes [no_inline] {
     revert 0, 0
 }
 
-fn @decodeBytes(arg0: memorybytes) -> memorybytes [selector=0x197621ce, external, pure, abi_returns=[memory_bytes]] {
+fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4

@@ -33,7 +33,6 @@ use crate::{
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
-        validate_codegen_phase, validate_phase_transition_for_evm,
     },
     pass::run_pipeline,
 };
@@ -1278,14 +1277,59 @@ impl<'gcx> EvmCodegen<'gcx> {
             || func.attributes.is_receive
     }
 
+    /// Reports MIR constructs the backend cannot emit yet.
+    ///
+    /// This includes argument-taking fallbacks and logical slices whose
+    /// aggregate use slice lowering could not fold.
+    ///
+    /// Only live instructions — those still in a block — are checked, since the
+    /// instruction arena retains folded-away slices the backend never emits.
+    #[must_use]
+    fn emit_unsupported(&self, module: &Module) -> bool {
+        if module
+            .functions
+            .iter()
+            .any(|func| func.attributes.is_fallback && !func.params.is_empty())
+        {
+            self.gcx
+                .dcx()
+                .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
+                .span(module.name.span)
+                .emit();
+            return true;
+        }
+
+        let mut emitted = false;
+        'func: for func in module.functions.iter() {
+            for inst_id in func.instructions() {
+                let inst = func.inst(inst_id);
+                let message = match inst.kind {
+                    InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                        "codegen does not support this calldata-slice usage yet"
+                    }
+                    InstKind::StoreImmutable(..) => {
+                        "immutable assignments must be lowered before EVM codegen"
+                    }
+                    _ => continue,
+                };
+                let span = inst.metadata.source_span().unwrap_or(module.name.span);
+                self.gcx
+                    .dcx()
+                    .err(message)
+                    .span(span)
+                    .note(format!("remaining MIR slice is in function `{}`", func.name))
+                    .emit();
+                emitted = true;
+                // One diagnostic per function is enough to explain the bail.
+                continue 'func;
+            }
+        }
+        emitted
+    }
+
     /// Controls whether generated artifacts include final EVM IR.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
-    }
-
-    /// Sets the fully qualified contract name used by pipeline diagnostics.
-    pub(crate) fn set_output_name(&mut self, name: String) {
-        self.asm.set_output_name(name);
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -1385,7 +1429,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.run_optimization_passes(module);
-        if self.gcx.dcx().has_errors().is_err() {
+        if self.emit_unsupported(module) {
+            return EvmArtifact::default();
+        }
+        if module.phase != MirPhase::EvmShaped {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
+                    module.phase.name()
+                ))
+                .span(module.name.span)
+                .emit();
             return EvmArtifact::default();
         }
         self.immutable_staging_base = immutable_staging_base(module);
@@ -1818,12 +1873,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        validate_phase_transition_for_evm(self.gcx.dcx(), module, self.gcx.sess.opts.evm_version);
-        if self.gcx.dcx().has_errors().is_err() {
-            return;
-        }
-        let _changed = run_pipeline(self.gcx, module, self.asm.output_name.as_deref());
-        validate_codegen_phase(self.gcx.dcx(), module);
+        let _changed = run_pipeline(self.gcx, module, None);
     }
 
     /// Generates runtime bytecode for a module.
@@ -7391,8 +7441,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }) || func.blocks.iter().any(|block| {
                     // Dispatch and external-fusion tail calls never touch internal
                     // frames; only a selector-less callee outside the static set
-                    // could imply dynamic frames (a shape lowering does not
-                    // currently form).
+                    // could imply dynamic frames (a shape `lower-evm-shaped` does
+                    // not currently form).
                     matches!(
                         &block.terminator,
                         Some(Terminator::TailCall { function, .. })
@@ -10415,8 +10465,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // it; otherwise arguments retain their compile-time frame homes. Fused external
                 // bodies terminate directly and therefore need no hidden label.
                 if !args.is_empty() {
-                    // Shape lowering only forms argument-carrying tail calls
-                    // to callees the backend statically frames.
+                    // `lower-evm-shaped` only forms argument-carrying tail
+                    // calls to callees the backend statically frames.
                     assert!(
                         self.static_frame_functions.contains(*function),
                         "argument-carrying tail call to a non-static-frame callee"

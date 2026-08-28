@@ -1,4 +1,5 @@
-+ // === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (after licm) [ir=MIR module="ROOT/tests/ui/codegen/mir/licm/licm_v2.mir" artifact=- pipeline_run=1 stage=custom invocation=1 executed=true outcome=ok ir_changed=true state_changed=false] ===
+- // === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (after licm) ===
   @module LicmV2
   fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
     bb0:
