@@ -77,6 +77,9 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+          # Keep rustup-managed shims out of the cache; stale macOS caches can
+          # restore `rustup-init` as `cargo` and fail before the build starts.
+          cache-bin: false
       - name: build
         run: cargo build
       - name: symbolic differential unit tests
