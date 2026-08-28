@@ -1,5 +1,6 @@
 //@ compile-flags: -g
 //@ filecheck:
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //~? WARN: code generation is experimental
 
 // CHECK-LABEL: {{^}}=== Debug Data (ethdebug/format/info/resources) ===
