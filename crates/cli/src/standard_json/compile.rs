@@ -3,10 +3,11 @@
 use super::{
     data::{
         BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EthdebugCompilation,
-        EthdebugCompiler, EthdebugContext, EthdebugContract, EthdebugEnvironment, EthdebugId,
-        EthdebugInstruction, EthdebugOperation, EthdebugOutput, EthdebugProgram, EthdebugRange,
-        EthdebugReference, EthdebugResources, EthdebugSource, EthdebugSourceRange, EvmOutput,
-        FxIndexMap, MetadataHash, OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags,
+        EthdebugCompiler, EthdebugContext, EthdebugContract, EthdebugEnvironment,
+        EthdebugFunctionExit, EthdebugFunctionInvoke, EthdebugId, EthdebugInstruction,
+        EthdebugOperation, EthdebugOutput, EthdebugProgram, EthdebugRange, EthdebugReference,
+        EthdebugResources, EthdebugSource, EthdebugSourceRange, EvmOutput, FxIndexMap,
+        MetadataHash, OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags,
         ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
         print_standard_json_stats, strip_json_comments,
     },
@@ -14,7 +15,10 @@ use super::{
 };
 use crate::bytecode::MaybeHexBytecode;
 use serde_json::json;
-use solar_codegen::{ContractArtifact, ContractSelection, RuntimeDataFn};
+use solar_codegen::{
+    ContractArtifact, ContractSelection, RuntimeDataFn,
+    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
+};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode,
@@ -714,9 +718,7 @@ pub(crate) fn make_ethdebug_program(
             EthdebugInstruction {
                 offset: instruction.offset,
                 operation: EthdebugOperation { mnemonic, arguments },
-                context: instruction
-                    .source_span
-                    .and_then(|span| make_ethdebug_context(gcx, &source_ids, span)),
+                context: make_ethdebug_context(gcx, &source_ids, instruction),
             }
         })
         .collect();
@@ -744,18 +746,71 @@ pub(crate) fn make_ethdebug_resources(compilation: EthdebugCompilation) -> Ethde
 fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
-    span: solar_interface::Span,
+    instruction: &DebugInstruction,
 ) -> Option<EthdebugContext> {
+    let mut contexts = instruction
+        .source_spans
+        .iter()
+        .filter_map(|&span| make_ethdebug_source_range(gcx, source_ids, span))
+        .map(|code| EthdebugContext {
+            code: Some(code),
+            pick: Vec::new(),
+            invoke: None,
+            r#return: None,
+            revert: None,
+        })
+        .collect::<Vec<_>>();
+    let (code, pick) = match contexts.len() {
+        0 => (None, Vec::new()),
+        1 => (contexts.pop().and_then(|context| context.code), Vec::new()),
+        _ => (None, contexts),
+    };
+    let invoke = instruction
+        .function_invoke
+        .and_then(|function| make_ethdebug_function_invoke(gcx, source_ids, function));
+    let (r#return, revert) = match instruction.function_exit {
+        Some(DebugFunctionExit::Return) => (Some(EthdebugFunctionExit {}), None),
+        Some(DebugFunctionExit::Revert) => (None, Some(EthdebugFunctionExit {})),
+        None => (None, None),
+    };
+    if code.is_none()
+        && pick.is_empty()
+        && invoke.is_none()
+        && r#return.is_none()
+        && revert.is_none()
+    {
+        None
+    } else {
+        Some(EthdebugContext { code, pick, invoke, r#return, revert })
+    }
+}
+
+fn make_ethdebug_function_invoke(
+    gcx: Gcx<'_>,
+    source_ids: &FxHashMap<u32, u32>,
+    function: DebugFunction,
+) -> Option<EthdebugFunctionInvoke> {
+    Some(EthdebugFunctionInvoke {
+        identifier: (function.identifier != solar_interface::sym::_anonymous)
+            .then(|| function.identifier.to_string()),
+        declaration: make_ethdebug_source_range(gcx, source_ids, function.declaration)?,
+        jump: true,
+    })
+}
+
+fn make_ethdebug_source_range(
+    gcx: Gcx<'_>,
+    source_ids: &FxHashMap<u32, u32>,
+    span: solar_interface::Span,
+) -> Option<EthdebugSourceRange> {
     let source = gcx.sess.source_map().span_to_source(span).ok()?;
     let source_id = *source_ids.get(&source.file.start_pos.0)?;
-    Some(EthdebugContext {
-        code: EthdebugSourceRange {
-            source: EthdebugReference { id: EthdebugId::Number(source_id) },
-            range: Some(EthdebugRange {
-                offset: source.data.start,
-                length: source.data.end - source.data.start,
-            }),
-        },
+    Some(EthdebugSourceRange {
+        source: EthdebugReference { id: EthdebugId::Number(source_id) },
+        range: Some(EthdebugRange {
+            offset: source.data.start,
+            length: source.data.end - source.data.start,
+        }),
     })
 }
 

@@ -46,6 +46,7 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     let changed = !state.redirects.is_empty();
     for (block, target) in state.redirects.drain(..) {
+        merge_debug_origins(module, block, target);
         if !module.blocks[block].metadata.hotness.is_cold() {
             module.blocks[target].metadata.hotness = Hotness::Hot;
         }
@@ -55,6 +56,26 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         module.blocks[block].terminator = Some(terminator);
     }
     changed
+}
+
+fn merge_debug_origins(module: &mut Module, block: BlockId, target: BlockId) {
+    let instruction_metadata = module.blocks[block]
+        .instructions
+        .iter()
+        .map(|inst| inst.metadata.clone())
+        .collect::<Vec<_>>();
+    let terminator_metadata =
+        module.blocks[block].terminator.as_ref().map(|terminator| terminator.metadata.clone());
+    let target = &mut module.blocks[target];
+    debug_assert_eq!(target.instructions.len(), instruction_metadata.len());
+    for (instruction, metadata) in target.instructions.iter_mut().zip(&instruction_metadata) {
+        instruction.metadata.merge_equivalent_debug_info(metadata);
+    }
+    if let Some(metadata) = &terminator_metadata
+        && let Some(terminator) = &mut target.terminator
+    {
+        terminator.metadata.merge_equivalent_debug_info(metadata);
+    }
 }
 
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {

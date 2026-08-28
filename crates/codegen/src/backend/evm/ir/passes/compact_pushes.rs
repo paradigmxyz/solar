@@ -67,7 +67,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 materialize_selected(
                     &mut block.instructions,
                     materialization,
-                    inst.metadata.source_span(),
+                    inst.metadata.source_spans(),
                 );
                 changed = true;
             }
@@ -177,21 +177,21 @@ pub(super) fn materialize_immediate(
     evm_version: EvmVersion,
     value: U256,
 ) {
-    materialize_selected(instructions, ImmediateMaterialization::new(evm_version, value), None);
+    materialize_selected(instructions, ImmediateMaterialization::new(evm_version, value), &[]);
 }
 
-/// Every replacement carries the source span of the push it materializes.
+/// Every replacement carries the source origins of the push it materializes.
 fn materialize_selected(
     instructions: &mut Vec<Instruction>,
     materialization: ImmediateMaterialization,
-    source_span: Option<Span>,
+    source_spans: &[Span],
 ) {
     materialization.for_each(|op| {
         let mut replacement = match op {
             ImmediateMaterializationOp::Push(value) => push(value),
             ImmediateMaterializationOp::Opcode(opcode) => Instruction::opcode(opcode),
         };
-        replacement.metadata.set_source_span(source_span);
+        replacement.metadata.set_source_spans(source_spans.iter().copied());
         instructions.push(replacement);
     });
 }

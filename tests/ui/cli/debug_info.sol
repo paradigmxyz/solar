@@ -10,7 +10,9 @@
 // CHECK: "environment":"create"
 // CHECK-LABEL: {{^}}=== Debug Data (ethdebug/format/program, runtime):
 // CHECK: "environment":"call"
+// CHECK: "invoke":{"identifier":"add","declaration":
 // CHECK: "mnemonic":"ADD"
+// CHECK: "return":{}
 contract DebugInfo {
     function add(uint256 a, uint256 b) external pure returns (uint256) {
         return a + b;

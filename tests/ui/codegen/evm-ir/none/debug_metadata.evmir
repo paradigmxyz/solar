@@ -1,26 +1,26 @@
 //@ filecheck:
 @module DebugMetadata
 
-// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0 [invoke=entry@1..40]:
 // CHECK: {{^[ +].*}}push 1 !metadata(span=1..5)
 // CHECK-NEXT: {{^[ +].*}}op_0c !metadata(stack=0->0, span=8..13)
-// CHECK: {{^[ +].*}}add !metadata(span=21..24)
+// CHECK: {{^[ +].*}}add !metadata(spans=[21..24, 25..28])
 // CHECK: {{^[ +].*}}jumpi bb1, bb2 !metadata(span=30..40)
-bb0:
+bb0 [invoke=entry@1..40]:
   push 1 !meta(span=1 .. 5)
   op_0c !metadata(stack=0->0, span=8..13)
   push 2
-  add !metadata(span=21..24)
+  add !metadata(spans=[21..24, 25..28])
   jumpi bb1, bb2 !meta(span=30..40)
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: {{^[ +].*}}stop !metadata(span=41..45)
+// CHECK: {{^[ +].*}}stop !metadata(span=41..45, exit=return)
 bb1:
-  stop !metadata(span=41..45)
+  stop !metadata(span=41..45, exit=return)
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: {{^[ +].*}}revert !metadata(span=46..52)
+// CHECK: {{^[ +].*}}revert !metadata(span=46..52, exit=revert)
 bb2:
   push 0
   dup 1
-  revert !meta(span=46..52)
+  revert !meta(span=46..52, exit=revert)

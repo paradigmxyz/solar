@@ -302,8 +302,28 @@ pub(super) struct EthdebugSourceRange {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugFunctionInvoke {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) identifier: Option<String>,
+    pub(super) declaration: EthdebugSourceRange,
+    pub(super) jump: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugFunctionExit {}
+
+#[derive(Clone, Debug, Serialize)]
 pub(super) struct EthdebugContext {
-    pub(super) code: EthdebugSourceRange,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) code: Option<EthdebugSourceRange>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) pick: Vec<Self>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) invoke: Option<EthdebugFunctionInvoke>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) r#return: Option<EthdebugFunctionExit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) revert: Option<EthdebugFunctionExit>,
 }
 
 #[derive(Clone, Debug, Serialize)]

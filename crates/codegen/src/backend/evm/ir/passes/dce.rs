@@ -523,7 +523,7 @@ fn apply_edits(
             let edit = edits.next().unwrap();
             instructions.extend(edit.replacement.iter().copied().map(|stack_op| {
                 let mut replacement = Instruction::stack_op(stack_op);
-                replacement.metadata.set_source_span(inst.metadata.source_span());
+                replacement.metadata.set_source_spans(inst.metadata.source_spans().iter().copied());
                 replacement
             }));
         } else {

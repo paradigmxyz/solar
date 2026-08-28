@@ -295,6 +295,8 @@ pub(super) fn declaration(
 ) -> Function {
     let name = Ident::with_dummy_span(function.name_or_kind());
     let mut mir = Function::new(name);
+    mir.declaration_span = function.span;
+    mir.debug_identifier = Some(name.name);
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,

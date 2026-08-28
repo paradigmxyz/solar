@@ -72,7 +72,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             }
 
-            let metadata = block.instructions[index].metadata;
+            let metadata = block.instructions[index].metadata.clone();
             let replacement = [
                 Instruction::push_value(length),
                 Instruction::push_value(source),
@@ -80,7 +80,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 Instruction::opcode(op::MCOPY),
             ]
             .map(|mut inst| {
-                inst.metadata.set_source_span(metadata.source_span());
+                inst.metadata.set_source_spans(metadata.source_spans().iter().copied());
                 inst
             });
             edits.push((index, count * COPY_INSTRUCTIONS, replacement));
