@@ -9,5 +9,5 @@ pub use data::{ReadCallbackResult, StandardJsonReadCallback};
 
 pub(crate) use compile::{
     ethdebug_compilation_id, make_ethdebug_compilation, make_ethdebug_program,
-    make_ethdebug_resources, run,
+    make_ethdebug_resources, run, standard_json_source_name,
 };
