@@ -1,0 +1,108 @@
+//@compile-flags: -Zmir-pipeline=storage-promotion,static-alloc
+//@filecheck: --match-full-lines
+@module StaticAllocCallObservesFmp
+
+// A callee that reads the free-memory pointer and observes the pointer's
+// numeric value can derive aliases from where the object lies relative to the
+// heap, so the allocation it receives must stay dynamic.
+// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
+// CHECK:   fn @observing_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @observing_caller() -> bool [selector=0x01020304] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    v1 = internal_call fn4, 1, v0
+    ret v1
+}
+
+// The observation is interprocedural: a callee that only forwards the pointer
+// to an observing callee blocks placement too.
+// CHECK:   fn @forwarding_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @forwarding_caller() -> bool [selector=0x01020305] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    v1 = internal_call fn5, 1, v0
+    ret v1
+}
+
+// Reading the free-memory pointer alone is placement-agnostic when the pointer
+// argument is only dereferenced, so the placement is kept.
+// CHECK:   fn @dereferencing_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
+// CHECK-NEXT: -     mstore v0, 7
+// CHECK-NEXT: -     v1 = internal_call @dereferences, 1, v0
+// CHECK-NEXT: +     mstore 128, 7
+// CHECK-NEXT: +     v1 = internal_call @dereferences, 1, 128
+fn @dereferencing_caller() -> u256 [selector=0x01020306] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    v1 = internal_call fn6, 1, v0
+    ret v1
+}
+
+// `msize` sees the elided bump whatever the callee does with the pointer.
+// CHECK:   fn @msize_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @msize_caller() -> u256 [selector=0x01020307] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    v1 = internal_call fn7, 1, v0
+    ret v1
+}
+
+fn @observes(arg0: memptr) -> bool {
+  bb0:
+    v0 = mload 64
+    v1 = lt arg0, v0
+    ret v1
+}
+
+fn @forwards(arg0: memptr) -> bool {
+  bb0:
+    v0 = internal_call fn4, 1, arg0
+    ret v0
+}
+
+fn @dereferences(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload 64
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @measures(arg0: memptr) -> u256 {
+  bb0:
+    v0 = msize
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+// Storage promotion gives another entry a 32-byte frame, providing the shadow
+// region used by the explicit static-allocation pass.
+fn @reserve_frame() [selector=0x01020308] {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb4
+  bb2:
+    v0 = sload 0
+    v1 = add v0, 1
+    sstore 0, v1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}

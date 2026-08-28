@@ -9,6 +9,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
 };
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use std::collections::VecDeque;
 
@@ -22,8 +23,15 @@ pub(crate) struct FunctionMemorySummary {
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
+    /// Whether the function may read or write the free-memory pointer directly.
+    may_observe_fmp: bool,
+    /// Whether the function may read `msize`.
+    may_observe_msize: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
+    /// Parameters whose numeric pointer value the function may observe: used anywhere other
+    /// than as a memory address or in a pointer-preserving derivation.
+    observes: DenseBitSet<ArgIdx>,
 }
 
 impl FunctionMemorySummary {
@@ -33,7 +41,10 @@ impl FunctionMemorySummary {
             writes: 0,
             may_reset_fmp: false,
             may_recycle_fmp: false,
+            may_observe_fmp: false,
+            may_observe_msize: false,
             captures: DenseBitSet::new_empty(params),
+            observes: DenseBitSet::new_empty(params),
         }
     }
 
@@ -43,7 +54,10 @@ impl FunctionMemorySummary {
             writes: 0b1111,
             may_reset_fmp: true,
             may_recycle_fmp: true,
+            may_observe_fmp: true,
+            may_observe_msize: true,
             captures: DenseBitSet::new_filled(params),
+            observes: DenseBitSet::new_filled(params),
         }
     }
 
@@ -71,6 +85,29 @@ impl FunctionMemorySummary {
         self.may_recycle_fmp
     }
 
+    /// Returns whether the function may read or write the free-memory pointer directly.
+    ///
+    /// Together with [`Self::observes_param`], such a function can derive aliases from where a
+    /// pointer argument lies relative to the heap, so moving that argument's object out of the
+    /// heap is observable to it.
+    #[must_use]
+    pub(crate) const fn may_observe_fmp(&self) -> bool {
+        self.may_observe_fmp
+    }
+
+    /// Returns whether the function may read `msize`, which an elided allocation would change.
+    #[must_use]
+    pub(crate) const fn may_observe_msize(&self) -> bool {
+        self.may_observe_msize
+    }
+
+    /// Returns whether a parameter's numeric pointer value may be observed by the function,
+    /// rather than only dereferenced.
+    #[must_use]
+    pub(crate) fn observes_param(&self, index: ArgIdx) -> bool {
+        index.index() >= self.observes.domain_size() || self.observes.contains(index)
+    }
+
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
     pub(crate) fn captures_param(&self, index: ArgIdx) -> bool {
@@ -82,6 +119,8 @@ impl FunctionMemorySummary {
         self.writes |= other.writes;
         self.may_reset_fmp |= other.may_reset_fmp;
         self.may_recycle_fmp |= other.may_recycle_fmp;
+        self.may_observe_fmp |= other.may_observe_fmp;
+        self.may_observe_msize |= other.may_observe_msize;
     }
 }
 
@@ -205,6 +244,9 @@ fn merge_call(
         if callee.captures_param(ArgIdx::new(index)) {
             capture_sources(summary, func, sources, arg);
         }
+        if callee.observes_param(ArgIdx::new(index)) {
+            observe_sources(summary, func, sources, arg);
+        }
     }
 }
 
@@ -253,6 +295,19 @@ fn local_summary(
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
+            summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
+            summary.may_observe_msize |= matches!(kind, InstKind::MSize);
+            // A pointer-derived operand in any position other than a memory address is an
+            // observation of the pointer's numeric value: compared, hashed, used as a size, a
+            // calldata offset, or a call target.
+            if !is_pointer_derivation(kind) {
+                let addresses = address_operands(kind);
+                for operand in kind.operands() {
+                    if !addresses.contains(&operand) {
+                        observe_sources(&mut summary, func, sources, operand);
+                    }
+                }
+            }
 
             match kind {
                 InstKind::MStore(_, value)
@@ -279,13 +334,121 @@ fn local_summary(
             }
         }
 
-        if let Some(Terminator::Return { values }) = &block.terminator {
-            for &value in values {
-                capture_sources(&mut summary, func, sources, value);
+        match &block.terminator {
+            Some(Terminator::Return { values }) => {
+                for &value in values {
+                    capture_sources(&mut summary, func, sources, value);
+                }
+            }
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+                let _ = offset;
+                observe_sources(&mut summary, func, sources, *size);
+            }
+            Some(Terminator::TailCall { .. }) | None => {}
+            Some(term) => {
+                for operand in term.operands() {
+                    observe_sources(&mut summary, func, sources, operand);
+                }
             }
         }
     }
     summary
+}
+
+/// Returns whether an instruction only forwards pointers through pointer-preserving
+/// arithmetic, so its operands are neither observed nor dereferenced by it.
+fn is_pointer_derivation(kind: &InstKind) -> bool {
+    matches!(
+        kind,
+        InstKind::Add(_, _)
+            | InstKind::Sub(_, _)
+            | InstKind::Select(_, _, _)
+            | InstKind::Phi(_)
+            | InstKind::MakeSlice { .. }
+            | InstKind::SlicePtr(_)
+            | InstKind::SliceLen(_)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+    )
+}
+
+/// Returns the operands an instruction uses purely as memory addresses.
+fn address_operands(kind: &InstKind) -> SmallVec<[ValueId; 2]> {
+    let mut out = SmallVec::new();
+    match kind {
+        InstKind::MLoad(address)
+        | InstKind::MStore(address, _)
+        | InstKind::MStore8(address, _)
+        | InstKind::Keccak256(address, _)
+        | InstKind::Log0(address, _)
+        | InstKind::Log1(address, _, _)
+        | InstKind::Log2(address, _, _, _)
+        | InstKind::Log3(address, _, _, _, _)
+        | InstKind::Log4(address, _, _, _, _, _)
+        | InstKind::MemoryZero(address, _)
+        | InstKind::CalldataCopy(address, _, _)
+        | InstKind::CodeCopy(address, _, _)
+        | InstKind::ReturnDataCopy(address, _, _)
+        | InstKind::ExtCodeCopy(_, address, _, _) => out.push(*address),
+        InstKind::MCopy(destination, source, _) => {
+            out.push(*destination);
+            out.push(*source);
+        }
+        InstKind::Call { args_offset, ret_offset, .. }
+        | InstKind::CallCode { args_offset, ret_offset, .. }
+        | InstKind::StaticCall { args_offset, ret_offset, .. }
+        | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
+            out.push(*args_offset);
+            out.push(*ret_offset);
+        }
+        InstKind::MemoryObjectLen(object, _)
+        | InstKind::SetMemoryObjectLen(object, _, _)
+        | InstKind::MemoryObjectLoadField { object, .. }
+        | InstKind::MemoryObjectStoreField { object, .. }
+        | InstKind::MemoryObjectLoadElement { object, .. }
+        | InstKind::MemoryObjectStoreElement { object, .. }
+        | InstKind::MemoryObjectLoadByte { object, .. }
+        | InstKind::MemoryObjectStoreByte { object, .. }
+        | InstKind::MemoryObjectStoreWord { object, .. }
+        | InstKind::MemoryObjectCopyFromSlice { object, .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { object, .. } => out.push(*object),
+        InstKind::MemoryObjectCopy { destination, source, .. } => {
+            out.push(*destination);
+            out.push(*source);
+        }
+        InstKind::MemorySliceLoadWord { slice, .. } => out.push(*slice),
+        _ => {}
+    }
+    out
+}
+
+fn observe_sources(
+    summary: &mut FunctionMemorySummary,
+    func: &Function,
+    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    value: ValueId,
+) {
+    if let Value::Arg(index) = func.value(value)
+        && index.index() < summary.observes.domain_size()
+    {
+        summary.observes.insert(*index);
+    }
+    summary.observes.union(&sources[value]);
+}
+
+/// Returns whether an instruction reads the free-memory pointer or the memory size directly.
+///
+/// Compiler-owned allocations are still abstract here and cannot relate a pointer argument to
+/// the heap; only source-visible pointer reads and writes can.
+fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
+    match func.inst(inst_id).kind {
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize => true,
+        InstKind::MLoad(address) | InstKind::MStore(address, _) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        _ => false,
+    }
 }
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
