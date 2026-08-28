@@ -191,6 +191,11 @@ impl<'gcx> Assembler<'gcx> {
         self.program.unknown_target_stack_headroom = headroom;
     }
 
+    /// Records the transient growth the MIR backend reserved for legacy shift legalization.
+    pub(crate) fn set_legacy_shift_stack_headroom(&mut self, headroom: usize) {
+        self.program.legacy_shift_stack_headroom = headroom;
+    }
+
     /// Enables size-oriented outlining for an oversized gas-mode runtime.
     pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
         self.program.enable_size_outlining = enable;

@@ -89,6 +89,9 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Bytes>,
     /// Backend-proven growth available even across opaque physical jumps.
     pub(crate) unknown_target_stack_headroom: usize,
+    /// Backend-proven transient growth reserved for legacy shift legalization, on top of
+    /// [`Self::unknown_target_stack_headroom`]. Zero on targets with native shifts.
+    pub(crate) legacy_shift_stack_headroom: usize,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
 }
@@ -110,6 +113,7 @@ impl Module {
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             unknown_target_stack_headroom: 0,
+            legacy_shift_stack_headroom: 0,
             enable_size_outlining: false,
         }
     }

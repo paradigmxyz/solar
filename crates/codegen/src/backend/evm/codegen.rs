@@ -2338,6 +2338,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
+        // Constructor code has no caller-prefix validation, but every emitted function peak
+        // carries the legacy shift reserve; grant it whenever those peaks fit so legalization
+        // after outlining cannot reject valid code.
+        let legacy_shift_stack_headroom = if !self.gcx.sess.opts.evm_version.has_bitwise_shifting()
+            && self.function_stack_peaks.values().all(|&peak| peak <= MAX_STACK_DEPTH)
+        {
+            ir::LEGACY_SHIFT_STACK_HEADROOM
+        } else {
+            0
+        };
+        self.asm.set_legacy_shift_stack_headroom(legacy_shift_stack_headroom);
         PreparedDeploymentPrefix {
             assembly: self.asm.prepare(self.capture_evm_ir),
             constructor_arg_offset,
@@ -2417,6 +2428,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
 
+            // Every function peak already carries the legacy shift reserve on targets without
+            // native shifts, so a fitting caller-prefix graph proves that reserve at every
+            // instruction. Legalization runs after outlining, whose stubs return through
+            // opaque jumps, and must be able to spend the reserve in every optimization mode:
+            // it is a target-level budget, separate from the size-mode outlining headroom.
+            // Recursive regions keep their reserve too: their prefix is unbounded either way,
+            // and the reserve only moves the depth at which such a program already overflows.
+            let legacy_shift_stack_headroom =
+                if !self.gcx.sess.opts.evm_version.has_bitwise_shifting()
+                    && self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH)
+                {
+                    ir::LEGACY_SHIFT_STACK_HEADROOM
+                } else {
+                    0
+                };
             let size_focused = self.gcx.sess.opts.optimization.is_size() || code_size_rescue;
             let outline_stack_headroom =
                 if size_focused && self.recursive_stack_functions.is_empty() {
@@ -2430,6 +2456,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     0
                 };
             self.asm.set_unknown_target_stack_headroom(outline_stack_headroom);
+            self.asm.set_legacy_shift_stack_headroom(legacy_shift_stack_headroom);
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
