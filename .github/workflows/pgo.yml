@@ -1,0 +1,46 @@
+name: PGO
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/build-setup.yml"
+      - ".github/workflows/pgo.yml"
+      - ".github/workflows/release.yml"
+      - "scripts/build_solar_pgo.py"
+      - "benches/runtime/**"
+      - "testdata/projects/**"
+      - "testdata/repros/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+  pull_request:
+    paths:
+      - ".github/build-setup.yml"
+      - ".github/workflows/pgo.yml"
+      - ".github/workflows/release.yml"
+      - "scripts/build_solar_pgo.py"
+      - "benches/runtime/**"
+      - "testdata/projects/**"
+      - "testdata/repros/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+  workflow_dispatch:
+
+jobs:
+  pgo:
+    runs-on: depot-ubuntu-latest-8
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - name: Run PGO pipeline
+        run: python scripts/build_solar_pgo.py --debug

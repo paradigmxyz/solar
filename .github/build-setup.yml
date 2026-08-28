@@ -1,0 +1,23 @@
+- name: Install LLVM profiling tools
+  if: ${{ join(matrix.targets, '') == matrix.host }}
+  run: rustup component add llvm-tools-preview
+
+- name: Train PGO Solar
+  if: ${{ join(matrix.targets, '') == matrix.host }}
+  shell: bash
+  run: |
+    set -euo pipefail
+
+    target="${{ join(matrix.targets, '') }}"
+    target_dir="${{ github.workspace }}/target/solar-pgo"
+    python scripts/build_solar_pgo.py \
+      --target "$target" \
+      --target-dir "$target_dir" \
+      --train-only
+
+    profile_hot_count="$(cat "$target_dir/solar.profile-hot-count")"
+    rustflags="${RUSTFLAGS:-}"
+    if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
+      rustflags="${rustflags:+$rustflags }-Clink-arg=/STACK:10000000"
+    fi
+    echo "RUSTFLAGS=${rustflags:+$rustflags }-Cprofile-use=$target_dir/solar.profdata -Cllvm-args=--profile-summary-hot-count=$profile_hot_count" >> "$GITHUB_ENV"

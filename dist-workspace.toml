@@ -35,3 +35,5 @@ install-updater = false
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
 # The preferred Rust toolchain to use in CI (rustup toolchain syntax)
 rust-toolchain-version = "stable"
+# Build native release binaries with profile-guided optimization before dist packages them.
+github-build-setup = "../build-setup.yml"
