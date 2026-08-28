@@ -1,4 +1,4 @@
-name: Cross-server Solidity LSP benchmark
+name: Benchmark/Cross-server Solidity LSP benchmark
 
 on:
   pull_request:
