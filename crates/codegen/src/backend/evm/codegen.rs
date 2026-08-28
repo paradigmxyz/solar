@@ -3468,9 +3468,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .flatten()
                 .filter(|target| block_pos.get(target).copied() > Some(pos));
 
-            // A conditional branch whose other arm is a cold revert can carry
-            // its single freshly-computed live-out on the stack into the hot
-            // arm, which restores it as its recorded entry layout.
+            // A conditional branch whose arms are blocks only it enters, or shared terminal
+            // arms, carries its live stack words into the hot arm, which restores them as its
+            // recorded entry layout instead of reloading each from a spill slot.
             let preserve_branch_targets = if !has_edge_specific_global
                 && !preserve_stack_to_fallthrough
                 && preserve_jump_target.is_none()
@@ -3578,7 +3578,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     block.terminator.as_ref()
                 && let Some(branch) = stack_phi_plan.branch_edges.get(&block_id)
             {
-                self.emit_stack_phi_branch(func, *condition, *then_block, *else_block, branch);
+                self.emit_stack_phi_branch(
+                    func,
+                    *condition,
+                    *then_block,
+                    *else_block,
+                    branch,
+                    fallthrough,
+                );
             } else if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
             }
@@ -3694,7 +3701,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else {
             return Vec::new();
         };
-        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
+        if carried.len() > MAX_STACK_ACCESS {
             return Vec::new();
         }
 
@@ -3721,20 +3728,47 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        let mut preserved = Vec::with_capacity(2);
         for target in targets {
-            if target == block_id
-                || func.blocks[target].predecessors.as_slice() != [block_id]
-                || block_pos.get(&target).copied() <= Some(pos)
-                || func.blocks[target]
-                    .instructions
-                    .iter()
-                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
-            {
+            if target == block_id {
                 return Vec::new();
             }
+            let has_phi = func.blocks[target]
+                .instructions
+                .iter()
+                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
+            if func.blocks[target].predecessors.as_slice() == [block_id]
+                && block_pos.get(&target).copied() > Some(pos)
+                && !has_phi
+            {
+                preserved.push(target);
+                continue;
+            }
+            // A shared terminal arm — typically the revert every check branches to — starts
+            // from an empty model, never reads below the words it pushes itself, and ends the
+            // execution path, so the carried words may stay beneath it as junk.
+            if !has_phi && Self::is_junk_tolerant_terminal(func, liveness, target) {
+                continue;
+            }
+            return Vec::new();
         }
+        preserved
+    }
 
-        targets.into()
+    /// Whether a block may be entered with arbitrary extra words beneath the stack it expects:
+    /// it consumes no live-in values and aborts. A `stop` is not enough — in an internal
+    /// function it is a return, and the caller's stack must not carry the junk.
+    fn is_junk_tolerant_terminal(func: &Function, liveness: &Liveness, block: BlockId) -> bool {
+        liveness
+            .live_in(block)
+            .iter()
+            .all(|value| matches!(func.value(value), crate::mir::Value::Immediate(_)))
+            && matches!(
+                func.blocks[block].terminator,
+                Some(
+                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+                )
+            )
     }
 
     /// Finds functions whose reachable exits all abort, including chains of
@@ -4264,6 +4298,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         then_block: BlockId,
         else_block: BlockId,
         branch: &StackPhiBranch,
+        fallthrough: Option<BlockId>,
     ) {
         let mut needed = Vec::with_capacity(branch.union.len() + 1);
         needed.push(condition);
@@ -4283,21 +4318,44 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         assert_eq!(self.scheduler.stack.top(), Some(condition));
 
-        let then_cleanup = self.asm.new_label();
-        self.asm.emit_push_label(then_cleanup);
+        // An arm whose layout is the carried stack itself needs no cleanup: jump to it
+        // straight from the JUMPI, inverting the condition when only the else arm qualifies,
+        // and lay out the other arm on the remaining path, falling through when possible.
+        let is_identity =
+            |edge: &StackPhiEdge| edge.sources == branch.union && edge.results == edge.sources;
+        let (laid_out, direct_block, laid_out_block, invert) = if is_identity(&branch.then_edge) {
+            (&branch.else_edge, then_block, else_block, false)
+        } else if is_identity(&branch.else_edge) {
+            (&branch.then_edge, else_block, then_block, true)
+        } else {
+            let then_cleanup = self.asm.new_label();
+            self.asm.emit_push_label(then_cleanup);
+            self.asm.emit_op(op::JUMPI);
+            self.scheduler.stack.pop();
+            let union_stack = self.scheduler.stack.clone();
+
+            self.emit_stack_phi_edge_layout(&branch.else_edge);
+            self.asm.emit_push_label(self.block_labels[&else_block]);
+            self.asm.emit_op(op::JUMP);
+
+            self.asm.define_label(then_cleanup);
+            self.scheduler.stack = union_stack;
+            self.emit_stack_phi_edge_layout(&branch.then_edge);
+            self.asm.emit_push_label(self.block_labels[&then_block]);
+            self.asm.emit_op(op::JUMP);
+            return;
+        };
+        if invert {
+            self.asm.emit_op(op::ISZERO);
+        }
+        self.asm.emit_push_label(self.block_labels[&direct_block]);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.stack.pop();
-        let union_stack = self.scheduler.stack.clone();
-
-        self.emit_stack_phi_edge_layout(&branch.else_edge);
-        self.asm.emit_push_label(self.block_labels[&else_block]);
-        self.asm.emit_op(op::JUMP);
-
-        self.asm.define_label(then_cleanup);
-        self.scheduler.stack = union_stack;
-        self.emit_stack_phi_edge_layout(&branch.then_edge);
-        self.asm.emit_push_label(self.block_labels[&then_block]);
-        self.asm.emit_op(op::JUMP);
+        self.emit_stack_phi_edge_layout(laid_out);
+        if fallthrough != Some(laid_out_block) {
+            self.asm.emit_push_label(self.block_labels[&laid_out_block]);
+            self.asm.emit_op(op::JUMP);
+        }
     }
 
     fn stack_phi_source_counts_after_trim(stack: &StackModel, sources: &[ValueId]) -> Vec<ValueId> {

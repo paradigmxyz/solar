@@ -208,12 +208,8 @@ bb7:
   push 32
   gt
   or
-  swap 1
-  pop
   push bb3
   jumpi
-  push 160
-  mload
   mload
   jump bb13
 bb11 [cold]:
@@ -360,12 +356,8 @@ bb0:
   push 32
   gt
   or
-  swap 1
-  pop
   push bb3
   jumpi
-  push 160
-  mload
   mload
   push 128
   mstore

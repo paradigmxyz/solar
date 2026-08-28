@@ -77,35 +77,29 @@ bb6:
   swap 1
   swap 2
   or
-  swap 2
-  pop
-  pop
   push bb5
   jumpi
   gas
+  dup 1
   push 224
   mstore
   push 0
   not
   push 192
   shr
-  push 160
-  mload
+  dup 3
   gt
   push bb5
   jumpi
-  push 160
-  mload
+  dup 2
   calldatasize
   sub
-  push 192
-  mload
+  dup 4
   sgt
   push bb5
   jumpi
   push 63
-  push 160
-  mload
+  dup 3
   add
   push 31
   not
@@ -120,20 +114,21 @@ bb6:
   add
   push 64
   mstore
-  push 160
-  mload
+  dup 3
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 160
-  mload
-  push 192
-  mload
+  dup 4
+  dup 6
   dup 3
   calldatacopy
-  swap 1
+  swap 3
+  pop
+  swap 3
+  pop
+  swap 2
   mload
   dup 2
   push 288
@@ -148,10 +143,10 @@ bb6:
   push 0
   push 4
   calldataload
-  push 224
-  mload
+  dup 9
   call
-  swap 2
+  swap 3
+  pop
   pop
   pop
   iszero

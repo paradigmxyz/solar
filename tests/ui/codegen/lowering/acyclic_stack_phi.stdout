@@ -55,16 +55,11 @@ bb0:
   swap 1
   swap 2
   or
-  swap 2
-  pop
-  pop
   push bb3
   jumpi
   push bb7
-  push 160
-  mload
-  push 192
-  mload
+  swap 2
+  swap 1
   push 4
   dup 2
   gt

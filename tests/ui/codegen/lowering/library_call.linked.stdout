@@ -61,6 +61,7 @@ bb4:
   dup 1
   push 192
   mstore
+  dup 1
   sload
   push 68
   calldataload
@@ -69,16 +70,13 @@ bb4:
   dup 1
   push 160
   mstore
+  swap 1
+  dup 2
   lt
   push bb9
   jumpi
-  push 160
-  mload
-  push 192
-  mload
+  dup 2
   sstore
-  push 192
-  mload
   sload
   push 255
   caller
@@ -88,11 +86,11 @@ bb4:
   dup 1
   push 160
   mstore
+  swap 1
+  dup 2
   lt
   push bb9
   jumpi
-  push 160
-  mload
   push 128
   mstore
   push 32
@@ -235,12 +233,8 @@ bb0:
   push 32
   gt
   or
-  swap 1
-  pop
   push bb3
   jumpi
-  push 160
-  mload
   mload
   push 128
   mstore
