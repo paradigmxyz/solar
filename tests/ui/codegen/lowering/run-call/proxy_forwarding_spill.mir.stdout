@@ -131,7 +131,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     revert_returndata
   bb2:
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = abi_encode [word], args v19
+    v20 = abi_encode [word<u160>], args v19
     v21 = not 31
     v22 = and 360, v21
     v23 = alloc raw, exact, uninitialized, infallible, v22

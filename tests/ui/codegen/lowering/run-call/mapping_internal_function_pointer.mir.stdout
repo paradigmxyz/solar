@@ -50,7 +50,7 @@ fn @stage2() {
     stop
 }
 
-fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 1

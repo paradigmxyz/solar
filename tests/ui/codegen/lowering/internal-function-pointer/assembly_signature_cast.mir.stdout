@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_signature_cast.sol:InternalFunctionPointerAssemblyCast ===
 @module InternalFunctionPointerAssemblyCast
-fn @compareBytes32(arg0: bytes32, arg1: bytes32) -> bool [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word]] {
+fn @compareBytes32(arg0: bytes32, arg1: bytes32) -> bool [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 2, arg0, arg1
     ret v0
 }
 
-fn @compareAddress(arg0: u256, arg1: u256) -> bool [selector=0xf627b917, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @compareAddress(arg0: u256, arg1: u256) -> bool [selector=0xf627b917, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 4, arg0, arg1
     ret v0
 }
 
-fn @compareInt256(arg0: u256, arg1: u256) -> bool [selector=0x28717b2d, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @compareInt256(arg0: u256, arg1: u256) -> bool [selector=0x28717b2d, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 6, arg0, arg1
     ret v0

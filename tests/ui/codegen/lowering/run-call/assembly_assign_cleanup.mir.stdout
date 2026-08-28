@@ -10,9 +10,9 @@ fn @parseSel(arg0: memorybytes) -> bytes4 [pure] {
 fn @selectorCompare() -> u256 [selector=0x3c3fb316, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
-    v1 = abi_encode [word, word], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, v0
+    v1 = abi_encode [word, word<u160>], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, v0
     v2 = and 0xdc98354e00000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word], object, args v2
+    v3 = abi_encode [word<bytes4>], object, args v2
     v4 = internal_call @parseSel, 1, v1
     v5 = and v4, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v6 = internal_call @parseSel, 1, v3

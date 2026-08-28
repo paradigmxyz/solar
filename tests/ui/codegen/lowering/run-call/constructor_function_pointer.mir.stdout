@@ -107,7 +107,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word]] {
+fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32

@@ -8,9 +8,9 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId,
-        Immediate, ImmutableEncoding, InstId, InstKind, Instruction, MirType, Module, Terminator,
-        Value, ValueId,
+        AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -625,6 +625,11 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
+                // Dynamic values encode through copy loops and padding branches once
+                // `lower-abi-encode` runs, so a leaf holding such an encode is not tiny.
+                InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
+                    summary.has_control_flow = true;
+                }
                 InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
@@ -736,6 +741,33 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         && is_identity_function(func)
 }
 
+/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
+///
+/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
+/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
+/// decisions must see the expanded shape rather than the placeholder.
+fn abi_type_expansion(ty: &AbiType) -> usize {
+    match ty {
+        AbiType::Word(None) => 2,
+        AbiType::Word(Some(_)) | AbiType::Function => 3,
+        AbiType::Bytes(_) => 14,
+        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
+        AbiType::FixedArray { element, len } => {
+            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
+        }
+        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
+    }
+}
+
+fn abi_layout_expansion(layout: &AbiLayout) -> usize {
+    layout.types.iter().map(abi_type_expansion).sum()
+}
+
+/// Whether encoding the layout emits loops or branches: every dynamic value does.
+fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
+    layout.types.iter().any(AbiType::is_dynamic)
+}
+
 #[derive(Clone, Copy, Debug)]
 struct MirCost {
     runtime_gas: u64,
@@ -781,7 +813,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
             let words = layout.head_size() / 32;
-            (30 + words * 12, 8 + args.len() * 3)
+            (30 + words * 12, 8 + args.len() * 3 + abi_layout_expansion(layout))
         }
         InstKind::AbiDecode { layout, .. } => {
             let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
@@ -915,6 +947,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::MappingSlotMemory(..) => 8,
         InstKind::MappingSlotCalldata(..) => 9,
         InstKind::StorageArrayElementSlot { .. } => 4,
+        InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,
     };
     (MirCost { runtime_gas, code_size }, instructions)

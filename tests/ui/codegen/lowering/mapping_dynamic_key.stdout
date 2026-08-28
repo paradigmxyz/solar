@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
 @module MappingDynamicKey
-fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, view, abi_params=[bytes], abi_returns=[word]] {
+fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, view, abi_params=[bytes], abi_returns=[word<u160>]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -20,7 +20,7 @@ fn @set(arg0: memorybytes, arg1: address) [selector=0xa815ff15, abi_params=[byte
     stop
 }
 
-fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, view, abi_params=[bytes], abi_returns=[word]] {
+fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, view, abi_params=[bytes], abi_returns=[word<u160>]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))

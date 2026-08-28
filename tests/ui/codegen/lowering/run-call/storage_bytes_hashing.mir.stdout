@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_hashing.sol:StorageBytesHashing ===
 @module StorageBytesHashing
-fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[word]] {
+fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = not 31
     v1 = and 63, v0
@@ -16,7 +16,7 @@ fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[wor
     ret v8
 }
 
-fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -35,7 +35,7 @@ fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_p
     ret v9
 }
 
-fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word]] {
+fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v1 = not 31
@@ -53,7 +53,7 @@ fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes3
     ret v9
 }
 
-fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word]] {
+fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word<bool>]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -70,7 +70,7 @@ fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32
     ret v8
 }
 
-fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word]] {
+fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg2, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -90,7 +90,7 @@ fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selecto
     ret v9
 }
 
-fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -109,7 +109,7 @@ fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, 
     ret v9
 }
 
-fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -130,7 +130,7 @@ fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi
     ret v11
 }
 
-fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -147,7 +147,7 @@ fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_p
     ret v7
 }
 
-fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -164,7 +164,7 @@ fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_p
     ret v7
 }
 
-fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -189,7 +189,7 @@ fn @hashStorageBytes(arg0: storageptr) -> bytes32 [pure] {
     ret v1
 }
 
-fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31
@@ -208,7 +208,7 @@ fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi
     ret v9
 }
 
-fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word]] {
+fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = not 31

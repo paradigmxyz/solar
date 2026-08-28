@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/unchecked_signed_division.sol:UncheckedSignedDivision ===
 @module UncheckedSignedDivision
-fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params=[i8, i8], abi_returns=[word]] {
+fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -13,7 +13,7 @@ fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params
     ret v1
 }
 
-fn @uncheckedI24(arg0: i24, arg1: i24) -> i24 [selector=0xed3614ef, pure, abi_params=[i24, i24], abi_returns=[word]] {
+fn @uncheckedI24(arg0: i24, arg1: i24) -> i24 [selector=0xed3614ef, pure, abi_params=[i24, i24], abi_returns=[word<i24>]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -26,7 +26,7 @@ fn @uncheckedI24(arg0: i24, arg1: i24) -> i24 [selector=0xed3614ef, pure, abi_pa
     ret v1
 }
 
-fn @uncheckedI128(arg0: i128, arg1: i128) -> i128 [selector=0x0486d865, pure, abi_params=[i128, i128], abi_returns=[word]] {
+fn @uncheckedI128(arg0: i128, arg1: i128) -> i128 [selector=0x0486d865, pure, abi_params=[i128, i128], abi_returns=[word<i128>]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -51,7 +51,7 @@ fn @uncheckedI256(arg0: i256, arg1: i256) -> i256 [selector=0x9762a930, pure, ab
     ret v0
 }
 
-fn @checkedI8(arg0: i8, arg1: i8) -> i8 [selector=0x8287dbba, pure, abi_params=[i8, i8], abi_returns=[word]] {
+fn @checkedI8(arg0: i8, arg1: i8) -> i8 [selector=0x8287dbba, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
@@ -85,13 +85,13 @@ fn @upcastI8(arg0: i8, arg1: i8) -> i256 [selector=0xc8f1d00b, pure, abi_params=
     ret v1
 }
 
-fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word]] {
+fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
   bb0:
     v0 = internal_call @divideI8, 1, arg0, arg1
     ret v0
 }
 
-fn @isNegativeI8(arg0: i8, arg1: i8) -> bool [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word]] {
+fn @isNegativeI8(arg0: i8, arg1: i8) -> bool [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word<bool>]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:

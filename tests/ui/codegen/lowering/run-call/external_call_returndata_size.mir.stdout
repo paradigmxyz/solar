@@ -439,7 +439,7 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_retu
     revert 0, 0
 }
 
-fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns=[word]] {
+fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -488,7 +488,7 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
     revert 0, 0
 }
 
-fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_returns=[word]] {
+fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

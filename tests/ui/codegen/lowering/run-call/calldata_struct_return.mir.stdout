@@ -2,7 +2,7 @@
 @module CalldataStructDecoder
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
-fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word]] {
   bb0:
     v0 = internal_call @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -17,7 +17,7 @@ fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_
     ret v0, v9
 }
 
-fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
   bb0:
     v0 = internal_call @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -29,7 +29,7 @@ fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3,
     ret v0, v6
 }
 
-fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word, word, word, word, word, word, word]] {
+fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word]] {
   bb0:
     v0 = address
     v1 = gas

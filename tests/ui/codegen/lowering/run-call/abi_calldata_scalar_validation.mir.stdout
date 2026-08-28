@@ -2,7 +2,7 @@
 @module AbiCalldataScalarValidation
 fn @encode(arg0: calldataslice) -> u256 [selector=0x1597ee44, pure, abi_params=[array<_, u8>], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [calldata_array<word>], object, args arg0
+    v0 = abi_encode [calldata_array<word<u8>>], object, args arg0
     v1 = memory_object_len memorybytes, v0
     ret v1
 }

@@ -27,7 +27,7 @@ fn @getMinDelay() -> u256 [selector=0xf27a0c92, view, abi_params=[], abi_returns
     ret v0
 }
 
-fn @isOperation(arg0: bytes32) -> bool [selector=0x31d50750, view, abi_params=[bytes32], abi_returns=[word]] {
+fn @isOperation(arg0: bytes32) -> bool [selector=0x31d50750, view, abi_params=[bytes32], abi_returns=[word<bool>]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -37,7 +37,7 @@ fn @isOperation(arg0: bytes32) -> bool [selector=0x31d50750, view, abi_params=[b
 
 fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: bytes32, arg4: bytes32) -> bytes32 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [calldata_array<word>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
+    v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = keccak256 v1, v2
@@ -200,7 +200,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v101 = sgt v96, v100
     jumpi v101, bb42, bb43
   bb43:
-    v102 = abi_encode [word, word, calldata_bytes, word, word], args v50, v65, v95, v32, v28
+    v102 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v50, v65, v95, v32, v28
     v103 = slice_ptr v102
     v104 = slice_len v102
     log3 v103, v104, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v31, v33
@@ -266,7 +266,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb2:
     v7 = caller
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = abi_encode [word, word], selector 0x161a64a00000000000000000000000000000000000000000000000000000000, args v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    v9 = abi_encode [word<u160>, word], selector 0x161a64a00000000000000000000000000000000000000000000000000000000, args v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     v10 = slice_ptr v9
     v11 = slice_len v9
     revert v10, v11

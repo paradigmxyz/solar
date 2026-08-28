@@ -146,7 +146,7 @@ fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_param
     revert 0, 36
 }
 
-fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[], abi_returns=[word, word]] {
+fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = and v0, 1

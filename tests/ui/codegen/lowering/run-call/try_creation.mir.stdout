@@ -22,9 +22,9 @@ fn @revert_error(arg0: u256, arg1: u256) {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
-fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word]] {
+fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>]] {
   bb0:
-    v0 = abi_encode [word], args arg0
+    v0 = abi_encode [word<bool>], args arg0
     v1 = not 31
     v2 = and 374, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2

@@ -17,7 +17,7 @@ contract AbiEncodeSemantic {
 
     // A validated narrow calldata array stays in calldata through ABI encoding.
     // CHECK-LABEL: fn @forwardNarrow{{[( ]}}
-    // CHECK: abi_encode [calldata_array<word>], selector {{.*}}, args {{.*}}
+    // CHECK: abi_encode [calldata_array<word<u8>>], selector {{.*}}, args {{.*}}
     function forwardNarrow(Sink sink, uint8[] calldata data) external {
         sink.consumeNarrow(data);
     }

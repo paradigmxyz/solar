@@ -13,9 +13,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         match ty {
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, .. } => {
-                !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
-            }
+            AbiType::DynamicArray { element, .. } => !matches!(
+                element.as_ref(),
+                AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
+            ),
             _ => false,
         }
     }
@@ -27,7 +28,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 AbiType::DynamicArray {
                     element,
                     location: SliceLocation::Calldata,
-                } if matches!(element.as_ref(), AbiType::Word | AbiType::Bytes(_))
+                } if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Bytes(_))
             )
     }
 
@@ -173,11 +174,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
         self.builder.func().selector.is_some()
             && matches!(self.builder.func().value(value), Value::Arg(_))
-    }
-
-    pub(super) fn is_external_only_abi_argument(&self, value: ValueId) -> bool {
-        self.is_external_abi_argument(value)
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
@@ -349,7 +345,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn abi_type_at_location(ty: AbiType, location: SliceLocation) -> AbiType {
         match ty {
-            AbiType::Word => AbiType::Word,
+            AbiType::Word(cleanup) => AbiType::Word(cleanup),
             AbiType::Function => AbiType::Function,
             AbiType::Bytes(_) => AbiType::Bytes(location),
             AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
@@ -417,7 +413,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_head_size = self.builder.imm_u64(element_type.head_size());
                 let head_size = self.builder.checked_mul(length, element_head_size);
                 self.check_calldata_tail_range(data, head_size);
-                if matches!(element_type, AbiType::Word)
+                if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
                     return Some(self.copy_calldata_word_array(data, length));
@@ -593,7 +589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
                 }
                 let data = self.builder.add(value_pos, word);
-                if matches!(element_type, AbiType::Word)
+                if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
                     Some(self.copy_calldata_word_array(data, length))

@@ -415,7 +415,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     revert 0, 0
 }
 
-fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[word]] {
+fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     memory_zero v0, 160
@@ -459,34 +459,14 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     memory_object_store_field memorystruct<5>, v0, 4, v16
     v17 = address
     v18 = gas
-    v19 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
-    v20 = memory_object_load_field memorystruct<5>, v0, 0
-    memory_object_store_field memorystruct<5>, v19, 0, v20
-    v21 = memory_object_load_field memorystruct<5>, v0, 1
-    memory_object_store_field memorystruct<5>, v19, 1, v21
-    v22 = memory_object_load_field memorystruct<5>, v0, 2
-    memory_object_store_field memorystruct<5>, v19, 2, v22
-    v23 = memory_object_load_field memorystruct<5>, v0, 3
-    memory_object_store_field memorystruct<5>, v19, 3, v23
-    v24 = memory_object_load_field memorystruct<5>, v0, 4
-    v25 = lt v24, 3
-    v26 = iszero v25
-    jumpi v26, bb7, bb8
-  bb8:
-    v27 = and v24, 3
-    memory_object_store_field memorystruct<5>, v19, 4, v27
-    v28 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v28, 8
-    memory_object_store_word memorybytes, v28, 0, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v29 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v19, 5, v28
-    v30 = memory_object_data memorybytes, v29
-    v31 = memory_object_len memorybytes, v29
-    v32 = call v18, v17, 0, v30, v31, 0, 0
-    ret v32
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    v19 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v19, 8
+    memory_object_store_word memorybytes, v19, 0, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v20 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v19
+    v21 = memory_object_data memorybytes, v20
+    v22 = memory_object_len memorybytes, v20
+    v23 = call v18, v17, 0, v21, v22, 0, 0
+    ret v23
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

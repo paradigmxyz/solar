@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
-fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word, word]] {
+fn @dFlat(arg0: memorybytes) -> (u256, address, bool) [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>]] {
   bb0:
     v0 = abi_decode [tuple<u256, address, bool>], arg0
     v1 = memory_object_load_field memorystruct<3>, v0, 0
@@ -289,30 +289,13 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     set_memory_object_len memorybytes, v22, 3
     memory_object_store_word memorybytes, v22, 0, 0x78797a0000000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<3>, v0, 2, v22
-    v23 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v24 = memory_object_load_field memorystruct<3>, v0, 0
-    v25 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v26 = memory_object_load_field memorystruct<3>, v24, 0
-    memory_object_store_field memorystruct<3>, v25, 0, v26
-    v27 = memory_object_load_field memorystruct<3>, v24, 1
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v25, 1, v28
-    v29 = memory_object_load_field memorystruct<3>, v24, 2
-    v30 = eq v29, 0
-    v31 = iszero v30
-    memory_object_store_field memorystruct<3>, v25, 2, v31
-    memory_object_store_field memorystruct<3>, v23, 0, v25
-    v32 = memory_object_load_field memorystruct<3>, v0, 1
-    memory_object_store_field memorystruct<3>, v23, 1, v32
-    v33 = memory_object_load_field memorystruct<3>, v0, 2
-    memory_object_store_field memorystruct<3>, v23, 2, v33
-    v34 = abi_encode [tuple<tuple<word, word, word>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v23
-    v35 = internal_call @dNested, 3, v34
-    v36 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v37 = memory_object_load_element memoryfixedarray<3, 1>, v36, 1
-    v38 = add v36, 64
-    v39 = mload v38
-    ret v35, v37, v39
+    v23 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
+    v24 = internal_call @dNested, 3, v23
+    v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v26 = memory_object_load_element memoryfixedarray<3, 1>, v25, 1
+    v27 = add v25, 64
+    v28 = mload v27
+    ret v24, v26, v28
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1071,7 +1054,7 @@ fn @dCalldataDyn(arg0: calldataslice) -> (u256, u256, u256) [selector=0xe931c6df
     revert 0, 0
 }
 
-fn @dOverlap(arg0: memorybytes) -> (bool, bool) [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @dOverlap(arg0: memorybytes) -> (bool, bool) [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>]] {
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

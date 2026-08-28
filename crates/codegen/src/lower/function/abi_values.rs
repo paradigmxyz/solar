@@ -241,200 +241,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.validate_enum(ty, value);
         }
         match ty.peel_refs().kind {
-            TyKind::DynArray(_) | TyKind::Array(_, _) => self.canonicalize_abi_array(ty, value),
-            TyKind::Struct(_) => self.canonicalize_abi_struct(ty, value),
+            // Aggregates are cleaned and validated word by word while encoding, like solc's
+            // per-type encoders; copying them into a canonical object first would duplicate
+            // the whole tree at every call site.
+            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ if external_only => value,
             _ => self.normalize_abi_scalar(value, ty),
-        }
-    }
-
-    fn value_is_canonical(&self, value: ValueId, seen: &mut FxHashSet<ValueId>) -> bool {
-        if !seen.insert(value) {
-            return true;
-        }
-        let Value::Inst(inst) = self.builder.func().value(value) else { return false };
-        let kind = &self.builder.func().inst(*inst).kind;
-        match kind {
-            InstKind::MemoryObjectLoadField { object, .. }
-            | InstKind::MemoryObjectLoadElement { object, .. } => {
-                self.value_is_canonical(*object, seen)
-            }
-            InstKind::Phi(incoming) => {
-                incoming.iter().all(|(_, value)| self.value_is_canonical(*value, seen))
-            }
-            _ => false,
-        }
-    }
-
-    fn canonicalize_abi_array(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        // output = alloc_same_layout(input)
-        // if dynamic { output.len = input.len }
-        // for i { output[i] = canonicalize(element, input[i]) }
-        if self.is_external_only_abi_argument(value) {
-            return value;
-        }
-        if self.value_is_canonical(value, &mut FxHashSet::default()) {
-            return value;
-        }
-        let (TyKind::DynArray(element_ty) | TyKind::Array(element_ty, _)) = ty.peel_refs().kind
-        else {
-            return value;
-        };
-        if !self.abi_value_needs_normalization(element_ty) {
-            return value;
-        }
-
-        let Some(
-            layout @ (MemoryObjectLayout::DynamicArray { element_words: 1 }
-            | MemoryObjectLayout::FixedArray { element_words: 1, .. }),
-        ) = self.types.memory_layout(ty)
-        else {
-            return value;
-        };
-        if !self.is_memory_object_value(value, layout.kind()) {
-            return value;
-        }
-        let dynamic = matches!(layout, MemoryObjectLayout::DynamicArray { .. });
-        let length = self.memory_object_length(value, layout);
-        let words = if dynamic {
-            let one = self.builder.imm_u64(1);
-            self.builder.checked_add(length, one)
-        } else {
-            length
-        };
-        let word = self.builder.imm_u64(32);
-        let size = self.builder.checked_mul(words, word);
-        let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        if dynamic {
-            self.builder.set_memory_object_len(output, length, layout.kind());
-        }
-
-        if !matches!(
-            element_ty.peel_refs().kind,
-            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_)
-        ) {
-            let source = self.builder.memory_object_data(value, layout.kind());
-            let destination = self.builder.memory_object_data(output, layout.kind());
-            let preheader = self.builder.current_block();
-            let header = self.builder.create_block();
-            let body = self.builder.create_block();
-            let exit = self.builder.create_block();
-            self.builder.jump(header);
-
-            self.builder.switch_to_block(header);
-            let zero = self.builder.imm_u64(0);
-            let index = self.builder.phi(vec![(preheader, zero)]);
-            let source = self.builder.phi(vec![(preheader, source)]);
-            let destination = self.builder.phi(vec![(preheader, destination)]);
-            let more = self.builder.lt(index, length);
-            self.builder.branch(more, body, exit);
-
-            self.builder.switch_to_block(body);
-            let element_value = self.builder.mload(source);
-            self.validate_enum(element_ty, element_value);
-            let element_value = self.normalize_abi_scalar(element_value, element_ty);
-            self.builder.mstore(destination, element_value);
-            let word = self.builder.imm_u64(32);
-            let next_source = self.builder.add(source, word);
-            let next_destination = self.builder.add(destination, word);
-            let next_index = self.builder.add_u64_offset(index, 1);
-            let backedge = self.builder.current_block();
-            self.builder.jump(header);
-            self.builder.add_phi_incoming(index, backedge, next_index);
-            self.builder.add_phi_incoming(source, backedge, next_source);
-            self.builder.add_phi_incoming(destination, backedge, next_destination);
-
-            self.builder.switch_to_block(exit);
-            return output;
-        }
-
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let more = self.builder.lt(index, length);
-        self.builder.branch(more, body, exit);
-
-        self.builder.switch_to_block(body);
-        let element_value = self.builder.memory_object_load_element(value, layout, index);
-        let element_value = self.canonicalize_abi_value(element_ty, element_value);
-        self.builder.memory_object_store_element(output, layout, index, element_value);
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-
-        self.builder.switch_to_block(exit);
-        output
-    }
-
-    fn canonicalize_abi_struct(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        // output = struct()
-        // for field { output[field] = canonicalize(field) }
-        if self.value_is_canonical(value, &mut FxHashSet::default()) {
-            return value;
-        }
-        if !self.abi_value_needs_normalization(ty) {
-            return value;
-        }
-        let Some(layout @ MemoryObjectLayout::Struct { .. }) = self.types.memory_layout(ty) else {
-            return value;
-        };
-        if !self.is_memory_object_value(value, MemoryObjectKind::Struct) {
-            return value;
-        }
-        let TyKind::Struct(id) = ty.peel_refs().kind else { unreachable!("struct layout checked") };
-        let gcx = self.context.gcx;
-        let fields = gcx.hir.strukt(id).fields;
-        let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32))
-        else {
-            return value;
-        };
-        let size = self.builder.imm_u64(size);
-        let output = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        for (index, &field) in fields.iter().enumerate() {
-            let field_ty = gcx.type_of_item(field.into());
-            let field_value = self.builder.memory_object_load_field(value, layout, index as u64);
-            let field_value = self.canonicalize_abi_value(field_ty, field_value);
-            self.builder.memory_object_store_field(output, layout, index as u64, field_value);
-        }
-        output
-    }
-
-    fn is_memory_object_value(&self, value: ValueId, kind: MemoryObjectKind) -> bool {
-        match self.builder.func().value_ty(value) {
-            Some(MirType::MemoryObject(value_kind)) => value_kind == kind,
-            Some(MirType::UInt(size)) => size.bits() == 256,
-            _ => false,
-        }
-    }
-
-    fn abi_value_needs_normalization(&self, ty: Ty<'gcx>) -> bool {
-        match ty.peel_refs().kind {
-            TyKind::DynArray(element) | TyKind::Array(element, _) => {
-                self.abi_value_needs_normalization(element)
-            }
-            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().any(|&field| {
-                self.abi_value_needs_normalization(self.context.gcx.type_of_item(field.into()))
-            }),
-            TyKind::Udvt(inner, _) => self.abi_value_needs_normalization(inner),
-            TyKind::Elementary(
-                solar_sema::hir::ElementaryType::UInt(size)
-                | solar_sema::hir::ElementaryType::Int(size),
-            ) => size.bits() < 256,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::Address(_))
-            | TyKind::Contract(_)
-            | TyKind::Enum(_)
-            | TyKind::Elementary(solar_sema::hir::ElementaryType::Bool) => true,
-            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) => {
-                size.bytes() < 32
-            }
-            _ => false,
         }
     }
 
@@ -1074,7 +886,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn packed_array_element_bytes(element: &AbiType) -> Option<u64> {
         match element {
-            AbiType::Word | AbiType::Function => Some(32),
+            AbiType::Word(_) | AbiType::Function => Some(32),
             AbiType::FixedArray { element, len } => {
                 Self::packed_array_element_bytes(element)?.checked_mul(*len)
             }
@@ -1153,7 +965,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Udvt(inner, _) => self.inplace_dynamic_shape(inner),
             TyKind::Tuple(_) => false,
             TyKind::Slice(_) => false,
-            _ => matches!(self.types.abi_type(ty), Some(AbiType::Word)),
+            _ => matches!(self.types.abi_type(ty), Some(AbiType::Word(_))),
         }
     }
 
@@ -1417,7 +1229,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_offset = self.builder.checked_mul(index, element_bytes_value);
         let destination = self.builder.checked_add(offset, element_offset);
         match &element.abi {
-            AbiType::Word | AbiType::Function => {
+            AbiType::Word(_) | AbiType::Function => {
                 let element_value = match source {
                     PackedArraySource::Memory { layout } => {
                         self.builder.memory_object_load_element(value, layout, index)

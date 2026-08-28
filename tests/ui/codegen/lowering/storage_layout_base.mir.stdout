@@ -40,7 +40,7 @@ fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_retur
 }
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
-fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word]] {
+fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 12

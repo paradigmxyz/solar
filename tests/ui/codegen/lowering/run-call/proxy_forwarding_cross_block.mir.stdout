@@ -167,7 +167,7 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = abi_encode [word], args v19
+    v20 = abi_encode [word<u160>], args v19
     v21 = not 31
     v22 = and 339, v21
     v23 = alloc raw, exact, uninitialized, infallible, v22
@@ -284,7 +284,7 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     revert_returndata
   bb2:
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = abi_encode [word], args v19
+    v20 = abi_encode [word<u160>], args v19
     v21 = not 31
     v22 = and 353, v21
     v23 = alloc raw, exact, uninitialized, infallible, v22
@@ -381,7 +381,7 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = abi_encode [word], args v8
+    v9 = abi_encode [word<u160>], args v8
     v10 = not 31
     v11 = and 0x3ee, v10
     v12 = alloc raw, exact, uninitialized, infallible, v11
@@ -577,7 +577,7 @@ fn @buffer() -> u256 [pure] {
     ret v0
 }
 
-fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word]] {
+fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @buffer, 1
     v1 = slice_len arg1

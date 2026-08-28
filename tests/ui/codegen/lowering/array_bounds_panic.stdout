@@ -222,7 +222,7 @@ fn @cdFix(arg0: calldataslice, arg1: u256) -> u256 [selector=0xe21341a4, pure, a
     revert 0, 36
 }
 
-fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, pure, abi_params=[bytes, u256], abi_returns=[word]] {
+fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [selector=0x335b74df, pure, abi_params=[bytes, u256], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt arg1, v0

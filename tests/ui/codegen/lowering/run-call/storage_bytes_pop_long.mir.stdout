@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop_long.sol:StorageBytesPopLong ===
 @module StorageBytesPopLong
-fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     jump bb1
   bb1:

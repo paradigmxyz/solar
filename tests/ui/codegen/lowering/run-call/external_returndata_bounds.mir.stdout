@@ -42,7 +42,7 @@ fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_b
     returndata 0, 64
 }
 
-fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>]] {
   bb0:
     v0 = not 0
     ret v0

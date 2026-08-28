@@ -20,7 +20,7 @@ fn @_anonymous(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]
     stop
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff
@@ -28,7 +28,7 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word]] {
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0
@@ -42,7 +42,7 @@ fn @_anonymous() [constructor] {
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = eq 1, 0
     v2 = iszero v1
-    v3 = abi_encode [word, word], args v0, v2
+    v3 = abi_encode [word<bytes3>, word<bool>], args v0, v2
     v4 = not 31
     v5 = and 400, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
@@ -82,7 +82,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word]] {
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -116,7 +116,7 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     revert 0, 0
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

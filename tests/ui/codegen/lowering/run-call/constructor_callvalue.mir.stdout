@@ -35,7 +35,7 @@ fn @_anonymous() [constructor, payable] {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
-fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word]] {
+fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160
     set_memory_object_len memorybytes, v0, 112
@@ -102,7 +102,7 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     revert 0, 36
 }
 
-fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word]] {
+fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
@@ -113,7 +113,7 @@ fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_
     ret v3
 }
 
-fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi_returns=[word]] {
+fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -125,7 +125,7 @@ fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi
     ret v3
 }
 
-fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word]] {
+fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 29
@@ -136,7 +136,7 @@ fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi
     ret v3
 }
 
-fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word]] {
+fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 17

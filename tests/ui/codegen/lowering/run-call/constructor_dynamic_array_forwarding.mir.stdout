@@ -67,7 +67,7 @@ fn @_anonymous(arg0: u256, arg1: memoryarray) [constructor, abi_params=[u256, ar
     jump bb3
 }
 
-fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word]] {
+fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -168,7 +168,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word]] {
+fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -192,9 +192,9 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
 @module Creator
-fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word]] {
+fn @f(arg0: u256, arg1: memoryarray) -> (u256, address) [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word<u160>]] {
   bb0:
-    v0 = abi_encode [memory_array<word>, word], args arg1, arg0
+    v0 = abi_encode [memory_array<word<u160>>, word], args arg1, arg0
     v1 = slice_len v0
     v2 = add 0x47a, v1
     v3 = lt v2, 0x47a

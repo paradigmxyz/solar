@@ -181,7 +181,7 @@ fn @dirtyUint8(arg0: u256) -> u8 [pure] {
     ret arg0
 }
 
-fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[word]] {
+fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -194,7 +194,7 @@ fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[w
     ret v7
 }
 
-fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word]] {
+fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyUint8, 1, 256
     v1 = and v0, 255

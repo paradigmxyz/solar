@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
 @module AbiDecodeStorageSimple
-fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word, word, word]] {
+fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word, word, word<bytes1>]] {
   bb0:
     internal_call @store_storage_bytes, 0, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))

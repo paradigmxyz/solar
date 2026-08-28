@@ -306,7 +306,16 @@ fn encode_static_impl(
             };
             builder.mstore(head_addr, value);
         }
-        _ => builder.mstore(head_addr, value),
+        AbiType::Word(cleanup) => {
+            let value = match (source, cleanup) {
+                (AbiValueSource::Memory, Some(cleanup)) => clean_word(builder, *cleanup, value),
+                _ => value,
+            };
+            builder.mstore(head_addr, value);
+        }
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+            unreachable!("dynamic ABI values are not static")
+        }
     }
 }
 
@@ -410,13 +419,37 @@ fn encode_static_slice(
             };
             builder.mstore(head_addr, value);
         }
-        AbiType::Word => {
+        AbiType::Word(cleanup) => {
             let value = load_slice_word(builder, source, location);
+            let value = match cleanup {
+                Some(cleanup) if location == SliceLocation::Memory => {
+                    clean_word(builder, *cleanup, value)
+                }
+                _ => value,
+            };
             builder.mstore(head_addr, value);
         }
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             unreachable!("dynamic ABI values are not static")
         }
+    }
+}
+
+/// Canonicalizes a word read from memory before it is encoded, like solc's per-type
+/// `cleanup` and `validator_assert` helpers: narrow values are masked or sign-extended and an
+/// out-of-range enum panics. Scalars arriving on the stack were already cleaned by the
+/// lowering, and calldata words were validated when decoded.
+fn clean_word(
+    builder: &mut FunctionBuilder<'_>,
+    cleanup: AbiWordValidator,
+    value: ValueId,
+) -> ValueId {
+    match cleanup {
+        AbiWordValidator::EnumRange(variants) => {
+            builder.validate_enum_value(variants, value);
+            value
+        }
+        _ => cleanup.cleanup(builder, value),
     }
 }
 
@@ -445,14 +478,13 @@ fn encode_dynamic_body(
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder, value, *location);
-            if matches!(element.as_ref(), AbiType::Word | AbiType::Function) {
-                return encode_word_array(
-                    builder,
-                    value,
-                    dest,
-                    location,
-                    matches!(element.as_ref(), AbiType::Function),
-                );
+            let word_cleanup = match element.as_ref() {
+                AbiType::Word(cleanup) => Some(*cleanup),
+                AbiType::Function => Some(AbiWordValidator::from_mir_type(MirType::Function)),
+                _ => None,
+            };
+            if let Some(cleanup) = word_cleanup {
+                return encode_word_array(builder, value, dest, location, cleanup);
             }
             match location {
                 SliceLocation::Memory => encode_dynamic_array(builder, element, value, dest),
@@ -498,7 +530,7 @@ fn encode_dynamic_body(
             let size = encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory);
             builder.add(dest, size)
         }
-        AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
+        AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
     }
 }
 
@@ -682,7 +714,7 @@ fn encode_word_array(
     value: ValueId,
     dest: ValueId,
     location: SliceLocation,
-    function_elements: bool,
+    cleanup: Option<AbiWordValidator>,
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
@@ -697,7 +729,11 @@ fn encode_word_array(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    if function_elements && location == SliceLocation::Memory {
+    // Memory elements that need cleanup are copied one word at a time, like solc's per-element
+    // array encoder; full words and calldata elements copy as one block.
+    if let Some(cleanup) = cleanup
+        && location == SliceLocation::Memory
+    {
         let preheader = builder.current_block();
         let cond = builder.create_block();
         let body = builder.create_block();
@@ -715,9 +751,7 @@ fn encode_word_array(
         let source = builder.add(data_source, offset);
         let destination = builder.add(data_dest, offset);
         let value = builder.mload(source);
-        let value = AbiWordValidator::from_mir_type(MirType::Function)
-            .expect("function words always require cleanup")
-            .cleanup(builder, value);
+        let value = clean_word(builder, cleanup, value);
         builder.mstore(destination, value);
         let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();

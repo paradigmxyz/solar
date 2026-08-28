@@ -183,7 +183,7 @@ fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_params=
     revert 0, 36
 }
 
-fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_returns=[word, word]] {
+fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_returns=[word, word<bytes1>]] {
   bb0:
     jump bb1
   bb1:

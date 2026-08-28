@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
 @module StorageBytesAssignmentCleanup
-fn @cleanup() -> (bool, bool, u256) [selector=0x3cecd719, abi_params=[], abi_returns=[word, word, word]] {
+fn @cleanup() -> (bool, bool, u256) [selector=0x3cecd719, abi_params=[], abi_returns=[word<bool>, word<bool>, word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 64
@@ -73,7 +73,7 @@ fn @cleanup() -> (bool, bool, u256) [selector=0x3cecd719, abi_params=[], abi_ret
     revert 0, 36
 }
 
-fn @cleanupShort() -> (bool, bool, u256) [selector=0x14d48529, abi_params=[], abi_returns=[word, word, word]] {
+fn @cleanupShort() -> (bool, bool, u256) [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 64

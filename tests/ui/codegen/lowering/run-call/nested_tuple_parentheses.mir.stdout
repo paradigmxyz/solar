@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_parentheses.sol:NestedTupleParentheses ===
 @module NestedTupleParentheses
-fn @f0() -> (i256, bool) [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word]] {
+fn @f0() -> (i256, bool) [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
     ret 2, 1
 }

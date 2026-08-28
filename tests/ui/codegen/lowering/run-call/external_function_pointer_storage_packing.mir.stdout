@@ -27,14 +27,14 @@ fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word]] {
+fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 192, v0
     ret v1
 }
 
-fn @nextSlot() -> u64 [selector=0x448bdfd7, view, abi_params=[], abi_returns=[word]] {
+fn @nextSlot() -> u64 [selector=0x448bdfd7, view, abi_params=[], abi_returns=[word<u64>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0

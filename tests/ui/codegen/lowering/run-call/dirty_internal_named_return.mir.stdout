@@ -26,7 +26,7 @@ fn @dirtyBool(arg0: bool) -> bool [pure] {
     ret v0
 }
 
-fn @addressBits() -> bool [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word]] {
+fn @addressBits() -> bool [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyAddress, 1, 2
     v1 = shr 160, v0
@@ -36,7 +36,7 @@ fn @addressBits() -> bool [selector=0xf41cb93b, pure, abi_params=[], abi_returns
     ret v4
 }
 
-fn @bytesBits() -> bool [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word]] {
+fn @bytesBits() -> bool [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
     v1 = shr 248, v0
@@ -69,7 +69,7 @@ fn @sameBytes32(arg0: bytes32, arg1: bytes32) -> bool [pure] {
     ret v0
 }
 
-fn @typedCallCleans() -> bool [selector=0x27e15135, pure, abi_params=[], abi_returns=[word]] {
+fn @typedCallCleans() -> bool [selector=0x27e15135, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyAddress, 1, 2
     v1 = internal_call @dirtyBytes, 1, 0x4200000000000000000000000000000000000000000000000000000000000000
@@ -106,7 +106,7 @@ fn @typedCallCleans() -> bool [selector=0x27e15135, pure, abi_params=[], abi_ret
     ret v13
 }
 
-fn @directTypedCallCleans() -> bool [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word]] {
+fn @directTypedCallCleans() -> bool [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyAddress, 1, 2
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -134,7 +134,7 @@ fn @directTypedCallCleans() -> bool [selector=0x39703d9f, pure, abi_params=[], a
     ret v10
 }
 
-fn @directComparisonCleans() -> bool [selector=0x38576c60, pure, abi_params=[], abi_returns=[word]] {
+fn @directComparisonCleans() -> bool [selector=0x38576c60, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyAddress, 1, 2
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -162,7 +162,7 @@ fn @directComparisonCleans() -> bool [selector=0x38576c60, pure, abi_params=[], 
     ret v10
 }
 
-fn @boolBits() -> bool [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word]] {
+fn @boolBits() -> bool [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @dirtyBool, 1, 1
     v1 = eq v0, 2

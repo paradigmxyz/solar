@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_forward_function_pointer_array.sol:AbiForwardFunctionPointerArray ===
 @module AbiForwardFunctionPointerArray
-fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=[array<_, function>], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -109,7 +109,7 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
     revert 0, 36
 }
 
-fn @accept(arg0: calldataslice) -> bool [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+fn @accept(arg0: calldataslice) -> bool [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>]] {
   bb0:
     v0 = slice_len arg0
     v1 = eq v0, 1

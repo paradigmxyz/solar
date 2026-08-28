@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_compound_assignments.sol:FixedBytesCompoundAssignments ===
 @module FixedBytesCompoundAssignments
-fn @bitwise(arg0: bytes1) -> (bytes1, bytes1, bytes1) [selector=0xbe8f3303, pure, abi_params=[bytes1], abi_returns=[word, word, word]] {
+fn @bitwise(arg0: bytes1) -> (bytes1, bytes1, bytes1) [selector=0xbe8f3303, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>, word<bytes1>]] {
   bb0:
     v0 = or arg0, 0x200000000000000000000000000000000000000000000000000000000000000
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -11,7 +11,7 @@ fn @bitwise(arg0: bytes1) -> (bytes1, bytes1, bytes1) [selector=0xbe8f3303, pure
     ret v1, v3, v5
 }
 
-fn @shifts(arg0: bytes1) -> (bytes1, bytes1) [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word, word]] {
+fn @shifts(arg0: bytes1) -> (bytes1, bytes1) [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>]] {
   bb0:
     v0 = shl 1, arg0
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -20,14 +20,14 @@ fn @shifts(arg0: bytes1) -> (bytes1, bytes1) [selector=0x96fca76a, pure, abi_par
     ret v1, v3
 }
 
-fn @wide(arg0: bytes2) -> bytes2 [selector=0x8b537c35, pure, abi_params=[bytes2], abi_returns=[word]] {
+fn @wide(arg0: bytes2) -> bytes2 [selector=0x8b537c35, pure, abi_params=[bytes2], abi_returns=[word<bytes2>]] {
   bb0:
     v0 = or arg0, 0x1000000000000000000000000000000000000000000000000000000000000
     v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
     ret v1
 }
 
-fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns=[word]] {
+fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = not 31
     v1 = and 98, v0

@@ -15,7 +15,7 @@ fn @_anonymous(arg0: bytes2) [constructor, abi_params=[bytes2]] {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
-fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word, word]] {
+fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -111,7 +111,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v65 = address
     v66 = gas
     v67 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v68 = abi_encode [word], selector 0xa8775ceb00000000000000000000000000000000000000000000000000000000, args v67
+    v68 = abi_encode [word<bytes1>], selector 0xa8775ceb00000000000000000000000000000000000000000000000000000000, args v67
     v69 = slice_ptr v68
     v70 = slice_len v68
     v71 = staticcall v66, v65, v69, v70, 0, 32
@@ -246,7 +246,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     revert 0, 36
 }
 
-fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word]] {
+fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = shl 24, 255
     v1 = sload 0 !metadata(storage=slot(0))
@@ -268,7 +268,7 @@ fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns
     ret v11
 }
 
-fn @externalIdentity(arg0: bytes1) -> bytes1 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word]] {
+fn @externalIdentity(arg0: bytes1) -> bytes1 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
     ret arg0
 }

@@ -30,7 +30,7 @@ fn @readMemory(arg0: memorybytes) -> u256 [selector=0xfa397925, view, abi_params
     ret v1
 }
 
-fn @readMemoryFmp(arg0: memorybytes) -> bool [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word]] {
+fn @readMemoryFmp(arg0: memorybytes) -> bool [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128

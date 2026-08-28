@@ -12,7 +12,7 @@ fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_retur
     ret v0
 }
 
-fn @decimals() -> u8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word]] {
+fn @decimals() -> u8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = and v0, 255
@@ -201,7 +201,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:DeployStateStringInitializers ===
 @module DeployStateStringInitializers
-fn @deploys() -> bool [selector=0x225b4d71, abi_params=[], abi_returns=[word]] {
+fn @deploys() -> bool [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -364,7 +364,7 @@ fn @deploys() -> bool [selector=0x225b4d71, abi_params=[], abi_returns=[word]] {
     ret v80
 }
 
-fn @deploy() -> (memorybytes, memorybytes, u8) [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word]] {
+fn @deploy() -> (memorybytes, memorybytes, u8) [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -44,7 +44,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, 0xbeef, 7
     v13 = gas
     v14 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = abi_encode [word, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v14, 7
+    v15 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v14, 7
     v16 = slice_ptr v15
     v17 = slice_len v15
     v18 = extcodesize v11

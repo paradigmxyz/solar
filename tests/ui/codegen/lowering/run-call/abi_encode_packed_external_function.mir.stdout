@@ -5,7 +5,7 @@ fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @matches() -> bool [selector=0x55590d58, view, abi_params=[], abi_returns=[word]] {
+fn @matches() -> bool [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

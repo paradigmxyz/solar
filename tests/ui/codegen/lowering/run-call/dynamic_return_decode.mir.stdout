@@ -835,7 +835,7 @@ fn @arrLenAndSum() -> (u256, u256) [selector=0x3dc68ceb, abi_params=[], abi_retu
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringCaller ===
 @module StringCaller
-fn @strFirstAndLen() -> (bytes1, u256) [selector=0x2b10ead6, abi_params=[], abi_returns=[word, word]] {
+fn @strFirstAndLen() -> (bytes1, u256) [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

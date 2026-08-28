@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
 @module StorageArrayPushCalldata
-fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word]] {
+fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word<u120>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

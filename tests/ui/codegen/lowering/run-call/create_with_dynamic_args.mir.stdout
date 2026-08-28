@@ -55,7 +55,7 @@ fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns
     revert 0, 36
 }
 
-fn @decimals() -> u8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word]] {
+fn @decimals() -> u8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 255
@@ -182,13 +182,13 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Factory ===
 @module Factory
-fn @makeAndRead() -> (u256, u8) [selector=0x42c589ac, abi_params=[], abi_returns=[word, word]] {
+fn @makeAndRead() -> (u256, u8) [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
     memory_object_store_word memorybytes, v0, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v1 = and 18, 255
-    v2 = abi_encode [memory_bytes, word], args v0, v1
+    v2 = abi_encode [memory_bytes, word<u8>], args v0, v1
     v3 = slice_len v2
     v4 = add 0x88a, v3
     v5 = lt v4, 0x88a

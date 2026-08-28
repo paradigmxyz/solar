@@ -403,7 +403,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     revert 0, 36
 }
 
-fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word]] {
+fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     jump bb1
   bb1:

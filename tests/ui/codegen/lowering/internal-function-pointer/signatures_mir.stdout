@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
-fn @callVoid() -> bool [selector=0xd04622c6, abi_params=[], abi_returns=[word]] {
+fn @callVoid() -> bool [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     internal_call @internal_dispatcher_p_none_r_none, 0, 2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -19,7 +19,7 @@ fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @callState() -> bool [selector=0xb67d6f95, abi_params=[], abi_returns=[word]] {
+fn @callState() -> bool [selector=0xb67d6f95, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0

@@ -42,7 +42,7 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
   bb8:
     v22 = and v18, 255
     memory_object_store_element memoryfixedarray<3, 1>, v4, 2, v22
-    v23 = abi_encode [array<3, word>], object, args v4
+    v23 = abi_encode [array<3, word<u8>>], object, args v4
     ret v23
   bb7:
     revert 0, 0

@@ -36,7 +36,7 @@ fn @recordFirst(arg0: address) {
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 5
     memory_object_store_word memorybytes, v2, 0, 0x6669727374000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
+    v3 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize arg0
@@ -60,7 +60,7 @@ fn @recordSecond(arg0: address) {
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 6
     memory_object_store_word memorybytes, v2, 0, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
+    v3 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args v1, v2
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize arg0
@@ -110,7 +110,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     revert_returndata
   bb2:
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = abi_encode [word], args v15
+    v16 = abi_encode [word<u160>], args v15
     v17 = not 31
     v18 = and 878, v17
     v19 = alloc raw, exact, uninitialized, infallible, v18

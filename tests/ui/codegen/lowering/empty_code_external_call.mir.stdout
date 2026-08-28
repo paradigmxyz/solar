@@ -244,7 +244,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
     revert 0, 0
 }
 
-fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
+fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -293,7 +293,7 @@ fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
     ret 0
 }
 
-fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {
+fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
@@ -304,7 +304,7 @@ fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] 
     ret v4
 }
 
-fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word]] {
+fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
