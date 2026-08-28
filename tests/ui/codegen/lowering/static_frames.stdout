@@ -281,14 +281,14 @@ bb67:
   swap 1
   dup 2
   add
-  dup 1
-  push 416
-  mstore
   swap 1
   dup 2
   lt
   push bb70
   jumpi
+  dup 1
+  push 416
+  mstore
   push 0
   sstore
   push 97

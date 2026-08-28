@@ -37,9 +37,6 @@ bb16:
   dup 1
   dup 1
   add
-  dup 1
-  push 256
-  mstore
   swap 1
   dup 2
   lt
@@ -65,9 +62,6 @@ bb10:
   push 4
   calldataload
   add
-  dup 1
-  push 192
-  mstore
   push 4
   calldataload
   dup 2

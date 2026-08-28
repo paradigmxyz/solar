@@ -29,9 +29,6 @@ bb0:
   push 36
   dup 3
   add
-  dup 1
-  push 160
-  mstore
   swap 2
   push 0
   not
@@ -44,9 +41,6 @@ bb0:
   or
   swap 1
   calldataload
-  dup 1
-  push 192
-  mstore
   dup 3
   calldatasize
   sub

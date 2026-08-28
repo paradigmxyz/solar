@@ -33,15 +33,15 @@ bb0:
   push 4
   calldataload
   add
-  dup 1
-  push 160
-  mstore
   push 4
   calldataload
   dup 2
   lt
   push bb7
   jumpi
+  dup 1
+  push 160
+  mstore
   push 128
   mstore
   push 32

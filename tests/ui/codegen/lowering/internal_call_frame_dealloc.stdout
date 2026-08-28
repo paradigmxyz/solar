@@ -237,18 +237,6 @@ bb15:
   add
   mload
   add
-  dup 1
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  dup 1
-  push 160
-  mload
-  push 128
-  add
-  mstore
   push 160
   mload
   push 64

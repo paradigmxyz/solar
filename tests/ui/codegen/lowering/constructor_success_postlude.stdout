@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 77
+  push 73
   codesize
   sub
   dup 1
-  push 77
+  push 73
   push 224
   codecopy
   push 224
@@ -23,10 +23,7 @@ bb0:
   jumpi
   push 224
   dup 1
-  push 192
-  mstore
-  dup 1
-  push 77
+  push 73
   codesize
   sub
   add
@@ -48,7 +45,7 @@ bb0:
   jumpi
   push 3
   dup 1
-  push 74
+  push 70
   push 0
   codecopy
   push 0

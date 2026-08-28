@@ -42,9 +42,6 @@ bb15:
   push 4
   dup 2
   add
-  dup 1
-  push 288
-  mstore
   push 36
   dup 3
   add
@@ -84,9 +81,6 @@ bb7:
   swap 1
   push 32
   add
-  dup 1
-  push 192
-  mstore
   swap 1
   push 68
   calldataload
@@ -152,15 +146,9 @@ bb12:
   mstore
   dup 1
   calldataload
-  dup 1
-  push 192
-  mstore
   swap 1
   push 32
   add
-  dup 1
-  push 224
-  mstore
   push 36
   calldataload
   dup 3

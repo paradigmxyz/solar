@@ -1481,6 +1481,24 @@ impl<'a> StackPhiPlanner<'a> {
     }
 }
 
+/// A call's gas operand read right before the `CALL` instead of at its own definition:
+/// `gas()` or `sub(gas(), K)` used by that call alone. Targets without the 63/64 rule forward
+/// `gas() - K` with a fixed allowance for the code between the read and the call, so the
+/// scheduler must not park operands in between; reading last also saves the duplicate.
+struct LateGasOperand {
+    /// Constant subtracted from the fresh reading.
+    subtracted: Option<U256>,
+}
+
+/// A spill store emitted in the current block: the value, its slot, and the emitted
+/// `DUP`, address push, and `MSTORE`, which are stack-neutral as a whole.
+struct BlockSpillStore {
+    value: ValueId,
+    slot: SpillSlot,
+    block: ir::BlockId,
+    range: std::ops::Range<usize>,
+}
+
 /// EVM code generator.
 pub struct EvmCodegen<'gcx> {
     gcx: Gcx<'gcx>,
@@ -1584,6 +1602,17 @@ pub struct EvmCodegen<'gcx> {
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
+    /// Spill stores emitted so far in the block being generated, so a store that a preserved
+    /// exit makes dead can be removed again.
+    block_spill_stores: Vec<BlockSpillStore>,
+    /// Gas operands emitted fresh right before their call, keyed by the operand value.
+    late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
+    /// Values a planned stack layout carries or consumes: a planned edge skips their spill
+    /// stores on the assumption that the definition stored them early.
+    planned_stack_values: DenseBitSet<ValueId>,
+    /// Values whose early spill store a preserved exit removed. Their slot is written only where
+    /// a later block stores them itself, so a sibling arm's store must not vouch for them.
+    removed_spill_stores: DenseBitSet<ValueId>,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
     /// across one are kept stack-resident instead of reloaded from the
@@ -1669,6 +1698,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_sources: FxHashMap::default(),
             spill_available: None,
             elided_insts: FxHashSet::default(),
+            block_spill_stores: Vec::new(),
+            late_gas_operands: FxHashMap::default(),
+            planned_stack_values: DenseBitSet::new_empty(0),
+            removed_spill_stores: DenseBitSet::new_empty(0),
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
@@ -2978,6 +3011,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Eliminate phis.
         self.block_copies.clear();
         self.elided_insts.clear();
+        self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -3146,6 +3180,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         self.stack_phi_sources = stack_phi_sources;
+        self.planned_stack_values = DenseBitSet::new_empty(func.num_values());
+        self.removed_spill_stores = DenseBitSet::new_empty(func.num_values());
+        for values in stack_phi_plan
+            .edge_sources
+            .values()
+            .chain(stack_phi_plan.entries.values())
+            .chain(global_stack_plan.entries.values())
+        {
+            for &value in values {
+                self.planned_stack_values.insert(value);
+            }
+        }
         self.global_stack_active = !global_stack_plan.is_empty();
         self.global_stack_aliases = global_stack_plan.aliases.clone();
 
@@ -3199,6 +3245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            self.block_spill_stores.clear();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
             let label = self.block_labels[&block_id];
@@ -3254,6 +3301,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             self.spill_available = avail_in;
+            // The `stored` and `reloadable` flags are function-wide: a sibling arm that stored
+            // a carried value whose early store was removed sets them without covering this
+            // path. Drop the guarantee here so this path stores again before any reload.
+            if let Some(available) = &self.spill_available {
+                let unavailable = self
+                    .scheduler
+                    .stack
+                    .iter()
+                    .flatten()
+                    .filter(|value| {
+                        self.removed_spill_stores.contains(*value) && !available.contains(value)
+                    })
+                    .collect::<Vec<_>>();
+                for value in unavailable {
+                    self.scheduler.spills.invalidate_stored(value);
+                }
+            }
             if block_id == BlockId::ENTRY
                 && let Some(values) =
                     self.resident_stack_args(func_id).map(|values| values.to_vec())
@@ -3487,6 +3551,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Save an instruction result that remains live so either successor can reload
                 // the same definition instead of observing an unwritten reserved spill slot.
                 self.spill_value_if_needed(func, *condition);
+            }
+            if !preserve_branch_targets.is_empty() {
+                self.remove_dead_carried_spill_stores(
+                    func,
+                    liveness,
+                    block_id,
+                    &preserve_branch_targets,
+                );
             }
 
             let global_branch_preserved = if !stack_phi_preserved
@@ -3753,6 +3825,62 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
         preserved
+    }
+
+    /// Removes the spill stores this block emitted for values it defined that its preserved
+    /// exit carries into every arm reading them. Such a value reaches its readers on the stack,
+    /// so the store was only ever an early home; the arm stores the value itself at its exit if
+    /// a later block still reloads the slot.
+    fn remove_dead_carried_spill_stores(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block_id: BlockId,
+        preserved: &[BlockId],
+    ) {
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[block_id].terminator.as_ref()
+        else {
+            return;
+        };
+        let successors = [*then_block, *else_block];
+        let stores = std::mem::take(&mut self.block_spill_stores);
+        let mut removals = stores
+            .iter()
+            .filter(|store| {
+                let value = store.value;
+                let defined_here = matches!(func.value(value), Value::Inst(inst)
+                    if func.blocks[block_id].instructions.contains(inst));
+                // The JUMPI consumes the condition, so the arms reload it. A value a planned
+                // layout consumes keeps its store: the planned edge skips spilling its sources
+                // and a block past the phis may reload the slot. Every store of a carried value
+                // goes, a re-store after a clobber included: the stack copy the arm receives is
+                // the one it reads.
+                value != *condition
+                    && defined_here
+                    && !self.planned_stack_values.contains(value)
+                    && self.scheduler.stack.contains(value)
+                    && successors.iter().all(|&succ| {
+                        preserved.contains(&succ) || !liveness.live_in(succ).contains(value)
+                    })
+            })
+            .collect::<Vec<_>>();
+        // Later ranges first, so the earlier ones keep their indices.
+        removals.sort_by_key(|store| std::cmp::Reverse((store.block, store.range.start)));
+        for store in removals {
+            self.asm.remove_instructions(store.block, store.range.clone());
+            self.scheduler.spills.invalidate_stored(store.value);
+            self.removed_spill_stores.insert(store.value);
+            // The reloads that made the store mandatory now sit beyond the arm, which stores
+            // the value again at its exit when one remains.
+            self.scheduler.spills.clear_store_requirement(store.value);
+            if let Some(available) = &mut self.spill_available {
+                available.remove(&store.value);
+            }
+            if let Some(entry) = self.spill_addr_consts.get_mut(&u64::from(store.slot.offset)) {
+                entry.1 = entry.1.saturating_sub(1);
+            }
+        }
     }
 
     /// Whether a block may be entered with arbitrary extra words beneath the stack it expects:
@@ -5239,9 +5367,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // 1. If value is on top, ensure_on_top does nothing but we need a copy
         // 2. MSTORE will consume the value, and we want to preserve the original
         let dup_n = (depth + 1) as u8;
+        let (block, start) = self.asm.next_instruction_position();
         self.emit_stack_op(StackOp::Dup(dup_n));
 
         self.store_stack_top_to_spill(func, val, slot);
+        let (end_block, end) = self.asm.next_instruction_position();
+        if end_block == block {
+            self.block_spill_stores.push(BlockSpillStore {
+                value: val,
+                slot,
+                block,
+                range: start..end,
+            });
+        }
     }
 
     fn spill_deep_stack_value(
@@ -6156,7 +6294,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *value);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
 
                 // CALL consumes 7 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
@@ -6191,7 +6329,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *value);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
 
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::CALLCODE, StackEffect { pops: 7, pushes: 1 }, push);
@@ -6215,7 +6353,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_size);
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
                 // STATICCALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::STATICCALL, StackEffect { pops: 6, pushes: 1 }, push);
@@ -6239,7 +6377,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_size);
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
                 // DELEGATECALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(
@@ -10589,6 +10727,81 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a value fresh, without trying to DUP from the stack.
     /// This is used for CALL operands where we need to guarantee correct values
     /// regardless of scheduler stack tracking state.
+    /// Finds the calls whose gas operand can be read right before the `CALL` and elides the
+    /// operand's own definition; see [`LateGasOperand`].
+    fn collect_late_gas_operands(&mut self, func: &Function) {
+        self.late_gas_operands.clear();
+        let mut use_counts = IndexVec::<ValueId, u32>::from_vec(vec![0; func.num_values()]);
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                for operand in func.inst(inst_id).kind.operands() {
+                    use_counts[operand] += 1;
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    use_counts[operand] += 1;
+                }
+            }
+        }
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                let gas = match &func.inst(inst_id).kind {
+                    InstKind::Call { gas, .. }
+                    | InstKind::CallCode { gas, .. }
+                    | InstKind::StaticCall { gas, .. }
+                    | InstKind::DelegateCall { gas, .. } => *gas,
+                    _ => continue,
+                };
+                if use_counts[gas] != 1 {
+                    continue;
+                }
+                let Value::Inst(operand_inst) = *func.value(gas) else { continue };
+                let (reading, subtracted) = match &func.inst(operand_inst).kind {
+                    InstKind::Gas => (operand_inst, None),
+                    InstKind::Sub(lhs, rhs) => {
+                        let Value::Inst(reading) = *func.value(*lhs) else { continue };
+                        let Value::Immediate(imm) = func.value(*rhs) else { continue };
+                        let Some(subtracted) = imm.as_u256() else { continue };
+                        if !matches!(func.inst(reading).kind, InstKind::Gas)
+                            || use_counts[*lhs] != 1
+                        {
+                            continue;
+                        }
+                        (reading, Some(subtracted))
+                    }
+                    _ => continue,
+                };
+                // Both definitions must sit in the call's block: no other block expects the
+                // reading on its stack or in a slot.
+                if !block.instructions.contains(&reading)
+                    || !block.instructions.contains(&operand_inst)
+                {
+                    continue;
+                }
+                self.elided_insts.insert(reading);
+                self.elided_insts.insert(operand_inst);
+                self.late_gas_operands.insert(gas, LateGasOperand { subtracted });
+            }
+        }
+    }
+
+    /// Pushes a call's gas operand, reading the gas fresh when its definition was elided.
+    fn emit_gas_operand(&mut self, func: &Function, gas: ValueId) {
+        let Some(late) = self.late_gas_operands.get(&gas) else {
+            self.emit_value_fresh(func, gas);
+            return;
+        };
+        if let Some(subtracted) = late.subtracted {
+            self.asm.emit_push(subtracted);
+            self.asm.emit_op(op::GAS);
+            self.asm.emit_op(op::SUB);
+        } else {
+            self.asm.emit_op(op::GAS);
+        }
+        self.scheduler.stack.push(gas);
+    }
+
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.asm.emit_op(op);

@@ -23,9 +23,6 @@ bb0:
   jumpi
   push 416
   dup 1
-  push 384
-  mstore
-  dup 1
   push 436
   codesize
   sub
@@ -36,6 +33,9 @@ bb0:
   gt
   push bb8
   jumpi
+  dup 1
+  push 384
+  mstore
   dup 1
   mload
   push 8

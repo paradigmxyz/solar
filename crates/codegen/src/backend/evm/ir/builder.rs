@@ -14,6 +14,7 @@ use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
+use std::ops::Range;
 
 impl<'gcx> Assembler<'gcx> {
     /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
@@ -336,10 +337,37 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
-        let block = self.current_block();
-        let index = self.program.blocks[block].instructions.len();
+        let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
         (block, index)
+    }
+
+    /// Returns the block and index the next emitted instruction will take.
+    pub(crate) fn next_instruction_position(&mut self) -> (ir::BlockId, usize) {
+        let block = self.current_block();
+        (block, self.program.blocks[block].instructions.len())
+    }
+
+    /// Removes the instructions in `range` from `block` again. Relocations inside the range are
+    /// dropped and later ones in the block shift down; the range must lie within the block.
+    pub(crate) fn remove_instructions(&mut self, block: ir::BlockId, range: Range<usize>) {
+        fn shift<T>(
+            relocations: &mut Vec<(ir::BlockId, usize, T)>,
+            block: ir::BlockId,
+            range: &Range<usize>,
+        ) {
+            relocations
+                .retain(|(reloc_block, index, _)| *reloc_block != block || !range.contains(index));
+            for (reloc_block, index, _) in relocations.iter_mut() {
+                if *reloc_block == block && *index >= range.end {
+                    *index -= range.len();
+                }
+            }
+        }
+        shift(&mut self.label_relocations, block, &range);
+        shift(&mut self.deferred_relocations, block, &range);
+        shift(&mut self.alloc_relocations, block, &range);
+        self.program.blocks[block].instructions.drain(range);
     }
 
     pub(in crate::backend::evm) fn finish_evm_ir(

@@ -42,9 +42,6 @@ bb14:
   push 4
   dup 2
   add
-  dup 1
-  push 256
-  mstore
   push 36
   dup 3
   add
