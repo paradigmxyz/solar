@@ -9990,8 +9990,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let slot = if let Some(slot) = self.scheduler.reloadable_spill(arg) {
                         slot
                     } else {
+                        // Materialize the value only to establish its slot. The caller-stack
+                        // plan below was built from the current model, so the transient copy
+                        // must not stay on the stack.
                         self.emit_value(func, arg);
                         self.spill_value_if_needed(func, arg);
+                        if self.scheduler.stack.top() == Some(arg) {
+                            self.emit_stack_op(StackOp::Pop);
+                        }
                         self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
                             panic!(
                                 "computed stack argument {arg:?} is neither resident nor \
@@ -10025,7 +10031,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for op in plan.prepare_ops {
                     self.emit_stack_op(op);
                 }
-                debug_assert_eq!(plan.caller_stack.as_slice(), self.scheduler.stack.as_slice());
+                debug_assert_eq!(
+                    plan.caller_stack.as_slice(),
+                    self.scheduler.stack.as_slice(),
+                    "caller-stack plan built from a stale model in `{}` at {block:?}:{inst_idx}",
+                    func.name
+                );
                 plan.caller_stack.inherit_max_depth(self.scheduler.stack.max_depth());
                 plan.caller_stack
             })
